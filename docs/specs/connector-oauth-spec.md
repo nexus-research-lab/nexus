@@ -90,7 +90,7 @@ Shopify: create a public app in the Partner dashboard and add the callback under
 - Redirect URIs must match `CONNECTOR_OAUTH_ALLOWED_ORIGINS` by scheme, host, and path prefix. The default allows local web development at `http://localhost:3000`.
 - Only provider-declared extra keys are persisted in `extra_json`; unknown query parameters are ignored.
 - Connector credentials are encrypted with AES-GCM into `connector_connections.credentials_encrypted` when `CONNECTOR_CREDENTIALS_KEY` is configured. The key must be a 32-byte base64 value.
-- Desktop GitHub packages only `CONNECTOR_GITHUB_CLIENT_ID`. `client_secret` must not be embedded in `.app` resources, Windows resources, zip, DMG, or installer assets.
+- Desktop GitHub packages only `CONNECTOR_GITHUB_CLIENT_ID`. `client_secret` must not be embedded in `.app` resources, Windows resources, DMG, installer assets, or service archives.
 
 ## OAuth client configuration
 

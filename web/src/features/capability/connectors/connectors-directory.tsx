@@ -15,6 +15,7 @@ import { ConnectorDeviceAuthDialog } from "./connector-device-auth-dialog";
 import { ConnectorsGrid } from "./connectors-grid";
 import { ConnectorsHeader } from "./connectors-header";
 import { ConnectorsSearchBar } from "./connectors-search-bar";
+import { subscribe_connector_oauth_event } from "./connector-oauth-events";
 
 /* ── 连接器页面主编排组件 ────────────────────── */
 
@@ -25,36 +26,22 @@ export function ConnectorsDirectory() {
     status_message,
     error_message,
     set_status_message,
+    refresh,
   } = ctrl;
 
   useEffect(() => {
-    const handle_message = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) {
-        return;
-      }
-      const data = event.data as
-        | { type?: string; message?: string }
-        | undefined;
-      if (!data?.type?.startsWith("connector-oauth:")) {
-        return;
+    return subscribe_connector_oauth_event((event) => {
+      if (event.type === "connector-oauth:success") {
+        set_status_message(event.message || "连接成功");
+        void refresh();
       }
 
-      if (data.type === "connector-oauth:success") {
-        set_status_message(data.message || "连接成功");
-        void ctrl.refresh();
+      if (event.type === "connector-oauth:error") {
+        set_error_message(event.message || "OAuth 连接失败");
+        void refresh();
       }
-
-      if (data.type === "connector-oauth:error") {
-        set_error_message(data.message || "OAuth 连接失败");
-        void ctrl.refresh();
-      }
-    };
-
-    window.addEventListener("message", handle_message);
-    return () => {
-      window.removeEventListener("message", handle_message);
-    };
-  }, [ctrl, set_error_message, set_status_message]);
+    });
+  }, [refresh, set_error_message, set_status_message]);
 
   const feedback_items: FeedbackBannerItem[] = [];
   if (status_message) {

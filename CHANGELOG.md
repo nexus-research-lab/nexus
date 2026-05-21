@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、主连接器列表可能收不到刷新事件的问题，并让线上 nginx callback 路由使用轻量入口。
+
 ## [0.1.8] - 2026-05-21
 
 ### Added
@@ -14,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `make app-win-build` 默认使用当前时间戳作为 Windows 桌面 app 构建号，方便未提交改动的本地临时测试；需要固定构建号时仍可通过 `APP_WIN_BUILD_NUMBER` 覆盖。
+- 精简 GitHub `Publish Release` 资产：发布页只上传 macOS DMG、Windows 安装器及必要 sha256/metadata，不再上传自定义源码归档、Linux/Windows bin 包或 Windows 便携 zip。
+- Windows 桌面 package 脚本改为安装器优先，本地默认只产出 installer、sha256 和 metadata。
 - 收口 Memory 调度与接口测试，提升记忆动态召回、checkpoint 和 HTTP API 的回归覆盖。
 - Windows 桌面 App 点击窗口关闭按钮时改为隐藏到系统托盘，真正退出需通过托盘图标右键菜单执行。
 - Windows 桌面 App 托盘右键菜单改为带标题、分组和悬停高亮的样式化菜单。

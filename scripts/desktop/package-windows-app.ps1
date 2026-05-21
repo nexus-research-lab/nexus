@@ -23,7 +23,6 @@ param(
   [int]$SmokeTimeoutSeconds = 75,
   [switch]$SkipBuild,
   [switch]$SkipSmoke,
-  [switch]$SkipInstaller,
   [switch]$SkipSigning,
   [switch]$SkipWebView2Bootstrapper
 )
@@ -141,7 +140,6 @@ Inno Setup 6 compiler is required to build the Windows installer.
 Install it with:
   winget install --id JRSoftware.InnoSetup -e
 or set NEXUS_INNO_SETUP_COMPILER to ISCC.exe.
-Use -SkipInstaller to build only the portable zip.
 "@
 }
 
@@ -163,7 +161,7 @@ function Resolve-WebView2Bootstrapper(
   }
 
   if ([string]::IsNullOrWhiteSpace($bootstrapperUrl)) {
-    throw "WebView2 bootstrapper URL is empty. Set NEXUS_WEBVIEW2_BOOTSTRAPPER_URL or use -SkipWebView2Bootstrapper with -SkipInstaller."
+    throw "WebView2 bootstrapper URL is empty. Set NEXUS_WEBVIEW2_BOOTSTRAPPER_URL."
   }
 
   New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
@@ -395,18 +393,15 @@ if ([string]::IsNullOrWhiteSpace($InstallerName)) {
 $stagingRoot = Join-Path $OutputDir "staging"
 $stagingDir = Join-Path $stagingRoot $PackageName
 $stagedAppDir = Join-Path $stagingDir $AppName
-$artifactPath = Join-Path $OutputDir "$PackageName.zip"
-$sha256Path = "$artifactPath.sha256"
 if ([string]::IsNullOrWhiteSpace($InstallerOutputPath)) {
   $InstallerOutputPath = Join-Path $OutputDir "$InstallerName.exe"
 }
 $installerSha256Path = "$InstallerOutputPath.sha256"
 $installerScriptPath = Join-Path $OutputDir "$PackageName.installer.iss"
 if ([string]::IsNullOrWhiteSpace($MetadataPath)) {
-  $MetadataPath = "$artifactPath.metadata.json"
+  $MetadataPath = Join-Path $OutputDir "$PackageName.metadata.json"
 }
 $metadataStagingPath = Join-Path $stagingDir "PACKAGE-METADATA.json"
-$buildInstaller = -not $SkipInstaller -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_INSTALLER -ne "1"
 $signingCertificateResolvedPath = ""
 $resolvedSignToolPath = ""
 $signingWorkDir = Join-Path ([System.IO.Path]::GetTempPath()) ("nexus-windows-signing-" + [Guid]::NewGuid().ToString("N"))
@@ -463,18 +458,19 @@ if ((-not $SkipSmoke) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE -ne "1") {
     -TimeoutSeconds $SmokeTimeoutSeconds
 }
 
-foreach ($path in @($stagingDir, $artifactPath, $sha256Path, $MetadataPath, $InstallerOutputPath, $installerSha256Path, $installerScriptPath)) {
+foreach ($path in @($stagingDir, $MetadataPath, $InstallerOutputPath, $installerSha256Path, $installerScriptPath)) {
   if (Test-Path -LiteralPath $path) {
     Remove-Item -LiteralPath $path -Recurse -Force
   }
 }
 New-Item -ItemType Directory -Force -Path $stagedAppDir | Out-Null
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+Get-ChildItem -LiteralPath $OutputDir -Filter "$AppName-windows-*.zip*" -File -ErrorAction SilentlyContinue |
+  Remove-Item -Force
 
 Copy-Item -Recurse -Force -Path (Join-Path $AppBuildDir "*") -Destination $stagedAppDir
 
 $readmePath = Join-Path $stagingDir "README.txt"
-$packageSigningLabel = if ($signingEnabled) { "Authenticode-signed" } else { "unsigned" }
 $installerSigningLabel = if ($signingEnabled) { "Authenticode-signed" } else { "unsigned" }
 @"
 Nexus Windows app package
@@ -484,20 +480,17 @@ Build: $resolvedBuildNumber
 Commit: $commitShort
 Created: $createdAt
 
-This package is a $packageSigningLabel portable zip. The release also provides a $installerSigningLabel installer when built without -SkipInstaller.
-After verifying the sha256 file, unzip the package and run:
-  $AppName\$executableFileName
+This installation was produced by a $installerSigningLabel Inno Setup installer:
+  $InstallerName.exe
 
-WebView2 Runtime is required for the portable zip. The installer bundles the Evergreen bootstrapper. The app stores local data under:
+The installer bundles the WebView2 Evergreen bootstrapper. The app stores local data under:
   ~/.nexus
 
 To reset app data, quit Nexus first, then remove that directory.
-To register nexus:// for the unzipped directory, run:
-  $AppName\register-nexus-protocol.ps1
 "@ | Set-Content -Encoding UTF8 -Path $readmePath
 
 $webView2BootstrapperUrlForMetadata = $null
-if ($buildInstaller -and (-not $SkipWebView2Bootstrapper)) {
+if (-not $SkipWebView2Bootstrapper) {
   $webView2BootstrapperUrlForMetadata = $WebView2BootstrapperUrl
 }
 $signingKind = "unsigned"
@@ -522,7 +515,7 @@ $metadata = [ordered]@{
   }
   dependencies = [ordered]@{
     webview2 = [ordered]@{
-      installer_bootstrapper = $buildInstaller
+      installer_bootstrapper = $true
       bootstrapper_url = $webView2BootstrapperUrlForMetadata
     }
   }
@@ -534,7 +527,7 @@ $metadata = [ordered]@{
   signing = [ordered]@{
     kind = $signingKind
     code_signed = $signingEnabled
-    installer = $buildInstaller
+    installer = $true
     timestamp_server = $signingTimestampServer
   }
   credentials = [ordered]@{
@@ -542,11 +535,12 @@ $metadata = [ordered]@{
     fallback_storage = "file"
   }
   artifact = [ordered]@{
-    name = $PackageName
-    format = "zip"
+    name = $InstallerName
+    format = "exe"
+    kind = "installer"
   }
   installer_artifact = [ordered]@{
-    built = $buildInstaller
+    built = $true
     name = $InstallerName
     file = (Split-Path -Leaf $InstallerOutputPath)
     format = "exe"
@@ -563,68 +557,64 @@ $metadata = [ordered]@{
 $metadata | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 -Path $metadataStagingPath
 Copy-Item -Force -LiteralPath $metadataStagingPath -Destination $MetadataPath
 
-Compress-Archive -Path $stagingDir -DestinationPath $artifactPath -Force
-$hash = (Get-FileHash -Algorithm SHA256 $artifactPath).Hash.ToLowerInvariant()
-"$hash  $(Split-Path -Leaf $artifactPath)" | Set-Content -Encoding ASCII -Path $sha256Path
-
-if ($buildInstaller) {
-  if ($SkipWebView2Bootstrapper) {
-    throw "Windows installer requires the WebView2 Evergreen bootstrapper. Use -SkipInstaller for zip-only packages."
-  }
-
-  $compilerPath = Resolve-InnoSetupCompiler $InnoSetupCompiler
-  $iconPath = Join-Path $windowsDir "Nexus.Desktop/Resources/AppIcon.ico"
-  if (-not (Test-Path -LiteralPath $iconPath)) {
-    throw "Missing Windows installer icon: $iconPath"
-  }
-  $resolvedWebView2BootstrapperPath = Resolve-WebView2Bootstrapper `
-    -bootstrapperPath $WebView2BootstrapperPath `
-    -bootstrapperUrl $WebView2BootstrapperUrl `
-    -outputDir $OutputDir `
-    -skipDownload $false
-
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $InstallerOutputPath) | Out-Null
-  Write-InnoSetupScript `
-    -Path $installerScriptPath `
-    -AppName $AppName `
-    -ExecutableFileName $executableFileName `
-    -Version $appVersion `
-    -InstallerName $InstallerName `
-    -OutputDir (Split-Path -Parent $InstallerOutputPath) `
-    -StagedAppDir $stagedAppDir `
-    -ReadmePath $readmePath `
-    -MetadataPath $metadataStagingPath `
-    -IconPath $iconPath `
-    -WebView2BootstrapperPath $resolvedWebView2BootstrapperPath
-
-  Write-Host "==> Building Windows installer"
-  & $compilerPath "/Qp" $installerScriptPath
-  if ($LASTEXITCODE -ne 0) {
-    throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
-  }
-  if (-not (Test-Path -LiteralPath $InstallerOutputPath)) {
-    throw "Missing Windows installer artifact: $InstallerOutputPath"
-  }
-
-  if ($signingEnabled) {
-    Invoke-WindowsSigning `
-      -path $InstallerOutputPath `
-      -toolPath $resolvedSignToolPath `
-      -certificatePath $signingCertificateResolvedPath `
-      -certificatePassword $SigningCertificatePassword `
-      -timestampServer $TimestampServer
-  }
-
-  $installerHash = (Get-FileHash -Algorithm SHA256 $InstallerOutputPath).Hash.ToLowerInvariant()
-  "$installerHash  $(Split-Path -Leaf $InstallerOutputPath)" | Set-Content -Encoding ASCII -Path $installerSha256Path
+if ($SkipWebView2Bootstrapper) {
+  throw "Windows installer requires the WebView2 Evergreen bootstrapper."
 }
 
-Write-Host "Windows app zip: $artifactPath"
-Write-Host "sha256: $sha256Path"
+$compilerPath = Resolve-InnoSetupCompiler $InnoSetupCompiler
+$iconPath = Join-Path $windowsDir "Nexus.Desktop/Resources/AppIcon.ico"
+if (-not (Test-Path -LiteralPath $iconPath)) {
+  throw "Missing Windows installer icon: $iconPath"
+}
+$resolvedWebView2BootstrapperPath = Resolve-WebView2Bootstrapper `
+  -bootstrapperPath $WebView2BootstrapperPath `
+  -bootstrapperUrl $WebView2BootstrapperUrl `
+  -outputDir $OutputDir `
+  -skipDownload $false
+$removeResolvedWebView2Bootstrapper = [string]::IsNullOrWhiteSpace($WebView2BootstrapperPath)
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $InstallerOutputPath) | Out-Null
+Write-InnoSetupScript `
+  -Path $installerScriptPath `
+  -AppName $AppName `
+  -ExecutableFileName $executableFileName `
+  -Version $appVersion `
+  -InstallerName $InstallerName `
+  -OutputDir (Split-Path -Parent $InstallerOutputPath) `
+  -StagedAppDir $stagedAppDir `
+  -ReadmePath $readmePath `
+  -MetadataPath $metadataStagingPath `
+  -IconPath $iconPath `
+  -WebView2BootstrapperPath $resolvedWebView2BootstrapperPath
+
+Write-Host "==> Building Windows installer"
+& $compilerPath "/Qp" $installerScriptPath
+if ($LASTEXITCODE -ne 0) {
+  throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
+}
+if (-not (Test-Path -LiteralPath $InstallerOutputPath)) {
+  throw "Missing Windows installer artifact: $InstallerOutputPath"
+}
+
+if ($signingEnabled) {
+  Invoke-WindowsSigning `
+    -path $InstallerOutputPath `
+    -toolPath $resolvedSignToolPath `
+    -certificatePath $signingCertificateResolvedPath `
+    -certificatePassword $SigningCertificatePassword `
+    -timestampServer $TimestampServer
+}
+
+$installerHash = (Get-FileHash -Algorithm SHA256 $InstallerOutputPath).Hash.ToLowerInvariant()
+"$installerHash  $(Split-Path -Leaf $InstallerOutputPath)" | Set-Content -Encoding ASCII -Path $installerSha256Path
+
 Write-Host "metadata: $MetadataPath"
-if ($buildInstaller) {
-  Write-Host "installer: $InstallerOutputPath"
-  Write-Host "installer sha256: $installerSha256Path"
-}
+Write-Host "installer: $InstallerOutputPath"
+Write-Host "installer sha256: $installerSha256Path"
 
+Remove-Item -Recurse -Force $stagingRoot -ErrorAction SilentlyContinue
+Remove-Item -Force $installerScriptPath -ErrorAction SilentlyContinue
+if ($removeResolvedWebView2Bootstrapper) {
+  Remove-Item -Force $resolvedWebView2BootstrapperPath -ErrorAction SilentlyContinue
+}
 Remove-Item -Recurse -Force $signingWorkDir -ErrorAction SilentlyContinue

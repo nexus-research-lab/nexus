@@ -311,7 +311,7 @@ nexus://connectors/oauth/callback
 
 ## 9. 发布链路
 
-当前 `Publish Release` workflow 已经负责同一个 tag 下的源码包、Linux/Windows 可运行包、release notes 和 GitHub Release 创建。macOS 与 Windows 原生 app 包也属于同一个 Release asset 集合，因此复用同一个 workflow，并拆成独立 `macos_app` / `windows_app` job 在对应 runner 上构建；最终 `release` job 统一下载并上传全部 assets，避免两个 workflow 同时创建或追加同一个 Release。
+当前 `Publish Release` workflow 负责同一个 tag 下的桌面 app 产物、release notes 和 GitHub Release 创建。macOS 与 Windows 原生 app 包属于同一个 Release asset 集合，因此复用同一个 workflow，并拆成独立 `macos_app` / `windows_app` job 在对应 runner 上构建；最终 `release` job 统一下载并上传必要 assets，避免两个 workflow 同时创建或追加同一个 Release。GitHub 会自动提供 tag 的 Source code zip/tar.gz，workflow 不再额外上传自定义源码归档或服务 bin 包。
 
 流水线：
 
@@ -322,9 +322,8 @@ nexus://connectors/oauth/callback
 5. 脚本执行 ad-hoc codesign、plist/codesign 校验和桌面 smoke。
 6. 脚本生成 `Nexus-macos-<version>-<build>.dmg`、`.sha256` 与 `.metadata.json`。
 7. macOS job 上传临时 workflow artifact。
-8. Windows job 执行 `scripts/desktop/package-windows-app.ps1`，生成 self-contained app zip、Inno Setup 安装器、sha256 与 metadata；配置 Windows 签名 secret 时同步做 Authenticode 签名。
-9. Ubuntu release job 继续生成源码包与 Linux/Windows 可运行包。
-10. Ubuntu release job 下载 macOS / Windows app artifacts，并统一上传到 GitHub Release。
+8. Windows job 执行 `scripts/desktop/package-windows-app.ps1`，生成 Inno Setup 安装器、sha256 与 metadata；配置 Windows 签名 secret 时同步做 Authenticode 签名。
+9. Ubuntu release job 下载 macOS / Windows app artifacts，并统一上传到 GitHub Release。
 
 等 Developer ID、Notary、公证 staple 和 Sparkle appcast 都进入正式发布阶段后，再考虑拆成独立 `publish-macos-app.yml` 或可复用 workflow。那时 macOS 发布线会有独立证书、secret、失败重试和更新通道。
 
@@ -339,15 +338,15 @@ nexus://connectors/oauth/callback
 
 第一版可以本地构建 `.app` 和 zip/dmg，但 public beta 前签名、公证和自动更新必须完成。
 
-Windows 原生 app 发布链路进入第一阶段闭环：`scripts/package-release.sh` 仍产出 Windows 可运行服务包，`desktop/windows` 产出独立的 WPF/WebView2 app zip 与 Inno Setup 安装器，并作为同一个 GitHub Release 的 app asset 上传。当前默认构建为 `win-x64`，shell 使用 self-contained .NET，安装器使用 `x64compatible` 架构约束，可运行在 x64 Windows 与支持 x64 仿真的 Windows 11 ARM64 上，并内置 WebView2 Evergreen Runtime bootstrapper；没有配置签名证书时仍会产出 unsigned 包。
+Windows 原生 app 发布链路进入第一阶段闭环：`desktop/windows` 产出 WPF/WebView2 app 并打入 Inno Setup 安装器，作为同一个 GitHub Release 的 app asset 上传。当前默认构建为 `win-x64`，shell 使用 self-contained .NET，安装器使用 `x64compatible` 架构约束，可运行在 x64 Windows 与支持 x64 仿真的 Windows 11 ARM64 上，并内置 WebView2 Evergreen Runtime bootstrapper；没有配置签名证书时仍会产出 unsigned 包。`scripts/package-release.sh` 仍可用于服务包场景，但不再进入默认 GitHub Release 资产集合。
 
 ```powershell
 pwsh scripts/desktop/package-windows-app.ps1
 ```
 
-该脚本会调用 `build-windows-app.ps1` 构建 `web/dist`、交叉编译并注入版本信息到 `nexus-server.exe`，再通过 `dotnet publish --self-contained true` 组装 WPF/WebView2 shell；随后按需签名 app exe 与 sidecar，调用 `smoke-windows-app.ps1` 验证 launcher ready、sidecar 存在和退出清理，最后输出 `Nexus-windows-<version>-<build>.zip`、`.zip.sha256`、`.zip.metadata.json`、`NexusSetup-<version>-<build>.exe` 和安装器 `.sha256`。
+该脚本会调用 `build-windows-app.ps1` 构建 `web/dist`、交叉编译并注入版本信息到 `nexus-server.exe`，再通过 `dotnet publish --self-contained true` 组装 WPF/WebView2 shell；随后按需签名 app exe 与 sidecar，调用 `smoke-windows-app.ps1` 验证 launcher ready、sidecar 存在和退出清理，最后输出 `Nexus-windows-<version>-<build>.metadata.json`、`NexusSetup-<version>-<build>.exe` 和安装器 `.sha256`。
 
-GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest` 上执行同一 package 脚本，并把 Windows app zip、installer、sha256、metadata 交给最终 `release` job 与 macOS dmg、Linux/Windows 可运行服务包一并上传。后续公开发布前仍需补齐真实签名证书、自动更新、升级策略和更完整的 Windows QA 记录。
+GitHub `Publish Release` workflow 的 `windows_app` job 会在 `windows-latest` 上执行同一 package 脚本，并把 Windows installer、sha256、metadata 交给最终 `release` job 与 macOS dmg 一并上传。后续公开发布前仍需补齐真实签名证书、自动更新、升级策略和更完整的 Windows QA 记录。
 
 ## 10. 验收标准
 
@@ -443,7 +442,7 @@ GitHub `Publish Release` workflow 新增 `windows_app` job，在 `windows-latest
 - Shell 选择随机 loopback 端口，并注入 API / WS / session token / 版本 / 平台。
 - 默认加载完整 launcher `/`，进入工作台后再切换 `/app`。
 - Bridge 第一阶段覆盖版本读取、外链打开、日志导出、主窗口路由和快捷键状态占位。
-- 第一阶段使用 DPAPI 保存 connector credentials encryption key，并补单实例、基础协议唤起、smoke 脚本和 zip 打包。
+- 第一阶段使用 DPAPI 保存 connector credentials encryption key，并补单实例、基础协议唤起、smoke 脚本和安装器打包。
 - 后续补托盘/任务栏语义、安装器、签名、自动更新和 Windows QA 清单。
 
 ## 12. 明确不做
