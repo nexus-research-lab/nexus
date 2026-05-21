@@ -176,22 +176,24 @@ export function AgentPrivateDomainView({
   if (is_preview) {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-        <PrivateDomainToolbar
-          count={threads.length}
-          is_loading={threads_loading || events_loading}
-          on_refresh={handle_refresh}
-          title="联络"
-        />
         <div className="grid h-full min-h-0 flex-1 grid-cols-[230px_minmax(0,1fr)] items-stretch gap-3 overflow-hidden px-4 pb-4 pt-3 2xl:grid-cols-[250px_minmax(0,1fr)]">
-          <PrivateThreadList
-            agent_id={agent.agent_id}
-            class_name="h-full min-h-0 rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_36%,transparent)]"
-            compact
-            is_loading={threads_loading}
-            on_select={set_selected_thread_id}
-            selected_thread_id={selected_thread_id}
-            threads={threads}
-          />
+          <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_36%,transparent)]">
+            <PrivateDomainToolbar
+              count={threads.length}
+              is_loading={threads_loading || events_loading}
+              on_refresh={handle_refresh}
+              title="联络"
+            />
+            <PrivateThreadList
+              agent_id={agent.agent_id}
+              class_name="min-h-0 flex-1"
+              compact
+              is_loading={threads_loading}
+              on_select={set_selected_thread_id}
+              selected_thread_id={selected_thread_id}
+              threads={threads}
+            />
+          </section>
           <PrivateEventTimeline
             agent_id={agent.agent_id}
             class_name="h-full min-h-0"
