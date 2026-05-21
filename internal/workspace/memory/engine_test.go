@@ -212,3 +212,18 @@ func TestMemorySchedulerCadence(t *testing.T) {
 		t.Fatalf("空闲 10 分钟后应抽取: %+v", idle)
 	}
 }
+
+func TestExtractMessageTextSupportsTypedContentBlocks(t *testing.T) {
+	message := map[string]any{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "第一段"},
+			{"type": "text", "text": "第二段"},
+		},
+	}
+
+	text := ExtractMessageText(message)
+	if text != "第一段\n第二段" {
+		t.Fatalf("typed content blocks 提取失败: %q", text)
+	}
+}

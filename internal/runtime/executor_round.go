@@ -236,10 +236,7 @@ func ExecuteRound(
 			}
 
 			if strings.TrimSpace(mapResult.TerminalStatus) != "" {
-				return RoundExecutionResult{
-					TerminalStatus: strings.TrimSpace(mapResult.TerminalStatus),
-					ResultSubtype:  strings.TrimSpace(mapResult.ResultSubtype),
-				}, nil
+				return terminalRoundResult(mapResult, assistantTerminalResult), nil
 			}
 			if assistantResult, ok := terminalAssistantResult(mapResult); ok {
 				assistantTerminalResult = &assistantResult
@@ -249,6 +246,49 @@ func ExecuteRound(
 			}
 		}
 	}
+}
+
+func terminalRoundResult(
+	mapResult RoundMapResult,
+	assistantTerminalResult *RoundExecutionResult,
+) RoundExecutionResult {
+	result := RoundExecutionResult{
+		TerminalStatus: strings.TrimSpace(mapResult.TerminalStatus),
+		ResultSubtype:  strings.TrimSpace(mapResult.ResultSubtype),
+	}
+	if !isSuccessfulRoundResult(result) {
+		return result
+	}
+	if assistantResult, ok := terminalAssistantResult(mapResult); ok && assistantResult.CompletedByAssistant {
+		result.CompletedByAssistant = true
+		return result
+	}
+	if hasSuccessfulResultMessage(mapResult) {
+		result.CompletedByAssistant = true
+		return result
+	}
+	if assistantTerminalResult != nil && assistantTerminalResult.CompletedByAssistant {
+		result.CompletedByAssistant = true
+	}
+	return result
+}
+
+func isSuccessfulRoundResult(result RoundExecutionResult) bool {
+	return result.TerminalStatus == "finished" &&
+		(result.ResultSubtype == "" || result.ResultSubtype == "success")
+}
+
+func hasSuccessfulResultMessage(mapResult RoundMapResult) bool {
+	for _, messageValue := range mapResult.DurableMessages {
+		if messageValue == nil || protocol.MessageRole(messageValue) != "result" {
+			continue
+		}
+		if messageString(messageValue["subtype"]) == "error" || messageValue["is_error"] == true {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func roundQueryContent(request RoundExecutionRequest) any {

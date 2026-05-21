@@ -682,6 +682,15 @@ func ExtractMessageText(message protocol.Message) string {
 		}
 		return strings.TrimSpace(strings.Join(parts, "\n"))
 	}
+	if content, ok := message["content"].([]map[string]any); ok {
+		parts := make([]string, 0, len(content))
+		for _, block := range content {
+			if text := extractContentBlockText(block); text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.TrimSpace(strings.Join(parts, "\n"))
+	}
 	return ""
 }
 
