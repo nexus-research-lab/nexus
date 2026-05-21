@@ -145,7 +145,7 @@ function RoomSurfaceLayoutInner({
     key: number;
   }>({
     agent_id: null,
-    tab: "identity",
+    tab: "private_domain",
     key: 0,
   });
 
@@ -157,7 +157,7 @@ function RoomSurfaceLayoutInner({
     if (tab === "about") {
       set_about_request((current) => ({
         agent_id: current_agent.agent_id,
-        tab: "identity",
+        tab: "private_domain",
         key: current.key + 1,
       }));
     }

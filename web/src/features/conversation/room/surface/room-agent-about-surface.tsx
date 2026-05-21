@@ -66,11 +66,11 @@ export function RoomAgentAboutSurface({
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selected_agent_id, set_selected_agent_id] = useState(agent.agent_id);
-  const [active_tab, set_active_tab] = useState<RoomAgentPanelTabKey>("identity");
+  const [active_tab, set_active_tab] = useState<RoomAgentPanelTabKey>("private_domain");
 
   useEffect(() => {
     set_selected_agent_id(requested_agent_id ?? agent.agent_id);
-    set_active_tab(requested_tab ?? "identity");
+    set_active_tab(requested_tab ?? "private_domain");
   }, [agent.agent_id, request_key, requested_agent_id, requested_tab]);
 
   const selected_agent = useMemo(() => {
