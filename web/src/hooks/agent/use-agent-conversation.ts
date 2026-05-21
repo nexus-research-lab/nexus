@@ -1386,6 +1386,7 @@ export function useAgentConversation(
             latest_session_seq,
           );
         }
+        on_room_event_callback?.(event.event_type, event.data ?? {});
         void reload_current_session().finally(() => {
           if (!session_key || ws_state_ref.current !== "connected") {
             return;
