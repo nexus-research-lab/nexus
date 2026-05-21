@@ -526,18 +526,26 @@ function ParticipantAvatarStack({
   participants: AgentPrivateParticipant[];
 }) {
   const peers = participants.filter((participant) => participant.agent_id !== owner_agent_id);
-  const visible = (peers.length ? peers : participants).slice(0, 3);
+  const stack_participants = peers.length ? peers : participants;
+  const is_group = stack_participants.length > 1;
+  const visible = stack_participants.slice(0, is_group ? 2 : 1);
+  const overflow_count = Math.max(stack_participants.length - visible.length, 0);
   return (
-    <div className="flex h-9 min-w-[38px] items-center">
+    <div className="relative flex h-9 w-10 shrink-0 items-center justify-start">
       {visible.map((participant, index) => (
         <span
           className={cn(index > 0 && "-ml-2")}
           key={participant.agent_id}
           style={{ zIndex: 10 - index }}
         >
-          <AgentAvatar participant={participant} size="md" />
+          <AgentAvatar participant={participant} size={is_group ? "stack" : "md"} />
         </span>
       ))}
+      {overflow_count > 0 ? (
+        <span className="absolute bottom-0 right-0 z-20 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-(--surface-elevated-background) bg-(--surface-muted-background) px-0.5 text-[8px] font-bold leading-none text-(--text-soft)">
+          +{overflow_count}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -547,10 +555,14 @@ function AgentAvatar({
   size,
 }: {
   participant?: AgentPrivateParticipant;
-  size: "sm" | "md";
+  size: "sm" | "stack" | "md";
 }) {
   const src = get_icon_avatar_src(participant?.avatar ?? null);
-  const class_name = size === "sm" ? "h-5 w-5 text-[9px]" : "h-8 w-8 text-[11px]";
+  const class_name = size === "sm"
+    ? "h-5 w-5 text-[9px]"
+    : size === "stack"
+      ? "h-6 w-6 text-[10px]"
+      : "h-8 w-8 text-[11px]";
   return (
     <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) font-black text-(--text-muted)", class_name)}>
       {src ? (
