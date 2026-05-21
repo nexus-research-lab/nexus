@@ -204,7 +204,7 @@ export function AgentPrivateDomainView({
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
-      <div className="grid h-full min-h-0 w-full grid-cols-[280px_minmax(320px,1fr)] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)]">
+      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1120px] grid-cols-[280px_minmax(320px,1fr)] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)]">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
           <PrivateDomainToolbar
             count={threads.length}
