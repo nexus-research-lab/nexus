@@ -5,12 +5,14 @@ import {
   ArrowLeft,
   Album,
   Bot,
+  LockKeyhole,
   MessageSquareText,
   ToolCase,
   UserPen,
   Users,
 } from "lucide-react";
 
+import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { get_icon_avatar_src } from "@/lib/utils";
@@ -44,6 +46,8 @@ interface ContactsAgentDetailProps {
   ) => Promise<AgentNameValidationResult>;
 }
 
+type ContactDetailTabKey = TabKey | "private_domain";
+
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
@@ -56,13 +60,14 @@ export function ContactsAgentDetail({
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const avatar_src = get_icon_avatar_src(agent.avatar);
-  const [active_tab, set_active_tab] = useState<TabKey>("identity");
+  const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("identity");
 
   const config_tabs = useMemo(
     () => [
       { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
       { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
+      { key: "private_domain" as ContactDetailTabKey, label: "私域", icon: LockKeyhole },
     ],
     [t],
   );
@@ -171,26 +176,30 @@ export function ContactsAgentDetail({
         trailing={trailing}
       />
 
-      <AgentOptionsEditor
-        active_tab={active_tab}
-        agent_id={agent.agent_id}
-        content_max_width_class_name="max-w-[860px]"
-        hide_inline_nav
-        initial_avatar={agent.avatar ?? ""}
-        initial_description={agent.description ?? ""}
-        initial_options={initial_options}
-        initial_title={agent.name}
-        initial_vibe_tags={agent.vibe_tags ?? []}
-        is_active
-        mode="edit"
-        on_delete={on_delete_agent}
-        on_save={handle_save}
-        on_tab_change={set_active_tab}
-        on_validate_name={handle_validate_name}
-        show_cancel_button={false}
-        show_delete_button
-        variant="inline"
-      />
+      {active_tab === "private_domain" ? (
+        <AgentPrivateDomainView agent={agent} />
+      ) : (
+        <AgentOptionsEditor
+          active_tab={active_tab}
+          agent_id={agent.agent_id}
+          content_max_width_class_name="max-w-[860px]"
+          hide_inline_nav
+          initial_avatar={agent.avatar ?? ""}
+          initial_description={agent.description ?? ""}
+          initial_options={initial_options}
+          initial_title={agent.name}
+          initial_vibe_tags={agent.vibe_tags ?? []}
+          is_active
+          mode="edit"
+          on_delete={on_delete_agent}
+          on_save={handle_save}
+          on_tab_change={set_active_tab}
+          on_validate_name={handle_validate_name}
+          show_cancel_button={false}
+          show_delete_button
+          variant="inline"
+        />
+      )}
     </div>
   );
 }

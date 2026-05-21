@@ -291,6 +291,8 @@ function RoomSurfaceLayoutInner({
                   className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "about" && "hidden")}>
                   <RoomAgentAboutSurface
                     agent={current_agent}
+                    conversation_id={conversation_id}
+                    room_id={room_id}
                     room_members={room_members}
                     header_action={auxiliary_close_action}
                     is_visible={active_surface_tab === "about"}

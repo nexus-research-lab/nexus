@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 新增 Agent 私域只读视图：联系人详情页和 Room 右侧成员面板可查看 Room action 投影出的私信、请求、私有备注和小范围记录。
+
 ### Fixed
 - 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、主连接器列表可能收不到刷新事件的问题，并让线上 nginx callback 路由使用轻量入口。
 

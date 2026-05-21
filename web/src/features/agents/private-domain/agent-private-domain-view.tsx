@@ -1,0 +1,616 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Inbox,
+  Loader2,
+  LockKeyhole,
+  MessageCircle,
+  RefreshCw,
+  StickyNote,
+  UsersRound,
+} from "lucide-react";
+
+import {
+  AgentPrivateDomainQuery,
+  list_agent_private_events_api,
+  list_agent_private_threads_api,
+} from "@/lib/api/agent-private-domain-api";
+import {
+  cn,
+  format_relative_time,
+  get_icon_avatar_src,
+  get_initials,
+} from "@/lib/utils";
+import { Agent } from "@/types/agent/agent";
+import {
+  AgentPrivateEvent,
+  AgentPrivateParticipant,
+  AgentPrivateThread,
+} from "@/types/agent/private-domain";
+
+interface AgentPrivateDomainViewProps {
+  agent: Agent;
+  room_id?: string | null;
+  conversation_id?: string | null;
+  variant?: "full" | "preview";
+}
+
+export function AgentPrivateDomainView({
+  agent,
+  room_id = null,
+  conversation_id = null,
+  variant = "full",
+}: AgentPrivateDomainViewProps) {
+  const [threads, set_threads] = useState<AgentPrivateThread[]>([]);
+  const [selected_thread_id, set_selected_thread_id] = useState<string | null>(null);
+  const [events, set_events] = useState<AgentPrivateEvent[]>([]);
+  const [threads_loading, set_threads_loading] = useState(false);
+  const [events_loading, set_events_loading] = useState(false);
+  const [error, set_error] = useState<string | null>(null);
+  const is_preview = variant === "preview";
+
+  const query = useMemo<AgentPrivateDomainQuery>(() => ({
+    room_id,
+    conversation_id,
+    limit: is_preview ? 16 : 80,
+    room_limit: is_preview ? 1 : 160,
+  }), [conversation_id, is_preview, room_id]);
+
+  const load_threads = useCallback(async () => {
+    set_threads_loading(true);
+    set_error(null);
+    try {
+      const page = await list_agent_private_threads_api(agent.agent_id, query);
+      const next_threads = page.items ?? [];
+      set_threads(next_threads);
+      set_selected_thread_id((current) => {
+        if (current && next_threads.some((thread) => thread.thread_id === current)) {
+          return current;
+        }
+        return next_threads[0]?.thread_id ?? null;
+      });
+    } catch (load_error) {
+      set_error(load_error instanceof Error ? load_error.message : "加载私域记录失败");
+      set_threads([]);
+      set_selected_thread_id(null);
+    } finally {
+      set_threads_loading(false);
+    }
+  }, [agent.agent_id, query]);
+
+  const load_events = useCallback(async (thread_id: string | null) => {
+    if (!thread_id) {
+      set_events([]);
+      return;
+    }
+    set_events_loading(true);
+    set_error(null);
+    try {
+      const page = await list_agent_private_events_api(agent.agent_id, thread_id, {
+        ...query,
+        limit: is_preview ? 40 : 120,
+      });
+      set_events(page.items ?? []);
+    } catch (load_error) {
+      set_error(load_error instanceof Error ? load_error.message : "加载私域消息失败");
+      set_events([]);
+    } finally {
+      set_events_loading(false);
+    }
+  }, [agent.agent_id, is_preview, query]);
+
+  useEffect(() => {
+    let cancelled = false;
+    set_threads_loading(true);
+    set_error(null);
+    void list_agent_private_threads_api(agent.agent_id, query)
+      .then((page) => {
+        if (cancelled) return;
+        const next_threads = page.items ?? [];
+        set_threads(next_threads);
+        set_selected_thread_id(next_threads[0]?.thread_id ?? null);
+      })
+      .catch((load_error) => {
+        if (cancelled) return;
+        set_error(load_error instanceof Error ? load_error.message : "加载私域记录失败");
+        set_threads([]);
+        set_selected_thread_id(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          set_threads_loading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.agent_id, query]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selected_thread_id) {
+      set_events([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+    set_events_loading(true);
+    set_error(null);
+    void list_agent_private_events_api(agent.agent_id, selected_thread_id, {
+      ...query,
+      limit: is_preview ? 40 : 120,
+    })
+      .then((page) => {
+        if (!cancelled) {
+          set_events(page.items ?? []);
+        }
+      })
+      .catch((load_error) => {
+        if (!cancelled) {
+          set_error(load_error instanceof Error ? load_error.message : "加载私域消息失败");
+          set_events([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          set_events_loading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.agent_id, is_preview, query, selected_thread_id]);
+
+  const selected_thread = useMemo(
+    () => threads.find((thread) => thread.thread_id === selected_thread_id) ?? null,
+    [selected_thread_id, threads],
+  );
+
+  const handle_refresh = useCallback(() => {
+    void load_threads();
+    void load_events(selected_thread_id);
+  }, [load_events, load_threads, selected_thread_id]);
+
+  if (is_preview) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <PrivateDomainToolbar
+          count={threads.length}
+          is_loading={threads_loading || events_loading}
+          on_refresh={handle_refresh}
+          title="私域"
+        />
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(132px,0.38fr)_minmax(0,1fr)] gap-3 px-4 pb-4 pt-3">
+          <PrivateThreadList
+            agent_id={agent.agent_id}
+            class_name="min-h-0"
+            is_loading={threads_loading}
+            on_select={set_selected_thread_id}
+            selected_thread_id={selected_thread_id}
+            threads={threads}
+          />
+          <PrivateEventTimeline
+            agent_id={agent.agent_id}
+            error={error}
+            events={events}
+            is_loading={events_loading}
+            thread={selected_thread}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
+      <div className="mx-auto grid min-h-[620px] w-full max-w-[1280px] grid-cols-[280px_minmax(0,1fr)_280px] gap-4">
+        <section className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
+          <PrivateDomainToolbar
+            count={threads.length}
+            is_loading={threads_loading}
+            on_refresh={handle_refresh}
+            title="私域"
+          />
+          <PrivateThreadList
+            agent_id={agent.agent_id}
+            class_name="h-[calc(100%-44px)]"
+            is_loading={threads_loading}
+            on_select={set_selected_thread_id}
+            selected_thread_id={selected_thread_id}
+            threads={threads}
+          />
+        </section>
+
+        <PrivateEventTimeline
+          agent_id={agent.agent_id}
+          error={error}
+          events={events}
+          is_loading={events_loading}
+          thread={selected_thread}
+        />
+
+        <PrivateThreadInspector
+          agent_id={agent.agent_id}
+          thread={selected_thread}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PrivateDomainToolbar({
+  count,
+  is_loading,
+  on_refresh,
+  title,
+}: {
+  count: number;
+  is_loading: boolean;
+  on_refresh: () => void;
+  title: string;
+}) {
+  return (
+    <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
+          <LockKeyhole className="h-3.5 w-3.5" />
+        </span>
+        <span className="truncate text-[13px] font-bold text-(--text-strong)">{title}</span>
+        <span className="text-[11px] font-semibold text-(--text-soft)">{count}</span>
+      </div>
+      <button
+        aria-label="刷新私域"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        onClick={on_refresh}
+        type="button"
+      >
+        <RefreshCw className={cn("h-3.5 w-3.5", is_loading && "animate-spin")} />
+      </button>
+    </div>
+  );
+}
+
+function PrivateThreadList({
+  agent_id,
+  class_name,
+  is_loading,
+  on_select,
+  selected_thread_id,
+  threads,
+}: {
+  agent_id: string;
+  class_name?: string;
+  is_loading: boolean;
+  on_select: (thread_id: string) => void;
+  selected_thread_id: string | null;
+  threads: AgentPrivateThread[];
+}) {
+  if (is_loading && threads.length === 0) {
+    return (
+      <div className={cn("flex items-center justify-center", class_name)}>
+        <Loader2 className="h-5 w-5 animate-spin text-(--text-soft)" />
+      </div>
+    );
+  }
+
+  if (threads.length === 0) {
+    return (
+      <div className={cn("flex flex-col items-center justify-center gap-2 px-4 text-center", class_name)}>
+        <Inbox className="h-5 w-5 text-(--text-soft)" />
+        <p className="text-[12px] font-semibold text-(--text-muted)">暂无私域记录</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("soft-scrollbar overflow-y-auto p-2", class_name)}>
+      <div className="space-y-1.5">
+        {threads.map((thread) => {
+          const is_active = thread.thread_id === selected_thread_id;
+          return (
+            <button
+              className={cn(
+                "group flex w-full min-w-0 items-start gap-2.5 rounded-[14px] border px-2.5 py-2.5 text-left transition",
+                is_active
+                  ? "border-[color:color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
+                  : "border-transparent hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background)",
+              )}
+              key={thread.thread_id}
+              onClick={() => on_select(thread.thread_id)}
+              type="button"
+            >
+              <ParticipantAvatarStack
+                owner_agent_id={agent_id}
+                participants={thread.participants}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[13px] font-bold text-(--text-strong)">
+                    {private_thread_title(thread, agent_id)}
+                  </span>
+                  <ThreadScopeIcon scope={thread.scope} />
+                </div>
+                <p className="mt-1 line-clamp-2 text-[12px] leading-4 text-(--text-muted)">
+                  {thread.last_content_preview || action_type_label(thread.last_action_type)}
+                </p>
+                <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-(--text-soft)">
+                  <span className="truncate">{thread.room_name || "Room"}</span>
+                  <span>·</span>
+                  <span>{thread.action_count}</span>
+                  {thread.last_timestamp ? (
+                    <>
+                      <span>·</span>
+                      <span>{format_relative_time(thread.last_timestamp)}</span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PrivateEventTimeline({
+  agent_id,
+  error,
+  events,
+  is_loading,
+  thread,
+}: {
+  agent_id: string;
+  error: string | null;
+  events: AgentPrivateEvent[];
+  is_loading: boolean;
+  thread: AgentPrivateThread | null;
+}) {
+  return (
+    <section className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]">
+      <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-bold text-(--text-strong)">
+            {thread ? private_thread_title(thread, agent_id) : "私域消息"}
+          </p>
+          {thread ? (
+            <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
+              {thread.room_name || "Room"} · {thread.conversation_title || "主对话"}
+            </p>
+          ) : null}
+        </div>
+        {is_loading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
+      </div>
+
+      <div className="soft-scrollbar h-[calc(100%-44px)] overflow-y-auto px-4 py-4">
+        {error ? (
+          <p className="rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-[12px] font-semibold text-(--destructive)">
+            {error}
+          </p>
+        ) : null}
+        {!error && !thread ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-(--text-soft)">
+            <MessageCircle className="h-6 w-6" />
+            <span className="text-[12px] font-semibold">选择一条私域记录</span>
+          </div>
+        ) : null}
+        {!error && thread && events.length === 0 && !is_loading ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-(--text-soft)">
+            <Inbox className="h-6 w-6" />
+            <span className="text-[12px] font-semibold">暂无消息</span>
+          </div>
+        ) : null}
+        <div className="space-y-3">
+          {events.map((event) => (
+            <PrivateEventBubble
+              agent_id={agent_id}
+              event={event}
+              key={event.action_id}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PrivateEventBubble({
+  agent_id,
+  event,
+}: {
+  agent_id: string;
+  event: AgentPrivateEvent;
+}) {
+  const is_outgoing = event.direction === "outgoing";
+  const is_self = event.direction === "self";
+  const source = event.participants.find((participant) => participant.agent_id === event.source_agent_id);
+  return (
+    <div className={cn("flex", is_self ? "justify-center" : is_outgoing ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-[78%] rounded-[16px] border px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
+          is_self
+            ? "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_72%,transparent)]"
+            : is_outgoing
+              ? "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
+              : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <AgentAvatar participant={source} size="sm" />
+          <span className="truncate text-[12px] font-bold text-(--text-strong)">
+            {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
+          </span>
+          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
+            {action_type_label(event.action_type)}
+          </span>
+          <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
+            {format_relative_time(event.timestamp)}
+          </span>
+        </div>
+        <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-5 text-(--text-default)">
+          {event.content || "（无正文）"}
+        </p>
+        <p className="mt-2 truncate text-[10.5px] font-semibold text-(--text-soft)">
+          {event_route_label(event, agent_id)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PrivateThreadInspector({
+  agent_id,
+  thread,
+}: {
+  agent_id: string;
+  thread: AgentPrivateThread | null;
+}) {
+  if (!thread) {
+    return (
+      <aside className="min-h-0 rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_34%,transparent)] p-4" />
+    );
+  }
+  const peers = thread.participants.filter((participant) => participant.agent_id !== agent_id);
+  return (
+    <aside className="min-h-0 overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_38%,transparent)]">
+      <div className="border-b border-(--divider-subtle-color) px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">Thread</p>
+        <h3 className="mt-1 truncate text-[16px] font-black tracking-[-0.04em] text-(--text-strong)">
+          {private_thread_title(thread, agent_id)}
+        </h3>
+      </div>
+      <div className="soft-scrollbar h-[calc(100%-70px)] overflow-y-auto px-4 py-4">
+        <InfoRow label="范围" value={scope_label(thread.scope)} />
+        <InfoRow label="Room" value={thread.room_name || thread.room_id || "-"} />
+        <InfoRow label="对话" value={thread.conversation_title || thread.conversation_id || "-"} />
+        <InfoRow label="消息数" value={String(thread.action_count)} />
+        <div className="mt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">Members</p>
+          <div className="mt-2 space-y-2">
+            {(peers.length ? peers : thread.participants).map((participant) => (
+              <div className="flex min-w-0 items-center gap-2" key={participant.agent_id}>
+                <AgentAvatar participant={participant} size="md" />
+                <div className="min-w-0">
+                  <p className="truncate text-[12px] font-bold text-(--text-strong)">
+                    {participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id}
+                  </p>
+                  <p className="truncate text-[10.5px] text-(--text-soft)">{participant.agent_id}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mb-3">
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">{label}</p>
+      <p className="mt-1 truncate text-[12.5px] font-semibold text-(--text-default)" title={value}>{value}</p>
+    </div>
+  );
+}
+
+function ParticipantAvatarStack({
+  owner_agent_id,
+  participants,
+}: {
+  owner_agent_id: string;
+  participants: AgentPrivateParticipant[];
+}) {
+  const peers = participants.filter((participant) => participant.agent_id !== owner_agent_id);
+  const visible = (peers.length ? peers : participants).slice(0, 3);
+  return (
+    <div className="flex h-9 min-w-[38px] items-center">
+      {visible.map((participant, index) => (
+        <span
+          className={cn(index > 0 && "-ml-2")}
+          key={participant.agent_id}
+          style={{ zIndex: 10 - index }}
+        >
+          <AgentAvatar participant={participant} size="md" />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AgentAvatar({
+  participant,
+  size,
+}: {
+  participant?: AgentPrivateParticipant;
+  size: "sm" | "md";
+}) {
+  const src = get_icon_avatar_src(participant?.avatar ?? null);
+  const class_name = size === "sm" ? "h-5 w-5 text-[9px]" : "h-8 w-8 text-[11px]";
+  return (
+    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) font-black text-(--text-muted)", class_name)}>
+      {src ? (
+        <img alt={participant?.name || participant?.agent_id || "Agent"} className="h-full w-full object-cover" src={src} />
+      ) : (
+        get_initials(participant?.name || participant?.agent_id, "AG", 2)
+      )}
+    </span>
+  );
+}
+
+function ThreadScopeIcon({ scope }: { scope: string }) {
+  const Icon = scope === "audience" ? UsersRound : scope === "self" ? StickyNote : MessageCircle;
+  return <Icon className="h-3.5 w-3.5 shrink-0 text-(--text-soft)" />;
+}
+
+function private_thread_title(thread: AgentPrivateThread, agent_id: string) {
+  const peers = thread.participants.filter((participant) => participant.agent_id !== agent_id);
+  if (peers.length === 0) {
+    return "私有笔记";
+  }
+  return peers.map((participant) => participant.name || participant.agent_id).join("、");
+}
+
+function action_type_label(action_type?: string | null) {
+  switch (action_type) {
+    case "private_message":
+      return "私信";
+    case "request_reply":
+      return "请求";
+    case "private_note":
+      return "备注";
+    case "marker":
+      return "标记";
+    default:
+      return "私域";
+  }
+}
+
+function scope_label(scope: string) {
+  switch (scope) {
+    case "direct":
+      return "一对一";
+    case "audience":
+      return "小范围";
+    case "self":
+      return "仅自己";
+    default:
+      return scope || "-";
+  }
+}
+
+function event_route_label(event: AgentPrivateEvent, agent_id: string) {
+  if (event.action_type === "private_note") {
+    return "仅自己";
+  }
+  if (event.target_agent_id) {
+    const target = event.participants.find((participant) => participant.agent_id === event.target_agent_id);
+    return `给 ${target?.agent_id === agent_id ? "我" : target?.name || event.target_agent_id}`;
+  }
+  const audience = event.participants
+    .filter((participant) => participant.agent_id !== event.source_agent_id)
+    .map((participant) => participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id);
+  return audience.length ? `给 ${audience.join("、")}` : scope_label(event.reply_target);
+}
