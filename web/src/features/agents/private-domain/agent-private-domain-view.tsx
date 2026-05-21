@@ -195,7 +195,6 @@ export function AgentPrivateDomainView({
             error={error}
             events={events}
             is_loading={events_loading}
-            show_thread_meta={false}
             thread={selected_thread}
           />
         </div>
@@ -228,7 +227,6 @@ export function AgentPrivateDomainView({
           error={error}
           events={events}
           is_loading={events_loading}
-          show_thread_meta
           thread={selected_thread}
         />
       </div>
@@ -356,38 +354,28 @@ function PrivateEventTimeline({
   error,
   events,
   is_loading,
-  show_thread_meta = false,
   thread,
 }: {
   agent_id: string;
   error: string | null;
   events: AgentPrivateEvent[];
   is_loading: boolean;
-  show_thread_meta?: boolean;
   thread: AgentPrivateThread | null;
 }) {
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]">
-      <div className="border-b border-(--divider-subtle-color) px-4 py-3">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-bold text-(--text-strong)">
-              {thread ? private_thread_title(thread, agent_id) : "联络消息"}
+      <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-bold text-(--text-strong)">
+            {thread ? private_thread_title(thread, agent_id) : "联络消息"}
+          </p>
+          {thread ? (
+            <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
+              {thread.room_name || "房间"} · {thread.conversation_title || "主对话"}
             </p>
-            {thread ? (
-              <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
-                {thread.room_name || "房间"} · {thread.conversation_title || "主对话"}
-              </p>
-            ) : null}
-          </div>
-          {is_loading ? <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-(--text-soft)" /> : null}
+          ) : null}
         </div>
-        {show_thread_meta && thread ? (
-          <PrivateThreadMetaBar
-            agent_id={agent_id}
-            thread={thread}
-          />
-        ) : null}
+        {is_loading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
       </div>
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -432,6 +420,7 @@ function PrivateEventBubble({
   const is_outgoing = event.direction === "outgoing";
   const is_self = event.direction === "self";
   const source = event.participants.find((participant) => participant.agent_id === event.source_agent_id);
+  const route_label = event_route_label(event, agent_id);
   return (
     <div className={cn("flex", is_self ? "justify-center" : is_outgoing ? "justify-end" : "justify-start")}>
       <div
@@ -444,55 +433,30 @@ function PrivateEventBubble({
               : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
         )}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <AgentAvatar participant={source} size="sm" />
-          <span className="truncate text-[12px] font-bold text-(--text-strong)">
-            {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
-          </span>
-          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
-            {action_type_label(event.action_type)}
-          </span>
-          <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="truncate text-[12px] font-bold text-(--text-strong)">
+              {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
+            </span>
+            <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
+              {action_type_label(event.action_type)}
+            </span>
+            <span
+              className="min-w-0 truncate rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)"
+              title={route_label}
+            >
+              {route_label}
+            </span>
+          </div>
+          <span className="shrink-0 pt-0.5 text-[10.5px] font-semibold text-(--text-soft)">
             {format_relative_time(event.timestamp)}
           </span>
         </div>
         <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-5 text-(--text-default)">
           {event.content || "（无正文）"}
         </p>
-        <p className="mt-2 truncate text-[10.5px] font-semibold text-(--text-soft)">
-          {event_route_label(event, agent_id)}
-        </p>
       </div>
-    </div>
-  );
-}
-
-function PrivateThreadMetaBar({
-  agent_id,
-  thread,
-}: {
-  agent_id: string;
-  thread: AgentPrivateThread;
-}) {
-  const peers = thread.participants.filter((participant) => participant.agent_id !== agent_id);
-  const visible_participants = peers.length ? peers : thread.participants;
-  const member_label = visible_participants
-    .map((participant) => participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id)
-    .join("、");
-  return (
-    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-      <span className="rounded-full bg-(--surface-muted-background) px-2 py-0.5 text-[10.5px] font-semibold text-(--text-soft)">
-        {scope_label(thread.scope)}
-      </span>
-      <span className="rounded-full bg-(--surface-muted-background) px-2 py-0.5 text-[10.5px] font-semibold text-(--text-soft)">
-        {thread.action_count} 条
-      </span>
-      <span
-        className="max-w-full truncate rounded-full bg-(--surface-muted-background) px-2 py-0.5 text-[10.5px] font-semibold text-(--text-soft)"
-        title={member_label}
-      >
-        {member_label}
-      </span>
     </div>
   );
 }
