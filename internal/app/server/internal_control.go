@@ -9,12 +9,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
-func newInternalControlToken() string {
+func newInternalControlToken() (string, error) {
 	buffer := make([]byte, 32)
 	if _, err := rand.Read(buffer); err != nil {
-		panic(fmt.Errorf("生成内部控制面 token 失败: %w", err))
+		return "", fmt.Errorf("生成内部控制面 token 失败: %w", err)
 	}
-	return hex.EncodeToString(buffer)
+	return hex.EncodeToString(buffer), nil
 }
 
 func internalControlBaseURL(cfg config.Config) string {

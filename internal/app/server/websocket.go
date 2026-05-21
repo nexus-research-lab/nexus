@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
 )
@@ -8,6 +9,7 @@ import (
 func newWebSocketHandler(
 	api *handlershared.API,
 	services *AppServices,
+	cfg config.Config,
 ) *handlerwebsocket.Handler {
 	return handlerwebsocket.NewHandler(
 		api,
@@ -19,6 +21,7 @@ func newWebSocketHandler(
 		services.Channels,
 		services.Workspace,
 		newRuntimeSnapshotProvider(services),
+		cfg.AllowedWebSocketOrigins,
 	)
 }
 

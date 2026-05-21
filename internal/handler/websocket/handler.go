@@ -37,6 +37,7 @@ type Handler struct {
 	channels      *channelspkg.Router
 	roomSubs      *roomSubscriptionRegistry
 	workspaceSubs *workspaceSubscriptionRegistry
+	allowedOrigins []string
 }
 
 // NewHandler 创建 WebSocket handler。
@@ -50,6 +51,7 @@ func NewHandler(
 	channels *channelspkg.Router,
 	workspaceService *workspacepkg.Service,
 	runtimeProvider func(string) RuntimeSnapshot,
+	allowedOrigins []string,
 ) *Handler {
 	handler := &Handler{
 		api:           api,
@@ -61,6 +63,7 @@ func NewHandler(
 		channels:      channels,
 		roomSubs:      newRoomSubscriptionRegistry(128),
 		workspaceSubs: newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		allowedOrigins: allowedOrigins,
 	}
 	if roomRealtime != nil {
 		roomRealtime.SetRoomBroadcaster(handler.roomSubs)
@@ -70,8 +73,14 @@ func NewHandler(
 
 // HandleWebSocket 处理 WebSocket 会话。
 func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Request) {
+	originPatterns := h.allowedOrigins
+	if len(originPatterns) == 0 {
+		// 未配置白名单时保持向后兼容，允许所有来源。
+		// 部署环境建议通过 ALLOWED_WEBSOCKET_ORIGINS 显式指定允许的 Origin。
+		originPatterns = []string{"*"}
+	}
 	connection, err := websocket.Accept(writer, request, &websocket.AcceptOptions{
-		OriginPatterns: []string{"*"},
+		OriginPatterns: originPatterns,
 		Subprotocols:   []string{handlershared.DesktopWebSocketSubprotocol},
 	})
 	if err != nil {

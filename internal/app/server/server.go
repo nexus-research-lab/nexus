@@ -38,8 +38,11 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 	}
 
 	api := handlershared.NewAPI(logger)
-	websocketHandler := newWebSocketHandler(api, appServices)
-	internalControlToken := newInternalControlToken()
+	websocketHandler := newWebSocketHandler(api, appServices, cfg)
+	internalControlToken, err := newInternalControlToken()
+	if err != nil {
+		return nil, err
+	}
 	if appServices.RoomRealtime != nil {
 		appServices.RoomRealtime.SetInternalAPI(internalControlBaseURL(cfg), internalControlToken)
 	}
