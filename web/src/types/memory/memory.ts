@@ -32,6 +32,13 @@ export interface MemoryStats {
   checkpointed: number;
 }
 
+export interface MemoryCleanupResult {
+  removed_session_files: number;
+  removed_checkpoints: number;
+  removed_empty_diaries: number;
+  removed_files?: string[];
+}
+
 export interface MemoryInjection {
   stable_system_context?: string;
   dynamic_user_context?: string;

@@ -257,6 +257,25 @@ func newMemoryCommand() *cobra.Command {
 	}())
 
 	command.AddCommand(func() *cobra.Command {
+		cleanupCommand := &cobra.Command{
+			Use:   "cleanup",
+			Short: "清理孤立的 session 摘要和 checkpoint",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				result, err := engineFromFlags().Cleanup(context.Background())
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "cleanup",
+					"result": result,
+				})
+			},
+		}
+		return cleanupCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
 		var sessionKey string
 		summaryCommand := &cobra.Command{
 			Use:   "session-summary",

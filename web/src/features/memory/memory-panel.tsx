@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
   Database,
+  Eraser,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -14,6 +15,7 @@ import {
 import { get_agents } from "@/lib/api/agent-manage-api";
 import {
   add_memory_item_api,
+  cleanup_memory_api,
   delete_memory_item_api,
   get_memory_stats_api,
   ignore_memory_item_api,
@@ -71,6 +73,7 @@ export function MemoryPanel() {
   const [editing_id, set_editing_id] = useState("");
   const [editing_content, set_editing_content] = useState("");
   const [loading, set_loading] = useState(false);
+  const [cleaning, set_cleaning] = useState(false);
   const [mutating_id, set_mutating_id] = useState("");
   const [feedback, set_feedback] = useState<FeedbackState | null>(null);
 
@@ -166,6 +169,9 @@ export function MemoryPanel() {
     if (!agent_id) {
       return;
     }
+    if (action === "delete" && !window.confirm("确定删除这条记忆？删除后不会参与召回。")) {
+      return;
+    }
     set_mutating_id(item.entry_id);
     try {
       if (action === "promote") {
@@ -196,11 +202,33 @@ export function MemoryPanel() {
     }
   };
 
+  const handle_cleanup = async () => {
+    if (!agent_id || !window.confirm("清理无有效条目关联的会话摘要和检查点？")) {
+      return;
+    }
+    set_cleaning(true);
+    try {
+      const result = await cleanup_memory_api(agent_id);
+      set_feedback({
+        tone: "success",
+        message: `已清理 ${result.removed_session_files + result.removed_checkpoints + result.removed_empty_diaries} 项脏数据`,
+      });
+      await refresh();
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : "清理记忆失败",
+      });
+    } finally {
+      set_cleaning(false);
+    }
+  };
+
   const stat_items: Array<[string, number]> = [
     ["总数", stats?.total ?? 0],
     ["候选", stats?.candidate ?? 0],
-    ["已访问", stats?.accessed ?? 0],
-    ["检查点", stats?.checkpointed ?? 0],
+    ["自动", stats?.by_status?.auto ?? 0],
+    ["已提升", stats?.by_status?.promoted ?? 0],
   ];
 
   return (
@@ -228,6 +256,10 @@ export function MemoryPanel() {
               <WorkspaceSurfaceToolbarAction disabled={loading || !agent_id} onClick={refresh}>
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
                 刷新
+              </WorkspaceSurfaceToolbarAction>
+              <WorkspaceSurfaceToolbarAction disabled={cleaning || !agent_id} onClick={handle_cleanup}>
+                <Eraser className={cn("h-3.5 w-3.5", cleaning && "animate-pulse")} />
+                清理
               </WorkspaceSurfaceToolbarAction>
             </>
           }
@@ -260,8 +292,8 @@ export function MemoryPanel() {
               className="rounded-md border border-(--divider-subtle-color) bg-(--surface-background) px-4 py-3"
               key={label}
             >
-              <div className="text-[11px] font-semibold text-(--text-soft)">{label}</div>
-              <div className="mt-1 text-[22px] font-black text-(--text-strong)">{value}</div>
+              <div className="text-[11px] font-medium text-(--text-soft)">{label}</div>
+              <div className="mt-1 text-base font-semibold tabular-nums text-(--text-strong)">{value}</div>
             </div>
           ))}
         </section>
@@ -340,10 +372,10 @@ export function MemoryPanel() {
                   <article className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_auto]" key={item.entry_id}>
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="truncate text-[13px] font-bold text-(--text-strong)">
+                        <span className="truncate text-[13px] font-semibold leading-5 text-(--text-strong)">
                           {item.title || item.entry_id}
                         </span>
-                        <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[10px] font-semibold text-(--text-default)">
+                        <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-medium leading-4 text-(--text-default)">
                           {item.status}
                         </span>
                         {item.priority ? (

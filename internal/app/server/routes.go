@@ -67,6 +67,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/items/{entry_id}/promote"), s.handlers.memory.HandlePromoteMemory)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/items/{entry_id}/ignore"), s.handlers.memory.HandleIgnoreMemory)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/memory/stats"), s.handlers.memory.HandleMemoryStats)
+	s.router.Post(s.prefixPath("/agents/{agent_id}/memory/cleanup"), s.handlers.memory.HandleCleanupMemory)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/memory/session-summary"), s.handlers.memory.HandleMemorySessionSummary)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleAgentSkills)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleInstallAgentSkill)

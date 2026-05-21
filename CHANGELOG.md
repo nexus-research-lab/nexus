@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - 新增 Agent 联络只读视图：联系人详情页和 Room 右侧成员面板可查看 Room action 投影出的私信、请求、私有备注和小范围记录。
+- 联系人详情新增 Agent 记忆 tab，并提供记忆搜索、筛选、删除和脏数据清理入口。
 
 ### Changed
 - Room 聊天区点击 Agent 头像可直接打开右侧简介面板，并跳转到该 Agent 的联络 tab。
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览撑满剩余高度并使用左右分栏，顶部「简介」入口默认打开联络；联络标题和刷新入口收进左侧列表栏。
 
 ### Fixed
+- 优化自动记忆抽取信号，跳过一次性低价值任务记录，并支持清理孤立 session 摘要和 checkpoint。
 - 修复首次未打开工作区时，聊天消息里的 workspace 文件引用无法点击打开对应文件的问题。
 - 修复 Agent 通过 `nexusctl imagegen` 生成图片时，shim 切换到源码仓库执行导致图片落到错误目录的问题。
 - 缩小聊天区图片预览尺寸，避免大图撑满消息区域影响阅读。

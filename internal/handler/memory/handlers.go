@@ -194,6 +194,20 @@ func (h *Handlers) HandleMemoryStats(writer http.ResponseWriter, request *http.R
 	h.api.WriteSuccess(writer, stats)
 }
 
+// HandleCleanupMemory 清理孤立的 session 摘要和 checkpoint。
+func (h *Handlers) HandleCleanupMemory(writer http.ResponseWriter, request *http.Request) {
+	engine, _, ok := h.engineForRequest(writer, request)
+	if !ok {
+		return
+	}
+	result, err := engine.Cleanup(request.Context())
+	if err != nil {
+		h.writeMemoryError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
 // HandleMemorySessionSummary 返回会话摘要。
 func (h *Handlers) HandleMemorySessionSummary(writer http.ResponseWriter, request *http.Request) {
 	engine, _, ok := h.engineForRequest(writer, request)

@@ -163,6 +163,14 @@ type MemoryStats struct {
 	Checkpointed int            `json:"checkpointed"`
 }
 
+// MemoryCleanupResult 描述记忆清理结果。
+type MemoryCleanupResult struct {
+	RemovedSessionFiles int      `json:"removed_session_files"`
+	RemovedCheckpoints  int      `json:"removed_checkpoints"`
+	RemovedEmptyDiaries int      `json:"removed_empty_diaries"`
+	RemovedFiles        []string `json:"removed_files,omitempty"`
+}
+
 // MemoryIndex 是 v2 接入 FTS、向量或图谱索引的边界。
 type MemoryIndex interface {
 	Search(query string, candidates []MemoryItem, limit int) []MemoryItem

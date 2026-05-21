@@ -92,8 +92,12 @@ func (e *Engine) CommitTurn(ctx context.Context, scope MemoryScope, turn Committ
 	if turn.Timestamp.IsZero() {
 		turn.Timestamp = time.Now()
 	}
+	signal := classifyMemorySignal(userText, assistantText)
+	if !signal.ShouldCapture {
+		return CaptureResult{Skipped: true, Reason: signal.Reason}, nil
+	}
 	scopeKey := scope.Key()
-	decision, err := NewMemoryScheduler(e.repository).Advance(scopeKey, turn.RoundID, turn.Timestamp, isHighImpactMemory(userText))
+	decision, err := NewMemoryScheduler(e.repository).Advance(scopeKey, turn.RoundID, turn.Timestamp, signal.HighImpact)
 	if err != nil {
 		return CaptureResult{}, err
 	}
@@ -101,7 +105,7 @@ func (e *Engine) CommitTurn(ctx context.Context, scope MemoryScope, turn Committ
 		return CaptureResult{Skipped: true, Reason: decision.Reason}, nil
 	}
 
-	entry, err := e.buildEntry(scope, turn, userText, assistantText)
+	entry, err := e.buildEntry(scope, turn, userText, assistantText, signal)
 	if err != nil {
 		return CaptureResult{}, err
 	}
@@ -327,6 +331,33 @@ func (e *Engine) Stats(ctx context.Context) (MemoryStats, error) {
 	return stats, nil
 }
 
+// Cleanup 清理已无结构化条目引用的 session 摘要和 checkpoint。
+func (e *Engine) Cleanup(ctx context.Context) (MemoryCleanupResult, error) {
+	if e == nil || !e.options.Enabled {
+		return MemoryCleanupResult{}, nil
+	}
+	entries, err := e.repository.ListEntries(0)
+	if err != nil {
+		return MemoryCleanupResult{}, err
+	}
+	entryIDs := make(map[string]struct{}, len(entries))
+	scopes := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return MemoryCleanupResult{}, ctx.Err()
+		}
+		entryID := strings.TrimSpace(entry.ID)
+		if entryID != "" {
+			entryIDs[entryID] = struct{}{}
+		}
+		scope := strings.TrimSpace(entry.FieldValue("Scope"))
+		if scope != "" {
+			scopes[scope] = struct{}{}
+		}
+	}
+	return e.repository.CleanupOrphans(entryIDs, scopes)
+}
+
 // SessionSummary 读取会话摘要。
 func (e *Engine) SessionSummary(ctx context.Context, sessionKey string) (string, error) {
 	if e == nil || !e.options.Enabled {
@@ -343,12 +374,26 @@ func (e *Engine) StableContext(ctx context.Context, maxChars int) (string, error
 	return e.repository.ReadStableContext(maxChars)
 }
 
-func (e *Engine) buildEntry(scope MemoryScope, turn CommittedTurn, userText string, assistantText string) (*Entry, error) {
-	highImpact := isHighImpactMemory(userText)
-	title := summarizeTitle(userText)
+func (e *Engine) buildEntry(
+	scope MemoryScope,
+	turn CommittedTurn,
+	userText string,
+	assistantText string,
+	signal memorySignal,
+) (*Entry, error) {
 	status := "auto"
-	kind := "REF"
-	category := ""
+	kind := "LRN"
+	category := firstNonEmpty(signal.Category, "observation")
+	content := durableMemoryText(userText)
+	title := summarizeTitle(content)
+	if signal.HighImpact {
+		status = "candidate"
+		category = "preference"
+	} else if signal.Category == "incident" {
+		kind = "ERR"
+	} else if signal.Category == "todo" {
+		kind = "FEAT"
+	}
 	fields := []Field{
 		{Key: "状态", Value: status},
 		{Key: "来源", Value: "auto_extract"},
@@ -358,24 +403,33 @@ func (e *Engine) buildEntry(scope MemoryScope, turn CommittedTurn, userText stri
 		{Key: "AgentID", Value: firstNonEmpty(turn.AgentID, scope.AgentID)},
 		{Key: "RoomID", Value: firstNonEmpty(turn.RoomID, scope.RoomID)},
 		{Key: "ConversationID", Value: firstNonEmpty(turn.ConversationID, scope.ConversationID)},
+		{Key: "提取原因", Value: signal.Reason},
 	}
-	if highImpact {
-		kind = "LRN"
-		category = "preference"
-		status = "candidate"
+	switch kind {
+	case "ERR":
 		fields = append(fields,
 			Field{Key: "优先级", Value: "high"},
-			Field{Key: "详情", Value: truncateRunes(userText, 900)},
-			Field{Key: "行动", Value: truncateRunes(assistantText, 900)},
-			Field{Key: "状态", Value: status},
+			Field{Key: "错误", Value: truncateRunes(content, 700)},
+			Field{Key: "修复", Value: truncateRunes(assistantText, 700)},
+			Field{Key: "可复现", Value: "unknown"},
 		)
-	} else {
+	case "FEAT":
 		fields = append(fields,
-			Field{Key: "做了什么", Value: truncateRunes(userText, 700)},
-			Field{Key: "结果", Value: truncateRunes(assistantText, 700)},
-			Field{Key: "反思", Value: "自动抽取的成功对话摘要"},
-			Field{Key: "经验", Value: summarizeTitle(assistantText)},
-			Field{Key: "状态", Value: status},
+			Field{Key: "优先级", Value: "medium"},
+			Field{Key: "需求", Value: truncateRunes(content, 700)},
+			Field{Key: "实现", Value: truncateRunes(assistantText, 500)},
+			Field{Key: "频率", Value: "follow_up"},
+		)
+	default:
+		priority := "medium"
+		if signal.HighImpact {
+			priority = "high"
+		}
+		fields = append(fields,
+			Field{Key: "优先级", Value: priority},
+			Field{Key: "领域", Value: "general"},
+			Field{Key: "详情", Value: truncateRunes(content, 900)},
+			Field{Key: "证据", Value: truncateRunes(assistantText, 500)},
 		)
 	}
 	return e.factory.Create(kind, title, category, fields, nil, turn.Timestamp)
@@ -434,6 +488,11 @@ func entryToMemoryItem(entry *Entry, score float64) MemoryItem {
 }
 
 func entryContent(entry *Entry) string {
+	if key := primaryContentField(entry); key != "" {
+		if value := strings.TrimSpace(entry.FieldValue(key)); value != "" {
+			return value
+		}
+	}
 	for _, key := range []string{"详情", "行动", "做了什么", "结果", "经验", "需求", "修复", "错误", "反思"} {
 		value := strings.TrimSpace(entry.FieldValue(key))
 		if value != "" {
@@ -615,10 +674,41 @@ func normalizeStatusSet(statuses []string) map[string]struct{} {
 	return result
 }
 
+type memorySignal struct {
+	ShouldCapture bool
+	HighImpact    bool
+	Category      string
+	Reason        string
+}
+
+func classifyMemorySignal(userText string, assistantText string) memorySignal {
+	if isHighImpactMemory(userText) {
+		return memorySignal{
+			ShouldCapture: true,
+			HighImpact:    true,
+			Category:      "preference",
+			Reason:        "high_impact",
+		}
+	}
+	combined := strings.ToLower(strings.Join([]string{userText, assistantText}, "\n"))
+	switch {
+	case containsAny(combined, durableDecisionKeywords()):
+		return memorySignal{ShouldCapture: true, Category: "decision", Reason: "durable_decision"}
+	case containsAny(combined, durableProcessKeywords()):
+		return memorySignal{ShouldCapture: true, Category: "workflow", Reason: "durable_workflow"}
+	case containsAny(combined, durableTodoKeywords()):
+		return memorySignal{ShouldCapture: true, Category: "todo", Reason: "durable_todo"}
+	case containsAny(combined, durableIncidentKeywords()):
+		return memorySignal{ShouldCapture: true, Category: "incident", Reason: "durable_incident"}
+	default:
+		return memorySignal{ShouldCapture: false, Reason: "low_signal"}
+	}
+}
+
 func isHighImpactMemory(text string) bool {
 	lower := strings.ToLower(text)
 	keywords := []string{
-		"记住", "以后", "默认", "偏好", "不要", "别", "必须", "规则", "流程", "习惯",
+		"记住", "以后", "默认", "偏好", "不要", "别", "必须", "规则", "习惯",
 		"remember", "always", "never", "prefer", "preference", "rule", "default",
 	}
 	for _, keyword := range keywords {
@@ -627,6 +717,62 @@ func isHighImpactMemory(text string) bool {
 		}
 	}
 	return false
+}
+
+func containsAny(text string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func durableDecisionKeywords() []string {
+	return []string{
+		"结论", "决定", "约定", "共识", "原则", "边界", "职责", "验收",
+		"decision", "decided", "agreed", "agreement", "principle", "boundary", "acceptance",
+	}
+}
+
+func durableProcessKeywords() []string {
+	return []string{
+		"规范", "目录结构", "命名", "发布流程", "测试策略",
+		"convention", "workflow", "naming",
+	}
+}
+
+func durableTodoKeywords() []string {
+	return []string{
+		"待办", "下一步", "后续推进", "阻塞", "风险", "里程碑",
+		"todo", "follow-up", "next step", "blocker", "risk", "milestone",
+	}
+}
+
+func durableIncidentKeywords() []string {
+	return []string{
+		"根因", "复现", "回归", "数据迁移", "schema", "panic", "deadlock", "race condition",
+		"root cause", "reproduce", "regression", "migration",
+	}
+}
+
+func durableMemoryText(text string) string {
+	text = strings.TrimSpace(text)
+	prefixes := []string{
+		"结论：", "结论:", "决定：", "决定:", "约定：", "约定:",
+		"共识：", "共识:", "原则：", "原则:", "根因：", "根因:",
+		"待办：", "待办:", "下一步：", "下一步:",
+	}
+	for {
+		next := text
+		for _, prefix := range prefixes {
+			next = strings.TrimSpace(strings.TrimPrefix(next, prefix))
+		}
+		if next == text {
+			return text
+		}
+		text = next
+	}
 }
 
 func summarizeTitle(text string) string {

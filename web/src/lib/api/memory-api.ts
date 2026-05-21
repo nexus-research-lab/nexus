@@ -1,6 +1,7 @@
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import type {
+  MemoryCleanupResult,
   MemoryInjection,
   MemoryItem,
   MemoryStats,
@@ -128,5 +129,12 @@ export async function ignore_memory_item_api(
 export async function get_memory_stats_api(agent_id: string): Promise<MemoryStats> {
   return request_api<MemoryStats>(`${agent_memory_base_url(agent_id)}/stats`, {
     method: "GET",
+  });
+}
+
+export async function cleanup_memory_api(agent_id: string): Promise<MemoryCleanupResult> {
+  return request_api<MemoryCleanupResult>(`${agent_memory_base_url(agent_id)}/cleanup`, {
+    method: "POST",
+    body: {},
   });
 }

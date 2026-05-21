@@ -94,6 +94,23 @@ func TestMemoryHandlersLifecycle(t *testing.T) {
 			t.Fatalf("忽略后的记忆不应继续被召回: %+v", ignoredSearch.Data.Items)
 		}
 	}
+
+	cleanupRecorder := serveJSON(t, server, http.MethodPost, "/nexus/v1/agents/nexus/memory/cleanup", []byte(`{}`))
+	if cleanupRecorder.Code != http.StatusOK {
+		t.Fatalf("清理记忆状态码不正确: got=%d body=%s", cleanupRecorder.Code, cleanupRecorder.Body.String())
+	}
+	var cleanup struct {
+		Data struct {
+			RemovedSessionFiles int `json:"removed_session_files"`
+			RemovedCheckpoints  int `json:"removed_checkpoints"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(cleanupRecorder.Body.Bytes(), &cleanup); err != nil {
+		t.Fatalf("解析清理响应失败: %v", err)
+	}
+	if cleanup.Data.RemovedSessionFiles != 0 || cleanup.Data.RemovedCheckpoints != 0 {
+		t.Fatalf("无孤立数据时不应误清理: %+v", cleanup.Data)
+	}
 }
 
 func serveJSON(t *testing.T, server *serverapp.Server, method string, path string, body []byte) *httptest.ResponseRecorder {
