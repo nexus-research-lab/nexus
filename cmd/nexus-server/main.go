@@ -75,6 +75,17 @@ func runServer() error {
 		},
 	})
 
+	limitSnapshot, limitErr := ensureOpenFilesLimit(8192)
+	if limitErr != nil {
+		logger.Warn("提升文件句柄限制失败", "err", limitErr)
+	} else if limitSnapshot.Soft > 0 {
+		logger.Info("文件句柄限制就绪",
+			"soft_limit", limitSnapshot.Soft,
+			"hard_limit", limitSnapshot.Hard,
+			"raised", limitSnapshot.Raised,
+		)
+	}
+
 	// 自动运行 schema migrations，确保首次启动或升级时数据库 schema 就绪。
 	if err := runMigrations(cfg, logger); err != nil {
 		logger.Error("数据库迁移失败", "err", err)
