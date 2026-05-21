@@ -31,6 +31,7 @@ interface GroupConversationFeedProps {
   message_groups: Map<string, Message[]>;
   pending_permission_groups: Map<string, PendingPermission[]>;
   pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
@@ -101,6 +102,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
   message_groups,
   pending_permission_groups,
   pending_slot_groups,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
@@ -130,6 +132,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         message_groups={message_groups}
         pending_permission_groups={pending_permission_groups}
         pending_slot_groups={pending_slot_groups}
+        on_open_agent_contact={on_open_agent_contact}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
         can_respond_to_permissions={can_respond_to_permissions}
@@ -170,6 +173,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
               on_permission_response={on_permission_response}
               can_respond_to_permissions={can_respond_to_permissions}
               permission_read_only_reason={permission_read_only_reason}
+              on_open_agent_contact={on_open_agent_contact}
               on_stop_message={on_stop_message}
               on_open_workspace_file={on_open_workspace_file}
             />
@@ -197,6 +201,7 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
             on_permission_response={on_permission_response}
             can_respond_to_permissions={can_respond_to_permissions}
             permission_read_only_reason={permission_read_only_reason}
+            on_open_agent_contact={on_open_agent_contact}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
           />
@@ -227,6 +232,7 @@ function VirtualFeed({
   message_groups,
   pending_permission_groups,
   pending_slot_groups,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
@@ -316,6 +322,7 @@ function VirtualFeed({
                   on_permission_response={on_permission_response}
                   can_respond_to_permissions={can_respond_to_permissions}
                   permission_read_only_reason={permission_read_only_reason}
+                  on_open_agent_contact={on_open_agent_contact}
                   on_stop_message={on_stop_message}
                   on_open_workspace_file={on_open_workspace_file}
                 />
@@ -335,6 +342,7 @@ function VirtualFeed({
                   on_permission_response={on_permission_response}
                   can_respond_to_permissions={can_respond_to_permissions}
                   permission_read_only_reason={permission_read_only_reason}
+                  on_open_agent_contact={on_open_agent_contact}
                   on_open_workspace_file={on_open_workspace_file}
                   on_stop_message={on_stop_message}
                 />

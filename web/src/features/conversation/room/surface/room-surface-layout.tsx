@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, RefObject, useCallback } from "react";
+import { Fragment, RefObject, useCallback, useState } from "react";
 import { X } from "lucide-react";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
@@ -26,6 +26,8 @@ import { ConversationResizeHandle } from "@/features/conversation/shared/editor/
 import { RoomAgentAboutSurface } from "./room-agent-about-surface";
 import { RoomHistorySurface } from "./room-history-surface";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
+
+type RoomAgentAboutRequestedTab = "identity" | "private_domain";
 
 const ChatBoundary = import.meta.env.DEV ? GroupChatErrorBoundary : Fragment;
 
@@ -136,10 +138,39 @@ function RoomSurfaceLayoutInner({
                                   }: RoomSurfaceLayoutProps) {
   const is_dm = current_room_type === "dm";
   const is_auxiliary_panel_open = active_surface_tab !== "chat";
+  const [about_request, set_about_request] = useState<{
+    agent_id: string | null;
+    tab: RoomAgentAboutRequestedTab;
+    key: number;
+  }>({
+    agent_id: null,
+    tab: "identity",
+    key: 0,
+  });
 
   const handle_open_workspace_file = useCallback((path: string | null) => {
     on_open_workspace_file(path);
   }, [on_open_workspace_file]);
+
+  const handle_change_surface_tab = useCallback((tab: RoomSurfaceTabKey) => {
+    if (tab === "about") {
+      set_about_request((current) => ({
+        agent_id: current_agent.agent_id,
+        tab: "identity",
+        key: current.key + 1,
+      }));
+    }
+    on_change_surface_tab(tab);
+  }, [current_agent.agent_id, on_change_surface_tab]);
+
+  const handle_open_agent_contact = useCallback((agent_id: string) => {
+    set_about_request((current) => ({
+      agent_id,
+      tab: "private_domain",
+      key: current.key + 1,
+    }));
+    on_change_surface_tab("about");
+  }, [on_change_surface_tab]);
 
   const handle_close_auxiliary_panel = useCallback(() => {
     on_change_surface_tab("chat");
@@ -172,7 +203,7 @@ function RoomSurfaceLayoutInner({
                   conversations={current_room_conversations}
                   current_agent_name={current_agent.name}
                   current_agent_avatar={current_agent.avatar ?? null}
-                  on_change_tab={on_change_surface_tab}
+                  on_change_tab={handle_change_surface_tab}
                   on_create_conversation={on_create_conversation}
                   on_replay_tour={on_replay_tour}
                   on_select_conversation={on_select_conversation}
@@ -187,7 +218,7 @@ function RoomSurfaceLayoutInner({
                   current_room_title={current_room_title}
                   on_add_room_member={on_add_room_member}
                   on_open_member_manager={on_open_member_manager}
-                  on_change_tab={on_change_surface_tab}
+                  on_change_tab={handle_change_surface_tab}
                   on_create_conversation={on_create_conversation}
                   on_replay_tour={on_replay_tour}
                   on_remove_room_member={on_remove_room_member}
@@ -218,6 +249,7 @@ function RoomSurfaceLayoutInner({
                     on_initial_draft_consumed={on_initial_draft_consumed}
                     on_conversation_snapshot_change={on_conversation_snapshot_change}
                     on_loading_change={on_loading_change}
+                    on_open_agent_contact={handle_open_agent_contact}
                     on_open_workspace_file={handle_open_workspace_file}
                     on_room_event={on_room_event}
                     on_todos_change={on_todos_change}
@@ -236,6 +268,7 @@ function RoomSurfaceLayoutInner({
                     on_conversation_snapshot_change={on_conversation_snapshot_change}
                     on_create_conversation={on_create_conversation}
                     on_loading_change={on_loading_change}
+                    on_open_agent_contact={handle_open_agent_contact}
                     on_open_workspace_file={handle_open_workspace_file}
                     on_room_event={on_room_event}
                     on_todos_change={on_todos_change}
@@ -296,6 +329,9 @@ function RoomSurfaceLayoutInner({
                     room_members={room_members}
                     header_action={auxiliary_close_action}
                     is_visible={active_surface_tab === "about"}
+                    requested_agent_id={about_request.agent_id}
+                    requested_tab={about_request.tab}
+                    request_key={about_request.key}
                     on_save_agent_options={on_save_agent_options}
                     on_validate_agent_name={on_validate_agent_name}
                   />

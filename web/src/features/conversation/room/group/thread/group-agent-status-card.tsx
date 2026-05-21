@@ -30,6 +30,7 @@ interface GroupAgentStatusCardProps {
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_stop_message?: () => void;
 }
 
@@ -48,6 +49,7 @@ function GroupAgentStatusCardInner({
   on_permission_response,
   can_respond_to_permissions = true,
   permission_read_only_reason,
+  on_open_agent_contact,
   on_stop_message,
 }: GroupAgentStatusCardProps) {
   const preview = useMemo(() => extract_agent_preview_text(messages), [messages]);
@@ -133,6 +135,10 @@ function GroupAgentStatusCardInner({
     e.stopPropagation();
     on_click_thread();
   }, [on_click_thread]);
+  const handle_open_agent_contact = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    on_open_agent_contact?.(agent_id);
+  }, [agent_id, on_open_agent_contact]);
 
   return (
     <div
@@ -147,7 +153,14 @@ function GroupAgentStatusCardInner({
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") on_click_thread(); }}
     >
-      <MessageAvatar avatar_url={agent_avatar} class_name="shrink-0" size="full">
+      <MessageAvatar
+        aria_label={`打开 ${agent_name} 的联络`}
+        avatar_url={agent_avatar}
+        class_name="shrink-0"
+        on_click={on_open_agent_contact ? handle_open_agent_contact : undefined}
+        size="full"
+        title={`打开 ${agent_name} 的联络`}
+      >
         {!agent_avatar && <Bot className="h-4 w-4" />}
       </MessageAvatar>
 

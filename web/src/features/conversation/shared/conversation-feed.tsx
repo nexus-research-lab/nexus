@@ -28,6 +28,7 @@ interface ConversationFeedProps {
   live_round_ids: string[];
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
@@ -97,6 +98,7 @@ export const ConversationFeed = memo(function ConversationFeed({
   live_round_ids,
   is_mobile_layout,
   message_groups,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
@@ -125,6 +127,7 @@ export const ConversationFeed = memo(function ConversationFeed({
         live_round_ids={live_round_ids}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
+        on_open_agent_contact={on_open_agent_contact}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
         can_respond_to_permissions={can_respond_to_permissions}
@@ -166,6 +169,7 @@ export const ConversationFeed = memo(function ConversationFeed({
             on_permission_response={on_permission_response}
             can_respond_to_permissions={can_respond_to_permissions}
             permission_read_only_reason={permission_read_only_reason}
+            on_open_agent_contact={on_open_agent_contact}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
           />
@@ -195,6 +199,7 @@ function VirtualFeed({
   live_round_ids,
   is_mobile_layout,
   message_groups,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
@@ -286,6 +291,7 @@ function VirtualFeed({
                 on_permission_response={on_permission_response}
                 can_respond_to_permissions={can_respond_to_permissions}
                 permission_read_only_reason={permission_read_only_reason}
+                on_open_agent_contact={on_open_agent_contact}
                 on_open_workspace_file={on_open_workspace_file}
                 on_stop_message={on_stop_message}
               />

@@ -36,6 +36,9 @@ interface RoomAgentAboutSurfaceProps {
   room_members: Agent[];
   header_action?: ReactNode;
   is_visible: boolean;
+  requested_agent_id?: string | null;
+  requested_tab?: RoomAgentPanelTabKey;
+  request_key?: number;
   on_save_agent_options: (
     agent_id: string,
     title: string,
@@ -55,6 +58,9 @@ export function RoomAgentAboutSurface({
   room_members,
   header_action,
   is_visible,
+  requested_agent_id,
+  requested_tab,
+  request_key,
   on_save_agent_options,
   on_validate_agent_name,
 }: RoomAgentAboutSurfaceProps) {
@@ -63,9 +69,9 @@ export function RoomAgentAboutSurface({
   const [active_tab, set_active_tab] = useState<RoomAgentPanelTabKey>("identity");
 
   useEffect(() => {
-    set_selected_agent_id(agent.agent_id);
-    set_active_tab("identity");
-  }, [agent.agent_id]);
+    set_selected_agent_id(requested_agent_id ?? agent.agent_id);
+    set_active_tab(requested_tab ?? "identity");
+  }, [agent.agent_id, request_key, requested_agent_id, requested_tab]);
 
   const selected_agent = useMemo(() => {
     return room_members.find((member) => member.agent_id === selected_agent_id) ?? agent;

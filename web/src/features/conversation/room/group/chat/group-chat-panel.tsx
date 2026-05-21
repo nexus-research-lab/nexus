@@ -60,6 +60,7 @@ export interface GroupChatPanelProps {
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
   on_initial_draft_consumed?: () => void;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
@@ -116,6 +117,7 @@ export function GroupChatPanel({
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_todos_change,
   on_loading_change,
@@ -523,6 +525,7 @@ export function GroupChatPanel({
               message_groups={message_groups}
               pending_permission_groups={pending_permission_groups}
               pending_slot_groups={pending_slot_groups}
+              on_open_agent_contact={on_open_agent_contact}
               on_open_workspace_file={on_open_workspace_file}
               on_permission_response={send_permission_response}
               can_respond_to_permissions={can_control_session}
