@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
+
 ## [0.1.8] - 2026-05-21
 
 ### Added
