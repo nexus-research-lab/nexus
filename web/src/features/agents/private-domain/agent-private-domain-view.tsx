@@ -195,6 +195,7 @@ export function AgentPrivateDomainView({
             error={error}
             events={events}
             is_loading={events_loading}
+            show_thread_meta={false}
             thread={selected_thread}
           />
         </div>
@@ -204,7 +205,7 @@ export function AgentPrivateDomainView({
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
-      <div className="grid h-full min-h-0 w-full grid-cols-[280px_minmax(320px,1fr)_240px] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)_270px]">
+      <div className="grid h-full min-h-0 w-full grid-cols-[280px_minmax(320px,1fr)] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)]">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
           <PrivateDomainToolbar
             count={threads.length}
@@ -227,11 +228,7 @@ export function AgentPrivateDomainView({
           error={error}
           events={events}
           is_loading={events_loading}
-          thread={selected_thread}
-        />
-
-        <PrivateThreadInspector
-          agent_id={agent.agent_id}
+          show_thread_meta
           thread={selected_thread}
         />
       </div>
@@ -359,28 +356,38 @@ function PrivateEventTimeline({
   error,
   events,
   is_loading,
+  show_thread_meta = false,
   thread,
 }: {
   agent_id: string;
   error: string | null;
   events: AgentPrivateEvent[];
   is_loading: boolean;
+  show_thread_meta?: boolean;
   thread: AgentPrivateThread | null;
 }) {
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]">
-      <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold text-(--text-strong)">
-            {thread ? private_thread_title(thread, agent_id) : "联络消息"}
-          </p>
-          {thread ? (
-            <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
-              {thread.room_name || "房间"} · {thread.conversation_title || "主对话"}
+      <div className="border-b border-(--divider-subtle-color) px-4 py-3">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-bold text-(--text-strong)">
+              {thread ? private_thread_title(thread, agent_id) : "联络消息"}
             </p>
-          ) : null}
+            {thread ? (
+              <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
+                {thread.room_name || "房间"} · {thread.conversation_title || "主对话"}
+              </p>
+            ) : null}
+          </div>
+          {is_loading ? <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-(--text-soft)" /> : null}
         </div>
-        {is_loading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
+        {show_thread_meta && thread ? (
+          <PrivateThreadMetaBar
+            agent_id={agent_id}
+            thread={thread}
+          />
+        ) : null}
       </div>
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -460,60 +467,32 @@ function PrivateEventBubble({
   );
 }
 
-function PrivateThreadInspector({
+function PrivateThreadMetaBar({
   agent_id,
   thread,
 }: {
   agent_id: string;
-  thread: AgentPrivateThread | null;
+  thread: AgentPrivateThread;
 }) {
-  if (!thread) {
-    return (
-      <aside className="min-h-0 rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_34%,transparent)] p-4" />
-    );
-  }
   const peers = thread.participants.filter((participant) => participant.agent_id !== agent_id);
+  const visible_participants = peers.length ? peers : thread.participants;
+  const member_label = visible_participants
+    .map((participant) => participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id)
+    .join("、");
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_38%,transparent)]">
-      <div className="border-b border-(--divider-subtle-color) px-4 py-3">
-        <p className="text-[11px] font-semibold tracking-[0.12em] text-(--text-soft)">详情</p>
-      </div>
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <InfoRow label="范围" value={scope_label(thread.scope)} />
-        <InfoRow label="房间" value={thread.room_name || thread.room_id || "-"} />
-        <InfoRow label="对话" value={thread.conversation_title || thread.conversation_id || "-"} />
-        <InfoRow label="消息数" value={String(thread.action_count)} />
-        <div className="mt-4">
-          <p className="text-[11px] font-semibold tracking-[0.12em] text-(--text-soft)">成员</p>
-          <div className="mt-2 space-y-1.5">
-            {(peers.length ? peers : thread.participants).map((participant) => (
-              <div
-                className="grid min-w-0 grid-cols-[32px_minmax(0,1fr)] items-center gap-2 rounded-[10px] py-1"
-                key={participant.agent_id}
-              >
-                <div className="flex h-8 w-8 items-center justify-center">
-                  <AgentAvatar participant={participant} size="md" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-[12px] font-bold text-(--text-strong)">
-                    {participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id}
-                  </p>
-                  <p className="truncate text-[10.5px] text-(--text-soft)">{participant.agent_id}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="mb-3">
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-(--text-soft)">{label}</p>
-      <p className="mt-1 truncate text-[12.5px] font-semibold text-(--text-default)" title={value}>{value}</p>
+    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+      <span className="rounded-full bg-(--surface-muted-background) px-2 py-0.5 text-[10.5px] font-semibold text-(--text-soft)">
+        {scope_label(thread.scope)}
+      </span>
+      <span className="rounded-full bg-(--surface-muted-background) px-2 py-0.5 text-[10.5px] font-semibold text-(--text-soft)">
+        {thread.action_count} 条
+      </span>
+      <span
+        className="max-w-full truncate rounded-full bg-(--surface-muted-background) px-2 py-0.5 text-[10.5px] font-semibold text-(--text-soft)"
+        title={member_label}
+      >
+        {member_label}
+      </span>
     </div>
   );
 }
