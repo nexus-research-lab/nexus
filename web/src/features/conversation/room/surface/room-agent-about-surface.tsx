@@ -115,13 +115,15 @@ export function RoomAgentAboutSurface({
     <WorkspaceSurfaceView
       action={header_action}
       body_class_name="flex min-h-0 flex-1 flex-col px-0 py-0"
+      body_scrollable={false}
+      content_class_name="flex h-full min-h-0 flex-1 flex-col"
       eyebrow={t("room.about")}
       max_width_class_name="max-w-none"
       show_eyebrow={false}
       title={t("room.about")}
       title_trailing={title_trailing}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-full min-h-0 flex-1 flex-col">
         <RoomAgentPanelTabs
           active_tab={active_tab}
           on_change={set_active_tab}

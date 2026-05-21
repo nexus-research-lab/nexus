@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Room 聊天区点击 Agent 头像可直接打开右侧简介面板，并跳转到该 Agent 的联络 tab。
 - 优化 Room 右侧简介面板的联络预览密度，减少窄侧栏下的强边框和大卡片压迫感。
-- Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览使用撑满高度的左右分栏，顶部「简介」入口默认打开联络。
+- Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览撑满剩余高度并使用左右分栏，顶部「简介」入口默认打开联络。
 
 ### Fixed
 - 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、主连接器列表可能收不到刷新事件的问题，并让线上 nginx callback 路由使用轻量入口。
