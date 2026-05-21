@@ -95,7 +95,7 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
     <figure className="my-3 min-w-0 max-w-full">
       <button
         className={cn(
-          "block max-w-full rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1 text-left shadow-[0_1px_0_rgba(0,0,0,0.03)]",
+          "block w-fit max-w-full rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1 text-left shadow-[0_1px_0_rgba(0,0,0,0.03)]",
           can_open ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5" : "cursor-default",
         )}
         disabled={!can_open}
@@ -105,7 +105,7 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
       >
         <img
           alt={block.alt || "generated image"}
-          className="max-h-[520px] max-w-full rounded-[6px] object-contain"
+          className="max-h-[420px] w-auto max-w-full rounded-[6px] object-contain sm:max-w-[560px]"
           loading="lazy"
           src={src}
         />

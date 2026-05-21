@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览撑满剩余高度并使用左右分栏，顶部「简介」入口默认打开联络；联络标题和刷新入口收进左侧列表栏。
 
 ### Fixed
+- 修复首次未打开工作区时，聊天消息里的 workspace 文件引用无法点击打开对应文件的问题。
+- 修复 Agent 通过 `nexusctl imagegen` 生成图片时，shim 切换到源码仓库执行导致图片落到错误目录的问题。
+- 缩小聊天区图片预览尺寸，避免大图撑满消息区域影响阅读。
 - 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、主连接器列表可能收不到刷新事件的问题，并让线上 nginx callback 路由使用轻量入口。
 
 ## [0.1.8] - 2026-05-21

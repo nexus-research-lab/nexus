@@ -51,7 +51,7 @@ nexusctl imagegen edit \
 
 - `--prompt` / `--prompt-file`：二选一。
 - `--provider`：可选；不传则使用默认图片 Provider。
-- `--workspace-path`：可选；不传则使用当前目录。
+- `--workspace-path`：可选；Agent 运行时不传则使用注入的 workspace，手工终端调用时回退到当前目录。
 - `--size`：例如 `1024x1024`。
 - `--quality`：由 Provider 支持情况决定，常用 `low` 做草稿。
 - `--output-format`：常用 `png`，透明后处理资产优先 `png` 或 `webp`。

@@ -76,6 +76,13 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	} else if info.Mode()&0o111 == 0 {
 		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
 	}
+	shimPayload, err := os.ReadFile(nexusctlShim)
+	if err != nil {
+		t.Fatalf("读取 nexusctl shim 失败: %v", err)
+	}
+	if !strings.Contains(string(shimPayload), "NEXUSCTL_WORKSPACE_PATH") {
+		t.Fatalf("nexusctl shim 应保留调用方 workspace 路径: %s", shimPayload)
+	}
 	nexusctlCmdShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl.cmd")
 	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
 	if err != nil {

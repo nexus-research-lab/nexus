@@ -214,6 +214,8 @@ func ensureNexusctlShim(workspacePath string, context map[string]string) error {
 set -eu
 
 PROJECT_ROOT="${NEXUS_PROJECT_ROOT:-{project_root}}"
+CALLER_CWD="$(pwd)"
+export NEXUSCTL_WORKSPACE_PATH="${NEXUSCTL_WORKSPACE_PATH:-$CALLER_CWD}"
 
 if [ -f "$PROJECT_ROOT/cmd/nexusctl/main.go" ]; then
   cd "$PROJECT_ROOT"
@@ -247,6 +249,8 @@ setlocal
 
 set "PROJECT_ROOT=%NEXUS_PROJECT_ROOT%"
 if "%PROJECT_ROOT%"=="" set "PROJECT_ROOT={project_root}"
+set "CALLER_CWD=%CD%"
+if "%NEXUSCTL_WORKSPACE_PATH%"=="" set "NEXUSCTL_WORKSPACE_PATH=%CALLER_CWD%"
 
 if exist "%PROJECT_ROOT%\cmd\nexusctl\main.go" (
   cd /d "%PROJECT_ROOT%"

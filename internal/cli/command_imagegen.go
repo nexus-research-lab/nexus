@@ -3,11 +3,14 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/service/imagegen"
 
 	"github.com/spf13/cobra"
 )
+
+const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 
 func newImagegenCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
@@ -128,6 +131,9 @@ func resolveImagegenPrompt(prompt string, promptFile string) (string, error) {
 func resolveImagegenWorkspacePath(value string) (string, error) {
 	if value != "" {
 		return filepath.Abs(value)
+	}
+	if runtimeWorkspacePath := strings.TrimSpace(os.Getenv(nexusctlWorkspacePathEnvName)); runtimeWorkspacePath != "" {
+		return filepath.Abs(runtimeWorkspacePath)
 	}
 	return os.Getwd()
 }

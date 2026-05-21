@@ -91,6 +91,10 @@ export function useRoomPageController({
     return resolve_room_member_agents(scoped_room_contexts);
   }, [scoped_room_contexts]);
 
+  const workspace_agent_ids = useMemo(() => {
+    return room_member_agents.map((agent) => agent.agent_id);
+  }, [room_member_agents]);
+
   const room_conversations = useMemo<RoomConversationView[]>(() => {
     return build_room_conversation_views(scoped_room_contexts);
   }, [scoped_room_contexts]);
@@ -170,6 +174,7 @@ export function useRoomPageController({
 
   const workspace = useHomeWorkspaceController({
     current_agent_id: current_agent?.agent_id ?? null,
+    workspace_agent_ids,
   });
 
   const handle_select_agent = useCallback((agent_id: string) => {

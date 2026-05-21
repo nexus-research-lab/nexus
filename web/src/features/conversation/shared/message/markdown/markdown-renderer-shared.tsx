@@ -464,7 +464,7 @@ export function create_markdown_components(
       const image = (
         <img
           alt={alt || ""}
-          className="my-4 h-auto max-w-full rounded-[8px] border border-(--divider-subtle-color) object-contain"
+          className="my-3 block h-auto max-h-[420px] w-auto max-w-full rounded-[8px] border border-(--divider-subtle-color) object-contain sm:max-w-[560px]"
           loading="lazy"
           src={image_src}
         />
@@ -473,7 +473,7 @@ export function create_markdown_components(
       if (resolved_path && on_open_workspace_file) {
         return (
           <button
-            className="block max-w-full text-left"
+            className="block w-fit max-w-full text-left"
             onClick={() => on_open_workspace_file(resolved_path)}
             title={resolved_path}
             type="button"
