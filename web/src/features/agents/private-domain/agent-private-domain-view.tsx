@@ -182,10 +182,11 @@ export function AgentPrivateDomainView({
           on_refresh={handle_refresh}
           title="联络"
         />
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(132px,0.38fr)_minmax(0,1fr)] gap-3 px-4 pb-4 pt-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-4 pt-3">
           <PrivateThreadList
             agent_id={agent.agent_id}
-            class_name="min-h-0"
+            class_name="max-h-[196px] shrink-0 rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_36%,transparent)]"
+            compact
             is_loading={threads_loading}
             on_select={set_selected_thread_id}
             selected_thread_id={selected_thread_id}
@@ -193,6 +194,8 @@ export function AgentPrivateDomainView({
           />
           <PrivateEventTimeline
             agent_id={agent.agent_id}
+            class_name="min-h-0 flex-1"
+            compact
             error={error}
             events={events}
             is_loading={events_loading}
@@ -270,6 +273,7 @@ function PrivateDomainToolbar({
 function PrivateThreadList({
   agent_id,
   class_name,
+  compact = false,
   is_loading,
   on_select,
   selected_thread_id,
@@ -277,6 +281,7 @@ function PrivateThreadList({
 }: {
   agent_id: string;
   class_name?: string;
+  compact?: boolean;
   is_loading: boolean;
   on_select: (thread_id: string) => void;
   selected_thread_id: string | null;
@@ -300,16 +305,19 @@ function PrivateThreadList({
   }
 
   return (
-    <div className={cn("soft-scrollbar min-h-0 overflow-y-auto p-2", class_name)}>
-      <div className="space-y-1">
+    <div className={cn("soft-scrollbar min-h-0 overflow-y-auto", compact ? "p-1.5" : "p-2", class_name)}>
+      <div className={compact ? "space-y-0.5" : "space-y-1"}>
         {threads.map((thread) => {
           const is_active = thread.thread_id === selected_thread_id;
           return (
             <button
               className={cn(
-                "group flex w-full min-w-0 items-start gap-2.5 rounded-[12px] border px-2.5 py-2.5 text-left transition",
+                "group flex w-full min-w-0 items-start border text-left transition",
+                compact ? "gap-2 rounded-[10px] px-2 py-2" : "gap-2.5 rounded-[12px] px-2.5 py-2.5",
                 is_active
-                  ? "border-[color:color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
+                  ? compact
+                    ? "border-transparent bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] shadow-[inset_2px_0_0_var(--primary)]"
+                    : "border-[color:color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
                   : "border-transparent hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background)",
               )}
               key={thread.thread_id}
@@ -322,19 +330,22 @@ function PrivateThreadList({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-[13px] font-bold text-(--text-strong)">
+                  <span className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[12.5px]" : "text-[13px]")}>
                     {private_thread_title(thread, agent_id)}
                   </span>
                   <ThreadScopeIcon scope={thread.scope} />
                 </div>
                 <MarkdownRendererContent
-                  class_name="mt-1 line-clamp-2 text-[12px] leading-4 text-(--text-muted) [&_*]:leading-4"
+                  class_name={cn(
+                    "mt-1 text-(--text-muted) [&_*]:leading-4",
+                    compact ? "line-clamp-1 text-[11.5px] leading-4" : "line-clamp-2 text-[12px] leading-4",
+                  )}
                   content={thread.last_content_preview || action_type_label(thread.last_action_type)}
                   mermaid_show_header={false}
                   variant="summary"
                   workspace_agent_id={thread.participant_agent_ids[0] ?? agent_id}
                 />
-                <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] font-semibold text-(--text-soft)">
+                <div className={cn("flex items-center gap-1.5 font-semibold text-(--text-soft)", compact ? "mt-1 text-[10px]" : "mt-1.5 text-[10.5px]")}>
                   <span className="truncate">{thread.room_name || "房间"}</span>
                   <span>·</span>
                   <span>{thread.action_count}</span>
@@ -356,26 +367,38 @@ function PrivateThreadList({
 
 function PrivateEventTimeline({
   agent_id,
+  class_name,
+  compact = false,
   error,
   events,
   is_loading,
   thread,
 }: {
   agent_id: string;
+  class_name?: string;
+  compact?: boolean;
   error: string | null;
   events: AgentPrivateEvent[];
   is_loading: boolean;
   thread: AgentPrivateThread | null;
 }) {
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]">
-      <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
+    <section
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden border border-(--divider-subtle-color)",
+        compact
+          ? "rounded-[14px] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]"
+          : "rounded-[16px] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]",
+        class_name,
+      )}
+    >
+      <div className={cn("flex items-center justify-between gap-3 border-b border-(--divider-subtle-color)", compact ? "h-10 px-3" : "h-11 px-4")}>
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold text-(--text-strong)">
+          <p className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[12.5px]" : "text-[13px]")}>
             {thread ? private_thread_title(thread, agent_id) : "联络消息"}
           </p>
           {thread ? (
-            <p className="mt-0.5 truncate text-[10.5px] font-semibold text-(--text-soft)">
+            <p className={cn("mt-0.5 truncate font-semibold text-(--text-soft)", compact ? "text-[10px]" : "text-[10.5px]")}>
               {thread.room_name || "房间"} · {thread.conversation_title || "主对话"}
             </p>
           ) : null}
@@ -383,7 +406,7 @@ function PrivateEventTimeline({
         {is_loading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
       </div>
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <div className={cn("soft-scrollbar min-h-0 flex-1 overflow-y-auto", compact ? "px-3 py-3" : "px-4 py-4")}>
         {error ? (
           <p className="rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-[12px] font-semibold text-(--destructive)">
             {error}
@@ -405,6 +428,7 @@ function PrivateEventTimeline({
           {events.map((event) => (
             <PrivateEventBubble
               agent_id={agent_id}
+              compact={compact}
               event={event}
               key={event.action_id}
             />
@@ -417,9 +441,11 @@ function PrivateEventTimeline({
 
 function PrivateEventBubble({
   agent_id,
+  compact = false,
   event,
 }: {
   agent_id: string;
+  compact?: boolean;
   event: AgentPrivateEvent;
 }) {
   const is_outgoing = event.direction === "outgoing";
@@ -429,7 +455,10 @@ function PrivateEventBubble({
     <div className={cn("flex", is_self ? "justify-center" : is_outgoing ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "w-fit max-w-[min(720px,78%)] rounded-[16px] border px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
+          "w-fit border",
+          compact
+            ? "max-w-[88%] rounded-[13px] px-2.5 py-2 shadow-none"
+            : "max-w-[min(720px,78%)] rounded-[16px] px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
           is_self
             ? "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_72%,transparent)]"
             : is_outgoing
@@ -437,9 +466,9 @@ function PrivateEventBubble({
               : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
         )}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className={cn("flex min-w-0 items-center", compact ? "gap-1.5" : "gap-2")}>
           <AgentAvatar participant={source} size="sm" />
-          <span className="truncate text-[12px] font-bold text-(--text-strong)">
+          <span className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[11.5px]" : "text-[12px]")}>
             {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
           </span>
           <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
@@ -450,12 +479,15 @@ function PrivateEventBubble({
           </span>
         </div>
         <MarkdownRendererContent
-          class_name="mt-2 text-[13px] leading-5 text-(--text-default) [&_[data-markdown-anchor]]:my-1 [&_[data-markdown-anchor]]:leading-5 [&_blockquote]:my-2 [&_ol]:mb-2 [&_ol]:space-y-1 [&_ul]:mb-2 [&_ul]:space-y-1"
+          class_name={cn(
+            "text-(--text-default) [&_[data-markdown-anchor]]:my-1 [&_[data-markdown-anchor]]:leading-5 [&_blockquote]:my-2 [&_ol]:mb-2 [&_ol]:space-y-1 [&_ul]:mb-2 [&_ul]:space-y-1",
+            compact ? "mt-1.5 text-[12.5px] leading-5" : "mt-2 text-[13px] leading-5",
+          )}
           content={event.content || "（无正文）"}
           mermaid_show_header={false}
           workspace_agent_id={event.source_agent_id}
         />
-        <p className="mt-2 truncate text-[10.5px] font-semibold text-(--text-soft)">
+        <p className={cn("truncate font-semibold text-(--text-soft)", compact ? "mt-1.5 text-[10px]" : "mt-2 text-[10.5px]")}>
           {event_route_label(event, agent_id)}
         </p>
       </div>
