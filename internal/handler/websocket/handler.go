@@ -54,15 +54,15 @@ func NewHandler(
 	allowedOrigins []string,
 ) *Handler {
 	handler := &Handler{
-		api:           api,
-		roomService:   roomService,
-		roomRealtime:  roomRealtime,
-		dm:            dm,
-		permission:    permission,
-		runtime:       runtime,
-		channels:      channels,
-		roomSubs:      newRoomSubscriptionRegistry(128),
-		workspaceSubs: newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		api:            api,
+		roomService:    roomService,
+		roomRealtime:   roomRealtime,
+		dm:             dm,
+		permission:     permission,
+		runtime:        runtime,
+		channels:       channels,
+		roomSubs:       newRoomSubscriptionRegistry(128),
+		workspaceSubs:  newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
 		allowedOrigins: allowedOrigins,
 	}
 	if roomRealtime != nil {

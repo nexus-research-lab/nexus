@@ -988,11 +988,7 @@ func (s *Service) encryptConnectionCredentials(record *connectionRecord) error {
 	}
 	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
 	if err != nil {
-		if s.config.Debug {
-			fmt.Fprintln(os.Stderr, "WARNING: CONNECTOR_CREDENTIALS_KEY 未配置，connector credentials 将以明文保存")
-			return nil
-		}
-		return err
+		return fmt.Errorf("CONNECTOR_CREDENTIALS_KEY 未配置或无效，无法加密 connector credentials: %w", err)
 	}
 	encrypted, err := credentials.EncryptPayload(key, []byte(record.Credentials))
 	if err != nil {

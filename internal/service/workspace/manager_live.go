@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -364,7 +365,11 @@ func (m *liveManager) runWatcher(ctx context.Context, agentID string) {
 				return
 			}
 			m.handleFSEvent(agentID, event)
-		case <-state.Watcher.Errors:
+		case watchErr, ok := <-state.Watcher.Errors:
+			if !ok {
+				return
+			}
+			slog.Warn("workspace watcher 错误", "agent_id", agentID, "err", watchErr)
 		case <-ticker.C:
 			m.flushSettledWrites(agentID)
 		}

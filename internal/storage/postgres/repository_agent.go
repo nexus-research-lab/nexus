@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -62,6 +64,64 @@ ORDER BY a.is_main DESC, a.created_at ASC`
 	defer rows.Close()
 
 	result := make([]protocol.Agent, 0)
+	for rows.Next() {
+		item, err := agentrepo.ScanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+// ListAgentsByIDs 批量返回指定 ID 列表的活跃 Agent。
+func (r *AgentRepository) ListAgentsByIDs(ctx context.Context, ownerUserID string, agentIDs []string) ([]protocol.Agent, error) {
+	if len(agentIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(agentIDs))
+	args := make([]any, len(agentIDs))
+	for i, id := range agentIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := `
+	SELECT
+	    a.id,
+	    a.name,
+	    a.owner_user_id,
+	    a.workspace_path,
+	    a.status,
+	    a.is_main,
+	    COALESCE(a.avatar, ''),
+	    COALESCE(a.description, ''),
+	    COALESCE(a.vibe_tags::text, '[]'),
+	    COALESCE(p.display_name, ''),
+	    COALESCE(p.headline, ''),
+	    COALESCE(p.profile_markdown, ''),
+	    a.created_at,
+	    COALESCE(rt.provider, ''),
+	    COALESCE(rt.permission_mode, ''),
+	    COALESCE(rt.allowed_tools_json, '[]'),
+    COALESCE(rt.disallowed_tools_json, '[]'),
+    COALESCE(rt.mcp_servers_json, '{}'),
+    rt.max_turns,
+    rt.max_thinking_tokens,
+    COALESCE(rt.setting_sources_json, '[]')
+FROM agents a
+LEFT JOIN profiles p ON p.agent_id = a.id
+LEFT JOIN runtimes rt ON rt.agent_id = a.id
+WHERE a.status = 'active' AND a.id IN (` + strings.Join(placeholders, ", ") + `)`
+	if ownerUserID != "" {
+		args = append(args, ownerUserID)
+		query += fmt.Sprintf(` AND a.owner_user_id = $%d`, len(args))
+	}
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]protocol.Agent, 0, len(agentIDs))
 	for rows.Next() {
 		item, err := agentrepo.ScanAgent(rows)
 		if err != nil {

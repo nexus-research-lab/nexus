@@ -329,16 +329,20 @@ func NewManagerWithFactory(factory Factory) *Manager {
 // GetOrCreate 获取或创建 client，并在复用时应用最新运行时配置。
 func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options agentclient.Options) (Client, error) {
 	m.mu.RLock()
-	state, ok := m.sessions[sessionKey]
+	state := m.sessions[sessionKey]
+	var existing Client
+	if state != nil {
+		existing = state.Client
+	}
 	m.mu.RUnlock()
-	if ok && state.Client != nil {
-		if err := state.Client.Reconfigure(ctx, options); err != nil {
+	if existing != nil {
+		if err := existing.Reconfigure(ctx, options); err != nil {
 			if IsRuntimeTransportClosedError(err) {
-				return m.replaceDisconnectedClient(ctx, sessionKey, state.Client, options)
+				return m.replaceDisconnectedClient(ctx, sessionKey, existing, options)
 			}
 			return nil, err
 		}
-		return state.Client, nil
+		return existing, nil
 	}
 
 	m.mu.Lock()

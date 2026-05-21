@@ -76,7 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void run_auth_status_bootstrap(refresh_status).catch(() => undefined);
+    void run_auth_status_bootstrap(refresh_status).catch((err) => {
+      console.warn("[AuthProvider] Auth bootstrap failed:", err instanceof Error ? err.message : err);
+    });
   }, [refresh_status]);
 
   useEffect(() => {
