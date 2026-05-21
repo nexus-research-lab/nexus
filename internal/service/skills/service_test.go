@@ -67,6 +67,13 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if roomSkill.Scope != ScopeRoom {
 		t.Fatalf("room skill scope 不正确: %+v", roomSkill)
 	}
+	werewolfSkill, ok := findSkill(roomSkills, "werewolf-6p")
+	if !ok {
+		t.Fatalf("未读取到狼人杀 room skill: %+v", roomSkills)
+	}
+	if werewolfSkill.Scope != ScopeRoom {
+		t.Fatalf("狼人杀 room skill scope 不正确: %+v", werewolfSkill)
+	}
 	if _, err = service.GetSkillDetail(ctx, "room-playbook", agentValue.AgentID); err == nil {
 		t.Fatal("room scope skill 不应作为 agent skill 详情读取")
 	}
