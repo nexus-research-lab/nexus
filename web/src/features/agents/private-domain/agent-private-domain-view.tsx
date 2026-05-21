@@ -16,6 +16,7 @@ import {
   list_agent_private_events_api,
   list_agent_private_threads_api,
 } from "@/lib/api/agent-private-domain-api";
+import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import {
   cn,
   format_relative_time,
@@ -444,9 +445,12 @@ function PrivateEventBubble({
             {format_relative_time(event.timestamp)}
           </span>
         </div>
-        <p className="mt-2 whitespace-pre-wrap break-words text-[13px] leading-5 text-(--text-default)">
-          {event.content || "（无正文）"}
-        </p>
+        <MarkdownRendererContent
+          class_name="mt-2 text-[13px] leading-5 text-(--text-default) [&_[data-markdown-anchor]]:my-1 [&_[data-markdown-anchor]]:leading-5 [&_blockquote]:my-2 [&_ol]:mb-2 [&_ol]:space-y-1 [&_ul]:mb-2 [&_ul]:space-y-1"
+          content={event.content || "（无正文）"}
+          mermaid_show_header={false}
+          workspace_agent_id={event.source_agent_id}
+        />
         <p className="mt-2 truncate text-[10.5px] font-semibold text-(--text-soft)">
           {event_route_label(event, agent_id)}
         </p>
