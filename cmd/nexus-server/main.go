@@ -13,6 +13,7 @@ import (
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
@@ -75,7 +76,7 @@ func runServer() error {
 		},
 	})
 
-	limitSnapshot, limitErr := ensureOpenFilesLimit(8192)
+	limitSnapshot, limitErr := syslimit.EnsureOpenFilesLimit(8192)
 	if limitErr != nil {
 		logger.Warn("提升文件句柄限制失败", "err", limitErr)
 	} else if limitSnapshot.Soft > 0 {

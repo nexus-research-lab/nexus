@@ -1,22 +1,20 @@
 //go:build unix
 
-package main
+package syslimit
 
 import "syscall"
 
-type openFilesLimitSnapshot struct {
-	Soft   uint64
-	Hard   uint64
-	Raised bool
+func init() {
+	EnsureOpenFilesLimit = ensureOpenFilesLimitUnix
 }
 
-func ensureOpenFilesLimit(target uint64) (openFilesLimitSnapshot, error) {
+func ensureOpenFilesLimitUnix(target uint64) (OpenFilesLimitSnapshot, error) {
 	var current syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &current); err != nil {
-		return openFilesLimitSnapshot{}, err
+		return OpenFilesLimitSnapshot{}, err
 	}
 
-	snapshot := openFilesLimitSnapshot{
+	snapshot := OpenFilesLimitSnapshot{
 		Soft: current.Cur,
 		Hard: current.Max,
 	}
