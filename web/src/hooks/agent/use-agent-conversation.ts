@@ -1197,17 +1197,6 @@ export function useAgentConversation(
         machine.track_chat_ack(ack);
       });
       clear_pending_chat_ack(ack.round_id);
-      if (ack.public_user_message === false) {
-        set_messages((prev) =>
-          prev.filter((message) =>
-            !(
-              message.role === "user" &&
-              message.message_id === ack.round_id &&
-              message.round_id === ack.round_id
-            ),
-          ),
-        );
-      }
       const pending_count = ack.pending?.length ?? 0;
       set_pending_agent_slots((prev) => {
         const preserved_slots = prev.filter((slot) => {
@@ -1228,7 +1217,7 @@ export function useAgentConversation(
         return [...preserved_slots, ...next_slots];
       });
     },
-    [apply_runtime_transition, clear_pending_chat_ack, set_messages, set_pending_agent_slots],
+    [apply_runtime_transition, clear_pending_chat_ack, set_pending_agent_slots],
   );
 
   const track_assistant_message = useCallback(

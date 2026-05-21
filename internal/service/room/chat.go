@@ -88,24 +88,12 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if len(attachments) > 0 {
 		userMessage["attachments"] = attachments
 	}
-	publishUserMessage := shouldPublishRoomUserInput(targetResolution, deliveryPolicy)
-	if publishUserMessage {
-		if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
-			return err
-		}
-		history = append(history, userMessage)
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
-		s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
-	} else {
-		s.loggerFor(ctx).Debug("Room 用户输入只进入执行链路",
-			"session_key", sessionKey,
-			"room_id", roomID,
-			"conversation_id", conversationID,
-			"round_id", request.RoundID,
-			"target_resolution", targetResolution,
-			"delivery_policy", deliveryPolicy,
-		)
+	if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
+		return err
 	}
+	history = append(history, userMessage)
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
+	s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
 
 	if len(targetAgentIDs) == 0 {
 		s.loggerFor(ctx).Warn("Room 消息未命中任何目标成员",
@@ -114,14 +102,13 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			"conversation_id", conversationID,
 			"round_id", request.RoundID,
 		)
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomChatAckEvent(
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 			sessionKey,
 			roomID,
 			conversationID,
 			firstNonEmpty(request.ReqID, request.RoundID),
 			request.RoundID,
 			[]map[string]any{},
-			publishUserMessage,
 		))
 		hintMessage := protocol.Message{
 			"message_id":      "result_" + request.RoundID,
@@ -178,14 +165,13 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 		targetAgentIDs = filterHandledAgentIDs(targetAgentIDs, queuedAgentIDs)
 		if len(targetAgentIDs) == 0 {
-			s.broadcastSharedEvent(ctx, sessionKey, roomID, roomChatAckEvent(
+			s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 				sessionKey,
 				roomID,
 				conversationID,
 				firstNonEmpty(request.ReqID, request.RoundID),
 				request.RoundID,
 				[]map[string]any{},
-				publishUserMessage,
 			))
 			s.broadcastSessionStatus(ctx, sessionKey)
 			return nil
@@ -208,14 +194,13 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 		targetAgentIDs = filterHandledAgentIDs(targetAgentIDs, guidedAgentIDs)
 		if len(targetAgentIDs) == 0 {
-			s.broadcastSharedEvent(ctx, sessionKey, roomID, roomChatAckEvent(
+			s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 				sessionKey,
 				roomID,
 				conversationID,
 				firstNonEmpty(request.ReqID, request.RoundID),
 				request.RoundID,
 				[]map[string]any{},
-				publishUserMessage,
 			))
 			s.broadcastSessionStatus(ctx, sessionKey)
 			return nil
@@ -305,14 +290,13 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			"conversation_id", conversationID,
 			"round_id", request.RoundID,
 		)
-		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomChatAckEvent(
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 			sessionKey,
 			roomID,
 			conversationID,
 			firstNonEmpty(request.ReqID, request.RoundID),
 			request.RoundID,
 			[]map[string]any{},
-			publishUserMessage,
 		))
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "room_error", "Room 中没有可用成员会话", request.RoundID))
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "error", "error"))
@@ -325,40 +309,18 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomChatAckEvent(
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 		sessionKey,
 		roomID,
 		conversationID,
 		firstNonEmpty(request.ReqID, request.RoundID),
 		request.RoundID,
 		pending,
-		publishUserMessage,
 	))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)
 	return nil
-}
-
-func shouldPublishRoomUserInput(targetResolution string, deliveryPolicy protocol.ChatDeliveryPolicy) bool {
-	if deliveryPolicy == protocol.ChatDeliveryPolicyGuide {
-		return false
-	}
-	return strings.TrimSpace(targetResolution) != "room_host_default"
-}
-
-func roomChatAckEvent(
-	sessionKey string,
-	roomID string,
-	conversationID string,
-	reqID string,
-	roundID string,
-	pending []map[string]any,
-	publicUserMessage bool,
-) protocol.EventMessage {
-	event := roomdomain.WrapChatAckEvent(sessionKey, roomID, conversationID, reqID, roundID, pending)
-	event.Data["public_user_message"] = publicUserMessage
-	return event
 }
 
 func resolveRoomHostDefaultTarget(

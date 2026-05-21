@@ -323,7 +323,6 @@ export interface ChatAckData {
   round_id: string;
   pending: PendingAgentSlot[];
   ack_timeout_ms?: number;
-  public_user_message?: boolean;
 }
 
 export type RoomCollaborationEventType = "agent_message" | "room_broadcast";
