@@ -485,10 +485,15 @@ function PrivateThreadInspector({
         <InfoRow label="消息数" value={String(thread.action_count)} />
         <div className="mt-4">
           <p className="text-[11px] font-semibold tracking-[0.12em] text-(--text-soft)">成员</p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-2 space-y-1.5">
             {(peers.length ? peers : thread.participants).map((participant) => (
-              <div className="flex min-w-0 items-center gap-2" key={participant.agent_id}>
-                <AgentAvatar participant={participant} size="md" />
+              <div
+                className="grid min-w-0 grid-cols-[32px_minmax(0,1fr)] items-center gap-2 rounded-[10px] py-1"
+                key={participant.agent_id}
+              >
+                <div className="flex h-8 w-8 items-center justify-center">
+                  <AgentAvatar participant={participant} size="md" />
+                </div>
                 <div className="min-w-0">
                   <p className="truncate text-[12px] font-bold text-(--text-strong)">
                     {participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id}
