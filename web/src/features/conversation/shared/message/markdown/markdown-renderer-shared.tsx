@@ -22,7 +22,7 @@ import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent/agent";
-import { read_markdown_fence_marker } from "./markdown-fence";
+import { find_open_markdown_fence_language, read_markdown_fence_marker } from "./markdown-fence";
 import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plugins";
 import { MermaidView } from "./mermaid-view";
 
@@ -44,12 +44,21 @@ interface CreateMarkdownComponentsOptions {
   stream_mermaid?: boolean;
 }
 
+interface NormalizeMarkdownContentOptions {
+  is_streaming?: boolean;
+}
+
 const WORKSPACE_FILE_PATTERN = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,10})/g;
 const WORKSPACE_ABSOLUTE_FILE_PATTERN = /(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/(?<agent>[^/\s`"'，。；！？]+)\/(?<relative>[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}))/;
 const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入到|生成到|created at|saved to|written to)\s*)[`"']?(?<path>\/[^\s`"'，。；！？]+\/\.nexus\/workspace\/[^/\s`"'，。；！？]+\/[^\s`"'，。；！？]+\.[A-Za-z0-9]{1,10}|[A-Za-z0-9_.-][A-Za-z0-9_./-]*\.[A-Za-z0-9]{1,10})[`"']?(?<suffix>.*)$/i;
 const WORKSPACE_ARTIFACT_EXTENSION_PATTERN = /\.(?:adoc|avif|bmp|csv|gif|html?|ico|jpe?g|jsonl?|log|markdown|md|mermaid|mmd|pdf|png|rst|svg|toml|txt|webp|xml|ya?ml)$/i;
 const WORKSPACE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
 const MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN = /(?<=[\p{L}\p{N}_./-])\*(?=[(\[（［])/gu;
+const STREAMING_URL_TAIL_PATTERN = /(?:https?:\/\/|www\.|mailto:)[^\s<>"'，。；！？]*$/iu;
+const STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN = /(\[[^\]\n]{0,180}\]\()((?:https?:\/\/|www\.|mailto:)[^\s)]*)$/iu;
+const STREAMING_AUTOLINK_TAIL_PATTERN = /<((?:https?:\/\/|www\.|mailto:)[^\s>]*)$/iu;
+const URL_TRAILING_PUNCTUATION_PATTERN = /[.,;:!?，。；：！？、]+$/u;
+const ALLOWED_MARKDOWN_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
 // 数学语法必须先于 GFM 表格解析，避免公式里的 `|` 被误判为列分隔符。
 export const MARKDOWN_PLUGINS = [
@@ -271,11 +280,15 @@ export function normalize_markdown_content(
   content: string,
   resolve_file_path: ResolveWorkspaceFilePath,
   on_open_workspace_file?: (path: string) => void,
+  options: NormalizeMarkdownContentOptions = {},
 ): string {
-  const normalized_content = escape_identifier_asterisks_before_brackets(content);
+  const normalized_content = stabilize_streaming_url_tail(
+    escape_identifier_asterisks_before_brackets(content),
+    Boolean(options.is_streaming),
+  );
   return normalized_content.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
     if (
-      is_inside_inline_code(normalized_content, offset) ||
+      is_inside_markdown_protected_region(normalized_content, offset) ||
       is_inside_markdown_link_destination(normalized_content, offset, match.length)
     ) {
       return match;
@@ -283,6 +296,45 @@ export function normalize_markdown_content(
     const resolved_path = resolve_workspace_artifact_path(match, resolve_file_path);
     return resolved_path && on_open_workspace_file ? `\`${match}\`` : match;
   });
+}
+
+function stabilize_streaming_url_tail(content: string, is_streaming: boolean): string {
+  if (!is_streaming || !content) {
+    return content;
+  }
+
+  const markdown_link_match = STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN.exec(content);
+  if (markdown_link_match?.[1] && markdown_link_match[2]) {
+    const url_offset = content.length - markdown_link_match[2].length;
+    if (!is_inside_markdown_protected_region(content, url_offset)) {
+      return `${content.slice(0, url_offset)}${escape_markdown_url_tail(markdown_link_match[2])}`;
+    }
+  }
+
+  const autolink_match = STREAMING_AUTOLINK_TAIL_PATTERN.exec(content);
+  if (autolink_match?.[1]) {
+    const url_offset = content.length - autolink_match[1].length;
+    if (!is_inside_markdown_protected_region(content, url_offset)) {
+      return `${content.slice(0, url_offset - 1)}&lt;${escape_markdown_url_tail(autolink_match[1])}`;
+    }
+  }
+
+  const url_match = STREAMING_URL_TAIL_PATTERN.exec(content);
+  if (!url_match?.[0]) {
+    return content;
+  }
+
+  const url_offset = content.length - url_match[0].length;
+  if (is_inside_markdown_protected_region(content, url_offset)) {
+    return content;
+  }
+
+  // 中文注释：流式尾巴上的 URL 大概率还没写完，先打断 GFM 自动链接，等空白/换行收尾后再恢复为真实链接。
+  return `${content.slice(0, url_offset)}${escape_markdown_url_tail(url_match[0])}`;
+}
+
+function escape_markdown_url_tail(value: string): string {
+  return value.replace(/([.:<>()[\]])/g, "\\$1");
 }
 
 function escape_identifier_asterisks_before_brackets(content: string): string {
@@ -343,6 +395,13 @@ function is_inside_inline_code(content: string, offset: number): boolean {
   return (before.match(/`/g)?.length ?? 0) % 2 === 1;
 }
 
+function is_inside_markdown_protected_region(content: string, offset: number): boolean {
+  return (
+    is_inside_inline_code(content, offset) ||
+    find_open_markdown_fence_language(content.slice(0, offset)) !== null
+  );
+}
+
 function is_inside_markdown_link_destination(
   content: string,
   offset: number,
@@ -363,6 +422,106 @@ function is_inside_markdown_link_destination(
   const close_paren_index = after.indexOf(")");
   const newline_index = after.search(/\r?\n/);
   return close_paren_index >= 0 && (newline_index < 0 || close_paren_index < newline_index);
+}
+
+function get_plain_text_from_children(children: ReactNode): string | null {
+  if (typeof children === "string" || typeof children === "number") {
+    return String(children);
+  }
+
+  if (!Array.isArray(children)) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  for (const child of children) {
+    if (typeof child === "string" || typeof child === "number") {
+      parts.push(String(child));
+      continue;
+    }
+    if (child === null || child === undefined || typeof child === "boolean") {
+      continue;
+    }
+    return null;
+  }
+
+  return parts.join("");
+}
+
+function count_char(value: string, char: string): number {
+  return Array.from(value).filter((item) => item === char).length;
+}
+
+function split_trailing_url_punctuation(value: string): { href: string; trailing_text: string } {
+  let href = value.trim();
+  let trailing_text = "";
+
+  const append_trailing = (text: string) => {
+    trailing_text = `${text}${trailing_text}`;
+  };
+
+  while (href) {
+    const punctuation_match = URL_TRAILING_PUNCTUATION_PATTERN.exec(href);
+    if (punctuation_match?.[0]) {
+      href = href.slice(0, -punctuation_match[0].length);
+      append_trailing(punctuation_match[0]);
+      continue;
+    }
+
+    const last_char = href.at(-1);
+    if (
+      last_char === ")" &&
+      count_char(href, ")") > count_char(href, "(")
+    ) {
+      href = href.slice(0, -1);
+      append_trailing(")");
+      continue;
+    }
+
+    if (
+      last_char === "]" &&
+      count_char(href, "]") > count_char(href, "[")
+    ) {
+      href = href.slice(0, -1);
+      append_trailing("]");
+      continue;
+    }
+
+    break;
+  }
+
+  return { href, trailing_text };
+}
+
+function normalize_external_markdown_href(href: string): string | null {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = /^www\./i.test(trimmed) ? `https://${trimmed}` : trimmed;
+  try {
+    const url = new URL(normalized);
+    return ALLOWED_MARKDOWN_LINK_PROTOCOLS.has(url.protocol) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function compact_external_url_label(href: string): string {
+  if (href.startsWith("mailto:")) {
+    return href.slice("mailto:".length);
+  }
+
+  try {
+    const url = new URL(href);
+    const host = url.hostname.replace(/^www\./i, "");
+    const suffix = `${url.pathname === "/" ? "" : url.pathname}${url.search ? "?..." : ""}${url.hash ? "#..." : ""}`;
+    const label = `${host}${suffix}`;
+    return label.length > 64 ? `${label.slice(0, 42)}...${label.slice(-16)}` : label;
+  } catch {
+    return href;
+  }
 }
 
 export function create_markdown_components(
@@ -433,11 +592,12 @@ export function create_markdown_components(
       );
     },
     a({ href, children }) {
-      if (!href) {
+      const raw_href = String(href ?? "").trim();
+      if (!raw_href) {
         return <span className="text-primary">{children}</span>;
       }
 
-      const resolved_path = resolve_workspace_artifact_path(href, resolve_file_path);
+      const resolved_path = resolve_workspace_artifact_path(raw_href, resolve_file_path);
       if (resolved_path && on_open_workspace_file) {
         return (
           <WorkspaceFileButton
@@ -448,15 +608,49 @@ export function create_markdown_components(
         );
       }
 
+      if (raw_href.startsWith("#")) {
+        return (
+          <a
+            className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
+            href={raw_href}
+          >
+            {children}
+          </a>
+        );
+      }
+
+      const { href: href_without_trailing, trailing_text } = split_trailing_url_punctuation(raw_href);
+      const external_href = normalize_external_markdown_href(href_without_trailing);
+      if (!external_href) {
+        return <span className="text-primary">{children}</span>;
+      }
+
+      const plain_text = get_plain_text_from_children(children);
+      const plain_text_href = plain_text
+        ? normalize_external_markdown_href(split_trailing_url_punctuation(plain_text).href)
+        : null;
+      const link_children = plain_text && (
+        plain_text === raw_href ||
+        plain_text === href_without_trailing ||
+        plain_text === external_href ||
+        plain_text_href === external_href
+      )
+        ? compact_external_url_label(external_href)
+        : children;
+
       return (
-        <a
-          className="text-primary transition-all decoration-primary/30 underline-offset-4 hover:underline"
-          href={href}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {children}
-        </a>
+        <>
+          <a
+            className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
+            href={external_href}
+            rel="noopener noreferrer"
+            target={external_href.startsWith("mailto:") ? undefined : "_blank"}
+            title={external_href}
+          >
+            {link_children}
+          </a>
+          {trailing_text}
+        </>
       );
     },
     img({ alt, src }) {
