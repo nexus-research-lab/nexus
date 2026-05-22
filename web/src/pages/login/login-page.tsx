@@ -34,7 +34,7 @@ export function LoginPage() {
   );
   const { status, loading, is_bootstrapped, error, login, refresh_status } = useAuth();
   const handle_refresh = () => {
-    void refresh_status().catch(() => undefined);
+    void refresh_status().catch((err: unknown) => console.warn("[LoginPage] Auth refresh failed:", err));
   };
   const [username, set_username] = useState("");
   const [password, set_password] = useState("");

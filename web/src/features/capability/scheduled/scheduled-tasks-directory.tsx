@@ -88,7 +88,7 @@ export function ScheduledTasksDirectory() {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_tasks({ silent: true }).catch(() => undefined);
+      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
     };
 
     window.addEventListener("focus", handle_page_revalidate);
@@ -113,7 +113,7 @@ export function ScheduledTasksDirectory() {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_tasks({ silent: true }).catch(() => undefined);
+      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
     }, poll_interval_ms);
 
     return () => window.clearInterval(interval_id);
@@ -308,7 +308,7 @@ export function ScheduledTasksDirectory() {
               items={automation.scheduled_tasks}
               on_create={() => set_is_dialog_open(true)}
               on_open_history={set_history_task}
-              on_refresh={() => void refresh_tasks().catch(() => undefined)}
+              on_refresh={() => void refresh_tasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
               on_run_now={(task) => void handle_run_now(task)}
               on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
               on_delete={(task) => void handle_delete(task)}

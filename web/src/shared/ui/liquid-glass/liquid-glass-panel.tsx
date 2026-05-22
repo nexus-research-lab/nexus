@@ -1,6 +1,6 @@
 "use client";
 
-import { ComponentPropsWithoutRef, CSSProperties, ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ComponentPropsWithoutRef, CSSProperties, ElementType, ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -68,7 +68,7 @@ export function LiquidGlassPanel<T extends LiquidGlassTagName = "div">({
   variant = "panel",
   ...native_props
 }: LiquidGlassPanelProps<T>) {
-  const TagName = tag_name as any;
+  const TagName = tag_name as ElementType;
   const { set_element, size } = useMeasuredElementSize();
   const raw_filter_id = useId();
   const filter_id = `liquid-glass-${raw_filter_id.replace(/:/g, "")}`;

@@ -49,7 +49,7 @@ export function AuthGuard() {
   const location = useLocation();
   const { status, is_bootstrapped, error, refresh_status } = useAuth();
   const handle_refresh = () => {
-    void refresh_status().catch(() => undefined);
+    void refresh_status().catch((err: unknown) => console.warn("[AuthGuard] Auth refresh failed:", err));
   };
 
   if (!is_bootstrapped) {
