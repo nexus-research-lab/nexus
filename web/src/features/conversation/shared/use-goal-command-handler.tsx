@@ -4,6 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import {
+  FeedbackBannerStack,
+  type FeedbackBannerItem,
+} from "@/shared/ui/feedback/feedback-banner-stack";
 
 import {
   goal_create_decision,
@@ -34,6 +38,7 @@ export function useGoalCommandHandler({
   const [pending_replacement, set_pending_replacement] =
     useState<PendingGoalReplacement | null>(null);
   const [replace_error, set_replace_error] = useState<string | null>(null);
+  const [command_error, set_command_error] = useState<string | null>(null);
 
   const run_and_refresh = useCallback(
     async (command: GoalCreateCommand, replace_existing: boolean) => {
@@ -52,6 +57,11 @@ export function useGoalCommandHandler({
       if (command === null) {
         return false;
       }
+      if (command.kind === "invalid") {
+        set_command_error(command.message);
+        return true;
+      }
+      set_command_error(null);
       if (!session_key) {
         return true;
       }
@@ -97,23 +107,44 @@ export function useGoalCommandHandler({
   }, [on_refresh]);
 
   const goal_command_dialog = useMemo(
-    () => (
-      <ConfirmDialog
-        cancel_text="保留当前"
-        confirm_text="替换"
-        is_open={pending_replacement !== null}
-        message={
-          replace_error
-            ? `替换失败：${replace_error}`
-            : `当前 Goal：${pending_replacement?.current_objective ?? ""}。新 Goal：${pending_replacement?.command.objective ?? ""}`
-        }
-        title="替换当前 Goal?"
-        variant="danger"
-        on_cancel={cancel_replacement}
-        on_confirm={confirm_replacement}
-      />
-    ),
-    [cancel_replacement, confirm_replacement, pending_replacement, replace_error],
+    () => {
+      const feedback_items: FeedbackBannerItem[] = command_error
+        ? [{
+            key: "goal-command-error",
+            message: command_error,
+            on_dismiss: () => set_command_error(null),
+            title: "Goal 命令未执行",
+            tone: "error",
+          }]
+        : [];
+
+      return (
+        <>
+          <FeedbackBannerStack items={feedback_items} />
+          <ConfirmDialog
+            cancel_text="保留当前"
+            confirm_text="替换"
+            is_open={pending_replacement !== null}
+            message={
+              replace_error
+                ? `替换失败：${replace_error}`
+                : `当前 Goal：${pending_replacement?.current_objective ?? ""}。新 Goal：${pending_replacement?.command.objective ?? ""}`
+            }
+            title="替换当前 Goal?"
+            variant="danger"
+            on_cancel={cancel_replacement}
+            on_confirm={confirm_replacement}
+          />
+        </>
+      );
+    },
+    [
+      cancel_replacement,
+      command_error,
+      confirm_replacement,
+      pending_replacement,
+      replace_error,
+    ],
   );
 
   return { try_handle_goal_command, goal_command_dialog };
