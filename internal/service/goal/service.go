@@ -83,6 +83,18 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 
 // Current 返回 session 当前 Goal。
 func (s *Service) Current(ctx context.Context, sessionKey string) (*protocol.Goal, error) {
+	item, err := s.CurrentOptional(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return item, nil
+}
+
+// CurrentOptional 返回 session 当前 Goal；没有 Goal 时返回 nil。
+func (s *Service) CurrentOptional(ctx context.Context, sessionKey string) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -93,9 +105,6 @@ func (s *Service) Current(ctx context.Context, sessionKey string) (*protocol.Goa
 	item, err := s.repo.GetCurrentGoal(ctx, normalized)
 	if err != nil {
 		return nil, err
-	}
-	if item == nil {
-		return nil, ErrGoalNotFound
 	}
 	return item, nil
 }

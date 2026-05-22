@@ -57,11 +57,13 @@ type goalPayloadOptions struct {
 }
 
 func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map[string]any {
-	payload := map[string]any{"goal": item}
 	if item == nil {
-		payload["remaining_tokens"] = nil
-		return payload
+		return map[string]any{
+			"goal":             nil,
+			"remaining_tokens": nil,
+		}
 	}
+	payload := map[string]any{"goal": item}
 	remainingTokens := item.RemainingTokens()
 	payload["remaining_tokens"] = int64PointerValue(remainingTokens)
 	if item.TokenBudget != nil {

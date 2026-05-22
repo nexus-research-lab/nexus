@@ -12,6 +12,7 @@ const ServerName = "nexus_goal"
 type Service interface {
 	Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error)
 	Current(context.Context, string) (*protocol.Goal, error)
+	CurrentOptional(context.Context, string) (*protocol.Goal, error)
 	CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error)
 	BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error)
 }

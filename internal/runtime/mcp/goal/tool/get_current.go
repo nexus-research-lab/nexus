@@ -22,7 +22,7 @@ func readGoalTool(name string, description string, svc contract.Service, sctx co
 			ReadOnly:     true,
 		},
 		Handler: func(ctx context.Context, input map[string]any) (sdkmcp.ToolResult, error) {
-			item, err := svc.Current(ctx, sctx.CurrentSessionKey)
+			item, err := svc.CurrentOptional(ctx, sctx.CurrentSessionKey)
 			if err != nil {
 				return errorResult(err), nil
 			}

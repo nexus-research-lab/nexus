@@ -49,6 +49,21 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	}
 }
 
+func TestServiceCurrentOptionalAllowsMissingGoal(t *testing.T) {
+	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
+
+	current, err := service.CurrentOptional(context.Background(), "agent:nexus:ws:dm:chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("CurrentOptional() = %#v, want nil", current)
+	}
+	if _, err := service.Current(context.Background(), "agent:nexus:ws:dm:chat"); !errors.Is(err, ErrGoalNotFound) {
+		t.Fatalf("Current() error = %v, want ErrGoalNotFound", err)
+	}
+}
+
 func TestServiceBroadcastsGoalEvents(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
