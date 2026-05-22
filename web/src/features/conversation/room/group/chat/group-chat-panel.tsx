@@ -589,6 +589,7 @@ export function GroupChatPanel({
             compact={is_mobile_layout}
             disabled={!can_control_session}
             edit_request_key={goal_edit_seq}
+            is_generating={is_loading}
             session_key={session_key}
           />
 
