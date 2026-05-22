@@ -31,7 +31,6 @@ function read_boolean_map(storage_key: string): Record<string, boolean> {
       return {};
     }
     const parsed = JSON.parse(raw) as Record<string, boolean>;
-<<<<<<< HEAD
     return parsed && typeof parsed === "object" ? normalize_boolean_map(parsed) : {};
   } catch (err) {
     console.debug("[tour-state] Failed to read storage:", storage_key, err);
