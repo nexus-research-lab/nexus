@@ -39,7 +39,9 @@ func canUserTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {
 			to == protocol.GoalStatusComplete ||
 			to == protocol.GoalStatusBlocked ||
 			to == protocol.GoalStatusCleared
-	case protocol.GoalStatusComplete, protocol.GoalStatusCleared:
+	case protocol.GoalStatusComplete:
+		return to == protocol.GoalStatusActive || to == protocol.GoalStatusCleared
+	case protocol.GoalStatusCleared:
 		return false
 	default:
 		return false

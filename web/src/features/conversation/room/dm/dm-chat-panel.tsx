@@ -73,12 +73,17 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const [goal_edit_seq, set_goal_edit_seq] = useState(0);
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
+  }, []);
+  const request_goal_edit = useCallback(() => {
+    set_goal_edit_seq((value) => value + 1);
   }, []);
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
     session_key,
     on_refresh: refresh_goal_panel,
+    on_edit_goal: request_goal_edit,
   });
   const handle_conversation_event = useCallback(
     (
@@ -391,6 +396,7 @@ export function DmChatPanel({
         activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
         compact={is_mobile_layout}
         disabled={!can_control_session}
+        edit_request_key={goal_edit_seq}
         session_key={session_key}
       />
 

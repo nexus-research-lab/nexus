@@ -149,7 +149,8 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 	if !changed {
 		return item, nil
 	}
-	updated, err := s.persistTransition(ctx, *item, item.Status, protocol.GoalUpdateSourceUser, "updated", "", payload)
+	nextStatus := statusAfterUserGoalUpdate(item.Status, request.Objective != nil)
+	updated, err := s.persistTransition(ctx, *item, nextStatus, protocol.GoalUpdateSourceUser, "updated", "", payload)
 	if err != nil {
 		return nil, err
 	}
@@ -169,9 +170,17 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 	return s.changeStatus(ctx, goalID, protocol.GoalStatusPaused, protocol.GoalUpdateSourceUser, "paused", "", nil)
 }
 
-// Resume 恢复 paused/blocked Goal。
+// Resume 恢复 paused/blocked/limited Goal。
 func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, error) {
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", nil)
+	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	item, err := s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	if protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusComplete {
+		return nil, ErrGoalInvalidState
+	}
+	return s.persistTransition(ctx, *item, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", nil)
 }
 
 // Clear 清除当前 Goal。
@@ -234,6 +243,9 @@ func (s *Service) persistTransition(
 	switch status {
 	case protocol.GoalStatusActive:
 		item.LastError = ""
+		item.CompletedAt = nil
+		item.BlockedAt = nil
+		item.ClearedAt = nil
 	case protocol.GoalStatusComplete:
 		item.CompletedAt = &now
 	case protocol.GoalStatusBlocked:
@@ -252,6 +264,19 @@ func (s *Service) persistTransition(
 		return nil, err
 	}
 	return updated, nil
+}
+
+func statusAfterUserGoalUpdate(status protocol.GoalStatus, objectiveUpdated bool) protocol.GoalStatus {
+	normalized := protocol.NormalizeGoalStatus(status)
+	if !objectiveUpdated {
+		return normalized
+	}
+	switch normalized {
+	case protocol.GoalStatusBudgetLimited, protocol.GoalStatusComplete:
+		return protocol.GoalStatusActive
+	default:
+		return normalized
+	}
 }
 
 func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType string, source protocol.GoalUpdateSource, roundID string, payload map[string]any) error {

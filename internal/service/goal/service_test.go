@@ -132,6 +132,76 @@ func TestServiceStateTransitions(t *testing.T) {
 	if _, err := service.Resume(ctx, completed.ID); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("resume complete error = %v, want ErrGoalInvalidState", err)
 	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusComplete {
+		t.Fatalf("current = %#v, want complete goal still visible", current)
+	}
+	cleared, err := service.Clear(ctx, completed.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.Status != protocol.GoalStatusCleared || cleared.ClearedAt == nil {
+		t.Fatalf("cleared = %#v, want complete goal cleared", cleared)
+	}
+}
+
+func TestServiceEditCompletedGoalReactivatesIt(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Finish first objective",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedObjective := "Continue with revised objective"
+	edited, err := service.Update(ctx, completed.ID, protocol.UpdateGoalRequest{
+		Objective: &updatedObjective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited.Status != protocol.GoalStatusActive || edited.Objective != updatedObjective || edited.CompletedAt != nil {
+		t.Fatalf("edited = %#v, want active revised goal without completed_at", edited)
+	}
+}
+
+func TestServiceRuntimeContextSkipsCompletedGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Completed work",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	contextText, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contextText != "" || goal != nil {
+		t.Fatalf("RuntimeContext() = %q, %#v; want no runtime context for completed goal", contextText, goal)
+	}
 }
 
 func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {

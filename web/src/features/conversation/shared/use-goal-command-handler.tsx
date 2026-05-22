@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 
 import {
-  goal_replacement_candidate,
+  goal_create_decision,
   parse_goal_command,
   run_goal_command,
   type GoalCreateCommand,
@@ -15,6 +15,7 @@ import {
 interface GoalCommandHandlerOptions {
   session_key: string | null;
   on_refresh: () => void;
+  on_edit_goal?: () => void;
 }
 
 interface PendingGoalReplacement {
@@ -25,6 +26,7 @@ interface PendingGoalReplacement {
 export function useGoalCommandHandler({
   session_key,
   on_refresh,
+  on_edit_goal,
 }: GoalCommandHandlerOptions): {
   try_handle_goal_command: (content: string) => Promise<boolean>;
   goal_command_dialog: ReactNode;
@@ -53,22 +55,32 @@ export function useGoalCommandHandler({
       if (!session_key) {
         return true;
       }
+      if (command.kind === "edit") {
+        on_edit_goal?.();
+        on_refresh();
+        return true;
+      }
       if (command.kind === "create") {
-        const current = await goal_replacement_candidate(session_key, command);
-        if (current !== null) {
+        const decision = await goal_create_decision(session_key, command);
+        if (decision.kind === "confirm") {
           set_replace_error(null);
           set_pending_replacement({
             command,
-            current_objective: current.objective,
+            current_objective: decision.current.objective,
           });
           return true;
         }
+        await run_goal_command(session_key, command, {
+          replace_existing: decision.kind === "replace",
+        });
+        on_refresh();
+        return true;
       }
       await run_goal_command(session_key, command);
       on_refresh();
       return true;
     },
-    [on_refresh, session_key],
+    [on_edit_goal, on_refresh, session_key],
   );
 
   const confirm_replacement = useCallback(() => {

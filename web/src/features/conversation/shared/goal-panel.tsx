@@ -40,6 +40,7 @@ interface GoalPanelProps {
   compact?: boolean;
   disabled?: boolean;
   activity_key?: string | number | null;
+  edit_request_key?: string | number | null;
 }
 
 const STATUS_LABEL: Record<GoalStatus, string> = {
@@ -104,6 +105,7 @@ export function GoalPanel({
   compact = false,
   disabled = false,
   activity_key = null,
+  edit_request_key = null,
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
   const [events, set_events] = useState<GoalEvent[]>([]);
@@ -115,6 +117,7 @@ export function GoalPanel({
   const [error, set_error] = useState<string | null>(null);
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
   const resume_prompt_key_ref = useRef<string | null>(null);
+  const edit_request_key_ref = useRef<string | number | null>(null);
 
   const usage_total = goal_usage_total(goal);
   const budget_value = goal?.token_budget ?? null;
@@ -187,6 +190,23 @@ export function GoalPanel({
     void refresh_goal();
   }, [refresh_goal, activity_key]);
 
+  const begin_editing_goal = useCallback((current: Goal) => {
+    set_objective(current.objective);
+    set_budget(current.token_budget ? String(current.token_budget) : "");
+    set_is_editing(true);
+  }, []);
+
+  useEffect(() => {
+    if (edit_request_key === null || edit_request_key === undefined || disabled || !goal) {
+      return;
+    }
+    if (edit_request_key_ref.current === edit_request_key) {
+      return;
+    }
+    edit_request_key_ref.current = edit_request_key;
+    begin_editing_goal(goal);
+  }, [begin_editing_goal, disabled, edit_request_key, goal]);
+
   const submit_goal = async (event: FormEvent) => {
     event.preventDefault();
     if (!session_key || !objective.trim()) return;
@@ -249,9 +269,7 @@ export function GoalPanel({
 
   const start_editing_goal = () => {
     if (!goal) return;
-    set_objective(goal.objective);
-    set_budget(goal.token_budget ? String(goal.token_budget) : "");
-    set_is_editing(true);
+    begin_editing_goal(goal);
   };
 
   const cancel_editing_goal = () => {

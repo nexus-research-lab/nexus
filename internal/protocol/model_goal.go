@@ -243,6 +243,16 @@ func NormalizeGoalStatus(status GoalStatus) GoalStatus {
 // IsCurrentGoalStatus 判断状态是否属于当前 Goal。
 func IsCurrentGoalStatus(status GoalStatus) bool {
 	switch NormalizeGoalStatus(status) {
+	case GoalStatusActive, GoalStatusPaused, GoalStatusBlocked, GoalStatusBudgetLimited, GoalStatusUsageLimited, GoalStatusComplete:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsRuntimeGoalStatus 判断状态是否应注入运行时上下文。
+func IsRuntimeGoalStatus(status GoalStatus) bool {
+	switch NormalizeGoalStatus(status) {
 	case GoalStatusActive, GoalStatusPaused, GoalStatusBlocked, GoalStatusBudgetLimited, GoalStatusUsageLimited:
 		return true
 	default:

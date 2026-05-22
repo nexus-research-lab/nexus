@@ -11,6 +11,7 @@ import type { Goal } from "@/types/conversation/goal";
 
 export type GoalCommand =
   | { kind: "show" }
+  | { kind: "edit" }
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "clear" }
@@ -18,6 +19,11 @@ export type GoalCommand =
   | { kind: "create"; objective: string; token_budget: number | null };
 
 export type GoalCreateCommand = Extract<GoalCommand, { kind: "create" }>;
+
+export type GoalCreateDecision =
+  | { kind: "create" }
+  | { kind: "replace" }
+  | { kind: "confirm"; current: Goal };
 
 interface RunGoalCommandOptions {
   replace_existing?: boolean;
@@ -33,6 +39,7 @@ export function parse_goal_command(content: string): GoalCommand | null {
     return null;
   }
   const normalized = body.toLowerCase();
+  if (normalized === "edit") return { kind: "edit" };
   if (normalized === "pause") return { kind: "pause" };
   if (normalized === "resume" || normalized === "start") return { kind: "resume" };
   if (normalized === "clear") return { kind: "clear" };
@@ -49,7 +56,7 @@ export async function run_goal_command(
   command: GoalCommand,
   options: RunGoalCommandOptions = {},
 ) {
-  if (command.kind === "show") {
+  if (command.kind === "show" || command.kind === "edit") {
     return;
   }
   if (command.kind === "create") {
@@ -63,21 +70,31 @@ export async function run_goal_command(
     });
     return;
   }
-  const current = await get_current_goal_api(session_key);
+  const current = await current_goal_or_null(session_key);
+  if (current === null) {
+    return;
+  }
   if (command.kind === "pause") await pause_goal_api(current.id);
   if (command.kind === "resume") await resume_goal_api(current.id);
   if (command.kind === "clear") await clear_goal_api(current.id);
   if (command.kind === "complete") await complete_goal_api(current.id);
 }
 
-export async function goal_replacement_candidate(
+export async function goal_create_decision(
   session_key: string,
   command: GoalCommand,
-): Promise<Goal | null> {
+): Promise<GoalCreateDecision> {
   if (command.kind !== "create") {
-    return null;
+    return { kind: "create" };
   }
-  return current_goal_or_null(session_key);
+  const current = await current_goal_or_null(session_key);
+  if (current === null) {
+    return { kind: "create" };
+  }
+  if (current.status === "complete") {
+    return { kind: "replace" };
+  }
+  return { kind: "confirm", current };
 }
 
 async function clear_current_goal_if_present(session_key: string) {

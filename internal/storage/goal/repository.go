@@ -100,7 +100,7 @@ func (r *Repository) GetGoal(ctx context.Context, goalID string) (*protocol.Goal
 
 // GetCurrentGoal 读取 session 当前 Goal。
 func (r *Repository) GetCurrentGoal(ctx context.Context, sessionKey string) (*protocol.Goal, error) {
-	query := goalSelectQuery("session_key = " + r.bind(1) + " AND status IN ('active', 'paused', 'blocked', 'budget_limited', 'usage_limited')")
+	query := goalSelectQuery("session_key = " + r.bind(1) + " AND status IN ('active', 'paused', 'blocked', 'budget_limited', 'usage_limited', 'complete')")
 	row := r.db.QueryRowContext(ctx, query, strings.TrimSpace(sessionKey))
 	goal, err := scanGoal(row)
 	if err == sql.ErrNoRows {

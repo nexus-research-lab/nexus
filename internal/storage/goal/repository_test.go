@@ -72,6 +72,20 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if current == nil || current.ID != item.ID || budgetLimited.Status != protocol.GoalStatusBudgetLimited {
 		t.Fatalf("current = %#v updated = %#v, want budget_limited current goal", current, budgetLimited)
 	}
+	budgetLimited.Status = protocol.GoalStatusComplete
+	budgetLimited.Version++
+	budgetLimited.UpdatedAt = now.Add(3 * time.Minute)
+	completed, err := repository.UpdateGoal(ctx, *budgetLimited, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err = repository.GetCurrentGoal(ctx, item.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current == nil || current.ID != item.ID || completed.Status != protocol.GoalStatusComplete {
+		t.Fatalf("current = %#v updated = %#v, want complete current goal", current, completed)
+	}
 	if _, err := repository.UpdateGoal(ctx, *updated, 1); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("stale update error = %v, want sql.ErrNoRows", err)
 	}

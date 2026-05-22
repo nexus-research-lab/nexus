@@ -14,6 +14,9 @@ func (s *Service) RuntimeContext(ctx context.Context, sessionKey string) (string
 	if err != nil {
 		return "", nil, err
 	}
+	if !protocol.IsRuntimeGoalStatus(item.Status) {
+		return "", nil, nil
+	}
 	checkpoint, err := s.repo.LatestCheckpoint(ctx, item.ID)
 	if err != nil {
 		return "", nil, err
@@ -28,7 +31,7 @@ func BuildRuntimeContext(item protocol.Goal) string {
 
 // BuildRuntimeContextWithCheckpoint 构造包含最新 checkpoint 的 Goal runtime prompt 段落。
 func BuildRuntimeContextWithCheckpoint(item protocol.Goal, checkpoint *protocol.GoalCheckpoint) string {
-	if !protocol.IsCurrentGoalStatus(item.Status) {
+	if !protocol.IsRuntimeGoalStatus(item.Status) {
 		return ""
 	}
 	lines := []string{
