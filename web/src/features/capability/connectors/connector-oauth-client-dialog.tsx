@@ -12,8 +12,7 @@ import {
   UiDialogFormShell,
   UiDialogHeader,
 } from "@/shared/ui/dialog/dialog";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button";
 import { UiInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
@@ -76,15 +75,17 @@ export function ConnectorOAuthClientDialog({
           </UiPanel>
 
           {detail.docs_url ? (
-            <a
-              className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
+            <UiLinkButton
+              class_name="w-fit"
               href={detail.docs_url}
               rel="noopener noreferrer"
+              size="sm"
               target="_blank"
+              variant="text"
             >
               <ExternalLink className="h-3 w-3" />
               查看文档
-            </a>
+            </UiLinkButton>
           ) : null}
 
           <div className="space-y-1">

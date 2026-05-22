@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 抽取共享 `dialog` 骨架，并统一消息渠道连接弹窗与配对授权列表的表单、按钮、状态和空态风格。
 - 抽取共享 `select-menu` 下拉控件，统一连接器、消息渠道、记忆、定时任务和设置页的选择入口，并移除旧原生 `UiSelect`。
 - 设置页、登录页和路由加载态继续复用共享 Button、Input、Panel、SegmentedControl 与 WorkspaceLoadingState 控件，减少页面级手写样式。
+- 能力页弹窗和 Heartbeat 编辑表单继续复用共享 LinkButton、Input、CheckboxRow、Dialog 与 StateBlock 控件。
 - 抽取共享 Agent/Room 头像组件，统一联系人、聊天侧栏、Room 成员和会话 Header 的头像、群头像拼接与工作中光环。
 - 抽取共享 `list-row` 列表行，统一聊天侧栏、联系人侧栏和 Room 成员选择/管理列表的 active、hover、操作区与键盘触发行为。
 - 抽取共享 `panel` 与 `skeleton` 控件，统一能力、设置和定时任务页面的面板容器、区块标题与加载骨架。

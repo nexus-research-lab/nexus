@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Activity, Check, Pencil, RefreshCw, TimerReset, X, Zap } from "lucide-react";
 
+import { UiCheckboxRow } from "@/shared/ui/checkbox-row";
+import { UiInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiSkeletonCardList } from "@/shared/ui/skeleton";
@@ -313,28 +315,21 @@ interface HeartbeatEditFormProps {
 
 const FIELD_LABEL_CLASS =
   "text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)";
-const INPUT_CLASS =
-  "mt-2 h-9 w-full rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 text-sm text-(--text-strong) outline-none focus:border-(--accent)";
 
 function HeartbeatEditForm({ draft, on_change, save_error }: HeartbeatEditFormProps) {
   const matched_preset = INTERVAL_PRESETS.find((preset) => preset.seconds === draft.every_seconds);
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 border-y border-(--divider-subtle-color) py-4 sm:grid-cols-2">
-        <label className="min-w-0 text-sm">
+        <div className="min-w-0 text-sm">
           <span className={FIELD_LABEL_CLASS}>启用心跳</span>
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              checked={draft.enabled}
-              className="h-4 w-4 accent-(--accent)"
-              onChange={(event) => on_change({ ...draft, enabled: event.target.checked })}
-              type="checkbox"
-            />
-            <span className="text-(--text-default)">
-              {draft.enabled ? "会按下方间隔轮询唤醒主会话" : "暂停心跳（保留配置）"}
-            </span>
-          </div>
-        </label>
+          <UiCheckboxRow
+            checked={draft.enabled}
+            class_name="mt-2 rounded-[10px] border-0 bg-transparent px-0 py-0 hover:bg-transparent"
+            label={draft.enabled ? "会按下方间隔轮询唤醒主会话" : "暂停心跳（保留配置）"}
+            on_change={(enabled) => on_change({ ...draft, enabled })}
+          />
+        </div>
 
         <div className="min-w-0 text-sm">
           <span className={FIELD_LABEL_CLASS}>回复方式</span>
@@ -372,8 +367,9 @@ function HeartbeatEditForm({ draft, on_change, save_error }: HeartbeatEditFormPr
             size="sm"
             value={matched_preset ? String(matched_preset.seconds) : "custom"}
           />
-          <input
-            className={INPUT_CLASS}
+          <UiInput
+            class_name="mt-2"
+            control_size="md"
             min={1}
             onChange={(event) =>
               on_change({ ...draft, every_seconds: Math.max(1, Number(event.target.value) || 0) })
@@ -385,8 +381,9 @@ function HeartbeatEditForm({ draft, on_change, save_error }: HeartbeatEditFormPr
 
         <label className="min-w-0 text-sm">
           <span className={FIELD_LABEL_CLASS}>ACK 字数上限</span>
-          <input
-            className={INPUT_CLASS}
+          <UiInput
+            class_name="mt-2"
+            control_size="md"
             min={0}
             onChange={(event) =>
               on_change({ ...draft, ack_max_chars: Math.max(0, Number(event.target.value) || 0) })
@@ -401,9 +398,7 @@ function HeartbeatEditForm({ draft, on_change, save_error }: HeartbeatEditFormPr
       </div>
 
       {save_error ? (
-        <div className="rounded-[16px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] px-4 py-3 text-sm text-(--destructive)">
-          {save_error}
-        </div>
+        <UiStateBlock description={save_error} size="sm" title="保存失败" tone="danger" variant="inset" />
       ) : null}
     </div>
   );
