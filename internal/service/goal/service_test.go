@@ -15,7 +15,7 @@ import (
 
 func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true, GoalDefaultTokenBudget: 100}, repo)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
 	service.idFactory = sequentialID()
 
@@ -30,8 +30,8 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	if created.ID != "goal_1" || created.Status != protocol.GoalStatusActive {
 		t.Fatalf("created = %#v, want active goal_1", created)
 	}
-	if created.TokenBudget == nil || *created.TokenBudget != 100 {
-		t.Fatalf("TokenBudget = %#v, want default 100", created.TokenBudget)
+	if created.TokenBudget != nil {
+		t.Fatalf("TokenBudget = %#v, want nil when omitted", created.TokenBudget)
 	}
 
 	current, err := service.Current(context.Background(), "agent:nexus:ws:dm:chat")

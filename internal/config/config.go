@@ -62,7 +62,6 @@ type Config struct {
 	GoalEnabled                    bool
 	GoalAutoContinueEnabled        bool
 	GoalMaxContinuationsPerRun     int
-	GoalDefaultTokenBudget         int64
 	ConnectorCredentialsKey        string
 	ConnectorGitHubClientID        string
 	ConnectorGitHubClientSecret    string
@@ -158,7 +157,6 @@ func Load() Config {
 		GoalEnabled:                    mustBool(getEnv("NEXUS_GOAL_ENABLED", "true")),
 		GoalAutoContinueEnabled:        mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
 		GoalMaxContinuationsPerRun:     mustInt(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20")),
-		GoalDefaultTokenBudget:         int64(mustInt(getEnv("NEXUS_GOAL_DEFAULT_TOKEN_BUDGET", "0"))),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
