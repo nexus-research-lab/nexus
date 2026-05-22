@@ -17,7 +17,6 @@ export interface SkillMarketplaceController {
   search_query: string;
   discovery_mode: DiscoveryMode;
   active_category: string;
-  selected_skill: string | null;
   external_query: string;
   external_results: ExternalSkillSearchItem[];
   preview_external_item: ExternalSkillSearchItem | null;
@@ -38,7 +37,6 @@ export interface SkillMarketplaceController {
   set_search_query: (value: string) => void;
   set_discovery_mode: (value: DiscoveryMode) => void;
   set_active_category: (value: string) => void;
-  set_selected_skill: (value: string | null) => void;
   set_external_query: (value: string) => void;
   set_preview_external_item: (value: ExternalSkillSearchItem | null) => void;
   set_git_prompt_open: (value: boolean) => void;

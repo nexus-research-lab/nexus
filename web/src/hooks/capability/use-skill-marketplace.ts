@@ -20,7 +20,6 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const [debounced_search_query, set_debounced_search_query] = useState("");
   const [discovery_mode, set_discovery_mode] = useState<DiscoveryMode>("catalog");
   const [active_category, set_active_category] = useState<string>("all");
-  const [selected_skill, set_selected_skill] = useState<string | null>(null);
   const [external_query, set_external_query] = useState("");
   const [external_results, set_external_results] = useState<ExternalSkillSearchItem[]>([]);
   const [preview_external_item, set_preview_external_item] = useState<ExternalSkillSearchItem | null>(null);
@@ -178,14 +177,13 @@ export function useSkillMarketplace(): SkillMarketplaceController {
       set_busy_skill_name(skill.name);
       await delete_skill_api(skill.name);
       set_status_message(`${skill.title || skill.name} 已从技能库删除`);
-      if (selected_skill === skill.name) set_selected_skill(null);
       await refresh_marketplace();
     } catch (err) {
       set_error_message(err instanceof Error ? err.message : "删除失败");
     } finally {
       set_busy_skill_name(null);
     }
-  }, [refresh_marketplace, selected_skill]);
+  }, [refresh_marketplace]);
 
   const handle_update_installed = useCallback(async () => {
     clear_messages();
@@ -270,7 +268,6 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     search_query,
     discovery_mode,
     active_category,
-    selected_skill,
     external_query,
     external_results,
     preview_external_item,
@@ -293,7 +290,6 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     set_search_query,
     set_discovery_mode,
     set_active_category,
-    set_selected_skill,
     set_external_query,
     set_preview_external_item,
     set_git_prompt_open,

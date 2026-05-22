@@ -25,12 +25,8 @@ import {
 } from "@/lib/api/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { UiInput } from "@/shared/ui/form-control";
-import { UiListRow } from "@/shared/ui/list-row";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
-import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type {
@@ -58,6 +54,19 @@ interface ProviderSettingsPanelProps {
 const SETTINGS_TABS: { key: SettingsTabKey; label_key: "settings.tabs.providers" }[] = [
   { key: "providers", label_key: "settings.tabs.providers" },
 ];
+
+const PROVIDER_SAVE_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "primary", variant: "solid" },
+  "tracking-tight",
+);
+const PROVIDER_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", variant: "surface" },
+  "tracking-tight",
+);
+const PROVIDER_DANGER_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "danger", variant: "surface" },
+  "tracking-tight",
+);
 
 function build_provider_draft(is_first_provider: boolean): ProviderDraft {
   return {
@@ -379,11 +388,23 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     const is_image_provider = item.provider_kind === "image_generation";
                     const default_title = get_default_provider_title(item.provider_kind, t);
                     return (
-                      <UiListRow
-                        active={is_active}
-                        class_name="min-h-0 rounded-2xl border border-(--divider-subtle-color) px-3 py-3"
+                      <div
+                        className={cn(
+                          "rounded-2xl border px-3 py-3 transition-[border-color,background,color] duration-(--motion-duration-fast)",
+                          is_active
+                            ? "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background)"
+                            : "border-(--divider-subtle-color) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+                        )}
                         key={item.provider}
-                        on_click={() => handle_select_provider(item.provider)}
+                        onClick={() => handle_select_provider(item.provider)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handle_select_provider(item.provider);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
                       >
                         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2">
                           <div className="min-w-0">
@@ -395,12 +416,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             </span>
                           </div>
                           <div className="flex justify-end">
-                            <UiIconButton
+                            <button
                               aria-label={default_title}
                               className={cn(
+                                "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
                                 item.is_default && !is_image_provider && "cursor-default text-primary",
                                 item.is_default && is_image_provider && "cursor-default text-[rgb(14,165,233)]",
-                                !item.is_default && !is_image_provider && "text-(--text-soft) hover:text-primary",
+                                !item.is_default && !is_image_provider && "text-(--text-soft) hover:bg-(--surface-interactive-hover-background) hover:text-primary",
                                 !item.is_default && is_image_provider && "text-(--text-soft) hover:bg-[rgba(14,165,233,0.08)] hover:text-[rgb(14,165,233)]",
                                 is_pending_default && "opacity-(--disabled-opacity)",
                               )}
@@ -411,16 +433,15 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                                   void handle_set_default(item);
                                 }
                               }}
-                              size="xs"
                               title={default_title}
-                              variant="ghost"
+                              type="button"
                             >
                               {is_pending_default ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                               ) : (
                                 <Star className={cn("h-3.5 w-3.5", item.is_default ? "fill-current" : "")} />
                               )}
-                            </UiIconButton>
+                            </button>
                           </div>
 
                           <div className="min-w-0 truncate text-[11px] text-(--text-soft)">
@@ -444,14 +465,19 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             </span>
                           </div>
                         </div>
-                      </UiListRow>
+                      </div>
                     );
                   })}
 
-                  <UiListRow
-                    active={is_creating}
-                    class_name="min-h-0 rounded-2xl border border-dashed border-(--divider-subtle-color) px-3 py-3"
-                    on_click={handle_create_mode}
+                  <button
+                    className={cn(
+                      "w-full rounded-2xl border px-3 py-3 text-left transition-[border-color,background,color] duration-(--motion-duration-fast)",
+                      is_creating
+                        ? "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background)"
+                        : "border-dashed border-(--divider-subtle-color) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+                    )}
+                    onClick={handle_create_mode}
+                    type="button"
                   >
                     <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
                       <div className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-(--surface-interactive-active-border) bg-(--surface-inset-background) text-primary">
@@ -459,7 +485,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       </div>
                       {t("settings.providers.add_provider")}
                     </div>
-                  </UiListRow>
+                  </button>
                 </div>
               )}
             </div>
@@ -468,13 +494,17 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
           <section className="min-h-[360px] pl-0 pt-1 xl:pl-6">
             {is_empty_mode ? (
               <div className="flex min-h-[360px] flex-1 items-center justify-center">
-                <UiStateBlock
-                  description={t("settings.providers.empty_hint")}
-                  icon={<Plus className="h-5 w-5 text-primary" />}
-                  size="sm"
-                  title={t("settings.providers.empty")}
-                  variant="plain"
-                />
+                <div className="text-center">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-(--divider-subtle-color) bg-(--surface-inset-background) text-primary">
+                    <Plus className="h-4 w-4" />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-(--text-strong)">
+                    {t("settings.providers.empty")}
+                  </p>
+                  <p className="mt-1 text-[12px] text-(--text-soft)">
+                    {t("settings.providers.empty_hint")}
+                  </p>
+                </div>
               </div>
             ) : (
               <div
@@ -495,10 +525,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.provider")}
                       </span>
-                      <UiInput
+                      <input
                         autoCapitalize="off"
                         autoCorrect="off"
-                        control_size="md"
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                         disabled={is_editing}
                         onChange={(event) => set_draft((current) => ({
                           ...current,
@@ -512,40 +542,34 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       />
                     </label>
 
-                    <div className="space-y-1.5 md:col-span-2">
+                    <label className="space-y-1.5 md:col-span-2">
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.kind")}
                       </span>
-                      <UiSelectMenu
-                        aria_label={t("settings.providers.kind")}
-                        button_class_name="dialog-input rounded-xl"
-                        on_change={(value) => set_draft((current) => ({
+                      <select
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
+                        onChange={(event) => set_draft((current) => ({
                           ...current,
-                          provider_kind: value === "image_generation" ? "image_generation" : "llm",
-                          is_default: value === "image_generation"
+                          provider_kind: event.target.value === "image_generation" ? "image_generation" : "llm",
+                          is_default: event.target.value === "image_generation"
                             ? !providers.some((item) => item.provider_kind === "image_generation")
                             : !providers.some((item) => item.provider_kind === "llm"),
                         }))}
-                        options={[
-                          { value: "llm", label: t("settings.providers.kind_llm") },
-                          {
-                            value: "image_generation",
-                            label: t("settings.providers.kind_image_generation"),
-                          },
-                        ]}
-                        size="sm"
                         value={draft.provider_kind}
-                      />
-                    </div>
+                      >
+                        <option value="llm">{t("settings.providers.kind_llm")}</option>
+                        <option value="image_generation">{t("settings.providers.kind_image_generation")}</option>
+                      </select>
+                    </label>
 
                     <label className="space-y-1.5 md:col-span-2">
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.display_name")}
                       </span>
-                      <UiInput
+                      <input
                         autoCapitalize="off"
                         autoCorrect="off"
-                        control_size="md"
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
                         onChange={(event) => set_draft((current) => ({ ...current, display_name: event.target.value }))}
                         placeholder={draft.provider || t("settings.providers.display_name_placeholder")}
                         spellCheck={false}
@@ -558,10 +582,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.base_url")}
                       </span>
-                      <UiInput
+                      <input
                         autoCapitalize="off"
                         autoCorrect="off"
-                        control_size="md"
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
                         onChange={(event) => set_draft((current) => ({ ...current, base_url: event.target.value }))}
                         placeholder="https://example.com/v1"
                         spellCheck={false}
@@ -574,10 +598,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.model")}
                       </span>
-                      <UiInput
+                      <input
                         autoCapitalize="off"
                         autoCorrect="off"
-                        control_size="md"
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
                         onChange={(event) => set_draft((current) => ({ ...current, model: event.target.value }))}
                         placeholder={t("settings.providers.model_placeholder")}
                         spellCheck={false}
@@ -590,11 +614,11 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.auth_token")}
                       </span>
-                      <UiInput
+                      <input
                         autoCapitalize="off"
                         autoComplete="off"
                         autoCorrect="off"
-                        control_size="md"
+                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
                         data-form-type="other"
                         data-lpignore="true"
                         name="provider-auth-token"
@@ -610,41 +634,36 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 </div>
 
                 <div className="flex items-center justify-between gap-2 pt-4">
-                  <UiButton
-                    class_name="min-w-24 justify-center"
+                  <button
+                    className={cn(
+                      can_save ? PROVIDER_SAVE_BUTTON_CLASS_NAME : PROVIDER_SECONDARY_BUTTON_CLASS_NAME,
+                      "min-w-24 justify-center",
+                    )}
                     disabled={!can_save || submitting}
                     onClick={() => void handle_save()}
-                    size="md"
-                    tone={can_save ? "primary" : "default"}
                     type="button"
-                    variant={can_save ? "solid" : "surface"}
                   >
                     {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("common.save")}
-                  </UiButton>
+                  </button>
                   <div className="flex min-w-24 justify-end">
                     {is_editing ? (
-                      <UiButton
-                        class_name="min-w-24 justify-center"
+                      <button
+                        className={cn(PROVIDER_DANGER_BUTTON_CLASS_NAME, "min-w-24 justify-center")}
                         disabled={!can_delete || submitting}
                         onClick={() => set_delete_confirm_open(true)}
-                        size="md"
-                        tone="danger"
                         type="button"
-                        variant="surface"
                       >
                         {t("common.delete")}
-                      </UiButton>
+                      </button>
                     ) : (
-                      <UiButton
-                        class_name="min-w-24 justify-center"
+                      <button
+                        className={cn(PROVIDER_SECONDARY_BUTTON_CLASS_NAME, "min-w-24 justify-center")}
                         disabled={submitting}
                         onClick={handle_cancel}
-                        size="md"
                         type="button"
-                        variant="surface"
                       >
                         {t("common.cancel")}
-                      </UiButton>
+                      </button>
                     )}
                   </div>
                 </div>

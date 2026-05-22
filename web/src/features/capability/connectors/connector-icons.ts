@@ -1,6 +1,6 @@
 /**
- * 连接器图标映射 —— 将 connector icon key 映射为颜色和首字母/emoji。
- * 前端不引入真实品牌 SVG，用颜色 + 字母代替。
+ * 连接器图标映射 —— 将 connector icon key 映射为兜底颜色和首字母/emoji。
+ * 有真实品牌图形时由 ConnectorIcon 直接渲染；没有时回退到这里的方案。
  */
 
 /** 连接器品牌配色 */

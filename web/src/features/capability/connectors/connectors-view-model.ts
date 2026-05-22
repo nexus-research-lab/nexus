@@ -20,7 +20,7 @@ export interface ConnectorDirectoryController {
   selected_detail: ConnectorDetail | null;
   detail_loading: boolean;
   device_auth_session: ConnectorDeviceAuthStart | null;
-  open_detail: (connector_id: string) => void;
+  open_detail: (connector_id: string) => Promise<void>;
   close_detail: () => void;
   close_device_auth_session: () => void;
   handle_connect: (connector_id: string) => Promise<void>;

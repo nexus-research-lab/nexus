@@ -27,12 +27,18 @@ import {
 import { cn } from "@/lib/utils";
 import { format_memory_time } from "@/features/memory/memory-utils";
 import { MemoryStatusBadge } from "@/features/memory/memory-ui";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiInput, UiSearchInput, UiTextarea } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
+import {
+  CapabilityFilterBar,
+  CapabilityPageLayout,
+  CapabilitySectionHeader,
+} from "@/features/capability/shared/capability-page-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -57,6 +63,7 @@ const STATUS_OPTIONS = [
 ];
 
 export function MemoryPanel() {
+  const { t } = useI18n();
   const [agents, set_agents] = useState<Agent[]>([]);
   const [agent_id, set_agent_id] = useState("");
   const [items, set_items] = useState<MemoryItem[]>([]);
@@ -231,10 +238,11 @@ export function MemoryPanel() {
       body_scrollable
       header={
         <WorkspaceSurfaceHeader
+          badge={t("capability.memory_badge", { count: stats?.total ?? items.length })}
           density="compact"
           leading={<Database className="h-4 w-4" />}
-          subtitle={selected_agent ? selected_agent.workspace_path : "选择一个 Agent 管理本地记忆"}
-          title="Memory"
+          subtitle={selected_agent ? selected_agent.workspace_path : t("capability.memory_subtitle")}
+          title={t("capability.memory")}
           trailing={
             <>
               <UiSelectMenu
@@ -250,7 +258,7 @@ export function MemoryPanel() {
               />
               <WorkspaceSurfaceToolbarAction disabled={loading || !agent_id} onClick={refresh}>
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-                刷新
+                {t("capability.refresh")}
               </WorkspaceSurfaceToolbarAction>
               <WorkspaceSurfaceToolbarAction disabled={cleaning || !agent_id} onClick={handle_cleanup}>
                 <Eraser className={cn("h-3.5 w-3.5", cleaning && "animate-pulse")} />
@@ -260,10 +268,14 @@ export function MemoryPanel() {
           }
         />
       }
-      body_class_name="px-5 py-4 xl:px-6"
+      stable_gutter
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        <section className="grid gap-3 sm:grid-cols-4">
+      <CapabilityPageLayout
+        description={t("capability.memory_intro_description")}
+        title={t("capability.memory_intro_title")}
+      >
+        <CapabilitySectionHeader title={t("capability.memory_overview_title")} />
+        <section className="mb-5 grid gap-3 sm:grid-cols-4">
           {stat_items.map(([label, value]) => (
             <UiPanel
               class_name="min-w-0"
@@ -277,32 +289,34 @@ export function MemoryPanel() {
           ))}
         </section>
 
-        <UiPanel padding="sm" variant="inset">
-          <div className="grid gap-2 md:grid-cols-[180px_1fr_auto]">
-            <UiSelectMenu
-              aria_label="筛选记忆状态"
-              on_change={set_status}
-              options={STATUS_OPTIONS}
-              size="sm"
-              value={status}
-            />
-            <UiSearchInput
-              on_change={set_query}
-              placeholder="搜索关键词"
-              value={query}
-            />
-            <UiButton
-              disabled={loading || !agent_id}
-              onClick={refresh}
-              tone="primary"
-              type="button"
-              variant="solid"
-            >
-              <Search className="h-3.5 w-3.5" />
-              查询
-            </UiButton>
-          </div>
-        </UiPanel>
+        <CapabilityFilterBar>
+          <UiSearchInput
+            class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
+            input_class_name="text-[14px]"
+            on_change={set_query}
+            placeholder={t("capability.memory_search_placeholder")}
+            value={query}
+          />
+          <UiSelectMenu
+            aria_label={t("capability.memory_filter_status_aria")}
+            class_name="shrink-0 sm:w-[184px]"
+            on_change={set_status}
+            options={STATUS_OPTIONS}
+            size="sm"
+            value={status}
+          />
+          <UiButton
+            class_name="shrink-0"
+            disabled={loading || !agent_id}
+            onClick={refresh}
+            tone="primary"
+            type="button"
+            variant="solid"
+          >
+            <Search className="h-3.5 w-3.5" />
+            查询
+          </UiButton>
+        </CapabilityFilterBar>
 
         <UiPanel padding="sm" variant="inset">
           <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
@@ -446,7 +460,7 @@ export function MemoryPanel() {
             </div>
           )}
         </UiPanel>
-      </div>
+      </CapabilityPageLayout>
       <FeedbackBannerStack
         items={feedback ? [
           {

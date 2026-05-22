@@ -31,6 +31,13 @@ export interface ConnectorInfo {
 }
 
 /** 连接器详情 */
+export interface ConnectorFeatureDetail {
+  name: string;
+  description: string;
+  items?: string[];
+  scopes?: string[];
+}
+
 export interface ConnectorDetail extends ConnectorInfo {
   auth_url?: string;
   token_url?: string;
@@ -38,6 +45,7 @@ export interface ConnectorDetail extends ConnectorInfo {
   mcp_server_url?: string;
   docs_url?: string;
   features: string[];
+  feature_details?: ConnectorFeatureDetail[];
   oauth_client_id?: string | null;
 }
 

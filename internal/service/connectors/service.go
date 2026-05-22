@@ -41,13 +41,14 @@ type Info struct {
 // Detail 表示连接器详情。
 type Detail struct {
 	Info
-	AuthURL       string   `json:"auth_url,omitempty"`
-	TokenURL      string   `json:"token_url,omitempty"`
-	Scopes        []string `json:"scopes"`
-	MCPServerURL  string   `json:"mcp_server_url,omitempty"`
-	DocsURL       string   `json:"docs_url,omitempty"`
-	Features      []string `json:"features"`
-	OAuthClientID *string  `json:"oauth_client_id,omitempty"`
+	AuthURL        string          `json:"auth_url,omitempty"`
+	TokenURL       string          `json:"token_url,omitempty"`
+	Scopes         []string        `json:"scopes"`
+	MCPServerURL   string          `json:"mcp_server_url,omitempty"`
+	DocsURL        string          `json:"docs_url,omitempty"`
+	Features       []string        `json:"features"`
+	FeatureDetails []FeatureDetail `json:"feature_details"`
+	OAuthClientID  *string         `json:"oauth_client_id,omitempty"`
 }
 
 // OAuthClientConfigRequest 表示用户自有 OAuth 应用配置。
@@ -768,14 +769,15 @@ func (s *Service) toDetail(ctx context.Context, ownerUserID string, entry Catalo
 		oauthClientID = &config.ClientID
 	}
 	return Detail{
-		Info:          info,
-		AuthURL:       entry.AuthURL,
-		TokenURL:      entry.TokenURL,
-		Scopes:        append([]string{}, entry.Scopes...),
-		MCPServerURL:  entry.MCPServerURL,
-		DocsURL:       entry.DocsURL,
-		Features:      append([]string{}, entry.Features...),
-		OAuthClientID: oauthClientID,
+		Info:           info,
+		AuthURL:        entry.AuthURL,
+		TokenURL:       entry.TokenURL,
+		Scopes:         append([]string{}, entry.Scopes...),
+		MCPServerURL:   entry.MCPServerURL,
+		DocsURL:        entry.DocsURL,
+		Features:       append([]string{}, entry.Features...),
+		FeatureDetails: connectorFeatureDetailsFor(entry),
+		OAuthClientID:  oauthClientID,
 	}
 }
 

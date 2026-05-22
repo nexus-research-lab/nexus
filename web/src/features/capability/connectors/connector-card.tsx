@@ -4,12 +4,13 @@ import { Check, Clock3, Loader2, Plus, Settings2 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent } from "react";
 
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiIconButton } from "@/shared/ui/button";
 import { ConnectorInfo } from "@/types/capability/connector";
 
+import { ConnectorIcon } from "./connector-icon";
 import { get_connector_category_label } from "./connectors-categories";
-import { get_connector_colors, get_connector_letter } from "./connector-icons";
 
 interface ConnectorCardProps {
   connector: ConnectorInfo;
@@ -25,6 +26,7 @@ export function ConnectorCard({
   on_select,
   on_connect,
 }: ConnectorCardProps) {
+  const { t } = useI18n();
   const {
     title,
     description,
@@ -35,8 +37,6 @@ export function ConnectorCard({
     category,
     oauth_client_config_required,
   } = connector;
-  const colors = get_connector_colors(icon);
-  const letter = get_connector_letter(icon, title);
   const is_connected = connection_state === "connected";
   const is_coming_soon = status === "coming_soon";
   const should_configure = !is_configured && oauth_client_config_required;
@@ -74,15 +74,7 @@ export function ConnectorCard({
       role="button"
       tabIndex={0}
     >
-      <span
-        className={cn(
-          "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] text-[13px] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-          colors.bg,
-          colors.text,
-        )}
-      >
-        {letter}
-      </span>
+      <ConnectorIcon icon={icon} title={title} />
 
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
@@ -103,7 +95,7 @@ export function ConnectorCard({
           {description}
         </span>
         <span className="mt-0.5 block text-[11px] leading-4 text-(--text-soft)">
-          {get_connector_category_label(category)}
+          {get_connector_category_label(category, t)}
         </span>
       </span>
 

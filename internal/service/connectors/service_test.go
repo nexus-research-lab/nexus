@@ -185,6 +185,12 @@ func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
 	if detail.OAuthClientID == nil || *detail.OAuthClientID != "user-feishu-client" {
 		t.Fatalf("详情应返回已保存的 Client ID 摘要: %+v", detail.OAuthClientID)
 	}
+	if len(detail.FeatureDetails) != len(detail.Features) {
+		t.Fatalf("详情应返回每个能力的具体说明: features=%v details=%v", detail.Features, detail.FeatureDetails)
+	}
+	if detail.FeatureDetails[0].Name != "阅读文档" || !strings.Contains(detail.FeatureDetails[0].Description, "Markdown") {
+		t.Fatalf("阅读文档能力说明不完整: %+v", detail.FeatureDetails[0])
+	}
 
 	authURL, err := service.GetAuthURL(ctx, ownerUserID, "feishu-docx", "", nil)
 	if err != nil {

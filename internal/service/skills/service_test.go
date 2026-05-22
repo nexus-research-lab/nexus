@@ -252,6 +252,29 @@ description: no tags here
 	}
 }
 
+func TestParseSkillFrontmatterBlockDescription(t *testing.T) {
+	parsed := parseSkillFrontmatter(`---
+name: chronicle
+description: |
+  Allows you to view the user's screen as well as several hours of history.
+
+  Use this skill when recent screen context is needed.
+tags: [screen, context]
+---
+
+# Chronicle
+`, "chronicle")
+	if parsed.Description == "" || strings.Contains(parsed.Description, "|") {
+		t.Fatalf("多行 description 解析不正确: %q", parsed.Description)
+	}
+	if !strings.Contains(parsed.Description, "recent screen context") {
+		t.Fatalf("多行 description 内容丢失: %q", parsed.Description)
+	}
+	if len(parsed.Tags) != 2 || parsed.Tags[0] != "screen" || parsed.Tags[1] != "context" {
+		t.Fatalf("block scalar 后续字段解析不正确: %#v", parsed.Tags)
+	}
+}
+
 func containsSkill(items []Info, target string) bool {
 	for _, item := range items {
 		if item.Name == target {

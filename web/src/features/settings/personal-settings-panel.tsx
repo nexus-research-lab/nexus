@@ -45,11 +45,9 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
-import { UiButton } from "@/shared/ui/button";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiInput } from "@/shared/ui/form-control";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { UiPanel } from "@/shared/ui/panel";
 
 type FeedbackTone = "success" | "error";
 
@@ -70,6 +68,15 @@ const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
   new_password: "",
   confirm_password: "",
 };
+
+const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "primary", variant: "solid" },
+  "gap-2 tracking-tight",
+);
+const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", variant: "surface" },
+  "gap-2 tracking-tight",
+);
 
 function format_updated_at(value: string, locale: "zh" | "en"): string {
   const date = new Date(value);
@@ -230,12 +237,12 @@ export function PersonalSettingsPanel() {
         </section>
 
         {loading ? (
-          <UiPanel class_name="flex min-h-[220px] items-center justify-center text-(--text-soft)">
+          <section className="flex min-h-[220px] items-center justify-center rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background) text-(--text-soft)">
             <Loader2 className="h-5 w-5 animate-spin" />
-          </UiPanel>
+          </section>
         ) : (
           <>
-            <UiPanel class_name="overflow-hidden" padding="none">
+            <section className="overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-start">
                 <div className="min-w-0 space-y-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -295,9 +302,9 @@ export function PersonalSettingsPanel() {
                   ) : null}
                 </div>
               </div>
-            </UiPanel>
+            </section>
 
-            <UiPanel class_name="order-last overflow-hidden" padding="none">
+            <section className="order-last overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -368,9 +375,9 @@ export function PersonalSettingsPanel() {
                 <span>{t("settings.personal.session_count", { count: usage?.session_count ?? 0 })}</span>
                 <span>{t("settings.personal.message_count", { count: usage?.message_count ?? 0 })}</span>
               </div>
-            </UiPanel>
+            </section>
 
-            <UiPanel class_name="overflow-hidden" padding="none">
+            <section className="overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
               <form className="grid gap-3 px-3 py-3" onSubmit={handle_change_password}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -393,9 +400,9 @@ export function PersonalSettingsPanel() {
                     <span className="text-[11px] font-semibold text-(--text-muted)">
                       {t("settings.personal.password_current")}
                     </span>
-                    <UiInput
+                    <input
                       autoComplete="current-password"
-                      control_size="md"
+                      className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => set_password_draft((current) => ({
                         ...current,
@@ -409,9 +416,9 @@ export function PersonalSettingsPanel() {
                     <span className="text-[11px] font-semibold text-(--text-muted)">
                       {t("settings.personal.password_new")}
                     </span>
-                    <UiInput
+                    <input
                       autoComplete="new-password"
-                      control_size="md"
+                      className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => set_password_draft((current) => ({
                         ...current,
@@ -425,9 +432,9 @@ export function PersonalSettingsPanel() {
                     <span className="text-[11px] font-semibold text-(--text-muted)">
                       {t("settings.personal.password_confirm")}
                     </span>
-                    <UiInput
+                    <input
                       autoComplete="new-password"
-                      control_size="md"
+                      className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => set_password_draft((current) => ({
                         ...current,
@@ -445,20 +452,20 @@ export function PersonalSettingsPanel() {
                       ? validation_error
                       : t("settings.personal.password_rule")}
                   </p>
-                  <UiButton
-                    class_name="min-w-28"
+                  <button
+                    className={cn(
+                      can_submit_password ? PERSONAL_PRIMARY_BUTTON_CLASS_NAME : PERSONAL_SECONDARY_BUTTON_CLASS_NAME,
+                      "min-w-28",
+                    )}
                     disabled={!can_submit_password}
-                    size="md"
-                    tone={can_submit_password ? "primary" : "default"}
                     type="submit"
-                    variant={can_submit_password ? "solid" : "surface"}
                   >
                     {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                     {submitting ? t("common.saving") : t("settings.personal.change_password")}
-                  </UiButton>
+                  </button>
                 </div>
               </form>
-            </UiPanel>
+            </section>
           </>
         )}
       </div>

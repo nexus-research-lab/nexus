@@ -52,10 +52,7 @@ import {
   AGENT_PERMISSION_MODES,
 } from "@/features/agents/options/agent-options-constants";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton, UiLinkButton } from "@/shared/ui/button";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
-import { UiPanel } from "@/shared/ui/panel";
-import { UiSegmentedControl } from "@/shared/ui/segmented-control";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import {
@@ -113,14 +110,65 @@ interface PreferenceFeedback {
 }
 
 const SETTINGS_SECTION_TITLE_CLASS_NAME = "px-1 text-[17px] font-semibold tracking-tight text-(--text-strong)";
+const SETTINGS_CARD_CLASS_NAME = "overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)";
 const SETTINGS_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-center";
 const SETTINGS_TEXT_ROW_CLASS_NAME = "flex min-w-0 items-start gap-3";
 const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center justify-center rounded-[14px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary";
 const SETTINGS_ITEM_TITLE_CLASS_NAME = "text-[14px] font-semibold tracking-tight text-(--text-strong)";
 const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = "mt-1 max-w-[520px] text-[12px] leading-5 text-(--text-soft)";
 const SETTINGS_CONTROL_LABEL_CLASS_NAME = "text-[11px] font-medium text-(--text-soft)";
+const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
 const SETTINGS_CONTROL_TEXT_CLASS_NAME = "text-[11px] font-semibold leading-none";
+const SETTINGS_SELECT_BUTTON_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full rounded-[10px] border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) shadow-none hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-0`;
 const DEFAULT_RELEASE_PAGE_URL = "https://github.com/nexus-research-lab/nexus/releases/latest";
+
+interface SettingsSegmentedControlOption<T extends string> {
+  label: string;
+  value: T;
+}
+
+function SettingsSegmentedControl<T extends string>({
+  aria_label,
+  disabled,
+  on_change,
+  options,
+  value,
+}: {
+  aria_label: string;
+  disabled?: boolean;
+  on_change: (value: T) => void;
+  options: ReadonlyArray<SettingsSegmentedControlOption<T>>;
+  value: T;
+}) {
+  return (
+    <div
+      aria-label={aria_label}
+      className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) p-0.5`}
+      role="group"
+    >
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            aria-pressed={active}
+            className={cn(
+              `inline-flex h-6 min-w-0 flex-1 items-center justify-center rounded-[9px] px-2 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} transition-colors`,
+              active
+                ? "bg-(--surface-interactive-active-background) text-(--text-strong) shadow-sm"
+                : "text-(--text-soft) hover:text-(--text-default)",
+            )}
+            disabled={disabled}
+            onClick={() => on_change(option.value)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function normalize_preferences(preferences: UserPreferences | null): UserPreferences {
   const fallback = get_user_preferences();
@@ -365,7 +413,7 @@ function GeneralSettingsSection() {
             </span>
           ) : null}
         </div>
-        <UiPanel class_name="overflow-hidden" padding="none">
+        <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
@@ -380,26 +428,24 @@ function GeneralSettingsSection() {
                 </p>
               </div>
             </div>
-            <UiLinkButton
-              class_name={`min-w-0 ${SETTINGS_CONTROL_TEXT_CLASS_NAME}`}
+            <a
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
               href={release_page_url}
               rel="noreferrer"
-              size="xs"
               target="_blank"
-              variant="surface"
             >
               <ExternalLink className="h-3 w-3" />
               {t("settings.system.download_release")}
-            </UiLinkButton>
+            </a>
           </div>
-        </UiPanel>
+        </div>
       </section>
 
       <section className="space-y-2.5">
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.general.section_appearance")}
         </h2>
-        <UiPanel class_name="overflow-hidden" padding="none">
+        <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
@@ -415,16 +461,13 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <div className="min-w-0">
-              <UiSegmentedControl
-                class_name="w-full rounded-xl"
-                density="compact"
+              <SettingsSegmentedControl
+                aria_label={t("theme.switch_title")}
                 on_change={set_theme}
                 options={THEME_OPTIONS.map((option) => ({
                   value: option.value,
                   label: t(option.label_key),
                 }))}
-                stretch
-                title={t("theme.switch_title")}
                 value={theme}
               />
             </div>
@@ -447,28 +490,25 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <div className="min-w-0">
-              <UiSegmentedControl
-                class_name="w-full rounded-xl"
-                density="compact"
+              <SettingsSegmentedControl
+                aria_label={t("language.switch_title")}
                 on_change={set_locale}
                 options={LOCALE_OPTIONS.map((option) => ({
                   value: option.value,
                   label: t(option.label_key),
                 }))}
-                stretch
-                title={t("language.switch_title")}
                 value={locale}
               />
             </div>
           </div>
-        </UiPanel>
+        </div>
       </section>
 
       <section className="space-y-2.5">
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.general.section_general")}
         </h2>
-        <UiPanel class_name="overflow-hidden" padding="none">
+        <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
@@ -487,17 +527,14 @@ function GeneralSettingsSection() {
               <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
                 {t("settings.general.default_delivery")}
               </span>
-              <UiSegmentedControl
-                class_name="w-full rounded-xl"
-                density="compact"
+              <SettingsSegmentedControl
+                aria_label={t("settings.general.default_delivery")}
                 disabled={preferences_loading}
                 on_change={handle_delivery_policy_change}
                 options={DELIVERY_POLICY_OPTIONS.map((option) => ({
                   value: option.value,
                   label: t(option.label_key),
                 }))}
-                stretch
-                title={t("settings.general.default_delivery")}
                 value={preferences.chat_default_delivery_policy}
               />
             </div>
@@ -519,17 +556,16 @@ function GeneralSettingsSection() {
                 </p>
               </div>
             </div>
-            <UiButton
-              class_name={`min-w-0 ${SETTINGS_CONTROL_TEXT_CLASS_NAME}`}
+            <button
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
               onClick={reset_all_tours}
-              size="xs"
-              variant="surface"
+              type="button"
             >
               <RotateCcw className="h-3 w-3" />
               {t("settings.onboarding_action_reset")}
-            </UiButton>
+            </button>
           </div>
-        </UiPanel>
+        </div>
       </section>
 
       {desktop_available ? (
@@ -544,7 +580,7 @@ function GeneralSettingsSection() {
               </span>
             ) : null}
           </div>
-          <UiPanel class_name="overflow-hidden" padding="none">
+          <div className={SETTINGS_CARD_CLASS_NAME}>
             <div className={SETTINGS_ROW_CLASS_NAME}>
               <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
                 <div className={SETTINGS_ICON_CLASS_NAME}>
@@ -564,19 +600,18 @@ function GeneralSettingsSection() {
                 </div>
               </div>
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                <UiButton
-                  class_name={`min-w-0 ${SETTINGS_CONTROL_TEXT_CLASS_NAME}`}
+                <button
+                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
                   disabled={exporting_logs}
                   onClick={handle_export_logs}
-                  size="xs"
-                  variant="surface"
+                  type="button"
                 >
                   {exporting_logs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                   {t("settings.desktop.export_logs")}
-                </UiButton>
+                </button>
               </div>
             </div>
-          </UiPanel>
+          </div>
         </section>
       ) : null}
 
@@ -595,7 +630,7 @@ function GeneralSettingsSection() {
             </span>
           ) : null}
         </div>
-        <UiPanel class_name="overflow-hidden" padding="none">
+        <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
@@ -611,18 +646,22 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <div className="relative flex min-w-0 flex-col gap-1.5">
-              <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+              <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME} htmlFor="default-permission-mode">
                 {t("settings.general.default_permission_mode")}
               </label>
               <UiSelectMenu
                 aria_label={t("settings.general.default_permission_mode")}
-                button_class_name={`bg-(--surface-inset-background) ${SETTINGS_CONTROL_TEXT_CLASS_NAME}`}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
                 disabled={preferences_loading}
+                id="default-permission-mode"
+                menu_class_name="rounded-[12px]"
                 on_change={handle_permission_mode_change}
                 options={AGENT_PERMISSION_MODES.map((mode) => ({
                   value: mode.value,
                   label: t(mode.label_key),
                 }))}
+                placement="top"
                 size="xs"
                 value={permission_mode}
               />
@@ -631,7 +670,7 @@ function GeneralSettingsSection() {
               </p>
             </div>
           </div>
-        </UiPanel>
+        </div>
       </section>
     </div>
   );

@@ -12,14 +12,19 @@ import {
   PairingView,
   update_pairing_api,
 } from "@/lib/api/channel-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiField } from "@/shared/ui/form-control";
+import { UiField, UiSearchInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
+import {
+  CapabilityFilterBar,
+  CapabilityPageLayout,
+} from "@/features/capability/shared/capability-page-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -61,15 +66,30 @@ function format_target(item: PairingView) {
 }
 
 export function PairingsDirectory() {
+  const { t } = useI18n();
   const [items, set_items] = useState<PairingView[]>([]);
   const [agents, set_agents] = useState<Agent[]>([]);
   const [status, set_status] = useState<ImPairingStatus | "">("");
   const [channel, set_channel] = useState<ImChannelType | "">("");
+  const [query, set_query] = useState("");
   const [loading, set_loading] = useState(true);
   const [busy_id, set_busy_id] = useState<string | null>(null);
   const [feedback, set_feedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
 
-  const filtered_count = items.length;
+  const visible_items = useMemo(() => {
+    const normalized_query = query.trim().toLowerCase();
+    if (!normalized_query) {
+      return items;
+    }
+    return items.filter((item) =>
+      (item.external_name ?? "").toLowerCase().includes(normalized_query)
+      || item.external_ref.toLowerCase().includes(normalized_query)
+      || (item.thread_id ?? "").toLowerCase().includes(normalized_query)
+      || (item.agent_name ?? "").toLowerCase().includes(normalized_query)
+      || CHANNEL_LABELS[item.channel_type].toLowerCase().includes(normalized_query),
+    );
+  }, [items, query]);
+  const filtered_count = visible_items.length;
   const pending_count = useMemo(() => items.filter((item) => item.status === "pending").length, [items]);
 
   const refresh = useCallback(async () => {
@@ -137,26 +157,37 @@ export function PairingsDirectory() {
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
+            badge={t("capability.pairings_badge", { count: items.length })}
             density="compact"
             leading={<ShieldCheck className="h-4 w-4" />}
-            subtitle="审批 IM 用户与群聊访问智能体的关系。未授权对象只会进入待处理，不会直接触发智能体。"
-            title="配对授权"
+            subtitle={t("capability.pairings_subtitle")}
+            title={t("capability.pairings")}
             trailing={(
               <WorkspaceSurfaceToolbarAction onClick={() => void refresh()}>
                 <RefreshCw className="h-3.5 w-3.5" />
-                刷新
+                {t("capability.refresh")}
               </WorkspaceSurfaceToolbarAction>
             )}
           />
         )}
         stable_gutter
       >
-        <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
-          <UiPanel class_name="mb-5 flex flex-wrap items-center gap-3" padding="sm">
-            <Filter className="h-4 w-4 text-(--icon-default)" />
+        <CapabilityPageLayout
+          description={t("capability.pairings_intro_description")}
+          title={t("capability.pairings_intro_title")}
+        >
+          <CapabilityFilterBar>
+            <UiSearchInput
+              class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
+              input_class_name="text-[14px]"
+              on_change={set_query}
+              placeholder={t("capability.pairings_search_placeholder")}
+              value={query}
+            />
             <UiSelectMenu
-              aria_label="筛选消息渠道"
-              class_name="w-[148px]"
+              aria_label={t("capability.pairings_filter_channel_aria")}
+              class_name="shrink-0 sm:w-[148px]"
+              leading={<Filter className="h-3.5 w-3.5" />}
               on_change={(value) => set_channel(value as ImChannelType | "")}
               options={[
                 { value: "", label: "全部渠道" },
@@ -169,8 +200,8 @@ export function PairingsDirectory() {
               value={channel}
             />
             <UiSelectMenu
-              aria_label="筛选配对状态"
-              class_name="w-[148px]"
+              aria_label={t("capability.pairings_filter_status_aria")}
+              class_name="shrink-0 sm:w-[148px]"
               on_change={(value) => set_status(value as ImPairingStatus | "")}
               options={[
                 { value: "", label: "全部状态" },
@@ -182,14 +213,14 @@ export function PairingsDirectory() {
               size="sm"
               value={status}
             />
-            <div className="ml-auto text-[12px] font-semibold text-(--text-muted)">
+            <div className="shrink-0 text-[12px] font-semibold text-(--text-muted) sm:ml-auto">
               {filtered_count} 个配对 · {pending_count} 个待处理
             </div>
-          </UiPanel>
+          </CapabilityFilterBar>
 
           {loading ? (
-            <UiStateBlock description="正在同步外部 IM 用户与群聊的授权状态。" size="sm" title="加载配对授权..." />
-          ) : items.length === 0 ? (
+            <UiStateBlock description="正在同步外部 IM 用户与群聊的授权状态。" size="sm" title="加载配对..." />
+          ) : visible_items.length === 0 ? (
             <UiStateBlock
               description="外部 IM 用户或群首次发消息后，会在这里等待授权。"
               icon={<ShieldCheck className="h-6 w-6 text-(--icon-default)" />}
@@ -198,7 +229,7 @@ export function PairingsDirectory() {
             />
           ) : (
             <div className="space-y-3">
-              {items.map((item) => (
+              {visible_items.map((item) => (
                 <UiPanel
                   class_name="grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.8fr)_minmax(160px,0.7fr)_auto] items-center gap-4 max-xl:grid-cols-1"
                   key={item.pairing_id}
@@ -289,7 +320,7 @@ export function PairingsDirectory() {
               ))}
             </div>
           )}
-        </div>
+        </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       <FeedbackBannerStack items={feedback_items} />

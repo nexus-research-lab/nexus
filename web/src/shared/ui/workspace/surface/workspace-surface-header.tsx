@@ -8,6 +8,7 @@ import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import {
   COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS,
   COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS,
+  COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 export { WorkspaceTaskStrip } from "./workspace-task-strip";
@@ -60,6 +61,8 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   on_change_tab,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
   const has_secondary_row = density === "compact" || tabs.length > 0 || Boolean(tabs_leading) || Boolean(tabs_trailing);
+  const compact_subtitle = density === "compact" ? subtitle : null;
+  const primary_subtitle = density === "compact" ? null : subtitle;
   const render_tabs_nav = (class_name: string, aria_label: string) => (
     <UiUnderlineTabs
       active_value={active_tab}
@@ -81,7 +84,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
     <div className={SURFACE_HEADER_CLASS_NAME} data-density={density}>
       <div className={cn(
         "flex min-w-0 items-center justify-between px-5 xl:px-6",
-        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : "h-[72px] gap-4",
+        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : cn(COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS, "gap-3"),
       )}>
         <div className={cn("flex min-w-0 flex-1 items-center", density === "compact" ? "gap-2.5" : "gap-3")}>
           {leading ? (
@@ -107,9 +110,9 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
                 <div className="min-w-0 shrink text-(--text-default)">{title_trailing}</div>
               ) : null}
             </div>
-            {subtitle ? (
+            {primary_subtitle ? (
               <div className="mt-1 text-[12px] text-(--text-soft)">
-                {subtitle}
+                {primary_subtitle}
               </div>
             ) : null}
           </div>
@@ -140,6 +143,10 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
               ),
               "视图切换",
             )
+          ) : compact_subtitle ? (
+            <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-soft)">
+              {compact_subtitle}
+            </div>
           ) : (
             <div className="min-w-0 flex-1" />
           )}

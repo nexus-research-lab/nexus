@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { Loader2, Puzzle } from "lucide-react";
 
 import type { SkillInfo } from "@/types/capability/skill";
@@ -8,9 +7,10 @@ import type { SkillMarketplaceController } from "./skills-view-model";
 
 interface SkillsCatalogGridProps {
   ctrl: SkillMarketplaceController;
+  on_open_skill: (skill_name: string) => void;
 }
 
-export function SkillsCatalogGrid({ ctrl }: SkillsCatalogGridProps) {
+export function SkillsCatalogGrid({ ctrl, on_open_skill }: SkillsCatalogGridProps) {
   if (ctrl.loading) {
     return (
       <div className="flex min-h-80 items-center justify-center">
@@ -36,31 +36,31 @@ export function SkillsCatalogGrid({ ctrl }: SkillsCatalogGridProps) {
   }
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="space-y-9">
       {ctrl.grouped_skills.map(([category_name, items]: [string, SkillInfo[]]) => (
-        <Fragment key={category_name}>
-          <div className="mb-3 flex items-center gap-2.5">
-            <h2 className="text-[15px] font-bold tracking-[-0.02em] text-(--text-strong)">
+        <section key={category_name}>
+          <div className="mb-3 flex items-end justify-between border-b border-(--divider-subtle-color) pb-2">
+            <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
               {category_name}
             </h2>
-            <span className="text-[11px] font-medium text-(--text-soft)">
+            <span className="text-[12px] font-medium text-(--text-soft)">
               {items.length} 个
             </span>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
             {items.map((skill: SkillInfo) => (
               <SkillsCard
                 key={skill.name}
                 busy={ctrl.busy_skill_name === skill.name}
                 class_name="transition-opacity"
                 on_delete={() => void ctrl.handle_delete_skill(skill)}
-                on_select={() => ctrl.set_selected_skill(skill.name)}
+                on_select={() => on_open_skill(skill.name)}
                 on_update={() => void ctrl.handle_update_single(skill.name)}
                 skill={skill}
               />
             ))}
           </div>
-        </Fragment>
+        </section>
       ))}
     </div>
   );

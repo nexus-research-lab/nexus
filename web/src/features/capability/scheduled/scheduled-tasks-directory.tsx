@@ -5,6 +5,7 @@ import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/capability/use-automation-controller";
 import { delete_scheduled_task_api, run_scheduled_task_api, update_scheduled_task_status_api } from "@/lib/api/scheduled-task-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -12,6 +13,10 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import {
+  CapabilityPageLayout,
+  CapabilitySectionHeader,
+} from "@/features/capability/shared/capability-page-layout";
 
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
@@ -55,6 +60,7 @@ async function refresh_tasks_best_effort(
 }
 
 export function ScheduledTasksDirectory() {
+  const { t } = useI18n();
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [editing_task, set_editing_task] = useState<ScheduledTaskItem | null>(null);
   const [history_task, set_history_task] = useState<ScheduledTaskItem | null>(null);
@@ -246,27 +252,33 @@ export function ScheduledTasksDirectory() {
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={`${automation.scheduled_tasks.length} 个任务`}
+            badge={t("capability.scheduled_badge", { count: automation.scheduled_tasks.length })}
             density="compact"
             leading={<CalendarClock className="h-4 w-4" />}
-            title="任务管理"
+            subtitle={t("capability.scheduled_subtitle")}
+            title={t("capability.scheduled")}
             trailing={(
               <>
                 <WorkspaceSurfaceToolbarAction onClick={() => void handle_refresh_all()}>
                   <RefreshCw className="h-3.5 w-3.5" />
-                  刷新全部
+                  {t("capability.refresh_all")}
                 </WorkspaceSurfaceToolbarAction>
                 <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
                   <Plus className="h-3.5 w-3.5" />
-                  新建任务
+                  {t("capability.create_task")}
                 </WorkspaceSurfaceToolbarAction>
               </>
             )}
           />
         )}
+        stable_gutter
       >
-        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
-          <section className="mb-4 grid gap-3 md:grid-cols-3">
+        <CapabilityPageLayout
+          description={t("capability.scheduled_intro_description")}
+          title={t("capability.scheduled_intro_title")}
+        >
+          <CapabilitySectionHeader title={t("capability.scheduled_overview_title")} />
+          <section className="mb-5 grid gap-3 md:grid-cols-3">
             <UiPanel radius="lg">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                 执行中的任务
@@ -319,7 +331,7 @@ export function ScheduledTasksDirectory() {
               toggle_pending_job_id={toggle_pending_job_id}
             />
           </div>
-        </div>
+        </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       <ScheduledTaskDialog

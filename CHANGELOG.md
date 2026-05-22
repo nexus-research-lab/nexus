@@ -26,8 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 抽取共享 `dialog` 骨架，并统一消息渠道连接弹窗与配对授权列表的表单、按钮、状态和空态风格。
 - 抽取共享 `select-menu` 下拉控件，统一连接器、消息渠道、记忆、定时任务和设置页的选择入口，并移除旧原生 `UiSelect`。
 - 设置页、登录页和路由加载态继续复用共享 Button、Input、Panel、SegmentedControl 与 WorkspaceLoadingState 控件，减少页面级手写样式。
+- 恢复设置页旧版轻量布局，减少抽公共控件后产生的卡片块感。
 - 能力页弹窗和 Heartbeat 编辑表单继续复用共享 LinkButton、Input、CheckboxRow、Dialog 与 StateBlock 控件。
 - Agent 配置页继续复用共享 Button、Input、Textarea、Choice、SearchInput、Badge 与 StateBlock 控件，统一身份、权限和技能管理交互。
+- 统一能力区 Header 的 compact 副标题布局，连接器、频道、配对和定时任务保持一致的标题、说明和分割线节奏。
+- 能力区页面标题改用侧栏同源文案，补齐技能、连接器、频道、配对和定时任务 Header 与搜索入口的中英文文案。
 - 抽取共享 Agent/Room 头像组件，统一联系人、聊天侧栏、Room 成员和会话 Header 的头像、群头像拼接与工作中光环。
 - 抽取共享 `list-row` 列表行，统一聊天侧栏、联系人侧栏和 Room 成员选择/管理列表的 active、hover、操作区与键盘触发行为。
 - 抽取共享 `panel` 与 `skeleton` 控件，统一能力、设置和定时任务页面的面板容器、区块标题与加载骨架。
@@ -35,8 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 连接器详情、OAuth Client 配置和 GitHub Device Flow 弹窗改用共享 Dialog、Button 与 Panel 控件，减少旧弹窗手写结构。
 - 定时任务概览、Heartbeat、运行历史和调度表单统一使用共享 Panel、StateBlock、Skeleton 和按钮控件。
 - 连接器列表将分类筛选移入搜索栏，搜索/筛选控件铺满内容宽度并复用共享 `UiSelectMenu`，卡片改为轻量列表行，并移除 Header 分类 tab 与重复统计入口。
+- 连接器详情从弹窗改为独立二级页面，列表点击进入 `/capability/connectors/:connector_id`，包含内容列表支持点击弹窗查看目录提供的能力说明、能力范围和相关 scopes。
+- 技能库页面改为与连接器一致的列表目录和路由详情页，库内/社区技能列表复用轻量列表行，社区技能预览和连接器能力弹窗统一使用共享 Dialog 尺寸。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
 - 优化 Markdown 流式 URL 渲染：流式尾部 URL 暂缓成链接，外链协议白名单收紧，并压缩裸 URL 的显示长度。
+- 简化新建/管理群聊弹窗，移除左侧重复的已选成员列表，成员选择统一在右侧列表完成。
+- 统一能力区频道、配对、定时任务和记忆页的目录版心、介绍区、筛选条与 Header 信息节奏，使其与技能和连接器页面保持一致。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
@@ -46,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 缩小聊天区图片预览尺寸，避免大图撑满消息区域影响阅读。
 - 修复聊天 Markdown 有序列表序号在不同屏宽和缩放下遮挡正文的问题。
 - 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、主连接器列表可能收不到刷新事件的问题，并让线上 nginx callback 路由使用轻量入口。
+- 修复常规设置里默认权限下拉菜单在底部被遮挡的问题，改为可控弹层并在该位置向上展开。
 
 ## [0.1.8] - 2026-05-21
 
