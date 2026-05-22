@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   CheckCircle2,
   CircleSlash,
@@ -25,6 +32,7 @@ import {
 } from "@/lib/api/goal-api";
 import { ApiRequestError } from "@/lib/api/http";
 import { cn, format_tokens } from "@/lib/utils";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
 
 interface GoalPanelProps {
@@ -83,6 +91,14 @@ function goal_usage_total(goal: Goal | null): number {
   return goal?.usage?.total_tokens ?? 0;
 }
 
+function should_prompt_resume_goal(status: GoalStatus): boolean {
+  return status === "paused" || status === "blocked" || status === "usage_limited";
+}
+
+function resume_prompt_key(goal: Goal): string {
+  return `${goal.id}:${goal.status}:${goal.updated_at}`;
+}
+
 export function GoalPanel({
   session_key,
   compact = false,
@@ -97,6 +113,8 @@ export function GoalPanel({
   const [objective, set_objective] = useState("");
   const [budget, set_budget] = useState("");
   const [error, set_error] = useState<string | null>(null);
+  const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
+  const resume_prompt_key_ref = useRef<string | null>(null);
 
   const usage_total = goal_usage_total(goal);
   const budget_value = goal?.token_budget ?? null;
@@ -114,6 +132,22 @@ export function GoalPanel({
     }
   }, []);
 
+  const maybe_prompt_resume_goal = useCallback(
+    (current: Goal) => {
+      if (disabled || !should_prompt_resume_goal(current.status)) {
+        set_resume_prompt_goal(null);
+        return;
+      }
+      const key = resume_prompt_key(current);
+      if (resume_prompt_key_ref.current === key) {
+        return;
+      }
+      resume_prompt_key_ref.current = key;
+      set_resume_prompt_goal(current);
+    },
+    [disabled],
+  );
+
   const refresh_goal = useCallback(async () => {
     if (!session_key) {
       set_goal(null);
@@ -124,6 +158,7 @@ export function GoalPanel({
     try {
       const current = await get_current_goal_api(session_key);
       set_goal(current);
+      maybe_prompt_resume_goal(current);
       await refresh_goal_events(current.id);
       set_is_available(true);
       set_error(null);
@@ -132,11 +167,13 @@ export function GoalPanel({
         set_is_available(false);
         set_goal(null);
         set_events([]);
+        set_resume_prompt_goal(null);
         return;
       }
       if (is_goal_missing(err)) {
         set_goal(null);
         set_events([]);
+        set_resume_prompt_goal(null);
         set_error(null);
         return;
       }
@@ -144,7 +181,7 @@ export function GoalPanel({
     } finally {
       set_is_loading(false);
     }
-  }, [refresh_goal_events, session_key]);
+  }, [maybe_prompt_resume_goal, refresh_goal_events, session_key]);
 
   useEffect(() => {
     void refresh_goal();
@@ -199,6 +236,15 @@ export function GoalPanel({
     } finally {
       set_is_loading(false);
     }
+  };
+
+  const confirm_resume_prompt = () => {
+    set_resume_prompt_goal(null);
+    void mutate_goal(resume_goal_api);
+  };
+
+  const cancel_resume_prompt = () => {
+    set_resume_prompt_goal(null);
   };
 
   const start_editing_goal = () => {
@@ -274,126 +320,137 @@ export function GoalPanel({
   }
 
   return (
-    <div
-      className={cn(
-        "mx-auto mb-2 flex w-full max-w-[980px] flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-background/88 px-3 py-2 shadow-sm backdrop-blur",
-        compact && "mx-2 max-w-none",
-      )}
-    >
-      <Target className="h-4 w-4 shrink-0 text-primary" />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
-            {goal.objective}
-          </span>
-          <span className="shrink-0 rounded border border-border/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-            {STATUS_LABEL[goal.status] ?? goal.status}
-          </span>
-        </div>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span>{format_tokens(usage_total)} tokens</span>
-          {budget_value ? <span>/ {format_tokens(budget_value)}</span> : null}
-          <span>{goal.continuation_count} turns</span>
-          {goal.last_error ? (
-            <span className="truncate text-destructive">{goal.last_error}</span>
+    <>
+      <div
+        className={cn(
+          "mx-auto mb-2 flex w-full max-w-[980px] flex-wrap items-center gap-3 rounded-lg border border-border/70 bg-background/88 px-3 py-2 shadow-sm backdrop-blur",
+          compact && "mx-2 max-w-none",
+        )}
+      >
+        <Target className="h-4 w-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium text-foreground">
+              {goal.objective}
+            </span>
+            <span className="shrink-0 rounded border border-border/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              {STATUS_LABEL[goal.status] ?? goal.status}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>{format_tokens(usage_total)} tokens</span>
+            {budget_value ? <span>/ {format_tokens(budget_value)}</span> : null}
+            <span>{goal.continuation_count} turns</span>
+            {goal.last_error ? (
+              <span className="truncate text-destructive">{goal.last_error}</span>
+            ) : null}
+          </div>
+          {recent_events.length > 0 ? (
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+              {recent_events.map((event) => (
+                <span
+                  key={event.id}
+                  className="rounded border border-border/60 px-1.5 py-0.5"
+                >
+                  {EVENT_LABEL[event.event_type] ?? event.event_type}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {usage_percent !== null ? (
+            <div className="mt-1 h-1 overflow-hidden rounded bg-muted">
+              <div
+                className="h-full bg-primary"
+                style={{ width: `${usage_percent}%` }}
+              />
+            </div>
+          ) : null}
+          {error ? (
+            <div className="mt-1 text-[11px] text-destructive">{error}</div>
           ) : null}
         </div>
-        {recent_events.length > 0 ? (
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-            {recent_events.map((event) => (
-              <span
-                key={event.id}
-                className="rounded border border-border/60 px-1.5 py-0.5"
-              >
-                {EVENT_LABEL[event.event_type] ?? event.event_type}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {usage_percent !== null ? (
-          <div className="mt-1 h-1 overflow-hidden rounded bg-muted">
-            <div
-              className="h-full bg-primary"
-              style={{ width: `${usage_percent}%` }}
-            />
-          </div>
-        ) : null}
-        {error ? (
-          <div className="mt-1 text-[11px] text-destructive">{error}</div>
-        ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <button
+            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground"
+            title="刷新"
+            type="button"
+            onClick={() => void refresh_goal()}
+          >
+            <RefreshCw className={cn("h-4 w-4", is_loading && "animate-spin")} />
+          </button>
+          <button
+            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+            disabled={disabled || is_loading}
+            title="编辑"
+            type="button"
+            onClick={start_editing_goal}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          {goal.status === "active" ? (
+            <button
+              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+              disabled={disabled || is_loading}
+              title="暂停"
+              type="button"
+              onClick={() => void mutate_goal(pause_goal_api)}
+            >
+              <Pause className="h-4 w-4" />
+            </button>
+          ) : null}
+          {goal.status === "paused" || goal.status === "blocked" ? (
+            <button
+              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+              disabled={disabled || is_loading}
+              title="继续"
+              type="button"
+              onClick={() => void mutate_goal(resume_goal_api)}
+            >
+              <Play className="h-4 w-4" />
+            </button>
+          ) : null}
+          {goal.status === "budget_limited" || goal.status === "usage_limited" ? (
+            <button
+              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+              disabled={disabled || is_loading}
+              title="继续"
+              type="button"
+              onClick={() => void mutate_goal(resume_goal_api)}
+            >
+              <Play className="h-4 w-4" />
+            </button>
+          ) : null}
+          {goal.status === "active" ? (
+            <button
+              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+              disabled={disabled || is_loading}
+              title="完成"
+              type="button"
+              onClick={() => void mutate_goal(complete_goal_api)}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+            </button>
+          ) : null}
+          <button
+            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+            disabled={disabled || is_loading}
+            title="清除"
+            type="button"
+            onClick={() => void mutate_goal(clear_goal_api)}
+          >
+            <CircleSlash className="h-4 w-4" />
+          </button>
+        </div>
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1">
-        <button
-          className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground"
-          title="刷新"
-          type="button"
-          onClick={() => void refresh_goal()}
-        >
-          <RefreshCw className={cn("h-4 w-4", is_loading && "animate-spin")} />
-        </button>
-        <button
-          className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-          disabled={disabled || is_loading}
-          title="编辑"
-          type="button"
-          onClick={start_editing_goal}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        {goal.status === "active" ? (
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-            disabled={disabled || is_loading}
-            title="暂停"
-            type="button"
-            onClick={() => void mutate_goal(pause_goal_api)}
-          >
-            <Pause className="h-4 w-4" />
-          </button>
-        ) : null}
-        {goal.status === "paused" || goal.status === "blocked" ? (
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-            disabled={disabled || is_loading}
-            title="继续"
-            type="button"
-            onClick={() => void mutate_goal(resume_goal_api)}
-          >
-            <Play className="h-4 w-4" />
-          </button>
-        ) : null}
-        {goal.status === "budget_limited" || goal.status === "usage_limited" ? (
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-            disabled={disabled || is_loading}
-            title="继续"
-            type="button"
-            onClick={() => void mutate_goal(resume_goal_api)}
-          >
-            <Play className="h-4 w-4" />
-          </button>
-        ) : null}
-        {goal.status === "active" ? (
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-            disabled={disabled || is_loading}
-            title="完成"
-            type="button"
-            onClick={() => void mutate_goal(complete_goal_api)}
-          >
-            <CheckCircle2 className="h-4 w-4" />
-          </button>
-        ) : null}
-        <button
-          className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-          disabled={disabled || is_loading}
-          title="清除"
-          type="button"
-          onClick={() => void mutate_goal(clear_goal_api)}
-        >
-          <CircleSlash className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
+      <ConfirmDialog
+        cancel_text="暂不继续"
+        confirm_text="继续"
+        is_open={resume_prompt_goal !== null}
+        message={`Goal：${resume_prompt_goal?.objective ?? ""}`}
+        title="继续当前 Goal?"
+        on_cancel={cancel_resume_prompt}
+        on_confirm={confirm_resume_prompt}
+      />
+    </>
   );
 }
