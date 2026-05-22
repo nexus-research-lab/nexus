@@ -99,6 +99,46 @@ func TestRepositoryEvents(t *testing.T) {
 	}
 }
 
+func TestRepositoryCheckpoints(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
+	_, err := repository.CreateGoal(ctx, protocol.Goal{
+		ID:         "goal-1",
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "ship",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := repository.CreateCheckpoint(ctx, protocol.GoalCheckpoint{
+		ID:                "checkpoint-1",
+		GoalID:            "goal-1",
+		SessionKey:        "agent:nexus:ws:dm:chat",
+		Summary:           "First durable summary",
+		ContinuationCount: 2,
+		Usage:             protocol.GoalUsage{TotalTokens: 42},
+		CreatedAt:         now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.ID != "checkpoint-1" || created.Usage.TotalTokens != 42 {
+		t.Fatalf("created = %#v, want persisted checkpoint", created)
+	}
+	latest, err := repository.LatestCheckpoint(ctx, "goal-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest == nil || latest.Summary != "First durable summary" {
+		t.Fatalf("latest = %#v, want checkpoint summary", latest)
+	}
+}
+
 func newTestRepository(t *testing.T) *Repository {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")

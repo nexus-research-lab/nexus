@@ -169,6 +169,43 @@ func TestServicePlanContinuationPausesWhenBudgetExhausted(t *testing.T) {
 	}
 }
 
+func TestServiceCheckpointUpdatesRuntimeContext(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Long work",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpoint, err := service.CreateCheckpointByModel(ctx, created.ID, protocol.CreateGoalCheckpointRequest{
+		Summary: "Repository and service are wired.",
+		RoundID: "round-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkpoint.ID != "goal_checkpoint_3" || checkpoint.Summary == "" {
+		t.Fatalf("checkpoint = %#v, want persisted checkpoint", checkpoint)
+	}
+	contextText, _, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(contextText, "LatestCheckpoint") ||
+		!strings.Contains(contextText, "Repository and service are wired.") {
+		t.Fatalf("runtime context missing checkpoint: %s", contextText)
+	}
+	if len(repo.events) != 2 || repo.events[1].EventType != "checkpoint_created" {
+		t.Fatalf("events = %#v, want checkpoint_created", repo.events)
+	}
+}
+
 func TestServiceDisabled(t *testing.T) {
 	service := NewService(config.Config{}, newMemoryRepository())
 	_, err := service.Create(context.Background(), protocol.CreateGoalRequest{
@@ -200,8 +237,9 @@ func TestBuildRuntimeContext(t *testing.T) {
 }
 
 type memoryRepository struct {
-	goals  map[string]protocol.Goal
-	events []protocol.GoalEvent
+	goals       map[string]protocol.Goal
+	events      []protocol.GoalEvent
+	checkpoints []protocol.GoalCheckpoint
 }
 
 func newMemoryRepository() *memoryRepository {
@@ -257,6 +295,22 @@ func (r *memoryRepository) ListEvents(_ context.Context, goalID string, _ int) (
 		}
 	}
 	return items, nil
+}
+
+func (r *memoryRepository) CreateCheckpoint(_ context.Context, checkpoint protocol.GoalCheckpoint) (*protocol.GoalCheckpoint, error) {
+	r.checkpoints = append(r.checkpoints, checkpoint)
+	clone := checkpoint
+	return &clone, nil
+}
+
+func (r *memoryRepository) LatestCheckpoint(_ context.Context, goalID string) (*protocol.GoalCheckpoint, error) {
+	for index := len(r.checkpoints) - 1; index >= 0; index-- {
+		if r.checkpoints[index].GoalID == goalID {
+			clone := r.checkpoints[index]
+			return &clone, nil
+		}
+	}
+	return nil, nil
 }
 
 func cloneGoal(item protocol.Goal) *protocol.Goal {

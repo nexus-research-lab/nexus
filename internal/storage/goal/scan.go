@@ -112,6 +112,27 @@ func scanGoalEvent(scanner interface{ Scan(...any) error }) (protocol.GoalEvent,
 	return item, nil
 }
 
+func scanGoalCheckpoint(scanner interface{ Scan(...any) error }) (protocol.GoalCheckpoint, error) {
+	var (
+		item      protocol.GoalCheckpoint
+		usageJSON string
+	)
+	err := scanner.Scan(
+		&item.ID,
+		&item.GoalID,
+		&item.SessionKey,
+		&item.Summary,
+		&item.ContinuationCount,
+		&usageJSON,
+		&item.CreatedAt,
+	)
+	if err != nil {
+		return protocol.GoalCheckpoint{}, err
+	}
+	item.Usage = parseUsage(usageJSON)
+	return item, nil
+}
+
 func nullInt64ToPointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil
@@ -142,6 +163,17 @@ func parseMap(raw string) map[string]any {
 	var result map[string]any
 	if err := json.Unmarshal([]byte(raw), &result); err != nil {
 		return nil
+	}
+	return result
+}
+
+func parseUsage(raw string) protocol.GoalUsage {
+	if raw == "" {
+		return protocol.GoalUsage{}
+	}
+	var result protocol.GoalUsage
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		return protocol.GoalUsage{}
 	}
 	return result
 }

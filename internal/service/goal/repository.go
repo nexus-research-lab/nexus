@@ -14,4 +14,6 @@ type Repository interface {
 	UpdateGoal(context.Context, protocol.Goal, int64) (*protocol.Goal, error)
 	AppendEvent(context.Context, protocol.GoalEvent) error
 	ListEvents(context.Context, string, int) ([]protocol.GoalEvent, error)
+	CreateCheckpoint(context.Context, protocol.GoalCheckpoint) (*protocol.GoalCheckpoint, error)
+	LatestCheckpoint(context.Context, string) (*protocol.GoalCheckpoint, error)
 }

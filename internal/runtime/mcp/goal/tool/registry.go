@@ -10,6 +10,7 @@ import (
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdkmcp.Tool {
 	return []sdkmcp.Tool{
 		getCurrent(svc, sctx),
+		checkpoint(svc, sctx),
 		complete(svc, sctx),
 		block(svc, sctx),
 	}
