@@ -46,6 +46,25 @@ func beginGoalUsageForSlot(slot *activeRoomSlot) {
 	slot.GoalUsageStartedAt = time.Now()
 }
 
+func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
+	if s.runtime == nil || slot == nil {
+		return func() {}
+	}
+	sessionKey := strings.TrimSpace(slot.RuntimeSessionKey)
+	roundID := strings.TrimSpace(slot.AgentRoundID)
+	if sessionKey == "" || roundID == "" {
+		return func() {}
+	}
+	s.runtime.StartRound(sessionKey, roundID, nil)
+	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
+		return s.flushGoalUsageForSlot(ctx, slot)
+	})
+	return func() {
+		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
+		s.runtime.MarkRoundFinished(sessionKey, roundID)
+	}
+}
+
 func (s *RealtimeService) recordGoalUsageForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,

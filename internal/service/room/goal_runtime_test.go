@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -85,6 +86,32 @@ func TestRecordGoalUsageForRoomSlotUsesAssistantSnapshotOnAbort(t *testing.T) {
 	}
 	if usages[1].InputTokens != 5 || usages[1].OutputTokens != 3 || usages[1].Total() != 8 {
 		t.Fatalf("abort usage = %#v, want remaining 5/3", usages[1])
+	}
+}
+
+func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
+	manager := runtimectx.NewManager()
+	service := &RealtimeService{runtime: manager}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:conversation-1:agent-1",
+		AgentRoundID:      "room-round-1:agent-1",
+	}
+
+	cleanup := service.registerSlotGoalRuntime(slot)
+	roundIDs, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-1", "budget reached")
+	if err != nil {
+		t.Fatalf("QueueGuidanceInput() error = %v", err)
+	}
+	if len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
+		t.Fatalf("roundIDs = %#v, want slot round", roundIDs)
+	}
+	if count := manager.PendingGuidanceCount(slot.RuntimeSessionKey); count != 1 {
+		t.Fatalf("PendingGuidanceCount = %d, want 1", count)
+	}
+
+	cleanup()
+	if _, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-2", "late guidance"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
+		t.Fatalf("QueueGuidanceInput() after cleanup error = %v, want ErrNoRunningRound", err)
 	}
 }
 

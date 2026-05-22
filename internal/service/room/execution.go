@@ -170,12 +170,8 @@ func (s *RealtimeService) runSlot(
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
 	appendSystemPrompt, slot.GoalIDForUsage = s.appendGoalRuntimeContext(slotCtx, slot.RuntimeSessionKey, appendSystemPrompt)
 	beginGoalUsageForSlot(slot)
-	if s.runtime != nil {
-		s.runtime.RegisterGoalAccountingFlush(slot.RuntimeSessionKey, slot.AgentRoundID, func(ctx context.Context) error {
-			return s.flushGoalUsageForSlot(ctx, slot)
-		})
-		defer s.runtime.RegisterGoalAccountingFlush(slot.RuntimeSessionKey, slot.AgentRoundID, nil)
-	}
+	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
+	defer cleanupGoalRuntime()
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
