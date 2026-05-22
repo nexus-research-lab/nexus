@@ -117,4 +117,3 @@ func cloneFields(values []Field) []Field {
 	}
 	return items
 }
-

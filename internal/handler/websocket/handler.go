@@ -28,15 +28,15 @@ const (
 
 // Handler 封装 WebSocket 生命周期与控制消息分发。
 type Handler struct {
-	api           *handlershared.API
-	roomService   *roompkg.Service
-	roomRealtime  *roompkg.RealtimeService
-	dm            *dmsvc.Service
-	permission    *permissionctx.Context
-	runtime       *runtimectx.Manager
-	channels      *channelspkg.Router
-	roomSubs      *roomSubscriptionRegistry
-	workspaceSubs *workspaceSubscriptionRegistry
+	api            *handlershared.API
+	roomService    *roompkg.Service
+	roomRealtime   *roompkg.RealtimeService
+	dm             *dmsvc.Service
+	permission     *permissionctx.Context
+	runtime        *runtimectx.Manager
+	channels       *channelspkg.Router
+	roomSubs       *roomSubscriptionRegistry
+	workspaceSubs  *workspaceSubscriptionRegistry
 	allowedOrigins []string
 }
 
