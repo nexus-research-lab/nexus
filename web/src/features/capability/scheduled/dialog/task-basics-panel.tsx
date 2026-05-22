@@ -3,7 +3,8 @@
 import { type RefObject } from "react";
 
 import { UiChoiceButton } from "@/shared/ui/choice";
-import { UiField, UiInput, UiSelect } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 
 type TargetType = "agent" | "room";
 type ExecutionMode = "main" | "existing" | "temporary" | "dedicated";
@@ -150,30 +151,32 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
         html_for="task-target-object"
         label={target_type === "agent" ? "目标智能体" : "目标 Room"}
       >
-        <UiSelect
+        <UiSelectMenu
+          aria_label={target_type === "agent" ? "选择目标智能体" : "选择目标 Room"}
           disabled={target_type === "agent" ? agents_loading || agent_options.length === 0 : rooms_loading || room_options.length === 0}
           id="task-target-object"
-          onChange={(e) => {
+          on_change={(value) => {
             if (target_type === "agent") {
-              set_selected_agent_id(e.target.value);
+              set_selected_agent_id(value);
             } else {
-              set_selected_room_id(e.target.value);
+              set_selected_room_id(value);
             }
             on_reset_context_error();
           }}
+          options={[
+            {
+              value: "",
+              label: target_type === "agent"
+                ? (agents_loading ? "正在加载智能体..." : "请选择智能体")
+                : (rooms_loading ? "正在加载 Room..." : "请选择 Room"),
+            },
+            ...(target_type === "agent" ? agent_options : room_options).map((option) => ({
+              value: option.value ?? "",
+              label: option.label,
+            })),
+          ]}
           value={target_type === "agent" ? selected_agent_id : selected_room_id}
-        >
-          <option value="">
-            {target_type === "agent"
-              ? (agents_loading ? "正在加载智能体..." : "请选择智能体")
-              : (rooms_loading ? "正在加载 Room..." : "请选择 Room")}
-          </option>
-          {(target_type === "agent" ? agent_options : room_options).map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </UiSelect>
+        />
       </UiField>
 
       <div className="dialog-field">
@@ -215,22 +218,23 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
           html_for="task-session-key"
           label="执行会话"
         >
-          <UiSelect
+          <UiSelectMenu
+            aria_label="选择执行会话"
             disabled={session_loading || session_options.length === 0}
             id="task-session-key"
-            onChange={(e) => {
-              set_selected_session_key(e.target.value);
+            on_change={(value) => {
+              set_selected_session_key(value);
               on_reset_context_error();
             }}
+            options={[
+              { value: "", label: session_loading ? "正在加载会话..." : "请选择会话" },
+              ...session_options.map((option) => ({
+                value: option.session_key,
+                label: option.label,
+              })),
+            ]}
             value={selected_session_key}
-          >
-            <option value="">{session_loading ? "正在加载会话..." : "请选择会话"}</option>
-            {session_options.map((option) => (
-              <option key={option.session_key} value={option.session_key}>
-                {option.label}
-              </option>
-            ))}
-          </UiSelect>
+          />
         </UiField>
       ) : null}
 
@@ -258,22 +262,23 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
 
       {reply_mode === "selected" ? (
         <UiField html_for="task-reply-session-key" label="回复会话">
-          <UiSelect
+          <UiSelectMenu
+            aria_label="选择回复会话"
             disabled={session_loading || session_options.length === 0}
             id="task-reply-session-key"
-            onChange={(e) => {
-              set_selected_reply_session_key(e.target.value);
+            on_change={(value) => {
+              set_selected_reply_session_key(value);
               on_reset_context_error();
             }}
+            options={[
+              { value: "", label: session_loading ? "正在加载会话..." : "请选择回复会话" },
+              ...session_options.map((option) => ({
+                value: option.session_key,
+                label: option.label,
+              })),
+            ]}
             value={selected_reply_session_key}
-          >
-            <option value="">{session_loading ? "正在加载会话..." : "请选择回复会话"}</option>
-            {session_options.map((option) => (
-              <option key={option.session_key} value={option.session_key}>
-                {option.label}
-              </option>
-            ))}
-          </UiSelect>
+          />
         </UiField>
       ) : null}
     </div>

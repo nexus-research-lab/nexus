@@ -2,9 +2,10 @@
 
 import { UiChoiceButton } from "@/shared/ui/choice";
 import { UiCheckboxRow } from "@/shared/ui/checkbox-row";
-import { UiInput, UiSelect, UiTextarea } from "@/shared/ui/form-control";
+import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/segmented-control";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 
 import { DailyTimePicker } from "../pickers/daily-time-picker";
@@ -175,19 +176,17 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
               type="number"
               value={every_value}
             />
-            <UiSelect
+            <UiSelectMenu
+              aria_label="选择间隔单位"
               class_name="min-w-[132px]"
-              control_size="lg"
               id="task-every-unit"
-              onChange={(e) => set_every_unit(e.target.value as EveryUnit)}
+              on_change={(value) => set_every_unit(value as EveryUnit)}
+              options={every_unit_options.map((option) => ({
+                value: option.key,
+                label: option.label,
+              }))}
               value={every_unit}
-            >
-              {every_unit_options.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </UiSelect>
+            />
           </div>
         </UiPanel>
       ) : null}
@@ -196,18 +195,16 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
         <label className="dialog-label" htmlFor="task-timezone">
           时区
         </label>
-        <UiSelect
-          control_size="lg"
+        <UiSelectMenu
+          aria_label="选择任务时区"
           id="task-timezone"
-          onChange={(e) => set_timezone(e.target.value)}
+          on_change={set_timezone}
+          options={timezone_options.map((option) => ({
+            value: option,
+            label: option,
+          }))}
           value={timezone}
-        >
-          {timezone_options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </UiSelect>
+        />
       </div>
 
       <div className="dialog-field">

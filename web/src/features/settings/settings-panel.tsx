@@ -14,7 +14,6 @@
 import {
   ArrowLeft,
   Cable,
-  ChevronDown,
   Compass,
   Download,
   ExternalLink,
@@ -55,6 +54,7 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -119,7 +119,6 @@ const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = "mt-1 max-w-[520px] text-[12px] lea
 const SETTINGS_CONTROL_LABEL_CLASS_NAME = "text-[11px] font-medium text-(--text-soft)";
 const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
 const SETTINGS_CONTROL_TEXT_CLASS_NAME = "text-[11px] font-semibold leading-none";
-const SETTINGS_SELECT_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full appearance-none rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 pr-7 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) outline-none transition-colors focus:border-(--surface-interactive-active-border) disabled:opacity-(--disabled-opacity)`;
 const DEFAULT_RELEASE_PAGE_URL = "https://github.com/nexus-research-lab/nexus/releases/latest";
 
 interface SettingsSegmentedControlOption<T extends string> {
@@ -646,23 +645,21 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <div className="relative flex min-w-0 flex-col gap-1.5">
-              <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME} htmlFor="default-permission-mode">
+              <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
                 {t("settings.general.default_permission_mode")}
               </label>
-              <select
-                id="default-permission-mode"
-                className={SETTINGS_SELECT_CLASS_NAME}
+              <UiSelectMenu
+                aria_label={t("settings.general.default_permission_mode")}
+                button_class_name={`bg-(--surface-inset-background) ${SETTINGS_CONTROL_TEXT_CLASS_NAME}`}
                 disabled={preferences_loading}
-                onChange={(event) => handle_permission_mode_change(event.target.value)}
+                on_change={handle_permission_mode_change}
+                options={AGENT_PERMISSION_MODES.map((mode) => ({
+                  value: mode.value,
+                  label: t(mode.label_key),
+                }))}
+                size="xs"
                 value={permission_mode}
-              >
-                {AGENT_PERMISSION_MODES.map((mode) => (
-                  <option key={mode.value} value={mode.value}>
-                    {t(mode.label_key)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-[28px] h-3 w-3 text-(--text-soft)" />
+              />
               <p className="text-[11px] leading-4 text-(--text-soft)">
                 {t(selected_permission_mode.description_key)}
               </p>

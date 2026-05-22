@@ -25,6 +25,7 @@ import {
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import type { SkillInfo } from "@/types/capability/skill";
 
 export interface RoomMemberAgentOption {
@@ -411,19 +412,22 @@ export function CreateRoomDialog({
                       <Crown className="h-3.5 w-3.5 text-primary" />
                       <span>群主</span>
                     </div>
-                    <select
-                      className="dialog-input h-8 min-w-0 flex-1 rounded-[10px] px-2 text-[12px] font-medium text-(--text-strong) outline-none disabled:cursor-not-allowed disabled:opacity-55"
+                    <UiSelectMenu
+                      aria_label="选择 Room 群主"
+                      button_class_name="dialog-input rounded-[10px] px-2"
+                      class_name="min-w-0 flex-1"
                       disabled={selected_agents.length === 0 || is_creating}
-                      onChange={(event) => handle_change_host_agent(event.target.value)}
+                      on_change={handle_change_host_agent}
+                      options={[
+                        { value: "", label: "未设置" },
+                        ...selected_agents.map((agent) => ({
+                          value: agent.agent_id,
+                          label: agent.name,
+                        })),
+                      ]}
+                      size="sm"
                       value={selected_host_agent_id}
-                    >
-                      <option value="">未设置</option>
-                      {selected_agents.map((agent) => (
-                        <option key={agent.agent_id} value={agent.agent_id}>
-                          {agent.name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <label className="mt-1.5 flex items-center gap-2 px-0.5 text-[11px] font-medium text-(--text-default)">
                     <input

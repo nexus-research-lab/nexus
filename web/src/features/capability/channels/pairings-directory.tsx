@@ -16,8 +16,9 @@ import { UiBadge } from "@/shared/ui/badge";
 import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiField, UiSelect } from "@/shared/ui/form-control";
+import { UiField } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
@@ -153,30 +154,34 @@ export function PairingsDirectory() {
         <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
           <UiPanel class_name="mb-5 flex flex-wrap items-center gap-3" padding="sm">
             <Filter className="h-4 w-4 text-(--icon-default)" />
-            <UiSelect
+            <UiSelectMenu
+              aria_label="筛选消息渠道"
               class_name="w-[148px]"
-              control_size="sm"
-              onChange={(event) => set_channel(event.target.value as ImChannelType | "")}
+              on_change={(value) => set_channel(value as ImChannelType | "")}
+              options={[
+                { value: "", label: "全部渠道" },
+                ...Object.entries(CHANNEL_LABELS).map(([key, label]) => ({
+                  value: key,
+                  label,
+                })),
+              ]}
+              size="sm"
               value={channel}
-              variant="surface"
-            >
-              <option value="">全部渠道</option>
-              {Object.entries(CHANNEL_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </UiSelect>
-            <UiSelect
+            />
+            <UiSelectMenu
+              aria_label="筛选配对状态"
               class_name="w-[148px]"
-              control_size="sm"
-              onChange={(event) => set_status(event.target.value as ImPairingStatus | "")}
+              on_change={(value) => set_status(value as ImPairingStatus | "")}
+              options={[
+                { value: "", label: "全部状态" },
+                ...Object.entries(STATUS_LABELS).map(([key, label]) => ({
+                  value: key,
+                  label,
+                })),
+              ]}
+              size="sm"
               value={status}
-              variant="surface"
-            >
-              <option value="">全部状态</option>
-              {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </UiSelect>
+            />
             <div className="ml-auto text-[12px] font-semibold text-(--text-muted)">
               {filtered_count} 个配对 · {pending_count} 个待处理
             </div>
@@ -213,17 +218,17 @@ export function PairingsDirectory() {
                   </div>
 
                   <UiField class_name="min-w-0" label="处理智能体">
-                    <UiSelect
-                      control_size="sm"
+                    <UiSelectMenu
+                      aria_label="选择配对处理智能体"
                       disabled={busy_id === item.pairing_id}
-                      onChange={(event) => void update_pairing(item, { agent_id: event.target.value })}
+                      on_change={(value) => void update_pairing(item, { agent_id: value })}
+                      options={agents.map((agent) => ({
+                        value: agent.agent_id,
+                        label: agent.name,
+                      }))}
+                      size="sm"
                       value={item.agent_id}
-                      variant="surface"
-                    >
-                      {agents.map((agent) => (
-                        <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
-                      ))}
-                    </UiSelect>
+                    />
                   </UiField>
 
                   <div className="text-[12px] leading-5 text-(--text-muted)">

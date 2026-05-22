@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Activity, Check, Pencil, RefreshCw, TimerReset, X, Zap } from "lucide-react";
 
 import { UiPanel } from "@/shared/ui/panel";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiSkeletonCardList } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
@@ -335,40 +336,42 @@ function HeartbeatEditForm({ draft, on_change, save_error }: HeartbeatEditFormPr
           </div>
         </label>
 
-        <label className="min-w-0 text-sm">
+        <div className="min-w-0 text-sm">
           <span className={FIELD_LABEL_CLASS}>回复方式</span>
-          <select
-            className={INPUT_CLASS}
-            onChange={(event) =>
-              on_change({ ...draft, target_mode: event.target.value as HeartbeatTargetMode })
-            }
+          <UiSelectMenu
+            aria_label="选择心跳回复方式"
+            class_name="mt-2"
+            on_change={(value) => on_change({ ...draft, target_mode: value as HeartbeatTargetMode })}
+            options={[
+              { value: "none", label: "不投递" },
+              { value: "last", label: "回到最近会话" },
+            ]}
+            size="sm"
             value={draft.target_mode}
-          >
-            <option value="none">不投递</option>
-            <option value="last">回到最近会话</option>
-          </select>
-        </label>
+          />
+        </div>
 
-        <label className="min-w-0 text-sm">
+        <div className="min-w-0 text-sm">
           <span className={FIELD_LABEL_CLASS}>轮询间隔</span>
-          <select
-            className={INPUT_CLASS}
-            onChange={(event) => {
-              const value = event.target.value;
+          <UiSelectMenu
+            aria_label="选择心跳轮询间隔"
+            class_name="mt-2"
+            on_change={(value) => {
               if (value === "custom") {
                 return;
               }
               on_change({ ...draft, every_seconds: Number(value) });
             }}
+            options={[
+              ...INTERVAL_PRESETS.map((preset) => ({
+                value: String(preset.seconds),
+                label: preset.label,
+              })),
+              { value: "custom", label: "自定义（秒）" },
+            ]}
+            size="sm"
             value={matched_preset ? String(matched_preset.seconds) : "custom"}
-          >
-            {INTERVAL_PRESETS.map((preset) => (
-              <option key={preset.seconds} value={preset.seconds}>
-                {preset.label}
-              </option>
-            ))}
-            <option value="custom">自定义（秒）</option>
-          </select>
+          />
           <input
             className={INPUT_CLASS}
             min={1}
@@ -378,7 +381,7 @@ function HeartbeatEditForm({ draft, on_change, save_error }: HeartbeatEditFormPr
             type="number"
             value={draft.every_seconds}
           />
-        </label>
+        </div>
 
         <label className="min-w-0 text-sm">
           <span className={FIELD_LABEL_CLASS}>ACK 字数上限</span>

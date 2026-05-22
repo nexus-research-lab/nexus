@@ -37,8 +37,9 @@ import {
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiField, UiInput, UiSelect } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiSkeleton } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
@@ -310,16 +311,16 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
                 ) : null}
 
                 <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
-                  <UiSelect
-                    onChange={(event) => set_agent_id(event.target.value)}
-                    required
+                  <UiSelectMenu
+                    aria_label="选择消息渠道处理智能体"
+                    on_change={set_agent_id}
+                    options={agents.map((agent) => ({
+                      value: agent.agent_id,
+                      label: agent.name,
+                    }))}
+                    size="sm"
                     value={agent_id}
-                    variant="dialog"
-                  >
-                    {agents.map((agent) => (
-                      <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
-                    ))}
-                  </UiSelect>
+                  />
                 </UiField>
 
                 <div className="space-y-4">

@@ -4,7 +4,6 @@ import {
   type ChangeEvent,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
   forwardRef,
 } from "react";
@@ -28,12 +27,6 @@ interface UiFieldProps {
 }
 
 interface UiInputProps extends InputHTMLAttributes<HTMLInputElement> {
-  class_name?: string;
-  control_size?: UiFormControlSize;
-  variant?: UiFormControlVariant;
-}
-
-interface UiSelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   class_name?: string;
   control_size?: UiFormControlSize;
   variant?: UiFormControlVariant;
@@ -102,28 +95,6 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
         cn(className, class_name),
       )}
       type={type}
-      {...props}
-    />
-  );
-});
-
-export const UiSelect = forwardRef<HTMLSelectElement, UiSelectProps>(function UiSelect(
-  {
-    class_name,
-    className,
-    control_size,
-    variant,
-    ...props
-  },
-  ref,
-) {
-  return (
-    <select
-      ref={ref}
-      className={get_ui_form_control_class_name(
-        { size: control_size, variant },
-        cn("appearance-none pr-8", className, class_name),
-      )}
       {...props}
     />
   );

@@ -15,6 +15,7 @@ import type { ProviderOption } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { AGENT_ICON_ID_END, AGENT_ICON_ID_START } from "@/lib/utils";
 import { format_provider_label } from "@/types/capability/provider";
 
@@ -65,6 +66,13 @@ export function AgentOptionsIdentityTab({
       name: format_provider_label(default_provider),
     })
     : t("agent_options.identity.follow_default_provider");
+  const provider_select_options = [
+    { value: "", label: defaultProviderOptionLabel },
+    ...provider_options.map((item) => ({
+      value: item.provider,
+      label: item.display_name,
+    })),
+  ];
 
   /** 添加标签 */
   const handleAddTag = useCallback(() => {
@@ -213,38 +221,15 @@ export function AgentOptionsIdentityTab({
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                 {t("agent_options.identity.provider")}
               </label>
-              <div className="relative">
-                <select
-                  value={provider}
-                  onChange={(e) => on_provider_change(e.target.value as AgentProvider)}
-                  className="dialog-input rounded-xl flex h-9 w-full appearance-none px-3 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                  disabled={provider_options_loading && provider_options.length === 0}
-                >
-                  <option value="">{defaultProviderOptionLabel}</option>
-                  {provider_options.map((item) => (
-                    <option key={item.provider} value={item.provider}>
-                      {item.display_name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  <svg
-                    width="10"
-                    height="6"
-                    viewBox="0 0 10 6"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M1 1L5 5L9 1"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
+              <UiSelectMenu
+                aria_label={t("agent_options.identity.provider")}
+                button_class_name="dialog-input"
+                disabled={provider_options_loading && provider_options.length === 0}
+                on_change={(value) => on_provider_change(value as AgentProvider)}
+                options={provider_select_options}
+                size="sm"
+                value={provider}
+              />
               {provider_options_error ? (
                 <p className="text-xs text-rose-500">{provider_options_error}</p>
               ) : null}
@@ -322,38 +307,14 @@ export function AgentOptionsIdentityTab({
             <label className="text-[11px] font-semibold text-(--text-muted)">
               {t("agent_options.identity.provider")}
             </label>
-            <div className="relative">
-              <select
-                value={provider}
-                onChange={(e) => on_provider_change(e.target.value as AgentProvider)}
-                className="dialog-input rounded-xl flex h-10 w-full appearance-none px-3.5 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                disabled={provider_options_loading && provider_options.length === 0}
-              >
-                <option value="">{defaultProviderOptionLabel}</option>
-                {provider_options.map((item) => (
-                  <option key={item.provider} value={item.provider}>
-                    {item.display_name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <svg
-                  width="10"
-                  height="6"
-                  viewBox="0 0 10 6"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M1 1L5 5L9 1"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-            </div>
+            <UiSelectMenu
+              aria_label={t("agent_options.identity.provider")}
+              button_class_name="dialog-input"
+              disabled={provider_options_loading && provider_options.length === 0}
+              on_change={(value) => on_provider_change(value as AgentProvider)}
+              options={provider_select_options}
+              value={provider}
+            />
             {provider_options_error ? (
               <p className="mt-2 text-xs text-rose-500">{provider_options_error}</p>
             ) : null}

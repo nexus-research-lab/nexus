@@ -24,13 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 抽取共享 `form-control`、`badge` 与 `state-block` 控件，统一表单输入、状态徽标、未读计数和列表空态/错误态的尺寸与材质。
 - 抽取共享 `tabs`、`checkbox-row` 与 `meta-grid` 控件，统一 Header 下划线 tab、表单勾选行和详情字段组。
 - 抽取共享 `dialog` 骨架，并统一消息渠道连接弹窗与配对授权列表的表单、按钮、状态和空态风格。
+- 抽取共享 `select-menu` 下拉控件，统一连接器、消息渠道、记忆、定时任务和设置页的选择入口，并移除旧原生 `UiSelect`。
 - 抽取共享 Agent/Room 头像组件，统一联系人、聊天侧栏、Room 成员和会话 Header 的头像、群头像拼接与工作中光环。
 - 抽取共享 `list-row` 列表行，统一聊天侧栏、联系人侧栏和 Room 成员选择/管理列表的 active、hover、操作区与键盘触发行为。
 - 抽取共享 `panel` 与 `skeleton` 控件，统一能力、设置和定时任务页面的面板容器、区块标题与加载骨架。
 - 收口 Memory 页面和 Agent 记忆 tab 的状态徽标、时间展示、输入框、按钮和面板样式，移除重复的记忆展示逻辑。
 - 连接器详情、OAuth Client 配置和 GitHub Device Flow 弹窗改用共享 Dialog、Button 与 Panel 控件，减少旧弹窗手写结构。
 - 定时任务概览、Heartbeat、运行历史和调度表单统一使用共享 Panel、StateBlock、Skeleton 和按钮控件。
-- 连接器列表将分类筛选移入搜索栏，卡片改为轻量列表行，并统一使用共享 Select 与 Badge 控件，移除 Header 分类 tab 的重复入口。
+- 连接器列表将分类筛选移入搜索栏，搜索/筛选控件铺满内容宽度并复用共享 `UiSelectMenu`，卡片改为轻量列表行，并移除 Header 分类 tab 与重复统计入口。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
 - 优化 Markdown 流式 URL 渲染：流式尾部 URL 暂缓成链接，外链协议白名单收紧，并压缩裸 URL 的显示长度。
 

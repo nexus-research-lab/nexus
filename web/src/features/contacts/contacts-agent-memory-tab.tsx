@@ -32,9 +32,10 @@ import {
   MemoryStatusBadge,
 } from "@/features/memory/memory-ui";
 import { UiIconButton } from "@/shared/ui/button";
-import { UiSearchInput, UiSelect } from "@/shared/ui/form-control";
+import { UiSearchInput } from "@/shared/ui/form-control";
 import { UiListRow } from "@/shared/ui/list-row";
 import { UiPanel } from "@/shared/ui/panel";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { Agent } from "@/types/agent/agent";
 import type { MemoryItem, MemoryStats } from "@/types/memory/memory";
@@ -223,30 +224,20 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
               value={query}
             />
             <div className="grid grid-cols-2 gap-2">
-              <UiSelect
-                control_size="sm"
-                onChange={(event) => set_status_filter(event.target.value)}
+              <UiSelectMenu
+                aria_label="筛选记忆状态"
+                on_change={set_status_filter}
+                options={STATUS_OPTIONS}
+                size="sm"
                 value={status_filter}
-                variant="surface"
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </UiSelect>
-              <UiSelect
-                control_size="sm"
-                onChange={(event) => set_layer_filter(event.target.value as MemoryLayerFilter)}
+              />
+              <UiSelectMenu
+                aria_label="筛选记忆层级"
+                on_change={(value) => set_layer_filter(value as MemoryLayerFilter)}
+                options={LAYER_OPTIONS}
+                size="sm"
                 value={layer_filter}
-                variant="surface"
-              >
-                {LAYER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </UiSelect>
+              />
             </div>
           </div>
 

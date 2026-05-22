@@ -29,8 +29,9 @@ import { format_memory_time } from "@/features/memory/memory-utils";
 import { MemoryStatusBadge } from "@/features/memory/memory-ui";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiInput, UiSearchInput, UiSelect, UiTextarea } from "@/shared/ui/form-control";
+import { UiInput, UiSearchInput, UiTextarea } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
@@ -236,19 +237,17 @@ export function MemoryPanel() {
           title="Memory"
           trailing={
             <>
-              <UiSelect
+              <UiSelectMenu
+                aria_label="选择记忆 Agent"
                 class_name="min-w-[160px]"
-                control_size="sm"
-                onChange={(event) => set_agent_id(event.target.value)}
+                on_change={set_agent_id}
+                options={agents.map((agent) => ({
+                  value: agent.agent_id,
+                  label: agent.name,
+                }))}
+                size="sm"
                 value={agent_id}
-                variant="surface"
-              >
-                {agents.map((agent) => (
-                  <option key={agent.agent_id} value={agent.agent_id}>
-                    {agent.name}
-                  </option>
-                ))}
-              </UiSelect>
+              />
               <WorkspaceSurfaceToolbarAction disabled={loading || !agent_id} onClick={refresh}>
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
                 刷新
@@ -280,17 +279,13 @@ export function MemoryPanel() {
 
         <UiPanel padding="sm" variant="inset">
           <div className="grid gap-2 md:grid-cols-[180px_1fr_auto]">
-            <UiSelect
-              onChange={(event) => set_status(event.target.value)}
+            <UiSelectMenu
+              aria_label="筛选记忆状态"
+              on_change={set_status}
+              options={STATUS_OPTIONS}
+              size="sm"
               value={status}
-              variant="surface"
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </UiSelect>
+            />
             <UiSearchInput
               on_change={set_query}
               placeholder="搜索关键词"
