@@ -12,6 +12,7 @@
 import { ButtonHTMLAttributes, CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
 
 type CatalogMediaShape = "round" | "rounded";
 type CatalogActionTone = "default" | "danger";
@@ -298,20 +299,16 @@ export function WorkspaceCatalogAction({
   size?: CatalogActionSize;
 }) {
   return (
-    <button
-      className={cn(
-        "inline-flex items-center justify-center rounded-[10px] border border-transparent bg-transparent text-(--icon-default) transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-        size === "sm"
-          ? "h-6 w-6 rounded-[8px]"
-          : "h-8 w-8 rounded-[10px]",
-        tone === "danger" && "hover:border-rose-100 hover:bg-rose-50/92 hover:text-rose-600/90",
-        class_name,
-      )}
+    <UiIconButton
+      class_name={class_name}
+      size={size === "sm" ? "xs" : "md"}
+      tone={tone}
       type={type}
+      variant="ghost"
       {...props}
     >
       {children}
-    </button>
+    </UiIconButton>
   );
 }
 
@@ -327,19 +324,16 @@ export function WorkspaceCatalogTextAction({
   tone?: CatalogTextActionTone;
 }) {
   return (
-    <button
-      className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-semibold transition duration-(--motion-duration-fast) ease-out",
-        tone === "default" && "text-(--text-default) hover:text-(--text-strong)",
-        tone === "primary" && "text-(--primary) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
-        tone === "danger" && "text-rose-600/88 hover:text-rose-700",
-        class_name,
-      )}
+    <UiButton
+      class_name={class_name}
+      size="sm"
+      tone={tone}
       type={type}
+      variant="text"
       {...props}
     >
       {children}
-    </button>
+    </UiButton>
   );
 }
 
@@ -392,4 +386,3 @@ export function WorkspaceCatalogGhostCard({
     </article>
   );
 }
-

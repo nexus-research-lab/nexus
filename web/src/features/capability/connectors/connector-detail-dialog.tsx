@@ -9,6 +9,7 @@ import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
+  DIALOG_TEXT_BUTTON_CLASS_NAME,
   get_dialog_action_class_name,
   get_dialog_note_class_name,
   get_dialog_note_style,
@@ -166,7 +167,7 @@ export function ConnectorDetailDialog({
 
               {detail.docs_url && (
                 <a
-                  className="flex items-center gap-1.5 text-[12px] text-sky-400 hover:underline"
+                  className={DIALOG_TEXT_BUTTON_CLASS_NAME}
                   href={detail.docs_url}
                   rel="noopener noreferrer"
                   target="_blank"
@@ -183,7 +184,7 @@ export function ConnectorDetailDialog({
           <div className="dialog-footer flex-wrap gap-2">
             {requires_oauth_client_config && !is_connected ? (
               <button
-                className={get_dialog_action_class_name(oauth_client_configured ? "default" : "primary")}
+                className={get_dialog_action_class_name(oauth_client_configured ? "default" : "primary", "compact")}
                 disabled={busy}
                 onClick={() => on_configure_oauth_client(detail)}
                 type="button"

@@ -69,7 +69,7 @@ var connectorCatalog = []CatalogEntry{
 			"wiki:wiki",
 			"offline_access",
 		},
-		DocsURL:         "https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/wiki-v2/space/list",
+		DocsURL:         "https://open.feishu.cn/document/develop-an-echo-bot/introduction",
 		Features:        []string{"导出 Markdown", "创建文档", "追加内容", "更新 Block", "云空间列表", "知识库浏览"},
 		UserOAuthClient: true,
 	},

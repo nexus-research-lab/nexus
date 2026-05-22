@@ -11,6 +11,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 
 function GuardState({
   title,
@@ -33,7 +34,10 @@ function GuardState({
         <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
         {action_label && on_action ? (
           <button
-            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-(--button-primary-border) bg-(--button-primary-background) px-5 text-[14px] font-semibold text-(--button-primary-color) transition hover:bg-(--button-primary-hover-background)"
+            className={get_ui_button_class_name(
+              { size: "lg", tone: "primary", variant: "solid" },
+              "mt-5 rounded-full px-5 text-[14px]",
+            )}
             onClick={on_action}
             type="button"
           >

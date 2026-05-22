@@ -13,6 +13,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 
 function resolve_redirect_path(raw_redirect: string | null): string {
   if (!raw_redirect || !raw_redirect.startsWith("/")) {
@@ -102,7 +103,10 @@ export function LoginPage() {
             </div>
 
             <button
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-(--button-tonal-border) bg-(--button-tonal-background) px-5 text-base font-semibold text-(--button-tonal-color) transition hover:bg-(--button-tonal-hover-background) hover:text-(--button-tonal-hover-color)"
+              className={get_ui_button_class_name(
+                { size: "lg", variant: "solid" },
+                "w-full rounded-full px-5 text-base",
+              )}
               onClick={handle_refresh}
               type="button"
             >
@@ -146,7 +150,10 @@ export function LoginPage() {
             ) : null}
 
             <button
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-(--button-primary-border) bg-(--button-primary-background) px-5 text-base font-semibold text-(--button-primary-color) transition hover:bg-(--button-primary-hover-background) disabled:cursor-not-allowed disabled:opacity-60"
+              className={get_ui_button_class_name(
+                { size: "lg", tone: "primary", variant: "solid" },
+                "min-h-12 w-full rounded-full px-5 text-base",
+              )}
               disabled={is_submitting}
               type="submit"
             >

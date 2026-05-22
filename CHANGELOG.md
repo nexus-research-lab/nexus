@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 聊天区点击 Agent 头像可直接打开右侧简介面板，并跳转到该 Agent 的联络 tab。
 - 优化 Room 右侧简介面板的联络预览密度，减少窄侧栏下的强边框和大卡片压迫感。
 - Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览撑满剩余高度并使用左右分栏，顶部「简介」入口默认打开联络；联络标题和刷新入口收进左侧列表栏。
+- 抽取共享 `UiButton` / `UiIconButton` 风格基础，统一弹窗、目录卡片、编辑器、登录和设置页按钮的材质语法。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

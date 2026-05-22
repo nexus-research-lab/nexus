@@ -1,6 +1,10 @@
 import { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  get_ui_button_class_name,
+  get_ui_icon_button_class_name,
+} from "@/shared/ui/button-styles";
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-start gap-3.5";
 
@@ -18,8 +22,15 @@ export const DIALOG_POPOVER_CLASS_NAME =
 export const DIALOG_HEADER_ICON_CLASS_NAME =
   "dialog-card flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong)";
 
-export const DIALOG_ICON_BUTTON_CLASS_NAME =
-  "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)";
+export const DIALOG_ICON_BUTTON_CLASS_NAME = get_ui_icon_button_class_name({
+  size: "md",
+  variant: "ghost",
+});
+
+export const DIALOG_TEXT_BUTTON_CLASS_NAME = get_ui_button_class_name({
+  size: "sm",
+  variant: "text",
+});
 
 export const DIALOG_EMPTY_CLASS_NAME =
   "surface-inset flex items-center justify-center rounded-[20px] px-4 py-4 text-[13px] text-(--text-muted)";
@@ -42,13 +53,12 @@ export function get_dialog_action_class_name(
       ? size_or_class_name
       : class_name;
 
-  return cn(
-    "inline-flex items-center justify-center gap-1.5 font-semibold transition duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-    size === "default" && "rounded-[12px] px-4 py-2.5 text-sm",
-    size === "compact" && "rounded-[10px] px-3 py-1.5 text-[12px]",
-    tone === "default" && "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-    tone === "primary" && "border border-[color:color-mix(in_srgb,var(--primary)_26%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
-    tone === "danger" && "border border-[color:color-mix(in_srgb,var(--destructive)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_14%,transparent)]",
+  return get_ui_button_class_name(
+    {
+      size: size === "compact" ? "sm" : "md",
+      tone,
+      variant: "surface",
+    },
     resolved_class_name,
   );
 }

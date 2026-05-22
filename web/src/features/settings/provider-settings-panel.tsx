@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -54,10 +55,18 @@ const SETTINGS_TABS: { key: SettingsTabKey; label_key: "settings.tabs.providers"
   { key: "providers", label_key: "settings.tabs.providers" },
 ];
 
-const PROVIDER_ACTION_BUTTON_CLASS_NAME = "inline-flex h-9 items-center justify-center rounded-xl border px-3 text-sm font-medium tracking-tight transition-[border-color,background,color,box-shadow,transform] duration-(--motion-duration-fast) ease-out disabled:pointer-events-none disabled:opacity-(--disabled-opacity)";
-const PROVIDER_SAVE_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} border-(--surface-interactive-active-border) bg-primary text-white shadow-[0_8px_24px_rgba(16,185,129,0.16)] hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(16,185,129,0.22)]`;
-const PROVIDER_SECONDARY_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} border-(--divider-subtle-color) bg-(--surface-base-background) text-(--text-strong) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)`;
-const PROVIDER_DANGER_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} border-[rgba(239,68,68,0.22)] bg-[rgba(239,68,68,0.06)] text-[rgb(220,38,38)] hover:border-[rgba(239,68,68,0.32)] hover:bg-[rgba(239,68,68,0.1)]`;
+const PROVIDER_SAVE_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "primary", variant: "solid" },
+  "tracking-tight",
+);
+const PROVIDER_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", variant: "surface" },
+  "tracking-tight",
+);
+const PROVIDER_DANGER_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "danger", variant: "surface" },
+  "tracking-tight",
+);
 
 function build_provider_draft(is_first_provider: boolean): ProviderDraft {
   return {

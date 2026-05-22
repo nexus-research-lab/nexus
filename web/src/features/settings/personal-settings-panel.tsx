@@ -46,6 +46,7 @@ import {
 } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 
@@ -69,9 +70,14 @@ const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
   confirm_password: "",
 };
 
-const PERSONAL_ACTION_BUTTON_CLASS_NAME = "inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium tracking-tight transition-[border-color,background,color,box-shadow,transform] duration-(--motion-duration-fast) ease-out disabled:pointer-events-none disabled:opacity-(--disabled-opacity)";
-const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = `${PERSONAL_ACTION_BUTTON_CLASS_NAME} border-(--surface-interactive-active-border) bg-primary text-white shadow-[0_8px_24px_rgba(16,185,129,0.16)] hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(16,185,129,0.22)]`;
-const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = `${PERSONAL_ACTION_BUTTON_CLASS_NAME} border-(--divider-subtle-color) bg-(--surface-base-background) text-(--text-strong) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)`;
+const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "primary", variant: "solid" },
+  "gap-2 tracking-tight",
+);
+const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", variant: "surface" },
+  "gap-2 tracking-tight",
+);
 
 function format_updated_at(value: string, locale: "zh" | "en"): string {
   const date = new Date(value);
