@@ -72,6 +72,7 @@ export function ConnectorCard({
     config_error,
     category,
     auth_type,
+    oauth_client_config_required,
   } = connector;
   const colors = get_connector_colors(icon);
   const letter = get_connector_letter(icon, title);
@@ -85,7 +86,15 @@ export function ConnectorCard({
         : auth_type === "token"
           ? "Token"
           : "免授权";
-  const state_label = is_connected ? "已连接" : !is_configured ? "后端未配置" : is_coming_soon ? "即将推出" : "可连接";
+  const state_label = is_connected
+    ? "已连接"
+    : !is_configured && oauth_client_config_required
+      ? "待配置应用"
+      : !is_configured
+        ? "后端未配置"
+        : is_coming_soon
+          ? "即将推出"
+          : "可连接";
   const state_tone = is_connected ? "success" : !is_configured ? "warning" : !is_coming_soon ? "info" : "neutral";
 
   return (

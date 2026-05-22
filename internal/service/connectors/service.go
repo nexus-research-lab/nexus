@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,33 +18,50 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	"github.com/nexus-research-lab/nexus/internal/storage"
+	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
 // Info 表示连接器列表项。
 type Info struct {
-	ConnectorID     string   `json:"connector_id"`
-	Name            string   `json:"name"`
-	Title           string   `json:"title"`
-	Description     string   `json:"description"`
-	Icon            string   `json:"icon"`
-	Category        string   `json:"category"`
-	AuthType        string   `json:"auth_type"`
-	Status          string   `json:"status"`
-	ConnectionState string   `json:"connection_state"`
-	IsConfigured    bool     `json:"is_configured"`
-	RequiresExtra   []string `json:"requires_extra,omitempty"`
-	ConfigError     *string  `json:"config_error,omitempty"`
+	ConnectorID               string   `json:"connector_id"`
+	Name                      string   `json:"name"`
+	Title                     string   `json:"title"`
+	Description               string   `json:"description"`
+	Icon                      string   `json:"icon"`
+	Category                  string   `json:"category"`
+	AuthType                  string   `json:"auth_type"`
+	Status                    string   `json:"status"`
+	ConnectionState           string   `json:"connection_state"`
+	IsConfigured              bool     `json:"is_configured"`
+	RequiresExtra             []string `json:"requires_extra,omitempty"`
+	ConfigError               *string  `json:"config_error,omitempty"`
+	OAuthClientConfigRequired bool     `json:"oauth_client_config_required,omitempty"`
+	OAuthClientConfigured     bool     `json:"oauth_client_configured,omitempty"`
 }
 
 // Detail 表示连接器详情。
 type Detail struct {
 	Info
-	AuthURL      string   `json:"auth_url,omitempty"`
-	TokenURL     string   `json:"token_url,omitempty"`
-	Scopes       []string `json:"scopes"`
-	MCPServerURL string   `json:"mcp_server_url,omitempty"`
-	DocsURL      string   `json:"docs_url,omitempty"`
-	Features     []string `json:"features"`
+	AuthURL       string   `json:"auth_url,omitempty"`
+	TokenURL      string   `json:"token_url,omitempty"`
+	Scopes        []string `json:"scopes"`
+	MCPServerURL  string   `json:"mcp_server_url,omitempty"`
+	DocsURL       string   `json:"docs_url,omitempty"`
+	Features      []string `json:"features"`
+	OAuthClientID *string  `json:"oauth_client_id,omitempty"`
+}
+
+// OAuthClientConfigRequest 表示用户自有 OAuth 应用配置。
+type OAuthClientConfigRequest struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
+
+// OAuthClientConfig 表示用户已保存的 OAuth 应用配置摘要。
+type OAuthClientConfig struct {
+	ConnectorID string `json:"connector_id"`
+	ClientID    string `json:"client_id,omitempty"`
+	Configured  bool   `json:"configured"`
 }
 
 // AuthURLResult 表示 OAuth 授权地址。
@@ -178,6 +196,85 @@ func (s *Service) GetConnectedCount(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// GetOAuthClientConfig 返回用户自有 OAuth 应用配置摘要，不返回 Secret。
+func (s *Service) GetOAuthClientConfig(ctx context.Context, ownerUserID string, connectorID string) (*OAuthClientConfig, error) {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	return s.oauthClientConfig(ctx, ownerUserID, entry)
+}
+
+// SaveOAuthClientConfig 保存用户自有 OAuth 应用配置。
+func (s *Service) SaveOAuthClientConfig(ctx context.Context, ownerUserID string, connectorID string, request OAuthClientConfigRequest) (*Info, error) {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	if !entry.UserOAuthClient {
+		return nil, errors.New("当前连接器不支持用户自定义 OAuth 应用")
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, errors.New("缺少用户身份")
+	}
+	clientID := strings.TrimSpace(request.ClientID)
+	clientSecret := strings.TrimSpace(request.ClientSecret)
+	if clientID == "" || clientSecret == "" {
+		return nil, errors.New("OAuth Client ID / Secret 不能为空")
+	}
+	store, err := s.oauthClientStore()
+	if err != nil {
+		return nil, err
+	}
+	if err = store.Upsert(ctx, connectorstore.OAuthClient{
+		OwnerUserID:  ownerUserID,
+		ConnectorID:  entry.ConnectorID,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}); err != nil {
+		return nil, err
+	}
+	state, err := s.connectionState(ctx, entry.ConnectorID)
+	if err != nil {
+		return nil, err
+	}
+	info := s.toInfo(ctx, ownerUserID, entry, connectorFirstNonEmpty(state, "disconnected"))
+	return &info, nil
+}
+
+// DeleteOAuthClientConfig 删除用户自有 OAuth 应用配置，并断开依赖该配置的连接。
+func (s *Service) DeleteOAuthClientConfig(ctx context.Context, ownerUserID string, connectorID string) (*Info, error) {
+	entry, ok := getConnector(connectorID)
+	if !ok {
+		return nil, errors.New("未知连接器")
+	}
+	if !entry.UserOAuthClient {
+		return nil, errors.New("当前连接器不支持用户自定义 OAuth 应用")
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, errors.New("缺少用户身份")
+	}
+	store, err := s.oauthClientStore()
+	if err != nil {
+		return nil, err
+	}
+	if err = store.Delete(ctx, ownerUserID, entry.ConnectorID); err != nil {
+		return nil, err
+	}
+	if err = s.upsertConnection(ctx, connectionRecord{
+		ConnectorID: entry.ConnectorID,
+		State:       "disconnected",
+		Credentials: "",
+		AuthType:    entry.AuthType,
+	}); err != nil {
+		return nil, err
+	}
+	info := s.toInfo(ctx, ownerUserID, entry, "disconnected")
+	return &info, nil
+}
+
 // ListActiveConnections 列出已连接 connector，暂时保留 ownerUserID 签名供后续 user scope 使用。
 func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string) ([]connectordomain.ConnectionSnapshot, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE state = 'connected'")
@@ -227,6 +324,10 @@ func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connect
 	if err != nil {
 		return nil, err
 	}
+	record, err = s.refreshActiveConnectionIfNeeded(ctx, ownerUserID, record)
+	if err != nil {
+		return nil, err
+	}
 	return s.connectionSnapshotFromRecord(record)
 }
 
@@ -239,8 +340,8 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 	if err != nil {
 		return nil, err
 	}
-	parsed := map[string]string{}
-	if err = json.Unmarshal(payload, &parsed); err != nil {
+	parsed, err := credentialMapFromPayload(payload)
+	if err != nil {
 		return nil, err
 	}
 	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"])
@@ -259,6 +360,83 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 		ShopDomain:  shop,
 		Extra:       parsed,
 	}, nil
+}
+
+func (s *Service) refreshActiveConnectionIfNeeded(ctx context.Context, ownerUserID string, record connectionRecord) (connectionRecord, error) {
+	if record.ConnectorID != "feishu-docx" {
+		return record, nil
+	}
+	payload, err := s.connectionCredentialsPayload(record)
+	if err != nil {
+		return record, err
+	}
+	current, err := credentialMapFromPayload(payload)
+	if err != nil {
+		return record, err
+	}
+	if !credentialNeedsRefresh(current) {
+		return record, nil
+	}
+	refreshToken := strings.TrimSpace(current["refresh_token"])
+	if refreshToken == "" {
+		return record, nil
+	}
+	provider, err := providers.Get(record.ConnectorID)
+	if err != nil {
+		return record, err
+	}
+	refreshProvider, ok := provider.(providers.RefreshTokenProvider)
+	if !ok {
+		return record, nil
+	}
+	clientID, clientSecret, err := s.oauthCredentials(ctx, ownerUserID, record.ConnectorID)
+	if err != nil {
+		return record, err
+	}
+	payload, err = refreshProvider.RefreshToken(ctx, s.httpClient, providers.TokenRefreshRequest{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RefreshToken: refreshToken,
+	})
+	if err != nil {
+		return record, err
+	}
+	updated, err := credentialMapFromPayload([]byte(normalizeOAuthPayload(payload)))
+	if err != nil {
+		return record, err
+	}
+	for key, value := range current {
+		if _, exists := updated[key]; !exists {
+			updated[key] = value
+		}
+	}
+	encoded, err := json.Marshal(updated)
+	if err != nil {
+		return record, err
+	}
+	record.Credentials = string(encoded)
+	record.CredentialsEncrypted = sql.NullString{}
+	if err = s.upsertConnection(ctx, connectionRecord{
+		ConnectorID: record.ConnectorID,
+		State:       "connected",
+		Credentials: record.Credentials,
+		AuthType:    record.AuthType,
+	}); err != nil {
+		return record, err
+	}
+	return record, nil
+}
+
+func credentialNeedsRefresh(credentials map[string]string) bool {
+	expiresAtRaw := strings.TrimSpace(credentials["expires_at"])
+	if expiresAtRaw == "" {
+		return false
+	}
+	expiresAt, err := strconv.ParseFloat(expiresAtRaw, 64)
+	if err != nil {
+		return false
+	}
+	return time.Unix(int64(expiresAt), 0).Before(time.Now().Add(5 * time.Minute))
 }
 
 // GetCategories 返回连接器分类映射。
@@ -539,7 +717,7 @@ func (s *Service) Connect(ctx context.Context, connectorID string, credentials m
 }
 
 // Disconnect 断开连接器。
-func (s *Service) Disconnect(ctx context.Context, connectorID string) (*Info, error) {
+func (s *Service) Disconnect(ctx context.Context, ownerUserID string, connectorID string) (*Info, error) {
 	entry, ok := getConnector(connectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
@@ -552,7 +730,7 @@ func (s *Service) Disconnect(ctx context.Context, connectorID string) (*Info, er
 	}); err != nil {
 		return nil, err
 	}
-	info := s.toInfo(ctx, "", entry, "disconnected")
+	info := s.toInfo(ctx, ownerUserID, entry, "disconnected")
 	return &info, nil
 }
 
@@ -567,31 +745,38 @@ func (s *Service) toInfoWithConfigError(entry CatalogEntry, connectionState stri
 		configErrorPtr = &configError
 	}
 	return Info{
-		ConnectorID:     entry.ConnectorID,
-		Name:            entry.Name,
-		Title:           entry.Title,
-		Description:     entry.Description,
-		Icon:            entry.Icon,
-		Category:        entry.Category,
-		AuthType:        entry.AuthType,
-		Status:          entry.Status,
-		ConnectionState: connectionState,
-		IsConfigured:    configError == "",
-		RequiresExtra:   append([]string{}, entry.RequiresExtra...),
-		ConfigError:     configErrorPtr,
+		ConnectorID:               entry.ConnectorID,
+		Name:                      entry.Name,
+		Title:                     entry.Title,
+		Description:               entry.Description,
+		Icon:                      entry.Icon,
+		Category:                  entry.Category,
+		AuthType:                  entry.AuthType,
+		Status:                    entry.Status,
+		ConnectionState:           connectionState,
+		IsConfigured:              configError == "",
+		RequiresExtra:             append([]string{}, entry.RequiresExtra...),
+		ConfigError:               configErrorPtr,
+		OAuthClientConfigRequired: entry.UserOAuthClient,
+		OAuthClientConfigured:     entry.UserOAuthClient && configError == "",
 	}
 }
 
 func (s *Service) toDetail(ctx context.Context, ownerUserID string, entry CatalogEntry, connectionState string) Detail {
 	info := s.toInfo(ctx, ownerUserID, entry, connectionState)
+	var oauthClientID *string
+	if config, err := s.oauthClientConfig(ctx, ownerUserID, entry); err == nil && config != nil && config.ClientID != "" {
+		oauthClientID = &config.ClientID
+	}
 	return Detail{
-		Info:         info,
-		AuthURL:      entry.AuthURL,
-		TokenURL:     entry.TokenURL,
-		Scopes:       append([]string{}, entry.Scopes...),
-		MCPServerURL: entry.MCPServerURL,
-		DocsURL:      entry.DocsURL,
-		Features:     append([]string{}, entry.Features...),
+		Info:          info,
+		AuthURL:       entry.AuthURL,
+		TokenURL:      entry.TokenURL,
+		Scopes:        append([]string{}, entry.Scopes...),
+		MCPServerURL:  entry.MCPServerURL,
+		DocsURL:       entry.DocsURL,
+		Features:      append([]string{}, entry.Features...),
+		OAuthClientID: oauthClientID,
 	}
 }
 
@@ -842,19 +1027,74 @@ func (s *Service) deviceProvider(entry CatalogEntry) (providers.DeviceProvider, 
 	return deviceProvider, nil
 }
 
-func (s *Service) oauthPublicClientID(_ context.Context, _ string, connectorID string, _ string) (string, error) {
+func (s *Service) oauthPublicClientID(ctx context.Context, ownerUserID string, connectorID string, _ string) (string, error) {
 	if connectorID == "github" && s.isDesktopMode() {
 		return requireOAuthClientID(s.config.ConnectorGitHubClientID, "GitHub")
 	}
-	clientID, _, err := s.defaultOAuthCredentials(connectorID)
+	clientID, _, err := s.oauthCredentials(ctx, ownerUserID, connectorID)
 	if err == nil {
 		return clientID, nil
 	}
 	return "", err
 }
 
-func (s *Service) oauthCredentials(_ context.Context, _ string, connectorID string) (string, string, error) {
+func (s *Service) oauthCredentials(ctx context.Context, ownerUserID string, connectorID string) (string, string, error) {
+	entry, ok := getConnector(connectorID)
+	if ok && entry.UserOAuthClient {
+		return s.userOAuthCredentials(ctx, ownerUserID, entry)
+	}
 	return s.defaultOAuthCredentials(connectorID)
+}
+
+func (s *Service) userOAuthCredentials(ctx context.Context, ownerUserID string, entry CatalogEntry) (string, string, error) {
+	if strings.TrimSpace(ownerUserID) == "" {
+		return "", "", fmt.Errorf("%s OAuth Client ID / Secret 未配置，请先在连接器详情中配置自己的 OAuth 应用", entry.Title)
+	}
+	store, err := s.oauthClientStore()
+	if err != nil {
+		return "", "", err
+	}
+	client, err := store.Get(ctx, ownerUserID, entry.ConnectorID)
+	if err != nil {
+		return "", "", err
+	}
+	if client == nil || strings.TrimSpace(client.ClientID) == "" || strings.TrimSpace(client.ClientSecret) == "" {
+		return "", "", fmt.Errorf("%s OAuth Client ID / Secret 未配置，请先在连接器详情中配置自己的 OAuth 应用", entry.Title)
+	}
+	return strings.TrimSpace(client.ClientID), strings.TrimSpace(client.ClientSecret), nil
+}
+
+func (s *Service) oauthClientConfig(ctx context.Context, ownerUserID string, entry CatalogEntry) (*OAuthClientConfig, error) {
+	if !entry.UserOAuthClient {
+		return nil, nil
+	}
+	if strings.TrimSpace(ownerUserID) == "" {
+		return &OAuthClientConfig{ConnectorID: entry.ConnectorID}, nil
+	}
+	store, err := s.oauthClientStore()
+	if err != nil {
+		return nil, err
+	}
+	client, err := store.Get(ctx, ownerUserID, entry.ConnectorID)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return &OAuthClientConfig{ConnectorID: entry.ConnectorID}, nil
+	}
+	return &OAuthClientConfig{
+		ConnectorID: entry.ConnectorID,
+		ClientID:    strings.TrimSpace(client.ClientID),
+		Configured:  strings.TrimSpace(client.ClientID) != "" && strings.TrimSpace(client.ClientSecret) != "",
+	}, nil
+}
+
+func (s *Service) oauthClientStore() (*connectorstore.OAuthClientStore, error) {
+	key, err := credentials.DecodeKey(s.config.ConnectorCredentialsKey)
+	if err != nil {
+		return nil, err
+	}
+	return connectorstore.NewOAuthClientStore(s.db, s.driver, key), nil
 }
 
 func (s *Service) defaultOAuthCredentials(connectorID string) (string, string, error) {
@@ -894,7 +1134,7 @@ func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, conn
 	return ""
 }
 
-func (s *Service) listOAuthConfigErrors(_ context.Context, _ string) map[string]string {
+func (s *Service) listOAuthConfigErrors(ctx context.Context, ownerUserID string) map[string]string {
 	result := map[string]string{}
 	for _, entry := range connectorCatalog {
 		if entry.AuthType != "oauth2" || entry.Status != "available" {
@@ -903,6 +1143,8 @@ func (s *Service) listOAuthConfigErrors(_ context.Context, _ string) map[string]
 		var err error
 		if entry.ConnectorID == "github" && s.isDesktopMode() {
 			_, err = requireOAuthClientID(s.config.ConnectorGitHubClientID, "GitHub")
+		} else if entry.UserOAuthClient {
+			_, _, err = s.userOAuthCredentials(ctx, ownerUserID, entry)
 		} else {
 			_, _, err = s.defaultOAuthCredentials(entry.ConnectorID)
 		}
@@ -1013,22 +1255,80 @@ func friendlyDeviceAuthError(err error) error {
 }
 
 func normalizeOAuthPayload(payload []byte) string {
-	if json.Valid(payload) {
-		return string(payload)
-	}
-	values, err := url.ParseQuery(string(payload))
+	normalized, err := credentialMapFromPayload(payload)
 	if err != nil {
 		return string(payload)
 	}
-	normalized := map[string]string{}
-	for key, value := range values {
-		normalized[key] = strings.Join(value, ",")
-	}
+	addCredentialExpiresAt(normalized, "expires_in", "expires_at")
+	addCredentialExpiresAt(normalized, "refresh_expires_in", "refresh_expires_at")
 	encoded, err := json.Marshal(normalized)
 	if err != nil {
 		return string(payload)
 	}
 	return string(encoded)
+}
+
+func credentialMapFromPayload(payload []byte) (map[string]string, error) {
+	if json.Valid(payload) {
+		var raw map[string]any
+		if err := json.Unmarshal(payload, &raw); err != nil {
+			return nil, err
+		}
+		if data, ok := raw["data"].(map[string]any); ok {
+			raw = data
+		}
+		normalized := map[string]string{}
+		for key, value := range raw {
+			if key == "" || value == nil {
+				continue
+			}
+			normalized[key] = credentialScalarString(value)
+		}
+		return normalized, nil
+	}
+	values, err := url.ParseQuery(string(payload))
+	if err != nil {
+		return nil, err
+	}
+	normalized := map[string]string{}
+	for key, value := range values {
+		normalized[key] = strings.Join(value, ",")
+	}
+	return normalized, nil
+}
+
+func credentialScalarString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case bool:
+		return strconv.FormatBool(typed)
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case json.Number:
+		return typed.String()
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			return fmt.Sprint(typed)
+		}
+		return string(encoded)
+	}
+}
+
+func addCredentialExpiresAt(credentials map[string]string, durationKey string, targetKey string) {
+	if strings.TrimSpace(credentials[targetKey]) != "" {
+		return
+	}
+	expiresInRaw := strings.TrimSpace(credentials[durationKey])
+	if expiresInRaw == "" {
+		return
+	}
+	expiresIn, err := strconv.ParseFloat(expiresInRaw, 64)
+	if err != nil || expiresIn <= 0 {
+		return
+	}
+	credentials[targetKey] = strconv.FormatInt(time.Now().Add(time.Duration(expiresIn)*time.Second).Unix(), 10)
 }
 
 func mergeCredentialExtras(credentials string, extra map[string]string) string {

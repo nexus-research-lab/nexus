@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Link2, Shield, Unplug, X } from "lucide-react";
+import { Check, ExternalLink, KeyRound, Link2, Shield, Unplug, X } from "lucide-react";
 import { useCallback } from "react";
 
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ interface ConnectorDetailDialogProps {
   on_close: () => void;
   on_connect: (connector_id: string) => void;
   on_disconnect: (connector_id: string) => void;
+  on_configure_oauth_client: (detail: ConnectorDetail) => void;
 }
 
 /** 连接器详情弹窗 */
@@ -34,10 +35,11 @@ export function ConnectorDetailDialog({
   on_close,
   on_connect,
   on_disconnect,
+  on_configure_oauth_client,
 }: ConnectorDetailDialogProps) {
   const handle_backdrop_click = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) on_close();
+    (event: React.MouseEvent) => {
+      if (event.target === event.currentTarget) on_close();
     },
     [on_close],
   );
@@ -47,6 +49,8 @@ export function ConnectorDetailDialog({
   const is_connected = detail?.connection_state === "connected";
   const is_coming_soon = detail?.status === "coming_soon";
   const is_configured = detail?.is_configured ?? true;
+  const requires_oauth_client_config = detail?.oauth_client_config_required ?? false;
+  const oauth_client_configured = detail?.oauth_client_configured ?? false;
 
   if (!detail && !loading) return null;
 
@@ -110,7 +114,7 @@ export function ConnectorDetailDialog({
                   </span>
                 ) : !is_configured ? (
                   <span className={cn(DIALOG_TAG_CLASS_NAME, "text-amber-700")}>
-                    后端未配置
+                    {requires_oauth_client_config ? "待配置应用" : "后端未配置"}
                   </span>
                 ) : (
                   <span className={DIALOG_TAG_CLASS_NAME}>
@@ -129,13 +133,13 @@ export function ConnectorDetailDialog({
                 <div>
                   <h3 className="mb-2 text-[13px] font-semibold text-(--text-default)">支持的功能</h3>
                   <div className="grid grid-cols-2 gap-2">
-                    {detail.features.map((f) => (
+                    {detail.features.map((feature) => (
                       <div
-                        key={f}
+                        key={feature}
                         className="surface-card flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-(--text-muted)"
                       >
                         <Check className="h-3 w-3 shrink-0 text-emerald-500" />
-                        {f}
+                        {feature}
                       </div>
                     ))}
                   </div>
@@ -154,7 +158,7 @@ export function ConnectorDetailDialog({
                 </div>
               )}
 
-              {!is_connected && !is_coming_soon && !is_configured && detail.config_error ? (
+              {!is_connected && !is_coming_soon && !is_configured && detail.config_error && !requires_oauth_client_config ? (
                 <div className={get_dialog_note_class_name("danger")} style={get_dialog_note_style("danger")}>
                   {detail.config_error}
                 </div>
@@ -175,9 +179,19 @@ export function ConnectorDetailDialog({
           ) : null}
         </div>
 
-        {/* 底部操作 */}
         {detail && !is_coming_soon && (
           <div className="dialog-footer flex-wrap gap-2">
+            {requires_oauth_client_config && !is_connected ? (
+              <button
+                className={get_dialog_action_class_name(oauth_client_configured ? "default" : "primary")}
+                disabled={busy}
+                onClick={() => on_configure_oauth_client(detail)}
+                type="button"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                配置应用
+              </button>
+            ) : null}
             {is_connected ? (
               <button
                 className={get_dialog_action_class_name("default")}
@@ -198,7 +212,7 @@ export function ConnectorDetailDialog({
                 <Link2 className="h-3.5 w-3.5" />
                 授权连接
               </button>
-            ) : (
+            ) : requires_oauth_client_config ? null : (
               <button
                 className={get_dialog_action_class_name("default")}
                 disabled

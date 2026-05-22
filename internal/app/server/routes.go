@@ -121,6 +121,8 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/connectors/categories"), s.handlers.connector.HandleConnectorCategories)
 	s.router.Get(s.prefixPath("/connectors/count"), s.handlers.connector.HandleConnectorCount)
 	s.router.Get(s.prefixPath("/connectors/{connector_id}"), s.handlers.connector.HandleConnectorDetail)
+	s.router.Put(s.prefixPath("/connectors/{connector_id}/oauth-client"), s.handlers.connector.HandleSaveConnectorOAuthClient)
+	s.router.Delete(s.prefixPath("/connectors/{connector_id}/oauth-client"), s.handlers.connector.HandleDeleteConnectorOAuthClient)
 	s.router.Get(s.prefixPath("/connectors/{connector_id}/auth-url"), s.handlers.connector.HandleConnectorAuthURL)
 	s.router.Post(s.prefixPath("/connectors/oauth/callback"), s.handlers.connector.HandleConnectorOAuthCallback)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/start"), s.handlers.connector.HandleConnectorDeviceAuthStart)

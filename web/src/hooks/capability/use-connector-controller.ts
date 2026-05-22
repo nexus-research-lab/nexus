@@ -8,10 +8,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   connect_connector_api,
+  delete_connector_oauth_client_api,
   disconnect_connector_api,
   get_connector_auth_url_api,
   get_connector_detail_api,
   get_connectors_api,
+  save_connector_oauth_client_api,
   start_connector_device_auth_api,
 } from "@/lib/api/connector-api";
 import { get_connector_oauth_redirect_uri, is_desktop_runtime } from "@/config/desktop-runtime";
@@ -179,6 +181,46 @@ export function useConnectorController(): ConnectorDirectoryController {
     [load, selected_detail],
   );
 
+  const handle_save_oauth_client = useCallback(
+    async (connector_id: string, client_id: string, client_secret: string) => {
+      set_busy_id(connector_id);
+      try {
+        await save_connector_oauth_client_api(connector_id, { client_id, client_secret });
+        set_status_message("应用配置已保存");
+        await load();
+        const detail = await get_connector_detail_api(connector_id);
+        set_selected_detail(detail);
+        return true;
+      } catch (e) {
+        set_error_message(e instanceof Error ? e.message : "保存配置失败");
+        return false;
+      } finally {
+        set_busy_id(null);
+      }
+    },
+    [load],
+  );
+
+  const handle_delete_oauth_client = useCallback(
+    async (connector_id: string) => {
+      set_busy_id(connector_id);
+      try {
+        await delete_connector_oauth_client_api(connector_id);
+        set_status_message("应用配置已删除");
+        await load();
+        const detail = await get_connector_detail_api(connector_id);
+        set_selected_detail(detail);
+        return true;
+      } catch (e) {
+        set_error_message(e instanceof Error ? e.message : "删除配置失败");
+        return false;
+      } finally {
+        set_busy_id(null);
+      }
+    },
+    [load],
+  );
+
   return {
     connectors,
     loading,
@@ -195,6 +237,8 @@ export function useConnectorController(): ConnectorDirectoryController {
     close_device_auth_session,
     handle_connect,
     handle_disconnect,
+    handle_save_oauth_client,
+    handle_delete_oauth_client,
     busy_id,
     status_message,
     error_message,

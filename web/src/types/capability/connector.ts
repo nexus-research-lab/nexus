@@ -26,6 +26,8 @@ export interface ConnectorInfo {
   is_configured: boolean;
   requires_extra?: string[];
   config_error?: string | null;
+  oauth_client_config_required?: boolean;
+  oauth_client_configured?: boolean;
 }
 
 /** 连接器详情 */
@@ -36,6 +38,7 @@ export interface ConnectorDetail extends ConnectorInfo {
   mcp_server_url?: string;
   docs_url?: string;
   features: string[];
+  oauth_client_id?: string | null;
 }
 
 /** OAuth Device Flow 启动信息 */

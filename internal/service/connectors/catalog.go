@@ -2,23 +2,24 @@ package connectors
 
 // CatalogEntry 表示一条连接器目录记录。
 type CatalogEntry struct {
-	ConnectorID   string
-	Name          string
-	Title         string
-	Description   string
-	Icon          string
-	Category      string
-	AuthType      string
-	Status        string
-	Provider      string
-	RequiresExtra []string
-	AuthURL       string
-	TokenURL      string
-	APIBaseURL    string
-	Scopes        []string
-	MCPServerURL  string
-	DocsURL       string
-	Features      []string
+	ConnectorID     string
+	Name            string
+	Title           string
+	Description     string
+	Icon            string
+	Category        string
+	AuthType        string
+	Status          string
+	Provider        string
+	RequiresExtra   []string
+	AuthURL         string
+	TokenURL        string
+	APIBaseURL      string
+	Scopes          []string
+	MCPServerURL    string
+	DocsURL         string
+	Features        []string
+	UserOAuthClient bool
 }
 
 var categoryLabels = map[string]string{
@@ -47,6 +48,30 @@ var connectorCatalog = []CatalogEntry{
 		Scopes:      []string{"https://www.googleapis.com/auth/gmail.modify"},
 		DocsURL:     "https://developers.google.com/gmail/api",
 		Features:    []string{"读取邮件", "发送邮件", "管理标签", "搜索邮件"},
+	},
+	{
+		ConnectorID: "feishu-docx",
+		Name:        "feishu-docx",
+		Title:       "飞书云文档",
+		Description: "读取、创建、追加和更新飞书云文档，并浏览云空间文件与知识库",
+		Icon:        "feishu-docx",
+		Category:    "productivity",
+		AuthType:    "oauth2",
+		Status:      "available",
+		Provider:    "feishu-docx",
+		AuthURL:     "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
+		TokenURL:    "https://open.feishu.cn/open-apis/authen/v2/oauth/token",
+		APIBaseURL:  "https://open.feishu.cn",
+		Scopes: []string{
+			"docx:document",
+			"docx:document.block:convert",
+			"drive:drive",
+			"wiki:wiki",
+			"offline_access",
+		},
+		DocsURL:         "https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/wiki-v2/space/list",
+		Features:        []string{"导出 Markdown", "创建文档", "追加内容", "更新 Block", "云空间列表", "知识库浏览"},
+		UserOAuthClient: true,
 	},
 	{
 		ConnectorID: "x-twitter",

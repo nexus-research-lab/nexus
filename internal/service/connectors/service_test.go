@@ -125,6 +125,91 @@ func TestServiceOAuthUsesDeploymentCredentialsOnly(t *testing.T) {
 	}
 }
 
+func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("读取 token 请求失败: %v", err)
+		}
+		text := string(body)
+		if !strings.Contains(text, `"client_id":"user-feishu-client"`) || !strings.Contains(text, `"client_secret":"user-feishu-secret"`) {
+			t.Fatalf("飞书 token 交换未使用用户自有 OAuth Client: %s", body)
+		}
+		_, _ = writer.Write([]byte(`{"code":0,"data":{"access_token":"feishu-token","refresh_token":"refresh","expires_in":7200}}`))
+	}))
+	defer server.Close()
+	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL", server.URL)
+
+	service := NewService(cfg, db)
+	service.httpClient = server.Client()
+	ctx := context.Background()
+	const ownerUserID = "user-feishu-docx"
+
+	items, err := service.ListConnectors(ctx, ownerUserID, "feishu", "", "")
+	if err != nil {
+		t.Fatalf("列出飞书连接器失败: %v", err)
+	}
+	if len(items) != 1 || items[0].IsConfigured || !items[0].OAuthClientConfigRequired {
+		t.Fatalf("未保存用户 OAuth Client 前应为待配置: %+v", items)
+	}
+	if items[0].ConfigError == nil || !strings.Contains(*items[0].ConfigError, "自己的 OAuth 应用") {
+		t.Fatalf("配置错误应提示用户配置自己的 OAuth 应用: %+v", items[0].ConfigError)
+	}
+	if _, err = service.GetAuthURL(ctx, ownerUserID, "feishu-docx", "", nil); err == nil {
+		t.Fatalf("未保存用户 OAuth Client 前不应生成授权地址")
+	}
+
+	info, err := service.SaveOAuthClientConfig(ctx, ownerUserID, "feishu-docx", OAuthClientConfigRequest{
+		ClientID:     "user-feishu-client",
+		ClientSecret: "user-feishu-secret",
+	})
+	if err != nil {
+		t.Fatalf("保存用户 OAuth Client 失败: %v", err)
+	}
+	if !info.IsConfigured || !info.OAuthClientConfigured {
+		t.Fatalf("保存后应视为已配置: %+v", info)
+	}
+	detail, err := service.GetConnectorDetail(ctx, ownerUserID, "feishu-docx")
+	if err != nil {
+		t.Fatalf("读取飞书详情失败: %v", err)
+	}
+	if detail.OAuthClientID == nil || *detail.OAuthClientID != "user-feishu-client" {
+		t.Fatalf("详情应返回已保存的 Client ID 摘要: %+v", detail.OAuthClientID)
+	}
+
+	authURL, err := service.GetAuthURL(ctx, ownerUserID, "feishu-docx", "", nil)
+	if err != nil {
+		t.Fatalf("生成飞书授权地址失败: %v", err)
+	}
+	parsedURL, err := url.Parse(authURL.AuthURL)
+	if err != nil {
+		t.Fatalf("解析飞书授权地址失败: %v", err)
+	}
+	if parsedURL.Query().Get("client_id") != "user-feishu-client" {
+		t.Fatalf("飞书授权地址应使用用户 Client ID: %s", authURL.AuthURL)
+	}
+
+	callback, err := service.CompleteOAuthCallback(ctx, ownerUserID, OAuthCallbackRequest{
+		Code:  "callback-code",
+		State: authURL.State,
+	})
+	if err != nil {
+		t.Fatalf("飞书 OAuth callback 失败: %v", err)
+	}
+	if callback == nil || callback.ConnectionState != "connected" {
+		t.Fatalf("飞书 OAuth callback 后应连接成功: %+v", callback)
+	}
+}
+
 func TestServiceShopifyRequiresShop(t *testing.T) {
 	t.Skip("Shopify 目前在 catalog 中为 coming_soon，已暂停对外发布；如需恢复请先把 status 改回 available")
 	cfg := newConnectorsTestConfig(t)
@@ -462,6 +547,65 @@ func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {
 	_, err = service.LoadActiveConnection(ctx, auth.SystemUserID, "github")
 	if err == nil || !strings.Contains(err.Error(), "access token") {
 		t.Fatalf("缺少 access token 应报错，实际: %v", err)
+	}
+}
+
+func TestServiceLoadActiveConnectionRefreshesExpiredFeishuDocxToken(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.Contains(request.Header.Get("Content-Type"), "application/json") {
+			t.Fatalf("飞书 refresh 应使用 JSON: %s", request.Header.Get("Content-Type"))
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("读取 refresh 请求失败: %v", err)
+		}
+		if !strings.Contains(string(body), `"refresh_token":"old-refresh"`) {
+			t.Fatalf("refresh 请求未带旧 refresh_token: %s", body)
+		}
+		if !strings.Contains(string(body), `"client_id":"refresh-feishu-client"`) || !strings.Contains(string(body), `"client_secret":"refresh-feishu-secret"`) {
+			t.Fatalf("refresh 请求未使用用户自有 OAuth Client: %s", body)
+		}
+		_, _ = writer.Write([]byte(`{"code":0,"data":{"access_token":"new-feishu-docx-token","refresh_token":"new-refresh","expires_in":7200}}`))
+	}))
+	defer server.Close()
+	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL", server.URL)
+
+	service := NewService(cfg, db)
+	service.httpClient = server.Client()
+	ctx := context.Background()
+	if _, err = service.SaveOAuthClientConfig(ctx, auth.SystemUserID, "feishu-docx", OAuthClientConfigRequest{
+		ClientID:     "refresh-feishu-client",
+		ClientSecret: "refresh-feishu-secret",
+	}); err != nil {
+		t.Fatalf("保存飞书 OAuth Client 失败: %v", err)
+	}
+	if err = service.upsertConnection(ctx, connectionRecord{
+		ConnectorID: "feishu-docx",
+		State:       "connected",
+		Credentials: `{"access_token":"old-feishu-docx-token","refresh_token":"old-refresh","expires_at":"1","scope":"docx:document"}`,
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入飞书连接状态失败: %v", err)
+	}
+
+	item, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "feishu-docx")
+	if err != nil {
+		t.Fatalf("读取飞书连接快照失败: %v", err)
+	}
+	if item == nil || item.AccessToken != "new-feishu-docx-token" {
+		t.Fatalf("飞书 token 未刷新: %+v", item)
+	}
+	if item.Extra["refresh_token"] != "new-refresh" || item.Extra["scope"] != "docx:document" {
+		t.Fatalf("飞书 refresh_token 或旧 extra 未保留: %+v", item.Extra)
 	}
 }
 

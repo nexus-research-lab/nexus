@@ -8,10 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 新增 `feishu-docx` 飞书云文档连接器：支持 OAuth 授权、token 自动刷新，并向 Agent 暴露文档 Markdown 导出、创建、追加、Block 更新和云空间列表工具。
+- `feishu-docx` 连接器新增知识库浏览工具：支持列出可访问知识库、查看知识库详情、分页浏览节点树，并解析 Wiki 节点到真实云文档 token。
 - 新增 Agent 联络只读视图：联系人详情页和 Room 右侧成员面板可查看 Room action 投影出的私信、请求、私有备注和小范围记录。
 - 联系人详情新增 Agent 记忆 tab，并提供记忆搜索、筛选、删除和脏数据清理入口。
 
 ### Changed
+- `feishu-docx` 飞书云文档连接器改为用户自助配置 OAuth Client：用户从连接器详情进入独立配置弹窗，保存自己的飞书应用 Client ID / Secret 后再授权连接，不再依赖服务端全局飞书应用配置。
 - 将 DM/Room 会话切换收口为 Safari 风格标签栏，支持固定新会话入口、会话标签关闭与右侧固定视图入口。
 - Room 聊天区点击 Agent 头像可直接打开右侧简介面板，并跳转到该 Agent 的联络 tab。
 - 优化 Room 右侧简介面板的联络预览密度，减少窄侧栏下的强边框和大卡片压迫感。
