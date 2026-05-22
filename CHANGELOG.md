@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal `update_goal` 工具入参收口为 Codex 风格的 `status` 字段，`blocked` 不再要求模型额外提供 reason。
 - Goal `get_goal` 在当前线程没有 Goal 时返回空 Goal 结构化结果，不再把空状态误报为工具失败。
 - Goal 创建时不再应用隐式默认 token budget，只有显式传入 `token_budget` 时才设置预算。
+- Goal 工具结构化结果改为 Codex 风格 camelCase 字段，包括 `remainingTokens`、`completionBudgetReport` 和 `goal.tokensUsed`。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

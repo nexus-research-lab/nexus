@@ -52,8 +52,8 @@ func TestGetGoalReturnsNullWhenNoGoalExists(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("result = %#v, want successful null goal payload", result)
 	}
-	if result.StructuredContent["goal"] != nil || result.StructuredContent["remaining_tokens"] != nil {
-		t.Fatalf("structured content = %#v, want null goal and remaining_tokens", result.StructuredContent)
+	if result.StructuredContent["goal"] != nil || result.StructuredContent["remainingTokens"] != nil || result.StructuredContent["completionBudgetReport"] != nil {
+		t.Fatalf("structured content = %#v, want null goal, remainingTokens, and completionBudgetReport", result.StructuredContent)
 	}
 }
 
