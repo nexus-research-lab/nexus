@@ -34,11 +34,11 @@ const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
   success:
     "border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]",
   warning:
-    "border-amber-200/80 bg-amber-50/88 text-amber-700",
+    "border-[color:color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-[color:color-mix(in_srgb,var(--warning)_86%,var(--foreground)_14%)]",
   danger:
     "border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)",
   info:
-    "border-sky-200/80 bg-sky-50/90 text-sky-700",
+    "border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] text-[color:color-mix(in_srgb,var(--primary)_78%,var(--foreground)_22%)]",
   idle:
     "border-(--chip-default-border) bg-(--chip-default-background) text-(--text-soft)",
   active:

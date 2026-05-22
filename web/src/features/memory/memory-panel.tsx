@@ -25,6 +25,13 @@ import {
   update_memory_item_api,
 } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
+import { format_memory_time } from "@/features/memory/memory-utils";
+import { MemoryStatusBadge } from "@/features/memory/memory-ui";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { UiInput, UiSearchInput, UiSelect, UiTextarea } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -47,19 +54,6 @@ const STATUS_OPTIONS = [
   { value: "promoted", label: "已提升" },
   { value: "ignored", label: "已忽略" },
 ];
-
-function format_time(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 export function MemoryPanel() {
   const [agents, set_agents] = useState<Agent[]>([]);
@@ -242,17 +236,19 @@ export function MemoryPanel() {
           title="Memory"
           trailing={
             <>
-              <select
-                className="h-8 min-w-[160px] rounded-md border border-(--divider-subtle-color) bg-transparent px-2 text-[12px] text-(--text-strong)"
+              <UiSelect
+                class_name="min-w-[160px]"
+                control_size="sm"
                 onChange={(event) => set_agent_id(event.target.value)}
                 value={agent_id}
+                variant="surface"
               >
                 {agents.map((agent) => (
                   <option key={agent.agent_id} value={agent.agent_id}>
                     {agent.name}
                   </option>
                 ))}
-              </select>
+              </UiSelect>
               <WorkspaceSurfaceToolbarAction disabled={loading || !agent_id} onClick={refresh}>
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
                 刷新
@@ -268,101 +264,79 @@ export function MemoryPanel() {
       body_class_name="px-5 py-4 xl:px-6"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        {feedback ? (
-          <div
-            className={cn(
-              "flex items-center justify-between rounded-md border px-3 py-2 text-[12px]",
-              feedback.tone === "error"
-                ? "border-red-500/30 bg-red-500/10 text-red-700"
-                : feedback.tone === "warning"
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
-            )}
-          >
-            <span>{feedback.message}</span>
-            <button onClick={() => set_feedback(null)} type="button">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : null}
-
         <section className="grid gap-3 sm:grid-cols-4">
           {stat_items.map(([label, value]) => (
-            <div
-              className="rounded-md border border-(--divider-subtle-color) bg-(--surface-background) px-4 py-3"
+            <UiPanel
+              class_name="min-w-0"
               key={label}
+              padding="sm"
+              variant="inset"
             >
               <div className="text-[11px] font-medium text-(--text-soft)">{label}</div>
               <div className="mt-1 text-base font-semibold tabular-nums text-(--text-strong)">{value}</div>
-            </div>
+            </UiPanel>
           ))}
         </section>
 
-        <section className="rounded-md border border-(--divider-subtle-color) bg-(--surface-background) p-3">
+        <UiPanel padding="sm" variant="inset">
           <div className="grid gap-2 md:grid-cols-[180px_1fr_auto]">
-            <select
-              className="h-9 rounded-md border border-(--divider-subtle-color) bg-transparent px-2 text-[12px]"
+            <UiSelect
               onChange={(event) => set_status(event.target.value)}
               value={status}
+              variant="surface"
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
-            <label className="flex h-9 items-center gap-2 rounded-md border border-(--divider-subtle-color) px-3">
-              <Search className="h-3.5 w-3.5 text-(--text-soft)" />
-              <input
-                className="min-w-0 flex-1 bg-transparent text-[12px] outline-none"
-                onChange={(event) => set_query(event.target.value)}
-                placeholder="搜索关键词"
-                value={query}
-              />
-            </label>
-            <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-(--primary) px-3 text-[12px] font-semibold text-white disabled:opacity-50"
+            </UiSelect>
+            <UiSearchInput
+              on_change={set_query}
+              placeholder="搜索关键词"
+              value={query}
+            />
+            <UiButton
               disabled={loading || !agent_id}
               onClick={refresh}
+              tone="primary"
               type="button"
+              variant="solid"
             >
               <Search className="h-3.5 w-3.5" />
               查询
-            </button>
+            </UiButton>
           </div>
-        </section>
+        </UiPanel>
 
-        <section className="rounded-md border border-(--divider-subtle-color) bg-(--surface-background) p-3">
+        <UiPanel padding="sm" variant="inset">
           <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
-            <input
-              className="h-9 rounded-md border border-(--divider-subtle-color) bg-transparent px-3 text-[12px] outline-none"
+            <UiInput
               onChange={(event) => set_new_title(event.target.value)}
               placeholder="标题"
               value={new_title}
+              variant="surface"
             />
-            <input
-              className="h-9 rounded-md border border-(--divider-subtle-color) bg-transparent px-3 text-[12px] outline-none"
+            <UiInput
               onChange={(event) => set_new_content(event.target.value)}
               placeholder="新增候选记忆"
               value={new_content}
+              variant="surface"
             />
-            <button
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-(--divider-subtle-color) px-3 text-[12px] font-semibold disabled:opacity-50"
+            <UiButton
               disabled={!new_content.trim() || loading}
               onClick={handle_add}
               type="button"
             >
               <Check className="h-3.5 w-3.5" />
               添加
-            </button>
+            </UiButton>
           </div>
-        </section>
+        </UiPanel>
 
-        <section className="overflow-hidden rounded-md border border-(--divider-subtle-color) bg-(--surface-background)">
+        <UiPanel class_name="overflow-hidden" padding="none" variant="inset">
           {items.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[12px] text-(--text-soft)">
-              暂无记忆条目
-            </div>
+            <UiStateBlock description="当前筛选条件下没有可管理的记忆条目。" size="sm" title="暂无记忆条目" />
           ) : (
             <div className="divide-y divide-(--divider-subtle-color)">
               {items.map((item) => {
@@ -375,9 +349,7 @@ export function MemoryPanel() {
                         <span className="truncate text-[13px] font-semibold leading-5 text-(--text-strong)">
                           {item.title || item.entry_id}
                         </span>
-                        <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-medium leading-4 text-(--text-default)">
-                          {item.status}
-                        </span>
+                        <MemoryStatusBadge status={item.status} />
                         {item.priority ? (
                           <span className="text-[11px] text-(--text-soft)">{item.priority}</span>
                         ) : null}
@@ -390,14 +362,16 @@ export function MemoryPanel() {
                         {item.scope ? ` · ${item.scope}` : ""}
                         {item.session_key ? ` · ${item.session_key}` : ""}
                         {item.round_id ? ` · ${item.round_id}` : ""}
-                        {item.created_at ? ` · ${format_time(item.created_at)}` : ""}
+                        {item.created_at ? ` · ${format_memory_time(item.created_at)}` : ""}
                         {` · access ${item.access_count}`}
                       </div>
                       {is_editing ? (
-                        <textarea
-                          className="mt-2 min-h-24 w-full resize-y rounded-md border border-(--divider-subtle-color) bg-transparent p-2 text-[12px] outline-none"
+                        <UiTextarea
+                          class_name="mt-2"
+                          control_size="md"
                           onChange={(event) => set_editing_content(event.target.value)}
                           value={editing_content}
+                          variant="surface"
                         />
                       ) : (
                         <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-[12px] leading-5 text-(--text-default)">
@@ -408,65 +382,66 @@ export function MemoryPanel() {
                     <div className="flex items-start gap-1">
                       {is_editing ? (
                         <>
-                          <button
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-(--divider-subtle-color) disabled:opacity-50"
+                          <UiIconButton
                             disabled={is_mutating}
                             onClick={() => void mutate_item(item, "save")}
+                            size="md"
                             title="保存"
                             type="button"
                           >
                             <Check className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-(--divider-subtle-color)"
+                          </UiIconButton>
+                          <UiIconButton
                             onClick={() => set_editing_id("")}
+                            size="md"
                             title="取消"
                             type="button"
                           >
                             <X className="h-3.5 w-3.5" />
-                          </button>
+                          </UiIconButton>
                         </>
                       ) : (
                         <>
-                          <button
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-(--divider-subtle-color) disabled:opacity-50"
+                          <UiIconButton
                             disabled={is_mutating}
                             onClick={() => {
                               set_editing_id(item.entry_id);
                               set_editing_content(item.content);
                             }}
+                            size="md"
                             title="编辑"
                             type="button"
                           >
                             <Database className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-(--divider-subtle-color) disabled:opacity-50"
+                          </UiIconButton>
+                          <UiIconButton
                             disabled={is_mutating}
                             onClick={() => void mutate_item(item, "promote")}
+                            size="md"
                             title="提升"
                             type="button"
                           >
                             <ShieldCheck className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-(--divider-subtle-color) disabled:opacity-50"
+                          </UiIconButton>
+                          <UiIconButton
                             disabled={is_mutating}
                             onClick={() => void mutate_item(item, "ignore")}
+                            size="md"
                             title="忽略"
                             type="button"
                           >
                             <X className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-(--divider-subtle-color) text-red-600 disabled:opacity-50"
+                          </UiIconButton>
+                          <UiIconButton
                             disabled={is_mutating}
                             onClick={() => void mutate_item(item, "delete")}
+                            size="md"
                             title="删除"
+                            tone="danger"
                             type="button"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </UiIconButton>
                         </>
                       )}
                     </div>
@@ -475,8 +450,19 @@ export function MemoryPanel() {
               })}
             </div>
           )}
-        </section>
+        </UiPanel>
       </div>
+      <FeedbackBannerStack
+        items={feedback ? [
+          {
+            key: "memory-feedback",
+            message: feedback.message,
+            on_dismiss: () => set_feedback(null),
+            title: feedback.tone === "error" ? "操作失败" : feedback.tone === "warning" ? "需要注意" : "操作完成",
+            tone: feedback.tone,
+          },
+        ] : []}
+      />
     </WorkspaceSurfaceScaffold>
   );
 }

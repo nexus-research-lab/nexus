@@ -9,7 +9,6 @@ import {
   FileText,
   Loader2,
   RefreshCw,
-  Search,
   Trash2,
 } from "lucide-react";
 
@@ -21,14 +20,28 @@ import {
   search_memory_items_api,
 } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
+import {
+  format_memory_score,
+  format_memory_time,
+  memory_layer_key,
+  memory_layer_label,
+  type MemoryLayerFilter,
+} from "@/features/memory/memory-utils";
+import {
+  MemoryMetaRow,
+  MemoryStatusBadge,
+} from "@/features/memory/memory-ui";
+import { UiIconButton } from "@/shared/ui/button";
+import { UiSearchInput, UiSelect } from "@/shared/ui/form-control";
+import { UiListRow } from "@/shared/ui/list-row";
+import { UiPanel } from "@/shared/ui/panel";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import type { Agent } from "@/types/agent/agent";
 import type { MemoryItem, MemoryStats } from "@/types/memory/memory";
 
 interface ContactsAgentMemoryTabProps {
   agent: Agent;
 }
-
-type MemoryLayerFilter = "all" | "agent" | "dm_session" | "room";
 
 const STATUS_OPTIONS = [
   { value: "", label: "全部状态" },
@@ -156,7 +169,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
   return (
     <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
       <div className="mx-auto grid h-full min-h-0 w-full max-w-[1120px] grid-cols-1 gap-3 lg:grid-cols-[360px_minmax(360px,1fr)] xl:grid-cols-[380px_minmax(440px,1fr)]">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
+        <UiPanel class_name="flex min-h-0 flex-col overflow-hidden" padding="none">
           <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -168,24 +181,24 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <button
+              <UiIconButton
                 aria-label="刷新记忆"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
                 onClick={() => void load_memory()}
+                size="sm"
                 type="button"
               >
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-              </button>
-              <button
+              </UiIconButton>
+              <UiIconButton
                 aria-label="清理脏记忆"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-50"
                 disabled={cleaning}
                 onClick={() => void handle_cleanup()}
+                size="sm"
                 title="清理脏记忆"
                 type="button"
               >
                 <Eraser className={cn("h-3.5 w-3.5", cleaning && "animate-pulse")} />
-              </button>
+              </UiIconButton>
             </div>
           </div>
 
@@ -203,38 +216,37 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
           </div>
 
           <div className="flex flex-col gap-2 border-b border-(--divider-subtle-color) p-3">
-            <label className="flex h-8 items-center gap-2 rounded-md border border-(--divider-subtle-color) px-2.5">
-              <Search className="h-3.5 w-3.5 shrink-0 text-(--text-soft)" />
-              <input
-                className="min-w-0 flex-1 bg-transparent text-xs outline-none"
-                onChange={(event) => set_query(event.target.value)}
-                placeholder="搜索记忆"
-                value={query}
-              />
-            </label>
+            <UiSearchInput
+              control_size="sm"
+              on_change={set_query}
+              placeholder="搜索记忆"
+              value={query}
+            />
             <div className="grid grid-cols-2 gap-2">
-              <select
-                className="h-8 rounded-md border border-(--divider-subtle-color) bg-transparent px-2 text-xs text-(--text-default)"
+              <UiSelect
+                control_size="sm"
                 onChange={(event) => set_status_filter(event.target.value)}
                 value={status_filter}
+                variant="surface"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
-              <select
-                className="h-8 rounded-md border border-(--divider-subtle-color) bg-transparent px-2 text-xs text-(--text-default)"
+              </UiSelect>
+              <UiSelect
+                control_size="sm"
                 onChange={(event) => set_layer_filter(event.target.value as MemoryLayerFilter)}
                 value={layer_filter}
+                variant="surface"
               >
                 {LAYER_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </UiSelect>
             </div>
           </div>
 
@@ -245,7 +257,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
             on_select={set_selected_item_id}
             selected_item_id={selected_item?.entry_id ?? ""}
           />
-        </section>
+        </UiPanel>
 
         <MemoryItemInspector
           is_deleting={selected_item ? deleting_item_id === selected_item.entry_id : false}
@@ -279,16 +291,12 @@ function MemoryItemList({
   }
   if (error) {
     return (
-      <div className="px-4 py-8 text-center text-xs text-red-600">
-        {error}
-      </div>
+      <UiStateBlock description={error} size="sm" title="记忆加载失败" tone="danger" />
     );
   }
   if (items.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-xs text-(--text-soft)">
-        暂无记忆
-      </div>
+      <UiStateBlock description="当前筛选条件下没有记忆条目。" size="sm" title="暂无记忆" />
     );
   }
 
@@ -297,16 +305,11 @@ function MemoryItemList({
       {items.map((item) => {
         const active = item.entry_id === selected_item_id;
         return (
-          <button
-            className={cn(
-              "block w-full border-b border-(--divider-subtle-color) px-3.5 py-3 text-left transition",
-              active
-                ? "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)]"
-                : "hover:bg-(--surface-interactive-hover-background)",
-            )}
+          <UiListRow
+            active={active}
+            class_name="min-h-0 rounded-none border-b border-(--divider-subtle-color) px-3.5 py-3"
             key={item.entry_id}
-            onClick={() => on_select(item.entry_id)}
-            type="button"
+            on_click={() => on_select(item.entry_id)}
           >
             <div className="flex min-w-0 items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-(--text-strong)">
@@ -316,14 +319,14 @@ function MemoryItemList({
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] font-medium leading-4 text-(--text-soft)">
               <span>{memory_layer_label(item.scope)}</span>
-              {item.score !== undefined ? <span>{format_score(item.score)}</span> : null}
+              {item.score !== undefined ? <span>{format_memory_score(item.score)}</span> : null}
               <span>access {item.access_count}</span>
               {item.created_at ? <span>{format_memory_time(item.created_at)}</span> : null}
             </div>
             <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-(--text-default)">
               {item.content}
             </p>
-          </button>
+          </UiListRow>
         );
       })}
     </div>
@@ -341,16 +344,16 @@ function MemoryItemInspector({
 }) {
   if (!item) {
     return (
-      <section className="flex min-h-0 items-center justify-center rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_40%,transparent)] px-6 text-xs text-(--text-soft)">
+      <UiPanel class_name="flex min-h-0 items-center justify-center px-6 text-xs text-(--text-soft)" padding="none" variant="inset">
         未选择记忆
-      </section>
+      </UiPanel>
     );
   }
 
   const raw_fields = (item.fields ?? []).filter((field) => field.value.trim() !== "");
 
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-[16px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
+    <UiPanel class_name="flex min-h-0 flex-col overflow-hidden" padding="none">
       <div className="flex min-h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -362,12 +365,13 @@ function MemoryItemInspector({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <MemoryStatusBadge status={item.status} />
-          <button
+          <UiIconButton
             aria-label="删除记忆"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-red-600 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={is_deleting}
             onClick={() => on_delete(item)}
+            size="sm"
             title="删除记忆"
+            tone="danger"
             type="button"
           >
             {is_deleting ? (
@@ -375,7 +379,7 @@ function MemoryItemInspector({
             ) : (
               <Trash2 className="h-3.5 w-3.5" />
             )}
-          </button>
+          </UiIconButton>
         </div>
       </div>
 
@@ -395,7 +399,7 @@ function MemoryItemInspector({
             </span>
           ) : null}
           <span>access {item.access_count}</span>
-          {item.score !== undefined ? <span>{format_score(item.score)}</span> : null}
+          {item.score !== undefined ? <span>{format_memory_score(item.score)}</span> : null}
         </div>
 
         <div className="mt-4 border-y border-(--divider-subtle-color) py-3">
@@ -430,88 +434,6 @@ function MemoryItemInspector({
           </details>
         ) : null}
       </div>
-    </section>
+    </UiPanel>
   );
-}
-
-function MemoryMetaRow({ label, value }: { label: string; value?: string }) {
-  if (!value) {
-    return null;
-  }
-  return (
-    <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] gap-2">
-      <dt className="truncate font-medium text-(--text-soft)">{label}</dt>
-      <dd className="min-w-0 break-words text-(--text-default)">{value}</dd>
-    </div>
-  );
-}
-
-function MemoryStatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4",
-        status_badge_class(status),
-      )}
-    >
-      {status || "未标记"}
-    </span>
-  );
-}
-
-function status_badge_class(status: string): string {
-  switch (status) {
-    case "promoted":
-    case "active":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700";
-    case "ignored":
-    case "deleted":
-      return "border-zinc-500/30 bg-zinc-500/10 text-zinc-600";
-    case "candidate":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-700";
-    default:
-      return "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-background)_70%,transparent)] text-(--text-default)";
-  }
-}
-
-function memory_layer_key(scope?: string): MemoryLayerFilter {
-  if (!scope) {
-    return "agent";
-  }
-  if (scope.startsWith("dm_session:")) {
-    return "dm_session";
-  }
-  if (scope.startsWith("room_shared:") || scope.startsWith("room_agent_session:")) {
-    return "room";
-  }
-  return "agent";
-}
-
-function memory_layer_label(scope?: string): string {
-  const key = memory_layer_key(scope);
-  switch (key) {
-    case "dm_session":
-      return "DM";
-    case "room":
-      return "Room";
-    default:
-      return "Agent";
-  }
-}
-
-function format_score(score: number): string {
-  return `score ${score.toFixed(2)}`;
-}
-
-function format_memory_time(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
 }
