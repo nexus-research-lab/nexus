@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -126,6 +127,8 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		inputOptions:      request.InputOptions,
 		internal:          request.Internal,
 		goalIDForUsage:    goalIDForUsage,
+		goalUsage:         goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(goalIDForUsage) != ""),
+		goalUsageStarted:  time.Now(),
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,
 	}

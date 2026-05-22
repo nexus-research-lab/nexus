@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -36,18 +38,121 @@ func goalIDForRuntimeUsage(goal *protocol.Goal) string {
 	return strings.TrimSpace(goal.ID)
 }
 
-func (s *RealtimeService) recordGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot, result runtimectx.RoundExecutionResult) {
-	if s.goals == nil || slot == nil || result.Usage.IsZero() {
+func beginGoalUsageForSlot(slot *activeRoomSlot) {
+	if slot == nil {
 		return
 	}
-	usage := protocol.GoalUsage{
-		InputTokens:              result.Usage.InputTokens,
-		OutputTokens:             result.Usage.OutputTokens,
-		CacheCreationInputTokens: result.Usage.CacheCreationInputTokens,
-		CacheReadInputTokens:     result.Usage.CacheReadInputTokens,
-		ReasoningTokens:          result.Usage.ReasoningTokens,
-		TotalTokens:              result.Usage.TotalTokens,
-		RuntimeSeconds:           result.ElapsedTimeSeconds,
+	slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(slot.GoalIDForUsage) != "")
+	slot.GoalUsageStartedAt = time.Now()
+}
+
+func (s *RealtimeService) recordGoalUsageForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	result runtimectx.RoundExecutionResult,
+	finalAssistant protocol.Message,
+) {
+	if s.goals == nil || slot == nil {
+		return
+	}
+	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
+	if !ok {
+		return
+	}
+	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
+}
+
+func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) {
+	if s.goals == nil || slot == nil {
+		return
+	}
+	observations := messageutil.AssistantToolResults(message)
+	if len(observations) == 0 {
+		return
+	}
+	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
+	hasSuccessfulCreate := false
+	hasSuccessfulUpdate := false
+	for _, observation := range observations {
+		if observation.IsError {
+			continue
+		}
+		switch strings.TrimSpace(observation.ToolName) {
+		case "create_goal":
+			hasSuccessfulCreate = true
+		case "update_goal":
+			hasSuccessfulUpdate = true
+		}
+	}
+	if hasSuccessfulCreate && (slot.GoalUsage == nil || !slot.GoalUsage.Active()) {
+		ensureSlotGoalUsageAccumulator(slot, false).Reset(snapshot)
+		return
+	}
+	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
+	if hasSuccessfulUpdate && slot.GoalUsage != nil {
+		slot.GoalUsage.Close()
+	}
+}
+
+func slotFinalGoalUsageSnapshot(
+	slot *activeRoomSlot,
+	result runtimectx.RoundExecutionResult,
+	finalAssistant protocol.Message,
+) (goalsvc.RuntimeUsageSnapshot, bool) {
+	usage := runtimectx.GoalUsageFromTokenUsage(result.Usage)
+	usageOK := !result.Usage.IsZero()
+	if !usageOK && protocol.MessageRole(finalAssistant) == "assistant" {
+		usage, usageOK = runtimectx.GoalUsageFromRaw(finalAssistant["usage"])
+	}
+	elapsedSeconds := result.ElapsedTimeSeconds
+	if elapsedSeconds <= 0 {
+		elapsedSeconds = slotGoalUsageElapsedSeconds(slot)
+	}
+	return goalsvc.RuntimeUsageSnapshot{
+		Usage:          usage,
+		ElapsedSeconds: elapsedSeconds,
+	}, usageOK || elapsedSeconds > 0
+}
+
+func slotAssistantGoalUsageSnapshot(slot *activeRoomSlot, message protocol.Message) goalsvc.RuntimeUsageSnapshot {
+	usage, _ := runtimectx.GoalUsageFromRaw(message["usage"])
+	return goalsvc.RuntimeUsageSnapshot{
+		Usage:          usage,
+		ElapsedSeconds: slotGoalUsageElapsedSeconds(slot),
+	}
+}
+
+func (s *RealtimeService) recordGoalUsageSnapshotForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	snapshot goalsvc.RuntimeUsageSnapshot,
+) {
+	if s.goals == nil || slot == nil {
+		return
+	}
+	if slot.GoalUsage != nil {
+		usage, ok := slot.GoalUsage.Delta(snapshot)
+		if !ok {
+			return
+		}
+		s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
+		return
+	}
+	usage := snapshot.Usage
+	usage.RuntimeSeconds = snapshot.ElapsedSeconds
+	if isZeroRoomGoalUsage(usage) {
+		return
+	}
+	s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
+}
+
+func (s *RealtimeService) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) {
+	if s.goals == nil || slot == nil || isZeroRoomGoalUsage(usage) {
+		return
 	}
 	var err error
 	if strings.TrimSpace(slot.GoalIDForUsage) != "" {
@@ -63,4 +168,32 @@ func (s *RealtimeService) recordGoalUsageForSlot(ctx context.Context, slot *acti
 			"err", err,
 		)
 	}
+}
+
+func ensureSlotGoalUsageAccumulator(slot *activeRoomSlot, active bool) *goalsvc.RuntimeUsageAccumulator {
+	if slot.GoalUsage == nil {
+		slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(active)
+	}
+	return slot.GoalUsage
+}
+
+func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {
+	if slot == nil || slot.GoalUsageStartedAt.IsZero() {
+		return 0
+	}
+	elapsed := int64(time.Since(slot.GoalUsageStartedAt).Seconds())
+	if elapsed < 0 {
+		return 0
+	}
+	return elapsed
+}
+
+func isZeroRoomGoalUsage(usage protocol.GoalUsage) bool {
+	return usage.InputTokens == 0 &&
+		usage.OutputTokens == 0 &&
+		usage.CacheCreationInputTokens == 0 &&
+		usage.CacheReadInputTokens == 0 &&
+		usage.ReasoningTokens == 0 &&
+		usage.TotalTokens == 0 &&
+		usage.RuntimeSeconds == 0
 }

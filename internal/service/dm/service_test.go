@@ -19,6 +19,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -215,6 +216,119 @@ func (p *fakeGoalContextProvider) PlanContinuationForSession(context.Context, st
 	}
 	plan := *p.plan
 	return &plan, nil
+}
+
+func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 3))
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+			TotalTokens:  15,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want 2", len(usages))
+	}
+	if usages[0].InputTokens != 4 || usages[0].OutputTokens != 3 || usages[0].Total() != 7 {
+		t.Fatalf("first usage = %#v, want 4/3", usages[0])
+	}
+	if usages[1].InputTokens != 6 || usages[1].OutputTokens != 2 || usages[1].Total() != 8 {
+		t.Fatalf("second usage = %#v, want remaining 6/2", usages[1])
+	}
+}
+
+func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "update_goal", false, 10, 2))
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+			TotalTokens:  25,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
+		t.Fatalf("usage = %#v, want update_goal usage only", usages[0])
+	}
+}
+
+func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:    &Service{goals: goalProvider},
+		sessionKey: "agent:nexus:ws:dm:test",
+		roundID:    "round-1",
+		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "create_goal", false, 5, 1))
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  8,
+			OutputTokens: 3,
+			TotalTokens:  11,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
+		t.Fatalf("usage = %#v, want post-create delta 3/2", usages[0])
+	}
+}
+
+func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]protocol.GoalUsage(nil), p.usage...)
+}
+
+func goalToolResultAssistantMessage(
+	toolUseID string,
+	toolName string,
+	isError bool,
+	inputTokens int64,
+	outputTokens int64,
+) protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
+		},
+		"content": []map[string]any{
+			{"type": "tool_use", "id": toolUseID, "name": toolName},
+			{"type": "tool_result", "tool_use_id": toolUseID, "is_error": isError},
+		},
+	}
 }
 
 type dmTestSender struct {

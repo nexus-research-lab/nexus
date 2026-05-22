@@ -5,12 +5,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 type activeRoomSlot struct {
@@ -21,6 +23,8 @@ type activeRoomSlot struct {
 	MsgID              string
 	RuntimeSessionKey  string
 	GoalIDForUsage     string
+	GoalUsage          *goalsvc.RuntimeUsageAccumulator
+	GoalUsageStartedAt time.Time
 	WorkspacePath      string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc
