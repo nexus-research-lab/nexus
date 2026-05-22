@@ -273,7 +273,6 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			TriggerAttachments: attachments,
 			Done:               make(chan struct{}),
 		}
-		_ = sessionRecord
 		pending = append(pending, map[string]any{
 			"agent_id":  agentID,
 			"msg_id":    msgID,

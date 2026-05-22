@@ -9,6 +9,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircle } from 'lucide-react';
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
+import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './code-block';
 import { ImageBlock } from "./image-block";
@@ -225,7 +226,7 @@ export function ToolBlock({
     anchor_ref: toolAnchorRef,
   } = useScrollAnchoredState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
   // 复制工具执行结果
   const handleCopyResult = useCallback(async (e: React.MouseEvent) => {
@@ -234,14 +235,8 @@ export function ToolBlock({
     const contentToCopy = typeof tool_result.content === 'string'
       ? tool_result.content
       : JSON.stringify(tool_result.content, null, 2);
-    try {
-      await navigator.clipboard.writeText(contentToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
-  }, [tool_result]);
+    await copy(contentToCopy);
+  }, [copy, tool_result]);
 
   // 计算执行时间
   const duration = useMemo(() => {
