@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -28,6 +28,11 @@ import {
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
+import {
+  parse_goal_command,
+  run_goal_command,
+} from "@/features/conversation/shared/goal-command";
+import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import {
   get_room_agent_round_entry,
@@ -134,6 +139,19 @@ export function GroupChatPanel({
     ? build_room_shared_session_key(conversation_id)
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
+  const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const handle_conversation_event = useCallback(
+    (
+      event_type: string,
+      data: import("@/types/agent/agent-conversation").RoomEventPayload,
+    ) => {
+      if (event_type.startsWith("goal_")) {
+        set_goal_refresh_seq((value) => value + 1);
+      }
+      on_room_event?.(event_type, data);
+    },
+    [on_room_event],
+  );
   const session_identity = useMemo<AgentConversationIdentity | null>(() => {
     if (!conversation_id) {
       return null;
@@ -194,7 +212,7 @@ export function GroupChatPanel({
     on_error: (err) => {
       console.error("Room conversation error:", err);
     },
-    on_room_event,
+    on_room_event: handle_conversation_event,
   });
 
   const todos = useExtractTodos(messages, session_key);
@@ -336,6 +354,13 @@ export function GroupChatPanel({
     attachments: PreparedComposerAttachment[] = [],
   ) => {
     if (!content.trim() && attachments.length === 0) return;
+    const goal_command = parse_goal_command(content);
+    if (goal_command !== null) {
+      if (!session_key) return;
+      await run_goal_command(session_key, goal_command);
+      set_goal_refresh_seq((value) => value + 1);
+      return;
+    }
     scroll_to_bottom("auto");
     await send_message(content, { delivery_policy, attachments });
   };
@@ -553,6 +578,13 @@ export function GroupChatPanel({
           {show_provider_warning ? (
             <ProviderUnavailableBanner compact={is_mobile_layout} />
           ) : null}
+
+          <GoalPanel
+            activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
+            compact={is_mobile_layout}
+            disabled={!can_control_session}
+            session_key={session_key}
+          />
 
           <ComposerPanel
             allow_send_while_loading
