@@ -20,7 +20,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 		Description: "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks. Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use update_goal only for status.",
 		InputSchema: objectSchema(map[string]any{
 			"objective":    stringProperty("Concrete objective to pursue."),
-			"token_budget": numberProperty("Optional positive token budget. Omit unless the user explicitly requested one."),
+			"token_budget": integerProperty("Optional positive token budget. Omit unless the user explicitly requested one."),
 		}, "objective"),
 		Handler: func(ctx context.Context, input map[string]any) (sdkmcp.ToolResult, error) {
 			var parsed createGoalInput

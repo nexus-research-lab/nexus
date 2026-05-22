@@ -19,9 +19,9 @@ func stringProperty(description string) map[string]any {
 	}
 }
 
-func numberProperty(description string) map[string]any {
+func integerProperty(description string) map[string]any {
 	return map[string]any{
-		"type":        "number",
+		"type":        "integer",
 		"description": description,
 	}
 }

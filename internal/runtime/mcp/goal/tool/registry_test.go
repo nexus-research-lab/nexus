@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"maps"
 	"slices"
@@ -43,6 +44,21 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	}
 }
 
+func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
+	tool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	properties, ok := tool.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
+	}
+	budget, ok := properties["token_budget"].(map[string]any)
+	if !ok {
+		t.Fatalf("token_budget = %#v, want map", properties["token_budget"])
+	}
+	if budget["type"] != "integer" {
+		t.Fatalf("token_budget.type = %#v, want integer", budget["type"])
+	}
+}
+
 func TestGetGoalReturnsNullWhenNoGoalExists(t *testing.T) {
 	tool := getGoal(fakeGoalService{}, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	result, err := tool.Handler(context.Background(), map[string]any{})
@@ -54,6 +70,17 @@ func TestGetGoalReturnsNullWhenNoGoalExists(t *testing.T) {
 	}
 	if result.StructuredContent["goal"] != nil || result.StructuredContent["remainingTokens"] != nil || result.StructuredContent["completionBudgetReport"] != nil {
 		t.Fatalf("structured content = %#v, want null goal, remainingTokens, and completionBudgetReport", result.StructuredContent)
+	}
+	text, ok := result.Content[0]["text"].(string)
+	if !ok {
+		t.Fatalf("text content = %#v, want string", result.Content)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(text), &decoded); err != nil {
+		t.Fatalf("text content is not JSON: %v; text=%s", err, text)
+	}
+	if _, ok := decoded["remainingTokens"]; !ok {
+		t.Fatalf("decoded text = %#v, want Codex-style JSON payload", decoded)
 	}
 }
 

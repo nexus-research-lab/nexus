@@ -9,7 +9,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func structuredResult(text string, content map[string]any) sdkmcp.ToolResult {
+func structuredResult(_ string, content map[string]any) sdkmcp.ToolResult {
+	text := "{}"
+	if payload, err := json.MarshalIndent(content, "", "  "); err == nil {
+		text = string(payload)
+	}
 	return sdkmcp.ToolResult{
 		Content: []map[string]any{{
 			"type": "text",
