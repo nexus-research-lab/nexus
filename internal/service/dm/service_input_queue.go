@@ -162,17 +162,17 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	normalizedSessionKey string,
 	agentID string,
 	location workspacestore.InputQueueLocation,
-) {
+) bool {
 	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {
-		return
+		return false
 	}
 	item, items, err := s.inputQueue.DispatchFirstDispatchable(location)
 	if err != nil {
 		s.loggerFor(ctx).Error("弹出 DM 待发送队列失败", "session_key", normalizedSessionKey, "err", err)
-		return
+		return false
 	}
 	if item == nil {
-		return
+		return false
 	}
 	s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, items)
 	err = s.HandleChat(contextWithQueueOwner(ctx, item.OwnerUserID), Request{
@@ -194,7 +194,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 				location,
 			)
 		}
-		return
+		return true
 	}
 	s.loggerFor(ctx).Error("派发 DM 待发送队列失败",
 		"session_key", normalizedSessionKey,
@@ -211,6 +211,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, restored)
 	}
 	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, "待发送消息派发失败"))
+	return false
 }
 
 func (s *Service) resolveInputQueueLocation(

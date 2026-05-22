@@ -88,6 +88,87 @@ func TestServiceStateTransitions(t *testing.T) {
 	}
 }
 
+func TestServicePlanContinuationForSession(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Complete parity",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil || plan.RoundID != "goal_continuation_3" {
+		t.Fatalf("plan = %#v, want hidden continuation round", plan)
+	}
+	if !plan.HiddenFromUser || !plan.Synthetic || plan.Purpose != goalContinuationPurpose {
+		t.Fatalf("plan visibility = %#v, want hidden synthetic goal continuation", plan)
+	}
+	if !strings.Contains(plan.Prompt, "Complete parity") || !strings.Contains(plan.Prompt, "PreviousRoundID: round-1") {
+		t.Fatalf("continuation prompt missing context: %s", plan.Prompt)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 1 {
+		t.Fatalf("ContinuationCount = %d, want 1", current.ContinuationCount)
+	}
+	if len(repo.events) != 2 || repo.events[1].EventType != "continuation_scheduled" || repo.events[1].RoundID != plan.RoundID {
+		t.Fatalf("events = %#v, want continuation_scheduled", repo.events)
+	}
+}
+
+func TestServicePlanContinuationPausesWhenBudgetExhausted(t *testing.T) {
+	repo := newMemoryRepository()
+	budget := int64(10)
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Budgeted work",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan != nil {
+		t.Fatalf("plan = %#v, want nil after budget exhaustion", plan)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusPaused || current.LastError == "" {
+		t.Fatalf("current = %#v, want paused with last error", current)
+	}
+}
+
 func TestServiceDisabled(t *testing.T) {
 	service := NewService(config.Config{}, newMemoryRepository())
 	_, err := service.Create(context.Background(), protocol.CreateGoalRequest{

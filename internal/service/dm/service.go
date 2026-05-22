@@ -18,6 +18,7 @@ import (
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 var (
@@ -35,6 +36,8 @@ type Request struct {
 	ReqID                string
 	DeliveryPolicy       protocol.ChatDeliveryPolicy
 	BroadcastUserMessage bool
+	Internal             bool
+	InputOptions         sdkprotocol.OutboundMessageOptions
 	PermissionMode       sdkpermission.Mode
 	PermissionHandler    sdkpermission.Handler
 }
@@ -89,6 +92,7 @@ type usageRecorder interface {
 type goalContextProvider interface {
 	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 }
 
 // NewService 创建 DM 会话编排服务。

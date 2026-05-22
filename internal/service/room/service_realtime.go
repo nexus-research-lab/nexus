@@ -83,6 +83,7 @@ type RealtimeService struct {
 	actions     *workspacestore.RoomActionStore
 	inputQueue  *workspacestore.InputQueueStore
 	usage       usageRecorder
+	goals       goalContextProvider
 	factory     roomClientFactory
 	broadcaster RoomBroadcaster
 	logger      *slog.Logger
@@ -105,6 +106,11 @@ type roomTitleScheduler interface {
 
 type usageRecorder interface {
 	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
+}
+
+type goalContextProvider interface {
+	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
+	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。
@@ -168,6 +174,11 @@ func (s *RealtimeService) SetProviderResolver(resolver clientopts.RuntimeConfigR
 // SetUsageRecorder 注入 token usage 持久化 ledger。
 func (s *RealtimeService) SetUsageRecorder(recorder usageRecorder) {
 	s.usage = recorder
+}
+
+// SetGoalContextProvider 注入 Goal runtime context provider。
+func (s *RealtimeService) SetGoalContextProvider(provider goalContextProvider) {
+	s.goals = provider
 }
 
 // SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。

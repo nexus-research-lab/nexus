@@ -43,6 +43,7 @@ type fakeDMClient struct {
 	connectErrors   []error
 	queryErrors     []error
 	sentContents    []string
+	queryOptions    []sdkprotocol.OutboundMessageOptions
 	reconfigureOps  []agentclient.Options
 	onQuery         func(context.Context, string)
 	onInterrupt     func(context.Context)
@@ -67,11 +68,16 @@ func (c *fakeDMClient) Connect(context.Context) error {
 }
 
 func (c *fakeDMClient) Query(ctx context.Context, prompt string) error {
+	return c.QueryWithOptions(ctx, prompt, sdkprotocol.OutboundMessageOptions{})
+}
+
+func (c *fakeDMClient) QueryWithOptions(ctx context.Context, prompt string, options sdkprotocol.OutboundMessageOptions) error {
 	if c.onQuery != nil {
 		c.onQuery(ctx, prompt)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.queryOptions = append(c.queryOptions, options)
 	if len(c.queryErrors) > 0 {
 		err := c.queryErrors[0]
 		c.queryErrors = c.queryErrors[1:]
@@ -173,6 +179,35 @@ func (f *fakeDMFactory) OptionAt(index int) agentclient.Options {
 		return agentclient.Options{}
 	}
 	return f.options[index]
+}
+
+type fakeGoalContextProvider struct {
+	mu        sync.Mutex
+	plan      *protocol.GoalContinuation
+	planCalls int
+	usage     []protocol.GoalUsage
+}
+
+func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
+	return "", nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordUsageForSession(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usage = append(p.usage, usage)
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.planCalls++
+	if p.planCalls > 1 || p.plan == nil {
+		return nil, nil
+	}
+	plan := *p.plan
+	return &plan, nil
 }
 
 type dmTestSender struct {
@@ -372,6 +407,97 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	outputTokens := anyToInt(usage["output_tokens"])
 	if outputTokens != 5 {
 		t.Fatalf("result usage 应保留: %+v", messages[1])
+	}
+}
+
+func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, prompt string) {
+		go func() {
+			resultID := "result-first"
+			if strings.Contains(prompt, "hidden continuation prompt") {
+				resultID = "result-goal-continuation"
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      resultID,
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:       "success",
+					DurationMS:    1,
+					DurationAPIMS: 1,
+					NumTurns:      1,
+					Result:        "done",
+					Usage: map[string]any{
+						"input_tokens":  int64(2),
+						"output_tokens": int64(3),
+					},
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetGoalContextProvider(&fakeGoalContextProvider{plan: &protocol.GoalContinuation{
+		Goal: protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
+			Objective:  "finish work",
+			Status:     protocol.GoalStatusActive,
+		},
+		RoundID:        "goal_continuation_1",
+		Prompt:         "hidden continuation prompt",
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+		Metadata:       map[string]string{"goal_id": "goal-1"},
+	}})
+	sender := newDMTestSender("sender-goal-continuation")
+	sessionKey := "agent:nexus:ws:dm:test-goal-continuation"
+	permission.BindSession(sessionKey, sender, "client-goal-continuation", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:           sessionKey,
+		Content:              "开始",
+		RoundID:              "round-1",
+		ReqID:                "round-1",
+		BroadcastUserMessage: true,
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["status"] == "finished"
+	})
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "goal_continuation_1" {
+			t.Fatalf("隐藏 Goal continuation 不应广播 chat ack: %+v", events)
+		}
+	}
+
+	client.mu.Lock()
+	queryOptions := append([]sdkprotocol.OutboundMessageOptions(nil), client.queryOptions...)
+	client.mu.Unlock()
+	if len(queryOptions) < 2 ||
+		!queryOptions[1].HiddenFromUser ||
+		!queryOptions[1].Synthetic ||
+		queryOptions[1].Purpose != "goal_continuation" {
+		t.Fatalf("Goal continuation 未带隐藏 synthetic runtime options: %+v", queryOptions)
+	}
+
+	rows := readDMSessionHistory(t, cfg, service, sessionKey)
+	for _, row := range rows {
+		if row["role"] == "user" && row["round_id"] == "goal_continuation_1" {
+			t.Fatalf("隐藏 Goal continuation 不应成为可见用户历史: %+v", rows)
+		}
 	}
 }
 

@@ -51,7 +51,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	initialMessageCount := sessionItem.MessageCount
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 
-	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
+	if !request.Internal && protocol.ShouldGuideRunningRound(deliveryPolicy) {
 		delivered, guideErr := s.guideRunningInput(ctx, sessionKey, agentValue, sessionItem, request)
 		if guideErr != nil && !errors.Is(guideErr, runtimectx.ErrNoRunningRound) {
 			return guideErr
@@ -63,7 +63,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
 
-	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
+	if !request.Internal && protocol.ShouldQueueRunningRound(deliveryPolicy) {
 		delivered, queueErr := s.queueRunningInput(ctx, sessionKey, agentValue, sessionItem, request, initialMessageCount)
 		if queueErr != nil && !errors.Is(queueErr, runtimectx.ErrNoRunningRound) {
 			return queueErr
@@ -73,7 +73,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		}
 	}
 
-	if deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
+	if !request.Internal && deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
 		if err = s.interruptSession(ctx, sessionKey, "收到新的用户消息，上一轮已停止"); err != nil {
 			return err
 		}
@@ -123,6 +123,8 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runtimeModel:      runtimeModel,
 		ownerUserID:       authctx.OwnerUserID(ctx),
 		mapper:            dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
+		inputOptions:      request.InputOptions,
+		internal:          request.Internal,
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,
 	}
@@ -137,7 +139,18 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"attachment_count", len(request.Attachments),
 	)
 
-	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments); err != nil {
+	markerOptions := workspacestore.RoundMarkerOptions{
+		DeliveryPolicy: string(deliveryPolicy),
+		Attachments:    request.Attachments,
+		HiddenFromUser: request.Internal || request.InputOptions.HiddenFromUser,
+		Synthetic:      request.InputOptions.Synthetic,
+		Purpose:        request.InputOptions.Purpose,
+		Metadata:       request.InputOptions.Metadata,
+	}
+	if request.Internal {
+		markerOptions.Synthetic = true
+	}
+	if err = s.recordRoundMarkerWithOptions(runner.workspacePath, runner.session, runner.roundID, runner.content, markerOptions); err != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
 			s.loggerFor(ctx).Warn("DM 轮次标记失败后刷新 session meta 失败",
@@ -157,7 +170,14 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 
-	if updatedSession, syncErr := s.refreshSessionMetaAfterRoundMarker(runner.workspacePath, runner.session); syncErr != nil {
+	var (
+		updatedSession *protocol.Session
+		syncErr        error
+	)
+	if !request.Internal {
+		updatedSession, syncErr = s.refreshSessionMetaAfterRoundMarker(runner.workspacePath, runner.session)
+	}
+	if syncErr != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
 			s.loggerFor(ctx).Warn("DM 轮次元数据失败后刷新 session meta 失败",
@@ -179,9 +199,13 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runner.session = *updatedSession
 	}
 
-	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
+	if !request.Internal {
+		s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
+	}
 
-	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+	if !request.Internal {
+		s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+	}
 	if request.BroadcastUserMessage {
 		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments)
 	}

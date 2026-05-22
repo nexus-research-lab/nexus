@@ -101,6 +101,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetLogger(logger.With("component", "room"))
 	roomRealtime.SetProviderResolver(providerService)
 	roomRealtime.SetUsageRecorder(usageService)
+	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetTitleGenerator(titleService)
 	automationService := automationsvc.NewService(
 		cfg,

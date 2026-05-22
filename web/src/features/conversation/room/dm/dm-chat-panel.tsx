@@ -25,6 +25,7 @@ import {
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import {
@@ -361,6 +362,13 @@ export function DmChatPanel({
       {show_provider_warning ? (
         <ProviderUnavailableBanner compact={is_mobile_layout} />
       ) : null}
+
+      <GoalPanel
+        activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}`}
+        compact={is_mobile_layout}
+        disabled={!can_control_session}
+        session_key={session_key}
+      />
 
       <ComposerPanel
         allow_send_while_loading

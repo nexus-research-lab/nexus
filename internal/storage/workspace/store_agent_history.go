@@ -55,6 +55,20 @@ type transcriptRoundMarker struct {
 	Attachments    []protocol.ChatAttachment
 	Timestamp      int64
 	DeliveryPolicy string
+	HiddenFromUser bool
+	Synthetic      bool
+	Purpose        string
+	Metadata       map[string]string
+}
+
+// RoundMarkerOptions 描述 Nexus overlay round marker 的展示和调度语义。
+type RoundMarkerOptions struct {
+	DeliveryPolicy string
+	Attachments    []protocol.ChatAttachment
+	HiddenFromUser bool
+	Synthetic      bool
+	Purpose        string
+	Metadata       map[string]string
 }
 
 // RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。
@@ -164,17 +178,52 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithAttachments(
 	deliveryPolicy string,
 	attachments []protocol.ChatAttachment,
 ) error {
+	return s.AppendRoundMarkerWithOptions(workspacePath, sessionKey, roundID, content, timestamp, RoundMarkerOptions{
+		DeliveryPolicy: deliveryPolicy,
+		Attachments:    attachments,
+	})
+}
+
+// AppendRoundMarkerWithOptions 记录一条带展示语义的 transcript round 对齐标记。
+func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
+	workspacePath string,
+	sessionKey string,
+	roundID string,
+	content string,
+	timestamp int64,
+	options RoundMarkerOptions,
+) error {
 	row := map[string]any{
 		overlayKindField: overlayKindRoundMarker,
 		"round_id":       strings.TrimSpace(roundID),
 		"content":        strings.TrimSpace(content),
 		"timestamp":      timestamp,
 	}
-	if deliveryPolicy != "" {
-		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
+	if options.DeliveryPolicy != "" {
+		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(options.DeliveryPolicy))
 	}
-	if normalizedAttachments := protocol.NormalizeChatAttachments(attachments, ""); len(normalizedAttachments) > 0 {
+	if normalizedAttachments := protocol.NormalizeChatAttachments(options.Attachments, ""); len(normalizedAttachments) > 0 {
 		row["attachments"] = normalizedAttachments
+	}
+	if options.HiddenFromUser {
+		row["hidden_from_user"] = true
+	}
+	if options.Synthetic {
+		row["is_synthetic"] = true
+	}
+	if purpose := strings.TrimSpace(options.Purpose); purpose != "" {
+		row["purpose"] = purpose
+	}
+	if len(options.Metadata) > 0 {
+		metadata := make(map[string]string, len(options.Metadata))
+		for key, value := range options.Metadata {
+			if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
+				metadata[trimmedKey] = strings.TrimSpace(value)
+			}
+		}
+		if len(metadata) > 0 {
+			row["metadata"] = metadata
+		}
 	}
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
@@ -346,6 +395,10 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 				Attachments:    protocol.ChatAttachmentsFromAny(row["attachments"]),
 				Timestamp:      messageTimestamp(protocol.Message(row)),
 				DeliveryPolicy: stringFromAny(row["delivery_policy"]),
+				HiddenFromUser: boolValueAny(row["hidden_from_user"]),
+				Synthetic:      boolValueAny(row["is_synthetic"]),
+				Purpose:        stringFromAny(row["purpose"]),
+				Metadata:       stringMapFromAny(row["metadata"]),
 			})
 			continue
 		}
@@ -401,7 +454,7 @@ func materializeRoundMarkerMessages(
 	rows := make([]protocol.Message, 0, len(roundMarkers))
 	for _, marker := range roundMarkers {
 		roundID := strings.TrimSpace(marker.RoundID)
-		if roundID == "" {
+		if roundID == "" || marker.HiddenFromUser {
 			continue
 		}
 		row := protocol.Message{
@@ -608,6 +661,12 @@ func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) str
 		builder.WriteString(strconv.FormatInt(marker.Timestamp, 10))
 		builder.WriteString("|")
 		builder.WriteString(marker.DeliveryPolicy)
+		builder.WriteString("|")
+		builder.WriteString(strconv.FormatBool(marker.HiddenFromUser))
+		builder.WriteString("|")
+		builder.WriteString(strconv.FormatBool(marker.Synthetic))
+		builder.WriteString("|")
+		builder.WriteString(marker.Purpose)
 		builder.WriteString("\n")
 	}
 	return builder.String()
@@ -818,6 +877,9 @@ func projectTranscriptChain(
 				entryTimestamp,
 			)
 			if userMessage == nil {
+				continue
+			}
+			if marker.HiddenFromUser {
 				continue
 			}
 			projected = append(projected, *userMessage)
@@ -1088,7 +1150,8 @@ func markerAlreadyAligned(aligned []transcriptRoundMarker, candidate transcriptR
 		if marker.RoundID == candidate.RoundID &&
 			marker.Content == candidate.Content &&
 			marker.Timestamp == candidate.Timestamp &&
-			marker.DeliveryPolicy == candidate.DeliveryPolicy {
+			marker.DeliveryPolicy == candidate.DeliveryPolicy &&
+			marker.HiddenFromUser == candidate.HiddenFromUser {
 			return true
 		}
 	}
@@ -1389,4 +1452,21 @@ func stringPointerValue(value *string) string {
 func boolValueAny(value any) bool {
 	typed, ok := value.(bool)
 	return ok && typed
+}
+
+func stringMapFromAny(value any) map[string]string {
+	typed, ok := value.(map[string]any)
+	if !ok || len(typed) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(typed))
+	for key, rawValue := range typed {
+		if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
+			result[trimmedKey] = strings.TrimSpace(stringFromAny(rawValue))
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }

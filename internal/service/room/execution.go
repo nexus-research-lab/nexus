@@ -168,6 +168,7 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
+	appendSystemPrompt = s.appendGoalRuntimeContext(slotCtx, slot.RuntimeSessionKey, appendSystemPrompt)
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
@@ -350,6 +351,7 @@ func (s *RealtimeService) runSlot(
 	if result.CompletedByAssistant {
 		s.recordTerminalAssistantUsage(roundValue, mapper.LastAssistantMessage())
 	}
+	s.recordGoalUsageForSlot(slotCtx, slot, result)
 	if slot.getStatus() == "running" {
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}

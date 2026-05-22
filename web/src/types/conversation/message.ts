@@ -289,6 +289,13 @@ export interface EventMessage {
     | "stream_end"
     | "stream_cancelled"
     | "permission_request_resolved"
+    | "goal_created"
+    | "goal_updated"
+    | "goal_status_changed"
+    | "goal_progress"
+    | "goal_continuation"
+    | "goal_checkpoint"
+    | "goal_cleared"
     | "session_status";
   session_key?: string | null;
   room_id?: string | null;

@@ -9,6 +9,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) ensureSession(
@@ -180,6 +181,23 @@ func (s *Service) recordRoundMarker(
 		time.Now().UnixMilli(),
 		string(deliveryPolicy),
 		attachments,
+	)
+}
+
+func (s *Service) recordRoundMarkerWithOptions(
+	workspacePath string,
+	sessionValue protocol.Session,
+	roundID string,
+	content string,
+	options workspacestore.RoundMarkerOptions,
+) error {
+	return s.history.AppendRoundMarkerWithOptions(
+		workspacePath,
+		sessionValue.SessionKey,
+		roundID,
+		content,
+		time.Now().UnixMilli(),
+		options,
 	)
 }
 

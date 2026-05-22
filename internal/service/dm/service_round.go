@@ -59,6 +59,8 @@ type roundRunner struct {
 	runtimeModel      string
 	ownerUserID       string
 	mapper            *dmdomain.MessageMapper
+	inputOptions      sdkprotocol.OutboundMessageOptions
+	internal          bool
 	permissionMode    sdkpermission.Mode
 	permissionHandler sdkpermission.Handler
 }
@@ -100,7 +102,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	r.dispatchNextInputQueueItem()
+	r.dispatchPostRoundWork()
 }
 
 func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult) {
@@ -129,9 +131,10 @@ func (r *roundRunner) executeRound(
 	logger *slog.Logger,
 ) (runtimectx.RoundExecutionResult, error) {
 	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
-		Content: r.runtimeContent.Payload(),
-		Client:  r.client,
-		Mapper:  dmRoundMapperAdapter{mapper: r.mapper},
+		Content:      r.runtimeContent.Payload(),
+		InputOptions: r.inputOptions,
+		Client:       r.client,
+		Mapper:       dmRoundMapperAdapter{mapper: r.mapper},
 		InterruptReason: func() string {
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
@@ -369,6 +372,21 @@ func (r *roundRunner) dispatchNextInputQueueItem() {
 		r.agent.AgentID,
 		location,
 	)
+}
+
+func (r *roundRunner) dispatchPostRoundWork() {
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: r.workspacePath,
+		SessionKey:    r.sessionKey,
+	}
+	go func() {
+		ctx := contextWithQueueOwner(context.Background(), r.ownerUserID)
+		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
+			return
+		}
+		r.dispatchGoalContinuation(ctx)
+	}()
 }
 
 func (r *roundRunner) persistMessage(message protocol.Message) error {

@@ -93,6 +93,17 @@ type GoalCheckpoint struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
+// GoalContinuation 表示一次由系统触发的隐藏 Goal 续跑输入。
+type GoalContinuation struct {
+	Goal           Goal              `json:"goal"`
+	RoundID        string            `json:"round_id"`
+	Prompt         string            `json:"prompt"`
+	HiddenFromUser bool              `json:"hidden_from_user"`
+	Synthetic      bool              `json:"synthetic"`
+	Purpose        string            `json:"purpose"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+}
+
 // CreateGoalRequest 表示创建 Goal 的请求。
 type CreateGoalRequest struct {
 	SessionKey  string         `json:"session_key"`
