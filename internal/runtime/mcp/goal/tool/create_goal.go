@@ -17,7 +17,7 @@ type createGoalInput struct {
 func createGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "create_goal",
-		Description: "Create a new current goal only when the user explicitly requests a goal.",
+		Description: "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks. Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use update_goal only for status.",
 		InputSchema: objectSchema(map[string]any{
 			"objective":    stringProperty("Concrete objective to pursue."),
 			"token_budget": numberProperty("Optional positive token budget. Omit unless the user explicitly requested one."),

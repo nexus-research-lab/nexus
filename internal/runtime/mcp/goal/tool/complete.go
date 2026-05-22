@@ -38,7 +38,7 @@ func complete(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			if err != nil {
 				return errorResult(err), nil
 			}
-			return structuredResult("goal marked complete", goalPayload(item)), nil
+			return structuredResult("goal marked complete", goalCompletionPayload(item)), nil
 		},
 	}
 }

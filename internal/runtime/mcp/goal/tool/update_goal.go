@@ -22,7 +22,7 @@ type updateGoalInput struct {
 func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "update_goal",
-		Description: "Mark the current goal complete or blocked. Do not use for pause, resume, clear, budget, or usage limits.",
+		Description: "Update the existing goal. Use this tool only to mark the goal achieved or blocked. Set status to complete only when the objective has actually been achieved and no required work remains. Set status to blocked only when the goal cannot currently proceed until something external changes. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work. You cannot use this tool to pause, resume, clear, or budget-limit a goal; those status changes are controlled by the user or system. When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
 		InputSchema: objectSchema(map[string]any{
 			"status":       enumStringProperty("Allowed status update.", "complete", "blocked"),
 			"summary":      stringProperty("Short completion summary when status is complete."),
@@ -48,7 +48,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 				if err != nil {
 					return errorResult(err), nil
 				}
-				return structuredResult("goal marked complete", goalPayload(item)), nil
+				return structuredResult("goal marked complete", goalCompletionPayload(item)), nil
 			case string(protocol.GoalStatusBlocked):
 				item, err := svc.BlockByModel(ctx, current.ID, protocol.BlockGoalRequest{
 					Reason:      parsed.Reason,
