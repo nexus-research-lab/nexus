@@ -31,6 +31,44 @@ func TestUpdateGoalRequestTokenBudgetTriState(t *testing.T) {
 	}
 }
 
+func TestThreadGoalSetParamsUseCodexCamelCase(t *testing.T) {
+	var params ThreadGoalSetParams
+	if err := json.Unmarshal([]byte(`{"threadId":"agent:nexus:ws:dm:chat","status":"usageLimited","tokenBudget":null}`), &params); err != nil {
+		t.Fatalf("unmarshal thread goal params: %v", err)
+	}
+	if params.ThreadID != "agent:nexus:ws:dm:chat" {
+		t.Fatalf("ThreadID = %q, want camelCase threadId", params.ThreadID)
+	}
+	if params.Status == nil || *params.Status != ThreadGoalStatusUsageLimited {
+		t.Fatalf("Status = %#v, want usageLimited", params.Status)
+	}
+	if !params.TokenBudget.Present || params.TokenBudget.Value != nil {
+		t.Fatalf("TokenBudget = %+v, want present null", params.TokenBudget)
+	}
+}
+
+func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
+	budget := int64(100)
+	item := Goal{
+		SessionKey:      "agent:nexus:ws:dm:chat",
+		Objective:       "Ship parity",
+		Status:          GoalStatusBudgetLimited,
+		TokenBudget:     &budget,
+		Usage:           GoalUsage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25},
+		TimeUsedSeconds: 7,
+	}
+
+	projected := ThreadGoalFromGoal(item)
+	if projected.ThreadID != item.SessionKey ||
+		projected.Status != ThreadGoalStatusBudgetLimited ||
+		projected.TokenBudget == nil ||
+		*projected.TokenBudget != budget ||
+		projected.TokensUsed != 25 ||
+		projected.TimeUsedSeconds != 7 {
+		t.Fatalf("ThreadGoalFromGoal() = %#v", projected)
+	}
+}
+
 func TestGoalUsageBudgetTokensExcludeCachedAndReasoningTokens(t *testing.T) {
 	usage := GoalUsage{
 		InputTokens:              100,

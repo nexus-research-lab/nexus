@@ -171,6 +171,9 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/goals/{goal_id}/complete"), s.handlers.goal.HandleCompleteGoal)
 	s.router.Post(s.prefixPath("/goals/{goal_id}/block"), s.handlers.goal.HandleBlockGoal)
 	s.router.Get(s.prefixPath("/goals/{goal_id}/events"), s.handlers.goal.HandleGoalEvents)
+	s.router.Post(s.prefixPath("/app-server/thread/goal/set"), s.handlers.goal.HandleThreadGoalSet)
+	s.router.Post(s.prefixPath("/app-server/thread/goal/get"), s.handlers.goal.HandleThreadGoalGet)
+	s.router.Post(s.prefixPath("/app-server/thread/goal/clear"), s.handlers.goal.HandleThreadGoalClear)
 }
 
 // mountPlaceholderRoutes 挂载保留占位路由。

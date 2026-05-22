@@ -204,6 +204,96 @@ func TestServiceRuntimeContextSkipsCompletedGoal(t *testing.T) {
 	}
 }
 
+func TestServiceSetFromThreadGoalParamsCreatesAndUpdatesGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Ship app-server parity"
+	paused := protocol.ThreadGoalStatusPaused
+	budget := int64(120)
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:    threadID,
+		Objective:   &objective,
+		Status:      &paused,
+		TokenBudget: optionalBudget(budget),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.SessionKey != threadID || created.Status != protocol.GoalStatusPaused || created.TokenBudget == nil || *created.TokenBudget != budget {
+		t.Fatalf("created = %#v, want paused app-server goal with budget", created)
+	}
+
+	usageLimited := protocol.ThreadGoalStatusUsageLimited
+	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID: threadID,
+		Status:   &usageLimited,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ID != created.ID || updated.Status != protocol.GoalStatusUsageLimited {
+		t.Fatalf("updated = %#v, want same goal usage_limited", updated)
+	}
+}
+
+func TestServiceSetFromThreadGoalParamsRequiresObjectiveWhenMissing(t *testing.T) {
+	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
+	active := protocol.ThreadGoalStatusActive
+
+	_, err := service.SetFromThreadGoalParams(context.Background(), protocol.ThreadGoalSetParams{
+		ThreadID: "agent:nexus:ws:dm:missing",
+		Status:   &active,
+	})
+	if !errors.Is(err, ErrGoalNotFound) {
+		t.Fatalf("SetFromThreadGoalParams() error = %v, want ErrGoalNotFound", err)
+	}
+}
+
+func TestServiceSetFromThreadGoalParamsPreservesBudgetLimitedGoal(t *testing.T) {
+	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Keep polishing"
+	budget := int64(10)
+	budgetLimited := protocol.ThreadGoalStatusBudgetLimited
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:    threadID,
+		Objective:   &objective,
+		Status:      &budgetLimited,
+		TokenBudget: optionalBudget(budget),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("created status = %q, want budget_limited", created.Status)
+	}
+
+	for _, status := range []protocol.ThreadGoalStatus{
+		protocol.ThreadGoalStatusPaused,
+		protocol.ThreadGoalStatusBlocked,
+	} {
+		updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+			ThreadID: threadID,
+			Status:   &status,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Status != protocol.GoalStatusBudgetLimited {
+			t.Fatalf("status %q updated goal to %q, want budget_limited", status, updated.Status)
+		}
+	}
+}
+
 func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)

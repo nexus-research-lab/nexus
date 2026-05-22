@@ -22,9 +22,23 @@ func canTransition(source protocol.GoalUpdateSource, from protocol.GoalStatus, t
 		return to == protocol.GoalStatusBlocked ||
 			to == protocol.GoalStatusBudgetLimited ||
 			to == protocol.GoalStatusUsageLimited
+	case protocol.GoalUpdateSourceExternal:
+		return canExternalTransition(from, to)
 	default:
 		return canUserTransition(from, to)
 	}
+}
+
+func canExternalTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {
+	if from == protocol.GoalStatusCleared || to == protocol.GoalStatusCleared {
+		return false
+	}
+	return to == protocol.GoalStatusActive ||
+		to == protocol.GoalStatusPaused ||
+		to == protocol.GoalStatusBlocked ||
+		to == protocol.GoalStatusBudgetLimited ||
+		to == protocol.GoalStatusUsageLimited ||
+		to == protocol.GoalStatusComplete
 }
 
 func canUserTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {

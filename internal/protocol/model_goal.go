@@ -24,9 +24,10 @@ const (
 type GoalUpdateSource string
 
 const (
-	GoalUpdateSourceUser   GoalUpdateSource = "user"
-	GoalUpdateSourceModel  GoalUpdateSource = "model"
-	GoalUpdateSourceSystem GoalUpdateSource = "system"
+	GoalUpdateSourceUser     GoalUpdateSource = "user"
+	GoalUpdateSourceModel    GoalUpdateSource = "model"
+	GoalUpdateSourceSystem   GoalUpdateSource = "system"
+	GoalUpdateSourceExternal GoalUpdateSource = "external"
 )
 
 // GoalUsage 记录 Goal 长程执行累计用量。

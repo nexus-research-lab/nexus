@@ -43,7 +43,7 @@ export interface GoalEvent {
   goal_id: string;
   session_key: string;
   event_type: string;
-  source: "user" | "model" | "system";
+  source: "user" | "model" | "system" | "external";
   round_id?: string;
   payload?: Record<string, unknown>;
   created_at: string;
