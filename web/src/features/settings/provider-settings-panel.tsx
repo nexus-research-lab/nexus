@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type {
@@ -255,6 +256,15 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       set_selected_provider(null);
     }
     set_draft(build_provider_draft(!providers.some((item) => item.provider_kind === "llm")));
+  }, [providers]);
+
+  const handle_provider_kind_change = useCallback((value: string) => {
+    const provider_kind = value === "image_generation" ? "image_generation" : "llm";
+    set_draft((current) => ({
+      ...current,
+      provider_kind,
+      is_default: !providers.some((item) => item.provider_kind === provider_kind),
+    }));
   }, [providers]);
 
   const handle_cancel = useCallback(() => {
@@ -546,20 +556,18 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.kind")}
                       </span>
-                      <select
-                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
-                        onChange={(event) => set_draft((current) => ({
-                          ...current,
-                          provider_kind: event.target.value === "image_generation" ? "image_generation" : "llm",
-                          is_default: event.target.value === "image_generation"
-                            ? !providers.some((item) => item.provider_kind === "image_generation")
-                            : !providers.some((item) => item.provider_kind === "llm"),
-                        }))}
+                      <UiSelectMenu
+                        aria_label={t("settings.providers.kind")}
+                        button_class_name="dialog-input"
+                        class_name="h-9"
+                        on_change={handle_provider_kind_change}
+                        options={[
+                          { value: "llm", label: t("settings.providers.kind_llm") },
+                          { value: "image_generation", label: t("settings.providers.kind_image_generation") },
+                        ]}
+                        size="sm"
                         value={draft.provider_kind}
-                      >
-                        <option value="llm">{t("settings.providers.kind_llm")}</option>
-                        <option value="image_generation">{t("settings.providers.kind_image_generation")}</option>
-                      </select>
+                      />
                     </label>
 
                     <label className="space-y-1.5 md:col-span-2">

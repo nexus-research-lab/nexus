@@ -11,7 +11,6 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { UiPanel } from "@/shared/ui/panel";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 import {
   CapabilityPageLayout,
@@ -30,6 +29,30 @@ interface FeedbackState {
 }
 
 const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
+
+interface ScheduledMetricItemProps {
+  description: string;
+  label: string;
+  value: number;
+}
+
+function ScheduledMetricItem({ description, label, value }: ScheduledMetricItemProps) {
+  return (
+    <div className="min-w-0 py-3 md:px-4 md:first:pl-0 md:last:pr-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-muted)">
+        {label}
+      </p>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <p className="text-[28px] font-semibold tracking-[-0.04em] text-(--text-strong)">
+          {value}
+        </p>
+        <p className="min-w-0 truncate text-[12px] leading-5 text-(--text-muted)">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function notify_scheduled_tasks_mutated(agent_id: string) {
   if (typeof window === "undefined") {
@@ -278,59 +301,39 @@ export function ScheduledTasksDirectory() {
           title={t("capability.scheduled_intro_title")}
         >
           <CapabilitySectionHeader title={t("capability.scheduled_overview_title")} />
-          <section className="mb-5 grid gap-3 md:grid-cols-3">
-            <UiPanel radius="lg">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                执行中的任务
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-                {running_count}
-              </p>
-              <p className="mt-1 text-sm text-(--text-default)">
-                当前有多少任务正在占用执行会话
-              </p>
-            </UiPanel>
-            <UiPanel radius="lg">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                已启用
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-                {enabled_count}
-              </p>
-              <p className="mt-1 text-sm text-(--text-default)">
-                后续还会继续参与调度的任务数量
-              </p>
-            </UiPanel>
-            <UiPanel radius="lg">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                已暂停
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-                {paused_count}
-              </p>
-              <p className="mt-1 text-sm text-(--text-default)">
-                仍保留在列表里，但暂时不会再自动触发
-              </p>
-            </UiPanel>
+          <section className="mb-7 grid gap-0 divide-y divide-(--divider-subtle-color) border-b border-(--divider-subtle-color) pb-2 md:grid-cols-3 md:divide-x md:divide-y-0">
+            <ScheduledMetricItem
+              description="当前占用执行会话"
+              label="执行中"
+              value={running_count}
+            />
+            <ScheduledMetricItem
+              description="后续继续参与调度"
+              label="已启用"
+              value={enabled_count}
+            />
+            <ScheduledMetricItem
+              description="暂时不会自动触发"
+              label="已暂停"
+              value={paused_count}
+            />
           </section>
 
-          <div className="min-h-full">
-            <ScheduledTaskList
-              error_message={automation.tasks_error}
-              is_loading={automation.tasks_loading}
-              items={automation.scheduled_tasks}
-              on_create={() => set_is_dialog_open(true)}
-              on_open_history={set_history_task}
-              on_refresh={() => void refresh_tasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
-              on_run_now={(task) => void handle_run_now(task)}
-              on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
-              on_delete={(task) => void handle_delete(task)}
-              on_edit={set_editing_task}
-              delete_pending_job_id={delete_pending_job_id}
-              run_pending_job_id={run_pending_job_id}
-              toggle_pending_job_id={toggle_pending_job_id}
-            />
-          </div>
+          <ScheduledTaskList
+            error_message={automation.tasks_error}
+            is_loading={automation.tasks_loading}
+            items={automation.scheduled_tasks}
+            on_create={() => set_is_dialog_open(true)}
+            on_open_history={set_history_task}
+            on_refresh={() => void refresh_tasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
+            on_run_now={(task) => void handle_run_now(task)}
+            on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
+            on_delete={(task) => void handle_delete(task)}
+            on_edit={set_editing_task}
+            delete_pending_job_id={delete_pending_job_id}
+            run_pending_job_id={run_pending_job_id}
+            toggle_pending_job_id={toggle_pending_job_id}
+          />
         </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 

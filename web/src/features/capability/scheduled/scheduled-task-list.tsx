@@ -4,8 +4,7 @@ import { Clock3, History, Pencil, Play, Trash2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button";
 import { UiMetaGrid, UiMetaItem } from "@/shared/ui/meta-grid";
-import { UiPanel, UiSectionHeader } from "@/shared/ui/panel";
-import { UiSkeletonCardList } from "@/shared/ui/skeleton";
+import { UiSkeleton } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import {
@@ -183,6 +182,25 @@ function sort_tasks(items: ScheduledTaskItem[]): ScheduledTaskItem[] {
   });
 }
 
+function ScheduledTaskLoadingRows() {
+  return (
+    <div className="divide-y divide-(--divider-subtle-color)">
+      {Array.from({ length: 3 }, (_, index) => (
+        <div className="py-4 first:pt-0" key={index}>
+          <div className="flex items-start gap-3">
+            <UiSkeleton class_name="mt-1 h-9 w-9 rounded-[12px]" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <UiSkeleton class_name="h-4 w-40" />
+              <UiSkeleton class_name="h-3 w-full max-w-[520px]" />
+              <UiSkeleton class_name="h-3 w-3/5" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface ScheduledTaskListProps {
   items: ScheduledTaskItem[];
   is_loading: boolean;
@@ -217,16 +235,24 @@ export function ScheduledTaskList({
   const sorted_items = sort_tasks(items);
 
   return (
-    <UiPanel class_name="flex min-h-[360px] flex-col" radius="lg">
-      <UiSectionHeader
-        description={`共 ${items.length} 个任务，可查看任务落在哪个会话里执行，以及结果回到哪里。`}
-        icon={<Clock3 className="h-4 w-4" />}
-        title="任务清单"
-      />
+    <section className="min-h-[320px]">
+      <div className="mb-3 flex items-start justify-between gap-3 border-b border-(--divider-subtle-color) pb-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <Clock3 className="mt-1 h-4 w-4 shrink-0 text-(--icon-default)" />
+          <div className="min-w-0">
+            <h2 className="text-[18px] font-medium tracking-[-0.025em] text-(--text-strong)">
+              任务清单
+            </h2>
+            <p className="text-[12px] leading-5 text-(--text-muted)">
+              共 {items.length} 个任务，可查看任务落在哪个会话里执行，以及结果回到哪里。
+            </p>
+          </div>
+        </div>
+      </div>
 
-      <div className="soft-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
+      <div className="soft-scrollbar min-h-0">
         {is_loading ? (
-          <UiSkeletonCardList count={3} />
+          <ScheduledTaskLoadingRows />
         ) : error_message ? (
           <UiStateBlock
             actions={(
@@ -237,6 +263,7 @@ export function ScheduledTaskList({
             description={error_message}
             title="任务列表加载失败"
             tone="danger"
+            variant="plain"
           />
         ) : items.length === 0 ? (
           <UiStateBlock
@@ -246,8 +273,9 @@ export function ScheduledTaskList({
               </WorkspaceCatalogTextAction>
             )}
             description="新建第一个自动化任务后，这里会显示任务在哪个会话里执行、结果回到哪里，以及最近运行情况。"
-            icon={<Clock3 className="h-6 w-6 text-(--icon-strong)" />}
+            size="sm"
             title="还没有定时任务"
+            variant="plain"
           />
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
@@ -346,6 +374,6 @@ export function ScheduledTaskList({
           </div>
         )}
       </div>
-    </UiPanel>
+    </section>
   );
 }
