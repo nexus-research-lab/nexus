@@ -1,20 +1,21 @@
 "use client";
 
-import { Check, ExternalLink, KeyRound, Link2, Shield, Unplug, X } from "lucide-react";
-import { useCallback } from "react";
+import { Check, ExternalLink, KeyRound, Link2, Shield, Unplug } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
-  DIALOG_HEADER_ICON_CLASS_NAME,
-  DIALOG_HEADER_LEADING_CLASS_NAME,
-  DIALOG_TAG_CLASS_NAME,
-  DIALOG_TEXT_BUTTON_CLASS_NAME,
-  get_dialog_action_class_name,
-  get_dialog_note_class_name,
-  get_dialog_note_style,
-} from "@/shared/ui/dialog/dialog-styles";
-import { ConnectorDetail } from "@/types/capability/connector";
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiButton } from "@/shared/ui/button";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { UiPanel } from "@/shared/ui/panel";
+import { UiStateBlock } from "@/shared/ui/state-block";
+import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { get_connector_colors, get_connector_letter } from "./connector-icons";
 
@@ -38,13 +39,6 @@ export function ConnectorDetailDialog({
   on_disconnect,
   on_configure_oauth_client,
 }: ConnectorDetailDialogProps) {
-  const handle_backdrop_click = useCallback(
-    (event: React.MouseEvent) => {
-      if (event.target === event.currentTarget) on_close();
-    },
-    [on_close],
-  );
-
   const colors = detail ? get_connector_colors(detail.icon) : { bg: "bg-(--surface-panel-subtle-background)", text: "text-(--text-muted)" };
   const letter = detail ? get_connector_letter(detail.icon, detail.title) : "?";
   const is_connected = detail?.connection_state === "connected";
@@ -56,16 +50,13 @@ export function ConnectorDetailDialog({
   if (!detail && !loading) return null;
 
   return (
-    <div
-      className="dialog-backdrop"
-      onClick={handle_backdrop_click}
-    >
-      <div className="dialog-shell relative flex max-h-[84vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl">
-        <div className="dialog-header">
-          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+    <UiDialogBackdrop on_close={on_close}>
+      <UiDialogShell class_name="max-h-[84vh]" size="md">
+        <UiDialogHeader on_close={on_close}>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <div
               className={cn(
-                DIALOG_HEADER_ICON_CLASS_NAME,
+                "dialog-card flex shrink-0 items-center justify-center",
                 "h-14 w-14 rounded-[20px] border border-white/50 text-base font-bold",
                 colors.bg,
                 colors.text,
@@ -86,48 +77,38 @@ export function ConnectorDetailDialog({
               )}
             </div>
           </div>
-          <button
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            aria-label="关闭"
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        </UiDialogHeader>
 
-        <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1">
+        <UiDialogBody scrollable>
           {loading ? (
-            <div className="flex min-h-32 items-center justify-center text-sm text-(--text-soft)">
-              加载中…
-            </div>
+            <UiStateBlock size="sm" title="加载中..." variant="plain" />
           ) : detail ? (
             <div className="space-y-5">
               <div className="flex flex-wrap gap-2">
                 {is_connected ? (
-                  <span className={cn(DIALOG_TAG_CLASS_NAME, "text-emerald-700")}>
+                  <UiBadge tone="success">
                     <Check className="h-3.5 w-3.5" />
                     已连接
-                  </span>
+                  </UiBadge>
                 ) : is_coming_soon ? (
-                  <span className={DIALOG_TAG_CLASS_NAME}>
+                  <UiBadge>
                     即将推出
-                  </span>
+                  </UiBadge>
                 ) : !is_configured ? (
-                  <span className={cn(DIALOG_TAG_CLASS_NAME, "text-amber-700")}>
+                  <UiBadge tone="warning">
                     {requires_oauth_client_config ? "待配置应用" : "后端未配置"}
-                  </span>
+                  </UiBadge>
                 ) : (
-                  <span className={DIALOG_TAG_CLASS_NAME}>
+                  <UiBadge>
                     未连接
-                  </span>
+                  </UiBadge>
                 )}
-                <span className={DIALOG_TAG_CLASS_NAME}>
+                <UiBadge>
                   {detail.auth_type === "oauth2" ? "OAuth 2.0" : detail.auth_type === "api_key" ? "API Key" : detail.auth_type}
-                </span>
-                <span className={DIALOG_TAG_CLASS_NAME}>
+                </UiBadge>
+                <UiBadge>
                   {detail.category}
-                </span>
+                </UiBadge>
               </div>
 
               {detail.features.length > 0 && (
@@ -135,20 +116,23 @@ export function ConnectorDetailDialog({
                   <h3 className="mb-2 text-[13px] font-semibold text-(--text-default)">支持的功能</h3>
                   <div className="grid grid-cols-2 gap-2">
                     {detail.features.map((feature) => (
-                      <div
+                      <UiPanel
                         key={feature}
-                        className="surface-card flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-(--text-muted)"
+                        class_name="flex items-center gap-2 text-[12px] text-(--text-muted)"
+                        padding="sm"
+                        radius="sm"
+                        variant="inset"
                       >
-                        <Check className="h-3 w-3 shrink-0 text-emerald-500" />
+                        <Check className="h-3 w-3 shrink-0 text-(--success)" />
                         {feature}
-                      </div>
+                      </UiPanel>
                     ))}
                   </div>
                 </div>
               )}
 
               {!is_coming_soon && (
-                <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
+                <UiPanel padding="sm" variant="inset">
                   <div className="flex items-center gap-2 text-[13px] font-medium text-(--text-default)">
                     <Shield className="h-4 w-4" />
                     安全授权
@@ -156,18 +140,16 @@ export function ConnectorDetailDialog({
                   <p className="mt-1 text-[12px] leading-relaxed text-(--text-muted)">
                     连接后，Agent 将通过安全的 MCP 协议访问此应用。你可以随时断开连接并撤销授权。
                   </p>
-                </div>
+                </UiPanel>
               )}
 
               {!is_connected && !is_coming_soon && !is_configured && detail.config_error && !requires_oauth_client_config ? (
-                <div className={get_dialog_note_class_name("danger")} style={get_dialog_note_style("danger")}>
-                  {detail.config_error}
-                </div>
+                <UiStateBlock description={detail.config_error} size="sm" title="配置不可用" tone="danger" />
               ) : null}
 
               {detail.docs_url && (
                 <a
-                  className={DIALOG_TEXT_BUTTON_CLASS_NAME}
+                  className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
                   href={detail.docs_url}
                   rel="noopener noreferrer"
                   target="_blank"
@@ -178,54 +160,58 @@ export function ConnectorDetailDialog({
               )}
             </div>
           ) : null}
-        </div>
+        </UiDialogBody>
 
         {detail && !is_coming_soon && (
-          <div className="dialog-footer flex-wrap gap-2">
+          <UiDialogFooter class_name="flex-wrap gap-2">
             {requires_oauth_client_config && !is_connected ? (
-              <button
-                className={get_dialog_action_class_name(oauth_client_configured ? "default" : "primary", "compact")}
+              <UiButton
                 disabled={busy}
                 onClick={() => on_configure_oauth_client(detail)}
+                size="sm"
+                tone={oauth_client_configured ? "default" : "primary"}
                 type="button"
+                variant={oauth_client_configured ? "surface" : "solid"}
               >
                 <KeyRound className="h-3.5 w-3.5" />
                 配置应用
-              </button>
+              </UiButton>
             ) : null}
             {is_connected ? (
-              <button
-                className={get_dialog_action_class_name("default")}
+              <UiButton
                 disabled={busy}
                 onClick={() => on_disconnect(detail.connector_id)}
+                size="sm"
                 type="button"
               >
                 <Unplug className="h-3.5 w-3.5" />
                 断开连接
-              </button>
+              </UiButton>
             ) : is_configured ? (
-              <button
-                className={get_dialog_action_class_name("primary")}
+              <UiButton
                 disabled={busy}
                 onClick={() => on_connect(detail.connector_id)}
+                size="sm"
+                tone="primary"
                 type="button"
+                variant="solid"
               >
                 <Link2 className="h-3.5 w-3.5" />
                 授权连接
-              </button>
+              </UiButton>
             ) : requires_oauth_client_config ? null : (
-              <button
-                className={get_dialog_action_class_name("default")}
+              <UiButton
                 disabled
+                size="sm"
                 type="button"
               >
                 <Shield className="h-3.5 w-3.5" />
                 后端未配置
-              </button>
+              </UiButton>
             )}
-          </div>
+          </UiDialogFooter>
         )}
-      </div>
-    </div>
+      </UiDialogShell>
+    </UiDialogBackdrop>
   );
 }

@@ -28,7 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 抽取共享 `list-row` 列表行，统一聊天侧栏、联系人侧栏和 Room 成员选择/管理列表的 active、hover、操作区与键盘触发行为。
 - 抽取共享 `panel` 与 `skeleton` 控件，统一能力、设置和定时任务页面的面板容器、区块标题与加载骨架。
 - 收口 Memory 页面和 Agent 记忆 tab 的状态徽标、时间展示、输入框、按钮和面板样式，移除重复的记忆展示逻辑。
+- 连接器详情、OAuth Client 配置和 GitHub Device Flow 弹窗改用共享 Dialog、Button 与 Panel 控件，减少旧弹窗手写结构。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
+- 优化 Markdown 流式 URL 渲染：流式尾部 URL 暂缓成链接，外链协议白名单收紧，并压缩裸 URL 的显示长度。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

@@ -1,21 +1,21 @@
 "use client";
 
-import { Check, Copy, ExternalLink, KeyRound, Save, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Check, Copy, ExternalLink, KeyRound, Save, Trash2 } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 
 import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { cn } from "@/lib/utils";
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
-  DIALOG_HEADER_ICON_CLASS_NAME,
-  DIALOG_HEADER_LEADING_CLASS_NAME,
-  DIALOG_TEXT_BUTTON_CLASS_NAME,
-  get_dialog_action_class_name,
-  get_dialog_note_class_name,
-  get_dialog_note_style,
-} from "@/shared/ui/dialog/dialog-styles";
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogFormShell,
+  UiDialogHeader,
+} from "@/shared/ui/dialog/dialog";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { UiInput } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 interface ConnectorOAuthClientDialogProps {
@@ -43,15 +43,8 @@ export function ConnectorOAuthClientDialog({
     set_client_secret("");
   }, [detail?.connector_id, detail?.oauth_client_id]);
 
-  const handle_backdrop_click = useCallback(
-    (event: React.MouseEvent) => {
-      if (event.target === event.currentTarget) on_close();
-    },
-    [on_close],
-  );
-
   const handle_submit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!detail) return;
       on_save(detail.connector_id, client_id, client_secret);
@@ -67,42 +60,24 @@ export function ConnectorOAuthClientDialog({
   const provider_name = detail.connector_id === "feishu-docx" ? "飞书开放平台应用" : "OAuth 应用";
 
   return (
-    <div
-      className="dialog-backdrop"
-      onClick={handle_backdrop_click}
-    >
-      <div className="dialog-shell relative flex max-h-[84vh] w-full max-w-[420px] flex-col overflow-hidden rounded-3xl">
-        <div className="dialog-header">
-          <div className={DIALOG_HEADER_LEADING_CLASS_NAME}>
-            <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-9 w-9 rounded-[14px]")}>
-              <KeyRound className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="dialog-title">配置应用</h2>
-              <p className="dialog-subtitle">{detail.title}</p>
-            </div>
-          </div>
-          <button
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            aria-label="关闭"
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <UiDialogBackdrop on_close={on_close}>
+      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handle_submit} size="sm">
+        <UiDialogHeader
+          icon={<KeyRound className="h-4 w-4" />}
+          icon_class_name="h-9 w-9 rounded-[14px]"
+          on_close={on_close}
+          subtitle={detail.title}
+          title="配置应用"
+        />
 
-        <form className="dialog-body space-y-3" onSubmit={handle_submit}>
-          <div
-            className={get_dialog_note_class_name("default", "px-3 py-2.5 text-[12px] leading-relaxed")}
-            style={get_dialog_note_style("default")}
-          >
+        <UiDialogBody class_name="space-y-3" scrollable>
+          <UiPanel class_name="text-[12px] leading-relaxed" padding="sm" variant="inset">
             在{provider_name}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
-          </div>
+          </UiPanel>
 
           {detail.docs_url ? (
             <a
-              className={DIALOG_TEXT_BUTTON_CLASS_NAME}
+              className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
               href={detail.docs_url}
               rel="noopener noreferrer"
               target="_blank"
@@ -114,20 +89,21 @@ export function ConnectorOAuthClientDialog({
 
           <div className="space-y-1">
             <div className="text-[12px] font-medium text-(--text-muted)">Callback URL</div>
-            <div className="dialog-card flex min-h-9 items-center gap-2 rounded-[10px] px-3 py-1.5">
+            <UiPanel class_name="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
               <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-(--text-strong)">
                 {callback_url}
               </code>
-              <button
+              <UiIconButton
                 aria-label={callback_url_copied ? "已复制 Callback URL" : "复制 Callback URL"}
-                className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, "h-7 w-7 shrink-0 rounded-[9px]")}
+                class_name="shrink-0"
                 onClick={() => void copy_callback_url(callback_url)}
+                size="sm"
                 title={callback_url_copied ? "已复制" : "复制 Callback URL"}
                 type="button"
               >
                 {callback_url_copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </div>
+              </UiIconButton>
+            </UiPanel>
           </div>
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
@@ -160,31 +136,34 @@ export function ConnectorOAuthClientDialog({
               value={client_secret}
             />
           </label>
-        </form>
+        </UiDialogBody>
 
-        <div className="dialog-footer flex-wrap gap-1.5">
+        <UiDialogFooter class_name="flex-wrap gap-1.5">
           {is_configured ? (
-            <button
-              className={get_dialog_action_class_name("danger", "compact")}
+            <UiButton
               disabled={busy}
               onClick={() => on_delete(detail.connector_id)}
+              size="sm"
+              tone="danger"
               type="button"
+              variant="surface"
             >
               <Trash2 className="h-3.5 w-3.5" />
               删除配置
-            </button>
+            </UiButton>
           ) : null}
-          <button
-            className={get_dialog_action_class_name("primary", "compact")}
+          <UiButton
             disabled={busy || !can_save}
-            onClick={() => on_save(detail.connector_id, client_id, client_secret)}
-            type="button"
+            size="sm"
+            tone="primary"
+            type="submit"
+            variant="solid"
           >
             <Save className="h-3.5 w-3.5" />
             保存配置
-          </button>
-        </div>
-      </div>
-    </div>
+          </UiButton>
+        </UiDialogFooter>
+      </UiDialogFormShell>
+    </UiDialogBackdrop>
   );
 }
