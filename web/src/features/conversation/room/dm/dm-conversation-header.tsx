@@ -17,7 +17,7 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/controls/workspace-conversation-switcher";
+import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -62,15 +62,13 @@ const DmConversationHeaderView = memo(({
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
-  const title_trailing = (
-    <WorkspaceConversationSwitcher
+  const conversation_tabs = (
+    <WorkspaceConversationTabs
       conversations={conversations}
       conversation_id={conversation_id}
-      density="compact"
-      trigger_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
-      on_select_conversation={on_select_conversation}
       on_create_conversation={on_create_conversation}
-      on_view_history={() => on_change_tab("history")}
+      on_select_conversation={on_select_conversation}
+      tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
 
@@ -89,10 +87,10 @@ const DmConversationHeaderView = memo(({
         <Bot size={14} className="text-(--icon-default)" />
       )}
       on_change_tab={on_change_tab}
+      tabs_leading={conversation_tabs}
       tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
       tabs={dm_tabs}
       title={header_title}
-      title_trailing={title_trailing}
       trailing={on_replay_tour ? (
         <div className="flex items-center gap-2">
           <WorkspaceSurfaceToolbarAction onClick={on_replay_tour}>

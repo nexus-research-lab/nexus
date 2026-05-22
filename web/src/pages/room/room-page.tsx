@@ -103,8 +103,12 @@ export function RoomPage() {
 
   const handleDeleteConversation = useCallback(async (conversation_id: string) => {
     const route_room_id = params.room_id;
+    const is_deleting_active_conversation = conversation_id === controller.conversation_id;
     const next_conversation_id = await controller.handle_delete_conversation(conversation_id);
     if (!route_room_id) {
+      return next_conversation_id;
+    }
+    if (!is_deleting_active_conversation) {
       return next_conversation_id;
     }
     if (next_conversation_id) {

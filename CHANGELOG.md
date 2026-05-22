@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 联系人详情新增 Agent 记忆 tab，并提供记忆搜索、筛选、删除和脏数据清理入口。
 
 ### Changed
+- 将 DM/Room 会话切换收口为 Safari 风格标签栏，支持固定新会话入口、会话标签关闭与右侧固定视图入口。
 - Room 聊天区点击 Agent 头像可直接打开右侧简介面板，并跳转到该 Agent 的联络 tab。
 - 优化 Room 右侧简介面板的联络预览密度，减少窄侧栏下的强边框和大卡片压迫感。
 - Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览撑满剩余高度并使用左右分栏，顶部「简介」入口默认打开联络；联络标题和刷新入口收进左侧列表栏。

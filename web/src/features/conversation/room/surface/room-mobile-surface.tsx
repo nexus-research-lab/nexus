@@ -195,7 +195,7 @@ export function RoomMobileSurface({
                         {conversation.title?.trim() || "未命名会话"}
                       </p>
                       <p className="mt-1 text-xs text-(--text-muted)">
-                        {format_relative_time(conversation.last_activity_at)} · {conversation.message_count ?? 0} 条
+                        {format_relative_time(conversation.last_activity_at)}
                       </p>
                     </div>
                   </button>

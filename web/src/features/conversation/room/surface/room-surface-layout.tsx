@@ -94,51 +94,53 @@ export function RoomSurfaceLayout(props: RoomSurfaceLayoutProps) {
 }
 
 function RoomSurfaceLayoutInner({
-                                    current_agent,
-                                    current_room_type,
-                                    room_id,
-                                    room_avatar,
-                                    room_members,
-                                    available_room_agents,
-                                    current_room_title,
-                                    room_skill_names,
-                                    room_host_agent_id,
-                                    room_host_auto_reply_enabled,
-                                    current_agent_session_identity,
-                                    conversation_id,
-                                    current_room_conversations,
-                                    active_workspace_path,
-                                    active_surface_tab,
-                                    initial_draft = null,
-                                    on_initial_draft_consumed,
-                                    is_editor_open,
-                                    editor_width_percent,
-                                    is_resizing_editor,
-                                    is_conversation_busy,
-                                    current_todos,
-                                    workspace_split_ref,
-                                    on_replay_tour,
-                                    on_change_surface_tab,
-                                    on_create_conversation,
-                                    on_select_conversation,
-                                    on_delete_conversation,
-                                    on_add_room_member,
-                                    on_remove_room_member,
-                                    on_open_member_manager,
-                                    on_save_agent_options,
-                                    on_validate_agent_name,
-                                    on_update_room,
-                                    on_update_conversation_title,
-                                    on_open_workspace_file,
-                                    on_start_editor_resize,
-                                    on_loading_change,
-                                    on_todos_change,
-                                    on_conversation_snapshot_change,
-                                    on_room_event,
-                                  }: RoomSurfaceLayoutProps) {
+  current_agent,
+  current_room_type,
+  room_id,
+  room_avatar,
+  room_members,
+  available_room_agents,
+  current_room_title,
+  room_skill_names,
+  room_host_agent_id,
+  room_host_auto_reply_enabled,
+  current_agent_session_identity,
+  conversation_id,
+  current_room_conversations,
+  active_workspace_path,
+  active_surface_tab,
+  initial_draft = null,
+  on_initial_draft_consumed,
+  is_editor_open,
+  editor_width_percent,
+  is_resizing_editor,
+  current_todos,
+  workspace_split_ref,
+  on_replay_tour,
+  on_change_surface_tab,
+  on_create_conversation,
+  on_select_conversation,
+  on_delete_conversation,
+  on_add_room_member,
+  on_remove_room_member,
+  on_open_member_manager,
+  on_save_agent_options,
+  on_validate_agent_name,
+  on_update_room,
+  on_update_conversation_title,
+  on_open_workspace_file,
+  on_start_editor_resize,
+  on_loading_change,
+  on_todos_change,
+  on_conversation_snapshot_change,
+  on_room_event,
+}: RoomSurfaceLayoutProps) {
   const is_dm = current_room_type === "dm";
   const is_auxiliary_panel_open = active_surface_tab !== "chat";
-  const is_wide_auxiliary_panel = active_surface_tab === "workspace" || active_surface_tab === "about";
+  const is_wide_auxiliary_panel =
+    active_surface_tab === "history" ||
+    active_surface_tab === "workspace" ||
+    active_surface_tab === "about";
   const [about_request, set_about_request] = useState<{
     agent_id: string | null;
     tab: RoomAgentAboutRequestedTab;
@@ -179,7 +181,7 @@ function RoomSurfaceLayoutInner({
 
   const auxiliary_close_action = (
     <WorkspaceSurfaceToolbarAction onClick={handle_close_auxiliary_panel}>
-      <X className="h-3.5 w-3.5"/>
+      <X className="h-3.5 w-3.5" />
       关闭
     </WorkspaceSurfaceToolbarAction>
   );

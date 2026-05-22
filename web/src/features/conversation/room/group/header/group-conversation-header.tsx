@@ -17,7 +17,7 @@ import {
   WorkspaceSurfaceToolbarAction,
   WorkspaceTaskStrip,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
-import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/controls/workspace-conversation-switcher";
+import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 import { UpdateRoomParams } from "@/types/conversation/room";
@@ -154,15 +154,13 @@ const GroupConversationHeaderView = memo(({
     set_is_member_list_open(true);
   };
 
-  const title_trailing = (
-    <WorkspaceConversationSwitcher
+  const conversation_tabs = (
+    <WorkspaceConversationTabs
       conversations={conversations}
       conversation_id={conversation_id}
-      density="compact"
-      trigger_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
       on_create_conversation={on_create_conversation}
       on_select_conversation={on_select_conversation}
-      on_view_history={() => on_change_tab("history")}
+      tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
 
@@ -202,9 +200,9 @@ const GroupConversationHeaderView = memo(({
         )}
         on_change_tab={on_change_tab}
         tabs={room_tabs}
+        tabs_leading={conversation_tabs}
         tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
         title={header_title}
-        title_trailing={title_trailing}
         trailing={trailing}
       />
 

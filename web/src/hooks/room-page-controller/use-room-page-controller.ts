@@ -205,7 +205,6 @@ export function useRoomPageController({
       : undefined;
 
     const next_snapshot = {
-      message_count: snapshot.message_count,
       ...(snapshot.last_activity_at ? { last_activity_at: snapshot.last_activity_at } : {}),
       session_id: snapshot.session_id,
     };
@@ -224,10 +223,8 @@ export function useRoomPageController({
 
         let context_changed = false;
         const next_conversation_updated_at = next_last_activity_at ?? context.conversation.updated_at;
-        const next_conversation_message_count = snapshot.message_count;
         const conversation_changed =
-          context.conversation.updated_at !== next_conversation_updated_at ||
-          (context.conversation.message_count ?? 0) !== next_conversation_message_count;
+          context.conversation.updated_at !== next_conversation_updated_at;
 
         const next_sessions = context.sessions.map((session) => {
           if (!snapshot_room_session_id || session.id !== snapshot_room_session_id) {
@@ -264,7 +261,6 @@ export function useRoomPageController({
           ...context,
           conversation: {
             ...context.conversation,
-            message_count: next_conversation_message_count,
             updated_at: next_conversation_updated_at,
           },
           sessions: next_sessions,

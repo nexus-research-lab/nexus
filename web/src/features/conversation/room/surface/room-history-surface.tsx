@@ -1,10 +1,14 @@
 "use client";
 
-import { ReactNode, useCallback, useState } from "react";
-import { Check, Clock3, MessageSquarePlus, Pencil, TextCursorInput, Trash2, X } from "lucide-react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { Check, Clock3, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
 
 import { cn, format_relative_time } from "@/lib/utils";
-import { I18nContextValue, useI18n } from "@/shared/i18n/i18n-context";
+import {
+  ConversationDeleteState,
+  resolve_room_conversation_delete_state,
+} from "@/lib/conversation/room-conversation-delete";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -21,9 +25,15 @@ interface RoomHistorySurfaceProps {
   on_update_conversation_title?: (conversation_id: string, title: string) => Promise<void>;
 }
 
-interface ConversationDeleteState {
-  enabled: boolean;
-  reason: string | null;
+function get_conversation_ids(conversations: RoomConversationView[]): string[] {
+  return conversations.map((conversation) => conversation.conversation_id);
+}
+
+function are_conversation_ids_equal(left_ids: string[], right_ids: string[]): boolean {
+  if (left_ids.length !== right_ids.length) {
+    return false;
+  }
+  return left_ids.every((id, index) => id === right_ids[index]);
 }
 
 export function RoomHistorySurface({
@@ -38,6 +48,38 @@ export function RoomHistorySurface({
   on_update_conversation_title,
 }: RoomHistorySurfaceProps) {
   const { t } = useI18n();
+  const incoming_conversation_ids = useMemo(
+    () => get_conversation_ids(conversations),
+    [conversations],
+  );
+  const [conversation_order_ids, set_conversation_order_ids] = useState<string[]>(() => incoming_conversation_ids);
+  const conversations_by_id = useMemo(
+    () => new Map(conversations.map((conversation) => [conversation.conversation_id, conversation])),
+    [conversations],
+  );
+  const ordered_conversation_ids = useMemo(() => {
+    const live_ids = new Set(incoming_conversation_ids);
+    const existing_ids = conversation_order_ids.filter((id) => live_ids.has(id));
+    const existing_id_set = new Set(existing_ids);
+    const added_ids = incoming_conversation_ids.filter((id) => !existing_id_set.has(id));
+    return [...added_ids, ...existing_ids];
+  }, [conversation_order_ids, incoming_conversation_ids]);
+  const ordered_conversations = useMemo(
+    () => ordered_conversation_ids
+      .map((id) => conversations_by_id.get(id))
+      .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
+    [conversations_by_id, ordered_conversation_ids],
+  );
+
+  useEffect(() => {
+    // 中文注释：历史面板保持浏览时的视觉顺序，避免活跃会话更新时间后整列重排。
+    set_conversation_order_ids((current_ids) => (
+      are_conversation_ids_equal(current_ids, ordered_conversation_ids)
+        ? current_ids
+        : ordered_conversation_ids
+    ));
+  }, [ordered_conversation_ids]);
+
   const create_action = can_manage_conversations ? (
     <WorkspaceSurfaceToolbarAction
       onClick={() => {
@@ -60,19 +102,19 @@ export function RoomHistorySurface({
   return (
     <WorkspaceSurfaceView
       action={action}
-      body_class_name="px-4 py-5 sm:px-5 xl:px-6"
-      content_class_name="space-y-3"
+      body_class_name="px-4 py-3.5 sm:px-5 xl:px-6"
+      content_class_name="space-y-1.5"
       eyebrow={t("room.history")}
-      max_width_class_name="max-w-[820px]"
+      max_width_class_name="max-w-none"
       show_eyebrow={false}
       title={current_room_type === "dm" ? t("room.history_view_title_dm") : t("room.history_view_title")}
     >
-      {conversations.length > 0 ? (
-        <div className="space-y-3">
-          {conversations.map((conversation) => {
-            const delete_state = resolve_conversation_delete_state(
+      {ordered_conversations.length > 0 ? (
+        <div className="space-y-1.5">
+          {ordered_conversations.map((conversation) => {
+            const delete_state = resolve_room_conversation_delete_state(
               conversation,
-              conversations.length,
+              ordered_conversations.length,
               can_manage_conversations,
               t,
             );
@@ -162,32 +204,32 @@ function ConversationHistoryItem({
   return (
     <article
       className={cn(
-        "group relative w-full rounded-[22px] border p-4 text-left transition duration-(--motion-duration-fast) ease-out",
+        "group relative w-full overflow-hidden rounded-[14px] border px-3 py-2.5 text-left transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast) ease-out",
         is_active
-          ? "border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))]"
-          : "border-(--divider-subtle-color) hover:-translate-y-[1px] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+          ? "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+          : "border-transparent bg-transparent hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_64%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_72%,transparent)]",
       )}
       style={is_active
         ? {
-          background: "color-mix(in srgb, var(--surface-interactive-active-background) 86%, transparent)",
-          boxShadow: "0 14px 30px color-mix(in srgb, var(--primary) 7%, transparent)",
+          background: "color-mix(in srgb, var(--surface-interactive-active-background) 46%, transparent)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.56)",
         }
         : undefined}
     >
       {is_active ? (
         <span
           aria-hidden="true"
-          className="absolute left-0 top-4 bottom-4 w-[2px] rounded-full bg-(--primary)"
+          className="absolute left-0 top-2.5 bottom-2.5 w-px rounded-full bg-(--primary)"
         />
       ) : null}
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           {is_editing ? (
             <div className="flex items-center gap-1.5">
               <input
                 autoFocus
-                className="min-w-0 flex-1 rounded-[12px] border border-(--input-shell-border) bg-transparent px-3 py-2 text-[13px] font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
+                className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-[13px] font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
                 maxLength={64}
                 onChange={(e) => set_edit_value(e.target.value)}
                 onKeyDown={(e) => {
@@ -198,7 +240,7 @@ function ConversationHistoryItem({
               />
               <button
                 aria-label="确认"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
                 onClick={confirm_edit}
                 type="button"
               >
@@ -206,7 +248,7 @@ function ConversationHistoryItem({
               </button>
               <button
                 aria-label="取消"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
                 onClick={cancel_edit}
                 type="button"
               >
@@ -215,55 +257,53 @@ function ConversationHistoryItem({
             </div>
           ) : (
             <button
-              className="block w-full rounded-[14px] text-left outline-none transition duration-(--motion-duration-fast) ease-out focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]"
+              className="block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]"
               onClick={on_select}
               type="button"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-semibold text-(--text-strong)">
+                  <p className="truncate text-[13px] font-semibold text-(--text-strong)">
                     {conversation.title?.trim() || t("room.untitled_conversation")}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-(--text-soft)">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10.5px] text-(--text-soft)">
                     <span className="inline-flex items-center gap-1.5">
-                      <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                      <Clock3 className="h-3 w-3 shrink-0" />
                       <span>{format_relative_time(conversation.last_activity_at)}</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <TextCursorInput className="h-3.5 w-3.5 shrink-0" />
-                      <span>{t("room.message_count_label", { count: conversation.message_count ?? 0 })}</span>
                     </span>
                   </div>
                 </div>
-                {is_active ? (
-                  <span className="mt-0.5 inline-flex shrink-0 items-center rounded-full border border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] px-2 py-0.5 text-[10px] font-semibold text-(--primary)">
-                    {t("room.current_conversation")}
-                  </span>
-                ) : null}
+                <span
+                  aria-hidden={!is_active}
+                  className={cn(
+                    "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-semibold transition-[border-color,color] duration-(--motion-duration-fast)",
+                    is_active
+                      ? "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] text-(--primary)"
+                      : "invisible border-transparent text-transparent",
+                  )}
+                >
+                  {t("room.current_conversation")}
+                </span>
               </div>
             </button>
           )}
 
           {is_editing ? (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-(--text-soft)">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10.5px] text-(--text-soft)">
               <span className="inline-flex items-center gap-1.5">
-                <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                <Clock3 className="h-3 w-3 shrink-0" />
                 <span>{format_relative_time(conversation.last_activity_at)}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <TextCursorInput className="h-3.5 w-3.5 shrink-0" />
-                <span>{t("room.message_count_label", { count: conversation.message_count ?? 0 })}</span>
               </span>
             </div>
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-start gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {!is_editing && can_rename ? (
             <button
               aria-label="重命名"
               className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
+                "inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
                 is_active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
               )}
               onClick={start_edit}
@@ -278,7 +318,7 @@ function ConversationHistoryItem({
               <button
                 aria-label="删除对话"
                 className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--destructive) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
+                  "inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-(--destructive) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
                   is_active ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                 )}
                 onClick={on_delete}
@@ -290,7 +330,7 @@ function ConversationHistoryItem({
               <div className="group/delete-hint relative flex shrink-0 items-center">
                 <button
                   aria-label="当前对话不可删除"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[color:color-mix(in_srgb,var(--destructive)_40%,transparent)]"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] text-[color:color-mix(in_srgb,var(--destructive)_40%,transparent)]"
                   disabled
                   type="button"
                 >
@@ -318,25 +358,4 @@ function ConversationHistoryItem({
       </div>
     </article>
   );
-}
-
-function resolve_conversation_delete_state(
-  conversation: RoomConversationView,
-  conversation_count: number,
-  can_manage_conversations: boolean,
-  t: I18nContextValue["t"],
-): ConversationDeleteState {
-  if (!can_manage_conversations) {
-    return { enabled: false, reason: t("room.delete_no_permission") };
-  }
-
-  if (conversation.conversation_type !== "topic") {
-    return { enabled: false, reason: t("room.delete_main_locked") };
-  }
-
-  if (conversation_count <= 1) {
-    return { enabled: false, reason: t("room.delete_keep_one") };
-  }
-
-  return { enabled: true, reason: null };
 }

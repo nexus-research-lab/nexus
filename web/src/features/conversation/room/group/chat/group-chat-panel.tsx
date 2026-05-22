@@ -30,6 +30,7 @@ import { ConversationErrorBubble } from "@/features/conversation/shared/conversa
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import {
+  build_conversation_activity_snapshot,
   get_room_agent_round_entry,
   get_room_base_round_id,
   get_room_thread_messages,
@@ -38,6 +39,8 @@ import {
   group_room_pending_slots_by_round,
   group_room_messages_by_round,
   is_agent_round_active,
+  should_emit_conversation_activity,
+  type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
 import {
@@ -225,6 +228,8 @@ export function GroupChatPanel({
     session_key,
     history_prepend_token,
   });
+  const last_snapshot_key_ref = useRef<string | null>(null);
+  const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
   const can_control_session = session_control_state !== "observer";
   const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
   const session_control_text = useMemo(
@@ -252,15 +257,38 @@ export function GroupChatPanel({
     if (!conversation_id || messages.length === 0) return;
     const last = messages[messages.length - 1];
     const latest_reply_timestamp = get_latest_reply_timestamp(messages);
-    on_conversation_snapshot_change?.({
+    const should_report_last_activity = should_emit_conversation_activity(
+      last_activity_snapshot_ref.current,
       conversation_id,
-      message_count: messages.length,
-      ...(latest_reply_timestamp
+      latest_reply_timestamp,
+    );
+    const snapshot: RoomConversationSnapshotPayload = {
+      conversation_id,
+      ...(should_report_last_activity && latest_reply_timestamp !== null
         ? { last_activity_at: latest_reply_timestamp }
         : {}),
       session_id: last?.session_id ?? null,
-    });
-  }, [conversation_id, messages, on_conversation_snapshot_change]);
+    };
+    const snapshot_key = JSON.stringify(snapshot);
+    const next_activity_snapshot = build_conversation_activity_snapshot(
+      conversation_id,
+      latest_reply_timestamp,
+    );
+
+    // Room 历史加载只同步快照，不应该因为切换视图刷新活跃时间。
+    if (last_snapshot_key_ref.current === snapshot_key) {
+      last_activity_snapshot_ref.current = next_activity_snapshot;
+      return;
+    }
+
+    last_snapshot_key_ref.current = snapshot_key;
+    last_activity_snapshot_ref.current = next_activity_snapshot;
+    on_conversation_snapshot_change?.(snapshot);
+  }, [
+    conversation_id,
+    messages,
+    on_conversation_snapshot_change,
+  ]);
 
   useSessionLoader({
     session_key,
