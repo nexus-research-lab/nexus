@@ -507,6 +507,38 @@ func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 	}
 }
 
+func TestServiceResumePreservesExhaustedBudgetLimitedGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	budget := int64(10)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Respect exhausted budget",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	resumed, err := service.Resume(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("resumed status = %q, want budget_limited", resumed.Status)
+	}
+	if len(repo.events) != 3 || repo.events[len(repo.events)-1].EventType != "budget_limited" {
+		t.Fatalf("events = %#v, want no resumed event while budget is exhausted", repo.events)
+	}
+}
+
 func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
 	repo := newMemoryRepository()
 	budget := int64(50)

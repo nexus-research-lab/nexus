@@ -170,15 +170,20 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 	return s.changeStatus(ctx, goalID, protocol.GoalStatusPaused, protocol.GoalUpdateSourceUser, "paused", "", nil)
 }
 
-// Resume 恢复 paused/blocked/limited Goal。
+// Resume 恢复 paused/blocked/usage_limited Goal；预算耗尽时需要先调整预算。
 func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, error) {
 	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
 	}
-	if protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusComplete {
+	switch protocol.NormalizeGoalStatus(item.Status) {
+	case protocol.GoalStatusComplete:
 		return nil, ErrGoalInvalidState
+	case protocol.GoalStatusBudgetLimited:
+		if s.goalBudgetExhausted(*item) {
+			return item, nil
+		}
 	}
 	return s.persistTransition(ctx, *item, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", nil)
 }

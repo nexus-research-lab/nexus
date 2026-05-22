@@ -76,6 +76,10 @@ function next_budget_input(goal: Goal | null, value: string): number | null | un
 }
 
 function should_prompt_resume_goal(status: GoalStatus): boolean {
+  return can_resume_goal(status);
+}
+
+function can_resume_goal(status: GoalStatus): boolean {
   return status === "paused" || status === "blocked" || status === "usage_limited";
 }
 
@@ -415,7 +419,7 @@ export function GoalPanel({
             <button
               className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
               disabled={disabled || is_loading}
-              title="编辑"
+              title={goal.status === "budget_limited" ? "调整预算" : "编辑"}
               type="button"
               onClick={start_editing_goal}
             >
@@ -432,18 +436,7 @@ export function GoalPanel({
                 <Pause className="h-4 w-4" />
               </button>
             ) : null}
-            {goal.status === "paused" || goal.status === "blocked" ? (
-              <button
-                className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-                disabled={disabled || is_loading}
-                title="继续"
-                type="button"
-                onClick={() => void mutate_goal(resume_goal_api)}
-              >
-                <Play className="h-4 w-4" />
-              </button>
-            ) : null}
-            {goal.status === "budget_limited" || goal.status === "usage_limited" ? (
+            {can_resume_goal(goal.status) ? (
               <button
                 className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
                 disabled={disabled || is_loading}
