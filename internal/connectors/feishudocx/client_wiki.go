@@ -4,26 +4,40 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
+
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	larkwiki "github.com/larksuite/oapi-sdk-go/v3/service/wiki/v2"
 )
 
 // ListWikiSpaces 列出当前 token 可访问的知识库空间。
 func (c *Client) ListWikiSpaces(ctx context.Context, pageToken string, pageSize int) (*WikiSpaceListResult, error) {
-	query := url.Values{}
-	query.Set("page_size", fmt.Sprintf("%d", normalizePageSize(pageSize, 50, 50)))
-	if strings.TrimSpace(pageToken) != "" {
-		query.Set("page_token", strings.TrimSpace(pageToken))
-	}
-	var data WikiSpaceListResult
-	if err := c.doJSON(ctx, http.MethodGet, "/open-apis/wiki/v2/spaces", query, nil, &data); err != nil {
+	if err := c.ensureAccessToken(); err != nil {
 		return nil, err
 	}
-	if data.Items == nil {
-		data.Items = []WikiSpace{}
+	builder := larkwiki.NewListSpaceReqBuilder().
+		PageSize(normalizePageSize(pageSize, 50, 50))
+	if strings.TrimSpace(pageToken) != "" {
+		builder.PageToken(strings.TrimSpace(pageToken))
 	}
-	return &data, nil
+	resp, err := c.wiki.Space.List(ctx, builder.Build(), c.authOption())
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success() {
+		return nil, sdkCodeError(resp.Code, resp.Msg, resp.RequestId())
+	}
+	result := &WikiSpaceListResult{Items: []WikiSpace{}}
+	if resp.Data == nil {
+		return result, nil
+	}
+	for _, item := range resp.Data.Items {
+		result.Items = append(result.Items, sdkWikiSpace(item))
+	}
+	result.PageToken = larkcore.StringValue(resp.Data.PageToken)
+	result.HasMore = larkcore.BoolValue(resp.Data.HasMore)
+	return result, nil
 }
 
 // GetWikiSpace 获取单个知识库空间详情。
@@ -32,13 +46,24 @@ func (c *Client) GetWikiSpace(ctx context.Context, spaceID string) (*WikiSpace, 
 	if spaceID == "" {
 		return nil, errors.New("space_id 不能为空")
 	}
-	var data struct {
-		Space WikiSpace `json:"space"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/open-apis/wiki/v2/spaces/"+url.PathEscape(spaceID), nil, nil, &data); err != nil {
+	if err := c.ensureAccessToken(); err != nil {
 		return nil, err
 	}
-	return &data.Space, nil
+	req := larkwiki.NewGetSpaceReqBuilder().
+		SpaceId(spaceID).
+		Build()
+	resp, err := c.wiki.Space.Get(ctx, req, c.authOption())
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success() {
+		return nil, sdkCodeError(resp.Code, resp.Msg, resp.RequestId())
+	}
+	if resp.Data == nil || resp.Data.Space == nil {
+		return nil, errors.New("飞书知识库响应缺少 space")
+	}
+	space := sdkWikiSpace(resp.Data.Space)
+	return &space, nil
 }
 
 // ListWikiNodes 分页列出知识库空间内指定父节点的子节点。
@@ -51,26 +76,37 @@ func (c *Client) ListWikiNodes(ctx context.Context, spaceID string, parentNodeTo
 	if err != nil {
 		return nil, err
 	}
-	query := url.Values{}
-	query.Set("page_size", fmt.Sprintf("%d", normalizePageSize(pageSize, 50, 50)))
-	if parentNodeToken != "" {
-		query.Set("parent_node_token", parentNodeToken)
-	}
-	if strings.TrimSpace(pageToken) != "" {
-		query.Set("page_token", strings.TrimSpace(pageToken))
-	}
-	var data WikiNodeListResult
-	path := "/open-apis/wiki/v2/spaces/" + url.PathEscape(spaceID) + "/nodes"
-	if err := c.doJSON(ctx, http.MethodGet, path, query, nil, &data); err != nil {
+	if err := c.ensureAccessToken(); err != nil {
 		return nil, err
 	}
-	for index := range data.Items {
-		c.enrichWikiNode(&data.Items[index])
+	builder := larkwiki.NewListSpaceNodeReqBuilder().
+		SpaceId(spaceID).
+		PageSize(normalizePageSize(pageSize, 50, 50))
+	if parentNodeToken != "" {
+		builder.ParentNodeToken(parentNodeToken)
 	}
-	if data.Items == nil {
-		data.Items = []WikiNode{}
+	if strings.TrimSpace(pageToken) != "" {
+		builder.PageToken(strings.TrimSpace(pageToken))
 	}
-	return &data, nil
+	resp, err := c.wiki.SpaceNode.List(ctx, builder.Build(), c.authOption())
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success() {
+		return nil, sdkCodeError(resp.Code, resp.Msg, resp.RequestId())
+	}
+	result := &WikiNodeListResult{Items: []WikiNode{}}
+	if resp.Data == nil {
+		return result, nil
+	}
+	for _, item := range resp.Data.Items {
+		node := sdkWikiNode(item)
+		c.enrichWikiNode(&node)
+		result.Items = append(result.Items, node)
+	}
+	result.PageToken = larkcore.StringValue(resp.Data.PageToken)
+	result.HasMore = larkcore.BoolValue(resp.Data.HasMore)
+	return result, nil
 }
 
 // GetWikiNode 获取 Wiki URL 或 wiki node token 对应的实际对象。
@@ -91,17 +127,26 @@ func (c *Client) GetWikiNodeByToken(ctx context.Context, token string, objType s
 	if objType == "" {
 		objType = "wiki"
 	}
-	query := url.Values{}
-	query.Set("token", token)
-	query.Set("obj_type", objType)
-	var data struct {
-		Node WikiNode `json:"node"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/open-apis/wiki/v2/spaces/get_node", query, nil, &data); err != nil {
+	if err := c.ensureAccessToken(); err != nil {
 		return nil, err
 	}
-	c.enrichWikiNode(&data.Node)
-	return &data.Node, nil
+	req := larkwiki.NewGetNodeSpaceReqBuilder().
+		Token(token).
+		ObjType(objType).
+		Build()
+	resp, err := c.wiki.Space.GetNode(ctx, req, c.authOption())
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success() {
+		return nil, sdkCodeError(resp.Code, resp.Msg, resp.RequestId())
+	}
+	if resp.Data == nil || resp.Data.Node == nil {
+		return nil, errors.New("飞书知识库响应缺少 node")
+	}
+	node := sdkWikiNode(resp.Data.Node)
+	c.enrichWikiNode(&node)
+	return &node, nil
 }
 
 // NormalizeWikiToken 从 Wiki URL 或纯 token 中提取 node token。
@@ -154,4 +199,40 @@ func normalizePageSize(value int, fallback int, max int) int {
 		return max
 	}
 	return value
+}
+
+func sdkWikiSpace(space *larkwiki.Space) WikiSpace {
+	if space == nil {
+		return WikiSpace{}
+	}
+	return WikiSpace{
+		SpaceID:     larkcore.StringValue(space.SpaceId),
+		Name:        larkcore.StringValue(space.Name),
+		Description: larkcore.StringValue(space.Description),
+		SpaceType:   larkcore.StringValue(space.SpaceType),
+		Visibility:  larkcore.StringValue(space.Visibility),
+	}
+}
+
+func sdkWikiNode(node *larkwiki.Node) WikiNode {
+	if node == nil {
+		return WikiNode{}
+	}
+	return WikiNode{
+		SpaceID:         larkcore.StringValue(node.SpaceId),
+		NodeToken:       larkcore.StringValue(node.NodeToken),
+		ObjToken:        larkcore.StringValue(node.ObjToken),
+		ObjType:         larkcore.StringValue(node.ObjType),
+		ParentNodeToken: larkcore.StringValue(node.ParentNodeToken),
+		NodeType:        larkcore.StringValue(node.NodeType),
+		OriginNodeToken: larkcore.StringValue(node.OriginNodeToken),
+		OriginSpaceID:   larkcore.StringValue(node.OriginSpaceId),
+		HasChild:        larkcore.BoolValue(node.HasChild),
+		Title:           larkcore.StringValue(node.Title),
+		ObjCreateTime:   larkcore.StringValue(node.ObjCreateTime),
+		ObjEditTime:     larkcore.StringValue(node.ObjEditTime),
+		NodeCreateTime:  larkcore.StringValue(node.NodeCreateTime),
+		Creator:         larkcore.StringValue(node.Creator),
+		Owner:           larkcore.StringValue(node.Owner),
+	}
 }

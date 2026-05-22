@@ -44,6 +44,7 @@ func TestFeishuDocxCreateDocumentTool(t *testing.T) {
 		if request.Header.Get("Authorization") != "Bearer token" {
 			t.Fatalf("飞书工具请求未带 token: %s", request.Header.Get("Authorization"))
 		}
+		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"code": 0,
 			"msg":  "success",
@@ -79,6 +80,7 @@ func TestFeishuDocxWikiNodesTool(t *testing.T) {
 		if request.URL.Query().Get("parent_node_token") != "PARENT" {
 			t.Fatalf("知识库节点工具 parent_node_token 不正确: %s", request.URL.RawQuery)
 		}
+		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"code": 0,
 			"msg":  "success",
@@ -118,6 +120,7 @@ func TestFeishuDocxDriveListFiltersFileType(t *testing.T) {
 		if request.URL.Query().Get("option") != "all" {
 			t.Fatalf("云空间列表 option 参数不正确: %s", request.URL.RawQuery)
 		}
+		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"code": 0,
 			"msg":  "success",
