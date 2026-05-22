@@ -54,7 +54,10 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	}
 
 	now := s.nowFn()
-	tokenBudget := normalizeBudget(request.TokenBudget, s.config.GoalDefaultTokenBudget)
+	tokenBudget, err := normalizeCreateBudget(request.TokenBudget, s.config.GoalDefaultTokenBudget)
+	if err != nil {
+		return nil, err
+	}
 	item := protocol.Goal{
 		ID:          s.idFactory("goal"),
 		SessionKey:  sessionKey,
@@ -113,8 +116,12 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		changed = true
 		payload["objective_updated"] = true
 	}
-	if request.TokenBudget != nil {
-		item.TokenBudget = normalizeBudget(request.TokenBudget, 0)
+	if request.TokenBudget.Present {
+		tokenBudget, err := normalizeUpdateBudget(request.TokenBudget.Value)
+		if err != nil {
+			return nil, err
+		}
+		item.TokenBudget = tokenBudget
 		changed = true
 		if item.TokenBudget != nil {
 			payload["token_budget"] = *item.TokenBudget
@@ -282,18 +289,29 @@ func normalizeObjective(input string) (string, error) {
 	return objective, nil
 }
 
-func normalizeBudget(input *int64, fallback int64) *int64 {
+func normalizeCreateBudget(input *int64, fallback int64) (*int64, error) {
 	if input != nil {
 		if *input <= 0 {
-			return nil
+			return nil, ErrGoalInvalidInput
 		}
 		value := *input
-		return &value
+		return &value, nil
 	}
 	if fallback <= 0 {
-		return nil
+		return nil, nil
 	}
-	return &fallback
+	return &fallback, nil
+}
+
+func normalizeUpdateBudget(input *int64) (*int64, error) {
+	if input == nil {
+		return nil, nil
+	}
+	if *input <= 0 {
+		return nil, ErrGoalInvalidInput
+	}
+	value := *input
+	return &value, nil
 }
 
 func cloneMap(input map[string]any) map[string]any {

@@ -72,6 +72,13 @@ function normalize_budget(value: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function next_budget_input(goal: Goal | null, value: string): number | null | undefined {
+  if (value.trim() !== "") {
+    return normalize_budget(value);
+  }
+  return goal?.token_budget ? null : undefined;
+}
+
 function goal_usage_total(goal: Goal | null): number {
   return goal?.usage?.total_tokens ?? 0;
 }
@@ -149,7 +156,7 @@ export function GoalPanel({
     set_is_loading(true);
     try {
       const token_budget =
-        budget.trim() === "" && is_editing ? undefined : normalize_budget(budget);
+        is_editing ? next_budget_input(goal, budget) : normalize_budget(budget);
       const updated =
         is_editing && goal
           ? await update_goal_api(goal.id, {

@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -105,6 +107,27 @@ type GoalEvent struct {
 	CreatedAt  time.Time        `json:"created_at"`
 }
 
+// OptionalInt64 表示 JSON 字段的三态：缺省、null、整数值。
+type OptionalInt64 struct {
+	Present bool
+	Value   *int64
+}
+
+// UnmarshalJSON 记录字段是否出现，并保留 null 与整数值的差异。
+func (v *OptionalInt64) UnmarshalJSON(data []byte) error {
+	v.Present = true
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		v.Value = nil
+		return nil
+	}
+	var value int64
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	v.Value = &value
+	return nil
+}
+
 // GoalCheckpoint 表示 Goal 长程执行 checkpoint。
 type GoalCheckpoint struct {
 	ID                string    `json:"id"`
@@ -145,7 +168,7 @@ type CreateGoalRequest struct {
 // UpdateGoalRequest 表示更新 Goal 的请求。
 type UpdateGoalRequest struct {
 	Objective   *string        `json:"objective,omitempty"`
-	TokenBudget *int64         `json:"token_budget,omitempty"`
+	TokenBudget OptionalInt64  `json:"token_budget,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 

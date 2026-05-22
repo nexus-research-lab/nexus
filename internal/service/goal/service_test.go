@@ -148,6 +148,37 @@ func TestServiceRejectsOversizedObjective(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsNonPositiveBudget(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	zero := int64(0)
+	negative := int64(-1)
+
+	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Invalid budget",
+		TokenBudget: &zero,
+	}); !errors.Is(err, ErrGoalInvalidInput) {
+		t.Fatalf("Create zero budget error = %v, want ErrGoalInvalidInput", err)
+	}
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Valid budget target",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{
+		TokenBudget: optionalBudget(negative),
+	}); !errors.Is(err, ErrGoalInvalidInput) {
+		t.Fatalf("Update negative budget error = %v, want ErrGoalInvalidInput", err)
+	}
+}
+
 func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 	repo := newMemoryRepository()
 	initialBudget := int64(10)
@@ -179,7 +210,7 @@ func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 		t.Fatalf("current status = %q, want budget_limited", current.Status)
 	}
 
-	resumed, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: &raisedBudget})
+	resumed, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: optionalBudget(raisedBudget)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,6 +219,34 @@ func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 	}
 	if resumed.TokenBudget == nil || *resumed.TokenBudget != raisedBudget {
 		t.Fatalf("TokenBudget = %#v, want %d", resumed.TokenBudget, raisedBudget)
+	}
+}
+
+func TestServiceUpdateBudgetClearResumesLimitedGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	initialBudget := int64(10)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Clear budget",
+		TokenBudget: &initialBudget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: clearBudget()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != protocol.GoalStatusActive || resumed.TokenBudget != nil {
+		t.Fatalf("resumed = %#v, want active with cleared budget", resumed)
 	}
 }
 
@@ -211,7 +270,7 @@ func TestServiceUpdateBudgetLimitsActiveGoal(t *testing.T) {
 	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 30}, "round-1"); err != nil {
 		t.Fatal(err)
 	}
-	limited, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: &loweredBudget})
+	limited, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: optionalBudget(loweredBudget)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,8 +307,16 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	if !plan.HiddenFromUser || !plan.Synthetic || plan.Purpose != goalContinuationPurpose {
 		t.Fatalf("plan visibility = %#v, want hidden synthetic goal continuation", plan)
 	}
-	if !strings.Contains(plan.Prompt, "Complete parity") || !strings.Contains(plan.Prompt, "PreviousRoundID: round-1") {
-		t.Fatalf("continuation prompt missing context: %s", plan.Prompt)
+	for _, want := range []string{
+		"Complete parity",
+		"PreviousRoundID: round-1",
+		"Completion audit:",
+		"Blocked audit:",
+		"Tokens remaining:",
+	} {
+		if !strings.Contains(plan.Prompt, want) {
+			t.Fatalf("continuation prompt missing %q: %s", want, plan.Prompt)
+		}
 	}
 	current, err := service.Current(ctx, created.SessionKey)
 	if err != nil {
@@ -577,6 +644,14 @@ func sequentialID() func(string) string {
 		next++
 		return prefix + "_" + string(rune('0'+next))
 	}
+}
+
+func optionalBudget(value int64) protocol.OptionalInt64 {
+	return protocol.OptionalInt64{Present: true, Value: &value}
+}
+
+func clearBudget() protocol.OptionalInt64 {
+	return protocol.OptionalInt64{Present: true}
 }
 
 type fakeGoalBroadcaster struct {
