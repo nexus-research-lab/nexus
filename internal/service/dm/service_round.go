@@ -285,6 +285,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
+	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.mapper.LastAssistantMessage())
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {

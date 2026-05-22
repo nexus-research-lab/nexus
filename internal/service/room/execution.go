@@ -556,6 +556,9 @@ func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *a
 		"msg_id", slot.MsgID,
 		"reason", roomSlotInterruptReason(slot),
 	)
+	if mapper != nil {
+		s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, mapper.LastAssistantMessage())
+	}
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
 	s.broadcastSlotCancelled(ctx, roundValue, slot)
 }

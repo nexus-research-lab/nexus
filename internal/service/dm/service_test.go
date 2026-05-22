@@ -249,6 +249,28 @@ func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerRecordsAbortGoalUsageFromAssistantSnapshot(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{}, goalAssistantUsageMessage(7, 3))
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want 2", len(usages))
+	}
+	if usages[1].InputTokens != 3 || usages[1].OutputTokens != 2 || usages[1].Total() != 5 {
+		t.Fatalf("abort usage = %#v, want remaining 3/2", usages[1])
+	}
+}
+
 func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
@@ -327,6 +349,17 @@ func goalToolResultAssistantMessage(
 		"content": []map[string]any{
 			{"type": "tool_use", "id": toolUseID, "name": toolName},
 			{"type": "tool_result", "tool_use_id": toolUseID, "is_error": isError},
+		},
+	}
+}
+
+func goalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
 		},
 	}
 }

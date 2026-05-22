@@ -66,6 +66,28 @@ func TestRecordGoalUsageForRoomSlotUsesToolCompletionDelta(t *testing.T) {
 	}
 }
 
+func TestRecordGoalUsageForRoomSlotUsesAssistantSnapshotOnAbort(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "round-1",
+		GoalIDForUsage:    "goal-1",
+		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
+	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{}, roomGoalAssistantUsageMessage(9, 4))
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want 2", len(usages))
+	}
+	if usages[1].InputTokens != 5 || usages[1].OutputTokens != 3 || usages[1].Total() != 8 {
+		t.Fatalf("abort usage = %#v, want remaining 5/3", usages[1])
+	}
+}
+
 func (p *fakeRoomGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -88,6 +110,17 @@ func roomGoalToolResultAssistantMessage(
 		"content": []map[string]any{
 			{"type": "tool_use", "id": toolUseID, "name": toolName},
 			{"type": "tool_result", "tool_use_id": toolUseID},
+		},
+	}
+}
+
+func roomGoalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
 		},
 	}
 }
