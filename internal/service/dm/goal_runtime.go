@@ -23,6 +23,26 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult, fi
 	r.recordGoalUsageSnapshot(snapshot)
 }
 
+func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
+	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	return nil
+}
+
+func (r *roundRunner) rememberGoalAssistantMessage(message protocol.Message) {
+	if protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	r.goalUsageMu.Lock()
+	r.goalLastAssistant = protocol.Clone(message)
+	r.goalUsageMu.Unlock()
+}
+
+func (r *roundRunner) lastGoalAssistantMessage() protocol.Message {
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	return protocol.Clone(r.goalLastAssistant)
+}
+
 func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Message) {
 	if r.service.goals == nil {
 		return

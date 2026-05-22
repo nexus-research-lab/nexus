@@ -62,6 +62,11 @@ func (s *RealtimeService) recordGoalUsageForSlot(
 	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
 }
 
+func (s *RealtimeService) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
+	s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
+	return nil
+}
+
 func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 	ctx context.Context,
 	slot *activeRoomSlot,

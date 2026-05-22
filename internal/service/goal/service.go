@@ -19,12 +19,13 @@ const maxGoalObjectiveRunes = 4000
 
 // Service 负责 Goal 状态机、审计事件和后续运行时决策。
 type Service struct {
-	config    config.Config
-	repo      Repository
-	events    eventBroadcaster
-	guidance  guidanceDispatcher
-	nowFn     func() time.Time
-	idFactory func(string) string
+	config           config.Config
+	repo             Repository
+	events           eventBroadcaster
+	guidance         guidanceDispatcher
+	externalMutation externalMutationAccountant
+	nowFn            func() time.Time
+	idFactory        func(string) string
 }
 
 // NewService 创建 Goal 服务。
@@ -111,6 +112,7 @@ func (s *Service) CurrentOptional(ctx context.Context, sessionKey string) (*prot
 
 // Update 更新当前 Goal 文本、预算或 metadata。
 func (s *Service) Update(ctx context.Context, goalID string, request protocol.UpdateGoalRequest) (*protocol.Goal, error) {
+	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
@@ -186,6 +188,7 @@ func (s *Service) changeStatus(
 	roundID string,
 	payload map[string]any,
 ) (*protocol.Goal, error) {
+	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err

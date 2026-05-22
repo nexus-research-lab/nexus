@@ -124,6 +124,41 @@ func TestManagerSendContentWithoutRunningRound(t *testing.T) {
 	}
 }
 
+func TestManagerFlushGoalAccounting(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-flush"
+	calls := []string{}
+	manager.RegisterGoalAccountingFlush(sessionKey, "round-b", func(context.Context) error {
+		calls = append(calls, "round-b")
+		return nil
+	})
+	manager.RegisterGoalAccountingFlush(sessionKey, "round-a", func(context.Context) error {
+		calls = append(calls, "round-a")
+		return nil
+	})
+
+	roundIDs, err := manager.FlushGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("FlushGoalAccounting() error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	}
+	if strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
+	}
+
+	manager.RegisterGoalAccountingFlush(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs, err = manager.FlushGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("FlushGoalAccounting() after unregister error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+}
+
 func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:nexus:ws:dm:test-guide"

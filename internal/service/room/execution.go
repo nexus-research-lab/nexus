@@ -170,6 +170,12 @@ func (s *RealtimeService) runSlot(
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
 	appendSystemPrompt, slot.GoalIDForUsage = s.appendGoalRuntimeContext(slotCtx, slot.RuntimeSessionKey, appendSystemPrompt)
 	beginGoalUsageForSlot(slot)
+	if s.runtime != nil {
+		s.runtime.RegisterGoalAccountingFlush(slot.RuntimeSessionKey, slot.AgentRoundID, func(ctx context.Context) error {
+			return s.flushGoalUsageForSlot(ctx, slot)
+		})
+		defer s.runtime.RegisterGoalAccountingFlush(slot.RuntimeSessionKey, slot.AgentRoundID, nil)
+	}
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
@@ -305,6 +311,9 @@ func (s *RealtimeService) runSlot(
 			if messageRole == "result" {
 				slot.setStatus(resultStatus(messageValue["subtype"]))
 				s.recordUsage(roundValue, messageValue)
+			}
+			if messageRole == "assistant" {
+				slot.rememberGoalAssistantMessage(messageValue)
 			}
 			if messageRole == "assistant" && roomdomain.IsNoReplyAssistantMessage(messageValue) {
 				slot.suppressOutput()
@@ -557,7 +566,7 @@ func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *a
 		"reason", roomSlotInterruptReason(slot),
 	)
 	if mapper != nil {
-		s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, mapper.LastAssistantMessage())
+		s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
 	}
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
 	s.broadcastSlotCancelled(ctx, roundValue, slot)

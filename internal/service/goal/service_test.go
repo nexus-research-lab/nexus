@@ -338,6 +338,79 @@ func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
 	}
 }
 
+func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Pause after accounting",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	accountant := &fakeExternalMutationAccountant{
+		service: service,
+		usage:   protocol.GoalUsage{InputTokens: 4, OutputTokens: 5},
+		roundID: "round-running",
+	}
+	service.SetExternalMutationAccountant(accountant)
+
+	paused, err := service.Pause(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paused.Status != protocol.GoalStatusPaused || paused.Usage.Total() != 9 {
+		t.Fatalf("paused = %#v, want paused after usage accounting", paused)
+	}
+	if len(accountant.sessionKeys) != 1 || accountant.sessionKeys[0] != created.SessionKey {
+		t.Fatalf("accountant sessionKeys = %#v, want current session", accountant.sessionKeys)
+	}
+	if len(repo.events) != 3 || repo.events[1].EventType != "usage_recorded" || repo.events[2].EventType != "paused" {
+		t.Fatalf("events = %#v, want usage_recorded before paused", repo.events)
+	}
+}
+
+func TestServiceAllowsGoalCompletionAfterExternalFlushHitsBudget(t *testing.T) {
+	repo := newMemoryRepository()
+	budget := int64(5)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Complete despite budget crossing",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.SetExternalMutationAccountant(&fakeExternalMutationAccountant{
+		service: service,
+		usage:   protocol.GoalUsage{InputTokens: 6, OutputTokens: 1},
+		roundID: "round-running",
+	})
+
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-running"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || completed.Usage.Total() != 7 {
+		t.Fatalf("completed = %#v, want complete after budget-limited accounting", completed)
+	}
+	if len(repo.events) != 4 ||
+		repo.events[1].EventType != "usage_recorded" ||
+		repo.events[2].EventType != "budget_limited" ||
+		repo.events[3].EventType != "completed" {
+		t.Fatalf("events = %#v, want usage, budget_limited, completed", repo.events)
+	}
+}
+
 func TestServiceUpdateBudgetClearResumesLimitedGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	initialBudget := int64(10)
@@ -854,6 +927,23 @@ func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKe
 		content:    content,
 	})
 	return []string{"round-running"}, nil
+}
+
+type fakeExternalMutationAccountant struct {
+	service     *Service
+	usage       protocol.GoalUsage
+	roundID     string
+	sessionKeys []string
+}
+
+func (a *fakeExternalMutationAccountant) FlushGoalAccounting(ctx context.Context, sessionKey string) ([]string, error) {
+	a.sessionKeys = append(a.sessionKeys, sessionKey)
+	if a.service != nil {
+		if _, err := a.service.RecordUsageForSession(ctx, sessionKey, a.usage, a.roundID); err != nil {
+			return nil, err
+		}
+	}
+	return []string{a.roundID}, nil
 }
 
 type fakeContinuationDispatcher struct {

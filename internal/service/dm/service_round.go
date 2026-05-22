@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -64,6 +65,8 @@ type roundRunner struct {
 	goalIDForUsage    string
 	goalUsage         *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted  time.Time
+	goalUsageMu       sync.Mutex
+	goalLastAssistant protocol.Message
 	permissionMode    sdkpermission.Mode
 	permissionHandler sdkpermission.Handler
 }
@@ -154,6 +157,7 @@ func (r *roundRunner) executeRound(
 			if err := r.persistMessage(message); err != nil {
 				return err
 			}
+			r.rememberGoalAssistantMessage(message)
 			r.recordGoalUsageFromAssistantMessage(message)
 			if message["role"] == "assistant" {
 				r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
@@ -285,7 +289,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
-	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.mapper.LastAssistantMessage())
+	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {

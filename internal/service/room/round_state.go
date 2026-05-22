@@ -25,6 +25,7 @@ type activeRoomSlot struct {
 	GoalIDForUsage     string
 	GoalUsage          *goalsvc.RuntimeUsageAccumulator
 	GoalUsageStartedAt time.Time
+	GoalLastAssistant  protocol.Message
 	WorkspacePath      string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc
@@ -389,6 +390,24 @@ func (slot *activeRoomSlot) markCancelled() bool {
 	}
 	slot.Status = "cancelled"
 	return true
+}
+
+func (slot *activeRoomSlot) rememberGoalAssistantMessage(message protocol.Message) {
+	if slot == nil || protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.GoalLastAssistant = protocol.Clone(message)
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
+	if slot == nil {
+		return nil
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return protocol.Clone(slot.GoalLastAssistant)
 }
 
 func (slot *activeRoomSlot) enqueueQueuedInput(roundID string, content string) {
