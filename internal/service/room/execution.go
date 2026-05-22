@@ -168,7 +168,7 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
-	appendSystemPrompt = s.appendGoalRuntimeContext(slotCtx, slot.RuntimeSessionKey, appendSystemPrompt)
+	appendSystemPrompt, slot.GoalIDForUsage = s.appendGoalRuntimeContext(slotCtx, slot.RuntimeSessionKey, appendSystemPrompt)
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 创建时不再应用隐式默认 token budget，只有显式传入 `token_budget` 时才设置预算。
 - Goal 工具结构化结果改为 Codex 风格 camelCase 字段，包括 `remainingTokens`、`completionBudgetReport` 和 `goal.tokensUsed`。
 - Goal 工具 schema 与文本结果继续贴近 Codex：`token_budget` 使用 integer 类型，成功结果文本输出 JSON payload。
+- Goal round usage 绑定到本轮开始时的 Goal ID，模型在本轮完成/阻塞 Goal 后仍会补记最终用量。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

@@ -61,6 +61,7 @@ type roundRunner struct {
 	mapper            *dmdomain.MessageMapper
 	inputOptions      sdkprotocol.OutboundMessageOptions
 	internal          bool
+	goalIDForUsage    string
 	permissionMode    sdkpermission.Mode
 	permissionHandler sdkpermission.Handler
 }
@@ -109,7 +110,7 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult) {
 	if r.service.goals == nil || result.Usage.IsZero() {
 		return
 	}
-	_, err := r.service.goals.RecordUsageForSession(context.Background(), r.sessionKey, protocol.GoalUsage{
+	usage := protocol.GoalUsage{
 		InputTokens:              result.Usage.InputTokens,
 		OutputTokens:             result.Usage.OutputTokens,
 		CacheCreationInputTokens: result.Usage.CacheCreationInputTokens,
@@ -117,10 +118,17 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult) {
 		ReasoningTokens:          result.Usage.ReasoningTokens,
 		TotalTokens:              result.Usage.TotalTokens,
 		RuntimeSeconds:           result.ElapsedTimeSeconds,
-	}, r.roundID)
+	}
+	var err error
+	if strings.TrimSpace(r.goalIDForUsage) != "" {
+		_, err = r.service.goals.RecordUsageForGoal(context.Background(), r.goalIDForUsage, usage, r.roundID)
+	} else {
+		_, err = r.service.goals.RecordUsageForSession(context.Background(), r.sessionKey, usage, r.roundID)
+	}
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
 		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",
 			"session_key", r.sessionKey,
+			"goal_id", r.goalIDForUsage,
 			"round_id", r.roundID,
 			"err", err,
 		)

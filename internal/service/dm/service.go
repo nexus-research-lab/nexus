@@ -92,6 +92,7 @@ type usageRecorder interface {
 type goalContextProvider interface {
 	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 }
 

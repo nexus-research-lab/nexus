@@ -20,6 +20,7 @@ type activeRoomSlot struct {
 	AgentRoundID       string
 	MsgID              string
 	RuntimeSessionKey  string
+	GoalIDForUsage     string
 	WorkspacePath      string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc

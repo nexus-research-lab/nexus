@@ -84,7 +84,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	}
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
 
-	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
+	client, runtimeProvider, runtimeModel, goalIDForUsage, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM runtime client 初始化失败",
 			"session_key", sessionKey,
@@ -125,6 +125,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		mapper:            dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
 		inputOptions:      request.InputOptions,
 		internal:          request.Internal,
+		goalIDForUsage:    goalIDForUsage,
 		permissionMode:    request.PermissionMode,
 		permissionHandler: request.PermissionHandler,
 	}
@@ -406,7 +407,7 @@ func (s *Service) ensureClient(
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
-) (runtimectx.Client, string, string, error) {
+) (runtimectx.Client, string, string, string, error) {
 	permissionMode := request.PermissionMode
 	if permissionMode == "" {
 		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
@@ -427,13 +428,13 @@ func (s *Service) ensureClient(
 		agentValue.IsMain,
 		agentValue.CreatedAt,
 	); err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
-	appendSystemPrompt = s.appendGoalRuntimeContext(ctx, sessionKey, appendSystemPrompt)
+	appendSystemPrompt, goalIDForUsage := s.appendGoalRuntimeContext(ctx, sessionKey, appendSystemPrompt)
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
@@ -453,7 +454,7 @@ func (s *Service) ensureClient(
 		MCPServers:         mcpServers,
 	})
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
@@ -465,27 +466,35 @@ func (s *Service) ensureClient(
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
-	return client, runtimeProvider, strings.TrimSpace(options.Model), nil
+	return client, runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, nil
 }
 
-func (s *Service) appendGoalRuntimeContext(ctx context.Context, sessionKey string, appendSystemPrompt string) string {
+func (s *Service) appendGoalRuntimeContext(ctx context.Context, sessionKey string, appendSystemPrompt string) (string, string) {
 	if s.goals == nil {
-		return appendSystemPrompt
+		return appendSystemPrompt, ""
 	}
-	goalContext, _, err := s.goals.RuntimeContext(ctx, sessionKey)
+	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
 		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
-			return appendSystemPrompt
+			return appendSystemPrompt, ""
 		}
 		s.loggerFor(ctx).Warn("读取 Goal runtime context 失败", "session_key", sessionKey, "err", err)
-		return appendSystemPrompt
+		return appendSystemPrompt, ""
 	}
+	goalID := goalIDForRuntimeUsage(goal)
 	if strings.TrimSpace(goalContext) == "" {
-		return appendSystemPrompt
+		return appendSystemPrompt, goalID
 	}
-	return appendDMRuntimePromptSection(appendSystemPrompt, goalContext)
+	return appendDMRuntimePromptSection(appendSystemPrompt, goalContext), goalID
+}
+
+func goalIDForRuntimeUsage(goal *protocol.Goal) string {
+	if goal == nil {
+		return ""
+	}
+	return strings.TrimSpace(goal.ID)
 }
 
 func appendDMRuntimePromptSection(base string, section string) string {

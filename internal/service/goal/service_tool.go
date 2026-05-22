@@ -62,6 +62,25 @@ func (s *Service) RecordUsageForSession(ctx context.Context, sessionKey string, 
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
+	return s.recordUsageForGoal(ctx, item, usage, roundID)
+}
+
+// RecordUsageForGoal 把一轮 runtime usage 计入指定 Goal，即使它已在本轮被模型标记为 complete/blocked。
+func (s *Service) RecordUsageForGoal(ctx context.Context, goalID string, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.recordUsageForGoal(ctx, item, usage, roundID)
+}
+
+func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
 	usage.TotalTokens = usage.BudgetTokens()
 	if usage.TotalTokens == 0 && usage.RuntimeSeconds == 0 {
 		return item, nil

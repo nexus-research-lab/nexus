@@ -163,6 +163,39 @@ func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	}
 }
 
+func TestServiceRecordUsageForCompletedGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Complete with final usage",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.RecordUsageForGoal(ctx, completed.ID, protocol.GoalUsage{
+		TotalTokens:    12,
+		RuntimeSeconds: 5,
+	}, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != protocol.GoalStatusComplete || updated.Usage.Total() != 12 || updated.TimeUsedSeconds != 5 {
+		t.Fatalf("updated = %#v, want completed goal with final usage", updated)
+	}
+	if len(repo.events) != 3 || repo.events[2].EventType != "usage_recorded" || repo.events[2].RoundID != "round-1" {
+		t.Fatalf("events = %#v, want usage_recorded after completion", repo.events)
+	}
+}
+
 func TestServiceRejectsOversizedObjective(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
