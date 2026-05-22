@@ -35,6 +35,24 @@ func TestParseDocumentTargetSupportsDocxWikiAndID(t *testing.T) {
 	}
 }
 
+func TestParseSheetAndBitableTargets(t *testing.T) {
+	sheet, err := ParseSheetTarget("https://acme.feishu.cn/sheets/sht123?sheet=gid456")
+	if err != nil {
+		t.Fatalf("解析 Sheet URL 失败: %v", err)
+	}
+	if sheet.SpreadsheetToken != "sht123" || sheet.SheetID != "gid456" {
+		t.Fatalf("Sheet 解析结果不正确: %+v", sheet)
+	}
+
+	bitable, err := ParseBitableTarget("https://acme.feishu.cn/base/base123?table=tbl456")
+	if err != nil {
+		t.Fatalf("解析 Bitable URL 失败: %v", err)
+	}
+	if bitable.AppToken != "base123" || bitable.TableID != "tbl456" {
+		t.Fatalf("Bitable 解析结果不正确: %+v", bitable)
+	}
+}
+
 func TestClientExportMarkdownRendersBlocks(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("Authorization") != "Bearer token" {

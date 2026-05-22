@@ -12,10 +12,10 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
 )
 
-func feishuDocxExportMarkdown(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
-		Name:        "feishu_docx_export_markdown",
-		Description: "把已授权飞书 Docx 或 Wiki 文档导出为 Markdown，可选择保留 block_id 注释用于后续精准更新。",
+		Name:        "feishu_docx_read",
+		Description: "阅读已授权飞书 Docx 或 Wiki 文档，返回 Markdown，可选择保留 block_id 注释用于后续精准更新。",
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -31,6 +31,251 @@ func feishuDocxExportMarkdown(svc contract.Service, sctx contract.ServerContext)
 				return errorResult(err), nil
 			}
 			result, err := client.ExportMarkdown(ctx, strings.TrimSpace(stringValue(args["url"])), boolValue(args["with_block_ids"]))
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_search",
+		Description: "全文搜索当前授权账号可访问的飞书云文档，返回匹配文档 token、类型、标题和分页信息。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"query"},
+			"properties": map[string]any{
+				"query":      map[string]any{"type": "string", "description": "搜索关键词"},
+				"docs_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "可选：doc / docx / wiki / sheet / slides / bitable / mindnote / file"},
+				"owner_ids":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "可选，限定文件所有者 open_id"},
+				"chat_ids":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "可选，限定文件所在群 ID"},
+				"offset":     map[string]any{"type": "number", "description": "搜索偏移量，默认 0"},
+				"count":      map[string]any{"type": "number", "description": "返回数量，默认 10，最大 50"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.SearchDocuments(
+				ctx,
+				stringValue(args["query"]),
+				stringSliceValue(args["docs_types"]),
+				stringSliceValue(args["owner_ids"]),
+				stringSliceValue(args["chat_ids"]),
+				intValue(args["offset"]),
+				intValue(args["count"]),
+			)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_sheet_sheets",
+		Description: "列出飞书电子表格内的工作表，返回 sheet_id、标题、行列信息等元数据。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"url"},
+			"properties": map[string]any{
+				"url": map[string]any{"type": "string", "description": "飞书 Sheet URL 或 spreadsheet_token"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.ListSheets(ctx, stringValue(args["url"]))
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_sheet_values",
+		Description: "读取飞书电子表格指定范围的具体单元格内容，适合查看表格正文。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"url", "range"},
+			"properties": map[string]any{
+				"url":   map[string]any{"type": "string", "description": "飞书 Sheet URL 或 spreadsheet_token"},
+				"range": map[string]any{"type": "string", "description": "读取范围，例如 Sheet1!A1:D20"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.ReadSheetValues(ctx, stringValue(args["url"]), stringValue(args["range"]))
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_sheet_find",
+		Description: "在飞书电子表格指定工作表内查找单元格内容，返回匹配单元格位置。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"url", "query"},
+			"properties": map[string]any{
+				"url":               map[string]any{"type": "string", "description": "飞书 Sheet URL 或 spreadsheet_token；URL 可携带 sheet 参数"},
+				"sheet_id":          map[string]any{"type": "string", "description": "工作表 ID，URL 已携带时可省略"},
+				"query":             map[string]any{"type": "string", "description": "查找文本或正则表达式"},
+				"range":             map[string]any{"type": "string", "description": "可选查找范围，例如 Sheet1!A1:D20"},
+				"match_case":        map[string]any{"type": "boolean"},
+				"match_entire_cell": map[string]any{"type": "boolean"},
+				"search_by_regex":   map[string]any{"type": "boolean"},
+				"include_formulas":  map[string]any{"type": "boolean"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.FindSheet(
+				ctx,
+				stringValue(args["url"]),
+				stringValue(args["sheet_id"]),
+				stringValue(args["query"]),
+				stringValue(args["range"]),
+				boolValue(args["match_case"]),
+				boolValue(args["match_entire_cell"]),
+				boolValue(args["search_by_regex"]),
+				boolValue(args["include_formulas"]),
+			)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_bitable_tables",
+		Description: "列出飞书多维表格应用内的数据表，返回 table_id、名称和分页信息。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"url"},
+			"properties": map[string]any{
+				"url":        map[string]any{"type": "string", "description": "飞书 Bitable URL 或 app_token"},
+				"page_token": map[string]any{"type": "string"},
+				"page_size":  map[string]any{"type": "number"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.ListBitableTables(ctx, stringValue(args["url"]), stringValue(args["page_token"]), intValue(args["page_size"]))
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_bitable_fields",
+		Description: "列出飞书多维表格指定数据表的字段，返回字段名称、类型、属性和说明。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"url"},
+			"properties": map[string]any{
+				"url":        map[string]any{"type": "string", "description": "飞书 Bitable URL 或 app_token；URL 可携带 table 参数"},
+				"table_id":   map[string]any{"type": "string", "description": "数据表 ID，URL 已携带时可省略"},
+				"view_id":    map[string]any{"type": "string"},
+				"page_token": map[string]any{"type": "string"},
+				"page_size":  map[string]any{"type": "number"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.ListBitableFields(
+				ctx,
+				stringValue(args["url"]),
+				stringValue(args["table_id"]),
+				stringValue(args["view_id"]),
+				stringValue(args["page_token"]),
+				intValue(args["page_size"]),
+			)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			return jsonResult(result), nil
+		},
+	}
+}
+
+func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return sdkmcp.Tool{
+		Name:        "feishu_docx_bitable_records",
+		Description: "读取飞书多维表格指定数据表的记录内容，支持字段选择、视图、筛选、排序和分页。",
+		InputSchema: map[string]any{
+			"type":     "object",
+			"required": []string{"url"},
+			"properties": map[string]any{
+				"url":              map[string]any{"type": "string", "description": "飞书 Bitable URL 或 app_token；URL 可携带 table 参数"},
+				"table_id":         map[string]any{"type": "string", "description": "数据表 ID，URL 已携带时可省略"},
+				"view_id":          map[string]any{"type": "string"},
+				"field_names":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"filter":           map[string]any{"type": "string", "description": "飞书 Bitable 公式筛选条件"},
+				"sort":             map[string]any{"type": "string", "description": "排序 JSON 字符串，例如 [\"字段1 DESC\"]"},
+				"page_token":       map[string]any{"type": "string"},
+				"page_size":        map[string]any{"type": "number"},
+				"automatic_fields": map[string]any{"type": "boolean", "description": "是否返回 created_by/created_time 等自动字段"},
+			},
+		},
+		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+			client, err := loadFeishuDocxClient(ctx, svc, sctx)
+			if err != nil {
+				return errorResult(err), nil
+			}
+			result, err := client.ListBitableRecords(
+				ctx,
+				stringValue(args["url"]),
+				stringValue(args["table_id"]),
+				stringValue(args["view_id"]),
+				stringSliceValue(args["field_names"]),
+				stringValue(args["filter"]),
+				stringValue(args["sort"]),
+				stringValue(args["page_token"]),
+				intValue(args["page_size"]),
+				boolValue(args["automatic_fields"]),
+			)
 			if err != nil {
 				return errorResult(err), nil
 			}
@@ -360,5 +605,22 @@ func intValue(value any) int {
 		return int(typed)
 	default:
 		return 0
+	}
+}
+
+func stringSliceValue(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+				result = append(result, strings.TrimSpace(text))
+			}
+		}
+		return result
+	default:
+		return nil
 	}
 }

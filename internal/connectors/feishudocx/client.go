@@ -1,6 +1,7 @@
 package feishudocx
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	larkbitable "github.com/larksuite/oapi-sdk-go/v3/service/bitable/v1"
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
+	larksheets "github.com/larksuite/oapi-sdk-go/v3/service/sheets/v3"
 	larkwiki "github.com/larksuite/oapi-sdk-go/v3/service/wiki/v2"
 )
 
@@ -23,10 +26,14 @@ const (
 
 // Client 封装飞书云文档 API。
 type Client struct {
+	apiBaseURL  string
 	docBaseURL  string
 	accessToken string
+	httpClient  *http.Client
 	docx        *larkdocx.V1
 	drive       *larkdrive.V1
+	sheets      *larksheets.V3
+	bitable     *larkbitable.V1
 	wiki        *larkwiki.V2
 }
 
@@ -38,10 +45,14 @@ func NewClient(baseURL string, accessToken string, httpClient *http.Client) *Cli
 	baseURL = strings.TrimRight(firstNonEmpty(baseURL, defaultAPIBaseURL), "/")
 	config := newSDKConfig(baseURL, httpClient)
 	return &Client{
+		apiBaseURL:  baseURL,
 		docBaseURL:  defaultDocBaseURL,
 		accessToken: strings.TrimSpace(accessToken),
+		httpClient:  httpClient,
 		docx:        larkdocx.New(config),
 		drive:       larkdrive.New(config),
+		sheets:      larksheets.New(config),
+		bitable:     larkbitable.New(config),
 		wiki:        larkwiki.New(config),
 	}
 }
@@ -410,6 +421,59 @@ func (c *Client) authOption() larkcore.RequestOptionFunc {
 	return larkcore.WithUserAccessToken(c.accessToken)
 }
 
+func (c *Client) doJSON(ctx context.Context, method string, apiPath string, payload any, out any) error {
+	if err := c.ensureAccessToken(); err != nil {
+		return err
+	}
+	var body io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
+	}
+	endpoint := strings.TrimRight(c.apiBaseURL, "/") + apiPath
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.accessToken)
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(data)) > maxResponseBytes {
+		return errors.New("飞书 API 响应过大")
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("飞书 API HTTP 错误 %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	var envelope struct {
+		Code int             `json:"code"`
+		Msg  string          `json:"msg"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	if envelope.Code != 0 {
+		return sdkCodeError(envelope.Code, envelope.Msg, resp.Header.Get("X-Request-Id"))
+	}
+	if out == nil || len(envelope.Data) == 0 || string(envelope.Data) == "null" {
+		return nil
+	}
+	return json.Unmarshal(envelope.Data, out)
+}
+
 func newSDKConfig(baseURL string, httpClient *http.Client) *larkcore.Config {
 	config := &larkcore.Config{
 		BaseUrl:          strings.TrimRight(baseURL, "/"),
@@ -539,6 +603,24 @@ func sdkObjectsToMaps(value any) ([]map[string]any, error) {
 	}
 	if result == nil {
 		return []map[string]any{}, nil
+	}
+	return result, nil
+}
+
+func sdkObjectToMap(value any) (map[string]any, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	if string(payload) == "null" {
+		return map[string]any{}, nil
+	}
+	var result map[string]any
+	if err := json.Unmarshal(payload, &result); err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return map[string]any{}, nil
 	}
 	return result, nil
 }
