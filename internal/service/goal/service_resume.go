@@ -17,8 +17,14 @@ type ContinuationDispatcher interface {
 	DispatchGoalContinuation(context.Context, protocol.GoalContinuation) error
 }
 
+// SetContinuationDispatcher 注入 idle Goal 续跑投递器，用于 active Goal 立即续跑。
+func (s *Service) SetContinuationDispatcher(dispatcher ContinuationDispatcher) {
+	s.continuations = dispatcher
+}
+
 // StartAutoResume 启动 durable Goal 恢复循环。
 func (s *Service) StartAutoResume(ctx context.Context, dispatcher ContinuationDispatcher) (func(), error) {
+	s.SetContinuationDispatcher(dispatcher)
 	if err := s.ensureEnabled(); err != nil {
 		return func() {}, nil
 	}
@@ -57,26 +63,40 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 		if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 			continue
 		}
-		if dispatcher.ShouldDeferGoalContinuation(ctx, item.SessionKey) {
-			continue
-		}
-		plan, planErr := s.PlanContinuationForSession(ctx, item.SessionKey, "")
-		if errors.Is(planErr, ErrGoalNotFound) ||
-			errors.Is(planErr, ErrGoalVersionStale) ||
-			errors.Is(planErr, sql.ErrNoRows) {
-			continue
-		}
-		if planErr != nil {
-			return planErr
-		}
-		if plan == nil {
-			continue
-		}
-		if dispatchErr := dispatcher.DispatchGoalContinuation(ctx, *plan); dispatchErr != nil {
-			return dispatchErr
+		if err := s.dispatchContinuationForGoal(ctx, item, dispatcher); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
+	if s == nil || s.continuations == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return
+	}
+	_ = s.dispatchContinuationForGoal(ctx, item, s.continuations)
+}
+
+func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol.Goal, dispatcher ContinuationDispatcher) error {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return nil
+	}
+	if dispatcher.ShouldDeferGoalContinuation(ctx, item.SessionKey) {
+		return nil
+	}
+	plan, planErr := s.PlanContinuationForSession(ctx, item.SessionKey, "")
+	if errors.Is(planErr, ErrGoalNotFound) ||
+		errors.Is(planErr, ErrGoalVersionStale) ||
+		errors.Is(planErr, sql.ErrNoRows) {
+		return nil
+	}
+	if planErr != nil {
+		return planErr
+	}
+	if plan == nil {
+		return nil
+	}
+	return dispatcher.DispatchGoalContinuation(ctx, *plan)
 }
 
 func (s *Service) runAutoResumeLoop(ctx context.Context, dispatcher ContinuationDispatcher) {

@@ -24,6 +24,7 @@ type Service struct {
 	events           eventBroadcaster
 	guidance         guidanceDispatcher
 	externalMutation externalMutationAccountant
+	continuations    ContinuationDispatcher
 	nowFn            func() time.Time
 	idFactory        func(string) string
 }
@@ -79,6 +80,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceUser, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
+	s.maybeDispatchActiveGoalContinuation(ctx, *created)
 	return created, nil
 }
 
@@ -162,6 +164,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive && s.goalBudgetExhausted(*updated) {
 		return s.limitForSystem(ctx, *updated, protocol.GoalStatusBudgetLimited, "budget_limited", "", "Goal token budget exhausted")
 	}
+	s.maybeDispatchActiveGoalContinuation(ctx, *updated)
 	return updated, nil
 }
 
@@ -185,7 +188,12 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 			return item, nil
 		}
 	}
-	return s.persistTransition(ctx, *item, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", nil)
+	resumed, err := s.persistTransition(ctx, *item, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	s.maybeDispatchActiveGoalContinuation(ctx, *resumed)
+	return resumed, nil
 }
 
 // Clear 清除当前 Goal。

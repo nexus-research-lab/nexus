@@ -1003,6 +1003,66 @@ func TestServiceRunAutoResumeOnceSkipsDeferredGoal(t *testing.T) {
 	}
 }
 
+func TestServiceSetFromThreadGoalParamsDispatchesActiveGoalImmediately(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeContinuationDispatcher{}
+	service.SetContinuationDispatcher(dispatcher)
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Start after app-server set"
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != created.ID {
+		t.Fatalf("plans = %#v, want immediate continuation for active goal %q", dispatcher.plans, created.ID)
+	}
+	current, err := service.Current(ctx, threadID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 1 {
+		t.Fatalf("ContinuationCount = %d, want 1", current.ContinuationCount)
+	}
+}
+
+func TestServiceSetFromThreadGoalParamsDoesNotDispatchPausedGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeContinuationDispatcher{}
+	service.SetContinuationDispatcher(dispatcher)
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Do not start paused goal"
+	paused := protocol.ThreadGoalStatusPaused
+
+	if _, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+		Status:    &paused,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 0 {
+		t.Fatalf("plans = %#v, want no continuation for paused goal", dispatcher.plans)
+	}
+}
+
 func TestServiceCheckpointUpdatesRuntimeContext(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
