@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 收口 Memory 页面和 Agent 记忆 tab 的状态徽标、时间展示、输入框、按钮和面板样式，移除重复的记忆展示逻辑。
 - 连接器详情、OAuth Client 配置和 GitHub Device Flow 弹窗改用共享 Dialog、Button 与 Panel 控件，减少旧弹窗手写结构。
 - 定时任务概览、Heartbeat、运行历史和调度表单统一使用共享 Panel、StateBlock、Skeleton 和按钮控件。
+- 连接器列表将分类筛选移入搜索栏，卡片改为轻量列表行，并统一使用共享 Select 与 Badge 控件，移除 Header 分类 tab 的重复入口。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
 - 优化 Markdown 流式 URL 渲染：流式尾部 URL 暂缓成链接，外链协议白名单收紧，并压缩裸 URL 的显示长度。
 

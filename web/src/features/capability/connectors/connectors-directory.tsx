@@ -97,7 +97,15 @@ export function ConnectorsDirectory() {
         header={<ConnectorsHeader ctrl={ctrl} />}
         stable_gutter
       >
-        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
+        <div className="mx-auto w-full max-w-[980px] px-5 py-6 xl:px-6">
+          <div className="mb-5">
+            <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
+              让 Nexus 接入你的工作工具
+            </h1>
+            <p className="mt-1 max-w-[680px] text-[13px] leading-6 text-(--text-muted)">
+              连接文档、代码仓库和业务系统，让 Agent 在对话里读取、创建和更新真实工作内容。
+            </p>
+          </div>
           <ConnectorsSearchBar ctrl={ctrl} />
           <ConnectorsGrid ctrl={ctrl} />
         </div>

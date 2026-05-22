@@ -3,6 +3,9 @@
 import { Check, ExternalLink, KeyRound, Link2, Shield, Unplug } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiButton } from "@/shared/ui/button";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -10,9 +13,6 @@ import {
   UiDialogHeader,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { ConnectorDetail } from "@/types/capability/connector";
