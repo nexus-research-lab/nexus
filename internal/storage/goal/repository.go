@@ -39,6 +39,7 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
     token_used_cache_read,
     token_used_reasoning,
     token_used_total,
+    time_used_seconds,
     continuation_count,
     empty_progress_count,
     version,
@@ -50,7 +51,7 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
     cleared_at,
     last_error,
     metadata_json
-) VALUES (%s)`, r.bindList(22))
+) VALUES (%s)`, r.bindList(23))
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
@@ -65,6 +66,7 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
 		goal.Usage.CacheReadInputTokens,
 		goal.Usage.ReasoningTokens,
 		goal.Usage.TotalTokens,
+		goal.TimeUsedSeconds,
 		goal.ContinuationCount,
 		goal.EmptyProgressCount,
 		goal.Version,
@@ -98,7 +100,7 @@ func (r *Repository) GetGoal(ctx context.Context, goalID string) (*protocol.Goal
 
 // GetCurrentGoal 读取 session 当前 Goal。
 func (r *Repository) GetCurrentGoal(ctx context.Context, sessionKey string) (*protocol.Goal, error) {
-	query := goalSelectQuery("session_key = " + r.bind(1) + " AND status IN ('active', 'paused', 'blocked')")
+	query := goalSelectQuery("session_key = " + r.bind(1) + " AND status IN ('active', 'paused', 'blocked', 'budget_limited', 'usage_limited')")
 	row := r.db.QueryRowContext(ctx, query, strings.TrimSpace(sessionKey))
 	goal, err := scanGoal(row)
 	if err == sql.ErrNoRows {
@@ -122,6 +124,7 @@ SET objective = %s,
     token_used_cache_read = %s,
     token_used_reasoning = %s,
     token_used_total = %s,
+    time_used_seconds = %s,
     continuation_count = %s,
     empty_progress_count = %s,
     version = %s,
@@ -134,6 +137,7 @@ SET objective = %s,
 WHERE goal_id = %s AND version = %s`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
 		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19), r.bind(20),
+		r.bind(21),
 	)
 	result, err := r.db.ExecContext(
 		ctx,
@@ -147,6 +151,7 @@ WHERE goal_id = %s AND version = %s`,
 		goal.Usage.CacheReadInputTokens,
 		goal.Usage.ReasoningTokens,
 		goal.Usage.TotalTokens,
+		goal.TimeUsedSeconds,
 		goal.ContinuationCount,
 		goal.EmptyProgressCount,
 		goal.Version,

@@ -8,7 +8,14 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
-import { create_goal_api } from "@/lib/api/goal-api";
+import {
+  clear_goal_api,
+  complete_goal_api,
+  create_goal_api,
+  get_current_goal_api,
+  pause_goal_api,
+  resume_goal_api,
+} from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
@@ -37,11 +44,36 @@ import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
 
-function parse_goal_command(content: string): string | null {
+type GoalCommand =
+  | { kind: "show" }
+  | { kind: "pause" }
+  | { kind: "resume" }
+  | { kind: "clear" }
+  | { kind: "complete" }
+  | { kind: "create"; objective: string; token_budget: number | null };
+
+function parse_goal_command(content: string): GoalCommand | null {
   const trimmed = content.trim();
   if (trimmed === "/goal") {
-    return "";
+    return { kind: "show" };
   }
+  const body = goal_command_body(trimmed);
+  if (body === null) {
+    return null;
+  }
+  const normalized = body.toLowerCase();
+  if (normalized === "pause") return { kind: "pause" };
+  if (normalized === "resume" || normalized === "start") return { kind: "resume" };
+  if (normalized === "clear") return { kind: "clear" };
+  if (normalized === "complete" || normalized === "done") return { kind: "complete" };
+  const parsed = parse_goal_create_arguments(body);
+  if (!parsed.objective) {
+    return { kind: "show" };
+  }
+  return { kind: "create", ...parsed };
+}
+
+function goal_command_body(trimmed: string): string | null {
   if (trimmed.startsWith("/goal ")) {
     return trimmed.slice("/goal ".length).trim();
   }
@@ -49,6 +81,42 @@ function parse_goal_command(content: string): string | null {
     return trimmed.slice("/goal\n".length).trim();
   }
   return null;
+}
+
+function parse_goal_create_arguments(body: string): {
+  objective: string;
+  token_budget: number | null;
+} {
+  const parts = body.split(/\s+/).filter(Boolean);
+  const objective_parts: string[] = [];
+  let token_budget: number | null = null;
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index];
+    if (part === "--tokens" || part === "--token-budget" || part === "--budget" || part === "-b") {
+      token_budget = parse_token_budget(parts[index + 1] ?? "");
+      index++;
+      continue;
+    }
+    const match = part.match(/^--(?:tokens|token-budget|budget)=(.+)$/);
+    if (match) {
+      token_budget = parse_token_budget(match[1]);
+      continue;
+    }
+    objective_parts.push(part);
+  }
+  return {
+    objective: objective_parts.join(" ").trim(),
+    token_budget,
+  };
+}
+
+function parse_token_budget(value: string): number | null {
+  const normalized = value.trim().replace(/[, _]/g, "");
+  const match = normalized.match(/^(\d+(?:\.\d+)?)([kKmM])?$/);
+  if (!match) return null;
+  const multiplier = match[2]?.toLowerCase() === "m" ? 1_000_000 : match[2] ? 1_000 : 1;
+  const parsed = Math.round(Number.parseFloat(match[1]) * multiplier);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 export interface DmChatPanelProps {
@@ -264,13 +332,27 @@ export function DmChatPanel({
     attachments: PreparedComposerAttachment[] = [],
   ) => {
     if (!content.trim() && attachments.length === 0) return;
-    const goal_objective = parse_goal_command(content);
-    if (goal_objective !== null) {
-      if (!session_key || !goal_objective) return;
-      await create_goal_api({
-        session_key,
-        objective: goal_objective,
-      });
+    const goal_command = parse_goal_command(content);
+    if (goal_command !== null) {
+      if (!session_key) return;
+      if (goal_command.kind === "show") {
+        set_goal_refresh_seq((value) => value + 1);
+        return;
+      }
+      if (goal_command.kind === "create") {
+        await create_goal_api({
+          session_key,
+          objective: goal_command.objective,
+          token_budget: goal_command.token_budget,
+        });
+        set_goal_refresh_seq((value) => value + 1);
+        return;
+      }
+      const current = await get_current_goal_api(session_key);
+      if (goal_command.kind === "pause") await pause_goal_api(current.id);
+      if (goal_command.kind === "resume") await resume_goal_api(current.id);
+      if (goal_command.kind === "clear") await clear_goal_api(current.id);
+      if (goal_command.kind === "complete") await complete_goal_api(current.id);
       set_goal_refresh_seq((value) => value + 1);
       return;
     }

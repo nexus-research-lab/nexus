@@ -35,6 +35,8 @@ const STATUS_LABEL: Record<GoalStatus, string> = {
   paused: "已暂停",
   complete: "已完成",
   blocked: "已阻塞",
+  budget_limited: "预算耗尽",
+  usage_limited: "续跑受限",
   cleared: "已清除",
 };
 
@@ -255,6 +257,17 @@ export function GoalPanel({
           </button>
         ) : null}
         {goal.status === "paused" || goal.status === "blocked" ? (
+          <button
+            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
+            disabled={disabled || is_loading}
+            title="继续"
+            type="button"
+            onClick={() => void mutate_goal(resume_goal_api)}
+          >
+            <Play className="h-4 w-4" />
+          </button>
+        ) : null}
+        {goal.status === "budget_limited" || goal.status === "usage_limited" ? (
           <button
             className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
             disabled={disabled || is_loading}

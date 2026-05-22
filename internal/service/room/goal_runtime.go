@@ -39,6 +39,7 @@ func (s *RealtimeService) recordGoalUsageForSlot(ctx context.Context, slot *acti
 		CacheReadInputTokens:     result.Usage.CacheReadInputTokens,
 		ReasoningTokens:          result.Usage.ReasoningTokens,
 		TotalTokens:              result.Usage.TotalTokens,
+		RuntimeSeconds:           result.ElapsedTimeSeconds,
 	}, slot.AgentRoundID)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
 		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",

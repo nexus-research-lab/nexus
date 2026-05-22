@@ -1,4 +1,11 @@
-export type GoalStatus = "active" | "paused" | "complete" | "blocked" | "cleared";
+export type GoalStatus =
+  | "active"
+  | "paused"
+  | "complete"
+  | "blocked"
+  | "budget_limited"
+  | "usage_limited"
+  | "cleared";
 
 export interface GoalUsage {
   input_tokens?: number;
@@ -7,6 +14,7 @@ export interface GoalUsage {
   cache_read_input_tokens?: number;
   reasoning_tokens?: number;
   total_tokens?: number;
+  runtime_seconds?: number;
 }
 
 export interface Goal {
@@ -16,6 +24,7 @@ export interface Goal {
   status: GoalStatus;
   token_budget?: number | null;
   usage?: GoalUsage;
+  time_used_seconds?: number;
   continuation_count: number;
   empty_progress_count: number;
   version: number;

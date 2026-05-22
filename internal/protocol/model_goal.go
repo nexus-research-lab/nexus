@@ -9,11 +9,13 @@ import (
 type GoalStatus string
 
 const (
-	GoalStatusActive   GoalStatus = "active"
-	GoalStatusPaused   GoalStatus = "paused"
-	GoalStatusComplete GoalStatus = "complete"
-	GoalStatusBlocked  GoalStatus = "blocked"
-	GoalStatusCleared  GoalStatus = "cleared"
+	GoalStatusActive        GoalStatus = "active"
+	GoalStatusPaused        GoalStatus = "paused"
+	GoalStatusComplete      GoalStatus = "complete"
+	GoalStatusBlocked       GoalStatus = "blocked"
+	GoalStatusBudgetLimited GoalStatus = "budget_limited"
+	GoalStatusUsageLimited  GoalStatus = "usage_limited"
+	GoalStatusCleared       GoalStatus = "cleared"
 )
 
 // GoalUpdateSource 表示 Goal 状态变化来源。
@@ -33,6 +35,15 @@ type GoalUsage struct {
 	CacheReadInputTokens     int64 `json:"cache_read_input_tokens,omitempty"`
 	ReasoningTokens          int64 `json:"reasoning_tokens,omitempty"`
 	TotalTokens              int64 `json:"total_tokens,omitempty"`
+	RuntimeSeconds           int64 `json:"runtime_seconds,omitempty"`
+}
+
+// Total 返回可用于预算判断的 token 总量。
+func (u GoalUsage) Total() int64 {
+	if u.TotalTokens > 0 {
+		return u.TotalTokens
+	}
+	return u.InputTokens + u.OutputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens + u.ReasoningTokens
 }
 
 // Add 合并 token usage。
@@ -43,9 +54,8 @@ func (u GoalUsage) Add(other GoalUsage) GoalUsage {
 	u.CacheReadInputTokens += other.CacheReadInputTokens
 	u.ReasoningTokens += other.ReasoningTokens
 	u.TotalTokens += other.TotalTokens
-	if u.TotalTokens == 0 {
-		u.TotalTokens = u.InputTokens + u.OutputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens + u.ReasoningTokens
-	}
+	u.RuntimeSeconds += other.RuntimeSeconds
+	u.TotalTokens = u.Total()
 	return u
 }
 
@@ -57,6 +67,7 @@ type Goal struct {
 	Status             GoalStatus     `json:"status"`
 	TokenBudget        *int64         `json:"token_budget,omitempty"`
 	Usage              GoalUsage      `json:"usage"`
+	TimeUsedSeconds    int64          `json:"time_used_seconds,omitempty"`
 	ContinuationCount  int            `json:"continuation_count"`
 	EmptyProgressCount int            `json:"empty_progress_count"`
 	Version            int64          `json:"version"`
@@ -68,6 +79,18 @@ type Goal struct {
 	ClearedAt          *time.Time     `json:"cleared_at,omitempty"`
 	LastError          string         `json:"last_error,omitempty"`
 	Metadata           map[string]any `json:"metadata,omitempty"`
+}
+
+// RemainingTokens 返回剩余 token 预算；没有预算时返回 nil。
+func (g Goal) RemainingTokens() *int64 {
+	if g.TokenBudget == nil || *g.TokenBudget <= 0 {
+		return nil
+	}
+	remaining := *g.TokenBudget - g.Usage.Total()
+	if remaining < 0 {
+		remaining = 0
+	}
+	return &remaining
 }
 
 // GoalEvent 表示 Goal 审计事件。
@@ -159,6 +182,10 @@ func NormalizeGoalStatus(status GoalStatus) GoalStatus {
 		return GoalStatusComplete
 	case GoalStatusBlocked:
 		return GoalStatusBlocked
+	case GoalStatusBudgetLimited:
+		return GoalStatusBudgetLimited
+	case GoalStatusUsageLimited:
+		return GoalStatusUsageLimited
 	case GoalStatusCleared:
 		return GoalStatusCleared
 	default:
@@ -169,7 +196,7 @@ func NormalizeGoalStatus(status GoalStatus) GoalStatus {
 // IsCurrentGoalStatus 判断状态是否属于当前 Goal。
 func IsCurrentGoalStatus(status GoalStatus) bool {
 	switch NormalizeGoalStatus(status) {
-	case GoalStatusActive, GoalStatusPaused, GoalStatusBlocked:
+	case GoalStatusActive, GoalStatusPaused, GoalStatusBlocked, GoalStatusBudgetLimited, GoalStatusUsageLimited:
 		return true
 	default:
 		return false

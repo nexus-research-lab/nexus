@@ -63,13 +63,19 @@ func (s *Service) RecordUsageForSession(ctx context.Context, sessionKey string, 
 		return nil, ErrGoalNotFound
 	}
 	if usage.TotalTokens == 0 {
-		usage.TotalTokens = usage.InputTokens + usage.OutputTokens + usage.CacheCreationInputTokens + usage.CacheReadInputTokens + usage.ReasoningTokens
+		usage.TotalTokens = usage.Total()
 	}
-	if usage.TotalTokens == 0 {
+	if usage.TotalTokens == 0 && usage.RuntimeSeconds == 0 {
 		return item, nil
 	}
 	expectedVersion := item.Version
 	item.Usage = item.Usage.Add(usage)
+	item.TimeUsedSeconds += usage.RuntimeSeconds
+	budgetLimited := protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusActive && s.goalBudgetExhausted(*item)
+	if budgetLimited {
+		item.Status = protocol.GoalStatusBudgetLimited
+		item.LastError = "Goal token budget exhausted"
+	}
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
@@ -81,6 +87,18 @@ func (s *Service) RecordUsageForSession(ctx context.Context, sessionKey string, 
 	}
 	if err := s.appendEvent(ctx, *updated, "usage_recorded", protocol.GoalUpdateSourceSystem, roundID, map[string]any{"usage": usage}); err != nil {
 		return nil, err
+	}
+	if budgetLimited {
+		payload := map[string]any{
+			"reason":      item.LastError,
+			"usage_total": item.Usage.Total(),
+		}
+		if item.TokenBudget != nil {
+			payload["token_budget"] = *item.TokenBudget
+		}
+		if err := s.appendEvent(ctx, *updated, "budget_limited", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
+			return nil, err
+		}
 	}
 	return updated, nil
 }

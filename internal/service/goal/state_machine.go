@@ -12,7 +12,12 @@ func canTransition(source protocol.GoalUpdateSource, from protocol.GoalStatus, t
 	case protocol.GoalUpdateSourceModel:
 		return from == protocol.GoalStatusActive && (to == protocol.GoalStatusComplete || to == protocol.GoalStatusBlocked)
 	case protocol.GoalUpdateSourceSystem:
-		return from == protocol.GoalStatusActive && (to == protocol.GoalStatusPaused || to == protocol.GoalStatusBlocked)
+		if from != protocol.GoalStatusActive {
+			return false
+		}
+		return to == protocol.GoalStatusBlocked ||
+			to == protocol.GoalStatusBudgetLimited ||
+			to == protocol.GoalStatusUsageLimited
 	default:
 		return canUserTransition(from, to)
 	}
@@ -22,9 +27,7 @@ func canUserTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {
 	switch from {
 	case protocol.GoalStatusActive:
 		return to == protocol.GoalStatusPaused || to == protocol.GoalStatusComplete || to == protocol.GoalStatusBlocked || to == protocol.GoalStatusCleared
-	case protocol.GoalStatusPaused:
-		return to == protocol.GoalStatusActive || to == protocol.GoalStatusCleared
-	case protocol.GoalStatusBlocked:
+	case protocol.GoalStatusPaused, protocol.GoalStatusBlocked, protocol.GoalStatusBudgetLimited, protocol.GoalStatusUsageLimited:
 		return to == protocol.GoalStatusActive || to == protocol.GoalStatusCleared
 	case protocol.GoalStatusComplete, protocol.GoalStatusCleared:
 		return false

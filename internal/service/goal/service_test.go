@@ -131,7 +131,7 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	}
 }
 
-func TestServicePlanContinuationPausesWhenBudgetExhausted(t *testing.T) {
+func TestServicePlanContinuationStopsWhenBudgetExhausted(t *testing.T) {
 	repo := newMemoryRepository()
 	budget := int64(10)
 	service := NewService(config.Config{
@@ -150,7 +150,7 @@ func TestServicePlanContinuationPausesWhenBudgetExhausted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10, RuntimeSeconds: 7}, "round-1"); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
@@ -164,8 +164,45 @@ func TestServicePlanContinuationPausesWhenBudgetExhausted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.Status != protocol.GoalStatusPaused || current.LastError == "" {
-		t.Fatalf("current = %#v, want paused with last error", current)
+	if current.Status != protocol.GoalStatusBudgetLimited || current.LastError == "" || current.TimeUsedSeconds != 7 {
+		t.Fatalf("current = %#v, want budget_limited with last error and runtime", current)
+	}
+}
+
+func TestServicePlanContinuationStopsAtUsageLimit(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 1,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Limited work",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan != nil {
+		t.Fatalf("plan = %#v, want nil after usage limit", plan)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusUsageLimited || current.LastError == "" {
+		t.Fatalf("current = %#v, want usage_limited with last error", current)
 	}
 }
 
@@ -229,7 +266,7 @@ func TestBuildRuntimeContext(t *testing.T) {
 			TotalTokens:  30,
 		},
 	})
-	for _, want := range []string{"<nexus_goal>", "Complete parity", "TokenBudget: 100", "调用 Goal 工具标记完成"} {
+	for _, want := range []string{"<nexus_goal>", "Complete parity", "TokenBudget: 100", "RemainingTokens: 70", "update_goal with status=complete"} {
 		if !strings.Contains(contextText, want) {
 			t.Fatalf("RuntimeContext missing %q: %s", want, contextText)
 		}

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约、续跑上下文和 `/goal` 控制命令。
+
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
 

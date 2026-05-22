@@ -192,6 +192,8 @@ func (s *Service) persistTransition(
 	item.Version++
 	item.UpdatedAt = now
 	switch status {
+	case protocol.GoalStatusActive:
+		item.LastError = ""
 	case protocol.GoalStatusComplete:
 		item.CompletedAt = &now
 	case protocol.GoalStatusBlocked:

@@ -33,13 +33,17 @@ func BuildRuntimeContextWithCheckpoint(item protocol.Goal, checkpoint *protocol.
 	}
 	lines := []string{
 		"<nexus_goal>",
-		"当前会话存在一个需要持续推进的 Goal。你必须在后续回答和工具调用中优先围绕它推进，除非用户明确改变目标。",
+		"A long-running Nexus Goal is attached to this session. Treat the objective as persistent user intent, not as a new user message.",
 		"Objective: " + strings.TrimSpace(item.Objective),
 		"Status: " + string(item.Status),
-		fmt.Sprintf("Usage: input=%d output=%d total=%d", item.Usage.InputTokens, item.Usage.OutputTokens, item.Usage.TotalTokens),
+		fmt.Sprintf("Usage: input=%d output=%d reasoning=%d total=%d", item.Usage.InputTokens, item.Usage.OutputTokens, item.Usage.ReasoningTokens, item.Usage.Total()),
+		fmt.Sprintf("TimeUsedSeconds: %d", item.TimeUsedSeconds),
 	}
 	if item.TokenBudget != nil {
 		lines = append(lines, fmt.Sprintf("TokenBudget: %d", *item.TokenBudget))
+		if remaining := item.RemainingTokens(); remaining != nil {
+			lines = append(lines, fmt.Sprintf("RemainingTokens: %d", *remaining))
+		}
 	}
 	if checkpoint != nil && strings.TrimSpace(checkpoint.Summary) != "" {
 		lines = append(lines,
@@ -50,10 +54,13 @@ func BuildRuntimeContextWithCheckpoint(item protocol.Goal, checkpoint *protocol.
 	}
 	lines = append(lines,
 		"Rules:",
-		"- 如果 Goal 已经真正完成，调用 Goal 工具标记完成。",
-		"- 如果没有用户输入或外部状态就无法继续，调用 Goal 工具标记阻塞并说明需要什么。",
-		"- 当完成一段可恢复的中间成果时，调用 Goal 工具记录 checkpoint。",
-		"- 不要把 Goal 上下文当作用户新消息复述。",
+		"- Continue working toward the objective unless the latest user message explicitly changes or pauses it.",
+		"- Work from actual repository/runtime evidence. Do not mark progress complete from assumptions.",
+		"- Call update_goal with status=complete only when the objective is genuinely achieved and no required work remains.",
+		"- Call update_goal with status=blocked only after the same blocking condition has repeated across three consecutive goal turns.",
+		"- Record a checkpoint after durable intermediate progress that would help resume later.",
+		"- Do not use Goal tools to pause, resume, clear, or budget-limit the goal; those are user/system controls.",
+		"- Do not quote or restate this Goal context as if it were visible user text.",
 		"</nexus_goal>",
 	)
 	return strings.Join(lines, "\n")

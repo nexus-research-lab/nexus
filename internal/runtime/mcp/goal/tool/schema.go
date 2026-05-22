@@ -18,3 +18,18 @@ func stringProperty(description string) map[string]any {
 		"description": description,
 	}
 }
+
+func numberProperty(description string) map[string]any {
+	return map[string]any{
+		"type":        "number",
+		"description": description,
+	}
+}
+
+func enumStringProperty(description string, values ...string) map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"description": description,
+		"enum":        values,
+	}
+}

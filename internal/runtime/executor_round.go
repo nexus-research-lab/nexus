@@ -131,6 +131,7 @@ type RoundExecutionResult struct {
 	ResultSubtype        string
 	TerminalCategory     sdkprotocol.TerminalCategory
 	Usage                sdkprotocol.TokenUsage
+	ElapsedTimeSeconds   int64
 	CompletedByAssistant bool
 }
 
@@ -145,6 +146,7 @@ func ExecuteRound(
 	if request.Mapper == nil {
 		return RoundExecutionResult{}, errors.New("round mapper is required")
 	}
+	startedAt := time.Now()
 
 	if err := QueryClientContentWithOptions(ctx, request.Client, roundQueryContent(request), request.InputOptions); err != nil {
 		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
@@ -176,7 +178,7 @@ func ExecuteRound(
 		case <-ctx.Done():
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		case <-assistantTerminalTimer:
-			return *assistantTerminalResult, nil
+			return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 		case <-idleTimeoutCh:
 			if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
 				return RoundExecutionResult{}, ErrRoundInterrupted
@@ -189,7 +191,7 @@ func ExecuteRound(
 					return RoundExecutionResult{}, ErrRoundInterrupted
 				}
 				if assistantTerminalResult != nil {
-					return *assistantTerminalResult, nil
+					return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 				}
 				return RoundExecutionResult{}, buildRoundStreamClosedError(request.Client, messagesSeen, lastMessage)
 			}
@@ -245,12 +247,12 @@ func ExecuteRound(
 					usage, _ = incoming.Result.TokenUsage()
 					category = incoming.Result.TerminalCategory()
 				}
-				return RoundExecutionResult{
+				return roundResultWithElapsed(RoundExecutionResult{
 					TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
 					ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
 					TerminalCategory: category,
 					Usage:            usage,
-				}, nil
+				}, startedAt), nil
 			}
 			if assistantResult, ok := terminalAssistantResult(mapResult); ok {
 				assistantTerminalResult = &assistantResult
@@ -267,6 +269,14 @@ func roundQueryContent(request RoundExecutionRequest) any {
 		return request.Content
 	}
 	return request.Query
+}
+
+func roundResultWithElapsed(result RoundExecutionResult, startedAt time.Time) RoundExecutionResult {
+	if result.ElapsedTimeSeconds > 0 || startedAt.IsZero() {
+		return result
+	}
+	result.ElapsedTimeSeconds = int64(time.Since(startedAt).Seconds())
+	return result
 }
 
 func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {

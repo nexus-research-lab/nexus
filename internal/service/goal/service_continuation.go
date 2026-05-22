@@ -32,11 +32,11 @@ func (s *Service) PlanContinuationForSession(ctx context.Context, sessionKey str
 		return nil, nil
 	}
 	if s.goalBudgetExhausted(*item) {
-		_, err := s.pauseForSystem(ctx, *item, "budget_exhausted", strings.TrimSpace(previousRoundID), "Goal token budget exhausted")
+		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", strings.TrimSpace(previousRoundID), "Goal token budget exhausted")
 		return nil, err
 	}
 	if max := s.config.GoalMaxContinuationsPerRun; max > 0 && item.ContinuationCount >= max {
-		_, err := s.pauseForSystem(ctx, *item, "continuation_limit_reached", strings.TrimSpace(previousRoundID), "Goal auto-continuation limit reached")
+		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", strings.TrimSpace(previousRoundID), "Goal auto-continuation limit reached")
 		return nil, err
 	}
 
@@ -80,34 +80,55 @@ func (s *Service) goalBudgetExhausted(item protocol.Goal) bool {
 	if item.TokenBudget == nil || *item.TokenBudget <= 0 {
 		return false
 	}
-	total := item.Usage.TotalTokens
-	if total == 0 {
-		total = item.Usage.InputTokens + item.Usage.OutputTokens + item.Usage.CacheCreationInputTokens + item.Usage.CacheReadInputTokens + item.Usage.ReasoningTokens
-	}
-	return total >= *item.TokenBudget
+	return item.Usage.Total() >= *item.TokenBudget
 }
 
-func (s *Service) pauseForSystem(ctx context.Context, item protocol.Goal, eventType string, roundID string, reason string) (*protocol.Goal, error) {
+func (s *Service) limitForSystem(
+	ctx context.Context,
+	item protocol.Goal,
+	status protocol.GoalStatus,
+	eventType string,
+	roundID string,
+	reason string,
+) (*protocol.Goal, error) {
 	item.LastError = strings.TrimSpace(reason)
-	payload := map[string]any{"reason": item.LastError}
-	return s.persistTransition(ctx, item, protocol.GoalStatusPaused, protocol.GoalUpdateSourceSystem, eventType, roundID, payload)
+	payload := map[string]any{
+		"reason":      item.LastError,
+		"usage_total": item.Usage.Total(),
+	}
+	if item.TokenBudget != nil {
+		payload["token_budget"] = *item.TokenBudget
+	}
+	return s.persistTransition(ctx, item, status, protocol.GoalUpdateSourceSystem, eventType, roundID, payload)
 }
 
 func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string {
 	lines := []string{
 		"<nexus_goal_continuation>",
-		"这是 Nexus 系统为当前 Goal 触发的隐藏续跑输入，不是用户的新消息。",
-		"继续推进当前 Goal；如果已完成，调用 Goal 工具标记完成；如果没有用户输入或外部状态就无法继续，调用 Goal 工具标记阻塞。",
+		"Continue working toward the active Nexus Goal. This is an internal hidden continuation, not a new user message.",
 		"Objective: " + strings.TrimSpace(item.Objective),
 		fmt.Sprintf("ContinuationCount: %d", item.ContinuationCount),
-		fmt.Sprintf("Usage: input=%d output=%d total=%d", item.Usage.InputTokens, item.Usage.OutputTokens, item.Usage.TotalTokens),
+		fmt.Sprintf("Usage: input=%d output=%d reasoning=%d total=%d", item.Usage.InputTokens, item.Usage.OutputTokens, item.Usage.ReasoningTokens, item.Usage.Total()),
+		fmt.Sprintf("TimeUsedSeconds: %d", item.TimeUsedSeconds),
 	}
 	if previous := strings.TrimSpace(previousRoundID); previous != "" {
 		lines = append(lines, "PreviousRoundID: "+previous)
 	}
 	if item.TokenBudget != nil {
 		lines = append(lines, fmt.Sprintf("TokenBudget: %d", *item.TokenBudget))
+		if remaining := item.RemainingTokens(); remaining != nil {
+			lines = append(lines, fmt.Sprintf("RemainingTokens: %d", *remaining))
+		}
 	}
-	lines = append(lines, "</nexus_goal_continuation>")
+	lines = append(lines,
+		"ContinuationRules:",
+		"- Inspect the current state before acting; preserve work already done.",
+		"- Keep the user-visible progress concise when you eventually respond.",
+		"- If the goal is actually done, call update_goal with status=complete and include a short summary.",
+		"- If the same blocker has recurred for three consecutive goal turns and you cannot make meaningful progress, call update_goal with status=blocked.",
+		"- If neither condition is true, keep working and record a checkpoint after durable progress.",
+		"- Do not ask for confirmation merely because the next step is non-trivial.",
+		"</nexus_goal_continuation>",
+	)
 	return strings.Join(lines, "\n")
 }

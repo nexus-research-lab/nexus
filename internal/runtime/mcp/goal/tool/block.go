@@ -41,7 +41,7 @@ func block(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			if err != nil {
 				return errorResult(err), nil
 			}
-			return structuredResult("goal marked blocked", map[string]any{"goal": item}), nil
+			return structuredResult("goal marked blocked", goalPayload(item)), nil
 		},
 	}
 }

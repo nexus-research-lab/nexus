@@ -9,9 +9,17 @@ import (
 )
 
 func getCurrent(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return readGoalTool("get_current_goal", "Read the active Nexus Goal bound to the current runtime session.", svc, sctx)
+}
+
+func getGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
+	return readGoalTool("get_goal", "Read the current thread goal, usage, and remaining token budget.", svc, sctx)
+}
+
+func readGoalTool(name string, description string, svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
-		Name:        "get_current_goal",
-		Description: "Read the active Nexus Goal bound to the current runtime session.",
+		Name:        name,
+		Description: description,
 		InputSchema: objectSchema(map[string]any{}),
 		Annotations: &sdkmcp.ToolAnnotations{
 			ReadOnlyHint: true,
@@ -22,7 +30,7 @@ func getCurrent(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			if err != nil {
 				return errorResult(err), nil
 			}
-			return structuredResult("current goal loaded", map[string]any{"goal": item}), nil
+			return structuredResult("current goal loaded", goalPayload(item)), nil
 		},
 	}
 }

@@ -116,6 +116,7 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult) {
 		CacheReadInputTokens:     result.Usage.CacheReadInputTokens,
 		ReasoningTokens:          result.Usage.ReasoningTokens,
 		TotalTokens:              result.Usage.TotalTokens,
+		RuntimeSeconds:           result.ElapsedTimeSeconds,
 	}, r.roundID)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
 		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",
