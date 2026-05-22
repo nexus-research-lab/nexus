@@ -74,6 +74,9 @@ func NewHandler(
 	if roomRealtime != nil {
 		roomRealtime.SetRoomBroadcaster(handler.roomSubs)
 	}
+	if goals != nil {
+		goals.SetEventBroadcaster(newGoalEventBroadcaster(permission, handler.goalRPCSubs))
+	}
 	return handler
 }
 

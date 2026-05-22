@@ -101,7 +101,7 @@ func (s *Service) createFromThreadGoalParams(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceUser, "", map[string]any{"objective": created.Objective}); err != nil {
+	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceExternal, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
 	status := statusAfterThreadGoalBudget(*created, targetStatus, hasStatus)
