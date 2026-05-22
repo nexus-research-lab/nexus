@@ -202,6 +202,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	options = s.runtime.WithGuidanceHook(options, slot.RuntimeSessionKey)
 	options = runtimectx.WithPostToolUseGuidanceHook(options, s.roomSlotGuidanceHook(roundValue, slot, workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  agentValue.WorkspacePath,

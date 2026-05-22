@@ -83,6 +83,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	goalService.SetGuidanceDispatcher(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
 	channelRouter.SetLogger(logger.With("component", "channels"))

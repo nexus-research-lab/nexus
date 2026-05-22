@@ -22,6 +22,7 @@ type Service struct {
 	config    config.Config
 	repo      Repository
 	events    eventBroadcaster
+	guidance  guidanceDispatcher
 	nowFn     func() time.Time
 	idFactory func(string) string
 }
@@ -256,6 +257,7 @@ func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType
 		return err
 	}
 	s.broadcastGoalEvent(ctx, item, event)
+	s.queueGoalSteering(ctx, item, event)
 	return nil
 }
 

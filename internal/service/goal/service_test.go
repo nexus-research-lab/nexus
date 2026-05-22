@@ -279,6 +279,64 @@ func TestServiceUpdateBudgetLimitsActiveGoal(t *testing.T) {
 	}
 }
 
+func TestServiceQueuesObjectiveUpdateSteering(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeGuidanceDispatcher{}
+	service.SetGuidanceDispatcher(dispatcher)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Original",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedObjective := "Updated <goal>"
+	if _, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &updatedObjective}); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.items) != 1 {
+		t.Fatalf("guidance = %#v, want one objective update steering item", dispatcher.items)
+	}
+	item := dispatcher.items[0]
+	if item.sessionKey != created.SessionKey || !strings.Contains(item.content, "objective was edited") || !strings.Contains(item.content, "Updated &lt;goal&gt;") {
+		t.Fatalf("guidance item = %#v, want escaped objective update steering", item)
+	}
+}
+
+func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
+	repo := newMemoryRepository()
+	budget := int64(10)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeGuidanceDispatcher{}
+	service.SetGuidanceDispatcher(dispatcher)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Budget work",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.items) != 1 {
+		t.Fatalf("guidance = %#v, want one budget limit steering item", dispatcher.items)
+	}
+	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey || !strings.Contains(item.content, "budget_limited") || !strings.Contains(item.content, "Budget work") {
+		t.Fatalf("guidance item = %#v, want budget limit steering", item)
+	}
+}
+
 func TestServicePlanContinuationForSession(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -661,6 +719,25 @@ type fakeGoalBroadcaster struct {
 func (b *fakeGoalBroadcaster) BroadcastEvent(_ context.Context, _ string, event protocol.EventMessage) []error {
 	b.events = append(b.events, event)
 	return nil
+}
+
+type fakeGuidanceDispatcher struct {
+	items []fakeGuidanceItem
+}
+
+type fakeGuidanceItem struct {
+	sessionKey string
+	roundID    string
+	content    string
+}
+
+func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKey string, roundID string, content string) ([]string, error) {
+	d.items = append(d.items, fakeGuidanceItem{
+		sessionKey: sessionKey,
+		roundID:    roundID,
+		content:    content,
+	})
+	return []string{"round-running"}, nil
 }
 
 type fakeContinuationDispatcher struct {
