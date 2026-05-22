@@ -15,6 +15,7 @@ func runs(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "get_scheduled_task_runs",
 		Description: "按 job_id 列出最近的运行记录。普通 agent 只能查看自己名下任务的记录。",
+		SearchHint:  searchHintGetScheduledTaskRuns,
 		InputSchema: jobIDSchema(),
 		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {

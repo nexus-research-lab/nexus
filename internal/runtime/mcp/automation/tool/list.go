@@ -14,6 +14,7 @@ func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "list_scheduled_tasks",
 		Description: "列出定时任务。普通 agent 只能看到自己 agent_id 名下的任务；主智能体可传 agent_id 过滤或不传以列全部。",
+		SearchHint:  searchHintListScheduledTasks,
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"agent_id": map[string]any{"type": "string"}},

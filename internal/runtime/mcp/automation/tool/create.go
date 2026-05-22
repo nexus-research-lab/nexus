@@ -28,6 +28,7 @@ func create(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "create_scheduled_task",
 		Description: createDescription,
+		SearchHint:  searchHintCreateScheduledTask,
 		InputSchema: createSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			if args == nil {

@@ -15,6 +15,7 @@ func del(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "delete_scheduled_task",
 		Description: "按 job_id 删除定时任务。普通 agent 只能删除自己名下的任务。",
+		SearchHint:  searchHintDeleteScheduledTask,
 		InputSchema: jobIDSchema(),
 		Annotations: &sdkmcp.ToolAnnotations{Destructive: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {

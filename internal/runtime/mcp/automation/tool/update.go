@@ -23,6 +23,7 @@ func update(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "update_scheduled_task",
 		Description: updateDescription,
+		SearchHint:  searchHintUpdateScheduledTask,
 		InputSchema: updateSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			if args == nil {

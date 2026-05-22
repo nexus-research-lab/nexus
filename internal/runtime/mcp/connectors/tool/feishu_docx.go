@@ -16,6 +16,7 @@ func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdkmcp.To
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_read",
 		Description: "阅读已授权飞书 Docx 或 Wiki 文档，返回 Markdown，可选择保留 block_id 注释用于后续精准更新。",
+		SearchHint:  searchHintFeishuDocxRead,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -43,6 +44,7 @@ func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdkmcp.
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_search",
 		Description: "全文搜索当前授权账号可访问的飞书云文档，返回匹配文档 token、类型、标题和分页信息。",
+		SearchHint:  searchHintFeishuDocxSearch,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"query"},
@@ -82,6 +84,7 @@ func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sd
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_sheet_sheets",
 		Description: "列出飞书电子表格内的工作表，返回 sheet_id、标题、行列信息等元数据。",
+		SearchHint:  searchHintFeishuDocxSheetSheets,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -108,6 +111,7 @@ func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sd
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_sheet_values",
 		Description: "读取飞书电子表格指定范围的具体单元格内容，适合查看表格正文。",
+		SearchHint:  searchHintFeishuDocxSheetValues,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url", "range"},
@@ -135,6 +139,7 @@ func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkm
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_sheet_find",
 		Description: "在飞书电子表格指定工作表内查找单元格内容，返回匹配单元格位置。",
+		SearchHint:  searchHintFeishuDocxSheetFind,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url", "query"},
@@ -178,6 +183,7 @@ func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) 
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_bitable_tables",
 		Description: "列出飞书多维表格应用内的数据表，返回 table_id、名称和分页信息。",
+		SearchHint:  searchHintFeishuDocxBitableTables,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -206,6 +212,7 @@ func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) 
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_bitable_fields",
 		Description: "列出飞书多维表格指定数据表的字段，返回字段名称、类型、属性和说明。",
+		SearchHint:  searchHintFeishuDocxBitableFields,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -243,6 +250,7 @@ func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext)
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_bitable_records",
 		Description: "读取飞书多维表格指定数据表的记录内容，支持字段选择、视图、筛选、排序和分页。",
+		SearchHint:  searchHintFeishuDocxBitableRecords,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url"},
@@ -288,6 +296,7 @@ func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext)
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_create",
 		Description: "创建飞书 Docx 文档，并可直接把 Markdown 内容写入文档。",
+		SearchHint:  searchHintFeishuDocxCreate,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"title"},
@@ -320,6 +329,7 @@ func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext)
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_append_markdown",
 		Description: "向飞书 Docx 或 Wiki 文档末尾追加 Markdown 内容。",
+		SearchHint:  searchHintFeishuDocxAppendMarkdown,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url", "markdown"},
@@ -360,6 +370,7 @@ func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sd
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_update_block",
 		Description: "更新飞书 Docx 文档中指定文本 Block 的内容。",
+		SearchHint:  searchHintFeishuDocxUpdateBlock,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"url", "block_id", "content"},
@@ -399,6 +410,7 @@ func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkm
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_drive_list",
 		Description: "列出飞书云空间文件，可按 folder_token 分页浏览文档、知识库节点、文件夹等资源。",
+		SearchHint:  searchHintFeishuDocxDriveList,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -439,6 +451,7 @@ func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdk
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_wiki_spaces",
 		Description: "列出当前授权账号或应用可访问的飞书知识库空间，返回 space_id、名称和分页信息。",
+		SearchHint:  searchHintFeishuDocxWikiSpaces,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -465,6 +478,7 @@ func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdkm
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_wiki_space",
 		Description: "获取指定飞书知识库空间详情，用于确认知识库名称、描述和 space_id。",
+		SearchHint:  searchHintFeishuDocxWikiSpace,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"space_id"},
@@ -495,6 +509,7 @@ func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkm
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_wiki_nodes",
 		Description: "分页列出飞书知识库空间中的子节点；不传 parent_node_token 时列出顶层节点，可用于逐层浏览操作文档。",
+		SearchHint:  searchHintFeishuDocxWikiNodes,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"space_id"},
@@ -534,6 +549,7 @@ func feishuDocxWikiNode(svc contract.Service, sctx contract.ServerContext) sdkmc
 	return sdkmcp.Tool{
 		Name:        "feishu_docx_wiki_node",
 		Description: "通过飞书 Wiki URL 或 node_token 解析知识库节点，返回真实 obj_token、obj_type、父节点、标题和是否有子节点。",
+		SearchHint:  searchHintFeishuDocxWikiNode,
 		InputSchema: map[string]any{
 			"type":     "object",
 			"required": []string{"token"},

@@ -12,6 +12,8 @@ func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "connector_list",
 		Description: "列出当前用户已连接的 connector。",
+		SearchHint:  searchHintConnectorList,
+		AlwaysLoad:  true,
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},

@@ -20,6 +20,7 @@ func status(svc contract.Service, sctx contract.ServerContext, name string, enab
 	return sdkmcp.Tool{
 		Name:        name,
 		Description: description,
+		SearchHint:  searchHintScheduledTaskStatus(enabled),
 		InputSchema: jobIDSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			jobID := argx.String(args, "job_id")

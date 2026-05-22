@@ -15,6 +15,7 @@ func runNow(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "run_scheduled_task",
 		Description: "立即触发一次执行（不影响后续排程），用于验证或紧急补跑。普通 agent 只能触发自己名下的任务。",
+		SearchHint:  searchHintRunScheduledTask,
 		InputSchema: jobIDSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			jobID := argx.String(args, "job_id")

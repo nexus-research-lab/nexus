@@ -93,6 +93,28 @@ func callTool(t *testing.T, svc contract.Service, sctx contract.ServerContext, n
 	return result, isError
 }
 
+func listTools(t *testing.T, svc contract.Service, sctx contract.ServerContext) []map[string]any {
+	t.Helper()
+	server := NewServer(svc, sctx)
+	resp, err := server.HandleMessage(context.Background(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/list",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage error: %v", err)
+	}
+	result, ok := resp["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing result, got %+v", resp)
+	}
+	tools, ok := result["tools"].([]map[string]any)
+	if !ok {
+		t.Fatalf("tools not []map, got %T", result["tools"])
+	}
+	return tools
+}
+
 func extractText(t *testing.T, result map[string]any) string {
 	t.Helper()
 	content, ok := result["content"].([]map[string]any)
@@ -123,6 +145,27 @@ func dailySchedule(hhmm string) map[string]any {
 		"kind":       "daily",
 		"daily_time": hhmm,
 		"timezone":   "Asia/Shanghai",
+	}
+}
+
+func TestToolsListIncludesSearchHints(t *testing.T) {
+	tools := listTools(t, &stubService{}, contract.ServerContext{})
+	if len(tools) != 8 {
+		t.Fatalf("expected 8 tools, got %d", len(tools))
+	}
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		meta, ok := tool["_meta"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s missing _meta", name)
+		}
+		hint, _ := meta["anthropic/searchHint"].(string)
+		if strings.TrimSpace(hint) == "" {
+			t.Fatalf("%s missing anthropic/searchHint", name)
+		}
+		if _, ok := meta["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("%s should stay deferred", name)
+		}
 	}
 }
 
