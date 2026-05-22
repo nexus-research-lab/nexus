@@ -75,6 +75,34 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if _, err := repository.UpdateGoal(ctx, *updated, 1); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("stale update error = %v, want sql.ErrNoRows", err)
 	}
+
+	runnable, err := repository.ListRunnableGoals(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runnable) != 0 {
+		t.Fatalf("runnable = %#v, want no non-active goals", runnable)
+	}
+
+	_, err = repository.CreateGoal(ctx, protocol.Goal{
+		ID:         "goal-2",
+		SessionKey: "agent:nexus:ws:dm:chat-2",
+		Objective:  "resume",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now,
+		UpdatedAt:  now.Add(-time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runnable, err = repository.ListRunnableGoals(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runnable) != 1 || runnable[0].ID != "goal-2" {
+		t.Fatalf("runnable = %#v, want active goal-2", runnable)
+	}
 }
 
 func TestRepositoryEvents(t *testing.T) {

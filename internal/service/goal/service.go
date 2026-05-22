@@ -18,6 +18,7 @@ import (
 type Service struct {
 	config    config.Config
 	repo      Repository
+	events    eventBroadcaster
 	nowFn     func() time.Time
 	idFactory func(string) string
 }
@@ -225,7 +226,11 @@ func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType
 		Payload:    cloneMap(payload),
 		CreatedAt:  s.nowFn(),
 	}
-	return s.repo.AppendEvent(ctx, event)
+	if err := s.repo.AppendEvent(ctx, event); err != nil {
+		return err
+	}
+	s.broadcastGoalEvent(ctx, item, event)
+	return nil
 }
 
 func (s *Service) ensureEnabled() error {

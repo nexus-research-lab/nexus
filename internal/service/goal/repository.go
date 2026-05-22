@@ -11,6 +11,7 @@ type Repository interface {
 	CreateGoal(context.Context, protocol.Goal) (*protocol.Goal, error)
 	GetGoal(context.Context, string) (*protocol.Goal, error)
 	GetCurrentGoal(context.Context, string) (*protocol.Goal, error)
+	ListRunnableGoals(context.Context, int) ([]protocol.Goal, error)
 	UpdateGoal(context.Context, protocol.Goal, int64) (*protocol.Goal, error)
 	AppendEvent(context.Context, protocol.GoalEvent) error
 	ListEvents(context.Context, string, int) ([]protocol.GoalEvent, error)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +46,36 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 		Objective:  "Second",
 	}); !errors.Is(err, ErrGoalConflict) {
 		t.Fatalf("duplicate create error = %v, want ErrGoalConflict", err)
+	}
+}
+
+func TestServiceBroadcastsGoalEvents(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	broadcaster := &fakeGoalBroadcaster{}
+	service.SetEventBroadcaster(broadcaster)
+
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Broadcast status",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(broadcaster.events) != 1 || broadcaster.events[0].EventType != protocol.EventTypeGoalCreated {
+		t.Fatalf("events = %#v, want goal_created", broadcaster.events)
+	}
+
+	if _, err := service.Pause(context.Background(), created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(broadcaster.events) != 2 || broadcaster.events[1].EventType != protocol.EventTypeGoalStatusChanged {
+		t.Fatalf("events = %#v, want goal_status_changed", broadcaster.events)
+	}
+	if broadcaster.events[1].Data["goal_event_type"] != "paused" {
+		t.Fatalf("payload = %#v, want paused goal_event_type", broadcaster.events[1].Data)
 	}
 }
 
@@ -206,6 +237,64 @@ func TestServicePlanContinuationStopsAtUsageLimit(t *testing.T) {
 	}
 }
 
+func TestServiceRunAutoResumeOnceDispatchesActiveGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Resume after restart",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != created.ID {
+		t.Fatalf("plans = %#v, want one resumed goal", dispatcher.plans)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 1 {
+		t.Fatalf("ContinuationCount = %d, want 1", current.ContinuationCount)
+	}
+}
+
+func TestServiceRunAutoResumeOnceSkipsBusyGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Busy goal",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{busy: map[string]bool{"agent:nexus:ws:dm:chat": true}}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 0 {
+		t.Fatalf("plans = %#v, want no dispatch for busy session", dispatcher.plans)
+	}
+}
+
 func TestServiceCheckpointUpdatesRuntimeContext(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -310,6 +399,25 @@ func (r *memoryRepository) GetCurrentGoal(_ context.Context, sessionKey string) 
 	return nil, nil
 }
 
+func (r *memoryRepository) ListRunnableGoals(_ context.Context, limit int) ([]protocol.Goal, error) {
+	items := make([]protocol.Goal, 0)
+	for _, item := range r.goals {
+		if item.Status == protocol.GoalStatusActive {
+			items = append(items, item)
+		}
+	}
+	sort.Slice(items, func(i int, j int) bool {
+		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].ID < items[j].ID
+		}
+		return items[i].UpdatedAt.Before(items[j].UpdatedAt)
+	})
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
+}
+
 func (r *memoryRepository) UpdateGoal(_ context.Context, item protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
 	current, ok := r.goals[item.ID]
 	if !ok || current.Version != expectedVersion {
@@ -368,4 +476,27 @@ func sequentialID() func(string) string {
 		next++
 		return prefix + "_" + string(rune('0'+next))
 	}
+}
+
+type fakeGoalBroadcaster struct {
+	events []protocol.EventMessage
+}
+
+func (b *fakeGoalBroadcaster) BroadcastEvent(_ context.Context, _ string, event protocol.EventMessage) []error {
+	b.events = append(b.events, event)
+	return nil
+}
+
+type fakeContinuationDispatcher struct {
+	busy  map[string]bool
+	plans []protocol.GoalContinuation
+}
+
+func (d *fakeContinuationDispatcher) IsGoalSessionBusy(sessionKey string) bool {
+	return d.busy[sessionKey]
+}
+
+func (d *fakeContinuationDispatcher) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {
+	d.plans = append(d.plans, plan)
+	return nil
 }

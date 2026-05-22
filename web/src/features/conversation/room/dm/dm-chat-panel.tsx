@@ -155,6 +155,18 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const handle_conversation_event = useCallback(
+    (
+      event_type: string,
+      data: import("@/types/agent/agent-conversation").RoomEventPayload,
+    ) => {
+      if (event_type.startsWith("goal_")) {
+        set_goal_refresh_seq((value) => value + 1);
+      }
+      on_room_event?.(event_type, data);
+    },
+    [on_room_event],
+  );
 
   const {
     error,
@@ -183,7 +195,7 @@ export function DmChatPanel({
     on_error: (err) => {
       console.error("DM conversation error:", err);
     },
-    on_room_event,
+    on_room_event: handle_conversation_event,
   });
 
   const todos = useExtractTodos(messages, session_key);

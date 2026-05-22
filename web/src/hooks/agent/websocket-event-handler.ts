@@ -150,6 +150,14 @@ export function handle_agent_conversation_web_socket_message({
     return;
   }
 
+  if (is_goal_event(event.event_type)) {
+    if (!is_current_session_event(incoming_session_key)) {
+      return;
+    }
+    on_room_event?.(event.event_type, (event.data ?? {}) as RoomEventPayload);
+    return;
+  }
+
   if (event.event_type === "round_status") {
     if (!is_current_session_event(incoming_session_key)) {
       return;
@@ -274,4 +282,16 @@ export function handle_agent_conversation_web_socket_message({
   if (normalized_payload.role === "assistant") {
     track_assistant_message?.(normalized_payload as AssistantMessage);
   }
+}
+
+function is_goal_event(event_type: string): boolean {
+  return (
+    event_type === "goal_created" ||
+    event_type === "goal_updated" ||
+    event_type === "goal_status_changed" ||
+    event_type === "goal_progress" ||
+    event_type === "goal_continuation" ||
+    event_type === "goal_checkpoint" ||
+    event_type === "goal_cleared"
+  );
 }

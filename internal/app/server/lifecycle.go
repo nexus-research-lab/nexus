@@ -80,5 +80,16 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		stops = append(stops, s.services.Automation.Stop)
 	}
 
+	if s.services != nil && s.services.Goal != nil {
+		s.api.BaseLogger().Info("启动 Goal durable resume")
+		stopGoalResume, err := s.services.Goal.StartAutoResume(ctx, newGoalContinuationDispatcher(s.services.Runtime, s.services.DM))
+		if err != nil {
+			s.api.BaseLogger().Error("启动 Goal durable resume 失败", "err", err)
+			stopAll()
+			return nil, err
+		}
+		stops = append(stops, stopGoalResume)
+	}
+
 	return stopAll, nil
 }

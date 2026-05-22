@@ -112,6 +112,32 @@ func (r *Repository) GetCurrentGoal(ctx context.Context, sessionKey string) (*pr
 	return &goal, nil
 }
 
+// ListRunnableGoals 返回需要系统继续推进的 active Goal。
+func (r *Repository) ListRunnableGoals(ctx context.Context, limit int) ([]protocol.Goal, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	query := goalSelectQuery("status = " + r.bind(1) + " ORDER BY updated_at ASC, goal_id ASC LIMIT " + r.bind(2))
+	rows, err := r.db.QueryContext(ctx, query, protocol.GoalStatusActive, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]protocol.Goal, 0)
+	for rows.Next() {
+		item, scanErr := scanGoal(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 // UpdateGoal 以 optimistic version 更新 Goal。
 func (r *Repository) UpdateGoal(ctx context.Context, goal protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
 	query := fmt.Sprintf(`UPDATE session_goals
