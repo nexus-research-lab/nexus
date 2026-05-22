@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
-import { Loader2, Lock, Search } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
 import { get_agent_skills_api, install_skill_api, uninstall_skill_api } from "@/lib/api/skill-api";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import { get_dialog_action_class_name } from "@/shared/ui/dialog/dialog-styles";
+import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
@@ -149,20 +152,19 @@ export function AgentOptionsSkillsTab({
               {skill.title || skill.name}
             </span>
             {isSystemManaged ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-500/8 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                <Lock className="h-3 w-3" />
+              <UiBadge icon={<Lock className="h-3 w-3" />} size="xs" tone="success">
                 {t("agent_options.skills.system_builtin")}
-              </span>
+              </UiBadge>
             ) : null}
             {isWorkspaceLocal ? (
-              <span className="rounded-full border border-amber-400/25 bg-amber-500/8 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+              <UiBadge size="xs" tone="warning">
                 {t("agent_options.skills.agent_workspace_only")}
-              </span>
+              </UiBadge>
             ) : null}
             {skill.scope === "main" ? (
-              <span className="rounded-full border border-sky-400/20 bg-sky-500/8 px-2 py-0.5 text-[10px] font-semibold text-sky-600">
+              <UiBadge size="xs" tone="info">
                 {t("agent_options.skills.main_only")}
-              </span>
+              </UiBadge>
             ) : null}
           </div>
           {skill.description ? (
@@ -173,18 +175,20 @@ export function AgentOptionsSkillsTab({
         </div>
 
         {skill.locked ? (
-          <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-emerald-400/20 bg-emerald-500/8 px-2.5 text-[11px] font-semibold text-emerald-600">
+          <UiBadge size="xs" tone="success">
             {t("agent_options.skills.enabled")}
-          </span>
+          </UiBadge>
         ) : (
-          <button
-            className={get_dialog_action_class_name(tone === "installed" ? "default" : "primary", "compact")}
+          <UiButton
             disabled={!!toggling}
             onClick={() => handleSkillAction(skill)}
+            size="sm"
+            tone={tone === "installed" ? "default" : "primary"}
             type="button"
+            variant="surface"
           >
             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
-          </button>
+          </UiButton>
         )}
       </div>
     );
@@ -200,21 +204,24 @@ export function AgentOptionsSkillsTab({
       </div>
 
       {errorMessage ? (
-        <div className="rounded-[15px] border border-rose-400/20 bg-rose-500/10 px-3.5 py-2.5 text-[12px] text-rose-300">
-          {errorMessage}
-        </div>
+        <UiStateBlock description={errorMessage} size="sm" title="加载失败" tone="danger" variant="inset" />
       ) : null}
 
       {loading ? (
-        <div className="flex items-center justify-center rounded-[15px] border border-(--divider-subtle-color) py-10 text-(--text-soft)">
-          <Loader2 className="h-4 w-4 animate-spin" />
-        </div>
+        <UiStateBlock
+          class_name="py-10"
+          icon={<Loader2 className="h-4 w-4 animate-spin" />}
+          size="sm"
+          variant="inset"
+        />
       ) : null}
 
       {!agent_id ? (
-        <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
-          {t("agent_options.skills.create_first")}
-        </div>
+        <UiStateBlock
+          description={t("agent_options.skills.create_first")}
+          size="sm"
+          variant="inset"
+        />
       ) : null}
 
       {agent_id && !loading ? (
@@ -226,9 +233,11 @@ export function AgentOptionsSkillsTab({
             </div>
 
             {installedSkills.length === 0 ? (
-              <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
-                {t("agent_options.skills.empty_installed")}
-              </div>
+              <UiStateBlock
+                description={t("agent_options.skills.empty_installed")}
+                size="sm"
+                variant="inset"
+              />
             ) : (
               <div className="grid grid-cols-1 gap-1.5">
                 {installedSkills.map((skill) => render_skill_card(skill, t("agent_options.skills.remove"), "installed"))}
@@ -244,29 +253,32 @@ export function AgentOptionsSkillsTab({
               </span>
             </div>
 
-            <div className="dialog-input flex items-center gap-2.5 rounded-[15px] px-3.5 py-2">
-              <Search className="h-4 w-4 text-(--text-soft)" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder={t("agent_options.skills.search_placeholder")}
-                className="w-full bg-transparent text-[13px] text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-              />
-            </div>
+            <UiSearchInput
+              control_size="md"
+              on_change={setSearchQuery}
+              placeholder={t("agent_options.skills.search_placeholder")}
+              value={searchQuery}
+              variant="dialog"
+            />
 
             {skills.length === 0 ? (
-              <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
-                {t("agent_options.skills.empty_available")}
-              </div>
+              <UiStateBlock
+                description={t("agent_options.skills.empty_available")}
+                size="sm"
+                variant="inset"
+              />
             ) : null}
 
             {skills.length > 0 && filteredAddableSkills.length === 0 ? (
-              <div className="rounded-[15px] border border-(--divider-subtle-color) px-4 py-5 text-[12.5px] text-(--text-muted)">
-                {addableSkills.length === 0
-                  ? t("agent_options.skills.empty_addable")
-                  : t("agent_options.skills.empty_search")}
-              </div>
+              <UiStateBlock
+                description={
+                  addableSkills.length === 0
+                    ? t("agent_options.skills.empty_addable")
+                    : t("agent_options.skills.empty_search")
+                }
+                size="sm"
+                variant="inset"
+              />
             ) : null}
 
             {filteredAddableSkills.length > 0 ? (

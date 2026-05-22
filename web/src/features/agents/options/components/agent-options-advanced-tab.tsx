@@ -8,6 +8,7 @@
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiChoiceButton } from "@/shared/ui/choice";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { AGENT_PERMISSION_MODES, AVAILABLE_AGENT_TOOLS } from "../agent-options-constants";
 
@@ -46,15 +47,12 @@ export function AgentOptionsAdvancedTab({
         </div>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {AGENT_PERMISSION_MODES.map((pm) => (
-            <button
+            <UiChoiceButton
+              active={permission_mode === pm.value}
+              class_name="relative w-full flex-col items-stretch overflow-hidden text-left"
+              choice_size="md"
               key={pm.value}
               onClick={() => on_permission_mode_change(pm.value)}
-              className={cn(
-                "relative overflow-hidden rounded-[15px] border px-3 py-2.5 text-left transition-[background,border-color,color] duration-(--motion-duration-normal)",
-                permission_mode === pm.value
-                  ? "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)"
-                  : "border-(--divider-subtle-color) bg-transparent text-(--text-strong) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
-              )}
             >
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
@@ -81,7 +79,7 @@ export function AgentOptionsAdvancedTab({
               <p className="text-[11.5px] leading-[1.5] text-muted-foreground">
                 {t(pm.description_key)}
               </p>
-            </button>
+            </UiChoiceButton>
           ))}
         </div>
 

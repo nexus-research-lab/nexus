@@ -19,9 +19,7 @@ import type {
   AgentProvider,
 } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
-import {
-  get_dialog_action_class_name,
-} from "@/shared/ui/dialog/dialog-styles";
+import { UiButton } from "@/shared/ui/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { set_default_agent_provider } from "@/config/options";
 import {
@@ -378,20 +376,22 @@ export function AgentOptionsEditor({
   if (variant === "inline") {
     const inline_content_width_class_name = content_max_width_class_name;
     const save_button = (
-      <button
-        className={get_dialog_action_class_name(canSave ? "primary" : "default", "compact")}
+      <UiButton
         onClick={() => {
           void handle_save();
         }}
         disabled={!canSave}
+        size="sm"
+        tone={canSave ? "primary" : "default"}
         type="button"
+        variant="surface"
       >
         {isSaving
           ? t("common.saving")
           : mode === "create"
             ? t("agent_options.title_create")
             : t("agent_options.save_changes")}
-      </button>
+      </UiButton>
     );
 
     return (
@@ -420,27 +420,29 @@ export function AgentOptionsEditor({
         {canDelete || (show_cancel_button && on_cancel) || hide_inline_nav ? (
           <div className="flex items-center justify-end border-t dialog-divider px-6 py-3">
             {canDelete ? (
-              <button
-                className={cn(get_dialog_action_class_name("danger"), "mr-auto")}
+              <UiButton
+                class_name="mr-auto"
                 onClick={() => {
                   if (!agent_id || !on_delete) {
                     return;
                   }
                   on_delete(agent_id);
                 }}
+                tone="danger"
                 type="button"
+                variant="surface"
               >
                 {t("agent_options.delete_agent")}
-              </button>
+              </UiButton>
             ) : null}
             {show_cancel_button && on_cancel ? (
-              <button
-                className={get_dialog_action_class_name("default")}
+              <UiButton
                 onClick={on_cancel}
                 type="button"
+                variant="surface"
               >
                 {t("common.cancel")}
-              </button>
+              </UiButton>
             ) : null}
             {hide_inline_nav ? save_button : null}
           </div>
@@ -464,42 +466,45 @@ export function AgentOptionsEditor({
 
       <div className="dialog-footer px-5 py-3.5">
         {canDelete ? (
-          <button
-            className={cn(get_dialog_action_class_name("danger"), "mr-auto")}
+          <UiButton
+            class_name="mr-auto"
             onClick={() => {
               if (!agent_id || !on_delete) {
                 return;
               }
               on_delete(agent_id);
             }}
+            tone="danger"
             type="button"
+            variant="surface"
           >
             {t("agent_options.delete_agent")}
-          </button>
+          </UiButton>
         ) : null}
         {show_cancel_button && on_cancel ? (
-          <button
-            className={get_dialog_action_class_name("default")}
+          <UiButton
             onClick={on_cancel}
             type="button"
+            variant="surface"
           >
             {t("common.cancel")}
-          </button>
+          </UiButton>
         ) : null}
-        <button
-          className={get_dialog_action_class_name(canSave ? "primary" : "default")}
+        <UiButton
           onClick={() => {
             void handle_save();
           }}
           disabled={!canSave}
+          tone={canSave ? "primary" : "default"}
           type="button"
+          variant="surface"
         >
           {isSaving
             ? t("common.saving")
             : mode === "create"
               ? t("agent_options.title_create")
               : t("agent_options.save_changes")}
-        </button>
+        </UiButton>
       </div>
     </>
   );
