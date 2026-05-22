@@ -21,11 +21,22 @@ func newGoalContinuationDispatcher(runtime *runtimectx.Manager, dm *dmsvc.Servic
 	return &goalContinuationDispatcher{runtime: runtime, dm: dm}
 }
 
-func (d *goalContinuationDispatcher) IsGoalSessionBusy(sessionKey string) bool {
-	if d == nil || d.runtime == nil {
-		return false
+func (d *goalContinuationDispatcher) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string) bool {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if d == nil || sessionKey == "" {
+		return true
 	}
-	return len(d.runtime.GetRunningRoundIDs(strings.TrimSpace(sessionKey))) > 0
+	if d.runtime != nil && len(d.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
+		return true
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.Kind != protocol.SessionKeyKindAgent || strings.TrimSpace(parsed.AgentID) == "" {
+		return true
+	}
+	if d.dm == nil {
+		return true
+	}
+	return d.dm.ShouldDeferGoalContinuation(ctx, sessionKey, parsed.AgentID)
 }
 
 func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {

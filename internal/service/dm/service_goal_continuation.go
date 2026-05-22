@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -10,8 +11,34 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+// ShouldDeferGoalContinuation 先让用户队列输入获得执行机会，避免隐藏 Goal 续跑抢占用户显式输入。
+func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string, agentID string) bool {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if s == nil || sessionKey == "" {
+		return false
+	}
+	if len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
+		return true
+	}
+	normalizedSessionKey, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
+	if err != nil {
+		s.loggerFor(ctx).Warn("解析 Goal 续跑待发送队列位置失败", "session_key", sessionKey, "err", err)
+		return false
+	}
+	items, err := s.inputQueue.Snapshot(location)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
+		return false
+	}
+	if len(items) == 0 {
+		return false
+	}
+	s.dispatchNextInputQueueItemAtLocation(ctx, normalizedSessionKey, agentID, location)
+	return true
+}
+
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
-	if r.service.goals == nil || len(r.service.runtime.GetRunningRoundIDs(r.sessionKey)) > 0 {
+	if r.service.goals == nil || r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID) {
 		return
 	}
 	plan, err := r.service.goals.PlanContinuationForSession(ctx, r.sessionKey, r.roundID)

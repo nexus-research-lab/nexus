@@ -1854,6 +1854,73 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 }
 
+func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	sentPrompt := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) {
+		sentPrompt <- prompt
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-goal-defer-queue",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "queued done",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sessionKey := "agent:nexus:ws:dm:test-goal-defer-queue"
+	normalizedSessionKey, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalizedSessionKey != sessionKey {
+		t.Fatalf("normalized session key = %q, want %q", normalizedSessionKey, sessionKey)
+	}
+	if _, err = service.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		Scope:          protocol.InputQueueScopeDM,
+		SessionKey:     sessionKey,
+		AgentID:        cfg.DefaultAgentID,
+		Source:         protocol.InputQueueSourceUser,
+		Content:        "用户排队输入应先执行",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !service.ShouldDeferGoalContinuation(context.Background(), sessionKey, cfg.DefaultAgentID) {
+		t.Fatal("Goal continuation should defer while queued user input exists")
+	}
+	select {
+	case prompt := <-sentPrompt:
+		if prompt != "用户排队输入应先执行" {
+			t.Fatalf("prompt = %q, want queued user input", prompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("queued user input was not dispatched before Goal continuation")
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("items = %#v, want queued input dispatched", items)
+	}
+}
+
 func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)

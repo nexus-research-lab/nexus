@@ -738,7 +738,7 @@ func TestServiceRunAutoResumeOnceDispatchesActiveGoal(t *testing.T) {
 	}
 }
 
-func TestServiceRunAutoResumeOnceSkipsBusyGoal(t *testing.T) {
+func TestServiceRunAutoResumeOnceSkipsDeferredGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -750,11 +750,11 @@ func TestServiceRunAutoResumeOnceSkipsBusyGoal(t *testing.T) {
 
 	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Busy goal",
+		Objective:  "Deferred goal",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	dispatcher := &fakeContinuationDispatcher{busy: map[string]bool{"agent:nexus:ws:dm:chat": true}}
+	dispatcher := &fakeContinuationDispatcher{deferSessions: map[string]bool{"agent:nexus:ws:dm:chat": true}}
 	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
 		t.Fatal(err)
 	}
@@ -1000,12 +1000,12 @@ func (a *fakeExternalMutationAccountant) FlushGoalAccounting(ctx context.Context
 }
 
 type fakeContinuationDispatcher struct {
-	busy  map[string]bool
-	plans []protocol.GoalContinuation
+	deferSessions map[string]bool
+	plans         []protocol.GoalContinuation
 }
 
-func (d *fakeContinuationDispatcher) IsGoalSessionBusy(sessionKey string) bool {
-	return d.busy[sessionKey]
+func (d *fakeContinuationDispatcher) ShouldDeferGoalContinuation(_ context.Context, sessionKey string) bool {
+	return d.deferSessions[sessionKey]
 }
 
 func (d *fakeContinuationDispatcher) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {

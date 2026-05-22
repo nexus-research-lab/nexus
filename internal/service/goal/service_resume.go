@@ -13,7 +13,7 @@ const goalAutoResumeInterval = 10 * time.Second
 
 // ContinuationDispatcher 把系统规划出的隐藏 Goal 续跑交给运行时执行。
 type ContinuationDispatcher interface {
-	IsGoalSessionBusy(sessionKey string) bool
+	ShouldDeferGoalContinuation(context.Context, string) bool
 	DispatchGoalContinuation(context.Context, protocol.GoalContinuation) error
 }
 
@@ -57,7 +57,7 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 		if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 			continue
 		}
-		if dispatcher.IsGoalSessionBusy(item.SessionKey) {
+		if dispatcher.ShouldDeferGoalContinuation(ctx, item.SessionKey) {
 			continue
 		}
 		plan, planErr := s.PlanContinuationForSession(ctx, item.SessionKey, "")
