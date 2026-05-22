@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Goal token 预算统计改为 Codex 口径：仅累计非缓存输入 token 与输出 token，缓存和 reasoning token 不再触发预算耗尽。
 - Goal 工具完成结果补齐 Codex 风格最终用量汇报提示，便于模型在完成预算 Goal 时报告结构化用量。
+- Goal MCP 模型可见工具收口为 Codex 对齐的 `get_goal`、`create_goal`、`update_goal` 三件套。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

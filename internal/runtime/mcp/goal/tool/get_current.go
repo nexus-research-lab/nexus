@@ -8,10 +8,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/goal/contract"
 )
 
-func getCurrent(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return readGoalTool("get_current_goal", "Read the active Nexus Goal bound to the current runtime session.", svc, sctx)
-}
-
 func getGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return readGoalTool("get_goal", "Read the current thread goal, usage, and remaining token budget.", svc, sctx)
 }
