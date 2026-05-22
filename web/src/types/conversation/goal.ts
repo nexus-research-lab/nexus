@@ -38,6 +38,17 @@ export interface Goal {
   metadata?: Record<string, unknown>;
 }
 
+export interface GoalEvent {
+  id: string;
+  goal_id: string;
+  session_key: string;
+  event_type: string;
+  source: "user" | "model" | "system";
+  round_id?: string;
+  payload?: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface CreateGoalInput {
   session_key: string;
   objective: string;

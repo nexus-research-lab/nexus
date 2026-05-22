@@ -9,10 +9,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+const maxGoalObjectiveRunes = 4000
 
 // Service 负责 Goal 状态机、审计事件和后续运行时决策。
 type Service struct {
@@ -100,28 +103,44 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		return nil, err
 	}
 	changed := false
+	payload := map[string]any{}
 	if request.Objective != nil {
-		objective := strings.TrimSpace(*request.Objective)
-		if objective == "" {
-			return nil, ErrGoalInvalidInput
+		objective, err := normalizeObjective(*request.Objective)
+		if err != nil {
+			return nil, err
 		}
 		item.Objective = objective
 		changed = true
+		payload["objective_updated"] = true
 	}
 	if request.TokenBudget != nil {
 		item.TokenBudget = normalizeBudget(request.TokenBudget, 0)
 		changed = true
+		if item.TokenBudget != nil {
+			payload["token_budget"] = *item.TokenBudget
+		} else {
+			payload["token_budget"] = nil
+		}
 	}
 	if request.Metadata != nil {
 		item.Metadata = cloneMap(request.Metadata)
 		changed = true
+		payload["metadata_updated"] = true
 	}
 	if !changed {
 		return item, nil
 	}
-	updated, err := s.persistTransition(ctx, *item, item.Status, protocol.GoalUpdateSourceUser, "updated", "", nil)
+	updated, err := s.persistTransition(ctx, *item, item.Status, protocol.GoalUpdateSourceUser, "updated", "", payload)
 	if err != nil {
 		return nil, err
+	}
+	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusBudgetLimited && !s.goalBudgetExhausted(*updated) {
+		return s.persistTransition(ctx, *updated, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", map[string]any{
+			"reason": "token budget updated",
+		})
+	}
+	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive && s.goalBudgetExhausted(*updated) {
+		return s.limitForSystem(ctx, *updated, protocol.GoalStatusBudgetLimited, "budget_limited", "", "Goal token budget exhausted")
 	}
 	return updated, nil
 }
@@ -248,11 +267,19 @@ func validateCreateRequest(request protocol.CreateGoalRequest) (string, string, 
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %v", ErrGoalInvalidInput, err)
 	}
-	objective := strings.TrimSpace(request.Objective)
-	if objective == "" {
-		return "", "", ErrGoalInvalidInput
+	objective, err := normalizeObjective(request.Objective)
+	if err != nil {
+		return "", "", err
 	}
 	return sessionKey, objective, nil
+}
+
+func normalizeObjective(input string) (string, error) {
+	objective := strings.TrimSpace(input)
+	if objective == "" || utf8.RuneCountInString(objective) > maxGoalObjectiveRunes {
+		return "", ErrGoalInvalidInput
+	}
+	return objective, nil
 }
 
 func normalizeBudget(input *int64, fallback int64) *int64 {

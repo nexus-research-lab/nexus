@@ -119,6 +119,107 @@ func TestServiceStateTransitions(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsOversizedObjective(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	oversized := strings.Repeat("x", maxGoalObjectiveRunes+1)
+
+	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  oversized,
+	}); !errors.Is(err, ErrGoalInvalidInput) {
+		t.Fatalf("Create oversized objective error = %v, want ErrGoalInvalidInput", err)
+	}
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Valid goal",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{
+		Objective: &oversized,
+	}); !errors.Is(err, ErrGoalInvalidInput) {
+		t.Fatalf("Update oversized objective error = %v, want ErrGoalInvalidInput", err)
+	}
+}
+
+func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
+	repo := newMemoryRepository()
+	initialBudget := int64(10)
+	raisedBudget := int64(20)
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Budgeted work",
+		TokenBudget: &initialBudget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("current status = %q, want budget_limited", current.Status)
+	}
+
+	resumed, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: &raisedBudget})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != protocol.GoalStatusActive || resumed.LastError != "" {
+		t.Fatalf("resumed = %#v, want active with cleared error", resumed)
+	}
+	if resumed.TokenBudget == nil || *resumed.TokenBudget != raisedBudget {
+		t.Fatalf("TokenBudget = %#v, want %d", resumed.TokenBudget, raisedBudget)
+	}
+}
+
+func TestServiceUpdateBudgetLimitsActiveGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	initialBudget := int64(100)
+	loweredBudget := int64(25)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Lower budget",
+		TokenBudget: &initialBudget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 30}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	limited, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: &loweredBudget})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusBudgetLimited || limited.LastError == "" {
+		t.Fatalf("limited = %#v, want budget_limited with error", limited)
+	}
+}
+
 func TestServicePlanContinuationForSession(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
