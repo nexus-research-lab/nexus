@@ -10,7 +10,7 @@ import {
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { get_icon_avatar_src, get_initials } from "@/lib/utils";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { Agent } from "@/types/agent/agent";
 
 import { RoomMemberPickerDialog } from "./room-member-picker-dialog";
@@ -106,7 +106,6 @@ export function RoomMemberListPanel({
               <div className="mt-4 space-y-2">
                 {members.length > 0 ? (
                   members.map((member, index) => {
-                    const avatar_src = get_icon_avatar_src(member.avatar);
                     const is_owner = index === 0;
                     const can_remove = !is_owner;
 
@@ -115,17 +114,7 @@ export function RoomMemberListPanel({
                         key={member.agent_id}
                         className="flex items-center gap-3 rounded-[16px] border border-(--divider-subtle-color) px-3.5 py-3"
                       >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-                          {avatar_src ? (
-                            <img
-                              alt={member.name}
-                              className="h-full w-full object-cover"
-                              src={avatar_src}
-                            />
-                          ) : (
-                            get_initials(member.name)
-                          )}
-                        </div>
+                        <UiAgentAvatar avatar={member.avatar} name={member.name} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="truncate text-sm font-semibold text-(--text-strong)">

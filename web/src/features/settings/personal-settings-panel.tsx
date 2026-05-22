@@ -27,7 +27,6 @@ import {
   Loader2,
   LockKeyhole,
   ShieldCheck,
-  UserRound,
 } from "lucide-react";
 
 import {
@@ -42,10 +41,10 @@ import {
   AGENT_ICON_ID_START,
   cn,
   format_tokens,
-  get_icon_avatar_src,
 } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
@@ -161,7 +160,6 @@ export function PersonalSettingsPanel() {
   const can_submit_password = !validation_error && !submitting && !loading;
   const usage = profile?.token_usage;
   const avatar = profile?.user.avatar ?? "";
-  const avatar_src = get_icon_avatar_src(avatar);
   const can_update_avatar = Boolean(profile?.can_update_profile) && !saving_avatar;
   const quota_text = usage?.quota_limit_tokens == null
     ? t("settings.personal.quota_unset")
@@ -248,17 +246,12 @@ export function PersonalSettingsPanel() {
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-start">
                 <div className="min-w-0 space-y-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-primary shadow-(--surface-avatar-shadow)">
-                      {avatar_src ? (
-                        <img
-                          alt={t("settings.personal.avatar_alt")}
-                          className="h-full w-full object-cover"
-                          src={avatar_src}
-                        />
-                      ) : (
-                        <UserRound className="h-5 w-5" />
-                      )}
-                    </div>
+                    <UiAgentAvatar
+                      avatar={avatar}
+                      class_name="h-12 w-12 rounded-[16px]"
+                      name={profile?.user.display_name || profile?.user.username || t("settings.personal.avatar_alt")}
+                      shape="rounded"
+                    />
                     <div className="min-w-0">
                       <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
                         {profile?.user.display_name || profile?.user.username || "--"}

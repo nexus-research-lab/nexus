@@ -9,12 +9,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Check, ChevronDown, Crown, Hash, Loader2, Plus, Search, X } from "lucide-react";
+import { Check, ChevronDown, Crown, Hash, Loader2, Plus, Search, X } from "lucide-react";
 
 import { get_available_skills_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
-import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id, ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
+import { ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
@@ -24,7 +25,6 @@ import {
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { SkillInfo } from "@/types/capability/skill";
 
 export interface RoomMemberAgentOption {
@@ -302,8 +302,6 @@ export function CreateRoomDialog({
   if (!is_open) return null;
 
   const can_create = selected_ids.length > 0 && room_name.trim().length > 0 && !is_creating;
-  const preview_avatar_id = get_room_avatar_icon_id(null, room_name, selected_avatar);
-  const preview_avatar_src = get_icon_avatar_src(preview_avatar_id, "room");
   const resolved_dialog_title = dialog_title ?? (mode === "manage" ? t("room.manage_dialog_title") : t("room.create_dialog_title"));
   const resolved_dialog_subtitle = dialog_subtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
   const resolved_confirm_label = confirm_label ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
@@ -375,17 +373,13 @@ export function CreateRoomDialog({
                 </p>
                 <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-                      {preview_avatar_src ? (
-                        <img
-                          alt="room-avatar-preview"
-                          className="h-full w-full object-cover"
-                          src={preview_avatar_src}
-                        />
-                      ) : (
-                        <Hash className="h-4.5 w-4.5 text-(--icon-default)" />
-                      )}
-                    </div>
+                    <UiRoomAvatar
+                      avatar={selected_avatar}
+                      class_name="h-11 w-11 rounded-[14px]"
+                      members={[]}
+                      room_id={room_name}
+                      title={room_name || resolved_dialog_title}
+                    />
                     <input
                       className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
                       maxLength={64}
@@ -458,21 +452,7 @@ export function CreateRoomDialog({
                         key={agent.agent_id}
                         className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors hover:bg-black/3"
                       >
-                        <WorkspaceIconFrame
-                          class_name="h-6 w-6 overflow-hidden text-(--icon-default)"
-                          shape="round"
-                          size="sm"
-                        >
-                          {get_icon_avatar_src(agent.avatar) ? (
-                            <img
-                              alt={agent.name}
-                              className="h-full w-full object-cover"
-                              src={get_icon_avatar_src(agent.avatar) ?? undefined}
-                            />
-                          ) : (
-                            get_initials(agent.name)
-                          )}
-                        </WorkspaceIconFrame>
+                        <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="xs" />
                         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-(--text-strong)">
                           {agent.name}
                         </span>
@@ -525,21 +505,7 @@ export function CreateRoomDialog({
                           onClick={() => toggle_agent(agent.agent_id)}
                           type="button"
                         >
-                          <WorkspaceIconFrame
-                            class_name="overflow-hidden text-(--icon-default)"
-                            shape="round"
-                            size="sm"
-                          >
-                            {get_icon_avatar_src(agent.avatar) ? (
-                              <img
-                                alt={agent.name}
-                                className="h-full w-full object-cover"
-                                src={get_icon_avatar_src(agent.avatar) ?? undefined}
-                              />
-                            ) : (
-                              <Bot className="h-4 w-4" />
-                            )}
-                          </WorkspaceIconFrame>
+                          <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />
 
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-(--text-strong)">

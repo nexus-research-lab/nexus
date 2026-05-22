@@ -2,7 +2,6 @@
 
 import { memo } from "react";
 import {
-  Bot,
   Compass,
   FolderTree,
   History,
@@ -10,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { get_icon_avatar_src } from "@/lib/utils";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceTaskStrip,
@@ -50,7 +49,6 @@ const DmConversationHeaderView = memo(({
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
   const header_title = current_agent_name?.trim() || t("room.untitled_dm");
-  const current_agent_avatar_src = get_icon_avatar_src(current_agent_avatar);
   const dm_tabs: {
     key: RoomSurfaceTabKey;
     label: string;
@@ -77,15 +75,7 @@ const DmConversationHeaderView = memo(({
       active_tab={active_tab}
       badge="DM"
       density="compact"
-      leading={current_agent_avatar_src ? (
-        <img
-          alt={header_title}
-          className="h-full w-full rounded-full object-cover"
-          src={current_agent_avatar_src}
-        />
-      ) : (
-        <Bot size={14} className="text-(--icon-default)" />
-      )}
+      leading={<UiAgentAvatar avatar={current_agent_avatar} class_name="h-full w-full border-0 shadow-none" name={header_title} size="sm" />}
       on_change_tab={on_change_tab}
       tabs_leading={conversation_tabs}
       tabs_trailing={<WorkspaceTaskStrip todos={todos} />}

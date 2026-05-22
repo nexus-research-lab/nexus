@@ -8,7 +8,6 @@
  */
 
 import {
-  Hash,
   MessageCircle,
   MessageSquarePlus,
   Plus,
@@ -26,9 +25,10 @@ import { CreateRoomDialog } from "@/features/conversation/room/members/create-ro
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { create_room, delete_room, subscribe_room_directory_updates } from "@/lib/api/room-api";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
-import { cn, get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { UiSearchInput } from "@/shared/ui/form-control";
@@ -144,94 +144,6 @@ function format_sidebar_time(timestamp: number): string {
     return `周${"日一二三四五六"[date.getDay()]}`;
   }
   return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-function render_agent_avatar(
-  name: string,
-  avatar?: string | null,
-  class_name?: string,
-) {
-  const avatar_src = get_icon_avatar_src(avatar);
-  if (avatar_src) {
-    return (
-      <img
-        alt={name}
-        className={cn("h-full w-full rounded-full object-cover", class_name)}
-        src={avatar_src}
-      />
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "flex h-full w-full items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[12px] font-semibold text-(--text-strong) shadow-(--surface-avatar-shadow)",
-        class_name,
-      )}
-    >
-      {name.trim().slice(0, 1).toUpperCase()}
-    </span>
-  );
-}
-
-function CompositeRoomAvatar({
-  avatar,
-  members,
-  title,
-}: {
-  avatar?: string | null;
-  members: LauncherRoomMemberSummary[];
-  title: string;
-}) {
-  const visible_members = members.slice(0, 4);
-  if (visible_members.length === 0) {
-    const room_avatar_id = get_room_avatar_icon_id(title, title, avatar ?? undefined);
-    const room_avatar_src = get_icon_avatar_src(room_avatar_id, "room");
-    return (
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)">
-        {room_avatar_src ? (
-          <img alt={title} className="h-full w-full rounded-[10px] object-cover" src={room_avatar_src} />
-        ) : (
-          <Hash className="h-4 w-4" />
-        )}
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "grid h-10 w-10 shrink-0 gap-[2px] overflow-hidden rounded-[10px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_88%,white)] p-[2px] shadow-(--surface-avatar-shadow)",
-        visible_members.length === 1 ? "grid-cols-1 grid-rows-1" : "grid-cols-2 grid-rows-2",
-        visible_members.length === 2 && "grid-rows-1",
-      )}
-    >
-      {visible_members.map((member) => (
-        <span className="min-h-0 min-w-0 overflow-hidden rounded-[6px]" key={member.id}>
-          {render_agent_avatar(member.name, member.avatar, "rounded-[6px]")}
-        </span>
-      ))}
-    </span>
-  );
-}
-
-function DirectAvatar({
-  agent,
-  is_working,
-}: {
-  agent: LauncherRoomMemberSummary;
-  is_working: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-        is_working && "after:absolute after:inset-[-3px] after:rounded-full after:border after:border-[color:color-mix(in_srgb,var(--primary)_48%,transparent)] after:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
-      )}
-    >
-      {render_agent_avatar(agent.name, agent.avatar)}
-    </span>
-  );
 }
 
 function SidebarSearchField({
@@ -637,11 +549,12 @@ function ConversationRow({
       ) : null}
 
       {item.kind === "room" ? (
-        <CompositeRoomAvatar avatar={item.avatar} members={item.members} title={item.title} />
+        <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} title={item.title} />
       ) : (
-        <DirectAvatar
-          agent={item.members[0] ?? { id: item.id, name: item.title, avatar: item.avatar ?? undefined }}
+        <UiAgentAvatar
+          avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
           is_working={is_working}
+          name={item.members[0]?.name ?? item.title}
         />
       )}
 
@@ -997,10 +910,7 @@ function ContactRow({
       {is_active ? (
         <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
       ) : null}
-      <DirectAvatar
-        agent={{ id: agent.id, name: agent.name, avatar: agent.avatar }}
-        is_working={is_working}
-      />
+      <UiAgentAvatar avatar={agent.avatar} is_working={is_working} name={agent.name} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{agent.name}</span>

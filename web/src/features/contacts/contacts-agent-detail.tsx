@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Album,
-  Bot,
   Brain,
   Handshake,
   MessageSquareText,
@@ -17,8 +16,8 @@ import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-p
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
-import { get_icon_avatar_src } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -61,7 +60,6 @@ export function ContactsAgentDetail({
   on_validate_agent_name,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
-  const avatar_src = get_icon_avatar_src(agent.avatar);
   const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("private_domain");
 
   const config_tabs = useMemo(
@@ -163,15 +161,7 @@ export function ContactsAgentDetail({
       <WorkspaceSurfaceHeader
         active_tab={active_tab}
         density="compact"
-        leading={avatar_src ? (
-          <img
-            alt={agent.name}
-            className="h-full w-full rounded-full object-cover"
-            src={avatar_src}
-          />
-        ) : (
-          <Bot className="h-4 w-4 text-(--icon-default)" />
-        )}
+        leading={<UiAgentAvatar avatar={agent.avatar} class_name="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
         on_change_tab={set_active_tab}
         tabs={config_tabs}
         title={agent.name}

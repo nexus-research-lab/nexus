@@ -8,13 +8,14 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, X as XIcon, User } from "lucide-react";
+import { Plus, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { AGENT_ICON_ID_END, AGENT_ICON_ID_START, get_icon_avatar_src } from "@/lib/utils";
+import { AGENT_ICON_ID_END, AGENT_ICON_ID_START } from "@/lib/utils";
 import { format_provider_label } from "@/types/capability/provider";
 
 interface AgentOptionsIdentityTabProps {
@@ -162,17 +163,12 @@ export function AgentOptionsIdentityTab({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1 space-y-3 xl:max-w-[480px]">
             <div className="flex items-end gap-2.5">
-              <div className="flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-                {get_icon_avatar_src(avatar) ? (
-                  <img
-                    alt={t("agent_options.identity.avatar_alt")}
-                    className="h-full w-full object-cover"
-                    src={get_icon_avatar_src(avatar) ?? undefined}
-                  />
-                ) : (
-                  <User className="h-6 w-6 text-primary" />
-                )}
-              </div>
+              <UiAgentAvatar
+                avatar={avatar}
+                class_name="h-13 w-13 rounded-[12px]"
+                name={title || t("agent_options.identity.avatar_alt")}
+                shape="rounded"
+              />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                   {t("agent_options.identity.name")} <span className="text-red-500">*</span>
@@ -275,17 +271,13 @@ export function AgentOptionsIdentityTab({
       <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] gap-5">
         <div className="space-y-3">
           <div className="flex items-end gap-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-              {get_icon_avatar_src(avatar) ? (
-                <img
-                  alt={t("agent_options.identity.avatar_alt")}
-                  className="h-full w-full object-cover"
-                  src={get_icon_avatar_src(avatar) ?? undefined}
-                />
-              ) : (
-                <User className="h-7 w-7 text-primary" />
-              )}
-            </div>
+            <UiAgentAvatar
+              avatar={avatar}
+              class_name="h-14 w-14 rounded-[14px]"
+              name={title || t("agent_options.identity.avatar_alt")}
+              shape="rounded"
+              size="lg"
+            />
             <div className="min-w-0 flex-1 space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                 {t("agent_options.identity.name")} <span className="text-red-500">*</span>

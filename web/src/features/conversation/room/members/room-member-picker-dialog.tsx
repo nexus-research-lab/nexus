@@ -4,9 +4,8 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { Agent } from "@/types/agent/agent";
-import { cn } from "@/lib/utils";
-import { get_icon_avatar_src, get_initials } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import {
   DIALOG_EMPTY_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
@@ -78,23 +77,11 @@ export function RoomMemberPickerDialog({
                 {agents.map((agent) => (
                   <button
                     key={agent.agent_id}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-[20px] border border-(--divider-subtle-color) px-4 py-3 text-left transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)",
-                    )}
+                    className="flex w-full items-center gap-3 rounded-[20px] border border-(--divider-subtle-color) px-4 py-3 text-left transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
                     onClick={() => on_select(agent.agent_id)}
                     type="button"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-                      {get_icon_avatar_src(agent.avatar) ? (
-                        <img
-                          alt={agent.name}
-                          className="h-full w-full object-cover"
-                          src={get_icon_avatar_src(agent.avatar) ?? undefined}
-                        />
-                      ) : (
-                        get_initials(agent.name)
-                      )}
-                    </div>
+                    <UiAgentAvatar avatar={agent.avatar} name={agent.name} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-(--text-strong)">
                         {agent.name}

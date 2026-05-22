@@ -20,9 +20,8 @@ import { MarkdownRendererContent } from "@/features/conversation/shared/message/
 import {
   cn,
   format_relative_time,
-  get_icon_avatar_src,
-  get_initials,
 } from "@/lib/utils";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { Agent } from "@/types/agent/agent";
 import {
   AgentPrivateEvent,
@@ -536,20 +535,14 @@ function AgentAvatar({
   participant?: AgentPrivateParticipant;
   size: "sm" | "stack" | "md";
 }) {
-  const src = get_icon_avatar_src(participant?.avatar ?? null);
-  const class_name = size === "sm"
-    ? "h-5 w-5 text-[9px]"
-    : size === "stack"
-      ? "h-6 w-6 text-[10px]"
-      : "h-8 w-8 text-[11px]";
+  const avatar_size = size === "md" ? "sm" : "xs";
   return (
-    <span className={cn("flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) font-black text-(--text-muted)", class_name)}>
-      {src ? (
-        <img alt={participant?.name || participant?.agent_id || "Agent"} className="h-full w-full object-cover" src={src} />
-      ) : (
-        get_initials(participant?.name || participant?.agent_id, "AG", 2)
-      )}
-    </span>
+    <UiAgentAvatar
+      avatar={participant?.avatar}
+      class_name={size === "sm" ? "h-5 w-5" : size === "stack" ? "h-6 w-6" : "h-8 w-8"}
+      name={participant?.name || participant?.agent_id || "Agent"}
+      size={avatar_size}
+    />
   );
 }
 

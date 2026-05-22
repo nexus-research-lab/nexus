@@ -4,14 +4,13 @@ import { memo, useState } from "react";
 import {
   Compass,
   FolderTree,
-  Hash,
   History,
   Info,
   type LucideIcon,
 } from "lucide-react";
 
-import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -71,26 +70,16 @@ function MemberAvatarStack({
       type="button"
     >
       <div className="flex items-center -space-x-1.5">
-        {visible_members.map((member) => {
-          const avatar_src = get_icon_avatar_src(member.avatar);
-          return (
-            <span
-              className="flex h-5.5 w-5.5 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)"
-              key={member.agent_id}
-              title={member.name}
-            >
-              {avatar_src ? (
-                <img
-                  alt={member.name}
-                  className="h-full w-full object-cover"
-                  src={avatar_src}
-                />
-              ) : (
-                get_initials(member.name)
-              )}
-            </span>
-          );
-        })}
+        {visible_members.map((member) => (
+          <UiAgentAvatar
+            avatar={member.avatar}
+            class_name="ring-1 ring-(--background)"
+            key={member.agent_id}
+            name={member.name}
+            size="xs"
+            title={member.name}
+          />
+        ))}
         {overflow_count > 0 ? (
           <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
             +{overflow_count}
@@ -137,9 +126,6 @@ const GroupConversationHeaderView = memo(({
     { key: "workspace", label: t("room.workspace"), icon: FolderTree, anchor: CONVERSATION_TOUR_ANCHORS.tab_workspace },
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
-
-  const resolved_room_avatar_id = get_room_avatar_icon_id(room_id, header_title, room_avatar);
-  const room_avatar_src = get_icon_avatar_src(resolved_room_avatar_id, "room");
 
   const member_agent_ids = room_members.map((member) => member.agent_id);
   const all_room_agents = [
@@ -189,14 +175,19 @@ const GroupConversationHeaderView = memo(({
       <WorkspaceSurfaceHeader
         active_tab={active_tab}
         density="compact"
-        leading={room_avatar_src ? (
-          <img
-            alt={header_title}
-            className="h-5 w-5 rounded-[6px] object-cover"
-            src={room_avatar_src}
+        leading={(
+          <UiRoomAvatar
+            avatar={room_avatar}
+            class_name="h-full w-full rounded-full border-0 shadow-none"
+            max_members={4}
+            members={room_members.map((member) => ({
+              avatar: member.avatar,
+              id: member.agent_id,
+              name: member.name,
+            }))}
+            room_id={room_id}
+            title={header_title}
           />
-        ) : (
-          <Hash size={14} className="text-(--icon-default)" />
         )}
         on_change_tab={on_change_tab}
         tabs={room_tabs}
