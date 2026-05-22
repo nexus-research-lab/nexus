@@ -37,6 +37,10 @@ type streamingInputClient interface {
 	SendContent(context.Context, any, *string, string) error
 }
 
+type streamingInputOptionsClient interface {
+	SendContentWithOptions(context.Context, any, *string, string, sdkprotocol.OutboundMessageOptions) error
+}
+
 // Factory 负责创建 SDK client。
 type Factory interface {
 	New(agentclient.Options) Client
@@ -94,19 +98,27 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 }
 
 func (c *sdkClientAdapter) Query(ctx context.Context, prompt string) error {
+	return c.QueryWithOptions(ctx, prompt, sdkprotocol.OutboundMessageOptions{})
+}
+
+func (c *sdkClientAdapter) QueryWithOptions(ctx context.Context, prompt string, options sdkprotocol.OutboundMessageOptions) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
 	}
-	_, err = session.Send(ctx, prompt)
+	_, err = session.SendWithOptions(ctx, prompt, options)
 	return err
 }
 
 func (c *sdkClientAdapter) QueryContent(ctx context.Context, content any) error {
+	return c.QueryContentWithOptions(ctx, content, sdkprotocol.OutboundMessageOptions{})
+}
+
+func (c *sdkClientAdapter) QueryContentWithOptions(ctx context.Context, content any, options sdkprotocol.OutboundMessageOptions) error {
 	if prompt, ok := content.(string); ok {
-		return c.Query(ctx, prompt)
+		return c.QueryWithOptions(ctx, prompt, options)
 	}
-	return c.SendContent(ctx, content, nil, "")
+	return c.SendContentWithOptions(ctx, content, nil, "", options)
 }
 
 func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
@@ -174,6 +186,10 @@ func (c *sdkClientAdapter) SessionID() string {
 }
 
 func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
+	return c.SendContentWithOptions(ctx, content, parentToolUseID, sessionID, sdkprotocol.OutboundMessageOptions{})
+}
+
+func (c *sdkClientAdapter) SendContentWithOptions(ctx context.Context, content any, parentToolUseID *string, sessionID string, options sdkprotocol.OutboundMessageOptions) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -187,7 +203,7 @@ func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentT
 			"content": content,
 		},
 	}
-	_, err = session.SendMessage(ctx, sdkprotocol.NewRawMessage(payload))
+	_, err = session.SendMessageWithOptions(ctx, sdkprotocol.NewRawMessage(payload), options)
 	return err
 }
 
@@ -495,8 +511,16 @@ func (m *Manager) SendContentToRunningRound(ctx context.Context, sessionKey stri
 
 // SendClientContent 通过 SDK streaming input 向活动 client 投递用户输入。
 func SendClientContent(ctx context.Context, client Client, content any) error {
+	return SendClientContentWithOptions(ctx, client, content, sdkprotocol.OutboundMessageOptions{})
+}
+
+// SendClientContentWithOptions 通过 SDK streaming input 投递带附加语义的用户输入。
+func SendClientContentWithOptions(ctx context.Context, client Client, content any, options sdkprotocol.OutboundMessageOptions) error {
 	if client == nil {
 		return ErrNoRunningRound
+	}
+	if sender, ok := client.(streamingInputOptionsClient); ok {
+		return sender.SendContentWithOptions(ctx, content, nil, "", options)
 	}
 	sender, ok := client.(streamingInputClient)
 	if !ok {
@@ -509,13 +533,30 @@ type queryContentClient interface {
 	QueryContent(context.Context, any) error
 }
 
+type queryContentOptionsClient interface {
+	QueryContentWithOptions(context.Context, any, sdkprotocol.OutboundMessageOptions) error
+}
+
 // QueryClientContent 通过 SDK client 启动一轮用户输入，图片等结构化输入走 content block。
 func QueryClientContent(ctx context.Context, client Client, content any) error {
+	return QueryClientContentWithOptions(ctx, client, content, sdkprotocol.OutboundMessageOptions{})
+}
+
+// QueryClientContentWithOptions 通过 SDK client 启动一轮带附加语义的用户输入。
+func QueryClientContentWithOptions(ctx context.Context, client Client, content any, options sdkprotocol.OutboundMessageOptions) error {
 	if client == nil {
 		return ErrNoRunningRound
 	}
 	if prompt, ok := content.(string); ok {
+		if sender, ok := client.(interface {
+			QueryWithOptions(context.Context, string, sdkprotocol.OutboundMessageOptions) error
+		}); ok {
+			return sender.QueryWithOptions(ctx, prompt, options)
+		}
 		return client.Query(ctx, prompt)
+	}
+	if sender, ok := client.(queryContentOptionsClient); ok {
+		return sender.QueryContentWithOptions(ctx, content, options)
 	}
 	sender, ok := client.(queryContentClient)
 	if !ok {

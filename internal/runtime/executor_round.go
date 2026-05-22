@@ -112,6 +112,7 @@ type RoundMapper interface {
 type RoundExecutionRequest struct {
 	Query                  string
 	Content                any
+	InputOptions           sdkprotocol.OutboundMessageOptions
 	Client                 Client
 	Mapper                 RoundMapper
 	IdleTimeout            time.Duration
@@ -128,6 +129,8 @@ type RoundExecutionRequest struct {
 type RoundExecutionResult struct {
 	TerminalStatus       string
 	ResultSubtype        string
+	TerminalCategory     sdkprotocol.TerminalCategory
+	Usage                sdkprotocol.TokenUsage
 	CompletedByAssistant bool
 }
 
@@ -143,7 +146,7 @@ func ExecuteRound(
 		return RoundExecutionResult{}, errors.New("round mapper is required")
 	}
 
-	if err := QueryClientContent(ctx, request.Client, roundQueryContent(request)); err != nil {
+	if err := QueryClientContentWithOptions(ctx, request.Client, roundQueryContent(request), request.InputOptions); err != nil {
 		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		}
@@ -236,9 +239,17 @@ func ExecuteRound(
 			}
 
 			if strings.TrimSpace(mapResult.TerminalStatus) != "" {
+				usage := sdkprotocol.TokenUsage{}
+				category := sdkprotocol.TerminalCategoryUnknown
+				if incoming.Result != nil {
+					usage, _ = incoming.Result.TokenUsage()
+					category = incoming.Result.TerminalCategory()
+				}
 				return RoundExecutionResult{
-					TerminalStatus: strings.TrimSpace(mapResult.TerminalStatus),
-					ResultSubtype:  strings.TrimSpace(mapResult.ResultSubtype),
+					TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
+					ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
+					TerminalCategory: category,
+					Usage:            usage,
 				}, nil
 			}
 			if assistantResult, ok := terminalAssistantResult(mapResult); ok {

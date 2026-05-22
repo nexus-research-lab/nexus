@@ -9,6 +9,7 @@ import (
 	channelhandler "github.com/nexus-research-lab/nexus/internal/handler/channel"
 	connectorhandler "github.com/nexus-research-lab/nexus/internal/handler/connector"
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
+	goalhandler "github.com/nexus-research-lab/nexus/internal/handler/goal"
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
 	memoryhandler "github.com/nexus-research-lab/nexus/internal/handler/memory"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
@@ -28,6 +29,7 @@ type handlerSet struct {
 	connector  *connectorhandler.Handlers
 	channel    *channelhandler.Handlers
 	automation *automationhandler.Handlers
+	goal       *goalhandler.Handlers
 	launcher   *launcherhandler.Handlers
 	memory     *memoryhandler.Handlers
 	workspace  *workspacehandler.Handlers
@@ -72,6 +74,7 @@ func newHandlerSet(
 		connector:  connectorhandler.New(api, services.Connectors),
 		channel:    channelhandler.New(api, services.Ingress, services.ChannelControl),
 		automation: automationhandler.New(api, services.Automation),
+		goal:       goalhandler.New(api, services.Goal),
 		launcher:   launcherhandler.New(api, services.Launcher),
 		memory:     memoryhandler.New(api, cfg, services.Core.Agent),
 		workspace:  workspacehandler.New(api, services.Workspace),

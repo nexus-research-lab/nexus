@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -408,6 +409,7 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", err
 	}
+	appendSystemPrompt = s.appendGoalRuntimeContext(ctx, sessionKey, appendSystemPrompt)
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
@@ -442,6 +444,36 @@ func (s *Service) ensureClient(
 		return nil, "", "", err
 	}
 	return client, runtimeProvider, strings.TrimSpace(options.Model), nil
+}
+
+func (s *Service) appendGoalRuntimeContext(ctx context.Context, sessionKey string, appendSystemPrompt string) string {
+	if s.goals == nil {
+		return appendSystemPrompt
+	}
+	goalContext, _, err := s.goals.RuntimeContext(ctx, sessionKey)
+	if err != nil {
+		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
+			return appendSystemPrompt
+		}
+		s.loggerFor(ctx).Warn("读取 Goal runtime context 失败", "session_key", sessionKey, "err", err)
+		return appendSystemPrompt
+	}
+	if strings.TrimSpace(goalContext) == "" {
+		return appendSystemPrompt
+	}
+	return appendDMRuntimePromptSection(appendSystemPrompt, goalContext)
+}
+
+func appendDMRuntimePromptSection(base string, section string) string {
+	base = strings.TrimSpace(base)
+	section = strings.TrimSpace(section)
+	if section == "" {
+		return base
+	}
+	if base == "" {
+		return section
+	}
+	return base + "\n\n" + section
 }
 
 func resolvedRuntimeProvider(provider string, options agentclient.Options) string {

@@ -15,6 +15,7 @@ import (
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -23,6 +24,7 @@ import (
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 )
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
@@ -47,6 +49,7 @@ type AppServices struct {
 	RoomRealtime   *roomsvc.RealtimeService
 	Automation     *automationsvc.Service
 	Imagegen       *imagegensvc.Service
+	Goal           *goalsvc.Service
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -68,6 +71,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
 	imagegenService := imagegensvc.NewService(providerService)
+	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	preferencesService := preferencessvc.NewService(cfg)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
@@ -86,6 +90,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetLogger(logger.With("component", "dm"))
 	dmService.SetProviderResolver(providerService)
 	dmService.SetUsageRecorder(usageService)
+	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetTitleGenerator(titleService)
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
@@ -113,7 +118,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	// 把内置自动化与连接器 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
-	mcpBuilder := combinedMCPBuilder(automationBuilder, connectorBuilder)
+	goalBuilder := newGoalMCPBuilder(cfg, goalService)
+	mcpBuilder := combinedMCPBuilder(automationBuilder, connectorBuilder, goalBuilder)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
 
@@ -140,6 +146,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		RoomRealtime:   roomRealtime,
 		Automation:     automationService,
 		Imagegen:       imagegenService,
+		Goal:           goalService,
 	}
 }
 

@@ -59,6 +59,10 @@ type Config struct {
 	ConnectorOAuthAllowedOrigins   []string
 	AllowedWebSocketOrigins        []string
 	ConnectorOAuthStateTTLSeconds  int
+	GoalEnabled                    bool
+	GoalAutoContinueEnabled        bool
+	GoalMaxContinuationsPerRun     int
+	GoalDefaultTokenBudget         int64
 	ConnectorCredentialsKey        string
 	ConnectorGitHubClientID        string
 	ConnectorGitHubClientSecret    string
@@ -151,6 +155,10 @@ func Load() Config {
 		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
 		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
 		ConnectorOAuthStateTTLSeconds:  mustInt(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600")),
+		GoalEnabled:                    mustBool(getEnv("NEXUS_GOAL_ENABLED", "false")),
+		GoalAutoContinueEnabled:        mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "false")),
+		GoalMaxContinuationsPerRun:     mustInt(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20")),
+		GoalDefaultTokenBudget:         int64(mustInt(getEnv("NEXUS_GOAL_DEFAULT_TOKEN_BUDGET", "0"))),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),

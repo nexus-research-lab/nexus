@@ -8,6 +8,7 @@ func (s *Server) mountRoutes() {
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
+	s.mountGoalRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
 }
@@ -157,6 +158,19 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/automation/heartbeat/{agent_id}"), s.handlers.automation.HandleGetHeartbeat)
 	s.router.Put(s.prefixPath("/automation/heartbeat/{agent_id}"), s.handlers.automation.HandleUpdateHeartbeat)
 	s.router.Post(s.prefixPath("/automation/heartbeat/{agent_id}/wake"), s.handlers.automation.HandleWakeHeartbeat)
+}
+
+// mountGoalRoutes 挂载 Goal 相关路由。
+func (s *Server) mountGoalRoutes() {
+	s.router.Get(s.prefixPath("/goals/current"), s.handlers.goal.HandleGetCurrentGoal)
+	s.router.Post(s.prefixPath("/goals"), s.handlers.goal.HandleCreateGoal)
+	s.router.Patch(s.prefixPath("/goals/{goal_id}"), s.handlers.goal.HandleUpdateGoal)
+	s.router.Post(s.prefixPath("/goals/{goal_id}/pause"), s.handlers.goal.HandlePauseGoal)
+	s.router.Post(s.prefixPath("/goals/{goal_id}/resume"), s.handlers.goal.HandleResumeGoal)
+	s.router.Post(s.prefixPath("/goals/{goal_id}/clear"), s.handlers.goal.HandleClearGoal)
+	s.router.Post(s.prefixPath("/goals/{goal_id}/complete"), s.handlers.goal.HandleCompleteGoal)
+	s.router.Post(s.prefixPath("/goals/{goal_id}/block"), s.handlers.goal.HandleBlockGoal)
+	s.router.Get(s.prefixPath("/goals/{goal_id}/events"), s.handlers.goal.HandleGoalEvents)
 }
 
 // mountPlaceholderRoutes 挂载保留占位路由。

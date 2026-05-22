@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -86,6 +87,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"status", result.TerminalStatus,
 		"result_subtype", result.ResultSubtype,
 	)
+	r.recordGoalUsage(result)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 		go r.commitMemoryTurn()
@@ -99,6 +101,27 @@ func (r *roundRunner) run(ctx context.Context) {
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
 	r.dispatchNextInputQueueItem()
+}
+
+func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult) {
+	if r.service.goals == nil || result.Usage.IsZero() {
+		return
+	}
+	_, err := r.service.goals.RecordUsageForSession(context.Background(), r.sessionKey, protocol.GoalUsage{
+		InputTokens:              result.Usage.InputTokens,
+		OutputTokens:             result.Usage.OutputTokens,
+		CacheCreationInputTokens: result.Usage.CacheCreationInputTokens,
+		CacheReadInputTokens:     result.Usage.CacheReadInputTokens,
+		ReasoningTokens:          result.Usage.ReasoningTokens,
+		TotalTokens:              result.Usage.TotalTokens,
+	}, r.roundID)
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
+		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",
+			"session_key", r.sessionKey,
+			"round_id", r.roundID,
+			"err", err,
+		)
+	}
 }
 
 func (r *roundRunner) executeRound(

@@ -67,6 +67,7 @@ type Service struct {
 	history    *workspacestore.AgentHistoryStore
 	inputQueue *workspacestore.InputQueueStore
 	usage      usageRecorder
+	goals      goalContextProvider
 	logger     *slog.Logger
 	mcpServers MCPServerBuilder
 	titles     titleScheduler
@@ -83,6 +84,11 @@ type titleScheduler interface {
 
 type usageRecorder interface {
 	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
+}
+
+type goalContextProvider interface {
+	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
+	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 }
 
 // NewService 创建 DM 会话编排服务。
@@ -127,6 +133,11 @@ func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver)
 // SetUsageRecorder 注入 token usage 持久化 ledger。
 func (s *Service) SetUsageRecorder(recorder usageRecorder) {
 	s.usage = recorder
+}
+
+// SetGoalContextProvider 注入 Goal runtime context provider。
+func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
+	s.goals = provider
 }
 
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。
