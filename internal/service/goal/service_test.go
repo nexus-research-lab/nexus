@@ -609,6 +609,9 @@ func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 	if len(accountant.sessionKeys) != 1 || accountant.sessionKeys[0] != created.SessionKey {
 		t.Fatalf("accountant sessionKeys = %#v, want current session", accountant.sessionKeys)
 	}
+	if len(accountant.clearedSessionKeys) != 1 || accountant.clearedSessionKeys[0] != created.SessionKey {
+		t.Fatalf("accountant clearedSessionKeys = %#v, want current session", accountant.clearedSessionKeys)
+	}
 	if len(repo.events) != 3 || repo.events[1].EventType != "usage_recorded" || repo.events[2].EventType != "paused" {
 		t.Fatalf("events = %#v, want usage_recorded before paused", repo.events)
 	}
@@ -1283,10 +1286,11 @@ func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKe
 }
 
 type fakeExternalMutationAccountant struct {
-	service     *Service
-	usage       protocol.GoalUsage
-	roundID     string
-	sessionKeys []string
+	service            *Service
+	usage              protocol.GoalUsage
+	roundID            string
+	sessionKeys        []string
+	clearedSessionKeys []string
 }
 
 func (a *fakeExternalMutationAccountant) FlushGoalAccounting(ctx context.Context, sessionKey string) ([]string, error) {
@@ -1297,6 +1301,11 @@ func (a *fakeExternalMutationAccountant) FlushGoalAccounting(ctx context.Context
 		}
 	}
 	return []string{a.roundID}, nil
+}
+
+func (a *fakeExternalMutationAccountant) ClearGoalAccounting(sessionKey string) []string {
+	a.clearedSessionKeys = append(a.clearedSessionKeys, sessionKey)
+	return []string{a.roundID}
 }
 
 type fakeContinuationDispatcher struct {

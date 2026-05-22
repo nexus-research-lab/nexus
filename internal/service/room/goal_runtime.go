@@ -59,8 +59,12 @@ func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
 		return s.flushGoalUsageForSlot(ctx, slot)
 	})
+	s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
+		clearGoalUsageForSlot(slot)
+	})
 	return func() {
 		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
+		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
 		s.runtime.MarkRoundFinished(sessionKey, roundID)
 	}
 }
@@ -131,13 +135,21 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 			hasSuccessfulUpdate = true
 		}
 	}
-	if hasSuccessfulCreate && (slot.GoalUsage == nil || !slot.GoalUsage.Active()) {
-		ensureSlotGoalUsageAccumulator(slot, false).Reset(snapshot)
-		return
+	if hasSuccessfulCreate {
+		slot.stateMu.Lock()
+		if slot.GoalUsage == nil || !slot.GoalUsage.Active() {
+			if slot.GoalUsage == nil {
+				slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
+			}
+			slot.GoalUsage.Reset(snapshot)
+			slot.stateMu.Unlock()
+			return
+		}
+		slot.stateMu.Unlock()
 	}
 	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
-	if hasSuccessfulUpdate && slot.GoalUsage != nil {
-		slot.GoalUsage.Close()
+	if hasSuccessfulUpdate {
+		clearGoalUsageForSlot(slot)
 	}
 }
 
@@ -177,14 +189,17 @@ func (s *RealtimeService) recordGoalUsageSnapshotForSlot(
 	if s.goals == nil || slot == nil {
 		return
 	}
+	slot.stateMu.Lock()
 	if slot.GoalUsage != nil {
 		usage, ok := slot.GoalUsage.Delta(snapshot)
+		slot.stateMu.Unlock()
 		if !ok {
 			return
 		}
 		s.recordGoalUsageDeltaForSlot(ctx, slot, usage)
 		return
 	}
+	slot.stateMu.Unlock()
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
 	if isZeroRoomGoalUsage(usage) {
@@ -213,11 +228,15 @@ func (s *RealtimeService) recordGoalUsageDeltaForSlot(ctx context.Context, slot 
 	}
 }
 
-func ensureSlotGoalUsageAccumulator(slot *activeRoomSlot, active bool) *goalsvc.RuntimeUsageAccumulator {
-	if slot.GoalUsage == nil {
-		slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(active)
+func clearGoalUsageForSlot(slot *activeRoomSlot) {
+	if slot == nil {
+		return
 	}
-	return slot.GoalUsage
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if slot.GoalUsage != nil {
+		slot.GoalUsage.Close()
+	}
 }
 
 func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {

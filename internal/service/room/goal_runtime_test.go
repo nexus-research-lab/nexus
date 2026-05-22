@@ -116,10 +116,38 @@ func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 	if count := manager.PendingGuidanceCount(slot.RuntimeSessionKey); count != 1 {
 		t.Fatalf("PendingGuidanceCount = %d, want 1", count)
 	}
+	roundIDs = manager.ClearGoalAccounting(slot.RuntimeSessionKey)
+	if len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
+		t.Fatalf("ClearGoalAccounting roundIDs = %#v, want slot round", roundIDs)
+	}
 
 	cleanup()
 	if _, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-2", "late guidance"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
 		t.Fatalf("QueueGuidanceInput() after cleanup error = %v, want ErrNoRunningRound", err)
+	}
+}
+
+func TestClearGoalUsageForRoomSlotStopsLaterAccounting(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "round-1",
+		GoalIDForUsage:    "goal-1",
+		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	clearGoalUsageForSlot(slot)
+	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  6,
+			OutputTokens: 3,
+			TotalTokens:  9,
+		},
+	}, nil)
+
+	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
+		t.Fatalf("usages = %#v, want none after clear", usages)
 	}
 }
 

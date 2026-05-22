@@ -341,6 +341,30 @@ func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerClearGoalUsageStopsLaterAccounting(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.clearGoalUsage()
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+			TotalTokens:  25,
+		},
+	}, nil)
+
+	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
+		t.Fatalf("usages = %#v, want none after clear", usages)
+	}
+}
+
 func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{

@@ -17,6 +17,7 @@ import {
   Pencil,
   Play,
   RefreshCw,
+  Repeat2,
   Save,
   Target,
   X,
@@ -104,6 +105,7 @@ export function GoalPanel({
   const [budget, set_budget] = useState("");
   const [error, set_error] = useState<string | null>(null);
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
+  const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
   const resume_prompt_key_ref = useRef<string | null>(null);
   const edit_request_key_ref = useRef<string | number | null>(null);
 
@@ -252,6 +254,11 @@ export function GoalPanel({
     set_resume_prompt_goal(null);
   };
 
+  const confirm_clear_goal = () => {
+    set_is_clear_confirm_open(false);
+    void mutate_goal(clear_goal_api);
+  };
+
   const start_editing_goal = () => {
     if (!goal) return;
     begin_editing_goal(goal);
@@ -346,7 +353,7 @@ export function GoalPanel({
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <span className="text-[11px] font-medium text-muted-foreground">
-                  Goal
+                  Goal 模式
                 </span>
                 <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium", tone.badge)}>
                   {GOAL_STATUS_LABEL[goal.status] ?? goal.status}
@@ -373,8 +380,9 @@ export function GoalPanel({
                   <Clock3 className="h-3.5 w-3.5" />
                   {elapsed_label}
                 </span>
-                <span className="inline-flex h-6 items-center rounded-md border border-border/60 bg-muted/30 px-2">
-                  {goal.continuation_count} 轮
+                <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
+                  <Repeat2 className="h-3.5 w-3.5" />
+                  续跑 {goal.continuation_count}
                 </span>
                 {goal.last_error ? (
                   <span className="inline-flex h-6 max-w-full items-center truncate rounded-md border border-destructive/20 bg-destructive/10 px-2 text-destructive">
@@ -463,13 +471,23 @@ export function GoalPanel({
               disabled={disabled || is_loading}
               title="清除"
               type="button"
-              onClick={() => void mutate_goal(clear_goal_api)}
+              onClick={() => set_is_clear_confirm_open(true)}
             >
               <CircleSlash className="h-4 w-4" />
             </button>
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        cancel_text="取消"
+        confirm_text="清除"
+        is_open={is_clear_confirm_open}
+        message={`Goal：${goal.objective}`}
+        title="清除当前 Goal?"
+        variant="danger"
+        on_cancel={() => set_is_clear_confirm_open(false)}
+        on_confirm={confirm_clear_goal}
+      />
       <ConfirmDialog
         cancel_text="暂不继续"
         confirm_text="继续"

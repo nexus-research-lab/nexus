@@ -159,6 +159,38 @@ func TestManagerFlushGoalAccounting(t *testing.T) {
 	}
 }
 
+func TestManagerClearGoalAccounting(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-clear"
+	calls := []string{}
+	manager.RegisterGoalAccountingClear(sessionKey, "round-b", func() {
+		calls = append(calls, "round-b")
+	})
+	manager.RegisterGoalAccountingClear(sessionKey, "round-a", func() {
+		calls = append(calls, "round-a")
+	})
+
+	roundIDs := manager.ClearGoalAccounting(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	}
+	if strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
+	}
+
+	manager.RegisterGoalAccountingClear(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs = manager.ClearGoalAccounting(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	if roundIDs = manager.ClearGoalAccounting(sessionKey); len(roundIDs) != 0 {
+		t.Fatalf("after round finished roundIDs=%#v, want empty", roundIDs)
+	}
+}
+
 func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:nexus:ws:dm:test-guide"

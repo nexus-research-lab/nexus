@@ -43,6 +43,14 @@ func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
 	return nil
 }
 
+func (r *roundRunner) clearGoalUsage() {
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	if r.goalUsage != nil {
+		r.goalUsage.Close()
+	}
+}
+
 func (r *roundRunner) rememberGoalAssistantMessage(message protocol.Message) {
 	if protocol.MessageRole(message) != "assistant" {
 		return
@@ -80,13 +88,21 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 			hasSuccessfulUpdate = true
 		}
 	}
-	if hasSuccessfulCreate && (r.goalUsage == nil || !r.goalUsage.Active()) {
-		r.ensureGoalUsageAccumulator(false).Reset(snapshot)
-		return
+	if hasSuccessfulCreate {
+		r.goalUsageMu.Lock()
+		if r.goalUsage == nil || !r.goalUsage.Active() {
+			if r.goalUsage == nil {
+				r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
+			}
+			r.goalUsage.Reset(snapshot)
+			r.goalUsageMu.Unlock()
+			return
+		}
+		r.goalUsageMu.Unlock()
 	}
 	r.recordGoalUsageSnapshot(snapshot)
-	if hasSuccessfulUpdate && r.goalUsage != nil {
-		r.goalUsage.Close()
+	if hasSuccessfulUpdate {
+		r.clearGoalUsage()
 	}
 }
 
@@ -121,14 +137,17 @@ func (r *roundRunner) recordGoalUsageSnapshot(snapshot goalsvc.RuntimeUsageSnaps
 	if r.service.goals == nil {
 		return
 	}
+	r.goalUsageMu.Lock()
 	if r.goalUsage != nil {
 		usage, ok := r.goalUsage.Delta(snapshot)
+		r.goalUsageMu.Unlock()
 		if !ok {
 			return
 		}
 		r.recordGoalUsageDelta(usage)
 		return
 	}
+	r.goalUsageMu.Unlock()
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
 	if isZeroGoalUsage(usage) {
@@ -155,13 +174,6 @@ func (r *roundRunner) recordGoalUsageDelta(usage protocol.GoalUsage) {
 			"err", err,
 		)
 	}
-}
-
-func (r *roundRunner) ensureGoalUsageAccumulator(active bool) *goalsvc.RuntimeUsageAccumulator {
-	if r.goalUsage == nil {
-		r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(active)
-	}
-	return r.goalUsage
 }
 
 func (r *roundRunner) elapsedGoalUsageSeconds() int64 {

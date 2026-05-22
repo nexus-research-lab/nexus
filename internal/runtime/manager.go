@@ -294,11 +294,15 @@ type sessionState struct {
 	RoundDone              map[string]chan struct{}
 	Interruptions          map[string]string
 	GoalAccountingFlushers map[string]GoalAccountingFlush
+	GoalAccountingClearers map[string]GoalAccountingClear
 	GuidedInputs           []GuidedInput
 }
 
 // GoalAccountingFlush 由正在运行的 round 提供，用于外部 Goal 状态变化前结算当前进度。
 type GoalAccountingFlush func(context.Context) error
+
+// GoalAccountingClear 由正在运行的 round 提供，用于 Goal 停止后关闭后续计量。
+type GoalAccountingClear func()
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
 type Manager struct {
@@ -383,6 +387,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	delete(state.RoundCancels, roundID)
 	delete(state.Interruptions, roundID)
 	delete(state.GoalAccountingFlushers, roundID)
+	delete(state.GoalAccountingClearers, roundID)
 	if len(state.RunningRounds) == 0 {
 		state.GuidedInputs = nil
 	}
@@ -425,6 +430,23 @@ func (m *Manager) RegisterGoalAccountingFlush(sessionKey string, roundID string,
 	state.GoalAccountingFlushers[roundID] = flush
 }
 
+// RegisterGoalAccountingClear 注册或移除运行中 round 的 Goal accounting clear 回调。
+func (m *Manager) RegisterGoalAccountingClear(sessionKey string, roundID string, clear GoalAccountingClear) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	roundID = strings.TrimSpace(roundID)
+	if sessionKey == "" || roundID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state := m.ensureStateLocked(sessionKey)
+	if clear == nil {
+		delete(state.GoalAccountingClearers, roundID)
+		return
+	}
+	state.GoalAccountingClearers[roundID] = clear
+}
+
 // FlushGoalAccounting 要求指定 session 的运行中 round 结算当前 Goal progress。
 func (m *Manager) FlushGoalAccounting(ctx context.Context, sessionKey string) ([]string, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -460,6 +482,40 @@ func (m *Manager) FlushGoalAccounting(ctx context.Context, sessionKey string) ([
 		flushed = append(flushed, roundIDs[index])
 	}
 	return flushed, firstErr
+}
+
+// ClearGoalAccounting 要求指定 session 的运行中 round 停止把后续 usage 归属到当前 Goal。
+func (m *Manager) ClearGoalAccounting(sessionKey string) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return nil
+	}
+	m.mu.RLock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || len(state.GoalAccountingClearers) == 0 {
+		m.mu.RUnlock()
+		return nil
+	}
+	roundIDs := make([]string, 0, len(state.GoalAccountingClearers))
+	for roundID := range state.GoalAccountingClearers {
+		roundIDs = append(roundIDs, roundID)
+	}
+	sort.Strings(roundIDs)
+	clearers := make([]GoalAccountingClear, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		clearers = append(clearers, state.GoalAccountingClearers[roundID])
+	}
+	m.mu.RUnlock()
+
+	cleared := make([]string, 0, len(roundIDs))
+	for index, clear := range clearers {
+		if clear == nil {
+			continue
+		}
+		clear()
+		cleared = append(cleared, roundIDs[index])
+	}
+	return cleared
 }
 
 // CountRunningRounds 统计指定 Agent 当前活跃 round 数量。
@@ -666,6 +722,7 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 			RoundDone:              make(map[string]chan struct{}),
 			Interruptions:          make(map[string]string),
 			GoalAccountingFlushers: make(map[string]GoalAccountingFlush),
+			GoalAccountingClearers: make(map[string]GoalAccountingClear),
 		}
 		m.sessions[sessionKey] = state
 	}
