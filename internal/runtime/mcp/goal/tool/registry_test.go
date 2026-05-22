@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -41,6 +42,24 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	}
 	if tool.InputSchema["additionalProperties"] != false {
 		t.Fatalf("additionalProperties = %#v, want false", tool.InputSchema["additionalProperties"])
+	}
+	status, ok := properties["status"].(map[string]any)
+	if !ok {
+		t.Fatalf("status = %#v, want map", properties["status"])
+	}
+	description, ok := status["description"].(string)
+	if !ok {
+		t.Fatalf("status.description = %#v, want string", status["description"])
+	}
+	for _, want := range []string{"three consecutive goal turns", "fresh blocked audit"} {
+		if !strings.Contains(description, want) {
+			t.Fatalf("status.description missing %q: %s", want, description)
+		}
+	}
+	for _, want := range []string{"genuinely blocked", "three consecutive goal turns", "usage-limit"} {
+		if !strings.Contains(tool.Description, want) {
+			t.Fatalf("tool description missing %q: %s", want, tool.Description)
+		}
 	}
 }
 
