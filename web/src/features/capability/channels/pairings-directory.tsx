@@ -12,8 +12,12 @@ import {
   PairingView,
   update_pairing_api,
 } from "@/lib/api/channel-api";
-import { cn } from "@/lib/utils";
+import { UiBadge } from "@/shared/ui/badge";
+import type { UiBadgeTone } from "@/shared/ui/badge-styles";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import { UiField, UiSelect } from "@/shared/ui/form-control";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -36,16 +40,16 @@ const STATUS_LABELS: Record<ImPairingStatus, string> = {
   rejected: "已拒绝",
 };
 
-function status_class(status: ImPairingStatus) {
+function status_tone(status: ImPairingStatus): UiBadgeTone {
   switch (status) {
   case "active":
-    return "bg-[#ecfdf3] text-[#067647]";
+    return "success";
   case "pending":
-    return "bg-[#fff7e6] text-[#b54708]";
+    return "warning";
   case "rejected":
-    return "bg-[#fef3f2] text-[#b42318]";
+    return "danger";
   default:
-    return "bg-[#f6f7f9] text-[#667085]";
+    return "default";
   }
 }
 
@@ -146,132 +150,139 @@ export function PairingsDirectory() {
         stable_gutter
       >
         <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-[16px] border border-[#e7e8ec] bg-white px-4 py-3">
-          <Filter className="h-4 w-4 text-[#8d95a3]" />
-          <select
-            className="h-9 rounded-[10px] border border-[#e1e4e9] bg-white px-3 text-[13px] font-semibold text-[#30333c] outline-none focus:border-[#9bdab8]"
-            onChange={(event) => set_channel(event.target.value as ImChannelType | "")}
-            value={channel}
-          >
-            <option value="">全部渠道</option>
-            {Object.entries(CHANNEL_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-[10px] border border-[#e1e4e9] bg-white px-3 text-[13px] font-semibold text-[#30333c] outline-none focus:border-[#9bdab8]"
-            onChange={(event) => set_status(event.target.value as ImPairingStatus | "")}
-            value={status}
-          >
-            <option value="">全部状态</option>
-            {Object.entries(STATUS_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
-          <div className="ml-auto text-[12px] font-semibold text-[#8d95a3]">
-            {filtered_count} 个配对 · {pending_count} 个待处理
+          <div className="surface-card mb-5 flex flex-wrap items-center gap-3 rounded-[18px] px-4 py-3">
+            <Filter className="h-4 w-4 text-(--icon-default)" />
+            <UiSelect
+              class_name="w-[148px]"
+              control_size="sm"
+              onChange={(event) => set_channel(event.target.value as ImChannelType | "")}
+              value={channel}
+              variant="surface"
+            >
+              <option value="">全部渠道</option>
+              {Object.entries(CHANNEL_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </UiSelect>
+            <UiSelect
+              class_name="w-[148px]"
+              control_size="sm"
+              onChange={(event) => set_status(event.target.value as ImPairingStatus | "")}
+              value={status}
+              variant="surface"
+            >
+              <option value="">全部状态</option>
+              {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </UiSelect>
+            <div className="ml-auto text-[12px] font-semibold text-(--text-muted)">
+              {filtered_count} 个配对 · {pending_count} 个待处理
+            </div>
           </div>
-        </div>
 
-        {loading ? (
-          <div className="flex h-40 items-center justify-center text-[13px] text-[#8d95a3]">加载配对授权...</div>
-        ) : items.length === 0 ? (
-          <div className="flex h-56 flex-col items-center justify-center rounded-[18px] border border-dashed border-[#d8dbe3] bg-white text-center">
-            <ShieldCheck className="mb-3 h-8 w-8 text-[#a7adba]" />
-            <div className="text-[16px] font-black text-[#30333c]">暂无配对请求</div>
-            <div className="mt-1 text-[13px] text-[#8d95a3]">外部 IM 用户或群首次发消息后，会在这里等待授权。</div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {items.map((item) => (
-              <article
-                className="grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.8fr)_minmax(160px,0.7fr)_auto] items-center gap-4 rounded-[16px] border border-[#e7e8ec] bg-white px-5 py-4 shadow-[0_1px_0_rgba(15,23,42,0.02)] max-xl:grid-cols-1"
-                key={item.pairing_id}
-              >
-                <div className="min-w-0">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-[#f2f4f7] px-2.5 py-1 text-[12px] font-black text-[#4b5565]">
-                      {CHANNEL_LABELS[item.channel_type]}
-                    </span>
-                    <span className={cn("rounded-full px-2.5 py-1 text-[12px] font-black", status_class(item.status))}>
-                      {STATUS_LABELS[item.status]}
-                    </span>
-                    <span className="rounded-full bg-[#f8fafc] px-2.5 py-1 text-[12px] font-semibold text-[#667085]">
-                      {item.chat_type === "group" ? "群聊" : "用户"}
-                    </span>
+          {loading ? (
+            <UiStateBlock description="正在同步外部 IM 用户与群聊的授权状态。" size="sm" title="加载配对授权..." />
+          ) : items.length === 0 ? (
+            <UiStateBlock
+              description="外部 IM 用户或群首次发消息后，会在这里等待授权。"
+              icon={<ShieldCheck className="h-6 w-6 text-(--icon-default)" />}
+              size="md"
+              title="暂无配对请求"
+            />
+          ) : (
+            <div className="space-y-3">
+              {items.map((item) => (
+                <article
+                  className="surface-card grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.8fr)_minmax(160px,0.7fr)_auto] items-center gap-4 rounded-[18px] px-5 py-4 max-xl:grid-cols-1"
+                  key={item.pairing_id}
+                >
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <UiBadge>{CHANNEL_LABELS[item.channel_type]}</UiBadge>
+                      <UiBadge tone={status_tone(item.status)}>
+                        {STATUS_LABELS[item.status]}
+                      </UiBadge>
+                      <UiBadge>{item.chat_type === "group" ? "群聊" : "用户"}</UiBadge>
+                    </div>
+                    <div className="mt-2 truncate text-[17px] font-bold text-(--text-strong)">
+                      {item.external_name || format_target(item)}
+                    </div>
+                    <div className="mt-1 truncate text-[12px] text-(--text-muted)">{format_target(item)}</div>
                   </div>
-                  <div className="mt-2 truncate text-[17px] font-black text-[#20222a]">
-                    {item.external_name || format_target(item)}
+
+                  <UiField class_name="min-w-0" label="处理智能体">
+                    <UiSelect
+                      control_size="sm"
+                      disabled={busy_id === item.pairing_id}
+                      onChange={(event) => void update_pairing(item, { agent_id: event.target.value })}
+                      value={item.agent_id}
+                      variant="surface"
+                    >
+                      {agents.map((agent) => (
+                        <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
+                      ))}
+                    </UiSelect>
+                  </UiField>
+
+                  <div className="text-[12px] leading-5 text-(--text-muted)">
+                    <div>来源：{item.source === "ingress" ? "首次消息" : item.source}</div>
+                    <div>更新：{new Date(item.updated_at).toLocaleString()}</div>
                   </div>
-                  <div className="mt-1 truncate text-[12px] text-[#8d95a3]">{format_target(item)}</div>
-                </div>
 
-                <label className="block text-[12px] font-semibold text-[#777d8a]">
-                  处理智能体
-                  <select
-                    className="mt-2 h-10 w-full rounded-[12px] border border-[#e1e4e9] bg-white px-3 text-[13px] font-semibold text-[#30333c] outline-none focus:border-[#9bdab8]"
-                    disabled={busy_id === item.pairing_id}
-                    onChange={(event) => void update_pairing(item, { agent_id: event.target.value })}
-                    value={item.agent_id}
-                  >
-                    {agents.map((agent) => (
-                      <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="text-[12px] text-[#8d95a3]">
-                  <div>来源：{item.source === "ingress" ? "首次消息" : item.source}</div>
-                  <div className="mt-1">更新：{new Date(item.updated_at).toLocaleString()}</div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
-                  {item.status !== "active" ? (
-                    <button
-                      className="flex h-9 items-center gap-1.5 rounded-[10px] bg-[#12b76a] px-3 text-[12px] font-black text-white transition hover:bg-[#0e9f5d] disabled:opacity-60"
+                  <div className="flex items-center justify-end gap-2">
+                    {item.status !== "active" ? (
+                      <UiButton
+                        disabled={busy_id === item.pairing_id}
+                        onClick={() => void update_pairing(item, { status: "active" })}
+                        size="sm"
+                        tone="primary"
+                        type="button"
+                        variant="solid"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        通过
+                      </UiButton>
+                    ) : null}
+                    {item.status === "pending" ? (
+                      <UiButton
+                        disabled={busy_id === item.pairing_id}
+                        onClick={() => void update_pairing(item, { status: "rejected" })}
+                        size="sm"
+                        tone="danger"
+                        type="button"
+                        variant="surface"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        拒绝
+                      </UiButton>
+                    ) : null}
+                    {item.status === "active" ? (
+                      <UiButton
+                        disabled={busy_id === item.pairing_id}
+                        onClick={() => void update_pairing(item, { status: "disabled" })}
+                        size="sm"
+                        type="button"
+                      >
+                        停用
+                      </UiButton>
+                    ) : null}
+                    <UiIconButton
                       disabled={busy_id === item.pairing_id}
-                      onClick={() => void update_pairing(item, { status: "active" })}
+                      onClick={() => void delete_pairing(item)}
+                      size="lg"
+                      title="删除"
+                      tone="danger"
                       type="button"
+                      variant="ghost"
                     >
-                      <Check className="h-3.5 w-3.5" />
-                      通过
-                    </button>
-                  ) : null}
-                  {item.status === "pending" ? (
-                    <button
-                      className="flex h-9 items-center gap-1.5 rounded-[10px] bg-[#f04438] px-3 text-[12px] font-black text-white transition hover:bg-[#d92d20] disabled:opacity-60"
-                      disabled={busy_id === item.pairing_id}
-                      onClick={() => void update_pairing(item, { status: "rejected" })}
-                      type="button"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      拒绝
-                    </button>
-                  ) : null}
-                  {item.status === "active" ? (
-                    <button
-                      className="h-9 rounded-[10px] border border-[#e1e4e9] px-3 text-[12px] font-black text-[#4b5565] transition hover:bg-[#f7f8fa] disabled:opacity-60"
-                      disabled={busy_id === item.pairing_id}
-                      onClick={() => void update_pairing(item, { status: "disabled" })}
-                      type="button"
-                    >
-                      停用
-                    </button>
-                  ) : null}
-                  <button
-                    className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#e1e4e9] text-[#98a0ad] transition hover:bg-[#fef3f2] hover:text-[#b42318] disabled:opacity-60"
-                    disabled={busy_id === item.pairing_id}
-                    onClick={() => void delete_pairing(item)}
-                    title="删除"
-                    type="button"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+                      <Trash2 className="h-4 w-4" />
+                    </UiIconButton>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </WorkspaceSurfaceScaffold>
 

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 抽取共享 `choice`、`segmented` 与 `list-action` 控件，统一定时任务选项、时间选择器、权限范围和侧边栏列表操作的交互样式。
 - 抽取共享 `form-control`、`badge` 与 `state-block` 控件，统一表单输入、状态徽标、未读计数和列表空态/错误态的尺寸与材质。
 - 抽取共享 `tabs`、`checkbox-row` 与 `meta-grid` 控件，统一 Header 下划线 tab、表单勾选行和详情字段组。
+- 抽取共享 `dialog` 骨架，并统一消息渠道连接弹窗与配对授权列表的表单、按钮、状态和空态风格。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
 
 ### Fixed

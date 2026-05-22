@@ -10,10 +10,8 @@ import {
   RefreshCw,
   Send,
   Sparkles,
-  X,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { get_agents } from "@/lib/api/agent-manage-api";
 import {
@@ -25,7 +23,22 @@ import {
 } from "@/lib/api/channel-api";
 import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
+import { UiButton } from "@/shared/ui/button";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogFormShell,
+  UiDialogHeader,
+  UiDialogPortal,
+} from "@/shared/ui/dialog/dialog";
+import {
+  get_dialog_note_class_name,
+  get_dialog_note_style,
+} from "@/shared/ui/dialog/dialog-styles";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import { UiField, UiInput, UiSelect } from "@/shared/ui/form-control";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -176,6 +189,41 @@ interface ChannelDialogProps {
   on_error: (message: string) => void;
 }
 
+function ChannelGuide({
+  item,
+}: {
+  item: ChannelConfigView;
+}) {
+  const steps = guide_steps(item.channel_type);
+
+  if (steps.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
+      <div className="mb-2 text-[13px] font-semibold text-(--text-strong)">如何连接</div>
+      <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-6 text-(--text-default)">
+        {steps.map((step, index) => (
+          <li key={index} className="[&_a]:font-semibold [&_a]:text-(--primary) [&_b]:font-semibold">
+            {step}
+          </li>
+        ))}
+      </ol>
+      {item.channel_type === "dingtalk" ? (
+        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
+          钉钉群中，通常需要 @机器人 发送消息；本通道使用官方 Stream 模式长连接。
+        </div>
+      ) : null}
+      {item.channel_type === "feishu" ? (
+        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
+          本通道使用官方飞书长连接 SDK；请确认应用已启用长连接事件订阅。
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: ChannelDialogProps) {
   const [current_item, set_current_item] = useState(item);
   const [agent_id, set_agent_id] = useState(item.agent_id || agents[0]?.agent_id || "");
@@ -225,131 +273,121 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     await save_channel(true);
   };
 
-  const dialog = (
-    <div className="dialog-backdrop z-[9999]" role="dialog" aria-modal="true">
-      <form
-        className="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.26)]"
-        onSubmit={handle_submit}
-      >
-        <div className="flex items-center gap-4 px-7 pb-5 pt-7">
-          <ChannelIcon type={current_item.channel_type} size="dialog" />
-          <h2 className="flex-1 text-[22px] font-black tracking-normal text-[#111827]">连接 {current_item.title}</h2>
-          <button
-            aria-label="关闭"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[#8b8f9a] transition hover:bg-[#f3f4f6] hover:text-[#111827]"
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-[22px] w-[22px]" />
-          </button>
-        </div>
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={on_close}>
+        <UiDialogFormShell
+          class_name="max-h-[86vh]"
+          onSubmit={handle_submit}
+          size="lg"
+        >
+          <UiDialogHeader
+            icon={<ChannelIcon type={current_item.channel_type} size="dialog" />}
+            icon_class_name="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
+            on_close={on_close}
+            title={`连接 ${current_item.title}`}
+            title_id="channel-connect-dialog-title"
+          />
 
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-7 pb-6">
-          {is_planned ? (
-            <div className="rounded-[16px] border border-dashed border-[#d8dce6] bg-[#fafbfc] px-5 py-6 text-center">
-              <div className="text-[15px] font-black text-[#303542]">该消息渠道未上线</div>
-              <div className="mx-auto mt-2 max-w-[460px] text-[13px] leading-6 text-[#7c8390]">
-                消息渠道接入将在后续版本补充，当前版本暂不支持配置机器人或配对授权。
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-[16px] border border-[#f5d45f] bg-[#fff9e8] px-5 py-4 text-[14px] leading-6 text-[#41444d] shadow-[0_10px_24px_rgba(245,190,36,0.14)]">
-                <div className="mb-2 text-[14px] font-black text-[#a83a07]">如何连接：</div>
-                <ol className="list-decimal space-y-1 pl-5">
-                  {guide_steps(current_item.channel_type).map((step, index) => (
-                    <li key={index} className="[&_a]:text-[#1d73ff] [&_b]:font-black">{step}</li>
-                  ))}
-                </ol>
-                {current_item.channel_type === "dingtalk" ? (
-                  <div className="mt-4 border-t border-[#f5d45f] pt-3 text-[13px] font-semibold leading-6 text-[#c44707]">
-                    钉钉群中，通常需要 @机器人 发送消息；本通道使用官方 Stream 模式长连接。
+          <UiDialogBody class_name="space-y-5" scrollable>
+            {is_planned ? (
+              <UiStateBlock
+                description="消息渠道接入将在后续版本补充，当前版本暂不支持配置机器人或配对授权。"
+                size="sm"
+                title="该消息渠道未上线"
+                variant="inset"
+              />
+            ) : (
+              <>
+                <ChannelGuide item={current_item} />
+
+                {current_item.runtime_note ? (
+                  <div className="rounded-[14px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-4 py-3 text-[13px] font-medium leading-5 text-(--text-default)">
+                    {current_item.runtime_note}
                   </div>
                 ) : null}
-                {current_item.channel_type === "feishu" ? (
-                  <div className="mt-4 border-t border-[#f5d45f] pt-3 text-[13px] font-semibold leading-6 text-[#c44707]">
-                    本通道使用官方飞书长连接 SDK；请确认应用已启用长连接事件订阅。
-                  </div>
-                ) : null}
-              </div>
 
-              {current_item.runtime_note ? (
-                <div className="mt-4 rounded-[12px] border border-[#e7eefc] bg-[#f7fbff] px-4 py-3 text-[13px] font-semibold leading-5 text-[#4a5568]">
-                  {current_item.runtime_note}
-                </div>
-              ) : null}
-
-              <label className="mt-6 block text-[15px] font-black text-[#3f424b]">
-                处理智能体 <span className="text-[#ff4d4f]">*</span>
-                <select
-                  className="mt-2 h-12 w-full rounded-[14px] border border-[#e2e5ea] bg-white px-4 text-[14px] font-semibold text-[#22252d] outline-none transition focus:border-[#9bdab8] focus:ring-4 focus:ring-[#9bdab8]/35"
-                  onChange={(event) => set_agent_id(event.target.value)}
-                  required
-                  value={agent_id}
-                >
-                  {agents.map((agent) => (
-                    <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="mt-6 space-y-4">
-                {current_item.credential_fields.map((field) => (
-                  <label key={field.key} className="block text-[15px] font-black text-[#3f424b]">
-                    {field.label} {field.required ? <span className="text-[#ff4d4f]">*</span> : null}
-                    <input
-                      className="mt-2 h-12 w-full rounded-[14px] border border-[#e2e5ea] bg-white px-4 text-[14px] font-semibold text-[#22252d] outline-none transition placeholder:text-[#a5a9b5] focus:border-[#9bdab8] focus:ring-4 focus:ring-[#9bdab8]/35"
-                      onChange={(event) => handle_field_change(field, event.target.value)}
-                      placeholder={field.placeholder || ""}
-                      required={field.required && !(field.secret && current_item.has_credentials)}
-                      type={field.kind === "password" ? "password" : "text"}
-                      value={field.secret ? credentials[field.key] || "" : config[field.key] || ""}
-                    />
-                  </label>
-                ))}
-              </div>
-
-              {current_item.channel_type === "discord" ? (
-                <div className="mt-6">
-                  <div className="mb-2 text-[15px] font-black text-[#3f424b]">授权机器人到服务器</div>
-                  <button
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#2f7df6] text-[15px] font-black text-white transition hover:bg-[#216fe8] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={!discord_oauth_url}
-                    onClick={() => discord_oauth_url && window.open(discord_oauth_url, "_blank", "noopener,noreferrer")}
-                    type="button"
+                <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
+                  <UiSelect
+                    onChange={(event) => set_agent_id(event.target.value)}
+                    required
+                    value={agent_id}
+                    variant="dialog"
                   >
-                    <ExternalLink className="h-5 w-5" />
-                    授权机器人
-                  </button>
+                    {agents.map((agent) => (
+                      <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
+                    ))}
+                  </UiSelect>
+                </UiField>
+
+                <div className="space-y-4">
+                  {current_item.credential_fields.map((field) => (
+                    <UiField
+                      key={field.key}
+                      label={(
+                        <>
+                          {field.label} {field.required ? <span className="text-(--destructive)">*</span> : null}
+                        </>
+                      )}
+                    >
+                      <UiInput
+                        onChange={(event) => handle_field_change(field, event.target.value)}
+                        placeholder={field.placeholder || ""}
+                        required={field.required && !(field.secret && current_item.has_credentials)}
+                        type={field.kind === "password" ? "password" : "text"}
+                        value={field.secret ? credentials[field.key] || "" : config[field.key] || ""}
+                        variant="dialog"
+                      />
+                    </UiField>
+                  ))}
                 </div>
-              ) : null}
-            </>
-          )}
 
-        </div>
+                {current_item.channel_type === "discord" ? (
+                  <UiField label="授权机器人到服务器">
+                    <UiButton
+                      class_name="w-full"
+                      disabled={!discord_oauth_url}
+                      onClick={() => discord_oauth_url && window.open(discord_oauth_url, "_blank", "noopener,noreferrer")}
+                      size="lg"
+                      tone="primary"
+                      type="button"
+                      variant="solid"
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                      授权机器人
+                    </UiButton>
+                  </UiField>
+                ) : null}
+              </>
+            )}
 
-        <div className="grid grid-cols-2 gap-3 px-7 pb-7">
-          <button
-            className="h-12 rounded-[14px] border border-[#e1e4e9] text-[15px] font-black text-[#4a4d56] transition hover:bg-[#f7f8fa]"
-            onClick={on_close}
-            type="button"
-          >
-            取消
-          </button>
-          <button
-            className="flex h-12 items-center justify-center gap-2 rounded-[14px] bg-[#2f7df6] text-[15px] font-black text-white transition hover:bg-[#216fe8] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving || !agent_id || is_planned}
-            type="submit"
-          >
-            <Power className="h-5 w-5" />
-            {is_planned ? "未上线" : saving ? "连接中..." : "连接"}
-          </button>
-        </div>
-      </form>
-    </div>
+          </UiDialogBody>
+
+          <UiDialogFooter>
+            <UiButton
+              class_name="min-w-[104px]"
+              onClick={on_close}
+              size="lg"
+              type="button"
+            >
+              取消
+            </UiButton>
+            <UiButton
+              class_name="min-w-[124px]"
+              disabled={saving || !agent_id || is_planned}
+              size="lg"
+              tone="primary"
+              type="submit"
+              variant="solid"
+            >
+              <Power className="h-5 w-5" />
+              {is_planned ? "未上线" : saving ? "连接中..." : "连接"}
+            </UiButton>
+          </UiDialogFooter>
+        </UiDialogFormShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
-
-  return createPortal(dialog, document.body);
 }
 
 function ChannelCard({
