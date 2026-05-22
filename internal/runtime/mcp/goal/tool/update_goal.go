@@ -12,11 +12,7 @@ import (
 )
 
 type updateGoalInput struct {
-	Status      string `json:"status"`
-	Summary     string `json:"summary,omitempty"`
-	Reason      string `json:"reason,omitempty"`
-	NeededInput string `json:"needed_input,omitempty"`
-	RoundID     string `json:"round_id,omitempty"`
+	Status string `json:"status"`
 }
 
 func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
@@ -24,11 +20,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 		Name:        "update_goal",
 		Description: "Update the existing goal. Use this tool only to mark the goal achieved or blocked. Set status to complete only when the objective has actually been achieved and no required work remains. Set status to blocked only when the goal cannot currently proceed until something external changes. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work. You cannot use this tool to pause, resume, clear, or budget-limit a goal; those status changes are controlled by the user or system. When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
 		InputSchema: objectSchema(map[string]any{
-			"status":       enumStringProperty("Allowed status update.", "complete", "blocked"),
-			"summary":      stringProperty("Short completion summary when status is complete."),
-			"reason":       stringProperty("Why progress is blocked when status is blocked."),
-			"needed_input": stringProperty("Specific user input or external change needed when blocked."),
-			"round_id":     stringProperty("Optional runtime round id for audit."),
+			"status": enumStringProperty("Allowed status update.", "complete", "blocked"),
 		}, "status"),
 		Handler: func(ctx context.Context, input map[string]any) (sdkmcp.ToolResult, error) {
 			var parsed updateGoalInput
@@ -41,20 +33,13 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			}
 			switch strings.TrimSpace(parsed.Status) {
 			case string(protocol.GoalStatusComplete):
-				item, err := svc.CompleteByModel(ctx, current.ID, protocol.CompleteGoalRequest{
-					Summary: parsed.Summary,
-					RoundID: parsed.RoundID,
-				})
+				item, err := svc.CompleteByModel(ctx, current.ID, protocol.CompleteGoalRequest{})
 				if err != nil {
 					return errorResult(err), nil
 				}
 				return structuredResult("goal marked complete", goalCompletionPayload(item)), nil
 			case string(protocol.GoalStatusBlocked):
-				item, err := svc.BlockByModel(ctx, current.ID, protocol.BlockGoalRequest{
-					Reason:      parsed.Reason,
-					NeededInput: parsed.NeededInput,
-					RoundID:     parsed.RoundID,
-				})
+				item, err := svc.BlockByModel(ctx, current.ID, protocol.BlockGoalRequest{})
 				if err != nil {
 					return errorResult(err), nil
 				}

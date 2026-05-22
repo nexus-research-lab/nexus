@@ -21,10 +21,10 @@ func (s *Service) CompleteByModel(ctx context.Context, goalID string, request pr
 // BlockByModel 允许模型工具把 active Goal 标记为阻塞。
 func (s *Service) BlockByModel(ctx context.Context, goalID string, request protocol.BlockGoalRequest) (*protocol.Goal, error) {
 	reason := strings.TrimSpace(request.Reason)
-	if reason == "" {
-		return nil, ErrGoalInvalidInput
+	payload := map[string]any{}
+	if reason != "" {
+		payload["reason"] = reason
 	}
-	payload := map[string]any{"reason": reason}
 	if neededInput := strings.TrimSpace(request.NeededInput); neededInput != "" {
 		payload["needed_input"] = neededInput
 	}

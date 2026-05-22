@@ -119,6 +119,35 @@ func TestServiceStateTransitions(t *testing.T) {
 	}
 }
 
+func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Wait for external input",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocked, err := service.BlockByModel(ctx, created.ID, protocol.BlockGoalRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.Status != protocol.GoalStatusBlocked || blocked.BlockedAt == nil {
+		t.Fatalf("blocked = %#v, want blocked status", blocked)
+	}
+	if len(repo.events) != 2 || repo.events[1].EventType != "blocked" {
+		t.Fatalf("events = %#v, want blocked event", repo.events)
+	}
+	if _, ok := repo.events[1].Payload["reason"]; ok {
+		t.Fatalf("blocked payload = %#v, want no synthetic reason", repo.events[1].Payload)
+	}
+}
+
 func TestServiceRejectsOversizedObjective(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
