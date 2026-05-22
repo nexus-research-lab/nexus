@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约、续跑上下文和 `/goal` 控制命令。
 - Goal 运行时新增 durable resume 后台恢复与 WebSocket 状态事件广播，服务重启后可继续推进 active Goal，前端 Goal 面板也能随状态事件刷新。
 - Goal 新增 Codex app-server 风格 `thread/goal/set|get|clear` 兼容 HTTP 入口，返回 camelCase `ThreadGoal` 投影。
+- Goal WebSocket 新增 Codex app-server 轻量 JSON-RPC 兼容入口，支持 `thread/goal/set|get|clear` 和 `thread/goal/updated|cleared` 通知。
 
 ### Changed
 - Goal token 预算统计改为 Codex 口径：仅累计非缓存输入 token 与输出 token，缓存和 reasoning token 不再触发预算耗尽。

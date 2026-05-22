@@ -294,6 +294,54 @@ func TestServiceSetFromThreadGoalParamsPreservesBudgetLimitedGoal(t *testing.T) 
 	}
 }
 
+func TestServiceClearFromThreadGoalParamsUsesExternalSource(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Clear through app-server"
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cleared, err := service.ClearFromThreadGoalParams(ctx, protocol.ThreadGoalClearParams{ThreadID: threadID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cleared {
+		t.Fatal("ClearFromThreadGoalParams() cleared = false, want true")
+	}
+	current, err := service.CurrentOptional(ctx, threadID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("current = %#v, want nil after clear", current)
+	}
+	events, err := repo.ListEvents(ctx, created.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) < 2 || events[len(events)-1].Source != protocol.GoalUpdateSourceExternal {
+		t.Fatalf("events = %#v, want external clear event", events)
+	}
+
+	cleared, err = service.ClearFromThreadGoalParams(ctx, protocol.ThreadGoalClearParams{ThreadID: threadID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared {
+		t.Fatal("second ClearFromThreadGoalParams() cleared = true, want false")
+	}
+}
+
 func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)

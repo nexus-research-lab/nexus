@@ -47,6 +47,34 @@ func TestThreadGoalSetParamsUseCodexCamelCase(t *testing.T) {
 	}
 }
 
+func TestAppServerRPCRequestIDPreservesStringAndInteger(t *testing.T) {
+	for _, input := range []string{
+		`{"id":7,"method":"thread/goal/get"}`,
+		`{"id":"goal-get","method":"thread/goal/get"}`,
+	} {
+		var request AppServerJSONRPCRequest
+		if err := json.Unmarshal([]byte(input), &request); err != nil {
+			t.Fatalf("unmarshal %s: %v", input, err)
+		}
+		output, err := json.Marshal(AppServerJSONRPCResponse{ID: request.ID, Result: map[string]any{"ok": true}})
+		if err != nil {
+			t.Fatalf("marshal response: %v", err)
+		}
+		var roundtrip map[string]any
+		if err := json.Unmarshal(output, &roundtrip); err != nil {
+			t.Fatalf("unmarshal response: %v", err)
+		}
+		if _, ok := roundtrip["id"]; !ok {
+			t.Fatalf("response missing id: %s", string(output))
+		}
+	}
+
+	var invalid AppServerJSONRPCRequest
+	if err := json.Unmarshal([]byte(`{"id":1.5,"method":"thread/goal/get"}`), &invalid); err == nil {
+		t.Fatal("fractional request id should be rejected")
+	}
+}
+
 func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 	budget := int64(100)
 	item := Goal{

@@ -51,6 +51,11 @@ func (s *WebSocketSender) MarkClosed() {
 
 // SendEvent 发送协议事件。
 func (s *WebSocketSender) SendEvent(ctx context.Context, event protocol.EventMessage) error {
+	return s.SendJSON(ctx, event)
+}
+
+// SendJSON 发送原始 JSON payload，供 Codex app-server 兼容协议复用同一连接。
+func (s *WebSocketSender) SendJSON(ctx context.Context, payload any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed.Load() {
@@ -58,7 +63,7 @@ func (s *WebSocketSender) SendEvent(ctx context.Context, event protocol.EventMes
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, WebSocketWriteTimeout)
 	defer cancel()
-	if err := wsjson.Write(writeCtx, s.conn, event); err != nil {
+	if err := wsjson.Write(writeCtx, s.conn, payload); err != nil {
 		s.MarkClosed()
 		return err
 	}

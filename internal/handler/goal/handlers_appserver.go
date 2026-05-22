@@ -2,11 +2,9 @@ package goal
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 // HandleThreadGoalSet 提供 Codex app-server 风格的 thread/goal/set 兼容入口。
@@ -47,24 +45,12 @@ func (h *Handlers) HandleThreadGoalClear(writer http.ResponseWriter, request *ht
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
-	item, err := h.goals.CurrentOptional(request.Context(), input.ThreadID)
+	cleared, err := h.goals.ClearFromThreadGoalParams(request.Context(), input)
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
 	}
-	if item == nil {
-		h.writeCodexGoalJSON(writer, protocol.ThreadGoalClearResponse{Cleared: false})
-		return
-	}
-	if _, err := h.goals.Clear(request.Context(), item.ID); err != nil {
-		if errors.Is(err, goalsvc.ErrGoalNotFound) {
-			h.writeCodexGoalJSON(writer, protocol.ThreadGoalClearResponse{Cleared: false})
-			return
-		}
-		h.writeGoalError(writer, err)
-		return
-	}
-	h.writeCodexGoalJSON(writer, protocol.ThreadGoalClearResponse{Cleared: true})
+	h.writeCodexGoalJSON(writer, protocol.ThreadGoalClearResponse{Cleared: cleared})
 }
 
 func (h *Handlers) writeCodexGoalJSON(writer http.ResponseWriter, payload any) {

@@ -34,6 +34,36 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request protocol.
 	return s.updateFromThreadGoalParams(ctx, *refreshed, targetStatus, hasStatus, request)
 }
 
+// ClearFromThreadGoalParams 按 Codex app-server thread/goal/clear 语义清除当前 Goal。
+func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request protocol.ThreadGoalClearParams) (bool, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return false, err
+	}
+	sessionKey, err := protocol.RequireStructuredSessionKey(request.ThreadID)
+	if err != nil {
+		return false, fmt.Errorf("%w: %v", ErrGoalInvalidInput, err)
+	}
+	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
+	if err != nil {
+		return false, err
+	}
+	if current == nil {
+		return false, nil
+	}
+	s.prepareExternalMutation(ctx, current.ID)
+	refreshed, err := s.repo.GetGoal(ctx, current.ID)
+	if err != nil {
+		return false, err
+	}
+	if refreshed == nil {
+		return false, nil
+	}
+	if _, err := s.persistTransition(ctx, *refreshed, protocol.GoalStatusCleared, protocol.GoalUpdateSourceExternal, "cleared", "", nil); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *Service) createFromThreadGoalParams(
 	ctx context.Context,
 	sessionKey string,

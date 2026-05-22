@@ -13,6 +13,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
@@ -28,15 +29,17 @@ const (
 
 // Handler 封装 WebSocket 生命周期与控制消息分发。
 type Handler struct {
-	api           *handlershared.API
-	roomService   *roompkg.Service
-	roomRealtime  *roompkg.RealtimeService
-	dm            *dmsvc.Service
-	permission    *permissionctx.Context
-	runtime       *runtimectx.Manager
-	channels      *channelspkg.Router
-	roomSubs      *roomSubscriptionRegistry
-	workspaceSubs *workspaceSubscriptionRegistry
+	api            *handlershared.API
+	roomService    *roompkg.Service
+	roomRealtime   *roompkg.RealtimeService
+	dm             *dmsvc.Service
+	goals          *goalsvc.Service
+	permission     *permissionctx.Context
+	runtime        *runtimectx.Manager
+	channels       *channelspkg.Router
+	roomSubs       *roomSubscriptionRegistry
+	workspaceSubs  *workspaceSubscriptionRegistry
+	goalRPCSubs    *appServerGoalRPCRegistry
 	allowedOrigins []string
 }
 
@@ -46,6 +49,7 @@ func NewHandler(
 	roomService *roompkg.Service,
 	roomRealtime *roompkg.RealtimeService,
 	dm *dmsvc.Service,
+	goals *goalsvc.Service,
 	permission *permissionctx.Context,
 	runtime *runtimectx.Manager,
 	channels *channelspkg.Router,
@@ -54,15 +58,17 @@ func NewHandler(
 	allowedOrigins []string,
 ) *Handler {
 	handler := &Handler{
-		api:           api,
-		roomService:   roomService,
-		roomRealtime:  roomRealtime,
-		dm:            dm,
-		permission:    permission,
-		runtime:       runtime,
-		channels:      channels,
-		roomSubs:      newRoomSubscriptionRegistry(128),
-		workspaceSubs: newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		api:            api,
+		roomService:    roomService,
+		roomRealtime:   roomRealtime,
+		dm:             dm,
+		goals:          goals,
+		permission:     permission,
+		runtime:        runtime,
+		channels:       channels,
+		roomSubs:       newRoomSubscriptionRegistry(128),
+		workspaceSubs:  newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		goalRPCSubs:    newAppServerGoalRPCRegistry(),
 		allowedOrigins: allowedOrigins,
 	}
 	if roomRealtime != nil {
@@ -95,6 +101,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		}
 		if h.roomSubs != nil {
 			h.roomSubs.UnregisterSender(sender)
+		}
+		if h.goalRPCSubs != nil {
+			h.goalRPCSubs.UnregisterSender(sender)
 		}
 		_ = connection.Close(websocket.StatusNormalClosure, "closed")
 		h.broadcastSessionStatus(request.Context(), h.permission.UnregisterSender(sender)...)
@@ -190,6 +199,10 @@ func (h *Handler) dispatchWebSocketMessage(
 	inbound map[string]any,
 ) {
 	msgType := handlershared.StringValue(inbound["type"])
+	if _, ok := inbound["method"]; ok {
+		h.handleAppServerRPC(ctx, sender, inbound)
+		return
+	}
 	switch msgType {
 	case "ping":
 		_ = sender.SendEvent(ctx, protocol.NewPongEvent(handlershared.StringValue(inbound["session_key"])))
