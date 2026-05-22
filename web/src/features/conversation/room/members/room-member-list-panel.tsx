@@ -11,6 +11,9 @@ import {
 } from "@/shared/ui/dialog/dialog-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiIconButton } from "@/shared/ui/button";
+import { UiListRow } from "@/shared/ui/list-row";
 import { Agent } from "@/types/agent/agent";
 
 import { RoomMemberPickerDialog } from "./room-member-picker-dialog";
@@ -110,42 +113,35 @@ export function RoomMemberListPanel({
                     const can_remove = !is_owner;
 
                     return (
-                      <div
+                      <UiListRow
                         key={member.agent_id}
-                        className="flex items-center gap-3 rounded-[16px] border border-(--divider-subtle-color) px-3.5 py-3"
-                      >
-                        <UiAgentAvatar avatar={member.avatar} name={member.name} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-(--text-strong)">
-                              {member.name}
-                            </p>
-                            {is_owner ? (
-                              <span className="inline-flex h-5 items-center rounded-full border border-(--divider-subtle-color) px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-                                {t("room.member_owner")}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-1 text-xs text-(--text-muted)">
-                            {is_owner ? t("room.member_owner_hint") : t("room.member_collaborator_hint")}
-                          </p>
-                        </div>
-                        {can_remove ? (
-                          <button
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-(--icon-muted) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] hover:text-(--destructive)"
+                        class_name="min-h-[64px] border border-(--divider-subtle-color) px-3.5 py-3"
+                        description={is_owner ? t("room.member_owner_hint") : t("room.member_collaborator_hint")}
+                        leading={<UiAgentAvatar avatar={member.avatar} name={member.name} />}
+                        meta={is_owner ? (
+                          <UiBadge class_name="uppercase tracking-[0.14em]" size="xs">
+                            {t("room.member_owner")}
+                          </UiBadge>
+                        ) : null}
+                        right={can_remove ? (
+                          <UiIconButton
                             disabled={is_removing === member.agent_id}
                             onClick={() => {
                               void handle_remove_member(member.agent_id);
                             }}
-                            type="button"
+                            size="md"
                             title={t("common.remove")}
+                            tone="danger"
+                            type="button"
+                            variant="ghost"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </UiIconButton>
                         ) : (
                           <span className="w-8 shrink-0" />
                         )}
-                      </div>
+                        title={member.name}
+                      />
                     );
                   })
                 ) : (

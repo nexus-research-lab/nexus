@@ -10,6 +10,7 @@ import {
   DIALOG_EMPTY_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
+import { UiListRow } from "@/shared/ui/list-row";
 
 interface RoomMemberPickerDialogProps {
   agents: Agent[];
@@ -75,22 +76,14 @@ export function RoomMemberPickerDialog({
             ) : (
               <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
                 {agents.map((agent) => (
-                  <button
+                  <UiListRow
+                    class_name="min-h-[64px] border border-(--divider-subtle-color) px-4 py-3"
+                    description={t("room.add_member_dialog_hint")}
                     key={agent.agent_id}
-                    className="flex w-full items-center gap-3 rounded-[20px] border border-(--divider-subtle-color) px-4 py-3 text-left transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
-                    onClick={() => on_select(agent.agent_id)}
-                    type="button"
-                  >
-                    <UiAgentAvatar avatar={agent.avatar} name={agent.name} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-(--text-strong)">
-                        {agent.name}
-                      </p>
-                      <p className="truncate text-[11px] text-(--text-soft)">
-                        {t("room.add_member_dialog_hint")}
-                      </p>
-                    </div>
-                  </button>
+                    leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} />}
+                    on_click={() => on_select(agent.agent_id)}
+                    title={agent.name}
+                  />
                 ))}
               </div>
             )}

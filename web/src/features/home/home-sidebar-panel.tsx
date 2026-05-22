@@ -30,8 +30,10 @@ import { useWebSocket } from "@/lib/websocket";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
+import { UiIconButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiListRow } from "@/shared/ui/list-row";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
@@ -89,9 +91,6 @@ interface DeleteTarget {
   name: string;
   room_type: "room" | "dm";
 }
-
-const SIDEBAR_ROW_CLASS_NAME =
-  "group/item relative flex min-h-[68px] w-full cursor-pointer items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-[background,color,transform] duration-(--motion-duration-fast)";
 
 interface SidebarDirectorySnapshot {
   agents: LauncherAgentSummary[];
@@ -531,78 +530,66 @@ function ConversationRow({
 }) {
   const { t } = useI18n();
   const is_working = item.running_task_count > 0;
+  const leading = item.kind === "room" ? (
+    <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} title={item.title} />
+  ) : (
+    <UiAgentAvatar
+      avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
+      is_working={is_working}
+      name={item.members[0]?.name ?? item.title}
+    />
+  );
+  const meta = item.time_label || on_delete ? (
+    <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
+      {item.time_label ? (
+        <span
+          className={cn(
+            "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
+            on_delete && "group-hover/item:opacity-0",
+          )}
+        >
+          {item.time_label}
+        </span>
+      ) : null}
+      {on_delete ? (
+        <UiIconButton
+          class_name="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation();
+            on_delete();
+          }}
+          size="sm"
+          title={t("common.delete")}
+          tone="danger"
+          type="button"
+          variant="ghost"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </UiIconButton>
+      ) : null}
+    </span>
+  ) : null;
+  const status = (
+    <>
+      {is_working ? (
+        <UiBadge size="xs" tone="primary">
+          {t("status.working")}
+        </UiBadge>
+      ) : null}
+      <UiCounterBadge count={item.unread_count ?? 0} />
+    </>
+  );
 
   return (
-    <div
-      className={cn(
-        SIDEBAR_ROW_CLASS_NAME,
-        is_active
-          ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
-          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-      )}
-      onClick={on_click}
-      role="button"
-      tabIndex={0}
-    >
-      {is_active ? (
-        <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
-      ) : null}
-
-      {item.kind === "room" ? (
-        <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} title={item.title} />
-      ) : (
-        <UiAgentAvatar
-          avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-          is_working={is_working}
-          name={item.members[0]?.name ?? item.title}
-        />
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{item.title}</span>
-          {item.time_label || on_delete ? (
-            <span className="relative flex h-7 w-10 shrink-0 items-center justify-end">
-              {item.time_label ? (
-                <span
-                  className={cn(
-                    "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-                    on_delete && "group-hover/item:opacity-0",
-                  )}
-                >
-                  {item.time_label}
-                </span>
-              ) : null}
-              {on_delete ? (
-                <button
-                  className="absolute right-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[10px] border border-transparent text-(--icon-muted) opacity-0 transition-[background,color,border-color,opacity] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive) group-hover/item:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    on_delete();
-                  }}
-                  title={t("common.delete")}
-                  type="button"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-1 flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
-            {item.summary}
-          </span>
-          {is_working ? (
-            <UiBadge size="xs" tone="primary">
-              {t("status.working")}
-            </UiBadge>
-          ) : null}
-          <UiCounterBadge count={item.unread_count ?? 0} />
-        </div>
-      </div>
-
-    </div>
+    <UiListRow
+      active={is_active}
+      description={item.summary}
+      leading={leading}
+      meta={meta}
+      on_click={on_click}
+      subtitle_trailing={status}
+      title={item.title}
+    />
   );
 }
 
@@ -894,48 +881,35 @@ function ContactRow({
   const subtitle = is_working
     ? t("sidebar.running_tasks_short", { count: running_task_count })
     : (description || t("sidebar.contact_no_description"));
+  const status = is_working ? (
+    <UiBadge size="xs" tone="primary">
+      {t("status.working")}
+    </UiBadge>
+  ) : null;
 
   return (
-    <div
-      className={cn(
-        SIDEBAR_ROW_CLASS_NAME,
-        is_active
-          ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
-          : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+    <UiListRow
+      active={is_active}
+      description={subtitle}
+      leading={<UiAgentAvatar avatar={agent.avatar} is_working={is_working} name={agent.name} />}
+      meta={status}
+      on_click={on_open_directory}
+      right={(
+        <UiIconButton
+          class_name="opacity-0 group-hover/item:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation();
+            on_chat();
+          }}
+          title={t("sidebar.start_chat")}
+          type="button"
+          variant="ghost"
+        >
+          <MessageCircle className="h-4 w-4" />
+        </UiIconButton>
       )}
-      onClick={on_open_directory}
-      role="button"
-      tabIndex={0}
-    >
-      {is_active ? (
-        <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
-      ) : null}
-      <UiAgentAvatar avatar={agent.avatar} is_working={is_working} name={agent.name} />
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{agent.name}</span>
-          {is_working ? (
-            <UiBadge size="xs" tone="primary">
-              {t("status.working")}
-            </UiBadge>
-          ) : null}
-        </div>
-        <p className="mt-1 truncate text-[12px] leading-5 text-(--text-muted)">
-          {subtitle}
-        </p>
-      </div>
-      <button
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) opacity-0 transition-[background,color,opacity,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) group-hover/item:opacity-100"
-        onClick={(event) => {
-          event.stopPropagation();
-          on_chat();
-        }}
-        title={t("sidebar.start_chat")}
-        type="button"
-      >
-        <MessageCircle className="h-4 w-4" />
-      </button>
-    </div>
+      title={agent.name}
+    />
   );
 }
 
