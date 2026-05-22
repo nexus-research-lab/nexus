@@ -8,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/jackc/pgx/v5 v5.9.1
-	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.0
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.1-0.20260522024846-02478629f1f1
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
@@ -40,5 +40,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/nexus-research-lab/nexus-agent-sdk-bridge => ../sdk-analysis/nexus-agent-sdk-bridge
