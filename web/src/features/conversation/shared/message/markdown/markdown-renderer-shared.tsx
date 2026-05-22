@@ -413,13 +413,17 @@ export function create_markdown_components(
       return <div data-markdown-anchor className="mb-2 mt-2 min-w-0 max-w-full leading-relaxed text-pretty text-foreground/90 wrap-anywhere last:mb-0">{children}</div>;
     },
     ul({ children }) {
-      return <ul className="mb-4 max-w-full list-outside list-disc space-y-2 pl-5 text-foreground/90 marker:text-muted-foreground">{children}</ul>;
+      return <ul className="markdown-list markdown-list-unordered">{children}</ul>;
     },
     ol({ children }) {
-      return <ol className="mb-4 max-w-full list-outside list-decimal space-y-2 pl-5 text-foreground/90 marker:font-medium marker:tabular-nums marker:text-muted-foreground">{children}</ol>;
+      return <ol className="markdown-list markdown-list-ordered">{children}</ol>;
     },
     li({ children }) {
-      return <li data-markdown-anchor className="max-w-full overflow-visible leading-relaxed wrap-anywhere [&>[data-markdown-anchor]]:my-0 [&>[data-markdown-anchor]]:inline [&>[data-markdown-anchor]]:leading-relaxed [&>p]:m-0 [&>p]:leading-relaxed">{children}</li>;
+      return (
+        <li data-markdown-anchor className="markdown-list-item">
+          <span className="markdown-list-item-body">{children}</span>
+        </li>
+      );
     },
     blockquote({ children }) {
       return (

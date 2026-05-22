@@ -381,6 +381,80 @@
     box-shadow: none;
     border: 1px solid var(--surface-interactive-active-border);
   }
+
+  /* 中文注释：消息 Markdown 列表使用固定 marker 栅格，避免序号在不同缩放和屏宽下压住正文。 */
+  .markdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 100%;
+    margin: 0.5rem 0 1rem;
+    padding: 0;
+    color: color-mix(in srgb, var(--foreground) 90%, transparent);
+    list-style: none;
+  }
+
+  .markdown-list-ordered {
+    counter-reset: markdown-list-item;
+  }
+
+  .markdown-list-item {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    column-gap: 0.5rem;
+    align-items: start;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    line-height: 1.625;
+  }
+
+  .markdown-list-ordered>.markdown-list-item {
+    counter-increment: markdown-list-item;
+  }
+
+  .markdown-list-item::before {
+    grid-column: 1;
+    justify-self: end;
+    min-width: 1.4rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .markdown-list-ordered>.markdown-list-item::before {
+    content: counter(markdown-list-item) ".";
+  }
+
+  .markdown-list-unordered>.markdown-list-item::before {
+    content: "•";
+  }
+
+  .markdown-list-item>* {
+    grid-column: 2;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .markdown-list-item-body {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    line-height: inherit;
+  }
+
+  .markdown-list-item-body>[data-markdown-anchor] {
+    margin-top: 0;
+    margin-bottom: 0;
+    line-height: inherit;
+  }
+
+  .markdown-list-item-body>.markdown-list {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+  }
 }
 
 @layer utilities {

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复首次未打开工作区时，聊天消息里的 workspace 文件引用无法点击打开对应文件的问题。
 - 修复 Agent 通过 `nexusctl imagegen` 生成图片时，shim 切换到源码仓库执行导致图片落到错误目录的问题。
 - 缩小聊天区图片预览尺寸，避免大图撑满消息区域影响阅读。
+- 修复聊天 Markdown 有序列表序号在不同屏宽和缩放下遮挡正文的问题。
 - 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、主连接器列表可能收不到刷新事件的问题，并让线上 nginx callback 路由使用轻量入口。
 
 ## [0.1.8] - 2026-05-21
