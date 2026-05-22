@@ -25,13 +25,10 @@ import {
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
-import {
-  parse_goal_command,
-  run_goal_command,
-} from "@/features/conversation/shared/goal-command";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
 import {
   group_messages_by_round,
   get_latest_reply_timestamp,
@@ -76,17 +73,24 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const refresh_goal_panel = useCallback(() => {
+    set_goal_refresh_seq((value) => value + 1);
+  }, []);
+  const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
+    session_key,
+    on_refresh: refresh_goal_panel,
+  });
   const handle_conversation_event = useCallback(
     (
       event_type: string,
       data: import("@/types/agent/agent-conversation").RoomEventPayload,
     ) => {
       if (event_type.startsWith("goal_")) {
-        set_goal_refresh_seq((value) => value + 1);
+        refresh_goal_panel();
       }
       on_room_event?.(event_type, data);
     },
-    [on_room_event],
+    [on_room_event, refresh_goal_panel],
   );
 
   const {
@@ -265,11 +269,7 @@ export function DmChatPanel({
     attachments: PreparedComposerAttachment[] = [],
   ) => {
     if (!content.trim() && attachments.length === 0) return;
-    const goal_command = parse_goal_command(content);
-    if (goal_command !== null) {
-      if (!session_key) return;
-      await run_goal_command(session_key, goal_command);
-      set_goal_refresh_seq((value) => value + 1);
+    if (await try_handle_goal_command(content)) {
       return;
     }
     scroll_to_bottom("auto");
@@ -412,6 +412,7 @@ export function DmChatPanel({
         tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
         disabled={!can_control_session}
       />
+      {goal_command_dialog}
     </div>
   );
 }

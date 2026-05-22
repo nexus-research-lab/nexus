@@ -6,6 +6,8 @@ import {
   pause_goal_api,
   resume_goal_api,
 } from "@/lib/api/goal-api";
+import { ApiRequestError } from "@/lib/api/http";
+import type { Goal } from "@/types/conversation/goal";
 
 export type GoalCommand =
   | { kind: "show" }
@@ -14,6 +16,12 @@ export type GoalCommand =
   | { kind: "clear" }
   | { kind: "complete" }
   | { kind: "create"; objective: string; token_budget: number | null };
+
+export type GoalCreateCommand = Extract<GoalCommand, { kind: "create" }>;
+
+interface RunGoalCommandOptions {
+  replace_existing?: boolean;
+}
 
 export function parse_goal_command(content: string): GoalCommand | null {
   const trimmed = content.trim();
@@ -39,11 +47,15 @@ export function parse_goal_command(content: string): GoalCommand | null {
 export async function run_goal_command(
   session_key: string,
   command: GoalCommand,
+  options: RunGoalCommandOptions = {},
 ) {
   if (command.kind === "show") {
     return;
   }
   if (command.kind === "create") {
+    if (options.replace_existing) {
+      await clear_current_goal_if_present(session_key);
+    }
     await create_goal_api({
       session_key,
       objective: command.objective,
@@ -56,6 +68,34 @@ export async function run_goal_command(
   if (command.kind === "resume") await resume_goal_api(current.id);
   if (command.kind === "clear") await clear_goal_api(current.id);
   if (command.kind === "complete") await complete_goal_api(current.id);
+}
+
+export async function goal_replacement_candidate(
+  session_key: string,
+  command: GoalCommand,
+): Promise<Goal | null> {
+  if (command.kind !== "create") {
+    return null;
+  }
+  return current_goal_or_null(session_key);
+}
+
+async function clear_current_goal_if_present(session_key: string) {
+  const current = await current_goal_or_null(session_key);
+  if (current !== null) {
+    await clear_goal_api(current.id);
+  }
+}
+
+async function current_goal_or_null(session_key: string): Promise<Goal | null> {
+  try {
+    return await get_current_goal_api(session_key);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function goal_command_body(trimmed: string): string | null {
