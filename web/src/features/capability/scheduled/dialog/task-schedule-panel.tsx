@@ -3,7 +3,9 @@
 import { UiChoiceButton } from "@/shared/ui/choice";
 import { UiCheckboxRow } from "@/shared/ui/checkbox-row";
 import { UiInput, UiSelect, UiTextarea } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 import { UiSegmentedControl } from "@/shared/ui/segmented-control";
+import { UiStateBlock } from "@/shared/ui/state-block";
 
 import { DailyTimePicker } from "../pickers/daily-time-picker";
 import { SingleRunPicker } from "../pickers/single-run-picker";
@@ -159,7 +161,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
       ) : null}
 
       {schedule_kind === "every" ? (
-        <div className="rounded-[18px] border border-(--divider-subtle-color) bg-white/35 px-4 py-4">
+        <UiPanel padding="md" variant="inset">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-semibold text-(--text-default)">每隔</span>
             <UiInput
@@ -187,7 +189,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
               ))}
             </UiSelect>
           </div>
-        </div>
+        </UiPanel>
       ) : null}
 
       <div className="dialog-field">
@@ -229,9 +231,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
       />
 
       {error_message ? (
-        <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-4 py-3 text-sm text-(--destructive)">
-          {error_message}
-        </div>
+        <UiStateBlock description={error_message} size="sm" title="任务配置无效" tone="danger" />
       ) : null}
     </div>
   );

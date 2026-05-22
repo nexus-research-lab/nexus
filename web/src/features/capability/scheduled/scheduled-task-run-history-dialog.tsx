@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
 import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
+import { UiSkeletonCardList } from "@/shared/ui/skeleton";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
 import { format_scheduled_datetime } from "./scheduled-formatters";
@@ -150,54 +153,37 @@ export function ScheduledTaskRunHistoryDialog({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-(--text-default) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
+            <UiButton
               onClick={() => void handle_refresh()}
+              size="xs"
               type="button"
+              variant="text"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               刷新
-            </button>
-            <button
+            </UiButton>
+            <UiIconButton
               aria-label="关闭"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
               onClick={on_close}
+              size="md"
               type="button"
             >
               <X className="h-4 w-4" />
-            </button>
+            </UiIconButton>
           </div>
         </div>
 
         <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {is_loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-[108px] animate-pulse rounded-[16px] border border-(--divider-subtle-color)"
-                />
-              ))}
-            </div>
+            <UiSkeletonCardList card_class_name="min-h-[108px]" count={4} />
           ) : error_message ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-5 text-center">
-              <p className="text-sm font-semibold text-(--destructive)">运行历史加载失败</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-(--text-default)">
-                {error_message}
-              </p>
-            </div>
+            <UiStateBlock description={error_message} title="运行历史加载失败" tone="danger" />
           ) : runs.length === 0 ? (
-            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-(--divider-subtle-color)">
-                <History className="h-6 w-6 text-(--icon-strong)" />
-              </div>
-              <h4 className="mt-5 text-lg font-bold tracking-[-0.03em] text-(--text-strong)">
-                还没有运行记录
-              </h4>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-(--text-default)">
-                手动执行或等调度器首次触发后，这里会显示每次运行的状态、耗时和错误信息。
-              </p>
-            </div>
+            <UiStateBlock
+              description="手动执行或等调度器首次触发后，这里会显示每次运行的状态、耗时和错误信息。"
+              icon={<History className="h-6 w-6 text-(--icon-strong)" />}
+              title="还没有运行记录"
+            />
           ) : (
             <div className="divide-y divide-(--divider-subtle-color)">
               {runs.map((run) => {

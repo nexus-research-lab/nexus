@@ -10,6 +10,7 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { UiPanel } from "@/shared/ui/panel";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
@@ -266,7 +267,7 @@ export function ScheduledTasksDirectory() {
       >
         <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
           <section className="mb-4 grid gap-3 md:grid-cols-3">
-            <div className="surface-card rounded-[20px] px-4 py-4">
+            <UiPanel radius="lg">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                 执行中的任务
               </p>
@@ -276,8 +277,8 @@ export function ScheduledTasksDirectory() {
               <p className="mt-1 text-sm text-(--text-default)">
                 当前有多少任务正在占用执行会话
               </p>
-            </div>
-            <div className="surface-card rounded-[20px] px-4 py-4">
+            </UiPanel>
+            <UiPanel radius="lg">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                 已启用
               </p>
@@ -287,8 +288,8 @@ export function ScheduledTasksDirectory() {
               <p className="mt-1 text-sm text-(--text-default)">
                 后续还会继续参与调度的任务数量
               </p>
-            </div>
-            <div className="surface-card rounded-[20px] px-4 py-4">
+            </UiPanel>
+            <UiPanel radius="lg">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
                 已暂停
               </p>
@@ -298,7 +299,7 @@ export function ScheduledTasksDirectory() {
               <p className="mt-1 text-sm text-(--text-default)">
                 仍保留在列表里，但暂时不会再自动触发
               </p>
-            </div>
+            </UiPanel>
           </section>
 
           <div className="min-h-full">
