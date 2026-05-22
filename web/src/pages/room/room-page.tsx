@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { Loader2 } from "lucide-react";
 
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
@@ -11,6 +10,7 @@ import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
+import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { RoomRouteParams } from "@/types/app/route";
 import { UpdateRoomParams } from "@/types/conversation/room";
@@ -258,12 +258,7 @@ export function RoomPage() {
   if (!controller.is_hydrated) {
     return (
       <WorkspacePageFrame content_padding_class_name="p-0">
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-(--text-soft)" />
-            <span className="text-sm text-(--text-soft)">加载对话...</span>
-          </div>
-        </div>
+        <WorkspaceLoadingState label="加载对话..." />
       </WorkspacePageFrame>
     );
   }

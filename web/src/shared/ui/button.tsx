@@ -1,6 +1,6 @@
 "use client";
 
-import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
+import { AnchorHTMLAttributes, ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -13,6 +13,14 @@ import {
 } from "@/shared/ui/button-styles";
 
 interface UiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  children: ReactNode;
+  class_name?: string;
+  size?: UiButtonSize;
+  tone?: UiButtonTone;
+  variant?: UiButtonVariant;
+}
+
+interface UiLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   children: ReactNode;
   class_name?: string;
   size?: UiButtonSize;
@@ -50,6 +58,29 @@ export const UiButton = forwardRef<HTMLButtonElement, UiButtonProps>(function Ui
     >
       {children}
     </button>
+  );
+});
+
+export const UiLinkButton = forwardRef<HTMLAnchorElement, UiLinkButtonProps>(function UiLinkButton(
+  {
+    children,
+    class_name,
+    className,
+    size,
+    tone,
+    variant,
+    ...props
+  },
+  ref,
+) {
+  return (
+    <a
+      ref={ref}
+      className={get_ui_button_class_name({ size, tone, variant }, cn(className, class_name))}
+      {...props}
+    >
+      {children}
+    </a>
   );
 });
 

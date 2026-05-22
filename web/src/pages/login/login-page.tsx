@@ -13,7 +13,9 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { UiButton } from "@/shared/ui/button";
+import { UiInput } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 
 function resolve_redirect_path(raw_redirect: string | null): string {
   if (!raw_redirect || !raw_redirect.startsWith("/")) {
@@ -95,23 +97,21 @@ export function LoginPage() {
 
         {show_disabled_state ? (
           <div className="mt-6 space-y-4">
-            <div className="rounded-[22px] border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) px-5 py-5">
+            <UiPanel class_name="border-(--surface-panel-border) bg-(--surface-panel-subtle-background)" padding="lg" radius="lg" variant="inset">
               <h2 className="text-md font-semibold text-(--text-strong)">{t("login.disabled_title")}</h2>
               <p className="mt-2 text-base leading-6 text-(--text-muted)">
                 {t("login.disabled_description")}
               </p>
-            </div>
+            </UiPanel>
 
-            <button
-              className={get_ui_button_class_name(
-                { size: "lg", variant: "solid" },
-                "w-full rounded-full px-5 text-base",
-              )}
+            <UiButton
+              class_name="w-full rounded-full px-5 text-base"
               onClick={handle_refresh}
-              type="button"
+              size="lg"
+              variant="solid"
             >
               {t("login.refresh")}
-            </button>
+            </UiButton>
           </div>
         ) : (
           <form className="mt-6 space-y-4" onSubmit={handle_submit}>
@@ -119,12 +119,14 @@ export function LoginPage() {
               <span className="mb-2 block text-sm font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
                 {t("login.username")}
               </span>
-              <input
+              <UiInput
                 autoComplete="username"
-                className="input-shell min-h-12 w-full rounded-[18px] px-4 text-base text-(--text-strong) outline-none"
+                class_name="min-h-12 rounded-[18px] px-4 text-base"
+                control_size="lg"
                 onChange={(event) => set_username(event.target.value)}
                 placeholder={t("login.username_placeholder")}
                 type="text"
+                variant="surface"
                 value={username}
               />
             </label>
@@ -133,12 +135,14 @@ export function LoginPage() {
               <span className="mb-2 block text-sm font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
                 {t("login.password")}
               </span>
-              <input
+              <UiInput
                 autoComplete="current-password"
-                className="input-shell min-h-12 w-full rounded-[18px] px-4 text-base text-(--text-strong) outline-none"
+                class_name="min-h-12 rounded-[18px] px-4 text-base"
+                control_size="lg"
                 onChange={(event) => set_password(event.target.value)}
                 placeholder={t("login.password_placeholder")}
                 type="password"
+                variant="surface"
                 value={password}
               />
             </label>
@@ -149,16 +153,16 @@ export function LoginPage() {
               </div>
             ) : null}
 
-            <button
-              className={get_ui_button_class_name(
-                { size: "lg", tone: "primary", variant: "solid" },
-                "min-h-12 w-full rounded-full px-5 text-base",
-              )}
+            <UiButton
+              class_name="min-h-12 w-full rounded-full px-5 text-base"
               disabled={is_submitting}
+              size="lg"
+              tone="primary"
               type="submit"
+              variant="solid"
             >
               {is_submitting ? t("login.submitting") : t("login.submit")}
-            </button>
+            </UiButton>
           </form>
         )}
       </section>

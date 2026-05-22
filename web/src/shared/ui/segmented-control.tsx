@@ -12,6 +12,7 @@ interface UiSegmentedControlOption<T extends string> {
 interface UiSegmentedControlProps<T extends string> {
   class_name?: string;
   density?: "default" | "compact";
+  disabled?: boolean;
   icon?: LucideIcon;
   on_change: (value: T) => void;
   options: UiSegmentedControlOption<T>[];
@@ -23,6 +24,7 @@ interface UiSegmentedControlProps<T extends string> {
 export function UiSegmentedControl<T extends string>({
   class_name,
   density = "default",
+  disabled = false,
   icon: Icon,
   on_change,
   options,
@@ -63,6 +65,7 @@ export function UiSegmentedControl<T extends string>({
             stretch && "min-w-0 flex-1 px-1.5 text-center",
           )}
           data-active={value === option.value}
+          disabled={disabled}
           onClick={() => on_change(option.value)}
           type="button"
         >

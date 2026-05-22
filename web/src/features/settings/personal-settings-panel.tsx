@@ -45,8 +45,9 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
-import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { UiButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { UiInput } from "@/shared/ui/form-control";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { UiPanel } from "@/shared/ui/panel";
 
@@ -69,15 +70,6 @@ const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
   new_password: "",
   confirm_password: "",
 };
-
-const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
-  { size: "md", tone: "primary", variant: "solid" },
-  "gap-2 tracking-tight",
-);
-const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
-  { size: "md", variant: "surface" },
-  "gap-2 tracking-tight",
-);
 
 function format_updated_at(value: string, locale: "zh" | "en"): string {
   const date = new Date(value);
@@ -401,9 +393,9 @@ export function PersonalSettingsPanel() {
                     <span className="text-[11px] font-semibold text-(--text-muted)">
                       {t("settings.personal.password_current")}
                     </span>
-                    <input
+                    <UiInput
                       autoComplete="current-password"
-                      className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
+                      control_size="md"
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => set_password_draft((current) => ({
                         ...current,
@@ -417,9 +409,9 @@ export function PersonalSettingsPanel() {
                     <span className="text-[11px] font-semibold text-(--text-muted)">
                       {t("settings.personal.password_new")}
                     </span>
-                    <input
+                    <UiInput
                       autoComplete="new-password"
-                      className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
+                      control_size="md"
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => set_password_draft((current) => ({
                         ...current,
@@ -433,9 +425,9 @@ export function PersonalSettingsPanel() {
                     <span className="text-[11px] font-semibold text-(--text-muted)">
                       {t("settings.personal.password_confirm")}
                     </span>
-                    <input
+                    <UiInput
                       autoComplete="new-password"
-                      className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)"
+                      control_size="md"
                       disabled={!profile?.can_change_password || submitting}
                       onChange={(event) => set_password_draft((current) => ({
                         ...current,
@@ -453,17 +445,17 @@ export function PersonalSettingsPanel() {
                       ? validation_error
                       : t("settings.personal.password_rule")}
                   </p>
-                  <button
-                    className={cn(
-                      can_submit_password ? PERSONAL_PRIMARY_BUTTON_CLASS_NAME : PERSONAL_SECONDARY_BUTTON_CLASS_NAME,
-                      "min-w-28",
-                    )}
+                  <UiButton
+                    class_name="min-w-28"
                     disabled={!can_submit_password}
+                    size="md"
+                    tone={can_submit_password ? "primary" : "default"}
                     type="submit"
+                    variant={can_submit_password ? "solid" : "surface"}
                   >
                     {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                     {submitting ? t("common.saving") : t("settings.personal.change_password")}
-                  </button>
+                  </UiButton>
                 </div>
               </form>
             </UiPanel>
