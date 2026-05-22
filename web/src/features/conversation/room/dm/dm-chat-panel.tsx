@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -8,6 +8,7 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import { create_goal_api } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
@@ -35,6 +36,20 @@ import {
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
+
+function parse_goal_command(content: string): string | null {
+  const trimmed = content.trim();
+  if (trimmed === "/goal") {
+    return "";
+  }
+  if (trimmed.startsWith("/goal ")) {
+    return trimmed.slice("/goal ".length).trim();
+  }
+  if (trimmed.startsWith("/goal\n")) {
+    return trimmed.slice("/goal\n".length).trim();
+  }
+  return null;
+}
 
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
@@ -71,6 +86,7 @@ export function DmChatPanel({
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
+  const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
 
   const {
     error,
@@ -248,6 +264,16 @@ export function DmChatPanel({
     attachments: PreparedComposerAttachment[] = [],
   ) => {
     if (!content.trim() && attachments.length === 0) return;
+    const goal_objective = parse_goal_command(content);
+    if (goal_objective !== null) {
+      if (!session_key || !goal_objective) return;
+      await create_goal_api({
+        session_key,
+        objective: goal_objective,
+      });
+      set_goal_refresh_seq((value) => value + 1);
+      return;
+    }
     scroll_to_bottom("auto");
     await send_message(content, { delivery_policy, attachments });
   };
@@ -364,7 +390,7 @@ export function DmChatPanel({
       ) : null}
 
       <GoalPanel
-        activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}`}
+        activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
         compact={is_mobile_layout}
         disabled={!can_control_session}
         session_key={session_key}
