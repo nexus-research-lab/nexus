@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 优化 Room 右侧简介面板的联络预览密度，减少窄侧栏下的强边框和大卡片压迫感。
 - Room 右侧简介面板宽度约束与工作区面板保持一致，联络预览撑满剩余高度并使用左右分栏，顶部「简介」入口默认打开联络；联络标题和刷新入口收进左侧列表栏。
 - 抽取共享 `UiButton` / `UiIconButton` 风格基础，统一弹窗、目录卡片、编辑器、登录和设置页按钮的材质语法。
+- 抽取共享 `choice`、`segmented` 与 `list-action` 控件，统一定时任务选项、时间选择器、权限范围和侧边栏列表操作的交互样式。
+- 抽取共享 `form-control`、`badge` 与 `state-block` 控件，统一表单输入、状态徽标、未读计数和列表空态/错误态的尺寸与材质。
+- 抽取共享 `tabs`、`checkbox-row` 与 `meta-grid` 控件，统一 Header 下划线 tab、表单勾选行和详情字段组。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
 
 ### Fixed

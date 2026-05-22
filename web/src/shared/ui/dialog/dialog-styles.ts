@@ -84,25 +84,3 @@ export function get_dialog_note_style(tone: "default" | "danger"): CSSProperties
     color: "var(--text-default)",
   };
 }
-
-export function get_dialog_choice_class_name(is_active: boolean, class_name?: string): string {
-  return cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-[12px] border px-3 py-2 text-[12px] font-semibold transition-[background,color,border-color] duration-(--motion-duration-normal) ease-out",
-    is_active
-      ? "text-(--primary)"
-      : "border-(--divider-subtle-color) text-(--text-muted) hover:border-(--surface-interactive-hover-border) hover:text-(--text-strong)",
-    class_name,
-  );
-}
-
-export function get_dialog_choice_style(is_active: boolean): CSSProperties | undefined {
-  if (!is_active) {
-    return undefined;
-  }
-
-  return {
-    background: "color-mix(in srgb, var(--primary) 10%, transparent)",
-    border: "1px solid color-mix(in srgb, var(--primary) 28%, var(--divider-subtle-color))",
-    color: "var(--primary)",
-  };
-}

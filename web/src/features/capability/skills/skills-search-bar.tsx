@@ -1,5 +1,4 @@
-import { cn } from "@/lib/utils";
-
+import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
 import type { SkillMarketplaceController } from "./skills-view-model";
 import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
@@ -32,29 +31,18 @@ export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
       </div>
 
       {ctrl.discovery_mode === "catalog" ? (
-        <div
-          className="soft-scrollbar scrollbar-hide flex min-w-0 flex-1 items-center gap-5 overflow-x-auto"
-          data-tour-anchor={SKILLS_TOUR_ANCHORS.categories}
-        >
-          {ctrl.categories.map((category) => {
-            const is_active = ctrl.active_category === category.key;
-            return (
-              <button
-                key={category.key}
-                className={cn(
-                  "inline-flex h-9 shrink-0 items-center border-b-2 border-transparent px-0 py-1 text-[12px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast)",
-                  is_active
-                    ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                    : "text-(--text-default) hover:text-(--text-strong)",
-                )}
-                onClick={() => ctrl.set_active_category(category.key)}
-                type="button"
-              >
-                {category.label}
-              </button>
-            );
-          })}
-        </div>
+        <UiUnderlineTabs
+          active_value={ctrl.active_category}
+          aria_label="技能分类"
+          class_name="flex-1 gap-5"
+          item_class_name="text-[12px]"
+          nav_anchor={SKILLS_TOUR_ANCHORS.categories}
+          on_change={ctrl.set_active_category}
+          options={ctrl.categories.map((category) => ({
+            label: category.label,
+            value: category.key,
+          }))}
+        />
       ) : null}
     </div>
   );

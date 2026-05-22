@@ -13,7 +13,7 @@ import { CloudRain, MoonStar, Sun, SunMedium } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { Theme, useTheme } from "@/shared/theme/theme-context";
-import { SegmentedPill } from "@/shared/ui/segmented-pill";
+import { UiSegmentedControl } from "@/shared/ui/segmented-control";
 
 const THEME_META: Record<Theme, { icon: typeof Sun }> = {
   light: { icon: SunMedium },
@@ -46,7 +46,7 @@ export function ThemeSwitch({
   const ActiveIcon = THEME_META[theme].icon;
 
   return (
-    <SegmentedPill
+    <UiSegmentedControl
       class_name={class_name}
       density={density}
       icon={show_icon ? ActiveIcon : undefined}

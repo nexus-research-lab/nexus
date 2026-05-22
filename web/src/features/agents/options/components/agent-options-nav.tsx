@@ -6,10 +6,11 @@
 
 "use client";
 
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
 import { UserPen, ToolCase, Album, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiUnderlineTabs } from "@/shared/ui/tabs";
 
 /** Tab 键值类型 */
 export type TabKey = "identity" | "skills" | "advanced";
@@ -50,35 +51,22 @@ export function AgentOptionsNav({
   if (variant === "inline") {
     return (
       <div className="flex h-[41px] min-w-0 items-center justify-between gap-4 border-b dialog-divider px-6">
-        <nav
-          aria-label="Agent 配置切换"
-          className="soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-0.5"
-        >
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = active_tab === item.key;
+        <UiUnderlineTabs
+          active_value={active_tab}
+          aria_label="Agent 配置切换"
+          class_name="-mx-0.5 flex-1 px-0.5"
+          item_class_name="h-full"
+          on_change={on_tab_change}
+          options={NAV_ITEMS.map((item) => {
             const label = t(item.label_key);
-            return (
-              <button
-                aria-current={isActive ? "page" : undefined}
-                aria-pressed={isActive}
-                key={item.key}
-                onClick={() => on_tab_change(item.key)}
-                title={label}
-                className={cn(
-                  "inline-flex h-full shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
-                  isActive
-                    ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                    : "text-(--text-default) hover:text-(--text-strong)",
-                )}
-                type="button"
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span>{label}</span>
-              </button>
-            );
+            return {
+              icon: item.icon,
+              label,
+              title: label,
+              value: item.key,
+            };
           })}
-        </nav>
+        />
         {trailing ? (
           <div className="ml-4 flex shrink-0 items-center gap-2">
             {trailing}

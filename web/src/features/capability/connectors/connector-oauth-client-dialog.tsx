@@ -15,10 +15,8 @@ import {
   get_dialog_note_class_name,
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
+import { UiInput } from "@/shared/ui/form-control";
 import type { ConnectorDetail } from "@/types/capability/connector";
-
-const OAUTH_CLIENT_INPUT_CLASS_NAME =
-  "dialog-input h-8 w-full rounded-[10px] px-3 text-[13px] text-(--text-strong) outline-none disabled:opacity-(--disabled-opacity)";
 
 interface ConnectorOAuthClientDialogProps {
   detail: ConnectorDetail | null;
@@ -134,25 +132,24 @@ export function ConnectorOAuthClientDialog({
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
             <span>Client ID</span>
-            <input
+            <UiInput
               autoCapitalize="off"
               autoCorrect="off"
-              className={OAUTH_CLIENT_INPUT_CLASS_NAME}
+              control_size="sm"
               onChange={(event) => set_client_id(event.target.value)}
               placeholder="飞书应用 App ID"
               spellCheck={false}
-              type="text"
               value={client_id}
             />
           </label>
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
             <span>Client Secret</span>
-            <input
+            <UiInput
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
-              className={OAUTH_CLIENT_INPUT_CLASS_NAME}
+              control_size="sm"
               data-form-type="other"
               data-lpignore="true"
               name="feishu-docx-client-secret"

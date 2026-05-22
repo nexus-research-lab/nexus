@@ -11,6 +11,7 @@ import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircl
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { cn } from '@/lib/utils';
+import { get_ui_choice_class_name } from "@/shared/ui/choice-styles";
 import { CodeBlock } from './code-block';
 import { ImageBlock } from "./image-block";
 import { type ImageContent, type ToolResultContent, type ToolUseContent } from '@/types/conversation/message';
@@ -196,12 +197,7 @@ const TOOL_LABEL_STYLES: Record<string, string> = {
 };
 
 const get_permission_choice_class_name = (selected: boolean) =>
-  cn(
-    "inline-flex items-center rounded-[7px] border px-2 py-1 text-[11px] font-medium transition-colors",
-    selected
-      ? "border-primary/24 bg-primary/6 text-primary"
-      : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-  );
+  get_ui_choice_class_name({ active: selected, size: "xs", variant: "surface" });
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
   "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";

@@ -12,7 +12,8 @@
 import { ButtonHTMLAttributes, CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { UiButton } from "@/shared/ui/button";
+import { UiListActionButton } from "@/shared/ui/list-action";
 
 type CatalogMediaShape = "round" | "rounded";
 type CatalogActionTone = "default" | "danger";
@@ -299,16 +300,16 @@ export function WorkspaceCatalogAction({
   size?: CatalogActionSize;
 }) {
   return (
-    <UiIconButton
+    <UiListActionButton
       class_name={class_name}
       size={size === "sm" ? "xs" : "md"}
       tone={tone}
       type={type}
-      variant="ghost"
+      visibility="visible"
       {...props}
     >
       {children}
-    </UiIconButton>
+    </UiListActionButton>
   );
 }
 

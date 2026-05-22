@@ -2,10 +2,8 @@
 
 import { type RefObject } from "react";
 
-import {
-  get_dialog_choice_class_name,
-  get_dialog_choice_style,
-} from "@/shared/ui/dialog/dialog-styles";
+import { UiChoiceButton } from "@/shared/ui/choice";
+import { UiField, UiInput, UiSelect } from "@/shared/ui/form-control";
 
 type TargetType = "agent" | "room";
 type ExecutionMode = "main" | "existing" | "temporary" | "dedicated";
@@ -119,47 +117,40 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="dialog-field">
-        <label className="dialog-label" htmlFor="task-name">
-          任务名称
-        </label>
-        <input
+      <UiField html_for="task-name" label="任务名称">
+        <UiInput
           ref={name_ref}
-          className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
           id="task-name"
           onChange={(e) => set_task_name(e.target.value)}
           placeholder="输入任务名称"
-          type="text"
           value={task_name}
         />
-      </div>
+      </UiField>
 
       <div className="dialog-field">
         <span className="dialog-label">发送到</span>
         <div className="flex flex-wrap gap-2">
           {target_type_options.map((opt) => (
-            <button
-              className={get_dialog_choice_class_name(target_type === opt.key)}
+            <UiChoiceButton
+              active={target_type === opt.key}
               key={opt.key}
               onClick={() => {
                 set_target_type(opt.key);
                 on_reset_context_error();
               }}
-              style={get_dialog_choice_style(target_type === opt.key)}
-              type="button"
             >
               {opt.label}
-            </button>
+            </UiChoiceButton>
           ))}
         </div>
       </div>
 
-      <div className="dialog-field">
-        <label className="dialog-label" htmlFor="task-target-object">
-          {target_type === "agent" ? "目标智能体" : "目标 Room"}
-        </label>
-        <select
-          className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+      <UiField
+        error={target_type === "agent" ? agents_error : rooms_error}
+        html_for="task-target-object"
+        label={target_type === "agent" ? "目标智能体" : "目标 Room"}
+      >
+        <UiSelect
           disabled={target_type === "agent" ? agents_loading || agent_options.length === 0 : rooms_loading || room_options.length === 0}
           id="task-target-object"
           onChange={(e) => {
@@ -182,31 +173,23 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
               {option.label}
             </option>
           ))}
-        </select>
-        {target_type === "agent" && agents_error ? (
-          <p className="mt-2 text-xs text-(--destructive)">{agents_error}</p>
-        ) : null}
-        {target_type === "room" && rooms_error ? (
-          <p className="mt-2 text-xs text-(--destructive)">{rooms_error}</p>
-        ) : null}
-      </div>
+        </UiSelect>
+      </UiField>
 
       <div className="dialog-field">
         <span className="dialog-label">执行会话</span>
         <div className="flex flex-wrap gap-2">
           {execution_mode_options.map((opt) => (
-            <button
-              className={get_dialog_choice_class_name(execution_mode === opt.key)}
+            <UiChoiceButton
+              active={execution_mode === opt.key}
               key={opt.key}
               onClick={() => {
                 set_execution_mode(opt.key);
                 on_reset_context_error();
               }}
-              style={get_dialog_choice_style(execution_mode === opt.key)}
-              type="button"
             >
               {opt.label}
-            </button>
+            </UiChoiceButton>
           ))}
         </div>
         <p className="mt-2 text-xs leading-5 text-(--text-muted)">
@@ -215,28 +198,24 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
       </div>
 
       {execution_mode === "dedicated" ? (
-        <div className="dialog-field">
-          <label className="dialog-label" htmlFor="task-dedicated-session-key">
-            专用长期会话名称
-          </label>
-          <input
-            className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+        <UiField html_for="task-dedicated-session-key" label="专用长期会话名称">
+          <UiInput
             id="task-dedicated-session-key"
             onChange={(e) => set_dedicated_session_key(e.target.value)}
             placeholder="例如 daily-ops"
-            type="text"
             value={dedicated_session_key}
           />
-        </div>
+        </UiField>
       ) : null}
 
       {require_session_selection ? (
-        <div className="dialog-field">
-          <label className="dialog-label" htmlFor="task-session-key">
-            执行会话
-          </label>
-          <select
-            className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+        <UiField
+          description={session_empty_message}
+          error={session_error}
+          html_for="task-session-key"
+          label="执行会话"
+        >
+          <UiSelect
             disabled={session_loading || session_options.length === 0}
             id="task-session-key"
             onChange={(e) => {
@@ -251,29 +230,25 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
                 {option.label}
               </option>
             ))}
-          </select>
-          {session_error ? <p className="mt-2 text-xs text-(--destructive)">{session_error}</p> : null}
-          {session_empty_message ? <p className="mt-2 text-xs text-(--text-muted)">{session_empty_message}</p> : null}
-        </div>
+          </UiSelect>
+        </UiField>
       ) : null}
 
       <div className="dialog-field">
         <span className="dialog-label">结果回传</span>
         <div className="flex flex-wrap gap-2">
           {reply_mode_options.map((opt) => (
-            <button
-              className={get_dialog_choice_class_name(reply_mode === opt.key)}
+            <UiChoiceButton
+              active={reply_mode === opt.key}
               disabled={disabled_reply_modes.includes(opt.key)}
               key={opt.key}
               onClick={() => {
                 set_reply_mode(opt.key);
                 on_reset_context_error();
               }}
-              style={get_dialog_choice_style(reply_mode === opt.key)}
-              type="button"
             >
               {opt.label}
-            </button>
+            </UiChoiceButton>
           ))}
         </div>
         <p className="mt-2 text-xs leading-5 text-(--text-muted)">
@@ -282,12 +257,8 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
       </div>
 
       {reply_mode === "selected" ? (
-        <div className="dialog-field">
-          <label className="dialog-label" htmlFor="task-reply-session-key">
-            回复会话
-          </label>
-          <select
-            className="dialog-input radius-shell-sm w-full appearance-none px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+        <UiField html_for="task-reply-session-key" label="回复会话">
+          <UiSelect
             disabled={session_loading || session_options.length === 0}
             id="task-reply-session-key"
             onChange={(e) => {
@@ -302,8 +273,8 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
                 {option.label}
               </option>
             ))}
-          </select>
-        </div>
+          </UiSelect>
+        </UiField>
       ) : null}
     </div>
   );

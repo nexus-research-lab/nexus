@@ -1,9 +1,10 @@
 "use client";
 
-import { LucideIcon } from "lucide-react";
-import { ReactNode } from "react";
+import { type LucideIcon } from "lucide-react";
+import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import {
   COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS,
   COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS,
@@ -60,36 +61,20 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
   const has_secondary_row = density === "compact" || tabs.length > 0 || Boolean(tabs_leading) || Boolean(tabs_trailing);
   const render_tabs_nav = (class_name: string, aria_label: string) => (
-    <nav
-      aria-label={aria_label}
-      className={class_name}
-      data-tour-anchor={tabs_nav_anchor}
-    >
-      {tabs.map((tab) => {
-        const Icon = tab.icon;
-        const is_active = active_tab === tab.key;
-        return (
-          <button
-            aria-pressed={is_active}
-            aria-current={is_active ? "page" : undefined}
-            data-tour-anchor={tab.anchor}
-            key={tab.key}
-            className={cn(
-              "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
-              is_active
-                ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                : "text-(--text-default) hover:text-(--text-strong)",
-              density === "compact" && "h-8 text-[10.5px]",
-            )}
-            onClick={() => on_change_tab?.(tab.key)}
-            type="button"
-          >
-            {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-            {tab.label}
-          </button>
-        );
-      })}
-    </nav>
+    <UiUnderlineTabs
+      active_value={active_tab}
+      aria_label={aria_label}
+      class_name={class_name}
+      density={density === "compact" ? "compact" : "default"}
+      nav_anchor={tabs_nav_anchor}
+      on_change={on_change_tab}
+      options={tabs.map((tab) => ({
+        anchor: tab.anchor,
+        icon: tab.icon,
+        label: tab.label,
+        value: tab.key,
+      }))}
+    />
   );
 
   return (

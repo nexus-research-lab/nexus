@@ -12,7 +12,7 @@
 import { Languages } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { SegmentedPill } from "@/shared/ui/segmented-pill";
+import { UiSegmentedControl } from "@/shared/ui/segmented-control";
 
 export function LanguageSwitch({
   class_name,
@@ -28,7 +28,7 @@ export function LanguageSwitch({
   const { locale, set_locale, t } = useI18n();
 
   return (
-    <SegmentedPill
+    <UiSegmentedControl
       class_name={class_name}
       density={density}
       icon={show_icon ? Languages : undefined}

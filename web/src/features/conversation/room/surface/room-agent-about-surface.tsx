@@ -9,7 +9,7 @@
 
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Album,
   Handshake,
@@ -21,7 +21,7 @@ import {
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
-import { cn } from "@/lib/utils";
+import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { AgentIdentityDraft, AgentNameValidationResult, AgentOptions, Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -181,34 +181,19 @@ function RoomAgentPanelTabs({
 }) {
   return (
     <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
-      <nav
-        aria-label="Agent 面板切换"
-        className="soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto px-0.5"
-      >
-        {ROOM_AGENT_PANEL_TABS.map((item) => {
-          const Icon = item.icon;
-          const is_active = active_tab === item.key;
-          return (
-            <button
-              aria-current={is_active ? "page" : undefined}
-              aria-pressed={is_active}
-              className={cn(
-                "inline-flex h-full shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
-                is_active
-                  ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                  : "text-(--text-default) hover:text-(--text-strong)",
-              )}
-              key={item.key}
-              onClick={() => on_change(item.key)}
-              title={item.label}
-              type="button"
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <UiUnderlineTabs
+        active_value={active_tab}
+        aria_label="Agent 面板切换"
+        class_name="-mx-0.5 flex-1 px-0.5"
+        item_class_name="h-full"
+        on_change={on_change}
+        options={ROOM_AGENT_PANEL_TABS.map((item) => ({
+          icon: item.icon,
+          label: item.label,
+          title: item.label,
+          value: item.key,
+        }))}
+      />
     </div>
   );
 }

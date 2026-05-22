@@ -2,6 +2,9 @@
 
 import { Clock3, History, Pencil, Play, Trash2 } from "lucide-react";
 
+import { UiButton } from "@/shared/ui/button";
+import { UiMetaGrid, UiMetaItem } from "@/shared/ui/meta-grid";
+import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import {
   WorkspaceCatalogAction,
@@ -146,19 +149,19 @@ function get_primary_status(task: ScheduledTaskItem) {
 function get_toggle_action(task: ScheduledTaskItem): {
   label: string;
   pending_label: string;
-  class_name: string;
+  tone: "danger" | "primary";
 } {
   if (task.enabled) {
     return {
       label: "暂停",
       pending_label: "暂停中",
-      class_name: "border border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_12%,transparent)]",
+      tone: "danger",
     };
   }
   return {
-      label: "恢复",
-      pending_label: "恢复中",
-      class_name: "border border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
+    label: "恢复",
+    pending_label: "恢复中",
+    tone: "primary",
   };
 }
 
@@ -240,30 +243,27 @@ export function ScheduledTaskList({
             ))}
           </div>
         ) : error_message ? (
-          <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-5 text-center">
-            <p className="text-sm font-semibold text-(--destructive)">任务列表加载失败</p>
-            <p className="mt-2 max-w-md text-sm leading-6 text-(--text-default)">
-              {error_message}
-            </p>
-            <WorkspaceCatalogTextAction class_name="mt-4" onClick={() => void on_refresh?.()} tone="primary">
-              重试
-            </WorkspaceCatalogTextAction>
-          </div>
+          <UiStateBlock
+            actions={(
+              <WorkspaceCatalogTextAction onClick={() => void on_refresh?.()} tone="primary">
+                重试
+              </WorkspaceCatalogTextAction>
+            )}
+            description={error_message}
+            title="任务列表加载失败"
+            tone="danger"
+          />
         ) : items.length === 0 ? (
-          <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 text-center">
-            <div className="chip-default flex h-14 w-14 items-center justify-center rounded-[20px]">
-              <Clock3 className="h-6 w-6 text-(--icon-strong)" />
-            </div>
-            <h3 className="mt-5 text-lg font-bold tracking-[-0.03em] text-(--text-strong)">
-              还没有定时任务
-            </h3>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-(--text-default)">
-              新建第一个自动化任务后，这里会显示任务在哪个会话里执行、结果回到哪里，以及最近运行情况。
-            </p>
-            <WorkspaceCatalogTextAction class_name="mt-4" onClick={on_create} tone="primary">
-              新建任务
-            </WorkspaceCatalogTextAction>
-          </div>
+          <UiStateBlock
+            actions={(
+              <WorkspaceCatalogTextAction onClick={on_create} tone="primary">
+                新建任务
+              </WorkspaceCatalogTextAction>
+            )}
+            description="新建第一个自动化任务后，这里会显示任务在哪个会话里执行、结果回到哪里，以及最近运行情况。"
+            icon={<Clock3 className="h-6 w-6 text-(--icon-strong)" />}
+            title="还没有定时任务"
+          />
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
             {sorted_items.map((task) => {
@@ -288,40 +288,12 @@ export function ScheduledTaskList({
                           <WorkspaceStatusBadge label="执行占用中" size="compact" tone="running" />
                         ) : null}
                       </div>
-                      <div className="mt-3 grid gap-4 text-sm text-(--text-default) md:grid-cols-2">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            归属对象
-                          </p>
-                          <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_context_summary(task)}
-                          </p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            执行会话
-                          </p>
-                          <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_session_summary(task)}
-                          </p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            结果回传
-                          </p>
-                          <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_delivery_summary(task.delivery, task.source)}
-                          </p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                            调度规则
-                          </p>
-                          <p className="mt-1.5 font-medium text-(--text-strong)">
-                            {get_schedule_summary(task.schedule)}
-                          </p>
-                        </div>
-                      </div>
+                      <UiMetaGrid>
+                        <UiMetaItem label="归属对象" value={get_context_summary(task)} />
+                        <UiMetaItem label="执行会话" value={get_session_summary(task)} />
+                        <UiMetaItem label="结果回传" value={get_delivery_summary(task.delivery, task.source)} />
+                        <UiMetaItem label="调度规则" value={get_schedule_summary(task.schedule)} />
+                      </UiMetaGrid>
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-(--text-default)">
                         <span>下次运行 {format_scheduled_datetime(task.next_run_at, { empty_label: "未安排" })}</span>
                         <span>最近执行 {format_scheduled_datetime(task.last_run_at, { empty_label: "未安排" })}</span>
@@ -335,19 +307,15 @@ export function ScheduledTaskList({
 
                     <div className="flex shrink-0 flex-wrap items-center gap-3 lg:justify-end">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          className={[
-                            "inline-flex h-9 min-w-[92px] items-center justify-center rounded-[8px] px-3 text-sm font-semibold transition duration-(--motion-duration-fast) ease-out",
-                            toggle_action.class_name,
-                            toggle_pending ? "opacity-70" : "",
-                          ].join(" ")}
+                        <UiButton
+                          class_name="min-w-[92px]"
                           disabled={toggle_pending}
                           onClick={() => void on_toggle_enabled?.(task)}
                           title={task.enabled ? "暂停后不会再按计划自动触发" : "恢复后会重新参与调度"}
-                          type="button"
+                          tone={toggle_action.tone}
                         >
                           {toggle_pending ? toggle_action.pending_label : toggle_action.label}
-                        </button>
+                        </UiButton>
                         <WorkspaceCatalogAction
                           aria-label="立即运行"
                           disabled={run_pending || task.running}

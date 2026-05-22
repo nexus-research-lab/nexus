@@ -12,7 +12,6 @@ import {
   MessageCircle,
   MessageSquarePlus,
   Plus,
-  Search,
   Trash2,
   UserPlus,
   Users2,
@@ -30,7 +29,9 @@ import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct
 import { cn, get_icon_avatar_src, get_room_avatar_icon_id } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { UiSearchInput } from "@/shared/ui/form-control";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { SIDEBAR_TOUR_ANCHORS } from "@/shared/ui/sidebar/sidebar-navigation-tour";
 import { AGENT_LIST_UPDATED_EVENT_NAME, useAgentStore } from "@/store/agent";
@@ -246,16 +247,13 @@ function SidebarSearchField({
 }) {
   return (
     <div className="flex items-center gap-2 px-2.5 pb-2">
-      <label className="relative block min-w-0 flex-1">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--icon-muted)" />
-        <input
-          className="h-9 w-full rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] pl-8 pr-3 text-[13px] text-(--text-strong) outline-none transition-[border-color,background] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_92%,transparent)] focus:bg-(--surface-elevated-background) focus:shadow-none"
-          onChange={(event) => on_change(event.target.value)}
-          placeholder={placeholder}
-          type="search"
-          value={value}
-        />
-      </label>
+      <UiSearchInput
+        class_name="flex-1"
+        input_class_name="text-[13px]"
+        on_change={on_change}
+        placeholder={placeholder}
+        value={value}
+      />
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
@@ -683,15 +681,11 @@ function ConversationRow({
             {item.summary}
           </span>
           {is_working ? (
-            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] px-2 py-0.5 text-[11px] font-medium text-(--primary)">
+            <UiBadge size="xs" tone="primary">
               {t("status.working")}
-            </span>
+            </UiBadge>
           ) : null}
-          {item.unread_count ? (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-(--destructive) px-1.5 text-[11px] font-semibold text-white">
-              {item.unread_count > 99 ? "99+" : item.unread_count}
-            </span>
-          ) : null}
+          <UiCounterBadge count={item.unread_count ?? 0} />
         </div>
       </div>
 
@@ -1011,9 +1005,9 @@ function ContactRow({
         <div className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{agent.name}</span>
           {is_working ? (
-            <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] px-2 py-0.5 text-[11px] font-medium text-(--primary)">
+            <UiBadge size="xs" tone="primary">
               {t("status.working")}
-            </span>
+            </UiBadge>
           ) : null}
         </div>
         <p className="mt-1 truncate text-[12px] leading-5 text-(--text-muted)">

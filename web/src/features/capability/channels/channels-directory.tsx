@@ -24,6 +24,7 @@ import {
   upsert_channel_config_api,
 } from "@/lib/api/channel-api";
 import { cn } from "@/lib/utils";
+import { UiBadge } from "@/shared/ui/badge";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
 import {
   WorkspaceSurfaceHeader,
@@ -141,26 +142,10 @@ function ChannelStatePill({
   children: string;
   tone?: "neutral" | "success" | "warning" | "danger" | "info";
 }) {
-  const tone_class_name =
-    tone === "success"
-      ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-700"
-      : tone === "warning"
-        ? "border-amber-200/80 bg-amber-50/88 text-amber-700"
-        : tone === "danger"
-          ? "border-rose-200/80 bg-rose-50/88 text-rose-700"
-          : tone === "info"
-            ? "border-sky-200/80 bg-sky-50/90 text-sky-700"
-            : "border-(--surface-panel-subtle-border) bg-(--surface-panel-subtle-background) text-(--text-soft)";
-
   return (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium leading-none tracking-[0.01em]",
-        tone_class_name,
-      )}
-    >
+    <UiBadge tone={tone === "neutral" ? "default" : tone}>
       {children}
-    </span>
+    </UiBadge>
   );
 }
 
