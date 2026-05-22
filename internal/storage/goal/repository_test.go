@@ -198,6 +198,7 @@ func applyGoalMigration(t *testing.T, db *sql.DB) {
 	for _, path := range []string{
 		"../../../db/migrations/sqlite/00025_session_goals.sql",
 		"../../../db/migrations/sqlite/00026_goal_codex_statuses.sql",
+		"../../../db/migrations/sqlite/00027_goal_budget_token_total.sql",
 	} {
 		body, err := os.ReadFile(path)
 		if err != nil {

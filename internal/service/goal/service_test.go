@@ -222,6 +222,45 @@ func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 	}
 }
 
+func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
+	repo := newMemoryRepository()
+	budget := int64(50)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "Budget accounting",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{
+		InputTokens:              10,
+		OutputTokens:             20,
+		CacheCreationInputTokens: 80,
+		CacheReadInputTokens:     90,
+		ReasoningTokens:          40,
+		TotalTokens:              240,
+	}, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != protocol.GoalStatusActive {
+		t.Fatalf("status = %q, want active", updated.Status)
+	}
+	if updated.Usage.TotalTokens != 30 || updated.Usage.Total() != 30 {
+		t.Fatalf("usage = %#v, want budget total 30", updated.Usage)
+	}
+	remaining := updated.RemainingTokens()
+	if remaining == nil || *remaining != 20 {
+		t.Fatalf("RemainingTokens() = %#v, want 20", remaining)
+	}
+}
+
 func TestServiceUpdateBudgetClearResumesLimitedGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	initialBudget := int64(10)

@@ -42,22 +42,46 @@ type GoalUsage struct {
 
 // Total 返回可用于预算判断的 token 总量。
 func (u GoalUsage) Total() int64 {
+	return u.BudgetTokens()
+}
+
+// BudgetTokens 按 Codex Goal 口径统计预算 token：非缓存输入 token + 输出 token。
+func (u GoalUsage) BudgetTokens() int64 {
+	if u.hasTokenBreakdown() {
+		input := u.InputTokens
+		if input < 0 {
+			input = 0
+		}
+		output := u.OutputTokens
+		if output < 0 {
+			output = 0
+		}
+		return input + output
+	}
 	if u.TotalTokens > 0 {
 		return u.TotalTokens
 	}
-	return u.InputTokens + u.OutputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens + u.ReasoningTokens
+	return 0
+}
+
+func (u GoalUsage) hasTokenBreakdown() bool {
+	return u.InputTokens != 0 ||
+		u.OutputTokens != 0 ||
+		u.CacheCreationInputTokens != 0 ||
+		u.CacheReadInputTokens != 0 ||
+		u.ReasoningTokens != 0
 }
 
 // Add 合并 token usage。
 func (u GoalUsage) Add(other GoalUsage) GoalUsage {
+	totalTokens := u.BudgetTokens()
 	u.InputTokens += other.InputTokens
 	u.OutputTokens += other.OutputTokens
 	u.CacheCreationInputTokens += other.CacheCreationInputTokens
 	u.CacheReadInputTokens += other.CacheReadInputTokens
 	u.ReasoningTokens += other.ReasoningTokens
-	u.TotalTokens += other.TotalTokens
+	u.TotalTokens = totalTokens + other.BudgetTokens()
 	u.RuntimeSeconds += other.RuntimeSeconds
-	u.TotalTokens = u.Total()
 	return u
 }
 

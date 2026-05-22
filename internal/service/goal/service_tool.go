@@ -62,9 +62,7 @@ func (s *Service) RecordUsageForSession(ctx context.Context, sessionKey string, 
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	if usage.TotalTokens == 0 {
-		usage.TotalTokens = usage.Total()
-	}
+	usage.TotalTokens = usage.BudgetTokens()
 	if usage.TotalTokens == 0 && usage.RuntimeSeconds == 0 {
 		return item, nil
 	}
