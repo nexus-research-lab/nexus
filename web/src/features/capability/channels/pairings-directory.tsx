@@ -17,6 +17,7 @@ import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiField, UiSelect } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
@@ -150,7 +151,7 @@ export function PairingsDirectory() {
         stable_gutter
       >
         <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
-          <div className="surface-card mb-5 flex flex-wrap items-center gap-3 rounded-[18px] px-4 py-3">
+          <UiPanel class_name="mb-5 flex flex-wrap items-center gap-3" padding="sm">
             <Filter className="h-4 w-4 text-(--icon-default)" />
             <UiSelect
               class_name="w-[148px]"
@@ -179,7 +180,7 @@ export function PairingsDirectory() {
             <div className="ml-auto text-[12px] font-semibold text-(--text-muted)">
               {filtered_count} 个配对 · {pending_count} 个待处理
             </div>
-          </div>
+          </UiPanel>
 
           {loading ? (
             <UiStateBlock description="正在同步外部 IM 用户与群聊的授权状态。" size="sm" title="加载配对授权..." />
@@ -193,8 +194,8 @@ export function PairingsDirectory() {
           ) : (
             <div className="space-y-3">
               {items.map((item) => (
-                <article
-                  className="surface-card grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.8fr)_minmax(160px,0.7fr)_auto] items-center gap-4 rounded-[18px] px-5 py-4 max-xl:grid-cols-1"
+                <UiPanel
+                  class_name="grid grid-cols-[minmax(0,1.4fr)_minmax(180px,0.8fr)_minmax(160px,0.7fr)_auto] items-center gap-4 max-xl:grid-cols-1"
                   key={item.pairing_id}
                 >
                   <div className="min-w-0">
@@ -279,7 +280,7 @@ export function PairingsDirectory() {
                       <Trash2 className="h-4 w-4" />
                     </UiIconButton>
                   </div>
-                </article>
+                </UiPanel>
               ))}
             </div>
           )}

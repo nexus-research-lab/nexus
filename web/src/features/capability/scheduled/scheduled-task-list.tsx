@@ -4,6 +4,8 @@ import { Clock3, History, Pencil, Play, Trash2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button";
 import { UiMetaGrid, UiMetaItem } from "@/shared/ui/meta-grid";
+import { UiPanel, UiSectionHeader } from "@/shared/ui/panel";
+import { UiSkeletonCardList } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import {
@@ -215,33 +217,16 @@ export function ScheduledTaskList({
   const sorted_items = sort_tasks(items);
 
   return (
-    <section className="surface-card flex min-h-[360px] flex-col rounded-[22px] px-4 py-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-(--icon-default)" />
-            <div>
-              <h2 className="text-[15px] font-semibold tracking-[-0.03em] text-(--text-strong)">
-                任务清单
-              </h2>
-              <p className="text-xs text-(--text-default)">
-                共 {items.length} 个任务，可查看任务落在哪个会话里执行，以及结果回到哪里。
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <UiPanel class_name="flex min-h-[360px] flex-col" radius="lg">
+      <UiSectionHeader
+        description={`共 ${items.length} 个任务，可查看任务落在哪个会话里执行，以及结果回到哪里。`}
+        icon={<Clock3 className="h-4 w-4" />}
+        title="任务清单"
+      />
 
       <div className="soft-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
         {is_loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-[132px] animate-pulse rounded-[16px] border border-(--divider-subtle-color)"
-              />
-            ))}
-          </div>
+          <UiSkeletonCardList count={3} />
         ) : error_message ? (
           <UiStateBlock
             actions={(
@@ -361,6 +346,6 @@ export function ScheduledTaskList({
           </div>
         )}
       </div>
-    </section>
+    </UiPanel>
   );
 }

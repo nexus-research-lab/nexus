@@ -38,6 +38,8 @@ import {
 } from "@/shared/ui/dialog/dialog-styles";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiField, UiInput, UiSelect } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { UiSkeleton } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   WorkspaceSurfaceHeader,
@@ -507,30 +509,27 @@ function ChannelLoadingGrid() {
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
       {Array.from({ length: 5 }, (_, index) => (
-        <div
-          className="surface-card min-h-[190px] rounded-[22px] px-5 py-4"
-          key={index}
-        >
+        <UiPanel class_name="min-h-[190px]" key={index} radius="lg" padding="lg">
           <div className="flex items-center gap-3.5">
-            <span className="h-11 w-11 animate-pulse rounded-[16px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+            <UiSkeleton class_name="h-11 w-11 rounded-[16px]" />
             <span className="min-w-0 flex-1 space-y-2">
-              <span className="block h-4 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
-              <span className="block h-3 w-32 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
+              <UiSkeleton class_name="h-4 w-24" />
+              <UiSkeleton class_name="h-3 w-32" />
             </span>
           </div>
           <div className="mt-5 space-y-2">
-            <span className="block h-3 w-full animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
-            <span className="block h-3 w-2/3 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_46%,transparent)]" />
+            <UiSkeleton class_name="h-3 w-full" />
+            <UiSkeleton class_name="h-3 w-2/3" />
           </div>
           <div className="mt-5 grid grid-cols-3 gap-3 border-y border-(--divider-subtle-color) py-3">
             {[0, 1, 2].map((metric) => (
               <span className="space-y-2" key={metric}>
-                <span className="block h-2.5 w-12 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_50%,transparent)]" />
-                <span className="block h-4 w-8 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)]" />
+                <UiSkeleton class_name="h-2.5 w-12" />
+                <UiSkeleton class_name="h-4 w-8" />
               </span>
             ))}
           </div>
-        </div>
+        </UiPanel>
       ))}
     </div>
   );

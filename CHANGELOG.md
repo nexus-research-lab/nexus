@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 抽取共享 `dialog` 骨架，并统一消息渠道连接弹窗与配对授权列表的表单、按钮、状态和空态风格。
 - 抽取共享 Agent/Room 头像组件，统一联系人、聊天侧栏、Room 成员和会话 Header 的头像、群头像拼接与工作中光环。
 - 抽取共享 `list-row` 列表行，统一聊天侧栏、联系人侧栏和 Room 成员选择/管理列表的 active、hover、操作区与键盘触发行为。
+- 抽取共享 `panel` 与 `skeleton` 控件，统一能力、设置和定时任务页面的面板容器、区块标题与加载骨架。
 - 飞书云文档连接器新增全文搜索、Sheet 内容读取和 Bitable 记录查看，并把文档 Markdown 导出入口收口为阅读工具。
 
 ### Fixed
