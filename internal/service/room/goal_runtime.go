@@ -81,6 +81,25 @@ func (s *RealtimeService) recordGoalUsageForSlot(
 	s.recordGoalUsageSnapshotForSlot(ctx, slot, snapshot)
 }
 
+func (s *RealtimeService) recordGoalUsageLimitForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	result runtimectx.RoundExecutionResult,
+) {
+	if s.goals == nil || slot == nil || !result.UsageLimitReached {
+		return
+	}
+	_, err := s.goals.UsageLimitForSession(ctx, slot.RuntimeSessionKey, slot.AgentRoundID, result.UsageLimitReason)
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
+		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
+			"session_key", slot.RuntimeSessionKey,
+			"goal_id", slot.GoalIDForUsage,
+			"round_id", slot.AgentRoundID,
+			"err", err,
+		)
+	}
+}
+
 func (s *RealtimeService) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
 	s.recordGoalUsageForSlot(ctx, slot, runtimectx.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
 	return nil

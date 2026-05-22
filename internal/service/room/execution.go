@@ -361,6 +361,7 @@ func (s *RealtimeService) runSlot(
 		s.recordTerminalAssistantUsage(roundValue, mapper.LastAssistantMessage())
 	}
 	s.recordGoalUsageForSlot(slotCtx, slot, result, mapper.LastAssistantMessage())
+	s.recordGoalUsageLimitForSlot(slotCtx, slot, result)
 	if slot.getStatus() == "running" {
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}

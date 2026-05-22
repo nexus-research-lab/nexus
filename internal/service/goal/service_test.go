@@ -411,6 +411,59 @@ func TestServiceAllowsGoalCompletionAfterExternalFlushHitsBudget(t *testing.T) {
 	}
 }
 
+func TestServiceUsageLimitForSessionTransitionsActiveAndBudgetLimitedGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Runtime usage limit",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limited, err := service.UsageLimitForSession(ctx, created.SessionKey, "round-1", "You've hit your usage limit.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusUsageLimited || limited.LastError != "You've hit your usage limit." {
+		t.Fatalf("limited = %#v, want usage_limited with reason", limited)
+	}
+	if len(repo.events) != 2 || repo.events[1].EventType != "usage_limited" || repo.events[1].RoundID != "round-1" {
+		t.Fatalf("events = %#v, want usage_limited event", repo.events)
+	}
+
+	resumed, err := service.Resume(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != protocol.GoalStatusActive {
+		t.Fatalf("resumed status = %q, want active", resumed.Status)
+	}
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 1}, "round-2"); err != nil {
+		t.Fatal(err)
+	}
+	lowBudget := int64(1)
+	budgetLimited, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: optionalBudget(lowBudget)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if budgetLimited.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("budgetLimited status = %q, want budget_limited", budgetLimited.Status)
+	}
+
+	limited, err = service.UsageLimitForSession(ctx, created.SessionKey, "round-3", "usage limit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusUsageLimited {
+		t.Fatalf("budget-limited transition status = %q, want usage_limited", limited.Status)
+	}
+}
+
 func TestServiceUpdateBudgetClearResumesLimitedGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	initialBudget := int64(10)

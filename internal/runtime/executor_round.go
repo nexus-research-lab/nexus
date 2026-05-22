@@ -133,6 +133,8 @@ type RoundExecutionResult struct {
 	Usage                sdkprotocol.TokenUsage
 	ElapsedTimeSeconds   int64
 	CompletedByAssistant bool
+	UsageLimitReached    bool
+	UsageLimitReason     string
 }
 
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
@@ -243,15 +245,20 @@ func ExecuteRound(
 			if strings.TrimSpace(mapResult.TerminalStatus) != "" {
 				usage := sdkprotocol.TokenUsage{}
 				category := sdkprotocol.TerminalCategoryUnknown
+				usageLimitReached := false
+				usageLimitReason := ""
 				if incoming.Result != nil {
 					usage, _ = incoming.Result.TokenUsage()
 					category = incoming.Result.TerminalCategory()
+					usageLimitReached, usageLimitReason = ResultUsageLimitReached(incoming.Result)
 				}
 				return roundResultWithElapsed(RoundExecutionResult{
-					TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
-					ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
-					TerminalCategory: category,
-					Usage:            usage,
+					TerminalStatus:    strings.TrimSpace(mapResult.TerminalStatus),
+					ResultSubtype:     strings.TrimSpace(mapResult.ResultSubtype),
+					TerminalCategory:  category,
+					Usage:             usage,
+					UsageLimitReached: usageLimitReached,
+					UsageLimitReason:  usageLimitReason,
 				}, startedAt), nil
 			}
 			if assistantResult, ok := terminalAssistantResult(mapResult); ok {

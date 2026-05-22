@@ -80,6 +80,25 @@ func (s *Service) RecordUsageForGoal(ctx context.Context, goalID string, usage p
 	return s.recordUsageForGoal(ctx, item, usage, roundID)
 }
 
+// UsageLimitForSession 把 session 当前 Goal 标记为 runtime usage_limited。
+func (s *Service) UsageLimitForSession(ctx context.Context, sessionKey string, roundID string, reason string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
+	if err != nil {
+		return nil, ErrGoalInvalidInput
+	}
+	item, err := s.repo.GetCurrentGoal(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, firstNonEmptyGoalReason(reason, "Runtime usage limit reached"))
+}
+
 func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
 	usage.TotalTokens = usage.BudgetTokens()
 	if usage.TotalTokens == 0 && usage.RuntimeSeconds == 0 {
@@ -118,4 +137,13 @@ func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, u
 		}
 	}
 	return updated, nil
+}
+
+func firstNonEmptyGoalReason(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

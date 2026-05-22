@@ -23,6 +23,21 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult, fi
 	r.recordGoalUsageSnapshot(snapshot)
 }
 
+func (r *roundRunner) recordGoalUsageLimit(result runtimectx.RoundExecutionResult) {
+	if r.service.goals == nil || !result.UsageLimitReached {
+		return
+	}
+	_, err := r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
+		r.service.loggerFor(context.Background()).Warn("标记 Goal usage limit 失败",
+			"session_key", r.sessionKey,
+			"goal_id", r.goalIDForUsage,
+			"round_id", r.roundID,
+			"err", err,
+		)
+	}
+}
+
 func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
 	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	return nil

@@ -112,6 +112,7 @@ type goalContextProvider interface {
 	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。

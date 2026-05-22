@@ -183,10 +183,11 @@ func (f *fakeDMFactory) OptionAt(index int) agentclient.Options {
 }
 
 type fakeGoalContextProvider struct {
-	mu        sync.Mutex
-	plan      *protocol.GoalContinuation
-	planCalls int
-	usage     []protocol.GoalUsage
+	mu               sync.Mutex
+	plan             *protocol.GoalContinuation
+	planCalls        int
+	usage            []protocol.GoalUsage
+	usageLimitReason []string
 }
 
 func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
@@ -204,6 +205,13 @@ func (p *fakeGoalContextProvider) RecordUsageForGoal(_ context.Context, _ string
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.usage = append(p.usage, usage)
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) UsageLimitForSession(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usageLimitReason = append(p.usageLimitReason, strings.TrimSpace(reason))
 	return nil, nil
 }
 
@@ -271,6 +279,40 @@ func TestRoundRunnerRecordsAbortGoalUsageFromAssistantSnapshot(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  3,
+			OutputTokens: 2,
+			TotalTokens:  5,
+		},
+		UsageLimitReached: true,
+		UsageLimitReason:  "You've hit your usage limit.",
+	}, nil)
+	runner.recordGoalUsageLimit(runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "You've hit your usage limit.",
+	})
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 || usages[0].Total() != 5 {
+		t.Fatalf("usages = %#v, want usage recorded before limit", usages)
+	}
+	reasons := goalProvider.recordedUsageLimitReasons()
+	if len(reasons) != 1 || reasons[0] != "You've hit your usage limit." {
+		t.Fatalf("usage limit reasons = %#v, want runtime reason", reasons)
+	}
+}
+
 func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
@@ -330,6 +372,12 @@ func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]protocol.GoalUsage(nil), p.usage...)
+}
+
+func (p *fakeGoalContextProvider) recordedUsageLimitReasons() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.usageLimitReason...)
 }
 
 func goalToolResultAssistantMessage(

@@ -96,6 +96,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"result_subtype", result.ResultSubtype,
 	)
 	r.recordGoalUsage(result, r.mapper.LastAssistantMessage())
+	r.recordGoalUsageLimit(result)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 		go r.commitMemoryTurn()

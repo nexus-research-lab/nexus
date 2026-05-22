@@ -14,8 +14,9 @@ import (
 )
 
 type fakeRoomGoalContextProvider struct {
-	mu    sync.Mutex
-	usage []protocol.GoalUsage
+	mu               sync.Mutex
+	usage            []protocol.GoalUsage
+	usageLimitReason []string
 }
 
 func (p *fakeRoomGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
@@ -33,6 +34,13 @@ func (p *fakeRoomGoalContextProvider) RecordUsageForGoal(_ context.Context, _ st
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.usage = append(p.usage, usage)
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) UsageLimitForSession(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usageLimitReason = append(p.usageLimitReason, reason)
 	return nil, nil
 }
 
@@ -115,10 +123,35 @@ func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 	}
 }
 
+func TestRecordGoalUsageLimitForRoomSlot(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "round-1",
+	}
+
+	service.recordGoalUsageLimitForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "The usage limit has been reached",
+	})
+
+	reasons := goalProvider.recordedUsageLimitReasons()
+	if len(reasons) != 1 || reasons[0] != "The usage limit has been reached" {
+		t.Fatalf("usage limit reasons = %#v, want runtime reason", reasons)
+	}
+}
+
 func (p *fakeRoomGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]protocol.GoalUsage(nil), p.usage...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedUsageLimitReasons() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.usageLimitReason...)
 }
 
 func roomGoalToolResultAssistantMessage(

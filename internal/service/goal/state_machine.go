@@ -13,6 +13,9 @@ func canTransition(source protocol.GoalUpdateSource, from protocol.GoalStatus, t
 		return (from == protocol.GoalStatusActive || from == protocol.GoalStatusBudgetLimited) &&
 			(to == protocol.GoalStatusComplete || to == protocol.GoalStatusBlocked)
 	case protocol.GoalUpdateSourceSystem:
+		if from == protocol.GoalStatusBudgetLimited && to == protocol.GoalStatusUsageLimited {
+			return true
+		}
 		if from != protocol.GoalStatusActive {
 			return false
 		}
