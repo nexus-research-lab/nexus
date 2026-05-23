@@ -29,6 +29,7 @@ export interface UiMultiSelectMenuOption extends UiSelectMenuOption {
 
 type UiSelectMenuPlacement = "auto" | "bottom" | "top";
 type UiSelectMenuSize = "xs" | "sm" | "md";
+type UiSelectMenuSurface = "surface" | "dialog";
 
 interface UiSelectMenuProps {
   aria_label: string;
@@ -44,6 +45,7 @@ interface UiSelectMenuProps {
   placement?: UiSelectMenuPlacement;
   placeholder?: string;
   size?: UiSelectMenuSize;
+  surface?: UiSelectMenuSurface;
   value: string;
 }
 
@@ -68,6 +70,7 @@ interface UiMultiSelectMenuProps {
   query?: string;
   search_placeholder?: string;
   size?: UiSelectMenuSize;
+  surface?: UiSelectMenuSurface;
   value: string[];
 }
 
@@ -143,19 +146,42 @@ function resolve_select_menu_position({
 
 function get_select_menu_button_class_name({
   rounded_class_name,
+  surface,
   text_class_name,
   class_name,
 }: {
   rounded_class_name: string;
+  surface: UiSelectMenuSurface;
   text_class_name: string;
   class_name?: string;
 }) {
   return cn(
-    "flex h-full w-full items-center justify-between gap-2 border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    "flex h-full w-full items-center justify-between gap-2 px-3 transition-[background,border-color,box-shadow] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    surface === "dialog"
+      ? "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]"
+      : "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
     rounded_class_name,
     text_class_name,
     class_name,
   );
+}
+
+function get_select_menu_panel_surface_class_name(surface: UiSelectMenuSurface): string {
+  return surface === "dialog"
+    ? "border-(--modal-card-border) bg-(--modal-dialog-body-background) shadow-[0_14px_32px_rgba(15,23,42,0.1)]"
+    : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur";
+}
+
+function get_select_menu_option_state_class_name(surface: UiSelectMenuSurface, is_active: boolean): string {
+  if (is_active) {
+    return surface === "dialog"
+      ? "bg-[color:color-mix(in_srgb,var(--primary)_12%,var(--modal-card-background))] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_15%,var(--modal-card-background))]"
+      : "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
+  }
+
+  return surface === "dialog"
+    ? "text-(--text-default) hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,var(--modal-card-background))] hover:text-(--text-strong)"
+    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 }
 
 /** 共享自定义下拉菜单，避免业务侧重复实现原生 select 无法控制的弹层定位。 */
@@ -173,6 +199,7 @@ export function UiSelectMenu({
   placement = "auto",
   placeholder = "请选择",
   size = "md",
+  surface = "surface",
   value,
 }: UiSelectMenuProps) {
   const [is_open, set_is_open] = useState(false);
@@ -309,7 +336,8 @@ export function UiSelectMenu({
       ref={menu_ref}
       aria-label={aria_label}
       className={cn(
-        "fixed z-[80] overflow-y-auto rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] p-1 shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur",
+        "fixed z-[80] overflow-y-auto rounded-[14px] border p-1",
+        get_select_menu_panel_surface_class_name(surface),
         menu_class_name,
       )}
       id={menu_id}
@@ -323,11 +351,9 @@ export function UiSelectMenu({
             key={option.value}
             aria-selected={is_active}
             className={cn(
-              "flex w-full items-center justify-between rounded-[10px] px-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+              "flex w-full items-center justify-between rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
               option_height_class_name,
-              is_active
-                ? "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong)"
-                : "text-(--text-default) hover:bg-(--surface-interactive-hover-background)",
+              get_select_menu_option_state_class_name(surface, is_active),
             )}
             disabled={option.disabled}
             onClick={() => change_value(option.value)}
@@ -353,6 +379,7 @@ export function UiSelectMenu({
         aria-label={aria_label}
         className={get_select_menu_button_class_name({
           rounded_class_name,
+          surface,
           text_class_name,
           class_name: button_class_name,
         })}
@@ -417,6 +444,7 @@ export function UiMultiSelectMenu({
   query = "",
   search_placeholder = "搜索",
   size = "md",
+  surface = "surface",
   value,
 }: UiMultiSelectMenuProps) {
   const [is_open, set_is_open] = useState(false);
@@ -551,7 +579,8 @@ export function UiMultiSelectMenu({
       ref={menu_ref}
       aria-label={aria_label}
       className={cn(
-        "fixed z-[80] flex flex-col overflow-hidden rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur",
+        "fixed z-[80] flex flex-col overflow-hidden rounded-[14px] border",
+        get_select_menu_panel_surface_class_name(surface),
         menu_class_name,
       )}
       id={menu_id}
@@ -593,11 +622,9 @@ export function UiMultiSelectMenu({
                 key={option.value}
                 aria-selected={is_active}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-[10px] px-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+                  "flex w-full items-center gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
                   option.description ? "py-2 text-[13px]" : option_height_class_name,
-                  is_active
-                    ? "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong)"
-                    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background)",
+                  get_select_menu_option_state_class_name(surface, is_active),
                 )}
                 disabled={option.disabled}
                 onClick={() => toggle_value(option.value)}
@@ -634,6 +661,7 @@ export function UiMultiSelectMenu({
         aria-label={aria_label}
         className={get_select_menu_button_class_name({
           rounded_class_name,
+          surface,
           text_class_name,
           class_name: cn(value.length > 0 && "min-h-10 py-1.5", button_class_name),
         })}

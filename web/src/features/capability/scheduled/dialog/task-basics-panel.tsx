@@ -175,6 +175,7 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
               label: option.label,
             })),
           ]}
+          surface="dialog"
           value={target_type === "agent" ? selected_agent_id : selected_room_id}
         />
       </UiField>
@@ -233,6 +234,7 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
                 label: option.label,
               })),
             ]}
+            surface="dialog"
             value={selected_session_key}
           />
         </UiField>
@@ -277,6 +279,7 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
                 label: option.label,
               })),
             ]}
+            surface="dialog"
             value={selected_reply_session_key}
           />
         </UiField>

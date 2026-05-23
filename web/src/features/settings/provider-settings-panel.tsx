@@ -558,7 +558,6 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       </span>
                       <UiSelectMenu
                         aria_label={t("settings.providers.kind")}
-                        button_class_name="dialog-input"
                         class_name="h-9"
                         on_change={handle_provider_kind_change}
                         options={[

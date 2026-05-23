@@ -65,11 +65,6 @@ interface CreateRoomDialogProps {
 const MAX_MEMBERS = 10;
 const EMPTY_STRING_LIST: string[] = [];
 const STRING_LIST_SIGNATURE_SEPARATOR = "\x1f";
-const ROOM_DIALOG_SELECT_BUTTON_CLASS_NAME =
-  "border-(--divider-subtle-color) bg-white shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] hover:bg-white focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
-const ROOM_DIALOG_SELECT_MENU_CLASS_NAME =
-  "bg-white shadow-[0_14px_32px_rgba(15,23,42,0.1)]";
-
 export function CreateRoomDialog({
   agents,
   is_open,
@@ -378,10 +373,8 @@ export function CreateRoomDialog({
                     </div>
                     <UiSelectMenu
                       aria_label="选择 Room 群主"
-                      button_class_name={ROOM_DIALOG_SELECT_BUTTON_CLASS_NAME}
                       class_name="min-w-0 flex-1"
                       disabled={selected_agents.length === 0 || is_creating}
-                      menu_class_name={ROOM_DIALOG_SELECT_MENU_CLASS_NAME}
                       on_change={handle_change_host_agent}
                       options={[
                         { value: "", label: "未设置" },
@@ -391,6 +384,7 @@ export function CreateRoomDialog({
                         })),
                       ]}
                       size="sm"
+                      surface="dialog"
                       value={selected_host_agent_id}
                     />
                   </div>
@@ -474,14 +468,12 @@ export function CreateRoomDialog({
 
             <UiMultiSelectMenu
               aria_label={t("room.skills_label")}
-              button_class_name={ROOM_DIALOG_SELECT_BUTTON_CLASS_NAME}
               class_name="shrink-0"
               disabled={is_creating}
               empty_text={t("room.skills_empty")}
               error_text={room_skill_error}
               is_loading={is_loading_room_skills}
               loading_text={t("room.skills_loading")}
-              menu_class_name={ROOM_DIALOG_SELECT_MENU_CLASS_NAME}
               on_change={set_selected_room_skill_names}
               on_query_change={set_room_skill_query}
               options={room_skill_options}
@@ -489,6 +481,7 @@ export function CreateRoomDialog({
               placeholder={t("room.skills_none")}
               query={room_skill_query}
               search_placeholder={t("agent_options.skills.search_placeholder")}
+              surface="dialog"
               value={selected_room_skill_names}
             />
           </div>

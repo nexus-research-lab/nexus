@@ -185,6 +185,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
                 value: option.key,
                 label: option.label,
               }))}
+              surface="dialog"
               value={every_unit}
             />
           </div>
@@ -203,6 +204,7 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
             value: option,
             label: option,
           }))}
+          surface="dialog"
           value={timezone}
         />
       </div>

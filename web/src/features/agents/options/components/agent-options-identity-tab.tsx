@@ -232,11 +232,11 @@ export function AgentOptionsIdentityTab({
               </label>
               <UiSelectMenu
                 aria_label={t("agent_options.identity.provider")}
-                button_class_name="dialog-input"
                 disabled={provider_options_loading && provider_options.length === 0}
                 on_change={(value) => on_provider_change(value as AgentProvider)}
                 options={provider_select_options}
                 size="sm"
+                surface="dialog"
                 value={provider}
               />
               {provider_options_error ? (
@@ -319,10 +319,10 @@ export function AgentOptionsIdentityTab({
             </label>
             <UiSelectMenu
               aria_label={t("agent_options.identity.provider")}
-              button_class_name="dialog-input"
               disabled={provider_options_loading && provider_options.length === 0}
               on_change={(value) => on_provider_change(value as AgentProvider)}
               options={provider_select_options}
+              surface="dialog"
               value={provider}
             />
             {provider_options_error ? (

@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 统一能力区频道、配对、定时任务和记忆页的目录版心、介绍区、筛选条与 Header 信息节奏，使其与技能和连接器页面保持一致。
 
 ### Fixed
+- 统一共享下拉菜单的页面与弹窗材质，弹窗内下拉跟随 Dialog 控件背景，并补齐触发器和菜单项的悬浮反馈。
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
 - 优化自动记忆抽取信号，跳过一次性低价值任务记录，并支持清理孤立 session 摘要和 checkpoint。
 - 修复首次未打开工作区时，聊天消息里的 workspace 文件引用无法点击打开对应文件的问题。
