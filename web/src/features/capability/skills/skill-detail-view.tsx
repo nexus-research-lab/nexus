@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/api/skill-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
@@ -138,19 +139,24 @@ export function SkillDetailView({
       ) : (
         <div className="pt-9">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-transparent text-(--icon-default)">
-                {skill.locked ? <Lock className="h-6 w-6" /> : <Puzzle className="h-6 w-6" />}
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-[24px] font-semibold tracking-[-0.035em] text-(--text-strong)">
-                  {skill.title || skill.name}{" "}
-                  <span className="ml-2 font-normal text-(--text-muted)">Skill</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-4">
+                <div
+                  className={cn(
+                    "flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+                    skill.locked ? "text-amber-700" : skill.source_type === "external" ? "text-sky-600" : "text-(--icon-default)",
+                  )}
+                >
+                  {skill.locked ? <Lock className="h-9 w-9" /> : <Puzzle className="h-9 w-9" />}
+                </div>
+                <h1 className="min-w-0 text-[24px] font-semibold tracking-[-0.035em] text-(--text-strong)">
+                  <span className="truncate">{skill.title || skill.name}</span>{" "}
+                  <span className="font-normal text-(--text-muted)">Skill</span>
                 </h1>
-                <p className="mt-2 max-w-[720px] text-[15px] leading-6 text-(--text-muted)">
-                  {skill.description || "暂无描述"}
-                </p>
               </div>
+              <p className="mt-4 text-[15px] leading-6 text-(--text-muted)">
+                {skill.description || "暂无描述"}
+              </p>
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -183,7 +189,7 @@ export function SkillDetailView({
             </div>
           </div>
 
-          <div className="mt-8 max-w-[820px] space-y-6">
+          <div className="mt-8 space-y-6">
             <div className="flex flex-wrap gap-2">
               <UiBadge>{skill.category_name}</UiBadge>
               <UiBadge>{get_skill_source_label(skill)}</UiBadge>

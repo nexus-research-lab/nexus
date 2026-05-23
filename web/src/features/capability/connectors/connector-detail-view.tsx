@@ -124,7 +124,7 @@ export function ConnectorDetailView({
                   {detail.title}{" "}
                   <span className="ml-2 font-normal text-(--text-muted)">App</span>
                 </h1>
-                <p className="mt-2 max-w-[680px] text-[15px] leading-6 text-(--text-muted)">
+                <p className="mt-2 text-[15px] leading-6 text-(--text-muted)">
                   {detail.description}
                 </p>
               </div>
@@ -179,7 +179,7 @@ export function ConnectorDetailView({
             </div>
           </div>
 
-          <div className="mt-8 max-w-[820px] space-y-6">
+          <div className="mt-8 space-y-6">
             <p className="text-[15px] leading-7 text-(--text-default)">
               连接后，Agent 会通过安全的 MCP 协议访问此应用。你可以在需要时断开连接，OAuth 类型连接器也可以在原应用侧撤销授权。
             </p>
