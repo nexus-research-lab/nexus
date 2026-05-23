@@ -321,48 +321,6 @@
     border-radius: 14px;
   }
 
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    border-radius: 999px;
-    padding: 0.375rem 0.625rem;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .status-badge[data-size="compact"] {
-    padding: 0.28rem 0.56rem;
-    font-size: 9.5px;
-  }
-
-  .status-badge[data-tone="default"] {
-    background: var(--chip-default-background);
-    border: 1px solid var(--chip-default-border);
-    color: var(--text-muted);
-  }
-
-  .status-badge[data-tone="active"] {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary) 24%, transparent);
-    color: color-mix(in srgb, var(--primary) 86%, var(--foreground) 14%);
-  }
-
-  .status-badge[data-tone="running"],
-  .status-badge[data-tone="success"] {
-    background: color-mix(in srgb, var(--success) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--success) 24%, transparent);
-    color: color-mix(in srgb, var(--success) 86%, var(--foreground) 14%);
-  }
-
-  .status-badge[data-tone="idle"] {
-    background: var(--chip-default-background);
-    border: 1px solid var(--chip-default-border);
-    color: var(--text-soft);
-  }
-
   .segmented-pill {
     background: var(--chip-segmented-shell-background);
     border: 1px solid var(--chip-segmented-shell-border);

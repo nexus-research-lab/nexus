@@ -198,7 +198,7 @@ export function RoomWorkspaceView(
               />
 
               <div
-                className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
+                className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-[7px] border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
                 {focused_directory_path ? (
                   <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]"/>
                 ) : (

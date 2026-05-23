@@ -39,7 +39,7 @@ export function UiBadge({
       className={get_ui_badge_class_name({ size, tone }, cn(className, class_name))}
       {...props}
     >
-      {icon ?? (show_dot ? <span className="h-2 w-2 rounded-full bg-current" /> : null)}
+      {icon ?? (show_dot ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null)}
       {children}
     </span>
   );

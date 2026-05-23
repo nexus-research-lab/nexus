@@ -710,7 +710,7 @@ export function UiMultiSelectMenu({
                 return (
                   <span
                     key={option.value}
-                    className="inline-flex max-w-[11rem] items-center gap-1 rounded-full border border-(--divider-subtle-color) bg-transparent py-0.5 pl-2 pr-1 text-[11px] font-semibold text-(--text-strong)"
+                    className="inline-flex max-w-[11rem] items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent py-0.5 pl-2 pr-1 text-[11px] font-medium text-(--text-strong)"
                   >
                     <span className="min-w-0 truncate">{option.label}</span>
                     <span

@@ -129,7 +129,7 @@ export function OnboardingGuideCenter({
                           {item.title}
                         </h4>
                         {item.completed ? (
-                          <span className="rounded-full border border-[color:color-mix(in_srgb,var(--primary)_14%,white)] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] px-1.5 py-0 text-[10px] font-medium text-(--primary)">
+                          <span className="rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_14%,transparent)] bg-transparent px-1.5 py-0 text-[10px] font-medium text-(--primary)">
                             {reviewed_label}
                           </span>
                         ) : null}

@@ -146,7 +146,7 @@ export function ContactsAgentDetail({
     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {tag_labels.map((tag) => (
         <span
-          className="max-w-[120px] truncate rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_68%,transparent)] px-2 py-0.5 text-[10.5px] font-semibold text-(--text-muted)"
+          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-[10.5px] font-medium text-(--text-muted)"
           key={tag}
           title={tag}
         >

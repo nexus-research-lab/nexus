@@ -81,7 +81,7 @@ function GroupCompletedReply(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
                 ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
-                : "border-(--divider-subtle-color) bg-(--material-chip-background) text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
+                : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
             onClick={on_click_thread}
             type="button"

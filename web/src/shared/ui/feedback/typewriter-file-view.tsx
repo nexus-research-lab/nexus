@@ -51,7 +51,7 @@ export function TypewriterFileView({
   return (
     <div className={`relative flex h-full min-h-0 flex-col overflow-hidden font-mono text-sm leading-6 ${class_name ?? ""}`}>
       {/* Line count badge */}
-      <div className="absolute right-4 top-3 z-10 flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary/80">
+      <div className="absolute right-4 top-3 z-10 flex items-center gap-1.5 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_14%,transparent)] bg-transparent px-2 py-0.5 text-[10px] font-semibold text-primary/80">
         <span
           className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
           style={{ animationDuration: "0.8s" }}

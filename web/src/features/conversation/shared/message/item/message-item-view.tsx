@@ -109,7 +109,7 @@ function MessageAttachmentList({
           attachment.workspace_agent_id === workspace_agent_id;
         const title = `${attachment.file_name || attachment.workspace_path} · ${attachment.workspace_path}`;
         const class_name = cn(
-          "inline-flex max-w-[260px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+          "inline-flex max-w-[260px] items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-xs font-medium",
           "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
           can_open
             ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"

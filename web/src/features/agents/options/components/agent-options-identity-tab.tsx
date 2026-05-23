@@ -134,7 +134,7 @@ export function AgentOptionsIdentityTab({
         <span
           key={tag}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/18 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+            "inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-primary"
           )}
         >
           {tag}

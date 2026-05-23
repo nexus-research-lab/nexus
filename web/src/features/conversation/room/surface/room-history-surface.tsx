@@ -276,7 +276,7 @@ function ConversationHistoryItem({
                 <span
                   aria-hidden={!is_active}
                   className={cn(
-                    "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-semibold transition-[border-color,color] duration-(--motion-duration-fast)",
+                    "inline-flex shrink-0 items-center rounded-[6px] border px-1.5 py-0.5 text-[9.5px] font-medium transition-[border-color,color] duration-(--motion-duration-fast)",
                     is_active
                       ? "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] text-(--primary)"
                       : "invisible border-transparent text-transparent",

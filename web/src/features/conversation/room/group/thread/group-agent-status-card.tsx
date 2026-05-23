@@ -183,7 +183,7 @@ function GroupAgentStatusCardInner({
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
                 ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
-                : "border-(--divider-subtle-color) bg-(--material-chip-background) text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
+                : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
           >
             {is_thread_active ? "关闭 Thread" : "查看 Thread"}
@@ -197,7 +197,7 @@ function GroupAgentStatusCardInner({
                 disabled={!can_respond_to_permissions}
                 title={!can_respond_to_permissions ? permission_read_only_reason : undefined}
                 className={cn(
-                  "rounded-md border border-(--divider-subtle-color) bg-(--material-chip-background) px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors",
+                  "rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors",
                   can_respond_to_permissions
                     ? "hover:bg-(--interaction-hover-background)"
                     : "cursor-not-allowed opacity-(--disabled-opacity)",

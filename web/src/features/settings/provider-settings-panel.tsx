@@ -470,7 +470,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             </span>
                           </div>
                           <div className="flex items-end justify-end">
-                            <span className="chip-default inline-flex min-w-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium">
+                            <span className="inline-flex min-w-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-[6px] border border-(--divider-subtle-color) bg-transparent px-2 py-0.5 text-[10px] font-medium text-(--text-muted)">
                               {t("settings.providers.usage", { count: item.usage_count })}
                             </span>
                           </div>

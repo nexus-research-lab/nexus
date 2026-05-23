@@ -45,8 +45,9 @@ export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBan
     is_success ? "text-emerald-500" : is_warning ? "text-amber-600" : "text-rose-500",
   );
   const item_class_name = cn(
-    "inline-flex rounded-full bg-(--chip-default-background) border border-(--chip-default-border) px-2 py-0.5 text-[10px] font-medium",
+    "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-[10px] font-medium",
     is_success ? "text-emerald-500" : is_warning ? "text-amber-600" : "text-rose-500",
+    is_success ? "border-emerald-500/18" : is_warning ? "border-amber-500/18" : "border-rose-500/18",
   );
 
   useEffect(() => {
