@@ -77,7 +77,7 @@ export function RoomMobileSurface({
           </button>
 
           <button
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
             onClick={() => setIsConversationSheetOpen(true)}
             type="button"
           >

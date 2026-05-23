@@ -127,7 +127,7 @@ export function HeartbeatSettingsCard({
   }
 
   return (
-    <section className="surface-card flex min-h-[280px] flex-col rounded-[22px] px-4 py-4">
+    <section className="flex min-h-[280px] flex-col rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-4 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

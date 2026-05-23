@@ -490,7 +490,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     type="button"
                   >
                     <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-(--surface-interactive-active-border) bg-(--surface-inset-background) text-primary">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-(--surface-interactive-active-border) bg-transparent text-primary">
                         <Plus className="h-3.5 w-3.5" />
                       </div>
                       {t("settings.providers.add_provider")}
@@ -505,7 +505,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
             {is_empty_mode ? (
               <div className="flex min-h-[360px] flex-1 items-center justify-center">
                 <div className="text-center">
-                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-(--divider-subtle-color) bg-(--surface-inset-background) text-primary">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-(--divider-subtle-color) bg-transparent text-primary">
                     <Plus className="h-4 w-4" />
                   </div>
                   <p className="mt-3 text-sm font-semibold text-(--text-strong)">

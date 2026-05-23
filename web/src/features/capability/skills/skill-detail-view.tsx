@@ -139,7 +139,7 @@ export function SkillDetailView({
         <div className="pt-9">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) text-(--icon-default) shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-transparent text-(--icon-default)">
                 {skill.locked ? <Lock className="h-6 w-6" /> : <Puzzle className="h-6 w-6" />}
               </div>
               <div className="min-w-0">

@@ -24,7 +24,7 @@ export function UiCheckboxRow({
   return (
     <label
       className={cn(
-        "flex items-center gap-3 rounded-[18px] border border-(--divider-subtle-color) bg-white/45 px-4 py-3 text-sm text-(--text-default)",
+        "flex items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-4 py-3 text-sm text-(--text-default)",
         "transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
         className,
         class_name,

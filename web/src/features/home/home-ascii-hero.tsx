@@ -401,7 +401,7 @@ export function HomeAsciiHero() {
   return (
     <div
       ref={section_ref}
-      className="relative h-full w-full overflow-hidden rounded-[28px] border"
+      className="relative h-full w-full overflow-hidden rounded-[14px] border"
       style={{
         background: "var(--surface-canvas-background)",
         borderColor: "var(--surface-canvas-border)",

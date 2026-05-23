@@ -289,7 +289,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
                 <ChannelGuide item={current_item} />
 
                 {current_item.runtime_note ? (
-                  <div className="rounded-[14px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-4 py-3 text-[13px] font-medium leading-5 text-(--text-default)">
+                  <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3 text-[13px] font-medium leading-5 text-(--text-default)">
                     {current_item.runtime_note}
                   </div>
                 ) : null}

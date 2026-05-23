@@ -88,7 +88,7 @@ export function ConnectorsGrid({ ctrl, on_open_connector }: ConnectorsGridProps)
   if (ctrl.connectors.length === 0) {
     return (
       <div className="flex min-h-60 flex-col items-center justify-center gap-3 text-(--text-muted)">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-(--surface-inset-background)">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-transparent">
           <Link2 className="h-6 w-6" />
         </div>
         <p className="text-sm">{t("capability.connectors_empty")}</p>

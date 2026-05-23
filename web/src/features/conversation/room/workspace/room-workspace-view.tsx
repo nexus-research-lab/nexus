@@ -270,7 +270,7 @@ export function RoomWorkspaceView(
                   </div>
                 ) : (
                   <div
-                    className="rounded-[24px] border border-(--divider-subtle-color) px-6 py-10 text-center">
+                    className="rounded-[12px] border border-(--divider-subtle-color) px-6 py-10 text-center">
                     <div
                       className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
                       <FolderTree className="h-4 w-4"/>

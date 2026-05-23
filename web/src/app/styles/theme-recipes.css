@@ -61,21 +61,21 @@
 
   .surface-inset,
   .surface-card {
-    background: var(--surface-muted-background);
-    border: 1px solid var(--surface-muted-border);
-    box-shadow: var(--surface-muted-shadow);
+    background: transparent;
+    border: 1px solid var(--divider-subtle-color);
+    box-shadow: none;
   }
 
   .surface-inset {
-    --surface-muted-background: var(--surface-inset-background);
-    --surface-muted-border: var(--surface-inset-border);
-    --surface-muted-shadow: var(--surface-inset-shadow);
+    --surface-muted-background: transparent;
+    --surface-muted-border: var(--divider-subtle-color);
+    --surface-muted-shadow: none;
   }
 
   .surface-card {
-    --surface-muted-background: var(--card-default-background);
-    --surface-muted-border: var(--card-default-border);
-    --surface-muted-shadow: var(--card-default-shadow);
+    --surface-muted-background: transparent;
+    --surface-muted-border: var(--divider-subtle-color);
+    --surface-muted-shadow: none;
   }
 
   .divider-subtle {

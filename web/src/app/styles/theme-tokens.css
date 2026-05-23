@@ -495,14 +495,14 @@
 :root[data-theme="rain"] {
   --surface-body-background: var(--ambient-page-pattern), var(--ambient-page-background);
 
-  --surface-inset-background: var(--material-inset-background);
-  --surface-inset-border: var(--material-inset-border);
-  --surface-inset-shadow: var(--material-inset-shadow);
+  --surface-inset-background: transparent;
+  --surface-inset-border: var(--divider-subtle-color);
+  --surface-inset-shadow: none;
   --surface-panel-background: var(--material-panel-background);
   --surface-panel-border: var(--material-panel-border);
   --surface-panel-shadow: var(--material-panel-shadow);
-  --surface-panel-subtle-background: var(--material-inset-background);
-  --surface-panel-subtle-border: var(--material-inset-border);
+  --surface-panel-subtle-background: transparent;
+  --surface-panel-subtle-border: var(--divider-subtle-color);
   --surface-canvas-background: var(--material-canvas-background);
   --surface-canvas-border: var(--material-canvas-border);
   --surface-popover-background: var(--material-popover-background);
@@ -519,9 +519,12 @@
   --input-shell-border: var(--material-input-border);
   --input-shell-shadow: none;
 
-  --card-default-background: var(--material-card-background);
-  --card-default-border: var(--material-card-border);
-  --card-default-shadow: var(--material-card-shadow);
+  --surface-card-background: transparent;
+  --surface-card-border: var(--divider-subtle-color);
+  --surface-card-shadow: none;
+  --card-default-background: transparent;
+  --card-default-border: var(--divider-subtle-color);
+  --card-default-shadow: none;
 
   --modal-dialog-surface-background: color-mix(in srgb, var(--background) 94%, white);
   --modal-dialog-header-background: transparent;

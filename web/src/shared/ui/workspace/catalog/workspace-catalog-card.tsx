@@ -53,18 +53,18 @@ const ICON_FRAME_TONE_STYLE_MAP: Record<Exclude<IconFrameTone, "default">, CSSPr
 };
 
 const ICON_FRAME_SIZE_CLASS_MAP: Record<IconFrameSize, string> = {
-  sm: "h-9 w-9 rounded-[14px]",
-  md: "h-11 w-11 rounded-[16px]",
-  lg: "h-14 w-14 rounded-[20px]",
+  sm: "h-9 w-9 rounded-[10px]",
+  md: "h-11 w-11 rounded-[12px]",
+  lg: "h-14 w-14 rounded-[14px]",
 };
 
 const CATALOG_CARD_SIZE_CLASS_MAP: Record<CatalogCardSize, string> = {
-  compact: "min-h-[138px] rounded-[20px] px-4 py-4",
-  catalog: "min-h-[170px] rounded-[22px] px-5 py-4",
-  comfort: "rounded-[26px] px-6 py-6",
-  panel: "rounded-[30px] px-5 py-5 sm:px-6 sm:py-6",
-  hero: "rounded-[32px] px-6 py-7 sm:px-8 sm:py-8",
-  stat: "rounded-[24px] px-4 py-4",
+  compact: "min-h-[138px] rounded-[12px] px-4 py-4",
+  catalog: "min-h-[170px] rounded-[12px] px-5 py-4",
+  comfort: "rounded-[14px] px-6 py-6",
+  panel: "rounded-[14px] px-5 py-5 sm:px-6 sm:py-6",
+  hero: "rounded-[14px] px-6 py-7 sm:px-8 sm:py-8",
+  stat: "rounded-[12px] px-4 py-4",
 };
 
 const CATALOG_HEADER_ALIGN_CLASS_MAP: Record<CatalogCardAlign, string> = {
@@ -114,7 +114,7 @@ export function WorkspaceCatalogCard({
   return (
     <article
       className={cn(
-        "surface-card flex flex-col transition duration-(--motion-duration-fast) ease-out",
+        "flex flex-col border border-(--divider-subtle-color) bg-transparent transition duration-(--motion-duration-fast) ease-out",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         align === "center" && "items-center text-center",
         is_interactive && "cursor-pointer hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
@@ -375,7 +375,7 @@ export function WorkspaceCatalogGhostCard({
   return (
     <article
       className={cn(
-        "surface-card flex flex-col items-center justify-center border border-dashed border-(--surface-panel-subtle-border) text-center transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+        "flex flex-col items-center justify-center border border-dashed border-(--divider-subtle-color) bg-transparent text-center transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         onClick && "cursor-pointer",
         class_name,

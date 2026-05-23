@@ -61,7 +61,7 @@ export function TypewriterFileView({
 
       <pre
         ref={preRef}
-        className="soft-scrollbar surface-card h-full w-full overflow-auto whitespace-pre-wrap break-all rounded-[28px] p-5 text-(--text-strong)"
+        className="soft-scrollbar h-full w-full overflow-auto whitespace-pre-wrap break-all rounded-[12px] border border-(--divider-subtle-color) bg-transparent p-5 text-(--text-strong)"
         style={{ wordBreak: "break-word" }}
       >
         {content}

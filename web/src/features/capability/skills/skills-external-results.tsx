@@ -28,7 +28,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
 
   if (ctrl.external_query && !ctrl.external_results.length) {
     return (
-      <div className="rounded-[18px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
+      <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         {t("capability.skills_external_empty")}
       </div>
     );

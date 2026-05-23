@@ -33,14 +33,14 @@ const PANEL_PADDING_CLASS_MAP: Record<UiPanelPadding, string> = {
 };
 
 const PANEL_RADIUS_CLASS_MAP: Record<UiPanelRadius, string> = {
-  sm: "rounded-[16px]",
-  md: "rounded-[18px]",
-  lg: "rounded-[22px]",
+  sm: "rounded-[10px]",
+  md: "rounded-[12px]",
+  lg: "rounded-[14px]",
 };
 
 const PANEL_VARIANT_CLASS_MAP: Record<UiPanelVariant, string> = {
-  card: "surface-card",
-  inset: "border border-(--divider-subtle-color) bg-(--surface-inset-background)",
+  card: "border border-(--divider-subtle-color) bg-transparent shadow-none",
+  inset: "border border-(--divider-subtle-color) bg-transparent shadow-none",
   dashed: "border border-dashed border-(--divider-subtle-color) bg-transparent",
   plain: "",
 };

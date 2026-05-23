@@ -110,7 +110,7 @@ function MessageAttachmentList({
         const title = `${attachment.file_name || attachment.workspace_path} · ${attachment.workspace_path}`;
         const class_name = cn(
           "inline-flex max-w-[260px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-          "border-(--divider-subtle-color) bg-(--surface-inset-background) text-(--text-muted)",
+          "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
           can_open
             ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
             : "cursor-default",
@@ -312,7 +312,7 @@ function PendingPermissionList({
         "mt-3 flex flex-col gap-3",
         is_room_thread_mode
           ? "border-t border-(--divider-subtle-color) pt-3"
-          : "rounded-2xl bg-(--surface-inset-background) p-3",
+          : "rounded-2xl bg-transparent p-3",
       )}
     >
       {permissions.map((permission) => (

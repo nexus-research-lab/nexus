@@ -75,7 +75,7 @@ export function LoginPage() {
       <div className="pointer-events-none absolute left-[-12%] top-[8%] h-72 w-72 rounded-full bg-[rgba(var(--primary-rgb),0.08)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-10%] right-[-4%] h-80 w-80 rounded-full bg-[rgba(196,154,108,0.10)] blur-3xl" />
 
-      <section className="surface-panel radius-shell-xl relative w-full max-w-[430px] overflow-hidden border px-8 py-8 shadow-(--surface-popover-shadow)">
+      <section className="relative w-full max-w-[430px] overflow-hidden border-y border-(--divider-subtle-color) px-8 py-8">
         {/* <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,rgba(var(--primary-rgb),0.88),rgba(196,154,108,0.88))]" /> */}
 
         <div className="flex items-start justify-between gap-4">
@@ -84,20 +84,20 @@ export function LoginPage() {
               {t("login.title")}
             </h1>
           </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-black tracking-[-0.08em] text-(--text-strong)">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-lg font-black tracking-[-0.08em] text-(--text-strong)">
             N
           </div>
         </div>
 
         {error ? (
-          <div className="mt-4 rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
+          <div className="mt-4 rounded-[12px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
             {error}
           </div>
         ) : null}
 
         {show_disabled_state ? (
           <div className="mt-6 space-y-4">
-            <UiPanel class_name="border-(--surface-panel-border) bg-(--surface-panel-subtle-background)" padding="lg" radius="lg" variant="inset">
+            <UiPanel padding="lg" radius="lg" variant="inset">
               <h2 className="text-md font-semibold text-(--text-strong)">{t("login.disabled_title")}</h2>
               <p className="mt-2 text-base leading-6 text-(--text-muted)">
                 {t("login.disabled_description")}
@@ -121,7 +121,7 @@ export function LoginPage() {
               </span>
               <UiInput
                 autoComplete="username"
-                class_name="min-h-12 rounded-[18px] px-4 text-base"
+                class_name="min-h-12 rounded-[12px] px-4 text-base"
                 control_size="lg"
                 onChange={(event) => set_username(event.target.value)}
                 placeholder={t("login.username_placeholder")}
@@ -137,7 +137,7 @@ export function LoginPage() {
               </span>
               <UiInput
                 autoComplete="current-password"
-                class_name="min-h-12 rounded-[18px] px-4 text-base"
+                class_name="min-h-12 rounded-[12px] px-4 text-base"
                 control_size="lg"
                 onChange={(event) => set_password(event.target.value)}
                 placeholder={t("login.password_placeholder")}
@@ -148,7 +148,7 @@ export function LoginPage() {
             </label>
 
             {submit_error ? (
-              <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
+              <div className="rounded-[12px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
                 {submit_error}
               </div>
             ) : null}

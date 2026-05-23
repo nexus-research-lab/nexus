@@ -14,9 +14,9 @@ const STATE_BLOCK_BASE_CLASS_NAME =
   "flex flex-col items-center justify-center text-center";
 
 const STATE_BLOCK_SIZE_CLASS_MAP: Record<UiStateBlockSize, string> = {
-  sm: "min-h-32 rounded-[16px] px-4 py-5",
-  md: "min-h-[240px] rounded-[18px] px-5 py-6",
-  lg: "min-h-[320px] rounded-[24px] px-6 py-8",
+  sm: "min-h-32 rounded-[10px] px-4 py-5",
+  md: "min-h-[240px] rounded-[12px] px-5 py-6",
+  lg: "min-h-[320px] rounded-[14px] px-6 py-8",
 };
 
 const STATE_BLOCK_VARIANT_CLASS_MAP: Record<UiStateBlockVariant, Record<UiStateBlockTone, string>> = {
@@ -25,7 +25,7 @@ const STATE_BLOCK_VARIANT_CLASS_MAP: Record<UiStateBlockVariant, Record<UiStateB
     danger: "border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-transparent",
   },
   card: {
-    default: "surface-card",
+    default: "border border-(--divider-subtle-color) bg-transparent",
     danger: "border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_4%,transparent)]",
   },
   plain: {
