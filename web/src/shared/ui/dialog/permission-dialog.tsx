@@ -6,13 +6,19 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { AlertTriangle, X } from "lucide-react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { GlassPanel } from "@/shared/ui/liquid-glass";
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogCloseButton,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
   DIALOG_TAG_CLASS_NAME,
@@ -83,6 +89,7 @@ export function PermissionDialog(
   }: PermissionDialogProps) {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const initial_focus_ref = confirmButtonRef as RefObject<HTMLElement | null>;
 
   const readableSuggestions = useMemo(() => {
     return suggestions.map((suggestion, index) => {
@@ -116,28 +123,10 @@ export function PermissionDialog(
   }, [tool_input]);
 
   useEffect(() => {
-    if (is_open && confirmButtonRef.current) {
-      confirmButtonRef.current.focus();
-    }
-  }, [is_open]);
-
-  useEffect(() => {
     if (is_open) {
       setSelectedSuggestionIndex(-1);
     }
   }, [is_open]);
-
-  useEffect(() => {
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (!is_open) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        on_close();
-      }
-    };
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_open, on_close]);
 
   // 格式化显示工具输入参数
   const format_tool_input = () => {
@@ -150,7 +139,10 @@ export function PermissionDialog(
           <h3 className="mt-1 text-base font-semibold text-(--text-strong)">参数</h3>
         </div>
         {readableFields.map((field) => (
-          <div key={field.key} className="rounded-[16px] border border-(--divider-subtle-color) px-4 py-3">
+          <div
+            key={field.key}
+            className="rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] px-3.5 py-3"
+          >
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
               {field.label}
             </p>
@@ -165,154 +157,139 @@ export function PermissionDialog(
 
   if (!is_open) return null;
 
-  // 使用 Portal 渲染到 body
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div
-      className="dialog-backdrop z-9999 animate-in fade-in duration-(--motion-duration-fast)"
-      onClick={on_close}
-    >
-      <GlassPanel
-        true_glass
-        class_name="radius-shell-xl flex w-full max-w-2xl flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)"
-        content_layout="fill-flex"
-        content_class_name="min-h-0"
-        onClick={(event) => event.stopPropagation()}
-        radius={34}
-        style={{ maxHeight: "80vh" }}
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        class_name="z-[9999]"
+        initial_focus_ref={initial_focus_ref}
+        labelled_by="permission-dialog-title"
+        on_close={on_close}
       >
-        <div className="dialog-header">
-          <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-            <div
-              className={cn(
-                DIALOG_HEADER_ICON_CLASS_NAME,
-                "h-14 w-14 rounded-[20px]",
-                risk_level === "high" && "border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_12%,transparent)] text-[color:color-mix(in_srgb,var(--destructive)_80%,white)]",
-                risk_level === "medium" && "border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-[color:color-mix(in_srgb,var(--warning)_80%,white)]",
-                (!risk_level || risk_level === "low") && "border border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-[color:color-mix(in_srgb,var(--success)_80%,white)]",
-              )}
-            >
-              <AlertTriangle className="h-7 w-7" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="dialog-title truncate" data-size="hero">
-                {tool_name}
-              </h2>
-              <p className="dialog-subtitle">{risk_label || "需要确认"}</p>
-            </div>
-          </div>
-          <button
-            aria-label="关闭"
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="dialog-body dialog-body--scroll soft-scrollbar space-y-5">
-          <div className="mb-1 flex flex-wrap gap-2">
-            {risk_label ? (
-              <span className={cn(DIALOG_TAG_CLASS_NAME, risk_level === "high" && "text-[color:color-mix(in_srgb,var(--destructive)_80%,white)]", risk_level === "medium" && "text-[color:color-mix(in_srgb,var(--warning)_80%,white)]", (!risk_level || risk_level === "low") && "text-[color:color-mix(in_srgb,var(--success)_80%,white)]")}>
-                {risk_label}
-              </span>
-            ) : null}
-            {expires_at ? (
-              <span className={DIALOG_TAG_CLASS_NAME}>
-                {new Date(expires_at).toLocaleString()} 前确认
-              </span>
-            ) : null}
-          </div>
-
-          <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
-            <div className="text-[15px] leading-8 break-words text-(--text-default)">
-              {summary || "确认后继续执行"}
-            </div>
-          </div>
-
-          {readableSuggestions.length > 0 && (
-            <div className="space-y-3">
-              <div>
-                <p className="dialog-label">Policy</p>
-                <h3 className="mt-1 text-base font-semibold text-(--text-strong)">授权范围</h3>
+        <UiDialogShell class_name="max-h-[80vh]" size="lg">
+          <UiDialogHeader>
+            <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
+              <div
+                className={cn(
+                  DIALOG_HEADER_ICON_CLASS_NAME,
+                  "h-11 w-11 rounded-[16px]",
+                  risk_level === "high" && "border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_12%,transparent)] text-[color:color-mix(in_srgb,var(--destructive)_80%,white)]",
+                  risk_level === "medium" && "border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-[color:color-mix(in_srgb,var(--warning)_80%,white)]",
+                  (!risk_level || risk_level === "low") && "border border-[color:color-mix(in_srgb,var(--success)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-[color:color-mix(in_srgb,var(--success)_80%,white)]",
+                )}
+              >
+                <AlertTriangle className="h-5 w-5" />
               </div>
-              <div className="space-y-2">
-                <label
-                  className={cn(
-                    "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-(--motion-duration-normal)",
-                    selectedSuggestionIndex === -1
-                      ? "dialog-card-active"
-                      : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="permission-suggestion"
-                    checked={selectedSuggestionIndex === -1}
-                    onChange={() => setSelectedSuggestionIndex(-1)}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">仅这次</p>
-                    <p className="text-xs text-muted-foreground">只对这一次生效</p>
-                  </div>
-                </label>
-                {readableSuggestions.map((suggestion) => (
+              <div className="min-w-0">
+                <h2 className="dialog-title truncate" id="permission-dialog-title">
+                  {tool_name}
+                </h2>
+                <p className="dialog-subtitle">{risk_label || "需要确认"}</p>
+              </div>
+            </div>
+            <UiDialogCloseButton on_close={on_close} />
+          </UiDialogHeader>
+
+          <UiDialogBody class_name="space-y-5" scrollable>
+            <div className="mb-1 flex flex-wrap gap-2">
+              {risk_label ? (
+                <span className={cn(DIALOG_TAG_CLASS_NAME, risk_level === "high" && "text-[color:color-mix(in_srgb,var(--destructive)_80%,white)]", risk_level === "medium" && "text-[color:color-mix(in_srgb,var(--warning)_80%,white)]", (!risk_level || risk_level === "low") && "text-[color:color-mix(in_srgb,var(--success)_80%,white)]")}>
+                  {risk_label}
+                </span>
+              ) : null}
+              {expires_at ? (
+                <span className={DIALOG_TAG_CLASS_NAME}>
+                  {new Date(expires_at).toLocaleString()} 前确认
+                </span>
+              ) : null}
+            </div>
+
+            <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
+              <div className="text-[15px] leading-8 break-words text-(--text-default)">
+                {summary || "确认后继续执行"}
+              </div>
+            </div>
+
+            {readableSuggestions.length > 0 && (
+              <div className="space-y-3">
+                <div>
+                  <p className="dialog-label">Policy</p>
+                  <h3 className="mt-1 text-base font-semibold text-(--text-strong)">授权范围</h3>
+                </div>
+                <div className="space-y-2">
                   <label
-                    key={suggestion.index}
                     className={cn(
-                      "radius-shell-md flex items-start gap-3 px-4 py-3 transition-all duration-(--motion-duration-normal)",
-                      selectedSuggestionIndex === suggestion.index
-                        ? "dialog-card-active"
-                        : "dialog-card hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)",
+                      "flex items-start gap-3 rounded-[12px] border px-3.5 py-3 transition-[background,border-color] duration-(--motion-duration-normal)",
+                      selectedSuggestionIndex === -1
+                        ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
+                        : "border-transparent bg-transparent hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)]",
                     )}
                   >
                     <input
                       type="radio"
                       name="permission-suggestion"
-                      checked={selectedSuggestionIndex === suggestion.index}
-                      onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                      checked={selectedSuggestionIndex === -1}
+                      onChange={() => setSelectedSuggestionIndex(-1)}
                       className="mt-0.5"
                     />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{suggestion.label}</p>
-                      <p className="text-xs text-muted-foreground break-all">{suggestion.description}</p>
+                      <p className="text-sm font-medium text-foreground">仅这次</p>
+                      <p className="text-xs text-muted-foreground">只对这一次生效</p>
                     </div>
                   </label>
-                ))}
+                  {readableSuggestions.map((suggestion) => (
+                    <label
+                      key={suggestion.index}
+                      className={cn(
+                        "flex items-start gap-3 rounded-[12px] border px-3.5 py-3 transition-[background,border-color] duration-(--motion-duration-normal)",
+                        selectedSuggestionIndex === suggestion.index
+                          ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
+                          : "border-transparent bg-transparent hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)]",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="permission-suggestion"
+                        checked={selectedSuggestionIndex === suggestion.index}
+                        onChange={() => setSelectedSuggestionIndex(suggestion.index)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{suggestion.label}</p>
+                        <p className="text-xs text-muted-foreground break-all">{suggestion.description}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {format_tool_input()}
-        </div>
+            {format_tool_input()}
+          </UiDialogBody>
 
-        <div className="dialog-footer">
-          <button
-            className={get_dialog_action_class_name("default")}
-            onClick={() => on_deny()}
-            type="button"
-          >
-            拒绝
-          </button>
-          <button
-            className={get_dialog_action_class_name("primary")}
-            ref={confirmButtonRef}
-            onClick={() => {
-              const selectedUpdate = selectedSuggestionIndex >= 0
-                ? [suggestions[selectedSuggestionIndex]]
-                : undefined;
-              on_allow(selectedUpdate);
-            }}
-            type="button"
-          >
-            允许
-          </button>
-        </div>
-      </GlassPanel>
-    </div>,
-    document.body
+          <UiDialogFooter>
+            <button
+              className={get_dialog_action_class_name("default")}
+              onClick={() => on_deny()}
+              type="button"
+            >
+              拒绝
+            </button>
+            <button
+              className={get_dialog_action_class_name("primary")}
+              ref={confirmButtonRef}
+              onClick={() => {
+                const selectedUpdate = selectedSuggestionIndex >= 0
+                  ? [suggestions[selectedSuggestionIndex]]
+                  : undefined;
+                on_allow(selectedUpdate);
+              }}
+              type="button"
+            >
+              允许
+            </button>
+          </UiDialogFooter>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

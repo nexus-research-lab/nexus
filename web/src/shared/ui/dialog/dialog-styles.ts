@@ -6,21 +6,22 @@ import {
   get_ui_icon_button_class_name,
 } from "@/shared/ui/button-styles";
 
-export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-start gap-3.5";
+export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 
 /** 统一弹窗 shell（圆角 + 材质） */
 export const DIALOG_SHELL_CLASS_NAME =
-  "dialog-shell radius-shell-xl w-full max-w-lg animate-in fade-in zoom-in-95 duration-200";
+  "dialog-shell radius-shell-md w-full max-w-lg animate-in fade-in zoom-in-95 duration-(--motion-duration-fast)";
 
 /** 统一弹窗遮罩 */
-export const DIALOG_BACKDROP_CLASS_NAME = "dialog-backdrop animate-in fade-in duration-200";
+export const DIALOG_BACKDROP_CLASS_NAME =
+  "dialog-backdrop animate-in fade-in duration-(--motion-duration-fast)";
 
 /** 统一 popover 面板 */
 export const DIALOG_POPOVER_CLASS_NAME =
   "surface-popover radius-shell-lg overflow-hidden";
 
 export const DIALOG_HEADER_ICON_CLASS_NAME =
-  "dialog-card flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong)";
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)";
 
 export const DIALOG_ICON_BUTTON_CLASS_NAME = get_ui_icon_button_class_name({
   size: "md",
@@ -33,7 +34,7 @@ export const DIALOG_TEXT_BUTTON_CLASS_NAME = get_ui_button_class_name({
 });
 
 export const DIALOG_EMPTY_CLASS_NAME =
-  "surface-inset flex items-center justify-center rounded-[20px] px-4 py-4 text-[13px] text-(--text-muted)";
+  "flex items-center justify-center rounded-[12px] px-4 py-4 text-[13px] text-(--text-muted)";
 
 export const DIALOG_TAG_CLASS_NAME =
   "chip-default inline-flex items-center gap-1 rounded-full px-[0.7rem] py-[0.3rem] text-[11px] font-semibold text-(--text-muted)";
@@ -65,9 +66,9 @@ export function get_dialog_action_class_name(
 
 export function get_dialog_note_class_name(tone: "default" | "danger", class_name?: string): string {
   return cn(
-    "rounded-[18px] px-4 py-[0.95rem] text-[13px] leading-[1.65]",
+    "rounded-[14px] px-4 py-[0.95rem] text-[13px] leading-[1.65]",
     tone === "default"
-      ? "surface-card text-(--text-default)"
+      ? "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-transparent text-(--text-default)"
       : "border text-(--text-default)",
     class_name,
   );
@@ -79,7 +80,7 @@ export function get_dialog_note_style(tone: "default" | "danger"): CSSProperties
   }
 
   return {
-    background: "color-mix(in srgb, var(--destructive) 12%, var(--modal-card-background))",
+    background: "color-mix(in srgb, var(--destructive) 12%, var(--modal-dialog-body-background))",
     borderColor: "color-mix(in srgb, var(--destructive) 26%, var(--modal-card-border))",
     color: "var(--text-default)",
   };

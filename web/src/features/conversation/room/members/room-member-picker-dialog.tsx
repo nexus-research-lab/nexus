@@ -1,15 +1,19 @@
 "use client";
 
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
-
 import { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import {
   DIALOG_EMPTY_CLASS_NAME,
-  DIALOG_ICON_BUTTON_CLASS_NAME,
 } from "@/shared/ui/dialog/dialog-styles";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogCloseButton,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
 import { UiListRow } from "@/shared/ui/list-row";
 
 interface RoomMemberPickerDialogProps {
@@ -30,54 +34,36 @@ export function RoomMemberPickerDialog({
     return null;
   }
 
-  if (typeof document === "undefined") {
-    return null;
-  }
-
-  return createPortal(
-    <>
-      <div
-        aria-hidden="true"
-        className="dialog-backdrop z-[9998]"
-        onClick={on_cancel}
-      />
-      <div
-        data-modal-root="true"
-        aria-modal="true"
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
-        role="dialog"
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerMove={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        class_name="z-[9999]"
+        labelled_by="room-member-picker-dialog-title"
+        on_close={on_cancel}
       >
-        <div className="dialog-shell radius-shell-lg w-full max-w-lg">
-          <div className="dialog-header">
+        <UiDialogShell size="md">
+          <UiDialogHeader>
             <div className="min-w-0 flex-1">
-              <h3 className="dialog-title">{t("room.add_member_dialog_title")}</h3>
+              <h3 className="dialog-title" id="room-member-picker-dialog-title">
+                {t("room.add_member_dialog_title")}
+              </h3>
               <p className="dialog-subtitle">
                 {t("room.add_member_dialog_subtitle")}
               </p>
             </div>
-            <button
-              aria-label={t("common.close")}
-              className={DIALOG_ICON_BUTTON_CLASS_NAME}
-              onClick={on_cancel}
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+            <UiDialogCloseButton on_close={on_cancel} />
+          </UiDialogHeader>
 
-          <div className="dialog-body">
+          <UiDialogBody>
             {agents.length === 0 ? (
               <div className={DIALOG_EMPTY_CLASS_NAME}>
                 {t("room.no_available_members")}
               </div>
             ) : (
-              <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+              <div className="soft-scrollbar max-h-[360px] space-y-1.5 overflow-y-auto pr-1">
                 {agents.map((agent) => (
                   <UiListRow
-                    class_name="min-h-[64px] border border-(--divider-subtle-color) px-4 py-3"
+                    class_name="min-h-[60px] px-2.5 py-2"
                     description={t("room.add_member_dialog_hint")}
                     key={agent.agent_id}
                     leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} />}
@@ -87,10 +73,9 @@ export function RoomMemberPickerDialog({
                 ))}
               </div>
             )}
-          </div>
-        </div>
-      </div>
-    </>,
-    document.body,
+          </UiDialogBody>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

@@ -16,7 +16,7 @@
    * 3. surface-inset / surface-card：次级内容面
    * 4. chip-default / chip-pill：轻量徽标与小按钮面
    * 5. input-shell：输入控件面
-   * 6. dialog-*：弹窗体系
+   * 6. dialog-*：弹窗语义壳，材质必须回落到 surface / input / card 原语
    */
 
   .desktop-rail {
@@ -154,6 +154,7 @@
     overflow: hidden;
     background: var(--modal-dialog-surface-background);
     border: 1px solid var(--modal-dialog-surface-border);
+    background-clip: padding-box;
     box-shadow: var(--modal-dialog-surface-shadow);
   }
 
@@ -166,16 +167,24 @@
     background: var(--modal-card-background);
     border: 1px solid var(--modal-card-border);
     box-shadow: var(--modal-card-shadow);
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .dialog-card:hover {
+    border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 72%, var(--modal-card-border));
   }
 
   .dialog-card-active {
     background: var(--modal-card-active-background);
-    border: 1px solid var(--modal-card-active-border);
+    border: 1px solid color-mix(in srgb, var(--modal-card-active-border) 92%, transparent);
     box-shadow: var(--modal-card-active-shadow);
   }
 
   .dialog-input {
-    background: color-mix(in srgb, var(--modal-input-background) 70%, transparent);
+    background: var(--modal-input-background);
     border: 1px solid color-mix(in srgb, var(--modal-input-border) 92%, transparent);
     box-shadow: none;
     transition:
@@ -186,12 +195,12 @@
 
   .dialog-input:hover {
     border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 88%, transparent);
-    background: color-mix(in srgb, var(--modal-input-background) 58%, transparent);
+    background: var(--modal-input-background);
   }
 
   .dialog-input:focus,
   .dialog-input:focus-within {
-    background: color-mix(in srgb, var(--modal-input-focus-background) 62%, transparent);
+    background: var(--modal-input-focus-background);
     border-color: color-mix(in srgb, var(--modal-input-focus-border) 96%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--modal-input-focus-border) 32%, transparent);
   }
@@ -219,30 +228,33 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
+    backdrop-filter: blur(4px) saturate(104%);
+    -webkit-backdrop-filter: blur(4px) saturate(104%);
     background: var(--dialog-backdrop-color);
   }
 
   .dialog-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
     background: var(--modal-dialog-header-background);
-    border-bottom: 1px solid var(--modal-divider-color);
-    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--modal-divider-color) 58%, transparent);
+    padding: 0.875rem 1.125rem;
   }
 
   .dialog-title {
     font-size: 1.125rem;
     font-weight: 700;
-    letter-spacing: -0.03em;
+    letter-spacing: 0;
+    line-height: 1.25;
     color: var(--text-strong);
   }
 
   .dialog-title[data-size="hero"] {
     font-size: 1.75rem;
     font-weight: 900;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
   }
 
   .dialog-subtitle {
@@ -258,7 +270,7 @@
 
   .dialog-body {
     background: var(--modal-dialog-body-background);
-    padding: 1.25rem 1.5rem;
+    padding: 1rem 1.25rem;
   }
 
   .dialog-body--scroll {
@@ -271,8 +283,8 @@
     justify-content: flex-end;
     gap: 0.75rem;
     background: var(--modal-dialog-footer-background);
-    border-top: 1px solid var(--modal-divider-color);
-    padding: 1rem 1.5rem;
+    border-top: 1px solid color-mix(in srgb, var(--modal-divider-color) 58%, transparent);
+    padding: 0.8125rem 1.125rem;
   }
 
   .dialog-field {
@@ -282,10 +294,10 @@
   }
 
   .dialog-label {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    text-transform: none;
     color: var(--text-soft);
   }
 

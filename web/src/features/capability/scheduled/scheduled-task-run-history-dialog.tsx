@@ -133,9 +133,10 @@ export function ScheduledTaskRunHistoryDialog({
       aria-labelledby="scheduled-task-run-history-title"
       aria-modal="true"
       className="dialog-backdrop"
+      data-modal-root="true"
       role="dialog"
     >
-      <div className="dialog-shell radius-shell-xl flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden">
+      <div className="dialog-shell radius-shell-md flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">

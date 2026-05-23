@@ -19,7 +19,6 @@ import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
-  UiDialogFooter,
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
@@ -253,7 +252,7 @@ export function ConnectorDetailView({
                 class_name="z-[9999]"
                 on_close={() => set_selected_feature(null)}
               >
-                <UiDialogShell class_name="h-[84vh]" size="xl">
+                <UiDialogShell class_name="max-h-[min(84vh,640px)]" size="lg">
                   <UiDialogHeader
                     icon={<Check className="h-4 w-4" />}
                     on_close={() => set_selected_feature(null)}
@@ -266,7 +265,7 @@ export function ConnectorDetailView({
                     </p>
 
                     {selected_feature_detail.items && selected_feature_detail.items.length > 0 ? (
-                      <UiPanel padding="sm" variant="inset">
+                      <UiPanel padding="sm" radius="sm" variant="inset">
                         <div className="mb-2 text-[12px] font-semibold text-(--text-strong)">能力范围</div>
                         <div className="space-y-2">
                           {selected_feature_detail.items.map((item) => (
@@ -292,11 +291,6 @@ export function ConnectorDetailView({
                       </div>
                     ) : null}
                   </UiDialogBody>
-                  <UiDialogFooter>
-                    <UiButton onClick={() => set_selected_feature(null)} size="sm" type="button">
-                      关闭
-                    </UiButton>
-                  </UiDialogFooter>
                 </UiDialogShell>
               </UiDialogBackdrop>
             </UiDialogPortal>

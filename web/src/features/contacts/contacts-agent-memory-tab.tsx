@@ -34,7 +34,6 @@ import {
 import { UiIconButton } from "@/shared/ui/button";
 import { UiSearchInput } from "@/shared/ui/form-control";
 import { UiListRow } from "@/shared/ui/list-row";
-import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { Agent } from "@/types/agent/agent";
@@ -170,7 +169,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
   return (
     <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
       <div className="mx-auto grid h-full min-h-0 w-full max-w-[1120px] grid-cols-1 gap-3 lg:grid-cols-[360px_minmax(360px,1fr)] xl:grid-cols-[380px_minmax(440px,1fr)]">
-        <UiPanel class_name="flex min-h-0 flex-col overflow-hidden" padding="none">
+        <section className="flex min-h-0 flex-col overflow-hidden border-b border-(--divider-subtle-color) pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
           <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -248,7 +247,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
             on_select={set_selected_item_id}
             selected_item_id={selected_item?.entry_id ?? ""}
           />
-        </UiPanel>
+        </section>
 
         <MemoryItemInspector
           is_deleting={selected_item ? deleting_item_id === selected_item.entry_id : false}
@@ -335,16 +334,16 @@ function MemoryItemInspector({
 }) {
   if (!item) {
     return (
-      <UiPanel class_name="flex min-h-0 items-center justify-center px-6 text-xs text-(--text-soft)" padding="none" variant="inset">
+      <section className="flex min-h-0 items-center justify-center px-6 text-xs text-(--text-soft)">
         未选择记忆
-      </UiPanel>
+      </section>
     );
   }
 
   const raw_fields = (item.fields ?? []).filter((field) => field.value.trim() !== "");
 
   return (
-    <UiPanel class_name="flex min-h-0 flex-col overflow-hidden" padding="none">
+    <section className="flex min-h-0 flex-col overflow-hidden">
       <div className="flex min-h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -425,6 +424,6 @@ function MemoryItemInspector({
           </details>
         ) : null}
       </div>
-    </UiPanel>
+    </section>
   );
 }

@@ -8,8 +8,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { Check, Crown, Hash, Plus, Search, X } from "lucide-react";
+import { Check, Crown, Hash, Plus, Search } from "lucide-react";
 
 import { get_available_skills_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
@@ -17,11 +16,15 @@ import { ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import {
-  DIALOG_BACKDROP_CLASS_NAME,
-  DIALOG_ICON_BUTTON_CLASS_NAME,
+  UiDialogBackdrop,
+  UiDialogCloseButton,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import {
   DIALOG_HEADER_ICON_CLASS_NAME,
   DIALOG_HEADER_LEADING_CLASS_NAME,
-  DIALOG_SHELL_CLASS_NAME,
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
@@ -173,16 +176,6 @@ export function CreateRoomDialog({
     };
   }, [is_open, t]);
 
-  // ESC 关闭
-  useEffect(() => {
-    if (!is_open) return;
-    const handle = (e: KeyboardEvent) => {
-      if (e.key === "Escape") on_cancel();
-    };
-    window.addEventListener("keydown", handle);
-    return () => window.removeEventListener("keydown", handle);
-  }, [is_open, on_cancel]);
-
   // 搜索过滤
   const filtered_agents = useMemo(() => {
     if (!search_query.trim()) return agents;
@@ -266,46 +259,27 @@ export function CreateRoomDialog({
   const resolved_dialog_subtitle = dialog_subtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
   const resolved_confirm_label = confirm_label ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
 
-  if (typeof document === "undefined") {
-    return null;
-  }
-
-  // Portal 渲染到 body，确保弹窗不受侧边栏 overflow 限制
-  return createPortal(
-    <>
-      <div
-        aria-hidden="true"
-        className={cn(DIALOG_BACKDROP_CLASS_NAME, "z-[9998]")}
-        data-modal-root="true"
-        onClick={on_cancel}
-      />
-      <div
-        data-modal-root="true"
-        aria-modal="true"
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
-        role="dialog"
-        onClick={(event) => event.stopPropagation()}
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerMove={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        class_name="z-[9998]"
+        labelled_by="create-room-dialog-title"
+        on_close={on_cancel}
       >
-        <div
-          className={cn(
-            DIALOG_SHELL_CLASS_NAME,
-            "flex h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden pointer-events-auto",
-          )}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
+        <UiDialogShell
+          class_name="h-[min(80vh,720px)] pointer-events-auto"
+          size="lg"
         >
-          <div className="dialog-header">
+          <UiDialogHeader>
             <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-14 w-14 rounded-[20px] text-primary")}>
-                <Hash className="h-7 w-7" />
+              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 rounded-[16px] text-primary")}>
+                <Hash className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="dialog-title truncate" data-size="hero">
+                <h2
+                  className="dialog-title truncate"
+                  id="create-room-dialog-title"
+                >
                   {resolved_dialog_title}
                 </h2>
                 <p className="dialog-subtitle truncate">
@@ -313,15 +287,8 @@ export function CreateRoomDialog({
                 </p>
               </div>
             </div>
-            <button
-              aria-label={t("common.close")}
-              className={DIALOG_ICON_BUTTON_CLASS_NAME}
-              onClick={on_cancel}
-              type="button"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+            <UiDialogCloseButton on_close={on_cancel} />
+          </UiDialogHeader>
 
           {/* 内容区：成员管理 + 底部 Room Skill 标签行 */}
           <div className="dialog-body flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
@@ -331,7 +298,7 @@ export function CreateRoomDialog({
                 <p className="dialog-label">
                   {t("room.settings_title")}
                 </p>
-                <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
+                <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-3">
                     <UiRoomAvatar
                       avatar={selected_avatar}
@@ -342,9 +309,14 @@ export function CreateRoomDialog({
                     />
                     <input
                       className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+                      data-autofocus="true"
                       maxLength={64}
                       onChange={(e) => set_room_name(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && can_create) handle_create(); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && can_create) {
+                          handle_create();
+                        }
+                      }}
                       placeholder={t("room.name_required_placeholder")}
                       required
                       type="text"
@@ -365,7 +337,7 @@ export function CreateRoomDialog({
                   />
                 </div>
 
-                <div className="rounded-[14px] border border-(--divider-subtle-color) bg-white px-2.5 py-2">
+                <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-(--text-muted)">
                       <Crown className="h-3.5 w-3.5 text-primary" />
@@ -422,16 +394,18 @@ export function CreateRoomDialog({
                   {t("room.all_agents", { count: filtered_agents.length })}
                 </p>
 
-                <div className="flex min-h-0 flex-1 flex-col rounded-[18px] border border-(--divider-subtle-color) p-2.5">
-                  <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
+                  <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
                     {filtered_agents.map((agent) => {
                       const is_selected = selected_id_set.has(agent.agent_id);
                       return (
                         <button
                           key={agent.agent_id}
                           className={cn(
-                            "dialog-card flex w-full items-center gap-3 rounded-[14px] px-3 py-1.5 text-left transition-all duration-(--motion-duration-normal)",
-                            is_selected && "dialog-card-active",
+                            "flex w-full items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
+                            is_selected
+                              ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
+                              : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
                           )}
                           onClick={() => toggle_agent(agent.agent_id)}
                           type="button"
@@ -505,9 +479,8 @@ export function CreateRoomDialog({
               {is_creating ? t("room.creating_action") : resolved_confirm_label}
             </button>
           </div>
-        </div>
-      </div>
-    </>,
-    document.body,
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

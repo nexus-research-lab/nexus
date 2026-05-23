@@ -78,6 +78,7 @@ interface UiSelectMenuPosition {
   bottom?: number;
   left: number;
   max_height: number;
+  placement: "bottom" | "top";
   top?: number;
   width: number;
 }
@@ -138,6 +139,7 @@ function resolve_select_menu_position({
     left,
     width,
     max_height,
+    placement: should_place_top ? "top" : "bottom",
     ...(should_place_top
       ? { bottom: Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewport_height - rect.top + SELECT_MENU_GAP) }
       : { top: Math.min(rect.bottom + SELECT_MENU_GAP, viewport_height - SELECT_MENU_VIEWPORT_MARGIN - max_height) }),
@@ -156,7 +158,7 @@ function get_select_menu_button_class_name({
   class_name?: string;
 }) {
   return cn(
-    "flex h-full w-full items-center justify-between gap-2 px-3 transition-[background,border-color,box-shadow] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    "flex h-full w-full items-center justify-between gap-2 px-3 transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
     surface === "dialog"
       ? "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]"
       : "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
@@ -168,19 +170,19 @@ function get_select_menu_button_class_name({
 
 function get_select_menu_panel_surface_class_name(surface: UiSelectMenuSurface): string {
   return surface === "dialog"
-    ? "border-(--modal-card-border) bg-(--modal-dialog-body-background) shadow-[0_14px_32px_rgba(15,23,42,0.1)]"
+    ? "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)]"
     : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur";
 }
 
 function get_select_menu_option_state_class_name(surface: UiSelectMenuSurface, is_active: boolean): string {
   if (is_active) {
     return surface === "dialog"
-      ? "bg-[color:color-mix(in_srgb,var(--primary)_12%,var(--modal-card-background))] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_15%,var(--modal-card-background))]"
+      ? "bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
       : "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
   }
 
   return surface === "dialog"
-    ? "text-(--text-default) hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,var(--modal-card-background))] hover:text-(--text-strong)"
+    ? "text-(--text-default) hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] hover:text-(--text-strong)"
     : "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 }
 
@@ -336,10 +338,14 @@ export function UiSelectMenu({
       ref={menu_ref}
       aria-label={aria_label}
       className={cn(
-        "fixed z-[80] overflow-y-auto rounded-[14px] border p-1",
+        "fixed z-[120] overflow-y-auto rounded-[14px] border p-1 animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         get_select_menu_panel_surface_class_name(surface),
         menu_class_name,
       )}
+      data-placement={menu_position?.placement ?? "bottom"}
+      data-state="open"
+      data-surface={surface}
+      data-ui-select-menu-open="true"
       id={menu_id}
       role="listbox"
       style={menu_style}
@@ -355,6 +361,7 @@ export function UiSelectMenu({
               option_height_class_name,
               get_select_menu_option_state_class_name(surface, is_active),
             )}
+            data-active={is_active ? "true" : undefined}
             disabled={option.disabled}
             onClick={() => change_value(option.value)}
             role="option"
@@ -369,7 +376,11 @@ export function UiSelectMenu({
   ) : null;
 
   return (
-    <div ref={root_ref} className={cn("relative w-full", height_class_name, class_name)}>
+    <div
+      ref={root_ref}
+      className={cn("relative w-full", height_class_name, class_name)}
+      data-ui-select-menu-open={is_open ? "true" : undefined}
+    >
       <button
         ref={button_ref}
         aria-controls={is_open ? menu_id : undefined}
@@ -579,10 +590,14 @@ export function UiMultiSelectMenu({
       ref={menu_ref}
       aria-label={aria_label}
       className={cn(
-        "fixed z-[80] flex flex-col overflow-hidden rounded-[14px] border",
+        "fixed z-[120] flex flex-col overflow-hidden rounded-[14px] border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         get_select_menu_panel_surface_class_name(surface),
         menu_class_name,
       )}
+      data-placement={menu_position?.placement ?? "bottom"}
+      data-state="open"
+      data-surface={surface}
+      data-ui-select-menu-open="true"
       id={menu_id}
       role="listbox"
       style={menu_style}
@@ -626,6 +641,7 @@ export function UiMultiSelectMenu({
                   option.description ? "py-2 text-[13px]" : option_height_class_name,
                   get_select_menu_option_state_class_name(surface, is_active),
                 )}
+                data-active={is_active ? "true" : undefined}
                 disabled={option.disabled}
                 onClick={() => toggle_value(option.value)}
                 role="option"
@@ -651,7 +667,11 @@ export function UiMultiSelectMenu({
   ) : null;
 
   return (
-    <div ref={root_ref} className={cn("relative w-full", value.length > 0 ? "min-h-10" : height_class_name, class_name)}>
+    <div
+      ref={root_ref}
+      className={cn("relative w-full", value.length > 0 ? "min-h-10" : height_class_name, class_name)}
+      data-ui-select-menu-open={is_open ? "true" : undefined}
+    >
       <button
         ref={button_ref}
         aria-controls={is_open ? menu_id : undefined}

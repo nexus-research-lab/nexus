@@ -30,7 +30,6 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
-import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
@@ -292,19 +291,17 @@ export function MemoryPanel() {
         <CapabilitySectionHeader title={t("capability.memory_overview_title")} />
         <section className="mb-5 grid gap-3 sm:grid-cols-4">
           {stat_items.map(([label, value]) => (
-            <UiPanel
-              class_name="min-w-0"
+            <div
+              className="min-w-0 border-b border-(--divider-subtle-color) pb-2 sm:border-b-0 sm:border-l sm:pl-3 sm:first:border-l-0 sm:first:pl-0"
               key={label}
-              padding="sm"
-              variant="inset"
             >
               <div className="text-[11px] font-medium text-(--text-soft)">{label}</div>
               <div className="mt-1 text-base font-semibold tabular-nums text-(--text-strong)">{value}</div>
-            </UiPanel>
+            </div>
           ))}
         </section>
 
-        <UiPanel padding="sm" variant="inset">
+        <section className="border-y border-(--divider-subtle-color) py-3">
           <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
             <UiInput
               onChange={(event) => set_new_title(event.target.value)}
@@ -327,9 +324,9 @@ export function MemoryPanel() {
               添加
             </UiButton>
           </div>
-        </UiPanel>
+        </section>
 
-        <UiPanel class_name="overflow-hidden" padding="none" variant="inset">
+        <section className="mt-4 overflow-hidden border-y border-(--divider-subtle-color)">
           {items.length === 0 ? (
             <UiStateBlock description="当前筛选条件下没有可管理的记忆条目。" size="sm" title="暂无记忆条目" />
           ) : (
@@ -445,7 +442,7 @@ export function MemoryPanel() {
               })}
             </div>
           )}
-        </UiPanel>
+        </section>
       </CapabilityPageLayout>
       <FeedbackBannerStack
         items={feedback ? [

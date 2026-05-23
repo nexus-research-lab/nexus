@@ -304,7 +304,7 @@ export function AgentOptionsIdentityTab({
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.vibe_tags")}</label>
-            <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
+            <div className="rounded-[12px] border border-transparent px-0 py-0">
               {render_vibe_tags_row(
                 "w-[108px] rounded-lg",
                 "sm",

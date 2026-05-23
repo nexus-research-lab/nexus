@@ -4,11 +4,14 @@ import {
   type FormHTMLAttributes,
   type HTMLAttributes,
   type ReactNode,
+  type RefObject,
+  useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_HEADER_ICON_CLASS_NAME,
@@ -35,7 +38,9 @@ interface UiDialogBackdropProps extends HTMLAttributes<HTMLDivElement> {
   class_name?: string;
   labelled_by?: string;
   described_by?: string;
+  initial_focus_ref?: RefObject<HTMLElement | null>;
   on_close?: () => void;
+  trap_focus?: boolean;
 }
 
 interface UiDialogShellProps extends HTMLAttributes<HTMLElement> {
@@ -87,18 +92,30 @@ export function UiDialogBackdrop({
   class_name,
   className,
   described_by,
+  initial_focus_ref,
   labelled_by,
   onClick,
   on_close,
+  trap_focus = true,
   ...props
 }: UiDialogBackdropProps) {
+  const root_ref = useRef<HTMLDivElement | null>(null);
+  useDialogModalBehavior({
+    enabled: trap_focus,
+    initial_focus_ref,
+    on_close,
+    root_ref,
+  });
+
   return (
     <div
+      ref={root_ref}
       aria-describedby={described_by}
       aria-labelledby={labelled_by}
       aria-modal="true"
       className={cn(DIALOG_BACKDROP_CLASS_NAME, className, class_name)}
       data-modal-root="true"
+      data-ui-dialog-root="true"
       onClick={(event) => {
         onClick?.(event);
         if (!event.defaultPrevented && event.target === event.currentTarget) {
@@ -106,6 +123,7 @@ export function UiDialogBackdrop({
         }
       }}
       role="dialog"
+      tabIndex={-1}
       {...props}
     >
       {children}
@@ -123,11 +141,12 @@ export function UiDialogShell({
   return (
     <section
       className={cn(
-        "dialog-shell radius-shell-xl flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
+        "dialog-shell radius-shell-md flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
         DIALOG_SIZE_CLASS_MAP[size],
         className,
         class_name,
       )}
+      tabIndex={-1}
       {...props}
     >
       {children}
@@ -145,11 +164,12 @@ export function UiDialogFormShell({
   return (
     <form
       className={cn(
-        "dialog-shell radius-shell-xl flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
+        "dialog-shell radius-shell-md flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
         DIALOG_SIZE_CLASS_MAP[size],
         className,
         class_name,
       )}
+      tabIndex={-1}
       {...props}
     >
       {children}
@@ -243,7 +263,14 @@ export function UiDialogCloseButton({
     <button
       aria-label="关闭"
       className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className, class_name)}
-      onClick={on_close}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        on_close();
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
       type="button"
     >
       <X className="h-4 w-4" />

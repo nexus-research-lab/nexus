@@ -115,24 +115,19 @@
     0 26px 64px rgba(66, 82, 104, 0.18),
     0 4px 18px rgba(66, 82, 104, 0.08);
 
-  --material-dialog-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 249, 252, 0.992) 100%);
-  --material-dialog-header-background: rgba(252, 253, 255, 0.998);
-  --material-dialog-body-background: rgba(254, 255, 255, 0.998);
-  --material-dialog-footer-background: rgba(250, 252, 255, 0.996);
-  --material-dialog-border: rgba(214, 224, 237, 0.96);
-  --material-dialog-shadow:
-    0 38px 96px rgba(66, 82, 104, 0.28),
-    0 8px 28px rgba(66, 82, 104, 0.14);
-  --dialog-backdrop-color: rgba(88, 102, 122, 0.4);
-  --material-dialog-nav-background: rgba(243, 247, 251, 0.98);
-  --material-dialog-nav-border: rgba(214, 224, 237, 0.82);
+  --material-dialog-surface-background:
+    linear-gradient(180deg, rgba(246, 247, 249, 0.99), rgba(238, 241, 245, 0.985) 100%);
+  --material-dialog-surface-border: rgba(199, 211, 225, 0.72);
+  --material-dialog-surface-shadow:
+    0 22px 58px rgba(66, 82, 104, 0.16),
+    0 3px 12px rgba(66, 82, 104, 0.08);
+  --dialog-backdrop-color: rgba(23, 33, 44, 0.16);
   --material-dialog-card-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(244, 247, 252, 0.94) 100%);
-  --material-dialog-card-border: rgba(214, 224, 237, 0.84);
+    linear-gradient(180deg, rgba(249, 250, 252, 0.82), rgba(239, 242, 246, 0.76) 100%);
+  --material-dialog-card-border: rgba(199, 211, 225, 0.58);
   --material-dialog-card-active-background:
-    linear-gradient(180deg, rgba(99, 121, 255, 0.18), rgba(244, 247, 255, 0.92) 100%);
-  --material-dialog-card-active-border: rgba(99, 121, 255, 0.3);
+    linear-gradient(180deg, rgba(99, 121, 255, 0.16), rgba(223, 227, 248, 0.9) 100%);
+  --material-dialog-card-active-border: rgba(99, 121, 255, 0.26);
 
   --material-input-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 252, 0.88) 100%);
@@ -279,24 +274,19 @@
     0 30px 80px rgba(0, 5, 12, 0.46),
     0 8px 26px rgba(0, 5, 12, 0.22);
 
-  --material-dialog-background:
-    linear-gradient(180deg, rgba(20, 27, 37, 0.995), rgba(13, 18, 26, 0.992) 100%);
-  --material-dialog-header-background: rgba(24, 31, 42, 0.998);
-  --material-dialog-body-background: rgba(18, 24, 33, 0.998);
-  --material-dialog-footer-background: rgba(22, 29, 39, 0.997);
-  --material-dialog-border: rgba(182, 199, 223, 0.38);
-  --material-dialog-shadow:
-    0 46px 108px rgba(0, 5, 12, 0.66),
-    0 12px 32px rgba(0, 5, 12, 0.32);
-  --dialog-backdrop-color: rgba(2, 6, 14, 0.68);
-  --material-dialog-nav-background: rgba(29, 37, 49, 0.97);
-  --material-dialog-nav-border: rgba(182, 199, 223, 0.22);
+  --material-dialog-surface-background:
+    linear-gradient(180deg, rgba(25, 32, 43, 0.99), rgba(14, 20, 29, 0.985) 100%);
+  --material-dialog-surface-border: rgba(182, 199, 223, 0.26);
+  --material-dialog-surface-shadow:
+    0 26px 68px rgba(0, 5, 12, 0.5),
+    0 6px 18px rgba(0, 5, 12, 0.24);
+  --dialog-backdrop-color: rgba(2, 6, 14, 0.46);
   --material-dialog-card-background:
-    linear-gradient(180deg, rgba(30, 39, 51, 0.97), rgba(19, 25, 35, 0.94) 100%);
-  --material-dialog-card-border: rgba(182, 199, 223, 0.24);
+    linear-gradient(180deg, rgba(30, 38, 50, 0.82), rgba(20, 27, 38, 0.76) 100%);
+  --material-dialog-card-border: rgba(182, 199, 223, 0.18);
   --material-dialog-card-active-background:
     linear-gradient(180deg, rgba(142, 164, 255, 0.18), rgba(21, 28, 38, 0.92) 100%);
-  --material-dialog-card-active-border: rgba(142, 164, 255, 0.32);
+  --material-dialog-card-active-border: rgba(142, 164, 255, 0.28);
 
   --material-input-background:
     linear-gradient(180deg, rgba(27, 35, 47, 0.92), rgba(16, 22, 31, 0.88) 100%);
@@ -439,24 +429,19 @@
     0 32px 84px rgba(9, 15, 24, 0.42),
     0 8px 26px rgba(9, 15, 24, 0.22);
 
-  --material-dialog-background:
-    linear-gradient(180deg, rgba(79, 91, 105, 0.994), rgba(51, 61, 73, 0.99) 100%);
-  --material-dialog-header-background: rgba(68, 80, 94, 0.997);
-  --material-dialog-body-background: rgba(61, 72, 85, 0.998);
-  --material-dialog-footer-background: rgba(66, 78, 91, 0.997);
-  --material-dialog-border: rgba(205, 220, 240, 0.34);
-  --material-dialog-shadow:
-    0 46px 108px rgba(9, 15, 24, 0.58),
-    0 12px 32px rgba(9, 15, 24, 0.3);
-  --dialog-backdrop-color: rgba(9, 15, 24, 0.58);
-  --material-dialog-nav-background: rgba(63, 75, 89, 0.97);
-  --material-dialog-nav-border: rgba(205, 220, 240, 0.22);
+  --material-dialog-surface-background:
+    linear-gradient(180deg, rgba(76, 87, 100, 0.99), rgba(50, 60, 72, 0.985) 100%);
+  --material-dialog-surface-border: rgba(205, 220, 240, 0.26);
+  --material-dialog-surface-shadow:
+    0 26px 68px rgba(9, 15, 24, 0.44),
+    0 6px 18px rgba(9, 15, 24, 0.22);
+  --dialog-backdrop-color: rgba(9, 15, 24, 0.42);
   --material-dialog-card-background:
-    linear-gradient(180deg, rgba(75, 86, 99, 0.96), rgba(49, 59, 72, 0.93) 100%);
-  --material-dialog-card-border: rgba(205, 220, 240, 0.24);
+    linear-gradient(180deg, rgba(78, 89, 102, 0.8), rgba(56, 67, 80, 0.74) 100%);
+  --material-dialog-card-border: rgba(205, 220, 240, 0.18);
   --material-dialog-card-active-background:
     linear-gradient(180deg, rgba(154, 183, 255, 0.2), rgba(52, 63, 75, 0.9) 100%);
-  --material-dialog-card-active-border: rgba(154, 183, 255, 0.32);
+  --material-dialog-card-active-border: rgba(154, 183, 255, 0.28);
 
   --material-input-background:
     linear-gradient(180deg, rgba(53, 63, 76, 0.9), rgba(40, 49, 60, 0.86) 100%);
@@ -538,24 +523,24 @@
   --card-default-border: var(--material-card-border);
   --card-default-shadow: var(--material-card-shadow);
 
-  --modal-dialog-surface-background: var(--material-dialog-background);
-  --modal-dialog-header-background: var(--material-dialog-header-background);
-  --modal-dialog-body-background: var(--material-dialog-body-background);
-  --modal-dialog-footer-background: var(--material-dialog-footer-background);
-  --modal-dialog-surface-border: var(--material-dialog-border);
-  --modal-dialog-surface-shadow: var(--material-dialog-shadow);
-  --modal-nav-background: var(--material-dialog-nav-background);
-  --modal-nav-border: var(--material-dialog-nav-border);
-  --modal-card-background: var(--material-dialog-card-background);
-  --modal-card-border: var(--material-dialog-card-border);
+  --modal-dialog-surface-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-dialog-header-background: transparent;
+  --modal-dialog-body-background: transparent;
+  --modal-dialog-footer-background: transparent;
+  --modal-dialog-surface-border: var(--material-dialog-surface-border);
+  --modal-dialog-surface-shadow: var(--material-dialog-surface-shadow);
+  --modal-nav-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-nav-border: color-mix(in srgb, var(--divider-subtle-color) 78%, transparent);
+  --modal-card-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-card-border: color-mix(in srgb, var(--divider-subtle-color) 78%, transparent);
   --modal-card-shadow: none;
-  --modal-card-active-background: var(--material-dialog-card-active-background);
-  --modal-card-active-border: var(--material-dialog-card-active-border);
+  --modal-card-active-background: color-mix(in srgb, var(--primary) 13%, transparent);
+  --modal-card-active-border: color-mix(in srgb, var(--primary) 28%, transparent);
   --modal-card-active-shadow: none;
-  --modal-input-background: var(--material-input-background);
-  --modal-input-border: var(--material-input-border);
+  --modal-input-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-input-border: color-mix(in srgb, var(--divider-subtle-color) 82%, transparent);
   --modal-input-shadow: none;
-  --modal-input-focus-background: var(--material-input-focus-background);
+  --modal-input-focus-background: color-mix(in srgb, var(--primary) 4%, var(--modal-dialog-surface-background));
   --modal-input-focus-border: var(--material-input-focus-border);
   --modal-input-focus-shadow: none;
   --modal-divider-color: var(--divider-subtle-color);
@@ -563,7 +548,6 @@
   --modal-btn-secondary-border: var(--material-chip-border);
   --modal-btn-secondary-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
   --modal-btn-secondary-hover-border: var(--interaction-hover-border);
-
   --chip-default-background: var(--material-chip-background);
   --chip-default-border: var(--material-chip-border);
   --chip-default-shadow: var(--material-chip-shadow);

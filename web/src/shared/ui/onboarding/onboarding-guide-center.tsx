@@ -67,7 +67,7 @@ export function OnboardingGuideCenter({
           className="pointer-events-none absolute -top-13 right-2 z-20 h-[92px] w-auto select-none drop-shadow-[0_14px_20px_rgba(68,74,120,0.12)] max-[520px]:hidden"
           src="/nexus/stickers/card-top.png"
         />
-        <section className="dialog-shell radius-shell-xl flex w-full flex-col overflow-hidden">
+        <section className="dialog-shell radius-shell-md flex w-full flex-col overflow-hidden">
         <div className="dialog-header !px-4 !py-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <img

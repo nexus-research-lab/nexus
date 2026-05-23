@@ -405,7 +405,7 @@ export function AgentOptionsEditor({
           />
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable]">
           <div
             className={cn(
               "w-full px-6 py-5",
@@ -459,7 +459,7 @@ export function AgentOptionsEditor({
           on_tab_change={setActiveTab}
         />
 
-        <div className="flex-1 overflow-y-auto bg-transparent p-6">
+        <div className="flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable]">
           {content}
         </div>
       </div>
