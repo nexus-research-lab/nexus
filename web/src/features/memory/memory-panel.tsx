@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Check,
   Database,
@@ -11,17 +11,16 @@ import {
   X,
 } from "lucide-react";
 
-import { get_agents } from "@/lib/api/agent-manage-api";
 import {
-  add_memory_item_api,
-  cleanup_memory_api,
-  delete_memory_item_api,
-  get_memory_stats_api,
-  ignore_memory_item_api,
-  list_memory_items_api,
-  promote_memory_item_api,
-  search_memory_items_api,
-  update_memory_item_api,
+  add_user_memory_item_api,
+  cleanup_user_memory_api,
+  delete_user_memory_item_api,
+  get_user_memory_stats_api,
+  ignore_user_memory_item_api,
+  list_user_memory_items_api,
+  promote_user_memory_item_api,
+  search_user_memory_items_api,
+  update_user_memory_item_api,
 } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
 import { format_memory_time } from "@/features/memory/memory-utils";
@@ -30,7 +29,6 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   CapabilityFilterBar,
@@ -44,7 +42,6 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import type { Agent } from "@/types/agent/agent";
 import type { MemoryItem, MemoryStats } from "@/types/memory/memory";
 
 type FeedbackTone = "success" | "error" | "warning";
@@ -64,8 +61,6 @@ const STATUS_OPTIONS = [
 
 export function MemoryPanel() {
   const { t } = useI18n();
-  const [agents, set_agents] = useState<Agent[]>([]);
-  const [agent_id, set_agent_id] = useState("");
   const [items, set_items] = useState<MemoryItem[]>([]);
   const [stats, set_stats] = useState<MemoryStats | null>(null);
   const [status, set_status] = useState("");
@@ -79,22 +74,14 @@ export function MemoryPanel() {
   const [mutating_id, set_mutating_id] = useState("");
   const [feedback, set_feedback] = useState<FeedbackState | null>(null);
 
-  const selected_agent = useMemo(
-    () => agents.find((agent) => agent.agent_id === agent_id) ?? null,
-    [agent_id, agents],
-  );
-
   const refresh = useCallback(async () => {
-    if (!agent_id) {
-      return;
-    }
     set_loading(true);
     try {
       const [next_items, next_stats] = await Promise.all([
         query.trim()
-          ? search_memory_items_api(agent_id, query.trim(), 100)
-          : list_memory_items_api(agent_id, { limit: 200, status }),
-        get_memory_stats_api(agent_id),
+          ? search_user_memory_items_api(query.trim(), 100)
+          : list_user_memory_items_api({ limit: 200, status }),
+        get_user_memory_stats_api(),
       ]);
       set_items(next_items);
       set_stats(next_stats);
@@ -106,42 +93,19 @@ export function MemoryPanel() {
     } finally {
       set_loading(false);
     }
-  }, [agent_id, query, status]);
-
-  useEffect(() => {
-    let ignore = false;
-    void get_agents()
-      .then((next_agents) => {
-        if (ignore) {
-          return;
-        }
-        set_agents(next_agents);
-        set_agent_id((current) => current || next_agents[0]?.agent_id || "");
-      })
-      .catch((error) => {
-        if (!ignore) {
-          set_feedback({
-            tone: "error",
-            message: error instanceof Error ? error.message : "加载 Agent 失败",
-          });
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  }, [query, status]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const handle_add = async () => {
-    if (!agent_id || !new_content.trim()) {
+    if (!new_content.trim()) {
       return;
     }
     set_loading(true);
     try {
-      await add_memory_item_api(agent_id, {
+      await add_user_memory_item_api({
         title: new_title.trim(),
         content: new_content.trim(),
         kind: "LRN",
@@ -168,25 +132,22 @@ export function MemoryPanel() {
     item: MemoryItem,
     action: "promote" | "ignore" | "delete" | "save",
   ) => {
-    if (!agent_id) {
-      return;
-    }
     if (action === "delete" && !window.confirm("确定删除这条记忆？删除后不会参与召回。")) {
       return;
     }
     set_mutating_id(item.entry_id);
     try {
       if (action === "promote") {
-        await promote_memory_item_api(agent_id, item.entry_id, "memory");
+        await promote_user_memory_item_api(item.entry_id, "memory");
         set_feedback({ tone: "success", message: "记忆已提升到 MEMORY.md" });
       } else if (action === "ignore") {
-        await ignore_memory_item_api(agent_id, item.entry_id);
+        await ignore_user_memory_item_api(item.entry_id);
         set_feedback({ tone: "success", message: "候选记忆已忽略" });
       } else if (action === "delete") {
-        await delete_memory_item_api(agent_id, item.entry_id);
+        await delete_user_memory_item_api(item.entry_id);
         set_feedback({ tone: "success", message: "记忆已删除" });
       } else {
-        await update_memory_item_api(agent_id, item.entry_id, {
+        await update_user_memory_item_api(item.entry_id, {
           content: editing_content,
         });
         set_editing_id("");
@@ -205,12 +166,12 @@ export function MemoryPanel() {
   };
 
   const handle_cleanup = async () => {
-    if (!agent_id || !window.confirm("清理无有效条目关联的会话摘要和检查点？")) {
+    if (!window.confirm("清理无有效条目关联的会话摘要和检查点？")) {
       return;
     }
     set_cleaning(true);
     try {
-      const result = await cleanup_memory_api(agent_id);
+      const result = await cleanup_user_memory_api();
       set_feedback({
         tone: "success",
         message: `已清理 ${result.removed_session_files + result.removed_checkpoints + result.removed_empty_diaries} 项脏数据`,
@@ -241,26 +202,15 @@ export function MemoryPanel() {
           badge={t("capability.memory_badge", { count: stats?.total ?? items.length })}
           density="compact"
           leading={<Database className="h-4 w-4" />}
-          subtitle={selected_agent ? selected_agent.workspace_path : t("capability.memory_subtitle")}
+          subtitle={t("capability.memory_subtitle")}
           title={t("capability.memory")}
           trailing={
             <>
-              <UiSelectMenu
-                aria_label="选择记忆 Agent"
-                class_name="min-w-[160px]"
-                on_change={set_agent_id}
-                options={agents.map((agent) => ({
-                  value: agent.agent_id,
-                  label: agent.name,
-                }))}
-                size="sm"
-                value={agent_id}
-              />
-              <WorkspaceSurfaceToolbarAction disabled={loading || !agent_id} onClick={refresh}>
+              <WorkspaceSurfaceToolbarAction disabled={loading} onClick={refresh}>
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
                 {t("capability.refresh")}
               </WorkspaceSurfaceToolbarAction>
-              <WorkspaceSurfaceToolbarAction disabled={cleaning || !agent_id} onClick={handle_cleanup}>
+              <WorkspaceSurfaceToolbarAction disabled={cleaning} onClick={handle_cleanup}>
                 <Eraser className={cn("h-3.5 w-3.5", cleaning && "animate-pulse")} />
                 清理
               </WorkspaceSurfaceToolbarAction>

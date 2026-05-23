@@ -305,6 +305,15 @@ func (e *Engine) Promote(ctx context.Context, entryID string, target string) (*P
 
 // Stats 返回记忆统计。
 func (e *Engine) Stats(ctx context.Context) (MemoryStats, error) {
+	return e.scopedStats(ctx, "")
+}
+
+// ScopedStats 返回指定 scope 下的记忆统计。
+func (e *Engine) ScopedStats(ctx context.Context, scope string) (MemoryStats, error) {
+	return e.scopedStats(ctx, scope)
+}
+
+func (e *Engine) scopedStats(ctx context.Context, scope string) (MemoryStats, error) {
 	stats := MemoryStats{
 		ByStatus: map[string]int{},
 		ByKind:   map[string]int{},
@@ -317,8 +326,15 @@ func (e *Engine) Stats(ctx context.Context) (MemoryStats, error) {
 	if err != nil {
 		return stats, err
 	}
+	scope = strings.TrimSpace(scope)
 	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return stats, ctx.Err()
+		}
 		item := entryToMemoryItem(entry, 0)
+		if scope != "" && item.Scope != scope {
+			continue
+		}
 		stats.Total++
 		stats.ByStatus[item.Status]++
 		stats.ByKind[item.Kind]++
@@ -332,8 +348,14 @@ func (e *Engine) Stats(ctx context.Context) (MemoryStats, error) {
 			stats.Accessed++
 		}
 	}
-	if count, err := e.repository.CheckpointCount(); err == nil {
-		stats.Checkpointed = count
+	if scope == "" {
+		if count, err := e.repository.CheckpointCount(); err == nil {
+			stats.Checkpointed = count
+		}
+	} else if checkpoints, err := e.repository.ReadCheckpoints(); err == nil {
+		if _, ok := checkpoints.Scopes[scope]; ok {
+			stats.Checkpointed = 1
+		}
 	}
 	return stats, nil
 }

@@ -73,6 +73,18 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Post(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleInstallAgentSkill)
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/skills/{skill_name}"), s.handlers.skill.HandleUninstallAgentSkill)
 
+	s.router.Get(s.prefixPath("/memory/items"), s.handlers.memory.HandleListMemory)
+	s.router.Get(s.prefixPath("/memory/search"), s.handlers.memory.HandleSearchMemory)
+	s.router.Post(s.prefixPath("/memory/recall"), s.handlers.memory.HandleRecallMemory)
+	s.router.Post(s.prefixPath("/memory/items"), s.handlers.memory.HandleAddMemory)
+	s.router.Patch(s.prefixPath("/memory/items/{entry_id}"), s.handlers.memory.HandleUpdateMemory)
+	s.router.Delete(s.prefixPath("/memory/items/{entry_id}"), s.handlers.memory.HandleDeleteMemory)
+	s.router.Post(s.prefixPath("/memory/items/{entry_id}/promote"), s.handlers.memory.HandlePromoteMemory)
+	s.router.Post(s.prefixPath("/memory/items/{entry_id}/ignore"), s.handlers.memory.HandleIgnoreMemory)
+	s.router.Get(s.prefixPath("/memory/stats"), s.handlers.memory.HandleMemoryStats)
+	s.router.Post(s.prefixPath("/memory/cleanup"), s.handlers.memory.HandleCleanupMemory)
+	s.router.Get(s.prefixPath("/memory/session-summary"), s.handlers.memory.HandleMemorySessionSummary)
+
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
 	s.router.Post(s.prefixPath("/sessions"), s.handlers.agent.HandleCreateSession)
 	s.router.Patch(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleUpdateSession)

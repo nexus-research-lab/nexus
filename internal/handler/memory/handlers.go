@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
@@ -33,14 +34,18 @@ func New(api *handlershared.API, cfg config.Config, agents *agentpkg.Service) *H
 
 // HandleListMemory 返回结构化记忆列表。
 func (h *Handlers) HandleListMemory(writer http.ResponseWriter, request *http.Request) {
-	engine, _, ok := h.engineForRequest(writer, request)
+	engine, scope, ok := h.engineForRequest(writer, request)
 	if !ok {
 		return
+	}
+	scopeFilter := strings.TrimSpace(request.URL.Query().Get("scope"))
+	if scopeFilter == "" && scope.Kind == memorysvc.ScopeKindUser {
+		scopeFilter = scope.Key()
 	}
 	items, err := engine.List(request.Context(), memorysvc.MemoryListOptions{
 		Limit:    intQuery(request, "limit", 200),
 		Statuses: splitCSV(request.URL.Query().Get("status")),
-		Scope:    strings.TrimSpace(request.URL.Query().Get("scope")),
+		Scope:    scopeFilter,
 	})
 	if err != nil {
 		h.writeMemoryError(writer, err)
@@ -182,11 +187,23 @@ func (h *Handlers) HandleIgnoreMemory(writer http.ResponseWriter, request *http.
 
 // HandleMemoryStats 返回记忆统计。
 func (h *Handlers) HandleMemoryStats(writer http.ResponseWriter, request *http.Request) {
-	engine, _, ok := h.engineForRequest(writer, request)
+	engine, scope, ok := h.engineForRequest(writer, request)
 	if !ok {
 		return
 	}
-	stats, err := engine.Stats(request.Context())
+	scopeFilter := strings.TrimSpace(request.URL.Query().Get("scope"))
+	if scopeFilter == "" && scope.Kind == memorysvc.ScopeKindUser {
+		scopeFilter = scope.Key()
+	}
+	var (
+		stats memorysvc.MemoryStats
+		err   error
+	)
+	if scopeFilter == "" {
+		stats, err = engine.Stats(request.Context())
+	} else {
+		stats, err = engine.ScopedStats(request.Context(), scopeFilter)
+	}
 	if err != nil {
 		h.writeMemoryError(writer, err)
 		return
@@ -224,7 +241,17 @@ func (h *Handlers) HandleMemorySessionSummary(writer http.ResponseWriter, reques
 
 func (h *Handlers) engineForRequest(writer http.ResponseWriter, request *http.Request) (*memorysvc.Engine, memorysvc.MemoryScope, bool) {
 	agentID := chi.URLParam(request, "agent_id")
-	agentValue, err := h.agents.GetAgent(request.Context(), agentID)
+	defaultScopeKind := memorysvc.ScopeKindAgent
+	var (
+		agentValue *protocol.Agent
+		err        error
+	)
+	if strings.TrimSpace(agentID) == "" {
+		agentValue, err = h.agents.GetDefaultAgent(request.Context())
+		defaultScopeKind = memorysvc.ScopeKindUser
+	} else {
+		agentValue, err = h.agents.GetAgent(request.Context(), agentID)
+	}
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return nil, memorysvc.MemoryScope{}, false
@@ -233,16 +260,16 @@ func (h *Handlers) engineForRequest(writer http.ResponseWriter, request *http.Re
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return nil, memorysvc.MemoryScope{}, false
 	}
-	scope := h.scopeFromRequest(request, agentValue.AgentID)
+	scope := h.scopeFromRequest(request, agentValue.AgentID, defaultScopeKind)
 	engine := memorysvc.NewEngine(agentValue.WorkspacePath, h.memoryOptions())
 	return engine, scope, true
 }
 
-func (h *Handlers) scopeFromRequest(request *http.Request, agentID string) memorysvc.MemoryScope {
+func (h *Handlers) scopeFromRequest(request *http.Request, agentID string, defaultKind memorysvc.ScopeKind) memorysvc.MemoryScope {
 	query := request.URL.Query()
 	kind := memorysvc.ScopeKind(strings.TrimSpace(query.Get("scope_kind")))
 	if kind == "" {
-		kind = memorysvc.ScopeKindAgent
+		kind = defaultKind
 	}
 	return memorysvc.MemoryScope{
 		Kind:           kind,
