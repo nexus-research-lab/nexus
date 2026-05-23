@@ -237,12 +237,12 @@ export function PersonalSettingsPanel() {
         </section>
 
         {loading ? (
-          <section className="flex min-h-[220px] items-center justify-center border-y border-(--divider-subtle-color) bg-transparent text-(--text-soft)">
+          <section className="flex min-h-[220px] items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-(--text-soft)">
             <Loader2 className="h-5 w-5 animate-spin" />
           </section>
         ) : (
           <>
-            <section className="overflow-hidden border-y border-(--divider-subtle-color) bg-transparent">
+            <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-start">
                 <div className="min-w-0 space-y-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -304,7 +304,7 @@ export function PersonalSettingsPanel() {
               </div>
             </section>
 
-            <section className="order-last overflow-hidden border-y border-(--divider-subtle-color) bg-transparent">
+            <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -377,7 +377,7 @@ export function PersonalSettingsPanel() {
               </div>
             </section>
 
-            <section className="overflow-hidden border-y border-(--divider-subtle-color) bg-transparent">
+            <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
               <form className="grid gap-3 px-3 py-3" onSubmit={handle_change_password}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">

@@ -23,8 +23,12 @@ import {
   update_user_memory_item_api,
 } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
-import { format_memory_time } from "@/features/memory/memory-utils";
-import { MemoryStatusBadge } from "@/features/memory/memory-ui";
+import {
+  format_memory_score,
+  format_memory_time,
+  memory_scope_label,
+} from "@/features/memory/memory-utils";
+import { MemoryMetaChip, MemoryStatusBadge } from "@/features/memory/memory-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
@@ -190,8 +194,8 @@ export function MemoryPanel() {
   const stat_items: Array<[string, number]> = [
     ["总数", stats?.total ?? 0],
     ["候选", stats?.candidate ?? 0],
-    ["自动", stats?.by_status?.auto ?? 0],
-    ["已提升", stats?.by_status?.promoted ?? 0],
+    ["已访问", stats?.accessed ?? 0],
+    ["检查点", stats?.checkpointed ?? 0],
   ];
 
   return (
@@ -242,7 +246,7 @@ export function MemoryPanel() {
         <section className="mb-5 grid gap-3 sm:grid-cols-4">
           {stat_items.map(([label, value]) => (
             <div
-              className="min-w-0 border-b border-(--divider-subtle-color) pb-2 sm:border-b-0 sm:border-l sm:pl-3 sm:first:border-l-0 sm:first:pl-0"
+              className="min-w-0 rounded-[12px] border border-(--divider-subtle-color) px-3 py-2.5"
               key={label}
             >
               <div className="text-[11px] font-medium text-(--text-soft)">{label}</div>
@@ -251,7 +255,15 @@ export function MemoryPanel() {
           ))}
         </section>
 
-        <section className="border-y border-(--divider-subtle-color) py-3">
+        <section className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-3">
+          <div className="mb-2 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-[14px] font-semibold text-(--text-strong)">新增候选记忆</h2>
+              <p className="mt-0.5 text-[12px] leading-5 text-(--text-soft)">
+                写入候选区后可继续编辑、忽略或提升到 MEMORY.md。
+              </p>
+            </div>
+          </div>
           <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
             <UiInput
               onChange={(event) => set_new_title(event.target.value)}
@@ -276,7 +288,11 @@ export function MemoryPanel() {
           </div>
         </section>
 
-        <section className="mt-4 overflow-hidden border-y border-(--divider-subtle-color)">
+        <section className="mt-4 overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
+          <div className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4 py-3">
+            <h2 className="text-[14px] font-semibold text-(--text-strong)">记忆条目</h2>
+            <span className="text-[12px] font-medium text-(--text-soft)">{items.length}</span>
+          </div>
           {items.length === 0 ? (
             <UiStateBlock description="当前筛选条件下没有可管理的记忆条目。" size="sm" title="暂无记忆条目" />
           ) : (
@@ -285,7 +301,7 @@ export function MemoryPanel() {
                 const is_editing = editing_id === item.entry_id;
                 const is_mutating = mutating_id === item.entry_id;
                 return (
-                  <article className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_auto]" key={item.entry_id}>
+                  <article className="grid min-h-[132px] gap-3 px-4 py-3 md:grid-cols-[1fr_auto]" key={item.entry_id}>
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span className="truncate text-[13px] font-semibold leading-5 text-(--text-strong)">
@@ -296,16 +312,14 @@ export function MemoryPanel() {
                           <span className="text-[11px] text-(--text-soft)">{item.priority}</span>
                         ) : null}
                       </div>
-                      <div className="mt-1 text-[11px] text-(--text-soft)">
-                        {item.kind}
-                        {item.category ? ` / ${item.category}` : ""}
-                        {item.source ? ` · ${item.source}` : ""}
-                        {item.path ? ` · ${item.path}` : ""}
-                        {item.scope ? ` · ${item.scope}` : ""}
-                        {item.session_key ? ` · ${item.session_key}` : ""}
-                        {item.round_id ? ` · ${item.round_id}` : ""}
-                        {item.created_at ? ` · ${format_memory_time(item.created_at)}` : ""}
-                        {` · access ${item.access_count}`}
+                      <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                        {item.kind ? <MemoryMetaChip>{item.kind}</MemoryMetaChip> : null}
+                        {item.category ? <MemoryMetaChip>{item.category}</MemoryMetaChip> : null}
+                        {item.scope ? <MemoryMetaChip>{memory_scope_label(item.scope)}</MemoryMetaChip> : null}
+                        {item.source ? <MemoryMetaChip>{item.source}</MemoryMetaChip> : null}
+                        {item.created_at ? <MemoryMetaChip>{format_memory_time(item.created_at)}</MemoryMetaChip> : null}
+                        <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
+                        {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
                       </div>
                       {is_editing ? (
                         <UiTextarea
@@ -321,7 +335,7 @@ export function MemoryPanel() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-start gap-1">
+                    <div className="flex items-start gap-1 md:pt-0.5">
                       {is_editing ? (
                         <>
                           <UiIconButton

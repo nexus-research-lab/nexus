@@ -144,25 +144,25 @@ export function AgentOptionsSkillsTab({
     return (
       <div
         key={skill.name}
-        className="flex items-start justify-between gap-3 rounded-[15px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
+        className="flex h-[92px] items-start justify-between gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[12.5px] font-semibold leading-[1.35] text-(--text-strong)">
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[1.35] text-(--text-strong)">
               {skill.title || skill.name}
             </span>
             {isSystemManaged ? (
-              <UiBadge icon={<Lock className="h-3 w-3" />} size="xs" tone="success">
+              <UiBadge class_name="shrink-0" icon={<Lock className="h-3 w-3" />} size="xs" tone="success">
                 {t("agent_options.skills.system_builtin")}
               </UiBadge>
             ) : null}
             {isWorkspaceLocal ? (
-              <UiBadge size="xs" tone="warning">
+              <UiBadge class_name="shrink-0" size="xs" tone="warning">
                 {t("agent_options.skills.agent_workspace_only")}
               </UiBadge>
             ) : null}
             {skill.scope === "main" ? (
-              <UiBadge size="xs" tone="info">
+              <UiBadge class_name="shrink-0" size="xs" tone="info">
                 {t("agent_options.skills.main_only")}
               </UiBadge>
             ) : null}
@@ -175,11 +175,12 @@ export function AgentOptionsSkillsTab({
         </div>
 
         {skill.locked ? (
-          <UiBadge size="xs" tone="success">
+          <UiBadge class_name="mt-auto mb-auto shrink-0" size="xs" tone="success">
             {t("agent_options.skills.enabled")}
           </UiBadge>
         ) : (
           <UiButton
+            class_name="mt-auto mb-auto shrink-0"
             disabled={!!toggling}
             onClick={() => handleSkillAction(skill)}
             size="sm"

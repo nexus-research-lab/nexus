@@ -24,10 +24,11 @@ import {
   format_memory_score,
   format_memory_time,
   memory_layer_key,
-  memory_layer_label,
+  memory_scope_label,
   type MemoryLayerFilter,
 } from "@/features/memory/memory-utils";
 import {
+  MemoryMetaChip,
   MemoryMetaRow,
   MemoryStatusBadge,
 } from "@/features/memory/memory-ui";
@@ -168,16 +169,16 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
-      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1120px] grid-cols-1 gap-3 lg:grid-cols-[360px_minmax(360px,1fr)] xl:grid-cols-[380px_minmax(440px,1fr)]">
+      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1180px] grid-cols-1 gap-4 lg:grid-cols-[390px_minmax(420px,1fr)] xl:grid-cols-[420px_minmax(480px,1fr)]">
         <section className="flex min-h-0 flex-col overflow-hidden border-b border-(--divider-subtle-color) pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
-          <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
+          <div className="flex h-12 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
             <div className="flex min-w-0 items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
                 <Brain className="h-3.5 w-3.5" />
               </span>
               <span className="truncate text-sm font-semibold text-(--text-strong)">记忆</span>
-              <span className="text-[11px] font-medium text-(--text-soft)">
-                {visible_items.length}
+              <span className="truncate text-[11px] font-medium text-(--text-soft)">
+                {visible_items.length}/{items.length}
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -204,7 +205,10 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
           <div className="grid grid-cols-4 gap-2 border-b border-(--divider-subtle-color) px-3.5 py-3">
             {stat_items.map((stat) => (
-              <div className="min-w-0" key={stat.label}>
+              <div
+                className="min-w-0 rounded-[10px] border border-(--divider-subtle-color) px-2 py-2"
+                key={stat.label}
+              >
                 <div className="truncate text-[11px] font-medium leading-4 text-(--text-soft)">
                   {stat.label}
                 </div>
@@ -281,12 +285,27 @@ function MemoryItemList({
   }
   if (error) {
     return (
-      <UiStateBlock description={error} size="sm" title="记忆加载失败" tone="danger" />
+      <div className="min-h-0 flex-1 px-3 pt-4">
+        <UiStateBlock
+          description={error}
+          size="sm"
+          title="记忆加载失败"
+          tone="danger"
+          variant="plain"
+        />
+      </div>
     );
   }
   if (items.length === 0) {
     return (
-      <UiStateBlock description="当前筛选条件下没有记忆条目。" size="sm" title="暂无记忆" />
+      <div className="min-h-0 flex-1 px-3 pt-4">
+        <UiStateBlock
+          description="当前筛选条件下没有记忆条目。"
+          size="sm"
+          title="暂无记忆"
+          variant="plain"
+        />
+      </div>
     );
   }
 
@@ -297,7 +316,7 @@ function MemoryItemList({
         return (
           <UiListRow
             active={active}
-            class_name="min-h-0 rounded-none border-b border-(--divider-subtle-color) px-3.5 py-3"
+            class_name="min-h-[112px] rounded-none border-b border-(--divider-subtle-color) px-3.5 py-3"
             key={item.entry_id}
             on_click={() => on_select(item.entry_id)}
           >
@@ -307,13 +326,14 @@ function MemoryItemList({
               </span>
               <MemoryStatusBadge status={item.status} />
             </div>
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] font-medium leading-4 text-(--text-soft)">
-              <span>{memory_layer_label(item.scope)}</span>
-              {item.score !== undefined ? <span>{format_memory_score(item.score)}</span> : null}
-              <span>access {item.access_count}</span>
-              {item.created_at ? <span>{format_memory_time(item.created_at)}</span> : null}
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+              <MemoryMetaChip>{memory_scope_label(item.scope)}</MemoryMetaChip>
+              {item.kind ? <MemoryMetaChip>{item.kind}</MemoryMetaChip> : null}
+              {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
+              <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
+              {item.created_at ? <MemoryMetaChip>{format_memory_time(item.created_at)}</MemoryMetaChip> : null}
             </div>
-            <p className="mt-1.5 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-(--text-default)">
+            <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-(--text-default)">
               {item.content}
             </p>
           </UiListRow>
@@ -344,14 +364,19 @@ function MemoryItemInspector({
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden">
-      <div className="flex min-h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4">
+        <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
             <FileText className="h-3.5 w-3.5" />
           </span>
-          <span className="truncate text-sm font-semibold leading-5 text-(--text-strong)">
-            {item.title || item.entry_id}
-          </span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold leading-5 text-(--text-strong)">
+              {item.title || item.entry_id}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] font-medium leading-4 text-(--text-soft)">
+              {item.entry_id}
+            </div>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <MemoryStatusBadge status={item.status} />
@@ -373,33 +398,33 @@ function MemoryItemInspector({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium leading-4 text-(--text-soft)">
-          <span className="inline-flex items-center gap-1 rounded-md border border-(--divider-subtle-color) px-2 py-1">
-            <Database className="h-3 w-3" />
-            {memory_layer_label(item.scope)}
-          </span>
-          {item.kind ? <span>{item.kind}</span> : null}
-          {item.category ? <span>{item.category}</span> : null}
-          {item.priority ? <span>{item.priority}</span> : null}
-          {item.created_at ? (
-            <span className="inline-flex items-center gap-1">
-              <Clock3 className="h-3 w-3" />
-              {format_memory_time(item.created_at)}
-            </span>
-          ) : null}
-          <span>access {item.access_count}</span>
-          {item.score !== undefined ? <span>{format_memory_score(item.score)}</span> : null}
-        </div>
-
-        <div className="mt-4 border-y border-(--divider-subtle-color) py-3">
-          <div className="mb-1 text-[11px] font-medium leading-4 text-(--text-soft)">内容</div>
-          <p className="whitespace-pre-wrap text-[13px] leading-6 text-(--text-default)">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <section className="border-b border-(--divider-subtle-color) pb-4">
+          <div className="text-[11px] font-semibold leading-4 text-(--text-soft)">记忆内容</div>
+          <p className="mt-2 whitespace-pre-wrap text-[14px] leading-7 text-(--text-strong)">
             {item.content}
           </p>
+        </section>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <MemoryMetaChip>
+            <Database className="h-3 w-3" />
+            {memory_scope_label(item.scope)}
+          </MemoryMetaChip>
+          {item.kind ? <MemoryMetaChip>{item.kind}</MemoryMetaChip> : null}
+          {item.category ? <MemoryMetaChip>{item.category}</MemoryMetaChip> : null}
+          {item.priority ? <MemoryMetaChip>{item.priority}</MemoryMetaChip> : null}
+          {item.created_at ? (
+            <MemoryMetaChip>
+              <Clock3 className="h-3 w-3" />
+              {format_memory_time(item.created_at)}
+            </MemoryMetaChip>
+          ) : null}
+          <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
+          {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
         </div>
 
-        <dl className="mt-4 grid gap-1.5 text-[11px] leading-5">
+        <dl className="mt-4 grid gap-1.5 border-t border-(--divider-subtle-color) pt-3 text-[11px] leading-5">
           <MemoryMetaRow label="scope" value={item.scope} />
           <MemoryMetaRow label="source" value={item.source} />
           <MemoryMetaRow label="path" value={item.path} />

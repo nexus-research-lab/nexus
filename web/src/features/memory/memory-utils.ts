@@ -27,6 +27,16 @@ export function memory_layer_label(scope?: string): string {
   }
 }
 
+export function memory_scope_label(scope?: string): string {
+  if (!scope) {
+    return "Agent";
+  }
+  if (scope.startsWith("user:")) {
+    return "User";
+  }
+  return memory_layer_label(scope);
+}
+
 export function format_memory_score(score: number): string {
   return `score ${score.toFixed(2)}`;
 }
