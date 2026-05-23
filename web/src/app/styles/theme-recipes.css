@@ -10,11 +10,11 @@
 /* 中文注释：共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
 
-  /* 中文注释：表面原语只保留六类，其他组件统一映射回来，避免继续堆近义 recipe。
+  /* 中文注释：表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
    * 1. desktop-rail：桌面侧栏底面
    * 2. surface-panel：主面板
    * 3. surface-inset / surface-card：次级内容面
-   * 4. chip-default / chip-pill：轻量徽标与小按钮面
+   * 4. chip-default：小型交互面
    * 5. input-shell：输入控件面
    * 6. dialog-*：弹窗语义壳，材质必须回落到 surface / input / card 原语
    */
@@ -36,9 +36,7 @@
     box-shadow: var(--surface-panel-shadow);
   }
 
-  /* 中文注释：当 surface-panel 同时应用 liquid-glass-surface 时，
-     抑制静态伪元素高光，避免与 SDF 生成的 highlight overlay 冲突 */
-  .surface-panel:not(.liquid-glass-surface)::before {
+  .surface-panel::before {
     content: "";
     position: absolute;
     inset: 1px;
@@ -48,7 +46,7 @@
     pointer-events: none;
   }
 
-  .surface-panel:not(.liquid-glass-surface)::after {
+  .surface-panel::after {
     content: "";
     position: absolute;
     inset: -18% -8% auto -8%;
@@ -66,39 +64,18 @@
     box-shadow: none;
   }
 
-  .surface-inset {
-    --surface-muted-background: transparent;
-    --surface-muted-border: var(--divider-subtle-color);
-    --surface-muted-shadow: none;
-  }
-
-  .surface-card {
-    --surface-muted-background: transparent;
-    --surface-muted-border: var(--divider-subtle-color);
-    --surface-muted-shadow: none;
-  }
-
   .divider-subtle {
     border-color: var(--divider-subtle-color);
-  }
-
-  .chip-default,
-  .chip-pill {
-    border: 1px solid var(--surface-chip-border);
-    background: var(--surface-chip-background);
-    box-shadow: var(--surface-chip-shadow);
   }
 
   .chip-default {
     --surface-chip-background: var(--chip-default-background);
     --surface-chip-border: var(--chip-default-border);
     --surface-chip-shadow: var(--chip-default-shadow);
-  }
 
-  .chip-pill {
-    --surface-chip-background: var(--chip-pill-background);
-    --surface-chip-border: var(--chip-pill-border);
-    --surface-chip-shadow: var(--chip-pill-shadow);
+    border: 1px solid var(--surface-chip-border);
+    background: var(--surface-chip-background);
+    box-shadow: var(--surface-chip-shadow);
   }
 
   .input-shell {
@@ -120,27 +97,6 @@
     background: color-mix(in srgb, var(--input-shell-focus-background, var(--material-input-focus-background)) 62%, transparent);
     border-color: color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 96%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
-  }
-
-  .liquid-glass-surface {
-    isolation: isolate;
-  }
-
-  .liquid-glass-surface::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    border-radius: inherit;
-    background: var(--liquid-glass-highlight-background);
-    opacity: var(--liquid-glass-highlight-opacity, 0.8);
-    mix-blend-mode: screen;
-    pointer-events: none;
-  }
-
-  .liquid-glass-surface> :not(svg) {
-    position: relative;
-    z-index: 1;
   }
 
   .surface-popover {
@@ -301,37 +257,33 @@
     color: var(--text-soft);
   }
 
-  .radius-shell-xl {
-    --surface-radius: 34px;
+  .surface-radius-xl {
     border-radius: 34px;
   }
 
-  .radius-shell-lg {
-    --surface-radius: 24px;
+  .surface-radius-lg {
     border-radius: 24px;
   }
 
-  .radius-shell-md {
-    --surface-radius: 18px;
+  .surface-radius-md {
     border-radius: 18px;
   }
 
-  .radius-shell-sm {
-    --surface-radius: 14px;
+  .surface-radius-sm {
     border-radius: 14px;
   }
 
-  .segmented-pill {
-    background: var(--chip-segmented-shell-background);
-    border: 1px solid var(--chip-segmented-shell-border);
+  .segmented-control {
+    background: var(--chip-segmented-background);
+    border: 1px solid var(--chip-segmented-border);
     box-shadow: none;
   }
 
-  .segmented-pill-icon {
+  .segmented-control-icon {
     color: var(--chip-segmented-icon-color);
   }
 
-  .segmented-pill-option {
+  .segmented-control-option {
     border: 1px solid transparent;
     color: var(--chip-segmented-option-color);
     transition:
@@ -340,12 +292,12 @@
       border-color var(--motion-duration-fast) ease;
   }
 
-  .segmented-pill-option:hover {
+  .segmented-control-option:hover {
     background: var(--chip-segmented-option-hover-background);
     color: var(--chip-segmented-option-hover-color);
   }
 
-  .segmented-pill-option[data-active="true"] {
+  .segmented-control-option[data-active="true"] {
     background: var(--chip-segmented-option-active-background);
     color: var(--chip-segmented-option-active-color);
     box-shadow: none;

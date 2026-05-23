@@ -104,9 +104,6 @@
   --material-chip-shadow:
     0 6px 12px rgba(94, 108, 127, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
-  --material-pill-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(246, 250, 255, 0.38) 100%);
-  --material-pill-border: rgba(255, 255, 255, 0.28);
 
   --material-popover-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 254, 0.9) 100%);
@@ -263,9 +260,6 @@
   --material-chip-shadow:
     0 8px 16px rgba(0, 5, 12, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --material-pill-background:
-    linear-gradient(180deg, rgba(23, 30, 42, 0.78), rgba(16, 21, 31, 0.68) 100%);
-  --material-pill-border: rgba(182, 199, 223, 0.1);
 
   --material-popover-background:
     linear-gradient(180deg, rgba(25, 32, 44, 0.985), rgba(12, 17, 25, 0.96) 100%);
@@ -418,9 +412,6 @@
   --material-chip-shadow:
     0 8px 16px rgba(9, 15, 24, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --material-pill-background:
-    linear-gradient(180deg, rgba(67, 78, 90, 0.78), rgba(45, 55, 66, 0.66) 100%);
-  --material-pill-border: rgba(205, 220, 240, 0.1);
 
   --material-popover-background:
     linear-gradient(180deg, rgba(74, 86, 99, 0.97), rgba(45, 55, 66, 0.94) 100%);
@@ -554,9 +545,6 @@
   --chip-default-background: var(--material-chip-background);
   --chip-default-border: var(--material-chip-border);
   --chip-default-shadow: var(--material-chip-shadow);
-  --chip-pill-background: var(--material-pill-background);
-  --chip-pill-border: var(--material-pill-border);
-  --chip-pill-shadow: none;
 
   --button-primary-background: color-mix(in srgb, var(--primary) 82%, white 18%);
   --button-primary-border: color-mix(in srgb, var(--primary) 68%, white 32%);
@@ -569,8 +557,8 @@
   --button-tonal-hover-background: color-mix(in srgb, var(--interaction-hover-background) 92%, transparent);
   --button-tonal-hover-color: var(--text-strong);
 
-  --chip-segmented-shell-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
-  --chip-segmented-shell-border: var(--material-chip-border);
+  --chip-segmented-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
+  --chip-segmented-border: var(--material-chip-border);
   --chip-segmented-icon-color: var(--icon-default);
   --chip-segmented-option-color: var(--text-default);
   --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);

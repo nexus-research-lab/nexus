@@ -236,7 +236,7 @@ function MermaidImagePreviewDialog({
       role="dialog"
     >
       <section
-        className="dialog-shell radius-shell-md relative flex h-[88vh] w-[94vw] max-w-7xl flex-col overflow-hidden overscroll-contain animate-in zoom-in-95 duration-(--motion-duration-fast)"
+        className="dialog-shell surface-radius-md relative flex h-[88vh] w-[94vw] max-w-7xl flex-col overflow-hidden overscroll-contain animate-in zoom-in-95 duration-(--motion-duration-fast)"
         onClick={(event) => event.stopPropagation()}
       >
         <h2 className="sr-only" id="mermaid-image-preview-title">

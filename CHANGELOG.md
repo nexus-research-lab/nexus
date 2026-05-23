@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 统一 Dialog 弹窗材质、焦点锁定和键盘关闭行为，使确认、输入和业务弹窗更贴近 Web 整体设计。
 - 优化设置页分组边框、联系人技能列表等高展示、记忆列表信息密度和引导中心弹窗关闭交互。
 - 轻量化 Web tag、badge 和 token 样式，减少胶囊壳体感并统一为弱边框标记。
+- 精简 Web 基础设计系统，移除无引用的旧兼容组件、重复 scaffold 和无入口的通用 Liquid Glass 抽象。
 
 ### Fixed
 - 统一共享下拉菜单的页面与弹窗材质，弹窗内下拉跟随 Dialog 控件背景，并补齐触发器和菜单项的悬浮反馈。

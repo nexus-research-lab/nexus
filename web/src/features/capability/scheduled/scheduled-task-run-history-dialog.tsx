@@ -136,7 +136,7 @@ export function ScheduledTaskRunHistoryDialog({
       data-modal-root="true"
       role="dialog"
     >
-      <div className="dialog-shell radius-shell-md flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden">
+      <div className="dialog-shell surface-radius-md flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden">
         <div className="dialog-header">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">

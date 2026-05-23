@@ -26,7 +26,7 @@ function GuardState({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
-      <section className="surface-panel radius-shell-xl w-full max-w-[440px] border px-8 py-9 text-center">
+      <section className="surface-panel surface-radius-xl w-full max-w-[440px] border px-8 py-9 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
           N
         </div>

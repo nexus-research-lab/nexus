@@ -67,7 +67,7 @@ export function RoomMobileSurface({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <div className="px-2 pb-2 pt-2">
-        <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
+        <div className="surface-radius-lg flex items-center gap-2 px-2 py-2">
           <button
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
             onClick={on_back_to_directory}

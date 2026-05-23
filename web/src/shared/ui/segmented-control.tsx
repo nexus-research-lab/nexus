@@ -36,7 +36,7 @@ export function UiSegmentedControl<T extends string>({
     <div
       aria-label={title}
       className={cn(
-        "segmented-pill items-center gap-px rounded-full",
+        "segmented-control items-center gap-px rounded-full",
         stretch ? "flex w-full" : "inline-flex",
         density === "compact" ? "p-[1.5px]" : "p-[3px]",
         !Icon && "gap-0",
@@ -48,7 +48,7 @@ export function UiSegmentedControl<T extends string>({
       {Icon ? (
         <span
           className={cn(
-            "segmented-pill-icon flex items-center justify-center rounded-full",
+            "segmented-control-icon flex items-center justify-center rounded-full",
             density === "compact" ? "h-[21px] w-[21px]" : "h-[26px] w-[26px]",
           )}
         >
@@ -60,7 +60,7 @@ export function UiSegmentedControl<T extends string>({
         <button
           key={option.value}
           className={cn(
-            "segmented-pill-option rounded-full font-semibold tracking-[0.02em]",
+            "segmented-control-option rounded-full font-semibold tracking-[0.02em]",
             density === "compact" ? "px-[0.7rem] py-[3.5px] text-[9.5px]" : "px-1.5 py-[5px] text-[10px]",
             stretch && "min-w-0 flex-1 px-1.5 text-center",
           )}

@@ -14,7 +14,7 @@ export const DIALOG_BACKDROP_CLASS_NAME =
 
 /** 统一 popover 面板 */
 export const DIALOG_POPOVER_CLASS_NAME =
-  "surface-popover radius-shell-lg overflow-hidden";
+  "surface-popover surface-radius-lg overflow-hidden";
 
 export const DIALOG_HEADER_ICON_CLASS_NAME =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)";

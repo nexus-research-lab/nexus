@@ -472,7 +472,7 @@ function PrivateEventBubble({
           <span className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[11.5px]" : "text-[12px]")}>
             {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
           </span>
-          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
+          <span className="rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
             {action_type_label(event.action_type)}
           </span>
           <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
@@ -520,7 +520,7 @@ function ParticipantAvatarStack({
         </span>
       ))}
       {overflow_count > 0 ? (
-        <span className="absolute bottom-0 right-0 z-20 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-(--surface-elevated-background) bg-(--surface-muted-background) px-0.5 text-[8px] font-bold leading-none text-(--text-soft)">
+        <span className="absolute bottom-0 right-0 z-20 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-(--surface-elevated-background) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-0.5 text-[8px] font-bold leading-none text-(--text-soft)">
           +{overflow_count}
         </span>
       ) : null}

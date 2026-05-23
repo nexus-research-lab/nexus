@@ -231,7 +231,7 @@ export function PromptDialog({
                   onKeyDown={handle_input_key_down}
                   placeholder={placeholder}
                   rows={rows}
-                  className="dialog-input radius-shell-sm min-h-[180px] w-full resize-y px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+                  className="dialog-input surface-radius-sm min-h-[180px] w-full resize-y px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
                 />
                 <p className="pt-2 text-xs text-(--text-soft)">
                   按 <kbd className="rounded bg-black/5 px-1 py-0.5 text-[11px]">Cmd/Ctrl + Enter</kbd> 可直接保存。
@@ -245,7 +245,7 @@ export function PromptDialog({
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={handle_input_key_down}
                 placeholder={placeholder}
-                className="dialog-input radius-shell-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
+                className="dialog-input surface-radius-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
               />
             )}
           </UiDialogBody>
