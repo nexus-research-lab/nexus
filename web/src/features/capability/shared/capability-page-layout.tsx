@@ -3,6 +3,8 @@
 import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
 
 interface CapabilityPageLayoutProps {
   children: ReactNode;
@@ -19,6 +21,25 @@ interface CapabilityFilterBarProps {
 interface CapabilitySectionHeaderProps {
   count?: ReactNode;
   title: ReactNode;
+}
+
+interface CapabilityFilterSearchInputProps {
+  on_change: (value: string) => void;
+  placeholder: string;
+  value: string;
+}
+
+interface CapabilityFilterSelectProps {
+  aria_label: string;
+  class_name?: string;
+  disabled?: boolean;
+  label?: ReactNode;
+  leading?: ReactNode;
+  on_change: (value: string) => void;
+  options: UiSelectMenuOption[];
+  placeholder?: string;
+  tour_anchor?: string;
+  value: string;
 }
 
 /** 中文注释：能力区目录页共用版心和介绍区，保持技能、连接器和其它入口节奏一致。 */
@@ -39,6 +60,53 @@ export function CapabilityPageLayout({
         </p>
       </div>
       {children}
+    </div>
+  );
+}
+
+export function CapabilityFilterSearchInput({
+  on_change,
+  placeholder,
+  value,
+}: CapabilityFilterSearchInputProps) {
+  return (
+    <UiSearchInput
+      class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
+      input_class_name="text-[14px]"
+      on_change={on_change}
+      placeholder={placeholder}
+      value={value}
+    />
+  );
+}
+
+export function CapabilityFilterSelect({
+  aria_label,
+  class_name,
+  disabled,
+  label,
+  leading,
+  on_change,
+  options,
+  placeholder,
+  tour_anchor,
+  value,
+}: CapabilityFilterSelectProps) {
+  return (
+    <div
+      className={cn("shrink-0 sm:w-[184px]", class_name)}
+      data-tour-anchor={tour_anchor}
+    >
+      <UiSelectMenu
+        aria_label={aria_label}
+        disabled={disabled}
+        label={label}
+        leading={leading}
+        on_change={on_change}
+        options={options}
+        placeholder={placeholder}
+        value={value}
+      />
     </div>
   );
 }

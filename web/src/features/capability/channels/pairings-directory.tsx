@@ -17,12 +17,14 @@ import { UiBadge } from "@/shared/ui/badge";
 import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiField, UiSearchInput } from "@/shared/ui/form-control";
+import { UiField } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   CapabilityFilterBar,
+  CapabilityFilterSearchInput,
+  CapabilityFilterSelect,
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import {
@@ -177,16 +179,13 @@ export function PairingsDirectory() {
           title={t("capability.pairings_intro_title")}
         >
           <CapabilityFilterBar>
-            <UiSearchInput
-              class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
-              input_class_name="text-[14px]"
+            <CapabilityFilterSearchInput
               on_change={set_query}
               placeholder={t("capability.pairings_search_placeholder")}
               value={query}
             />
-            <UiSelectMenu
+            <CapabilityFilterSelect
               aria_label={t("capability.pairings_filter_channel_aria")}
-              class_name="shrink-0 sm:w-[148px]"
               leading={<Filter className="h-3.5 w-3.5" />}
               on_change={(value) => set_channel(value as ImChannelType | "")}
               options={[
@@ -196,12 +195,10 @@ export function PairingsDirectory() {
                   label,
                 })),
               ]}
-              size="sm"
               value={channel}
             />
-            <UiSelectMenu
+            <CapabilityFilterSelect
               aria_label={t("capability.pairings_filter_status_aria")}
-              class_name="shrink-0 sm:w-[148px]"
               on_change={(value) => set_status(value as ImPairingStatus | "")}
               options={[
                 { value: "", label: "全部状态" },
@@ -210,7 +207,6 @@ export function PairingsDirectory() {
                   label,
                 })),
               ]}
-              size="sm"
               value={status}
             />
             <div className="shrink-0 text-[12px] font-semibold text-(--text-muted) sm:ml-auto">

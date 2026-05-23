@@ -40,13 +40,15 @@ import {
   get_dialog_note_style,
 } from "@/shared/ui/dialog/dialog-styles";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiField, UiInput, UiSearchInput } from "@/shared/ui/form-control";
+import { UiField, UiInput } from "@/shared/ui/form-control";
 import { UiListActionButton } from "@/shared/ui/list-action";
 import { UiListRow } from "@/shared/ui/list-row";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   CapabilityFilterBar,
+  CapabilityFilterSearchInput,
+  CapabilityFilterSelect,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
@@ -589,16 +591,13 @@ export function ChannelsDirectory() {
           title={t("capability.channels_intro_title")}
         >
           <CapabilityFilterBar>
-            <UiSearchInput
-              class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
-              input_class_name="text-[14px]"
+            <CapabilityFilterSearchInput
               on_change={set_search_query}
               placeholder={t("capability.channels_search_placeholder")}
               value={search_query}
             />
-            <UiSelectMenu
+            <CapabilityFilterSelect
               aria_label={t("capability.channels_filter_aria")}
-              class_name="shrink-0 sm:w-[184px]"
               label={t("capability.category_label")}
               leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
               on_change={(value) => set_channel_filter(value as ChannelFilter)}

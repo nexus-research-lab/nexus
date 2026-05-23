@@ -6,7 +6,6 @@ import {
   Database,
   Eraser,
   RefreshCw,
-  Search,
   ShieldCheck,
   Trash2,
   X,
@@ -30,12 +29,14 @@ import { MemoryStatusBadge } from "@/features/memory/memory-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiInput, UiSearchInput, UiTextarea } from "@/shared/ui/form-control";
+import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   CapabilityFilterBar,
+  CapabilityFilterSearchInput,
+  CapabilityFilterSelect,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
@@ -274,6 +275,20 @@ export function MemoryPanel() {
         description={t("capability.memory_intro_description")}
         title={t("capability.memory_intro_title")}
       >
+        <CapabilityFilterBar>
+          <CapabilityFilterSearchInput
+            on_change={set_query}
+            placeholder={t("capability.memory_search_placeholder")}
+            value={query}
+          />
+          <CapabilityFilterSelect
+            aria_label={t("capability.memory_filter_status_aria")}
+            on_change={set_status}
+            options={STATUS_OPTIONS}
+            value={status}
+          />
+        </CapabilityFilterBar>
+
         <CapabilitySectionHeader title={t("capability.memory_overview_title")} />
         <section className="mb-5 grid gap-3 sm:grid-cols-4">
           {stat_items.map(([label, value]) => (
@@ -288,35 +303,6 @@ export function MemoryPanel() {
             </UiPanel>
           ))}
         </section>
-
-        <CapabilityFilterBar>
-          <UiSearchInput
-            class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
-            input_class_name="text-[14px]"
-            on_change={set_query}
-            placeholder={t("capability.memory_search_placeholder")}
-            value={query}
-          />
-          <UiSelectMenu
-            aria_label={t("capability.memory_filter_status_aria")}
-            class_name="shrink-0 sm:w-[184px]"
-            on_change={set_status}
-            options={STATUS_OPTIONS}
-            size="sm"
-            value={status}
-          />
-          <UiButton
-            class_name="shrink-0"
-            disabled={loading || !agent_id}
-            onClick={refresh}
-            tone="primary"
-            type="button"
-            variant="solid"
-          >
-            <Search className="h-3.5 w-3.5" />
-            查询
-          </UiButton>
-        </CapabilityFilterBar>
 
         <UiPanel padding="sm" variant="inset">
           <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
