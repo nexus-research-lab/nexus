@@ -94,10 +94,8 @@ export function HomeAsciiHero() {
     let clock_pad_y = 18;
     let clock_big_size = 28;
     let clock_small_size = 13;
-    let clock_meta_size = 10;
     let clock_font_big = "";
     let clock_font_small = "";
-    let clock_font_meta = "";
     let clock_hm_width = 0;
     const computed_styles = getComputedStyle(document.documentElement);
     const hero_ink = computed_styles.getPropertyValue("--primary").trim() || DEFAULT_HERO_INK;
@@ -136,10 +134,8 @@ export function HomeAsciiHero() {
       clock_pad_y = is_mobile ? 12 : 18;
       clock_big_size = Math.round(Math.min(width * 0.072, height * 0.20, 56));
       clock_small_size = Math.round(clock_big_size * 0.46);
-      clock_meta_size = Math.round(Math.min(width * 0.018, 11));
       clock_font_big = `200 ${clock_big_size}px "IBM Plex Mono", monospace`;
       clock_font_small = `200 ${clock_small_size}px "IBM Plex Mono", monospace`;
-      clock_font_meta = `400 ${clock_meta_size}px "IBM Plex Mono", monospace`;
       hero_ctx.font = clock_font_big;
       clock_hm_width = hero_ctx.measureText(`${clock_hh}:${clock_mm}`).width;
     }

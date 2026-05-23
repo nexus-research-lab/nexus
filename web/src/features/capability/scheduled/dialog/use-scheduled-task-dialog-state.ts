@@ -122,7 +122,7 @@ export function useScheduledTaskDialogState({
 
   const apply_dialog_initial_state = useCallback(() => {
     const next_state = initial_task
-      ? build_task_dialog_initial_state(agent_id, initial_task)
+      ? build_task_dialog_initial_state(initial_task)
       : build_default_dialog_initial_state(agent_id);
 
     set_task_name(next_state.task_name);

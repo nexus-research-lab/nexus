@@ -42,7 +42,7 @@ export interface AgentOptionsProps {
   initial_vibe_tags?: string[];
 }
 
-/** 中文注释：共享层只保留对话框壳体，真实编辑器和业务状态迁回 feature。 */
+/** 中文注释：共享层只保留对话框骨架，真实编辑器和业务状态迁回 feature。 */
 export function AgentOptions({
   agent_id,
   mode,

@@ -95,7 +95,6 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
-  is_loading,
   runtime_phase,
   live_round_ids,
   is_mobile_layout,
@@ -125,7 +124,6 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
         agent_name_map={agent_name_map}
         agent_avatar_map={agent_avatar_map}
         is_last_round_pending_permissions={is_last_round_pending_permissions}
-        is_loading={is_loading}
         runtime_phase={runtime_phase}
         live_round_ids={live_round_ids}
         is_mobile_layout={is_mobile_layout}
@@ -225,7 +223,6 @@ function VirtualFeed({
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
-  is_loading,
   runtime_phase,
   live_round_ids,
   is_mobile_layout,
@@ -239,7 +236,7 @@ function VirtualFeed({
   permission_read_only_reason,
   on_stop_message,
   round_ids,
-}: Omit<GroupConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
+}: Omit<GroupConversationFeedProps, "is_loading" | "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
   const container_ref = useRef<HTMLDivElement>(null);
 
   // Measure scroll container width for pretext height estimation

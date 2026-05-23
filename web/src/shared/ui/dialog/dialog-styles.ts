@@ -8,10 +8,6 @@ import {
 
 export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2.5";
 
-/** 统一弹窗 shell（圆角 + 材质） */
-export const DIALOG_SHELL_CLASS_NAME =
-  "dialog-shell radius-shell-md w-full max-w-lg animate-in fade-in zoom-in-95 duration-(--motion-duration-fast)";
-
 /** 统一弹窗遮罩 */
 export const DIALOG_BACKDROP_CLASS_NAME =
   "dialog-backdrop animate-in fade-in duration-(--motion-duration-fast)";
@@ -26,11 +22,6 @@ export const DIALOG_HEADER_ICON_CLASS_NAME =
 export const DIALOG_ICON_BUTTON_CLASS_NAME = get_ui_icon_button_class_name({
   size: "md",
   variant: "ghost",
-});
-
-export const DIALOG_TEXT_BUTTON_CLASS_NAME = get_ui_button_class_name({
-  size: "sm",
-  variant: "text",
 });
 
 export const DIALOG_EMPTY_CLASS_NAME =

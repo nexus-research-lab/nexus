@@ -91,7 +91,6 @@ function build_task_schedule_snapshot(task: ScheduledTaskItem): ScheduledTaskDia
 }
 
 export function build_task_dialog_initial_state(
-  agent_id: string,
   task: ScheduledTaskItem,
 ): ScheduledTaskDialogInitialState {
   const source_context_type = task.source?.context_type === "room" ? "room" : "agent";

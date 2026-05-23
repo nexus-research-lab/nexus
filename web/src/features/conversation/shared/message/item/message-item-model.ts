@@ -88,7 +88,6 @@ export function useMessageItemState({
   runtime_phase,
   messages,
   pending_permissions = [],
-  on_permission_response,
   hidden_tool_names = ["TodoWrite"],
   on_stop_message,
   round_id,
