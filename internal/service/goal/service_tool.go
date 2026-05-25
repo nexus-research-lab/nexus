@@ -18,7 +18,7 @@ func (s *Service) CompleteByModel(ctx context.Context, goalID string, request pr
 	return s.changeStatus(ctx, goalID, protocol.GoalStatusComplete, protocol.GoalUpdateSourceModel, "completed", request.RoundID, payload)
 }
 
-// BlockByModel 允许兼容入口把 active Goal 标记为阻塞；MCP update_goal 不暴露该状态。
+// BlockByModel 允许模型工具把 active Goal 标记为阻塞。
 func (s *Service) BlockByModel(ctx context.Context, goalID string, request protocol.BlockGoalRequest) (*protocol.Goal, error) {
 	reason := strings.TrimSpace(request.Reason)
 	payload := map[string]any{}

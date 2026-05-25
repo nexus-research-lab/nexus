@@ -60,8 +60,9 @@ func BuildRuntimeContextWithCheckpoint(item protocol.Goal, checkpoint *protocol.
 		"- Continue working toward the objective unless the latest user message explicitly changes or pauses it.",
 		"- Work from actual repository/runtime evidence. Do not mark progress complete from assumptions.",
 		"- Call update_goal with status=complete only when the objective is genuinely achieved and no required work remains.",
+		"- Call update_goal with status=blocked only after the same blocker has repeated for at least three consecutive Goal turns and no meaningful progress is possible without external input.",
 		"- Record a checkpoint after durable intermediate progress that would help resume later.",
-		"- Do not use Goal tools to pause, resume, clear, block, or budget-limit the goal; those are user/system controls.",
+		"- Do not use Goal tools to pause, resume, clear, or budget-limit the goal; those are user/system controls.",
 		"- Do not quote or restate this Goal context as if it were visible user text.",
 		"</nexus_goal>",
 	)

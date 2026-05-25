@@ -81,7 +81,36 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
 export function goal_event_label(event: GoalEvent): string {
   const label = GOAL_EVENT_LABEL[event.event_type] ?? event.event_type;
   const source = GOAL_SOURCE_LABEL[event.source] ?? event.source;
-  return `${source} · ${label}`;
+  const detail = goal_event_detail(event);
+  return detail ? `${source} · ${label}: ${detail}` : `${source} · ${label}`;
+}
+
+function goal_event_detail(event: GoalEvent): string {
+  const payload = event.payload ?? {};
+  switch (event.event_type) {
+    case "blocked":
+    case "budget_limited":
+    case "usage_limited":
+      return string_payload(payload, "reason");
+    case "continuation_scheduled": {
+      const count = number_payload(payload, "continuation_count");
+      return count !== null ? `${count}` : "";
+    }
+    case "updated":
+      return payload.objective_updated === true ? "目标已更新" : "";
+    default:
+      return "";
+  }
+}
+
+function string_payload(payload: Record<string, unknown>, key: string): string {
+  const value = payload[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function number_payload(payload: Record<string, unknown>, key: string): number | null {
+  const value = payload[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export function goal_status_tone(status: GoalStatus): {
