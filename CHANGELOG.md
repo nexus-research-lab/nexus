@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal runtime context 改为优先注入下一轮运行时上下文，bridge 暂不支持时降级为用户输入前缀；前端 Goal 面板新增运行上下文状态。
 - Goal runtime context 中的 objective 与 checkpoint 摘要按 Codex 方式转义 XML 分隔符，避免用户目标内容闭合隐藏上下文。
 - Goal app-server `thread/goal/updated` 通知补齐 turnId，模型轮次内的 Goal 更新可按触发 round 归因。
+- Goal 运行中 objective/budget steering 改为注入 `<goal_context>` 命名上下文，不再包进通用 Nexus guidance。
+- Goal `update_goal` 工具描述与续跑 prompt 统一为三轮同一阻塞条件后才能标记 blocked。
+- Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

@@ -907,6 +907,7 @@ func TestServiceQueuesObjectiveUpdateSteering(t *testing.T) {
 	}
 	item := dispatcher.items[0]
 	if item.sessionKey != created.SessionKey ||
+		item.contextName != "goal_context" ||
 		!strings.Contains(item.content, "active thread goal objective was edited") ||
 		!strings.Contains(item.content, "Updated &lt;goal&gt;") ||
 		strings.Contains(item.content, "Nexus Goal") {
@@ -939,6 +940,7 @@ func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 		t.Fatalf("guidance = %#v, want one budget limit steering item", dispatcher.items)
 	}
 	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey ||
+		item.contextName != "goal_context" ||
 		!strings.Contains(item.content, "active thread goal has reached its token budget") ||
 		!strings.Contains(item.content, "budget_limited") ||
 		!strings.Contains(item.content, "Budget work") ||
@@ -1560,9 +1562,10 @@ type fakeGuidanceDispatcher struct {
 }
 
 type fakeGuidanceItem struct {
-	sessionKey string
-	roundID    string
-	content    string
+	sessionKey  string
+	roundID     string
+	contextName string
+	content     string
 }
 
 func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKey string, roundID string, content string) ([]string, error) {
@@ -1570,6 +1573,16 @@ func (d *fakeGuidanceDispatcher) QueueGuidanceInput(_ context.Context, sessionKe
 		sessionKey: sessionKey,
 		roundID:    roundID,
 		content:    content,
+	})
+	return []string{"round-running"}, nil
+}
+
+func (d *fakeGuidanceDispatcher) QueueContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string) ([]string, error) {
+	d.items = append(d.items, fakeGuidanceItem{
+		sessionKey:  sessionKey,
+		roundID:     roundID,
+		contextName: contextName,
+		content:     content,
 	})
 	return []string{"round-running"}, nil
 }

@@ -12,6 +12,10 @@ type guidanceDispatcher interface {
 	QueueGuidanceInput(context.Context, string, string, string) ([]string, error)
 }
 
+type contextualGuidanceDispatcher interface {
+	QueueContextualGuidanceInput(context.Context, string, string, string, string) ([]string, error)
+}
+
 // SetGuidanceDispatcher 注入运行时引导队列，用于把 Goal steering 送入正在执行的 round。
 func (s *Service) SetGuidanceDispatcher(dispatcher guidanceDispatcher) {
 	s.guidance = dispatcher
@@ -29,6 +33,10 @@ func (s *Service) queueGoalSteering(ctx context.Context, item protocol.Goal, eve
 		prompt = buildBudgetLimitPrompt(item)
 	}
 	if strings.TrimSpace(prompt) == "" {
+		return
+	}
+	if dispatcher, ok := s.guidance.(contextualGuidanceDispatcher); ok {
+		_, _ = dispatcher.QueueContextualGuidanceInput(ctx, item.SessionKey, event.ID, "goal_context", prompt)
 		return
 	}
 	_, _ = s.guidance.QueueGuidanceInput(ctx, item.SessionKey, event.ID, prompt)

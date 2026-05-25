@@ -229,3 +229,33 @@ func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 		t.Fatalf("PendingGuidanceCount = %d, want 0", count)
 	}
 }
+
+func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-guide"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 client 失败: %v", err)
+	}
+	manager.StartRound(sessionKey, "round-guide", func() {})
+
+	if _, err := manager.QueueContextualGuidanceInput(context.Background(), sessionKey, "goal-event-1", "goal_context", "Budget reached."); err != nil {
+		t.Fatalf("登记 Goal 上下文失败: %v", err)
+	}
+
+	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
+	output, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-1",
+	)
+	if err != nil {
+		t.Fatalf("执行 PostToolUse hook 失败: %v", err)
+	}
+	additionalContext := output.SpecificOutput.AdditionalContext
+	if !strings.Contains(additionalContext, "<goal_context>\nBudget reached.\n</goal_context>") {
+		t.Fatalf("additionalContext 未包含 Goal context: %q", additionalContext)
+	}
+	if strings.Contains(additionalContext, "<nexus_guidance>") {
+		t.Fatalf("Goal context 不应包在 nexus_guidance 中: %q", additionalContext)
+	}
+}

@@ -27,6 +27,7 @@ import {
   goal_status_tone,
   goal_usage_total,
 } from "./goal-panel-model";
+import { GoalRunStateLine } from "./goal-panel-run-state";
 
 const GOAL_ELAPSED_TICK_MS = 1000;
 
@@ -191,20 +192,20 @@ export function GoalStatusStrip({
               <span className={cn("text-[11px] font-medium", tone.text)}>
                 {runtime_label}
               </span>
-              {latest_event ? (
-                <span className="min-w-0 truncate text-[11px] text-muted-foreground">
-                  {goal_event_label(latest_event)}
-                </span>
-              ) : null}
             </div>
             <div className="mt-1 min-w-0 break-words text-sm font-medium leading-5 text-foreground">
               {goal.objective}
             </div>
+            <GoalRunStateLine
+              goal={goal}
+              is_generating={is_generating}
+              latest_event={latest_event}
+            />
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
               {context_label ? (
                 <GoalMetricPill
                   icon={<Layers3 className="h-3.5 w-3.5 shrink-0" />}
-                  title="Goal 运行上下文状态"
+                  title="Goal 运行上下文注入状态"
                 >
                   {context_label}
                 </GoalMetricPill>

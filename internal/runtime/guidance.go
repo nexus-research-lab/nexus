@@ -11,14 +11,24 @@ import (
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 )
 
-// GuidedInput 是等待注入当前 round 的用户引导。
+// GuidedInput 是等待注入当前 round 的用户引导或运行时上下文。
 type GuidedInput struct {
-	RoundID string
-	Content string
+	RoundID     string
+	Content     string
+	ContextName string
 }
 
 // QueueGuidanceInput 把用户引导暂存到运行中 session，等待 PostToolUse hook 消费。
 func (m *Manager) QueueGuidanceInput(_ context.Context, sessionKey string, roundID string, content string) ([]string, error) {
+	return m.queueGuidanceInput(sessionKey, roundID, content, "")
+}
+
+// QueueContextualGuidanceInput 把运行时拥有的上下文暂存到运行中 session。
+func (m *Manager) QueueContextualGuidanceInput(_ context.Context, sessionKey string, roundID string, contextName string, content string) ([]string, error) {
+	return m.queueGuidanceInput(sessionKey, roundID, content, contextName)
+}
+
+func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content string, contextName string) ([]string, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return nil, nil
@@ -37,8 +47,9 @@ func (m *Manager) QueueGuidanceInput(_ context.Context, sessionKey string, round
 	}
 	sort.Strings(roundIDs)
 	state.GuidedInputs = append(state.GuidedInputs, GuidedInput{
-		RoundID: strings.TrimSpace(roundID),
-		Content: content,
+		RoundID:     strings.TrimSpace(roundID),
+		Content:     content,
+		ContextName: normalizeGuidanceContextName(contextName),
 	})
 	return roundIDs, nil
 }
@@ -138,23 +149,72 @@ func (m *Manager) drainGuidanceInputs(sessionKey string) []GuidedInput {
 
 // FormatGuidanceAdditionalContext 把待注入引导渲染成 hook additionalContext。
 func FormatGuidanceAdditionalContext(inputs []GuidedInput) string {
+	parts := make([]string, 0, 2)
+	contextBlocks := renderGuidanceContextBlocks(inputs)
+	if contextBlocks != "" {
+		parts = append(parts, contextBlocks)
+	}
+	guidanceBlock := renderUserGuidanceBlock(inputs)
+	if guidanceBlock != "" {
+		parts = append(parts, guidanceBlock)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func renderUserGuidanceBlock(inputs []GuidedInput) string {
 	lines := []string{
 		"<nexus_guidance>",
 		"用户在你执行当前 round 时补充了以下引导。请在继续下一步前结合这些要求；如果与原任务冲突，以最新引导为准。",
 	}
-	for index, input := range inputs {
+	count := 0
+	for _, input := range inputs {
+		if input.ContextName != "" {
+			continue
+		}
 		content := strings.TrimSpace(input.Content)
 		if content == "" {
 			continue
 		}
+		count++
 		if strings.TrimSpace(input.RoundID) != "" {
-			lines = append(lines, fmt.Sprintf("%d. round_id=%s: %s", index+1, strings.TrimSpace(input.RoundID), content))
+			lines = append(lines, fmt.Sprintf("%d. round_id=%s: %s", count, strings.TrimSpace(input.RoundID), content))
 		} else {
-			lines = append(lines, fmt.Sprintf("%d. %s", index+1, content))
+			lines = append(lines, fmt.Sprintf("%d. %s", count, content))
 		}
+	}
+	if count == 0 {
+		return ""
 	}
 	lines = append(lines, "</nexus_guidance>")
 	return strings.Join(lines, "\n")
+}
+
+func renderGuidanceContextBlocks(inputs []GuidedInput) string {
+	blocks := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		name := normalizeGuidanceContextName(input.ContextName)
+		content := strings.TrimSpace(input.Content)
+		if name == "" || content == "" {
+			continue
+		}
+		blocks = append(blocks, fmt.Sprintf("<%s>\n%s\n</%s>", name, content, name))
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
+func normalizeGuidanceContextName(name string) string {
+	name = strings.TrimSpace(name)
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == '_' ||
+			r == '-' {
+			continue
+		}
+		return ""
+	}
+	return name
 }
 
 func cloneSDKHooks(input map[sdkhook.Event][]sdkhook.Matcher) map[sdkhook.Event][]sdkhook.Matcher {
