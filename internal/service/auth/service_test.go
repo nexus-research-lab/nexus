@@ -205,6 +205,43 @@ func TestServiceDesktopModeBypassesPasswordAuth(t *testing.T) {
 	if status.AuthRequired || status.SetupRequired || !status.Authenticated {
 		t.Fatalf("desktop auth status 不正确: %+v", status)
 	}
+	if status.Username == nil || *status.Username != "local" {
+		t.Fatalf("desktop auth status 应返回本地用户: %+v", status)
+	}
+	if status.AuthMethod == nil || *status.AuthMethod != AuthMethodLocal {
+		t.Fatalf("desktop auth status 应返回本地认证方式: %+v", status)
+	}
+
+	avatar := "12"
+	user, err := service.UpdateProfile(ctx, UpdateProfileInput{
+		UserID: SystemUserID,
+		Avatar: &avatar,
+	})
+	if err != nil {
+		t.Fatalf("更新 desktop 本地头像失败: %v", err)
+	}
+	if user.Avatar != avatar {
+		t.Fatalf("desktop 本地头像未持久化: %+v", user)
+	}
+
+	status, err = service.BuildStatusPayload(ctx, httptest.NewRequest(http.MethodGet, "/nexus/v1/auth/status", nil))
+	if err != nil {
+		t.Fatalf("构建带头像的 desktop auth 状态失败: %v", err)
+	}
+	if status.Avatar == nil || *status.Avatar != avatar {
+		t.Fatalf("desktop auth status 应返回本地头像: %+v", status)
+	}
+
+	serverCfg := cfg
+	serverCfg.AppMode = ""
+	serverService := NewServiceWithDB(serverCfg, db)
+	serverState, err := serverService.GetState(ctx)
+	if err != nil {
+		t.Fatalf("读取 server auth 状态失败: %v", err)
+	}
+	if serverState.UserCount != 1 || serverState.PasswordUserCount != 1 {
+		t.Fatalf("本地桌面用户不应计入服务端账号状态: %+v", serverState)
+	}
 }
 
 func TestServiceDisablesAccessTokenAfterOwnerInit(t *testing.T) {
