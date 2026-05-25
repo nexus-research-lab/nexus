@@ -9,7 +9,7 @@
 
 "use client";
 
-import { ButtonHTMLAttributes, ReactNode, useEffect, useRef, useState } from "react";
+import { ButtonHTMLAttributes, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench } from "lucide-react";
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
@@ -77,15 +77,21 @@ const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {
 };
 
 export function MessageAvatar({
+  aria_label,
   avatar_url,
   children,
   size = "full",
   class_name,
+  on_click,
+  title,
 }: {
+  aria_label?: string;
   avatar_url?: string | null;
   children?: ReactNode;
   size?: MessageAvatarSize;
   class_name?: string;
+  on_click?: (event: MouseEvent<HTMLButtonElement>) => void;
+  title?: string;
 }) {
   const resolved_avatar_url = get_icon_avatar_src(avatar_url);
   const avatar_shell_class_name = cn(
@@ -97,16 +103,32 @@ export function MessageAvatar({
     AVATAR_SIZE_CLASS_MAP[size],
     class_name,
   );
+  const avatar_content = resolved_avatar_url ? (
+    <img
+      src={resolved_avatar_url}
+      alt=""
+      className="h-full w-full object-cover transition-transform duration-(--motion-duration-fast) ease-out motion-safe:hover:scale-[1.04]"
+    />
+  ) : (
+    <span className="flex h-full w-full items-center justify-center text-(--surface-avatar-foreground)">
+      {children}
+    </span>
+  );
 
-  if (resolved_avatar_url) {
+  if (on_click) {
     return (
-      <div className={avatar_shell_class_name}>
-        <img
-          src={resolved_avatar_url}
-          alt=""
-          className="h-full w-full object-cover transition-transform duration-(--motion-duration-fast) ease-out motion-safe:hover:scale-[1.04]"
-        />
-      </div>
+      <button
+        aria-label={aria_label ?? "查看头像详情"}
+        className={cn(
+          avatar_shell_class_name,
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
+        )}
+        onClick={on_click}
+        title={title}
+        type="button"
+      >
+        {avatar_content}
+      </button>
     );
   }
 
@@ -114,10 +136,11 @@ export function MessageAvatar({
     <div
       className={cn(
         avatar_shell_class_name,
-        "flex items-center justify-center text-(--surface-avatar-foreground)",
+        !resolved_avatar_url && "flex items-center justify-center text-(--surface-avatar-foreground)",
       )}
+      title={title}
     >
-      {children}
+      {avatar_content}
     </div>
   );
 }

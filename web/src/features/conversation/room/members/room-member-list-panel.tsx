@@ -1,16 +1,26 @@
 "use client";
 
-import { createPortal } from "react-dom";
-import { Plus, Trash2, Users, X } from "lucide-react";
+import { Plus, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
-  DIALOG_SHELL_CLASS_NAME,
+  DIALOG_HEADER_ICON_CLASS_NAME,
   get_dialog_action_class_name,
 } from "@/shared/ui/dialog/dialog-styles";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogCloseButton,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { get_icon_avatar_src, get_initials } from "@/lib/utils";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiIconButton } from "@/shared/ui/button";
+import { UiListRow } from "@/shared/ui/list-row";
 import { Agent } from "@/types/agent/agent";
 
 import { RoomMemberPickerDialog } from "./room-member-picker-dialog";
@@ -37,7 +47,7 @@ export function RoomMemberListPanel({
   const [is_removing, set_is_removing] = useState<string | null>(null);
   const removable_members = useMemo(() => members.slice(1), [members]);
 
-  if (!is_open || typeof document === "undefined") {
+  if (!is_open) {
     return null;
   }
 
@@ -50,41 +60,31 @@ export function RoomMemberListPanel({
     }
   };
 
-  const dialog = (
-    <>
-      <div className="dialog-backdrop z-[9998]" onClick={on_close} role="dialog" aria-modal="true">
-        <div
-          className={DIALOG_SHELL_CLASS_NAME}
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onPointerMove={(event) => event.stopPropagation()}
-          onPointerUp={(event) => event.stopPropagation()}
-          data-modal-root="true"
-        >
-          <div className="dialog-header">
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        class_name="z-[9998]"
+        labelled_by="room-members-dialog-title"
+        on_close={on_close}
+      >
+        <UiDialogShell size="md">
+          <UiDialogHeader>
             <div className="flex min-w-0 flex-1 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--text-strong) shadow-(--surface-avatar-shadow)">
+              <div className={DIALOG_HEADER_ICON_CLASS_NAME}>
                 <Users className="h-4.5 w-4.5" />
               </div>
               <div className="min-w-0">
-                <h3 className="dialog-title">{t("room.members_title")}</h3>
+                <h3 className="dialog-title" id="room-members-dialog-title">{t("room.members_title")}</h3>
                 <p className="dialog-subtitle">
                   {t("room.members_subtitle")}
                 </p>
               </div>
             </div>
-            <button
-              aria-label={t("common.close")}
-              className={DIALOG_ICON_BUTTON_CLASS_NAME}
-              onClick={on_close}
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+            <UiDialogCloseButton on_close={on_close} />
+          </UiDialogHeader>
 
-          <div className="dialog-body space-y-4">
-            <section className="dialog-card rounded-[20px] p-4">
+          <UiDialogBody class_name="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-(--text-strong)">
@@ -103,78 +103,60 @@ export function RoomMemberListPanel({
                 ) : null}
               </div>
 
-              <div className="mt-4 space-y-2">
+              <div className="space-y-1.5">
                 {members.length > 0 ? (
                   members.map((member, index) => {
-                    const avatar_src = get_icon_avatar_src(member.avatar);
                     const is_owner = index === 0;
                     const can_remove = !is_owner;
 
                     return (
-                      <div
+                      <UiListRow
                         key={member.agent_id}
-                        className="flex items-center gap-3 rounded-[16px] border border-(--divider-subtle-color) px-3.5 py-3"
-                      >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-                          {avatar_src ? (
-                            <img
-                              alt={member.name}
-                              className="h-full w-full object-cover"
-                              src={avatar_src}
-                            />
-                          ) : (
-                            get_initials(member.name)
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-(--text-strong)">
-                              {member.name}
-                            </p>
-                            {is_owner ? (
-                              <span className="inline-flex h-5 items-center rounded-full border border-(--divider-subtle-color) px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-                                {t("room.member_owner")}
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-1 text-xs text-(--text-muted)">
-                            {is_owner ? t("room.member_owner_hint") : t("room.member_collaborator_hint")}
-                          </p>
-                        </div>
-                        {can_remove ? (
-                          <button
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-(--icon-muted) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] hover:text-(--destructive)"
+                        class_name="min-h-[60px] px-2.5 py-2"
+                        description={is_owner ? t("room.member_owner_hint") : t("room.member_collaborator_hint")}
+                        leading={<UiAgentAvatar avatar={member.avatar} name={member.name} />}
+                        meta={is_owner ? (
+                          <UiBadge class_name="uppercase tracking-[0.14em]" size="xs">
+                            {t("room.member_owner")}
+                          </UiBadge>
+                        ) : null}
+                        right={can_remove ? (
+                          <UiIconButton
                             disabled={is_removing === member.agent_id}
                             onClick={() => {
                               void handle_remove_member(member.agent_id);
                             }}
-                            type="button"
+                            size="md"
                             title={t("common.remove")}
+                            tone="danger"
+                            type="button"
+                            variant="ghost"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </UiIconButton>
                         ) : (
                           <span className="w-8 shrink-0" />
                         )}
-                      </div>
+                        title={member.name}
+                      />
                     );
                   })
                 ) : (
-                  <div className="surface-inset flex items-center justify-center rounded-[16px] px-4 py-8 text-[13px] text-(--text-muted)">
+                  <div className="flex items-center justify-center rounded-[12px] px-4 py-8 text-[13px] text-(--text-muted)">
                     {t("room.no_members")}
                   </div>
                 )}
               </div>
-            </section>
+            </div>
 
             {available_agents.length === 0 && removable_members.length === 0 ? (
-              <div className="rounded-[18px] border border-(--divider-subtle-color) px-4 py-3 text-[12px] leading-6 text-(--text-muted)">
+              <div className="px-1 text-[12px] leading-6 text-(--text-muted)">
                 {t("room.no_available_members")}
               </div>
             ) : null}
-          </div>
+          </UiDialogBody>
 
-          <div className="dialog-footer">
+          <UiDialogFooter>
             <button
               className={get_dialog_action_class_name("default")}
               onClick={on_close}
@@ -182,9 +164,9 @@ export function RoomMemberListPanel({
             >
               {t("common.close")}
             </button>
-          </div>
-        </div>
-      </div>
+          </UiDialogFooter>
+        </UiDialogShell>
+      </UiDialogBackdrop>
 
       <RoomMemberPickerDialog
         agents={available_agents}
@@ -196,8 +178,6 @@ export function RoomMemberListPanel({
           });
         }}
       />
-    </>
+    </UiDialogPortal>
   );
-
-  return createPortal(dialog, document.body);
 }

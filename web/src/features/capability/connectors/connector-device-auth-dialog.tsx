@@ -1,16 +1,19 @@
 "use client";
 
-import { Check, Copy, ExternalLink, Github, Loader2, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Github, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { poll_connector_device_auth_api } from "@/lib/api/connector-api";
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
-  get_dialog_action_class_name,
-  get_dialog_note_class_name,
-  get_dialog_note_style,
-} from "@/shared/ui/dialog/dialog-styles";
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
 
 interface ConnectorDeviceAuthDialogProps {
@@ -119,66 +122,58 @@ export function ConnectorDeviceAuthDialog({
   }
 
   const auth_url = session.verification_uri_complete || session.verification_uri;
-  const dialog = (
-    <div className="dialog-backdrop z-[9999]" data-modal-root="true" role="dialog" aria-modal="true">
-      <section className="dialog-shell radius-shell-lg flex w-full max-w-md flex-col overflow-hidden">
-        <div className="dialog-header">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="dialog-card flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong)">
-              <Github className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="dialog-title">连接 GitHub</h3>
-              <p className="dialog-subtitle">在 GitHub 输入授权码完成连接。</p>
-            </div>
-          </div>
-          <button className={DIALOG_ICON_BUTTON_CLASS_NAME} aria-label="关闭" onClick={on_close} type="button">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop class_name="z-[9999]" on_close={on_close}>
+        <UiDialogShell size="sm">
+          <UiDialogHeader
+            icon={<Github className="h-5 w-5" />}
+            on_close={on_close}
+            subtitle="在 GitHub 输入授权码完成连接。"
+            title="连接 GitHub"
+          />
 
-        <div className="dialog-body space-y-4">
-          <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
-            <div className="flex items-center gap-2 text-[13px] font-medium text-(--text-default)">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span aria-live="polite">{polling_message}</span>
-            </div>
-          </div>
+          <UiDialogBody class_name="space-y-4">
+            <UiPanel padding="sm" variant="inset">
+              <div className="flex items-center gap-2 text-[13px] font-medium text-(--text-default)">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span aria-live="polite">{polling_message}</span>
+              </div>
+            </UiPanel>
 
-          <div className="surface-card rounded-[18px] px-4 py-4">
-            <div className="text-[11px] font-semibold uppercase text-(--text-soft)">GitHub code</div>
-            <div className="mt-2 flex items-center gap-3">
-              <code className="min-w-0 flex-1 select-all break-all rounded-[14px] bg-(--surface-inset-background) px-3 py-2.5 text-center text-[24px] font-black text-(--text-strong)">
-                {session.user_code}
-              </code>
-              <button
-                aria-label="复制授权码"
-                className={DIALOG_ICON_BUTTON_CLASS_NAME}
-                onClick={() => void handle_copy()}
-                type="button"
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
+            <UiPanel padding="md">
+              <div className="text-[11px] font-semibold uppercase text-(--text-soft)">GitHub code</div>
+              <div className="mt-2 flex items-center gap-3">
+                <code className="min-w-0 flex-1 select-all break-all rounded-[14px] bg-transparent px-3 py-2.5 text-center text-[24px] font-black text-(--text-strong)">
+                  {session.user_code}
+                </code>
+                <UiIconButton
+                  aria-label="复制授权码"
+                  onClick={() => void handle_copy()}
+                  type="button"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </UiIconButton>
+              </div>
+            </UiPanel>
+          </UiDialogBody>
 
-        <div className="dialog-footer">
-          <button className={get_dialog_action_class_name("default")} onClick={on_close} type="button">
-            取消
-          </button>
-          <button
-            className={get_dialog_action_class_name("primary")}
-            onClick={() => window.open(auth_url, "_blank", "noopener,noreferrer")}
-            type="button"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            打开 GitHub
-          </button>
-        </div>
-      </section>
-    </div>
+          <UiDialogFooter>
+            <UiButton onClick={on_close} type="button">
+              取消
+            </UiButton>
+            <UiButton
+              onClick={() => window.open(auth_url, "_blank", "noopener,noreferrer")}
+              tone="primary"
+              type="button"
+              variant="solid"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              打开 GitHub
+            </UiButton>
+          </UiDialogFooter>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
-
-  return createPortal(dialog, document.body);
 }

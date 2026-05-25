@@ -16,6 +16,7 @@ func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "list_scheduled_tasks",
 		Description: "列出定时任务。普通 agent 只能看到自己 agent_id 名下的任务；主智能体可传 agent_id 过滤或不传以列全部。当前会话是飞书/IM 群且未指定 agent_id/query 时，默认只列当前群相关任务。用户按名称、任务内容、投递通道/目标、执行会话、来源或状态描述任务时，可传 query 找候选；DM/Room/IM 群里的 query 会优先匹配当前会话相关任务，显式写“这里/当前会话/这个群/当前频道”会强制限定到当前会话；enabled 可筛选启用或停用任务。",
+		SearchHint:  searchHintListScheduledTasks,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

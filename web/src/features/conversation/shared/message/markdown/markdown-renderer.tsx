@@ -82,7 +82,12 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
           return null;
         }
 
-        const normalized_text = normalize_markdown_content(segment.text, resolve_file_path, on_open_workspace_file);
+        const normalized_text = normalize_markdown_content(
+          segment.text,
+          resolve_file_path,
+          on_open_workspace_file,
+          { is_streaming: should_stream },
+        );
         const key = `text-${index}`;
         const shared_props = {
           components: markdown_components,

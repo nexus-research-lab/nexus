@@ -38,6 +38,7 @@ import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn, get_icon_avatar_src } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiCounterBadge } from "@/shared/ui/badge";
 import {
   OnboardingGuideCenter,
   type OnboardingGuideCenterItem,
@@ -619,11 +620,10 @@ export function SidebarWidePanel() {
                       is_active && "fill-(--primary) stroke-(--primary)",
                     )}
                   />
-                  {tab.badge_count ? (
-                    <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[rgb(255,76,84)] px-1 text-[10px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(255,76,84,0.28)]">
-                      {tab.badge_count > 99 ? "99+" : tab.badge_count}
-                    </span>
-                  ) : null}
+                  <UiCounterBadge
+                    class_name="absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]"
+                    count={tab.badge_count ?? 0}
+                  />
                 </span>
                 <span>{tab.label}</span>
               </button>

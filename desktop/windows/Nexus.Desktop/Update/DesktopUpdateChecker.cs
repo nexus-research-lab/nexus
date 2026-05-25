@@ -197,7 +197,6 @@ internal sealed class DesktopUpdateChecker
         GitHubReleaseAsset? metadataAsset = FindWindowsMetadataAsset(release.Assets);
         GitHubReleaseAsset? installerAsset = FindWindowsInstallerAsset(release.Assets);
         GitHubReleaseAsset? installerSha256Asset = FindWindowsInstallerSha256Asset(release.Assets, installerAsset);
-        GitHubReleaseAsset? zipAsset = FindWindowsZipAsset(release.Assets);
 
         if (metadataAsset?.BrowserDownloadUrl is not null)
         {
@@ -213,7 +212,6 @@ internal sealed class DesktopUpdateChecker
                     installerAsset?.BrowserDownloadUrl,
                     installerSha256Asset?.Name,
                     installerSha256Asset?.BrowserDownloadUrl,
-                    zipAsset?.BrowserDownloadUrl,
                     release.PublishedAt,
                     release.Prerelease,
                     "github_release_metadata");
@@ -236,7 +234,6 @@ internal sealed class DesktopUpdateChecker
             installerAsset?.BrowserDownloadUrl,
             installerSha256Asset?.Name,
             installerSha256Asset?.BrowserDownloadUrl,
-            zipAsset?.BrowserDownloadUrl,
             release.PublishedAt,
             release.Prerelease,
             "github_release");
@@ -673,13 +670,6 @@ internal sealed class DesktopUpdateChecker
         });
     }
 
-    private static GitHubReleaseAsset? FindWindowsZipAsset(IEnumerable<GitHubReleaseAsset> assets) =>
-        assets.FirstOrDefault(asset =>
-        {
-            string name = asset.Name.ToLowerInvariant();
-            return name.Contains("windows", StringComparison.Ordinal) && name.EndsWith(".zip", StringComparison.Ordinal);
-        });
-
     private static string ReadExpectedSha256(string sha256Path, string installerFileName)
     {
         string? fallbackHash = null;
@@ -830,7 +820,6 @@ internal sealed record DesktopReleaseInfo(
     Uri? InstallerDownloadUrl,
     string? InstallerSha256FileName,
     Uri? InstallerSha256Url,
-    Uri? FallbackDownloadUrl,
     string? PublishedAt,
     bool IsPrerelease,
     string Source)

@@ -6,8 +6,7 @@ param(
   [string]$OutputDir = "",
   [string]$Version = "",
   [string]$BuildNumber = "",
-  [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
-  [switch]$CreateArchive
+  [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED
 )
 
 $ErrorActionPreference = "Stop"
@@ -173,7 +172,6 @@ $intermediateDir = Join-Path $windowsDir ".build/intermediates"
 $sidecarPath = Join-Path $intermediateDir "nexus-server.exe"
 $publishDir = Join-Path $intermediateDir "publish"
 $resourcesDir = Join-Path $OutputDir "Resources"
-$packageDir = Join-Path $windowsDir ".build/package"
 
 Write-Host "==> Building web/dist"
 Push-Location (Join-Path $rootDir "web")
@@ -266,17 +264,3 @@ Write-Host "Unregistered nexus:// protocol"
 Remove-Item -Recurse -Force $intermediateDir -ErrorAction SilentlyContinue
 
 Write-Host "==> Built $OutputDir"
-
-if ($CreateArchive) {
-  Write-Host "==> Creating Windows app archive"
-  New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
-  $archiveBaseName = "$AppName-windows-$appVersion-$resolvedBuildNumber"
-  $archivePath = Join-Path $packageDir "$archiveBaseName.zip"
-  $sha256Path = "$archivePath.sha256"
-  Remove-Item -Force $archivePath, $sha256Path -ErrorAction SilentlyContinue
-  Compress-Archive -Path $OutputDir -DestinationPath $archivePath -Force
-  $hash = (Get-FileHash -Algorithm SHA256 $archivePath).Hash.ToLowerInvariant()
-  "$hash  $(Split-Path -Leaf $archivePath)" | Set-Content -Encoding ASCII $sha256Path
-  Write-Host "archive: $archivePath"
-  Write-Host "sha256: $sha256Path"
-}

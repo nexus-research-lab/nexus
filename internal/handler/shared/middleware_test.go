@@ -46,6 +46,40 @@ func TestMiddlewareWritesRequestIDAndAccessLog(t *testing.T) {
 	}
 }
 
+func TestAccessLogMiddlewareRedactsSensitiveQueryValues(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	handler := RequestContextMiddleware(logger)(
+		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			writer.WriteHeader(http.StatusOK)
+		})),
+	)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/nexus/v1/agents?access_token=super-secret&token=another-secret&api_key=third-secret&limit=10",
+		nil,
+	)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	output := buffer.String()
+	for _, secret := range []string{"super-secret", "another-secret", "third-secret"} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("access log 不应泄露敏感 query 参数: %s", output)
+		}
+	}
+	for _, key := range []string{"access_token", "token", "api_key"} {
+		if !strings.Contains(output, key+"=%5Bredacted%5D") {
+			t.Fatalf("access log 未脱敏 %s: %s", key, output)
+		}
+	}
+	if !strings.Contains(output, "limit=10") {
+		t.Fatalf("access log 不应移除非敏感 query 参数: %s", output)
+	}
+}
+
 func TestRecoverMiddlewareReturnsInternalError(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))

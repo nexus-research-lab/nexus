@@ -302,7 +302,7 @@ func (s *ControlService) UpsertChannelConfig(
 	if !ok {
 		return nil, ErrChannelNotFound
 	}
-	if isPlannedChannel(channelType) {
+	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
 		return nil, errors.New("消息渠道未上线")
 	}
 	agentID := strings.TrimSpace(request.AgentID)
@@ -1202,7 +1202,7 @@ func (s *ControlService) configureRouterChannel(
 	if s.router == nil {
 		return nil
 	}
-	if isPlannedChannel(channelType) {
+	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
 		return nil
 	}
 	secrets, err := s.decryptCredentials(encrypted)
@@ -1406,10 +1406,10 @@ func channelCatalog() []ChannelCatalogItem {
 			ChannelType:   ChannelTypeFeishu,
 			Title:         "飞书",
 			BotLabel:      "飞书机器人",
-			Description:   "支持飞书群/用户消息入站和主动文本投递",
+			Description:   "未上线",
 			DocsURL:       "https://open.feishu.cn/",
-			RuntimeStatus: "ready",
-			RuntimeNote:   "支持飞书事件回调入站、配对授权、最近路由记忆，以及投递到 chat_id/open_id 等 receive_id。",
+			RuntimeStatus: "planned",
+			RuntimeNote:   "未上线：飞书消息渠道仍在测试中，前端暂不开放配置入口",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "app_id", Label: "App ID", Kind: "text", Required: true, Placeholder: "例如 cli_xxxxxxxxx"},
@@ -1462,6 +1462,16 @@ func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
 func isPlannedChannel(channelType string) bool {
 	item, ok := channelCatalogByType(channelType)
 	return ok && item.RuntimeStatus == "planned"
+}
+
+// hasHiddenChannelBackend 表示该通道前端仍展示未上线，但后端实现保留给内部测试和已有配置使用。
+func hasHiddenChannelBackend(channelType string) bool {
+	switch normalizeIMChannelType(channelType) {
+	case ChannelTypeFeishu:
+		return true
+	default:
+		return false
+	}
 }
 
 func sortedChannelTypes() []string {

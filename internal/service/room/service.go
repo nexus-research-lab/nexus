@@ -593,15 +593,40 @@ func (s *Service) normalizeDirectAgentIDs(ctx context.Context, agentIDs []string
 }
 
 func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string) ([]string, error) {
-	normalizedIDs := make([]string, 0, len(agentIDs))
-	for _, agentID := range agentIDs {
-		agentValue, err := s.ensureGroupMemberAgent(ctx, agentID)
-		if err != nil {
-			return nil, err
+	if len(agentIDs) == 0 {
+		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")
+	}
+	// Deduplicate and trim input IDs before batch fetch.
+	seen := make(map[string]struct{}, len(agentIDs))
+	cleaned := make([]string, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return nil, errors.New("agent_id 不能为空")
 		}
-		if !roomdomain.ContainsString(normalizedIDs, agentValue.AgentID) {
-			normalizedIDs = append(normalizedIDs, agentValue.AgentID)
+		if _, dup := seen[id]; !dup {
+			seen[id] = struct{}{}
+			cleaned = append(cleaned, id)
 		}
+	}
+	fetched, err := s.agents.GetAgentsByIDs(ctx, cleaned)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]protocol.Agent, len(fetched))
+	for _, a := range fetched {
+		byID[a.AgentID] = a
+	}
+	normalizedIDs := make([]string, 0, len(cleaned))
+	for _, id := range cleaned {
+		agentValue, ok := byID[id]
+		if !ok || agentValue.Status != "active" {
+			return nil, fmt.Errorf("%w: %s", agentsvc.ErrAgentNotFound, id)
+		}
+		if agentValue.IsMain {
+			return nil, fmt.Errorf("主智能体（%s）不能作为 room 成员", agentValue.Name)
+		}
+		normalizedIDs = append(normalizedIDs, agentValue.AgentID)
 	}
 	if len(normalizedIDs) == 0 {
 		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")

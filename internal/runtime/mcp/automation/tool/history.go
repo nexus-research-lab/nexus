@@ -15,6 +15,7 @@ func searchHistory(svc contract.Service, sctx contract.ServerContext) sdkmcp.Too
 	return sdkmcp.Tool{
 		Name:        "search_scheduled_task_history",
 		Description: "按名称、job_id、任务内容、投递目标、来源、动作或审计 detail 搜索当前和已删除的定时任务候选，返回可继续传给 get_scheduled_task_runs / get_scheduled_task_daily_report / get_scheduled_task_events 的 job_id。当前会话是 DM/Room/IM 群时，query 会优先匹配当前会话任务；显式写“这里/当前会话/这个群/当前频道”会强制限定到当前会话。适合用户只说“那个新闻日报/删掉的任务/发到飞书群的任务/之前的发送记录”时先定位任务。",
+		SearchHint:  searchHintSearchTaskHistory,
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{

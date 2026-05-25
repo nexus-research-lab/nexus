@@ -276,7 +276,6 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			TriggerAttachments: attachments,
 			Done:               make(chan struct{}),
 		}
-		_ = sessionRecord
 		pending = append(pending, map[string]any{
 			"agent_id":  agentID,
 			"msg_id":    msgID,
@@ -312,7 +311,14 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
+	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
+		sessionKey,
+		roomID,
+		conversationID,
+		firstNonEmpty(request.ReqID, request.RoundID),
+		request.RoundID,
+		pending,
+	))
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)

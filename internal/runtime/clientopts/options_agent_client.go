@@ -15,6 +15,7 @@ import (
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
+const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -244,7 +245,8 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 	}
 	binDir := filepath.Join(trimmedWorkspacePath, ".agents", "bin")
 	env := map[string]string{
-		"NEXUS_PROJECT_ROOT": strings.TrimSpace(appfs.Root()),
+		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
+		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,
 	}
 	currentPath := strings.TrimSpace(os.Getenv("PATH"))
 	if currentPath == "" {

@@ -386,3 +386,31 @@ export function get_latest_reply_timestamp(messages: Message[]): number | null {
   if (last && Number.isFinite(last.timestamp) && last.timestamp > 0) return last.timestamp;
   return null;
 }
+
+export interface ConversationActivitySnapshot {
+  scope_key: string;
+  latest_reply_timestamp: number | null;
+}
+
+export function build_conversation_activity_snapshot(
+  scope_key: string,
+  latest_reply_timestamp: number | null,
+): ConversationActivitySnapshot {
+  return {
+    scope_key,
+    latest_reply_timestamp,
+  };
+}
+
+/** 历史加载只建立基线；只有同一会话出现更新回复时才刷新活跃时间。 */
+export function should_emit_conversation_activity(
+  previous: ConversationActivitySnapshot | null,
+  scope_key: string,
+  latest_reply_timestamp: number | null,
+): boolean {
+  return Boolean(
+    latest_reply_timestamp &&
+      previous?.scope_key === scope_key &&
+      latest_reply_timestamp > (previous.latest_reply_timestamp ?? 0),
+  );
+}

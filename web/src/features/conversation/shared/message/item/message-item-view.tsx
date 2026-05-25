@@ -9,7 +9,7 @@
 
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import {
   Bot,
   Check,
@@ -109,8 +109,8 @@ function MessageAttachmentList({
           attachment.workspace_agent_id === workspace_agent_id;
         const title = `${attachment.file_name || attachment.workspace_path} · ${attachment.workspace_path}`;
         const class_name = cn(
-          "inline-flex max-w-[260px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-          "border-(--divider-subtle-color) bg-(--surface-inset-background) text-(--text-muted)",
+          "inline-flex max-w-[260px] items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-xs font-medium",
+          "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
           can_open
             ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
             : "cursor-default",
@@ -312,7 +312,7 @@ function PendingPermissionList({
         "mt-3 flex flex-col gap-3",
         is_room_thread_mode
           ? "border-t border-(--divider-subtle-color) pt-3"
-          : "rounded-2xl bg-(--surface-inset-background) p-3",
+          : "rounded-2xl bg-transparent p-3",
       )}
     >
       {permissions.map((permission) => (
@@ -362,6 +362,7 @@ interface MessageAssistantSectionProps {
   can_respond_to_permissions: boolean;
   permission_read_only_reason?: string;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   workspace_agent_id?: string | null;
   hidden_tool_names?: string[];
@@ -381,6 +382,7 @@ export function MessageAssistantSection({
   can_respond_to_permissions,
   permission_read_only_reason,
   on_permission_response,
+  on_open_agent_contact,
   on_open_workspace_file,
   workspace_agent_id,
   hidden_tool_names = ["TodoWrite"],
@@ -390,11 +392,18 @@ export function MessageAssistantSection({
 }: MessageAssistantSectionProps) {
   const is_room_thread_mode = assistant_content_mode === "room_thread";
   const content_workspace_agent_id = state.assistant_agent_id ?? workspace_agent_id;
+  const avatar_agent_id = state.assistant_agent_id ?? workspace_agent_id ?? null;
   const collapsed_process_file_artifacts = useWorkspaceFileArtifactsFromContent(
     state.should_render_process_callchain && !state.is_process_expanded
       ? state.process_projection.content
       : EMPTY_CONTENT_BLOCKS,
   );
+  const handle_open_agent_contact = useCallback(() => {
+    if (!avatar_agent_id) {
+      return;
+    }
+    on_open_agent_contact?.(avatar_agent_id);
+  }, [avatar_agent_id, on_open_agent_contact]);
 
   if (state.should_hide_assistant_content) {
     return null;
@@ -423,7 +432,16 @@ export function MessageAssistantSection({
           )}
         >
           {!compact ? (
-            <MessageAvatar avatar_url={current_agent_avatar}>
+            <MessageAvatar
+              aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
+              avatar_url={current_agent_avatar}
+              on_click={
+                avatar_agent_id && on_open_agent_contact
+                  ? handle_open_agent_contact
+                  : undefined
+              }
+              title={`打开 ${current_agent_name || "协作成员"} 的联络`}
+            >
               {!current_agent_avatar && <Bot className="h-4 w-4" />}
             </MessageAvatar>
           ) : null}
@@ -437,9 +455,16 @@ export function MessageAssistantSection({
             >
               {compact ? (
                 <MessageAvatar
+                  aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
                   class_name="shrink-0"
                   size="compact"
                   avatar_url={current_agent_avatar}
+                  on_click={
+                    avatar_agent_id && on_open_agent_contact
+                      ? handle_open_agent_contact
+                      : undefined
+                  }
+                  title={`打开 ${current_agent_name || "协作成员"} 的联络`}
                 >
                   {!current_agent_avatar && <Bot className="h-3 w-3" />}
                 </MessageAvatar>

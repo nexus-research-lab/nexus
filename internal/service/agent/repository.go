@@ -10,6 +10,7 @@ import (
 // Repository 定义 Agent 存储接口。
 type Repository interface {
 	ListActiveAgents(context.Context, string) ([]protocol.Agent, error)
+	ListAgentsByIDs(context.Context, string, []string) ([]protocol.Agent, error)
 	GetAgent(context.Context, string, string) (*protocol.Agent, error)
 	GetMainAgent(context.Context, string) (*protocol.Agent, error)
 	CreateAgent(context.Context, agentrepo.CreateRecord) (*protocol.Agent, error)

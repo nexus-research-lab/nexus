@@ -10,7 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
 const defaultBaseSystemPrompt = `# Nexus Base System Prompt
@@ -105,16 +104,6 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 		return "", err
 	}
 	sections = append(sections, fileSections...)
-
-	if workspacePath != "" {
-		reviewMarkdown, reviewErr := memorysvc.NewService(workspacePath).BuildReviewMarkdown(3, 6, 1200)
-		if reviewErr != nil {
-			return "", reviewErr
-		}
-		if strings.TrimSpace(reviewMarkdown) != "" {
-			sections = append(sections, "## 最近日记提醒\n"+strings.TrimSpace(reviewMarkdown))
-		}
-	}
 
 	sections = compactPromptSections(sections)
 	if len(sections) == 0 {

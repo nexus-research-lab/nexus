@@ -174,7 +174,11 @@ export function useAutomationController(
   }, [agent_id, include_all_tasks]);
 
   const refresh_all = useCallback(async () => {
-    await Promise.all([refresh_heartbeat(), refresh_tasks()]);
+    const results = await Promise.allSettled([refresh_heartbeat(), refresh_tasks()]);
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed.length > 0) {
+      console.warn("[useAutomationController] refresh_all partial failure:", failed.map((r) => r.reason));
+    }
   }, [refresh_heartbeat, refresh_tasks]);
 
   const wake_heartbeat = useCallback(async (params: WakeHeartbeatRequest = {}) => {
@@ -208,7 +212,7 @@ export function useAutomationController(
     ) {
       // 本地写入会推进 token，确保较早发起的列表刷新结果不会回滚最新任务状态。
       commit_tasks_state((current_items) => upsert_task(current_items, created_task));
-      await refresh_tasks().catch(() => undefined);
+      await refresh_tasks().catch((err: unknown) => console.debug("[useAutomationController] background refresh failed:", err));
     }
     return created_task;
   }, [agent_id, commit_tasks_state, include_all_tasks, refresh_tasks]);
@@ -221,7 +225,7 @@ export function useAutomationController(
       && (include_all_tasks || request_agent_id === updated_task.agent_id)
     ) {
       commit_tasks_state((current_items) => upsert_task(current_items, updated_task));
-      await refresh_tasks().catch(() => undefined);
+      await refresh_tasks().catch((err: unknown) => console.debug("[useAutomationController] background refresh failed:", err));
     }
     return updated_task;
   }, [agent_id, commit_tasks_state, include_all_tasks, refresh_tasks]);
@@ -231,7 +235,7 @@ export function useAutomationController(
     const deleted_task = await delete_scheduled_task_api(job_id);
     if (active_agent_id_ref.current === request_agent_id) {
       commit_tasks_state((current_items) => current_items.filter((item) => item.job_id !== job_id));
-      await refresh_tasks().catch(() => undefined);
+      await refresh_tasks().catch((err: unknown) => console.debug("[useAutomationController] background refresh failed:", err));
     }
     return deleted_task;
   }, [agent_id, commit_tasks_state, refresh_tasks]);
@@ -246,7 +250,7 @@ export function useAutomationController(
       && (include_all_tasks || request_agent_id === updated_task.agent_id)
     ) {
       commit_tasks_state((current_items) => upsert_task(current_items, updated_task));
-      await refresh_tasks().catch(() => undefined);
+      await refresh_tasks().catch((err: unknown) => console.debug("[useAutomationController] background refresh failed:", err));
     }
     return updated_task;
   }, [agent_id, commit_tasks_state, include_all_tasks, refresh_tasks]);
@@ -255,13 +259,13 @@ export function useAutomationController(
     const request_agent_id = agent_id;
     const result = await run_scheduled_task_api(task.job_id);
     if (active_agent_id_ref.current === request_agent_id) {
-      await refresh_tasks().catch(() => undefined);
+      await refresh_tasks().catch((err: unknown) => console.debug("[useAutomationController] background refresh failed:", err));
     }
     return result;
   }, [agent_id, refresh_tasks]);
 
   useEffect(() => {
-    void refresh_all().catch(() => undefined);
+    void refresh_all().catch((err: unknown) => console.debug("[useAutomationController] initial load failed:", err));
   }, [refresh_all]);
 
   const visible_heartbeat = heartbeat?.agent_id === agent_id ? heartbeat : null;

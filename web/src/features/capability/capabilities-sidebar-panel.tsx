@@ -14,7 +14,6 @@ import {
   type LucideIcon,
   Puzzle,
   Radio,
-  Search,
   Users2,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_capability_summary_api, type CapabilitySummary } from "@/lib/api/capability-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiSearchInput } from "@/shared/ui/form-control";
 import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
 
@@ -189,16 +189,15 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <label className="relative block pb-2">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-[calc(50%+4px)] text-(--icon-muted)" />
-        <input
-          className="h-9 w-full rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] pl-8 pr-3 text-[13px] text-(--text-strong) outline-none transition-[border-color,background] duration-(--motion-duration-fast) placeholder:text-(--text-soft) focus:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_92%,transparent)] focus:bg-(--surface-elevated-background) focus:shadow-none"
-          onChange={(event) => set_query(event.target.value)}
+      <div className="pb-2">
+        <UiSearchInput
+          class_name="w-full"
+          input_class_name="text-[13px]"
+          on_change={set_query}
           placeholder={t("sidebar.search_capabilities")}
-          type="search"
           value={query}
         />
-      </label>
+      </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1">
         {filtered_capability_items.length > 0 ? (

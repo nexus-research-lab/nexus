@@ -7,6 +7,10 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
 import { is_desktop_bridge_available, open_desktop_route } from "@/lib/desktop-bridge";
 import { complete_connector_o_auth_api } from "@/lib/api/connector-api";
+import {
+  publish_connector_oauth_event,
+  type ConnectorOAuthEventType,
+} from "@/features/capability/connectors/connector-oauth-events";
 
 /** OAuth 回调专用页面，位于弹窗内，负责把结果回传给 opener 并自行关闭。 */
 export function ConnectorOAuthCallbackPage() {
@@ -26,22 +30,28 @@ export function ConnectorOAuthCallbackPage() {
     const error = params.get("error");
     const error_description = params.get("error_description");
 
-    const post_and_close = (
-      type: "connector-oauth:success" | "connector-oauth:error",
-      msg: string,
-    ) => {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ type, message: msg }, window.location.origin);
+    const close_callback_window = (msg: string) => {
+      set_message(`${msg}，正在关闭窗口……`);
+      window.setTimeout(() => {
         window.close();
-        return;
-      }
-      set_message(msg);
+      }, 120);
+      window.setTimeout(() => {
+        set_message(`${msg}，可以手动关闭此窗口`);
+      }, 800);
+    };
+
+    const post_and_close = (type: ConnectorOAuthEventType, msg: string) => {
+      publish_connector_oauth_event(type, msg);
+      close_callback_window(msg);
     };
 
     const complete_success = async () => {
       if (is_desktop_bridge_available()) {
-        await open_desktop_route(AppRouteBuilders.connectors());
-        return;
+        try {
+          await open_desktop_route(AppRouteBuilders.connectors());
+        } catch {
+          // OAuth 已经完成，返回主窗口失败不应该阻止回调页关闭。
+        }
       }
       post_and_close("connector-oauth:success", "连接成功");
     };

@@ -76,3 +76,23 @@ func TestServiceLifecycle(t *testing.T) {
 		t.Fatalf("长期规则未写入 AGENTS.md: %s", string(content))
 	}
 }
+
+func TestServiceLogDoesNotAutoPromotePreference(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspace, "memory"), 0o755); err != nil {
+		t.Fatalf("创建 memory 目录失败: %v", err)
+	}
+
+	logged, err := NewService(workspace).Log("LRN", "用户偏好", "preference", []Field{
+		{Key: "详情", Value: "默认使用中文回复。"},
+	}, "")
+	if err != nil {
+		t.Fatalf("记录偏好记忆失败: %v", err)
+	}
+	if logged.Promoted != nil || logged.Status == "promoted" {
+		t.Fatalf("未显式提升的偏好不应自动进入热记忆: %+v", logged)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "SOUL.md")); !os.IsNotExist(err) {
+		t.Fatalf("未显式提升时不应创建 SOUL.md: %v", err)
+	}
+}

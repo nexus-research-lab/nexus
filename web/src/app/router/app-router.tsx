@@ -99,6 +99,7 @@ export function AppRouter() {
 
                   {/* 能力子路由 */}
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
+                  <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connector_detail} />
                   <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />
                   <Route element={<ChannelsPage />} path={APP_ROUTE_PATHS.channels} />
                   <Route element={<PairingsPage />} path={APP_ROUTE_PATHS.pairings} />

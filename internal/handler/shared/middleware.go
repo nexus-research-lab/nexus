@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -141,7 +142,7 @@ func AccessLogMiddleware() func(http.Handler) http.Handler {
 				"path", request.URL.Path,
 			}
 			if rawQuery := strings.TrimSpace(request.URL.RawQuery); rawQuery != "" {
-				fields = append(fields, "query", rawQuery)
+				fields = append(fields, "query", sanitizeQueryForLog(rawQuery))
 			}
 
 			switch {
@@ -315,6 +316,20 @@ func ClientIP(request *http.Request) string {
 		return host
 	}
 	return strings.TrimSpace(request.RemoteAddr)
+}
+
+// sanitizeQueryForLog 脱敏 URL 查询字符串中的 token 类参数，防止凭证写入访问日志。
+func sanitizeQueryForLog(rawQuery string) string {
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "[unparseable]"
+	}
+	for _, key := range []string{"access_token", "token", "api_key", "secret", "password"} {
+		if values.Has(key) {
+			values.Set(key, "[redacted]")
+		}
+	}
+	return values.Encode()
 }
 
 func generateRequestID() string {

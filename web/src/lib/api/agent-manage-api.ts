@@ -9,7 +9,6 @@
 
 import {
   Agent,
-  AgentRuntimeStatus,
   AgentNameValidationResult,
   ApiAgent,
   CreateAgentParams,

@@ -11,6 +11,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 
 function GuardState({
   title,
@@ -25,7 +26,7 @@ function GuardState({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
-      <section className="surface-panel radius-shell-xl w-full max-w-[440px] border px-8 py-9 text-center">
+      <section className="surface-panel surface-radius-xl w-full max-w-[440px] border px-8 py-9 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
           N
         </div>
@@ -33,7 +34,10 @@ function GuardState({
         <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
         {action_label && on_action ? (
           <button
-            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-(--button-primary-border) bg-(--button-primary-background) px-5 text-[14px] font-semibold text-(--button-primary-color) transition hover:bg-(--button-primary-hover-background)"
+            className={get_ui_button_class_name(
+              { size: "lg", tone: "primary", variant: "solid" },
+              "mt-5 rounded-full px-5 text-[14px]",
+            )}
             onClick={on_action}
             type="button"
           >
@@ -49,7 +53,7 @@ export function AuthGuard() {
   const location = useLocation();
   const { status, is_bootstrapped, error, refresh_status } = useAuth();
   const handle_refresh = () => {
-    void refresh_status().catch(() => undefined);
+    void refresh_status().catch((err: unknown) => console.warn("[AuthGuard] Auth refresh failed:", err));
   };
 
   if (!is_bootstrapped) {

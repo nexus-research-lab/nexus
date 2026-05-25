@@ -1,6 +1,6 @@
 /**
- * 连接器图标映射 —— 将 connector icon key 映射为颜色和首字母/emoji。
- * 前端不引入真实品牌 SVG，用颜色 + 字母代替。
+ * 连接器图标映射 —— 将 connector icon key 映射为兜底颜色和首字母/emoji。
+ * 有真实品牌图形时由 ConnectorIcon 直接渲染；没有时回退到这里的方案。
  */
 
 /** 连接器品牌配色 */
@@ -11,6 +11,7 @@ const CONNECTOR_ICON_COLORS: Record<string, { bg: string; text: string }> = {
   shopify: { bg: "bg-green-50", text: "text-green-700" },
   instagram: { bg: "bg-pink-50", text: "text-pink-600" },
   github: { bg: "bg-slate-100", text: "text-slate-800" },
+  "feishu-docx": { bg: "bg-sky-50", text: "text-sky-700" },
   "google-calendar": { bg: "bg-blue-50", text: "text-blue-600" },
   "google-drive": { bg: "bg-amber-50", text: "text-amber-600" },
   youtube: { bg: "bg-red-50", text: "text-red-600" },
@@ -42,6 +43,7 @@ const CONNECTOR_ICON_LETTERS: Record<string, string> = {
   shopify: "S",
   instagram: "IG",
   github: "GH",
+  "feishu-docx": "飞",
   "google-calendar": "GC",
   "google-drive": "GD",
   youtube: "YT",

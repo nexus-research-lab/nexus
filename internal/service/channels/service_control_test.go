@@ -10,17 +10,14 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
-func TestChannelCatalogMarksOnlyUnavailableChannelsPlanned(t *testing.T) {
+func TestChannelCatalogKeepsFeishuFrontendPlanned(t *testing.T) {
 	for _, item := range channelCatalog() {
-		if item.ChannelType == ChannelTypeFeishu {
-			if item.RuntimeStatus == "planned" {
-				t.Fatalf("飞书主动投递已上线，不应标记为未上线")
-			}
-			continue
-		}
 		if item.RuntimeStatus != "planned" {
 			t.Fatalf("%s 应标记为未上线，实际 runtime_status=%s", item.ChannelType, item.RuntimeStatus)
 		}
+	}
+	if !hasHiddenChannelBackend(ChannelTypeFeishu) {
+		t.Fatal("飞书前端未上线时仍应保留隐藏后端能力")
 	}
 }
 

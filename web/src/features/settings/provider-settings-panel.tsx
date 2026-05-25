@@ -25,7 +25,9 @@ import {
 } from "@/lib/api/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type {
@@ -54,10 +56,18 @@ const SETTINGS_TABS: { key: SettingsTabKey; label_key: "settings.tabs.providers"
   { key: "providers", label_key: "settings.tabs.providers" },
 ];
 
-const PROVIDER_ACTION_BUTTON_CLASS_NAME = "inline-flex h-9 items-center justify-center rounded-xl border px-3 text-sm font-medium tracking-tight transition-[border-color,background,color,box-shadow,transform] duration-(--motion-duration-fast) ease-out disabled:pointer-events-none disabled:opacity-(--disabled-opacity)";
-const PROVIDER_SAVE_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} border-(--surface-interactive-active-border) bg-primary text-white shadow-[0_8px_24px_rgba(16,185,129,0.16)] hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(16,185,129,0.22)]`;
-const PROVIDER_SECONDARY_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} border-(--divider-subtle-color) bg-(--surface-base-background) text-(--text-strong) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)`;
-const PROVIDER_DANGER_BUTTON_CLASS_NAME = `${PROVIDER_ACTION_BUTTON_CLASS_NAME} border-[rgba(239,68,68,0.22)] bg-[rgba(239,68,68,0.06)] text-[rgb(220,38,38)] hover:border-[rgba(239,68,68,0.32)] hover:bg-[rgba(239,68,68,0.1)]`;
+const PROVIDER_SAVE_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "primary", variant: "solid" },
+  "tracking-tight",
+);
+const PROVIDER_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", variant: "surface" },
+  "tracking-tight",
+);
+const PROVIDER_DANGER_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "danger", variant: "surface" },
+  "tracking-tight",
+);
 
 function build_provider_draft(is_first_provider: boolean): ProviderDraft {
   return {
@@ -246,6 +256,15 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       set_selected_provider(null);
     }
     set_draft(build_provider_draft(!providers.some((item) => item.provider_kind === "llm")));
+  }, [providers]);
+
+  const handle_provider_kind_change = useCallback((value: string) => {
+    const provider_kind = value === "image_generation" ? "image_generation" : "llm";
+    set_draft((current) => ({
+      ...current,
+      provider_kind,
+      is_default: !providers.some((item) => item.provider_kind === provider_kind),
+    }));
   }, [providers]);
 
   const handle_cancel = useCallback(() => {
@@ -451,7 +470,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             </span>
                           </div>
                           <div className="flex items-end justify-end">
-                            <span className="chip-default inline-flex min-w-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium">
+                            <span className="inline-flex min-w-[58px] shrink-0 items-center justify-center whitespace-nowrap rounded-[6px] border border-(--divider-subtle-color) bg-transparent px-2 py-0.5 text-[10px] font-medium text-(--text-muted)">
                               {t("settings.providers.usage", { count: item.usage_count })}
                             </span>
                           </div>
@@ -471,7 +490,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     type="button"
                   >
                     <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-(--surface-interactive-active-border) bg-(--surface-inset-background) text-primary">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-(--surface-interactive-active-border) bg-transparent text-primary">
                         <Plus className="h-3.5 w-3.5" />
                       </div>
                       {t("settings.providers.add_provider")}
@@ -486,7 +505,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
             {is_empty_mode ? (
               <div className="flex min-h-[360px] flex-1 items-center justify-center">
                 <div className="text-center">
-                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-(--divider-subtle-color) bg-(--surface-inset-background) text-primary">
+                  <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-(--divider-subtle-color) bg-transparent text-primary">
                     <Plus className="h-4 w-4" />
                   </div>
                   <p className="mt-3 text-sm font-semibold text-(--text-strong)">
@@ -537,20 +556,17 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="text-[11px] font-semibold text-(--text-muted)">
                         {t("settings.providers.kind")}
                       </span>
-                      <select
-                        className="dialog-input h-9 w-full rounded-xl px-3 text-sm text-(--text-strong) outline-none"
-                        onChange={(event) => set_draft((current) => ({
-                          ...current,
-                          provider_kind: event.target.value === "image_generation" ? "image_generation" : "llm",
-                          is_default: event.target.value === "image_generation"
-                            ? !providers.some((item) => item.provider_kind === "image_generation")
-                            : !providers.some((item) => item.provider_kind === "llm"),
-                        }))}
+                      <UiSelectMenu
+                        aria_label={t("settings.providers.kind")}
+                        class_name="h-9"
+                        on_change={handle_provider_kind_change}
+                        options={[
+                          { value: "llm", label: t("settings.providers.kind_llm") },
+                          { value: "image_generation", label: t("settings.providers.kind_image_generation") },
+                        ]}
+                        size="sm"
                         value={draft.provider_kind}
-                      >
-                        <option value="llm">{t("settings.providers.kind_llm")}</option>
-                        <option value="image_generation">{t("settings.providers.kind_image_generation")}</option>
-                      </select>
+                      />
                     </label>
 
                     <label className="space-y-1.5 md:col-span-2">

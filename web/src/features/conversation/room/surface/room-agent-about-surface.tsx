@@ -9,19 +9,36 @@
 
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Album,
+  Handshake,
+  ToolCase,
+  UserPen,
+  type LucideIcon,
+} from "lucide-react";
 
+import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
+import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
+import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { AgentIdentityDraft, AgentNameValidationResult, AgentOptions, Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { RoomAgentSwitcher } from "./room-agent-switcher";
 
+type RoomAgentPanelTabKey = TabKey | "private_domain";
+
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
+  room_id: string | null;
+  conversation_id: string | null;
   room_members: Agent[];
   header_action?: ReactNode;
   is_visible: boolean;
+  requested_agent_id?: string | null;
+  requested_tab?: RoomAgentPanelTabKey;
+  request_key?: number;
   on_save_agent_options: (
     agent_id: string,
     title: string,
@@ -36,18 +53,25 @@ interface RoomAgentAboutSurfaceProps {
 
 export function RoomAgentAboutSurface({
   agent,
+  room_id,
+  conversation_id,
   room_members,
   header_action,
   is_visible,
+  requested_agent_id,
+  requested_tab,
+  request_key,
   on_save_agent_options,
   on_validate_agent_name,
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selected_agent_id, set_selected_agent_id] = useState(agent.agent_id);
+  const [active_tab, set_active_tab] = useState<RoomAgentPanelTabKey>("private_domain");
 
   useEffect(() => {
-    set_selected_agent_id(agent.agent_id);
-  }, [agent.agent_id]);
+    set_selected_agent_id(requested_agent_id ?? agent.agent_id);
+    set_active_tab(requested_tab ?? "private_domain");
+  }, [agent.agent_id, request_key, requested_agent_id, requested_tab]);
 
   const selected_agent = useMemo(() => {
     return room_members.find((member) => member.agent_id === selected_agent_id) ?? agent;
@@ -91,30 +115,85 @@ export function RoomAgentAboutSurface({
     <WorkspaceSurfaceView
       action={header_action}
       body_class_name="flex min-h-0 flex-1 flex-col px-0 py-0"
+      body_scrollable={false}
+      content_class_name="flex h-full min-h-0 flex-1 flex-col"
       eyebrow={t("room.about")}
       max_width_class_name="max-w-none"
       show_eyebrow={false}
       title={t("room.about")}
       title_trailing={title_trailing}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <AgentOptionsEditor
-          agent_id={selected_agent.agent_id}
-          mode="edit"
-          is_active={is_visible}
-          on_save={handle_save}
-          on_validate_name={handle_validate_name}
-          initial_title={selected_agent.name}
-          initial_options={initial_options}
-          initial_avatar={selected_agent.avatar ?? ""}
-          initial_description={selected_agent.description ?? ""}
-          initial_vibe_tags={selected_agent.vibe_tags ?? []}
-          content_max_width_class_name="max-w-[860px]"
-          show_cancel_button={false}
-          show_delete_button={false}
-          variant="inline"
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        <RoomAgentPanelTabs
+          active_tab={active_tab}
+          on_change={set_active_tab}
         />
+        {active_tab === "private_domain" ? (
+          <AgentPrivateDomainView
+            agent={selected_agent}
+            conversation_id={conversation_id}
+            room_id={room_id}
+            variant="preview"
+          />
+        ) : (
+          <AgentOptionsEditor
+            active_tab={active_tab}
+            agent_id={selected_agent.agent_id}
+            content_max_width_class_name="max-w-[860px]"
+            hide_inline_nav
+            initial_avatar={selected_agent.avatar ?? ""}
+            initial_description={selected_agent.description ?? ""}
+            initial_options={initial_options}
+            initial_title={selected_agent.name}
+            initial_vibe_tags={selected_agent.vibe_tags ?? []}
+            is_active={is_visible}
+            mode="edit"
+            on_save={handle_save}
+            on_tab_change={set_active_tab}
+            on_validate_name={handle_validate_name}
+            show_cancel_button={false}
+            show_delete_button={false}
+            variant="inline"
+          />
+        )}
       </div>
     </WorkspaceSurfaceView>
+  );
+}
+
+const ROOM_AGENT_PANEL_TABS: Array<{
+  key: RoomAgentPanelTabKey;
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { key: "private_domain", label: "联络", icon: Handshake },
+  { key: "identity", label: "身份", icon: UserPen },
+  { key: "advanced", label: "工具", icon: ToolCase },
+  { key: "skills", label: "技能", icon: Album },
+];
+
+function RoomAgentPanelTabs({
+  active_tab,
+  on_change,
+}: {
+  active_tab: RoomAgentPanelTabKey;
+  on_change: (tab: RoomAgentPanelTabKey) => void;
+}) {
+  return (
+    <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
+      <UiUnderlineTabs
+        active_value={active_tab}
+        aria_label="Agent 面板切换"
+        class_name="-mx-0.5 flex-1 px-0.5"
+        item_class_name="h-full"
+        on_change={on_change}
+        options={ROOM_AGENT_PANEL_TABS.map((item) => ({
+          icon: item.icon,
+          label: item.label,
+          title: item.label,
+          value: item.key,
+        }))}
+      />
+    </div>
   );
 }

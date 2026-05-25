@@ -24,6 +24,7 @@ interface GroupRoundCardGroupProps {
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
   on_stop_message?: (msg_id: string) => void;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
 
@@ -43,6 +44,7 @@ function GroupCompletedReply(
     assistant_messages,
     is_thread_active,
     on_click_thread,
+    on_open_agent_contact,
     on_open_workspace_file,
   }: {
     round_id: string;
@@ -52,6 +54,7 @@ function GroupCompletedReply(
     assistant_messages: AssistantMessage[];
     is_thread_active: boolean;
     on_click_thread: () => void;
+    on_open_agent_contact?: (agent_id: string) => void;
     on_open_workspace_file?: (path: string) => void;
   }) {
   const messages_for_render = useMemo<Message[]>(
@@ -70,6 +73,7 @@ function GroupCompletedReply(
         assistant_content_mode="room_result"
         is_last_round={false}
         is_loading={false}
+        on_open_agent_contact={on_open_agent_contact}
         on_open_workspace_file={on_open_workspace_file}
         assistant_header_action={(
           <button
@@ -77,7 +81,7 @@ function GroupCompletedReply(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
               is_thread_active
                 ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
-                : "border-(--divider-subtle-color) bg-(--material-chip-background) text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
+                : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
             onClick={on_click_thread}
             type="button"
@@ -111,6 +115,7 @@ function GroupRoundCardGroupInner(
     can_respond_to_permissions = true,
     permission_read_only_reason,
     on_stop_message,
+    on_open_agent_contact,
     on_open_workspace_file,
   }: GroupRoundCardGroupProps) {
   const {active_thread, close_thread, open_thread} = useGroupThread();
@@ -180,6 +185,7 @@ function GroupRoundCardGroupInner(
             assistant_messages={entry.assistant_messages}
             is_thread_active={is_thread_active}
             on_click_thread={() => toggle_thread(entry.agent_id)}
+            on_open_agent_contact={on_open_agent_contact}
             on_open_workspace_file={on_open_workspace_file}
           />
         );
@@ -211,6 +217,7 @@ function GroupRoundCardGroupInner(
                       on_permission_response={on_permission_response}
                       can_respond_to_permissions={can_respond_to_permissions}
                       permission_read_only_reason={permission_read_only_reason}
+                      on_open_agent_contact={on_open_agent_contact}
                       on_stop_message={
                         entry.pending_slot && on_stop_message && is_agent_round_active(entry.status)
                           ? () => on_stop_message(entry.pending_slot!.msg_id)

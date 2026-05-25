@@ -198,7 +198,7 @@ export function RoomWorkspaceView(
               />
 
               <div
-                className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
+                className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-[7px] border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
                 {focused_directory_path ? (
                   <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]"/>
                 ) : (
@@ -270,7 +270,7 @@ export function RoomWorkspaceView(
                   </div>
                 ) : (
                   <div
-                    className="rounded-[24px] border border-(--divider-subtle-color) px-6 py-10 text-center">
+                    className="rounded-[12px] border border-(--divider-subtle-color) px-6 py-10 text-center">
                     <div
                       className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
                       <FolderTree className="h-4 w-4"/>

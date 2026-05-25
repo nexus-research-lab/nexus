@@ -26,6 +26,7 @@ func call(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
 		Name:        "connector_call",
 		Description: "使用已连接 connector 的 access token 调用 provider REST API。",
+		SearchHint:  searchHintConnectorCall,
 		InputSchema: connectorCallSchema(),
 		Annotations: &sdkmcp.ToolAnnotations{OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {

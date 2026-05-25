@@ -67,6 +67,13 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if roomSkill.Scope != ScopeRoom {
 		t.Fatalf("room skill scope 不正确: %+v", roomSkill)
 	}
+	werewolfSkill, ok := findSkill(roomSkills, "werewolf-6p")
+	if !ok {
+		t.Fatalf("未读取到狼人杀 room skill: %+v", roomSkills)
+	}
+	if werewolfSkill.Scope != ScopeRoom {
+		t.Fatalf("狼人杀 room skill scope 不正确: %+v", werewolfSkill)
+	}
 	if _, err = service.GetSkillDetail(ctx, "room-playbook", agentValue.AgentID); err == nil {
 		t.Fatal("room scope skill 不应作为 agent skill 详情读取")
 	}
@@ -242,6 +249,29 @@ description: no tags here
 	}
 	if len(parsed.Tags) != 0 {
 		t.Fatalf("未声明 tags 时应为空切片，实际: %#v", parsed.Tags)
+	}
+}
+
+func TestParseSkillFrontmatterBlockDescription(t *testing.T) {
+	parsed := parseSkillFrontmatter(`---
+name: chronicle
+description: |
+  Allows you to view the user's screen as well as several hours of history.
+
+  Use this skill when recent screen context is needed.
+tags: [screen, context]
+---
+
+# Chronicle
+`, "chronicle")
+	if parsed.Description == "" || strings.Contains(parsed.Description, "|") {
+		t.Fatalf("多行 description 解析不正确: %q", parsed.Description)
+	}
+	if !strings.Contains(parsed.Description, "recent screen context") {
+		t.Fatalf("多行 description 内容丢失: %q", parsed.Description)
+	}
+	if len(parsed.Tags) != 2 || parsed.Tags[0] != "screen" || parsed.Tags[1] != "context" {
+		t.Fatalf("block scalar 后续字段解析不正确: %#v", parsed.Tags)
 	}
 }
 

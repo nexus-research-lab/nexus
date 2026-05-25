@@ -1,9 +1,14 @@
 "use client";
 
-import { Link2 } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  CapabilityFilterSearchInput,
+  CapabilityFilterSelect,
+} from "@/features/capability/shared/capability-page-layout";
 
+import { CONNECTOR_CATEGORY_OPTIONS, get_connector_category_label } from "./connectors-categories";
 import type { ConnectorDirectoryController } from "./connectors-view-model";
 
 interface ConnectorsSearchBarProps {
@@ -11,19 +16,27 @@ interface ConnectorsSearchBarProps {
 }
 
 export function ConnectorsSearchBar({ ctrl }: ConnectorsSearchBarProps) {
+  const { t } = useI18n();
+
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-      <WorkspaceSearchInput
-        class_name="h-11 w-full max-w-[34rem] px-3.5 py-2"
-        input_class_name="text-[15px]"
+    <div className="mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
+      <CapabilityFilterSearchInput
         on_change={ctrl.set_search_query}
-        placeholder="搜索应用授权..."
+        placeholder={t("capability.connectors_search_placeholder")}
         value={ctrl.search_query}
       />
-      <div className="inline-flex items-center gap-1.5 px-1 text-[12px] font-medium text-(--text-soft)">
-        <Link2 className="h-3 w-3" />
-        <span>{ctrl.connectors.length} 个应用授权</span>
-      </div>
+      <CapabilityFilterSelect
+        aria_label={t("capability.connectors_filter_aria")}
+        label={t("capability.category_label")}
+        leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
+        on_change={ctrl.set_active_category}
+        options={CONNECTOR_CATEGORY_OPTIONS.map((item) => ({
+          label: t(item.label_key),
+          value: item.key,
+        }))}
+        placeholder={get_connector_category_label("all", t)}
+        value={ctrl.active_category}
+      />
     </div>
   );
 }

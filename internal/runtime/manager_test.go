@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -16,6 +17,8 @@ type fakeRuntimeClient struct {
 	reconfigureCalls int
 	lastOptions      agentclient.Options
 	sentContents     []string
+	reconfigureErr   error
+	disconnectCalls  int
 }
 
 func (c *fakeRuntimeClient) Connect(context.Context) error { return nil }
@@ -35,11 +38,17 @@ func (c *fakeRuntimeClient) SendContent(_ context.Context, content any, _ *strin
 
 func (c *fakeRuntimeClient) Interrupt(context.Context) error { return nil }
 
-func (c *fakeRuntimeClient) Disconnect(context.Context) error { return nil }
+func (c *fakeRuntimeClient) Disconnect(context.Context) error {
+	c.disconnectCalls++
+	return nil
+}
 
 func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.Options) error {
 	c.reconfigureCalls++
 	c.lastOptions = options
+	if c.reconfigureErr != nil {
+		return c.reconfigureErr
+	}
 	return nil
 }
 
@@ -91,6 +100,74 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
 		t.Fatalf("Reconfigure 未收到权限模式: %+v", client.lastOptions)
+	}
+}
+
+func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: errors.New("client: send control request failed: process: write payload failed: write |1: The pipe has been ended"),
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:stale-client"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		CWD: "/tmp/a",
+	})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		CWD: "/tmp/b",
+	})
+	if err != nil {
+		t.Fatalf("transport 断开后应创建新 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("transport 断开后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerGetOrCreateKeepsNonTransportReconfigureError(t *testing.T) {
+	expectedErr := errors.New("permission mode is not supported")
+	stale := &fakeRuntimeClient{reconfigureErr: expectedErr}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, &fakeRuntimeClient{}}})
+	sessionKey := "agent:nexus:ws:dm:reconfigure-error"
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	_, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("非 transport 错误不应被吞掉: %v", err)
+	}
+	if stale.disconnectCalls != 0 {
+		t.Fatalf("非 transport 错误不应关闭旧 client: %d", stale.disconnectCalls)
+	}
+}
+
+func TestIsRuntimeTransportClosedError(t *testing.T) {
+	cases := []error{
+		agentclient.ErrNotConnected,
+		io.ErrClosedPipe,
+		errors.New("process: write payload failed: write |1: The pipe has been ended"),
+		errors.New("write payload failed: file already closed"),
+		errors.New("broken pipe"),
+	}
+	for _, err := range cases {
+		if !IsRuntimeTransportClosedError(err) {
+			t.Fatalf("应识别为 transport 断开: %v", err)
+		}
+	}
+	if IsRuntimeTransportClosedError(errors.New("permission mode is not supported")) {
+		t.Fatal("普通控制错误不应识别为 transport 断开")
 	}
 }
 

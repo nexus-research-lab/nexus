@@ -514,25 +514,39 @@ func resolveWorkspacePath(workspacePath string, relativePath string) (string, st
 
 func shouldHideWorkspaceEntry(relativePath string) bool {
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(relativePath))
-	return normalizedPath == ".agents" ||
-		strings.HasPrefix(normalizedPath, ".agents/") ||
-		normalizedPath == ".nexus" ||
-		strings.HasPrefix(normalizedPath, ".nexus/") ||
-		normalizedPath == ".git" ||
-		strings.HasPrefix(normalizedPath, ".git/") ||
-		normalizedPath == ".claude" ||
-		strings.HasPrefix(normalizedPath, ".claude/") ||
-		normalizedPath == "__pycache__" ||
-		strings.HasPrefix(normalizedPath, "__pycache__/") ||
-		strings.HasPrefix(filepath.Base(normalizedPath), ".DS_")
+	baseName := filepath.Base(normalizedPath)
+	return hasWorkspacePathSegment(
+		normalizedPath,
+		".agents",
+		".nexus",
+		".git",
+		".claude",
+		"__pycache__",
+		"node_modules",
+		".pnpm-store",
+		".next",
+		".turbo",
+		".cache",
+		"dist",
+		"build",
+		"coverage",
+	) || strings.HasPrefix(baseName, ".DS_")
 }
 
 func isProtectedWorkspacePath(relativePath string) bool {
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(relativePath))
-	protectedRoots := []string{".agents", ".claude", ".git", "__pycache__"}
-	for _, root := range protectedRoots {
-		if normalizedPath == root || strings.HasPrefix(normalizedPath, root+"/") {
-			return true
+	return hasWorkspacePathSegment(normalizedPath, ".agents", ".claude", ".git", "__pycache__")
+}
+
+func hasWorkspacePathSegment(relativePath string, targets ...string) bool {
+	if strings.TrimSpace(relativePath) == "" {
+		return false
+	}
+	for _, segment := range strings.Split(filepath.ToSlash(relativePath), "/") {
+		for _, target := range targets {
+			if segment == target {
+				return true
+			}
 		}
 	}
 	return false

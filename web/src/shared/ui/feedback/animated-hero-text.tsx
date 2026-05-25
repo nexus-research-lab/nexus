@@ -17,14 +17,22 @@ interface AnimatedHeroTextProps {
   initial_delay_ms?: number;
 }
 
+// Intl.Segmenter is available in TypeScript ≥ 4.7 / ES2022 lib; cast via unknown
+// for envs that ship an older lib but have the runtime API.
+type IntlSegmenterCtor = new (
+  locale?: string,
+  options?: { granularity?: "grapheme" | "word" | "sentence" },
+) => { segment(input: string): Iterable<{ segment: string }> };
+
 function split_graphemes(text: string, font: string): string[] {
   try {
     const prepared = prepareWithSegments(text, font);
     return prepared.segments;
   } catch {
     if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-      const seg = new (Intl as any).Segmenter(undefined, { granularity: "grapheme" });
-      return [...seg.segment(text)].map((s: any) => s.segment as string);
+      const SegmenterCtor = (Intl as unknown as { Segmenter: IntlSegmenterCtor }).Segmenter;
+      const seg = new SegmenterCtor(undefined, { granularity: "grapheme" });
+      return Array.from(seg.segment(text), (s) => s.segment);
     }
     return [...text];
   }

@@ -1,12 +1,14 @@
 "use client";
 
-import { LucideIcon } from "lucide-react";
-import { ReactNode } from "react";
+import { type LucideIcon } from "lucide-react";
+import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { UiUnderlineTabs } from "@/shared/ui/tabs";
 import {
   COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS,
   COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS,
+  COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 export { WorkspaceTaskStrip } from "./workspace-task-strip";
@@ -31,6 +33,7 @@ interface WorkspaceSurfaceHeaderProps<TTabKey extends string> {
   trailing?: ReactNode;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabs_nav_anchor?: string;
+  tabs_leading?: ReactNode;
   tabs_trailing?: ReactNode;
   active_tab?: TTabKey;
   on_change_tab?: (tab: TTabKey) => void;
@@ -52,17 +55,36 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   trailing,
   tabs = [],
   tabs_nav_anchor,
+  tabs_leading,
   tabs_trailing,
   active_tab,
   on_change_tab,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
-  const has_secondary_row = density === "compact" || tabs.length > 0 || Boolean(tabs_trailing);
+  const has_secondary_row = density === "compact" || tabs.length > 0 || Boolean(tabs_leading) || Boolean(tabs_trailing);
+  const compact_subtitle = density === "compact" ? subtitle : null;
+  const primary_subtitle = density === "compact" ? null : subtitle;
+  const render_tabs_nav = (class_name: string, aria_label: string) => (
+    <UiUnderlineTabs
+      active_value={active_tab}
+      aria_label={aria_label}
+      class_name={class_name}
+      density={density === "compact" ? "compact" : "default"}
+      nav_anchor={tabs_nav_anchor}
+      on_change={on_change_tab}
+      options={tabs.map((tab) => ({
+        anchor: tab.anchor,
+        icon: tab.icon,
+        label: tab.label,
+        value: tab.key,
+      }))}
+    />
+  );
 
   return (
     <div className={SURFACE_HEADER_CLASS_NAME} data-density={density}>
       <div className={cn(
         "flex min-w-0 items-center justify-between px-5 xl:px-6",
-        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : "h-[72px] gap-4",
+        density === "compact" ? cn(COMPACT_WORKSPACE_HEADER_PRIMARY_HEIGHT_CLASS, "gap-3") : cn(COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS, "gap-3"),
       )}>
         <div className={cn("flex min-w-0 flex-1 items-center", density === "compact" ? "gap-2.5" : "gap-3")}>
           {leading ? (
@@ -88,9 +110,9 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
                 <div className="min-w-0 shrink text-(--text-default)">{title_trailing}</div>
               ) : null}
             </div>
-            {subtitle ? (
+            {primary_subtitle ? (
               <div className="mt-1 text-[12px] text-(--text-soft)">
-                {subtitle}
+                {primary_subtitle}
               </div>
             ) : null}
           </div>
@@ -105,48 +127,43 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 
       {has_secondary_row ? (
         <div className={cn(
-          "flex min-w-0 px-5 xl:px-6",
+          "flex min-w-0",
+          tabs_leading ? "px-3 xl:px-4" : "px-5 xl:px-6",
           density === "compact"
             ? cn(COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS, "items-center gap-3")
             : "items-end gap-4 pb-0.5",
         )}>
-          {tabs.length > 0 ? (
-            <nav
-              aria-label="视图切换"
-              className={cn(
+          {tabs_leading ? (
+            <div className={cn("min-w-0 flex-1", density === "compact" && "self-start")}>{tabs_leading}</div>
+          ) : tabs.length > 0 ? (
+            render_tabs_nav(
+              cn(
                 "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
                 density === "compact" ? "items-center gap-3" : "items-center gap-4",
-              )}
-              data-tour-anchor={tabs_nav_anchor}
-            >
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const is_active = active_tab === tab.key;
-                return (
-                  <button
-                    aria-pressed={is_active}
-                    aria-current={is_active ? "page" : undefined}
-                    data-tour-anchor={tab.anchor}
-                    key={tab.key}
-                    className={cn(
-                      "inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 text-[11px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
-                      is_active
-                        ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                        : "text-(--text-default) hover:text-(--text-strong)",
-                      density === "compact" && "h-8 text-[10.5px]",
-                    )}
-                    onClick={() => on_change_tab?.(tab.key)}
-                    type="button"
-                  >
-                    {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </nav>
+              ),
+              "视图切换",
+            )
+          ) : compact_subtitle ? (
+            <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-soft)">
+              {compact_subtitle}
+            </div>
           ) : (
             <div className="min-w-0 flex-1" />
           )}
+
+          {tabs_leading && tabs.length > 0 ? (
+            <>
+              <div className="hidden h-5 w-px shrink-0 bg-(--divider-subtle-color) sm:block" />
+              {render_tabs_nav(
+                cn(
+                  "soft-scrollbar scrollbar-hide hidden min-w-0 shrink-0 overflow-x-auto sm:flex",
+                  density === "compact" ? "items-center gap-3" : "items-center gap-4",
+                ),
+                "固定视图切换",
+              )}
+            </>
+          ) : null}
+
           {tabs_trailing ? (
             <div className="shrink-0">
               {tabs_trailing}

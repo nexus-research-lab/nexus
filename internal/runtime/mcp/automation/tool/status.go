@@ -22,6 +22,7 @@ func status(svc contract.Service, sctx contract.ServerContext, name string, enab
 	return sdkmcp.Tool{
 		Name:        name,
 		Description: description,
+		SearchHint:  searchHintScheduledTaskStatus(enabled),
 		InputSchema: inputSchema,
 		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
 			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
