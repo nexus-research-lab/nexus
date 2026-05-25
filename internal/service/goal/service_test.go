@@ -225,6 +225,36 @@ func TestServiceEditCompletedGoalReactivatesIt(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateObjectiveFillsEmptyPreviewFromGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	preview := &fakePreviewFiller{}
+	service.SetPreviewFiller(preview)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Initial goal objective",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview.items = nil
+
+	updatedObjective := "Revised goal objective"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{
+		Objective: &updatedObjective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.items) != 1 || preview.items[0].sessionKey != updated.SessionKey || preview.items[0].title != updated.Objective {
+		t.Fatalf("preview items = %#v, want updated goal objective", preview.items)
+	}
+}
+
 func TestServiceModelStatusUpdateFlushesButDoesNotClearRuntimeAccountingEarly(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -1284,6 +1314,42 @@ func TestServiceSetFromThreadGoalParamsFillsEmptyPreview(t *testing.T) {
 	}
 	if len(preview.items) != 1 || preview.items[0].sessionKey != created.SessionKey || preview.items[0].title != created.Objective {
 		t.Fatalf("preview items = %#v, want app-server created goal objective", preview.items)
+	}
+}
+
+func TestServiceSetFromThreadGoalParamsUpdateFillsEmptyPreview(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	preview := &fakePreviewFiller{}
+	service.SetPreviewFiller(preview)
+	ctx := context.Background()
+	threadID := "room:group:conversation-1"
+	objective := "Initial app-server goal"
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview.items = nil
+
+	updatedObjective := "Updated app-server goal"
+	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &updatedObjective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ID != created.ID || updated.Objective != updatedObjective {
+		t.Fatalf("updated = %#v, want existing goal with revised objective", updated)
+	}
+	if len(preview.items) != 1 || preview.items[0].sessionKey != updated.SessionKey || preview.items[0].title != updated.Objective {
+		t.Fatalf("preview items = %#v, want app-server updated goal objective", preview.items)
 	}
 }
 

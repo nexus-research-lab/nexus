@@ -178,7 +178,14 @@ func (s *Service) updateFromThreadGoalParams(
 	if hasStatus && !changed {
 		eventType = threadGoalStatusEventType(nextStatus)
 	}
-	return s.persistTransition(ctx, item, nextStatus, protocol.GoalUpdateSourceExternal, eventType, "", payload)
+	updated, err := s.persistTransition(ctx, item, nextStatus, protocol.GoalUpdateSourceExternal, eventType, "", payload)
+	if err != nil {
+		return nil, err
+	}
+	if request.Objective != nil {
+		s.fillEmptyPreviewFromGoal(ctx, *updated)
+	}
+	return updated, nil
 }
 
 func validateThreadGoalSetRequest(request protocol.ThreadGoalSetParams) (string, protocol.GoalStatus, bool, error) {

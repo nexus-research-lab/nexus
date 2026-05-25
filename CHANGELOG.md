@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 运行中 objective/budget steering 改为注入 `<goal_context>` 命名上下文，不再包进通用 Nexus guidance。
 - Goal `update_goal` 工具描述与续跑 prompt 统一为三轮同一阻塞条件后才能标记 blocked。
 - Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
+- Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

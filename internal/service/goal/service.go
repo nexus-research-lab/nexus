@@ -158,6 +158,9 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 	if err != nil {
 		return nil, err
 	}
+	if request.Objective != nil {
+		s.fillEmptyPreviewFromGoal(ctx, *updated)
+	}
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusBudgetLimited && !s.goalBudgetExhausted(*updated) {
 		return s.persistTransition(ctx, *updated, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", map[string]any{
 			"reason": "token budget updated",
