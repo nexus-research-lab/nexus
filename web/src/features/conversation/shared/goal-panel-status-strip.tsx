@@ -53,6 +53,13 @@ interface GoalActionButtonProps {
   on_click: () => void;
 }
 
+interface GoalMetricPillProps {
+  children: ReactNode;
+  className?: string;
+  icon: ReactNode;
+  title?: string;
+}
+
 function GoalActionButton({
   children,
   disabled = false,
@@ -70,6 +77,21 @@ function GoalActionButton({
     >
       {children}
     </button>
+  );
+}
+
+function GoalMetricPill({ children, className, icon, title }: GoalMetricPillProps) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2",
+        className,
+      )}
+      title={title}
+    >
+      {icon}
+      <span className="truncate">{children}</span>
+    </span>
   );
 }
 
@@ -92,10 +114,14 @@ export function GoalStatusStrip({
 }: GoalStatusStripProps) {
   const usage_total = goal_usage_total(goal);
   const budget_value = goal.token_budget ?? null;
+  const remaining_tokens =
+    budget_value !== null ? Math.max(0, budget_value - usage_total) : null;
   const usage_percent = goal_budget_percent(goal);
   const tone = goal_status_tone(goal.status);
   const runtime_label = goal_runtime_label(goal, is_generating);
   const latest_event = recent_events[0] ?? null;
+  const continuation_suppressed =
+    goal.status === "active" && (goal.empty_progress_count ?? 0) > 0;
   const [observed_at_ms, set_observed_at_ms] = useState(() => Date.now());
   const [active_turn_started_at_ms, set_active_turn_started_at_ms] = useState<
     number | null
@@ -172,19 +198,50 @@ export function GoalStatusStrip({
               {goal.objective}
             </div>
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
-                <GaugeCircle className="h-3.5 w-3.5" />
-                {format_tokens(usage_total)}
+              <GoalMetricPill
+                icon={<GaugeCircle className="h-3.5 w-3.5 shrink-0" />}
+                title="已用 token"
+              >
+                已用 {format_tokens(usage_total)}
                 {budget_value ? ` / ${format_tokens(budget_value)}` : ""}
-              </span>
-              <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
-                <Clock3 className="h-3.5 w-3.5" />
+              </GoalMetricPill>
+              {remaining_tokens !== null ? (
+                <GoalMetricPill
+                  icon={<GaugeCircle className="h-3.5 w-3.5 shrink-0" />}
+                  title="剩余 token 预算"
+                >
+                  剩余 {format_tokens(remaining_tokens)}
+                </GoalMetricPill>
+              ) : null}
+              <GoalMetricPill
+                icon={<Clock3 className="h-3.5 w-3.5 shrink-0" />}
+                title="已计入 Goal 的运行时间"
+              >
                 {elapsed_label}
-              </span>
-              <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
-                <Repeat2 className="h-3.5 w-3.5" />
-                续跑 {goal.continuation_count}
-              </span>
+              </GoalMetricPill>
+              <GoalMetricPill
+                className={
+                  continuation_suppressed
+                    ? "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                    : undefined
+                }
+                icon={
+                  continuation_suppressed ? (
+                    <Pause className="h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <Repeat2 className="h-3.5 w-3.5 shrink-0" />
+                  )
+                }
+                title={
+                  continuation_suppressed
+                    ? "隐藏续跑无可计入进展，等待新的用户或外部活动"
+                    : "Goal 自动续跑次数"
+                }
+              >
+                {continuation_suppressed
+                  ? "续跑暂停"
+                  : `续跑 ${goal.continuation_count}`}
+              </GoalMetricPill>
               {goal.last_error ? (
                 <span className="inline-flex h-6 max-w-full items-center truncate rounded-md border border-destructive/20 bg-destructive/10 px-2 text-destructive">
                   {goal.last_error}

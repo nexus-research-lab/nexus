@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 自动续跑对齐 Codex 的空进展抑制语义：隐藏续跑轮次未产生可计入工具进展时暂停下一次自动续跑，用户/外部活动或工具进展会恢复续跑。
 - Goal app-server `thread/goal/set` 创建路径直接落最终状态，避免创建 paused/blocked/budgetLimited Goal 时短暂广播 active 状态。
 - Goal 模型侧完成/阻塞状态更新保留变更前 usage flush，但不再提前清理本轮 runtime accounting，确保 `update_goal` 工具结果后的最终用量仍可补记。
+- Goal runtime context 标记对齐 Codex `<goal_context>`，并在前端 Goal 面板直接展示剩余预算与续跑暂停状态。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

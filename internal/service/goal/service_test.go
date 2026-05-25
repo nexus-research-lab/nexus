@@ -1360,10 +1360,13 @@ func TestBuildRuntimeContext(t *testing.T) {
 			TotalTokens:  30,
 		},
 	})
-	for _, want := range []string{"<nexus_goal>", "Complete parity", "TokenBudget: 100", "RemainingTokens: 70", "update_goal with status=complete", "update_goal with status=blocked"} {
+	for _, want := range []string{"<goal_context>", "Complete parity", "TokenBudget: 100", "RemainingTokens: 70", "three consecutive Goal turns", "update_goal with status=complete", "update_goal with status=blocked"} {
 		if !strings.Contains(contextText, want) {
 			t.Fatalf("RuntimeContext missing %q: %s", want, contextText)
 		}
+	}
+	if strings.Contains(contextText, "<nexus_goal>") {
+		t.Fatalf("RuntimeContext still uses legacy nexus_goal tag: %s", contextText)
 	}
 }
 
