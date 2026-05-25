@@ -40,7 +40,37 @@ func (s *RealtimeService) broadcastSessionStatus(ctx context.Context, sessionKey
 func (s *RealtimeService) broadcastSharedEvent(ctx context.Context, sessionKey string, roomID string, event protocol.EventMessage) {
 	if s.broadcaster != nil && strings.TrimSpace(roomID) != "" {
 		s.broadcaster.Broadcast(ctx, roomID, event)
+		// RoomBroadcaster 面向房间 WebSocket，不经过 permission.Context；后台自动化需要这条内部镜像。
+		s.notifyRoomEventObserver(ctx, sessionKey, event)
 		return
 	}
 	s.permission.BroadcastEvent(ctx, sessionKey, event)
+}
+
+func (s *RealtimeService) notifyRoomEventObserver(ctx context.Context, sessionKey string, event protocol.EventMessage) {
+	if s == nil {
+		return
+	}
+	roundID := eventRoundID(event)
+	if strings.TrimSpace(roundID) == "" {
+		return
+	}
+	s.mu.Lock()
+	roundValue := s.activeRounds[roomActiveRoundKey(sessionKey, roundID)]
+	var observer RoomEventObserver
+	if roundValue != nil {
+		observer = roundValue.EventObserver
+	}
+	s.mu.Unlock()
+	if observer == nil {
+		return
+	}
+	observer(ctx, event)
+}
+
+func eventRoundID(event protocol.EventMessage) string {
+	if roundID := strings.TrimSpace(anyString(event.Data["round_id"])); roundID != "" {
+		return roundID
+	}
+	return strings.TrimSpace(event.CausedBy)
 }

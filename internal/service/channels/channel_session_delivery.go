@@ -24,6 +24,7 @@ type sessionDeliveryChannel struct {
 	permission  *permissionctx.Context
 	files       *workspacestore.SessionFileStore
 	history     *workspacestore.AgentHistoryStore
+	roomHistory *workspacestore.RoomHistoryStore
 	idFactory   func(string) string
 }
 
@@ -39,6 +40,7 @@ func newSessionDeliveryChannel(
 		permission:  permission,
 		files:       workspacestore.NewSessionFileStore(workspaceRoot),
 		history:     workspacestore.NewAgentHistoryStore(workspaceRoot),
+		roomHistory: workspacestore.NewRoomHistoryStore(workspaceRoot),
 		idFactory:   newDeliveryID,
 	}
 }
@@ -55,9 +57,18 @@ func (c *sessionDeliveryChannel) Stop(context.Context) error {
 	return nil
 }
 
-// SendDeliveryText 按 session_key 追加 assistant 正文与内部 result overlay，
-// 对外统一只广播挂载 result_summary 的 assistant。
+// SendDeliveryText 按 session_key 完成文本投递。
 func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+	return c.SendAgentDeliveryText(ctx, "", target, text)
+}
+
+// SendAgentDeliveryText 按 session_key 完成文本投递，agentID 用于 room 公区消息归属。
+func (c *sessionDeliveryChannel) SendAgentDeliveryText(
+	ctx context.Context,
+	agentID string,
+	target DeliveryTarget,
+	text string,
+) error {
 	sessionKey := firstNonEmpty(target.SessionKey, target.To)
 	sessionKey, err := protocol.RequireStructuredSessionKey(sessionKey)
 	if err != nil {
@@ -65,9 +76,23 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 	}
 
 	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		return c.sendRoomDeliveryText(ctx, strings.TrimSpace(agentID), parsed, sessionKey, text)
+	}
 	if parsed.Kind != protocol.SessionKeyKindAgent {
 		return errors.New("shared room delivery 暂不支持")
 	}
+	return c.sendAgentSessionDeliveryText(ctx, parsed, sessionKey, text)
+}
+
+// sendAgentSessionDeliveryText 追加 assistant 正文与内部 result overlay，
+// 对外统一只广播挂载 result_summary 的 assistant。
+func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
+	ctx context.Context,
+	parsed protocol.SessionKey,
+	sessionKey string,
+	text string,
+) error {
 	if c.agents == nil {
 		return errors.New("session delivery 缺少 agent 解析器")
 	}
@@ -76,15 +101,17 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 	if err != nil {
 		return err
 	}
-	sessionValue, workspacePath, err := c.files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
-	if err != nil {
-		return err
-	}
-	if sessionValue == nil || strings.TrimSpace(workspacePath) == "" {
-		return fmt.Errorf("delivery target session is not available: %s", sessionKey)
+	workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
+	if workspacePath == "" {
+		return fmt.Errorf("delivery target agent has no workspace path: %s", parsed.AgentID)
 	}
 
 	now := time.Now().UTC()
+	sessionValue, err := c.ensureSession(workspacePath, parsed, sessionKey, now)
+	if err != nil {
+		return err
+	}
+
 	roundID := c.idFactory("delivery_round")
 	assistantMessage := protocol.Message{
 		"message_id":  c.idFactory("assistant"),
@@ -131,6 +158,56 @@ func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target De
 
 	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, message.ProjectResultMessage(assistantMessage, resultMessage))
 	return nil
+}
+
+func (c *sessionDeliveryChannel) ensureSession(
+	workspacePath string,
+	parsed protocol.SessionKey,
+	sessionKey string,
+	now time.Time,
+) (*protocol.Session, error) {
+	sessionValue, foundPath, err := c.files.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if sessionValue != nil && strings.TrimSpace(foundPath) != "" {
+		return sessionValue, nil
+	}
+	if c.channelType != ChannelTypeInternal ||
+		protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelInternalSegment {
+		return nil, fmt.Errorf("delivery target session is not available: %s", sessionKey)
+	}
+
+	session := protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      parsed.AgentID,
+		ChannelType:  protocol.SessionChannelInternalSegment,
+		ChatType:     protocol.NormalizeSessionChatType(parsed.ChatType),
+		Status:       "closed",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        internalSessionTitle(parsed),
+		Options: map[string]any{
+			"created_by": "automation_delivery",
+			"ref":        parsed.Ref,
+		},
+		IsActive: false,
+	}
+	created, err := c.files.UpsertSession(workspacePath, session)
+	if err != nil {
+		return nil, err
+	}
+	if created == nil {
+		return &session, nil
+	}
+	return created, nil
+}
+
+func internalSessionTitle(parsed protocol.SessionKey) string {
+	if strings.TrimSpace(parsed.Ref) == protocol.AutomationInboxSessionRef {
+		return "定时任务收件箱"
+	}
+	return "自动投递"
 }
 
 func (c *sessionDeliveryChannel) persistMessage(

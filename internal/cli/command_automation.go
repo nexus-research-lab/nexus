@@ -62,7 +62,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 			boundSessionKey string
 			namedSessionKey string
 			wakeMode        string
-			deliveryMode    string
+			deliveryFlags   scheduledTaskDeliveryFlags
 			overlapPolicy   string
 			enabled         bool
 		)
@@ -89,9 +89,8 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 						NamedSessionKey: namedSessionKey,
 						WakeMode:        wakeMode,
 					},
-					Delivery: protocol.DeliveryTarget{
-						Mode: deliveryMode,
-					},
+					Delivery:      deliveryFlags.target(),
+					Source:        protocol.Source{Kind: protocol.SourceKindCLI},
 					OverlapPolicy: overlapPolicy,
 					Enabled:       enabled,
 				}
@@ -127,7 +126,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		createCommand.Flags().StringVar(&boundSessionKey, "bound-session-key", "", "bound session key")
 		createCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
 		createCommand.Flags().StringVar(&wakeMode, "wake-mode", protocol.WakeModeNextHeartbeat, "now|next-heartbeat")
-		createCommand.Flags().StringVar(&deliveryMode, "delivery-mode", protocol.DeliveryModeNone, "none|last|explicit")
+		bindScheduledTaskDeliveryFlags(createCommand, &deliveryFlags, protocol.DeliveryModeNone)
 		createCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", protocol.OverlapPolicySkip, "skip|allow")
 		createCommand.Flags().BoolVar(&enabled, "enabled", true, "enabled")
 		_ = createCommand.MarkFlagRequired("name")
@@ -149,7 +148,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		var boundSessionKey string
 		var namedSessionKey string
 		var wakeMode string
-		var deliveryMode string
+		var deliveryFlags scheduledTaskDeliveryFlags
 		var overlapPolicy string
 
 		updateCommand := &cobra.Command{
@@ -194,8 +193,17 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 					}
 					payload.SessionTarget = &target
 				}
-				if deliveryMode != "" {
-					payload.Delivery = &protocol.DeliveryTarget{Mode: deliveryMode}
+				if deliveryFlags.changed(cmd) {
+					current, getErr := service.GetTask(commandContext(cmd), args[0])
+					if getErr != nil {
+						return getErr
+					}
+					if current == nil {
+						return protocol.ErrJobNotFound
+					}
+					delivery := current.Delivery
+					deliveryFlags.apply(cmd, &delivery)
+					payload.Delivery = &delivery
 				}
 				if overlapPolicy != "" {
 					payload.OverlapPolicy = stringRef(overlapPolicy)
@@ -225,7 +233,7 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		updateCommand.Flags().StringVar(&boundSessionKey, "bound-session-key", "", "bound session key")
 		updateCommand.Flags().StringVar(&namedSessionKey, "named-session-key", "", "named session key")
 		updateCommand.Flags().StringVar(&wakeMode, "wake-mode", protocol.WakeModeNextHeartbeat, "now|next-heartbeat")
-		updateCommand.Flags().StringVar(&deliveryMode, "delivery-mode", "", "none|last|explicit")
+		bindScheduledTaskDeliveryFlags(updateCommand, &deliveryFlags, "")
 		updateCommand.Flags().StringVar(&overlapPolicy, "overlap-policy", "", "skip|allow")
 		updateCommand.Flags().BoolVar(&enabled, "enabled", false, "enabled")
 		return updateCommand
@@ -241,15 +249,14 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Automation
-			if err := service.DeleteTask(commandContext(cmd), args[0]); err != nil {
+			result, err := service.DeleteTask(commandContext(cmd), args[0])
+			if err != nil {
 				return err
 			}
 			return emitJSON(map[string]any{
 				"domain": "automation.task",
 				"action": "delete",
-				"item": map[string]any{
-					"job_id": args[0],
-				},
+				"item":   result,
 			})
 		},
 	})
@@ -324,6 +331,8 @@ func newScheduledTaskCommand(services *cliServiceProvider) *cobra.Command {
 		statusCommand.Flags().BoolVar(&enabled, "enabled", true, "enabled")
 		return statusCommand
 	}())
+
+	addScheduledTaskOperationsCommands(command, services)
 
 	return command
 }

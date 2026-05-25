@@ -3,6 +3,7 @@ package automation
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -17,6 +18,7 @@ type scheduledTaskCreatePayload struct {
 	AgentID       string                   `json:"agent_id"`
 	Schedule      protocol.Schedule        `json:"schedule"`
 	Instruction   string                   `json:"instruction"`
+	ExecutionKind string                   `json:"execution_kind,omitempty"`
 	SessionTarget *protocol.SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *protocol.DeliveryTarget `json:"delivery,omitempty"`
 	Source        *protocol.Source         `json:"source,omitempty"`
@@ -28,6 +30,7 @@ type scheduledTaskUpdatePayload struct {
 	Name          *string                  `json:"name,omitempty"`
 	Schedule      *protocol.Schedule       `json:"schedule,omitempty"`
 	Instruction   *string                  `json:"instruction,omitempty"`
+	ExecutionKind *string                  `json:"execution_kind,omitempty"`
 	SessionTarget *protocol.SessionTarget  `json:"session_target,omitempty"`
 	Delivery      *protocol.DeliveryTarget `json:"delivery,omitempty"`
 	Source        *protocol.Source         `json:"source,omitempty"`
@@ -38,6 +41,12 @@ type scheduledTaskUpdatePayload struct {
 type scheduledTaskStatusPayload struct {
 	Enabled bool `json:"enabled"`
 }
+
+type scheduledTaskRecoverPayload struct {
+	RunID string `json:"run_id,omitempty"`
+}
+
+type scheduledTaskRetryDeliveryPayload struct{}
 
 type heartbeatUpdatePayload struct {
 	Enabled      bool   `json:"enabled"`
@@ -101,6 +110,7 @@ func (h *Handlers) HandleCreateScheduledTask(writer http.ResponseWriter, request
 		AgentID:       payload.AgentID,
 		Schedule:      payload.Schedule,
 		Instruction:   payload.Instruction,
+		ExecutionKind: payload.ExecutionKind,
 		SessionTarget: sessionTarget,
 		Delivery:      delivery,
 		Source:        source,
@@ -127,6 +137,7 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 		Name:          payload.Name,
 		Schedule:      payload.Schedule,
 		Instruction:   payload.Instruction,
+		ExecutionKind: payload.ExecutionKind,
 		SessionTarget: payload.SessionTarget,
 		Delivery:      payload.Delivery,
 		Source:        payload.Source,
@@ -149,7 +160,8 @@ func (h *Handlers) HandleUpdateScheduledTask(writer http.ResponseWriter, request
 }
 
 func (h *Handlers) HandleDeleteScheduledTask(writer http.ResponseWriter, request *http.Request) {
-	if err := h.automation.DeleteTask(request.Context(), chi.URLParam(request, "job_id")); err != nil {
+	result, err := h.automation.DeleteTask(request.Context(), chi.URLParam(request, "job_id"))
+	if err != nil {
 		if errors.Is(err, protocol.ErrJobNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
@@ -157,11 +169,32 @@ func (h *Handlers) HandleDeleteScheduledTask(writer http.ResponseWriter, request
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
-	h.api.WriteSuccess(writer, map[string]any{"job_id": chi.URLParam(request, "job_id")})
+	h.api.WriteSuccess(writer, result)
 }
 
 func (h *Handlers) HandleRunScheduledTask(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.automation.RunTaskNow(request.Context(), chi.URLParam(request, "job_id"))
+	if err != nil {
+		if errors.Is(err, protocol.ErrJobNotFound) {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) HandleRecoverScheduledTask(writer http.ResponseWriter, request *http.Request) {
+	var payload scheduledTaskRecoverPayload
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.automation.RecoverTaskRunningRun(request.Context(), chi.URLParam(request, "job_id"), payload.RunID)
 	if err != nil {
 		if errors.Is(err, protocol.ErrJobNotFound) {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
@@ -209,6 +242,99 @@ func (h *Handlers) HandleListScheduledTaskRuns(writer http.ResponseWriter, reque
 		return
 	}
 	h.api.WriteSuccess(writer, items)
+}
+
+func (h *Handlers) HandleGetScheduledTaskStatus(writer http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	item, err := h.automation.GetTaskStatus(
+		request.Context(),
+		chi.URLParam(request, "job_id"),
+		queryInt(query.Get("run_limit")),
+		queryInt(query.Get("event_limit")),
+	)
+	if err != nil {
+		if errors.Is(err, protocol.ErrJobNotFound) {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) HandleListScheduledTaskEvents(writer http.ResponseWriter, request *http.Request) {
+	items, err := h.automation.ListTaskEvents(
+		request.Context(),
+		chi.URLParam(request, "job_id"),
+		queryInt(request.URL.Query().Get("limit")),
+	)
+	if err != nil {
+		if errors.Is(err, protocol.ErrJobNotFound) {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, items)
+}
+
+func (h *Handlers) HandleGetScheduledTaskDailyReport(writer http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	item, err := h.automation.GetDailyReport(request.Context(), protocol.CronDailyReportInput{
+		Date:     strings.TrimSpace(query.Get("date")),
+		Timezone: strings.TrimSpace(query.Get("timezone")),
+		AgentID:  strings.TrimSpace(query.Get("agent_id")),
+		JobID:    strings.TrimSpace(query.Get("job_id")),
+	})
+	if err != nil {
+		if errors.Is(err, protocol.ErrJobNotFound) {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		message := strings.ToLower(err.Error())
+		if handlershared.IsClientMessageError(err) || strings.Contains(message, "date must be") || strings.Contains(message, "invalid timezone") {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) HandleRetryScheduledTaskRunDelivery(writer http.ResponseWriter, request *http.Request) {
+	var payload scheduledTaskRetryDeliveryPayload
+	if !h.api.BindJSONAllowEmpty(writer, request, &payload) {
+		return
+	}
+	item, err := h.automation.RetryRunDelivery(
+		request.Context(),
+		chi.URLParam(request, "job_id"),
+		chi.URLParam(request, "run_id"),
+	)
+	if err != nil {
+		if errors.Is(err, protocol.ErrJobNotFound) || errors.Is(err, protocol.ErrRunNotFound) {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func queryInt(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	return value
 }
 
 func (h *Handlers) HandleGetHeartbeat(writer http.ResponseWriter, request *http.Request) {

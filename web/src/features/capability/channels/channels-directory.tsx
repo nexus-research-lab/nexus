@@ -106,10 +106,9 @@ function guide_steps(channel_type: ImChannelType) {
     return [
       <>登录 <a href="https://open.feishu.cn/" target="_blank" rel="noreferrer">飞书开放平台</a> 创建企业自建应用，在 <b>应用能力</b> 中添加机器人能力</>,
       <>在 <b>凭证与基础信息</b> 页面获取 <b>App ID</b> 和 <b>App Secret</b></>,
-      <>进入 <b>权限管理</b>，批量导入权限，至少包含 <b>im.message.receive_v1</b></>,
-      <>进入 <b>事件与回调 → 事件配置 → 订阅方式</b>，使用 <b>长连接</b> 接收事件</>,
-      <>创建应用版本并发布，确认可用范围包含目标用户或群</>,
-      <>在飞书群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对</>,
+      <>进入 <b>权限管理</b>，为机器人添加收发消息所需的 IM 权限，并提交发布</>,
+      <>在 <b>事件订阅</b> 中订阅接收消息事件，把请求地址配置为当前服务的 <b>/nexus/v1/channels/feishu/messages</b></>,
+      <>确认应用可用范围包含目标用户或群，并在飞书群中添加该机器人</>,
     ];
   case "telegram":
     return [

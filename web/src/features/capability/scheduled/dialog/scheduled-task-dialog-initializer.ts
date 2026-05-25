@@ -35,6 +35,7 @@ export function build_default_dialog_initial_state(agent_id: string): ScheduledT
   return {
     task_name: "",
     target_type: "agent",
+    execution_kind: "agent",
     selected_agent_id: agent_id,
     selected_room_id: "",
     execution_mode: "existing",
@@ -94,6 +95,7 @@ export function build_task_dialog_initial_state(
   task: ScheduledTaskItem,
 ): ScheduledTaskDialogInitialState {
   const source_context_type = task.source?.context_type === "room" ? "room" : "agent";
+  const execution_kind = task.execution_kind === "script" ? "script" : "agent";
   const execution_delivery_target = task.session_target.kind === "bound"
     ? task.session_target.bound_session_key
     : source_context_type === "room"
@@ -102,11 +104,14 @@ export function build_task_dialog_initial_state(
 
   return {
     task_name: task.name,
-    target_type: source_context_type,
-    selected_agent_id: source_context_type === "agent"
+    target_type: execution_kind === "script" ? "agent" : source_context_type,
+    execution_kind,
+    selected_agent_id: execution_kind === "script"
+      ? task.agent_id
+      : source_context_type === "agent"
       ? (task.source?.context_id || task.agent_id)
       : task.agent_id,
-    selected_room_id: source_context_type === "room" ? (task.source?.context_id || "") : "",
+    selected_room_id: execution_kind === "script" ? "" : source_context_type === "room" ? (task.source?.context_id || "") : "",
     execution_mode: task.session_target.kind === "main"
       ? "main"
       : task.session_target.kind === "named"
@@ -119,7 +124,9 @@ export function build_task_dialog_initial_state(
       : source_context_type === "room"
         ? (task.source?.session_key || "")
         : "",
-    reply_mode: task.delivery.mode === "none"
+    reply_mode: execution_kind === "script"
+      ? "none"
+      : task.delivery.mode === "none"
       ? "none"
       : task.delivery.mode === "explicit"
         && task.delivery.to

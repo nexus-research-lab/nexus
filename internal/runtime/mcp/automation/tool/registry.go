@@ -1,4 +1,4 @@
-// Package tool 定义 nexus_automation MCP 暴露的 8 个工具。
+// Package tool 定义 nexus_automation MCP 暴露的定时任务工具。
 // 每个文件负责一个工具的 schema+handler 装配；registry.go 统一汇总。
 package tool
 
@@ -12,12 +12,18 @@ import (
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdkmcp.Tool {
 	return []sdkmcp.Tool{
 		list(svc, sctx),
+		searchHistory(svc, sctx),
 		create(svc, sctx),
 		update(svc, sctx),
 		del(svc, sctx),
 		status(svc, sctx, "enable_scheduled_task", true),
 		status(svc, sctx, "disable_scheduled_task", false),
+		inspectTask(svc, sctx),
 		runNow(svc, sctx),
 		runs(svc, sctx),
+		taskEvents(svc, sctx),
+		dailyReport(svc, sctx),
+		redeliver(svc, sctx),
+		recover(svc, sctx),
 	}
 }
