@@ -34,6 +34,7 @@ import {
 } from "@/features/memory/memory-ui";
 import { UiIconButton } from "@/shared/ui/button";
 import { UiSearchInput } from "@/shared/ui/form-control";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiListRow } from "@/shared/ui/list-row";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
@@ -169,7 +170,10 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
-      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1180px] grid-cols-1 gap-4 lg:grid-cols-[390px_minmax(420px,1fr)] xl:grid-cols-[420px_minmax(480px,1fr)]">
+      <div className={cn(
+        "mx-auto grid h-full min-h-0 w-full grid-cols-1 gap-4 lg:grid-cols-[390px_minmax(420px,1fr)] xl:grid-cols-[420px_minmax(480px,1fr)]",
+        WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
+      )}>
         <section className="flex min-h-0 flex-col overflow-hidden border-b border-(--divider-subtle-color) pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
           <div className="flex h-12 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
             <div className="flex min-w-0 items-center gap-2">

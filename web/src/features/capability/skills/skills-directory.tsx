@@ -7,6 +7,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { useSkillMarketplace } from "@/hooks/capability/use-skill-marketplace";
@@ -96,7 +97,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
             on_refreshed={ctrl.refresh_marketplace}
           />
         ) : (
-          <div className="mx-auto w-full max-w-[980px] px-5 py-6 xl:px-6">
+          <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
             <div className="mb-5">
               <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
                 {t("capability.skills_intro_title")}

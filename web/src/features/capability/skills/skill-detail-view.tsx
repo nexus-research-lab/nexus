@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { delete_skill_api, get_skill_detail_api, update_single_skill_api } from "@/lib/api/skill-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { SkillDetail } from "@/types/capability/skill";
@@ -96,7 +97,7 @@ export function SkillDetailView({
   }, [on_deleted, skill]);
 
   return (
-    <div className="mx-auto w-full max-w-[980px] px-5 py-6 xl:px-6">
+    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
       <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
         <button
           className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"

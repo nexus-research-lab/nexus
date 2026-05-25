@@ -48,6 +48,7 @@ import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 
 type FeedbackTone = "success" | "error";
 
@@ -229,7 +230,7 @@ export function PersonalSettingsPanel() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-1 py-3">
+      <div className={cn("mx-auto flex w-full flex-col gap-3 px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
         <section>
           <h2 className="text-[20px] font-semibold tracking-tight text-(--text-strong)">
             {t("settings.personal.title")}

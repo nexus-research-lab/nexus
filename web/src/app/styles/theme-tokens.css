@@ -41,6 +41,7 @@
   --radius-lg: 34px;
   --radius-md: 24px;
   --radius-sm: 16px;
+  --workspace-detail-max-width: 980px;
   --motion-duration-fast: 160ms;
   --motion-duration-normal: 220ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);

@@ -12,6 +12,7 @@ import {
   FeedbackBannerStack,
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ConnectorDetailView } from "./connector-detail-view";
@@ -142,7 +143,7 @@ export function ConnectorsDirectory() {
             on_disconnect={(id) => void ctrl.handle_disconnect(id)}
           />
         ) : (
-          <div className="mx-auto w-full max-w-[980px] px-5 py-6 xl:px-6">
+          <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
             <div className="mb-5">
               <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
                 {t("capability.connectors_intro_title")}

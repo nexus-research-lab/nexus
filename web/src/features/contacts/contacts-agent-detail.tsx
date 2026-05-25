@@ -18,6 +18,7 @@ import type { TabKey } from "@/features/agents/options/components/agent-options-
 import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -177,7 +178,7 @@ export function ContactsAgentDetail({
         <AgentOptionsEditor
           active_tab={active_tab}
           agent_id={agent.agent_id}
-          content_max_width_class_name="max-w-[860px]"
+          content_max_width_class_name={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
           hide_inline_nav
           initial_avatar={agent.avatar ?? ""}
           initial_description={agent.description ?? ""}

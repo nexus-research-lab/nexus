@@ -55,6 +55,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -401,7 +402,7 @@ function GeneralSettingsSection() {
       : t("settings.system.version_unavailable");
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-3">
+    <div className={cn("mx-auto flex w-full flex-col gap-5 px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
       <section className="space-y-2.5">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>

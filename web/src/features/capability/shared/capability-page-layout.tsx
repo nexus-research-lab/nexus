@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { UiSearchInput } from "@/shared/ui/form-control";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiSelectMenu, type UiSelectMenuOption } from "@/shared/ui/select-menu";
 
 interface CapabilityPageLayoutProps {
@@ -50,7 +51,7 @@ export function CapabilityPageLayout({
   title,
 }: CapabilityPageLayoutProps) {
   return (
-    <div className={cn("mx-auto w-full max-w-[980px] px-5 py-6 xl:px-6", class_name)}>
+    <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, class_name)}>
       <div className="mb-5">
         <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
           {title}
