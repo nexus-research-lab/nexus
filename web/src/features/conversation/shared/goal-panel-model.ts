@@ -60,9 +60,9 @@ export function goal_elapsed_label(seconds?: number | null): string {
 export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
   switch (goal.status) {
     case "active":
-      return is_generating ? "执行中" : "待续跑";
+      return is_generating ? "执行中" : "追踪中";
     case "paused":
-      return "暂停";
+      return "已暂停";
     case "blocked":
       return "等待输入";
     case "budget_limited":
@@ -70,7 +70,7 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
     case "usage_limited":
       return "续跑受限";
     case "complete":
-      return "完成";
+      return "已完成";
     case "cleared":
       return "清除";
     default:

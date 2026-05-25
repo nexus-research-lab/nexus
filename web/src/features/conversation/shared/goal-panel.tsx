@@ -8,20 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  CheckCircle2,
-  CircleSlash,
-  Clock3,
-  GaugeCircle,
-  Pause,
-  Pencil,
-  Play,
-  RefreshCw,
-  Repeat2,
-  Save,
-  Target,
-  X,
-} from "lucide-react";
 
 import {
   clear_goal_api,
@@ -34,18 +20,9 @@ import {
   update_goal_api,
 } from "@/lib/api/goal-api";
 import { ApiRequestError } from "@/lib/api/http";
-import { cn, format_tokens } from "@/lib/utils";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
-import {
-  GOAL_STATUS_LABEL,
-  goal_budget_percent,
-  goal_elapsed_label,
-  goal_event_label,
-  goal_runtime_label,
-  goal_status_tone,
-  goal_usage_total,
-} from "./goal-panel-model";
+import { GoalDraftForm, GoalStatusStrip } from "./goal-panel-view";
 
 interface GoalPanelProps {
   session_key: string | null;
@@ -54,6 +31,7 @@ interface GoalPanelProps {
   activity_key?: string | number | null;
   edit_request_key?: string | number | null;
   is_generating?: boolean;
+  scope_label?: string;
 }
 
 function is_goal_unavailable(error: unknown) {
@@ -95,6 +73,7 @@ export function GoalPanel({
   activity_key = null,
   edit_request_key = null,
   is_generating = false,
+  scope_label = "会话 Goal",
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
   const [events, set_events] = useState<GoalEvent[]>([]);
@@ -108,10 +87,6 @@ export function GoalPanel({
   const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
   const resume_prompt_key_ref = useRef<string | null>(null);
   const edit_request_key_ref = useRef<string | number | null>(null);
-
-  const usage_total = goal_usage_total(goal);
-  const budget_value = goal?.token_budget ?? null;
-  const usage_percent = useMemo(() => goal_budget_percent(goal), [goal]);
 
   const refresh_goal_events = useCallback(async (goal_id: string) => {
     try {
@@ -271,6 +246,10 @@ export function GoalPanel({
   };
 
   const recent_events = events.slice(0, 3);
+  const can_resume_current_goal = useMemo(
+    () => (goal ? can_resume_goal(goal.status) : false),
+    [goal],
+  );
 
   if (!is_available || !session_key) {
     return null;
@@ -278,206 +257,42 @@ export function GoalPanel({
 
   if (!goal || is_editing) {
     return (
-      <form
-        className={cn(
-          "mx-auto mb-2 flex w-full max-w-[980px] flex-wrap items-end gap-2 rounded-lg border border-border/70 bg-background/95 px-3 py-2 shadow-sm backdrop-blur",
-          compact && "mx-2 max-w-none",
-        )}
-        onSubmit={submit_goal}
-      >
-        <div className="mb-1.5 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border/70 bg-muted/50 text-muted-foreground">
-          <Target className="h-4 w-4" />
-        </div>
-        <div className="min-w-[160px] flex-1">
-          <input
-            className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            disabled={disabled || is_loading}
-            placeholder="输入 Goal"
-            value={objective}
-            onChange={(event) => set_objective(event.target.value)}
-          />
-        </div>
-        <input
-          className="h-8 w-24 rounded-md border border-border/70 bg-background px-2 text-xs outline-none placeholder:text-muted-foreground"
-          disabled={disabled || is_loading}
-          inputMode="numeric"
-          placeholder="Token"
-          value={budget}
-          onChange={(event) => set_budget(event.target.value)}
-        />
-        <button
-          className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={disabled || is_loading || !objective.trim()}
-          title={is_editing ? "保存 Goal" : "创建 Goal"}
-          type="submit"
-        >
-          {is_editing ? (
-            <Save className="h-4 w-4" />
-          ) : (
-            <Target className="h-4 w-4" />
-          )}
-        </button>
-        {is_editing ? (
-          <button
-            className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground"
-            title="取消"
-            type="button"
-            onClick={cancel_editing_goal}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
-      </form>
+      <GoalDraftForm
+        budget={budget}
+        compact={compact}
+        disabled={disabled}
+        error={error}
+        is_editing={is_editing}
+        is_loading={is_loading}
+        objective={objective}
+        scope_label={scope_label}
+        on_budget_change={set_budget}
+        on_cancel={cancel_editing_goal}
+        on_objective_change={set_objective}
+        on_submit={submit_goal}
+      />
     );
   }
 
-  const tone = goal_status_tone(goal.status);
-  const runtime_label = goal_runtime_label(goal, is_generating);
-  const latest_event = recent_events[0] ?? null;
-  const elapsed_label = goal_elapsed_label(goal.time_used_seconds);
-
   return (
     <>
-      <div
-        className={cn(
-          "mx-auto mb-2 w-full max-w-[980px] overflow-hidden rounded-lg border border-border/70 bg-background/95 shadow-sm backdrop-blur",
-          compact && "mx-2 max-w-none",
-        )}
-      >
-        <div className={cn("h-1 w-full", tone.rail)} />
-        <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-md border", tone.icon)}>
-              <Target className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  Goal 模式
-                </span>
-                <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium", tone.badge)}>
-                  {GOAL_STATUS_LABEL[goal.status] ?? goal.status}
-                </span>
-                <span className={cn("text-[11px] font-medium", tone.text)}>
-                  {runtime_label}
-                </span>
-                {latest_event ? (
-                  <span className="min-w-0 truncate text-[11px] text-muted-foreground">
-                    {goal_event_label(latest_event)}
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-1 min-w-0 break-words text-sm font-medium leading-5 text-foreground">
-                {goal.objective}
-              </div>
-              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
-                  <GaugeCircle className="h-3.5 w-3.5" />
-                  {format_tokens(usage_total)}
-                  {budget_value ? ` / ${format_tokens(budget_value)}` : ""}
-                </span>
-                <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
-                  <Clock3 className="h-3.5 w-3.5" />
-                  {elapsed_label}
-                </span>
-                <span className="inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2">
-                  <Repeat2 className="h-3.5 w-3.5" />
-                  续跑 {goal.continuation_count}
-                </span>
-                {goal.last_error ? (
-                  <span className="inline-flex h-6 max-w-full items-center truncate rounded-md border border-destructive/20 bg-destructive/10 px-2 text-destructive">
-                    {goal.last_error}
-                  </span>
-                ) : null}
-              </div>
-              {usage_percent !== null ? (
-                <div className="mt-2 h-1.5 overflow-hidden rounded bg-muted">
-                  <div
-                    className={cn("h-full", tone.meter)}
-                    style={{ width: `${usage_percent}%` }}
-                  />
-                </div>
-              ) : null}
-              {recent_events.length > 1 ? (
-                <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                  {recent_events.slice(1).map((event) => (
-                    <span
-                      key={event.id}
-                      className="rounded border border-border/60 px-1.5 py-0.5"
-                    >
-                      {goal_event_label(event)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {error ? (
-                <div className="mt-1 text-[11px] text-destructive">{error}</div>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center justify-end gap-1 sm:ml-auto">
-            <button
-              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground"
-              title="刷新"
-              type="button"
-              onClick={() => void refresh_goal()}
-            >
-              <RefreshCw className={cn("h-4 w-4", is_loading && "animate-spin")} />
-            </button>
-            <button
-              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-              disabled={disabled || is_loading}
-              title={goal.status === "budget_limited" ? "调整预算" : "编辑"}
-              type="button"
-              onClick={start_editing_goal}
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            {goal.status === "active" ? (
-              <button
-                className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-                disabled={disabled || is_loading}
-                title="暂停"
-                type="button"
-                onClick={() => void mutate_goal(pause_goal_api)}
-              >
-                <Pause className="h-4 w-4" />
-              </button>
-            ) : null}
-            {can_resume_goal(goal.status) ? (
-              <button
-                className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-                disabled={disabled || is_loading}
-                title="继续"
-                type="button"
-                onClick={() => void mutate_goal(resume_goal_api)}
-              >
-                <Play className="h-4 w-4" />
-              </button>
-            ) : null}
-            {goal.status === "active" ? (
-              <button
-                className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-                disabled={disabled || is_loading}
-                title="完成"
-                type="button"
-                onClick={() => void mutate_goal(complete_goal_api)}
-              >
-                <CheckCircle2 className="h-4 w-4" />
-              </button>
-            ) : null}
-            <button
-              className="grid h-8 w-8 place-items-center rounded-md border border-border/70 text-muted-foreground disabled:opacity-50"
-              disabled={disabled || is_loading}
-              title="清除"
-              type="button"
-              onClick={() => set_is_clear_confirm_open(true)}
-            >
-              <CircleSlash className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
+      <GoalStatusStrip
+        can_resume={can_resume_current_goal}
+        compact={compact}
+        disabled={disabled}
+        error={error}
+        goal={goal}
+        is_generating={is_generating}
+        is_loading={is_loading}
+        recent_events={recent_events}
+        scope_label={scope_label}
+        on_clear_request={() => set_is_clear_confirm_open(true)}
+        on_complete={() => void mutate_goal(complete_goal_api)}
+        on_edit={start_editing_goal}
+        on_pause={() => void mutate_goal(pause_goal_api)}
+        on_refresh={() => void refresh_goal()}
+        on_resume={() => void mutate_goal(resume_goal_api)}
+      />
       <ConfirmDialog
         cancel_text="取消"
         confirm_text="清除"

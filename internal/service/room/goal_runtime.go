@@ -12,23 +12,63 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
-func (s *RealtimeService) appendGoalRuntimeContext(ctx context.Context, sessionKey string, appendSystemPrompt string) (string, string) {
+func (s *RealtimeService) appendGoalRuntimeContextForSlot(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	appendSystemPrompt string,
+) (string, string, string) {
+	for _, sessionKey := range goalSessionCandidates(roundValue, slot) {
+		nextPrompt, goalID, ok := s.appendGoalRuntimeContext(ctx, sessionKey, appendSystemPrompt)
+		if !ok {
+			continue
+		}
+		return nextPrompt, goalID, sessionKey
+	}
+	return appendSystemPrompt, "", ""
+}
+
+func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {
+	candidates := []string{}
+	if roundValue != nil {
+		candidates = append(candidates, roundValue.SessionKey)
+	}
+	if slot != nil {
+		candidates = append(candidates, slot.RuntimeSessionKey)
+	}
+	result := make([]string, 0, len(candidates))
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		sessionKey := strings.TrimSpace(candidate)
+		if sessionKey == "" {
+			continue
+		}
+		if _, exists := seen[sessionKey]; exists {
+			continue
+		}
+		seen[sessionKey] = struct{}{}
+		result = append(result, sessionKey)
+	}
+	return result
+}
+
+func (s *RealtimeService) appendGoalRuntimeContext(ctx context.Context, sessionKey string, appendSystemPrompt string) (string, string, bool) {
 	if s.goals == nil {
-		return appendSystemPrompt, ""
+		return appendSystemPrompt, "", false
 	}
 	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
 		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
-			return appendSystemPrompt, ""
+			return appendSystemPrompt, "", false
 		}
 		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
-		return appendSystemPrompt, ""
+		return appendSystemPrompt, "", false
 	}
 	goalID := goalIDForRuntimeUsage(goal)
 	if strings.TrimSpace(goalContext) == "" {
-		return appendSystemPrompt, goalID
+		return appendSystemPrompt, goalID, true
 	}
-	return appendPromptSection(appendSystemPrompt, goalContext), goalID
+	return appendPromptSection(appendSystemPrompt, goalContext), goalID, true
 }
 
 func goalIDForRuntimeUsage(goal *protocol.Goal) string {
@@ -50,7 +90,7 @@ func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	if s.runtime == nil || slot == nil {
 		return func() {}
 	}
-	sessionKey := strings.TrimSpace(slot.RuntimeSessionKey)
+	sessionKey := goalSessionKeyForSlot(slot)
 	roundID := strings.TrimSpace(slot.AgentRoundID)
 	if sessionKey == "" || roundID == "" {
 		return func() {}
@@ -93,10 +133,10 @@ func (s *RealtimeService) recordGoalUsageLimitForSlot(
 	if s.goals == nil || slot == nil || !result.UsageLimitReached {
 		return
 	}
-	_, err := s.goals.UsageLimitForSession(ctx, slot.RuntimeSessionKey, slot.AgentRoundID, result.UsageLimitReason)
+	_, err := s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
 		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
-			"session_key", slot.RuntimeSessionKey,
+			"session_key", goalSessionKeyForSlot(slot),
 			"goal_id", slot.GoalIDForUsage,
 			"round_id", slot.AgentRoundID,
 			"err", err,
@@ -216,11 +256,11 @@ func (s *RealtimeService) recordGoalUsageDeltaForSlot(ctx context.Context, slot 
 	if strings.TrimSpace(slot.GoalIDForUsage) != "" {
 		_, err = s.goals.RecordUsageForGoal(ctx, slot.GoalIDForUsage, usage, slot.AgentRoundID)
 	} else {
-		_, err = s.goals.RecordUsageForSession(ctx, slot.RuntimeSessionKey, usage, slot.AgentRoundID)
+		_, err = s.goals.RecordUsageForSession(ctx, goalSessionKeyForSlot(slot), usage, slot.AgentRoundID)
 	}
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
 		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",
-			"session_key", slot.RuntimeSessionKey,
+			"session_key", goalSessionKeyForSlot(slot),
 			"goal_id", slot.GoalIDForUsage,
 			"round_id", slot.AgentRoundID,
 			"err", err,
@@ -237,6 +277,16 @@ func clearGoalUsageForSlot(slot *activeRoomSlot) {
 	if slot.GoalUsage != nil {
 		slot.GoalUsage.Close()
 	}
+}
+
+func goalSessionKeyForSlot(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	if sessionKey := strings.TrimSpace(slot.GoalSessionKey); sessionKey != "" {
+		return sessionKey
+	}
+	return strings.TrimSpace(slot.RuntimeSessionKey)
 }
 
 func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {

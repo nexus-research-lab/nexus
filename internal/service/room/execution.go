@@ -168,7 +168,7 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
-	appendSystemPrompt, slot.GoalIDForUsage = s.appendGoalRuntimeContext(slotCtx, slot.RuntimeSessionKey, appendSystemPrompt)
+	appendSystemPrompt, slot.GoalIDForUsage, slot.GoalSessionKey = s.appendGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
 	beginGoalUsageForSlot(slot)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
@@ -206,6 +206,9 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 	options = s.runtime.WithGuidanceHook(options, slot.RuntimeSessionKey)
+	if goalSessionKey := goalSessionKeyForSlot(slot); goalSessionKey != "" && goalSessionKey != slot.RuntimeSessionKey {
+		options = s.runtime.WithGuidanceHook(options, goalSessionKey)
+	}
 	options = runtimectx.WithPostToolUseGuidanceHook(options, s.roomSlotGuidanceHook(roundValue, slot, workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  agentValue.WorkspacePath,

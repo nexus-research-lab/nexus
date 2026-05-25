@@ -22,6 +22,7 @@ type activeRoomSlot struct {
 	AgentRoundID       string
 	MsgID              string
 	RuntimeSessionKey  string
+	GoalSessionKey     string
 	GoalIDForUsage     string
 	GoalUsage          *goalsvc.RuntimeUsageAccumulator
 	GoalUsageStartedAt time.Time

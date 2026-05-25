@@ -399,6 +399,7 @@ export function DmChatPanel({
         edit_request_key={goal_edit_seq}
         is_generating={is_loading}
         session_key={session_key}
+        scope_label="会话 Goal"
       />
 
       <ComposerPanel

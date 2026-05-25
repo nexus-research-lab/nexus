@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -15,17 +16,27 @@ import (
 
 type fakeRoomGoalContextProvider struct {
 	mu               sync.Mutex
+	runtimeContexts  map[string]string
+	runtimeGoals     map[string]*protocol.Goal
 	usage            []protocol.GoalUsage
+	usageSessionKeys []string
 	usageLimitReason []string
+	usageLimitKeys   []string
 }
 
-func (p *fakeRoomGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
-	return "", nil, nil
+func (p *fakeRoomGoalContextProvider) RuntimeContext(_ context.Context, sessionKey string) (string, *protocol.Goal, error) {
+	goal := p.runtimeGoals[sessionKey]
+	if goal == nil {
+		return "", nil, goalsvc.ErrGoalNotFound
+	}
+	value := *goal
+	return p.runtimeContexts[sessionKey], &value, nil
 }
 
-func (p *fakeRoomGoalContextProvider) RecordUsageForSession(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) RecordUsageForSession(_ context.Context, sessionKey string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.usageSessionKeys = append(p.usageSessionKeys, sessionKey)
 	p.usage = append(p.usage, usage)
 	return nil, nil
 }
@@ -37,9 +48,10 @@ func (p *fakeRoomGoalContextProvider) RecordUsageForGoal(_ context.Context, _ st
 	return nil, nil
 }
 
-func (p *fakeRoomGoalContextProvider) UsageLimitForSession(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+func (p *fakeRoomGoalContextProvider) UsageLimitForSession(_ context.Context, sessionKey string, _ string, reason string) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.usageLimitKeys = append(p.usageLimitKeys, sessionKey)
 	p.usageLimitReason = append(p.usageLimitReason, reason)
 	return nil, nil
 }
@@ -127,6 +139,103 @@ func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 	}
 }
 
+func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
+	manager := runtimectx.NewManager()
+	service := &RealtimeService{runtime: manager}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
+		GoalSessionKey:    "room:group:conversation-1",
+		AgentRoundID:      "room-round-1:agent-1",
+	}
+
+	cleanup := service.registerSlotGoalRuntime(slot)
+	roundIDs, err := manager.QueueGuidanceInput(context.Background(), slot.GoalSessionKey, "goal-event-1", "budget reached")
+	if err != nil {
+		t.Fatalf("QueueGuidanceInput() error = %v", err)
+	}
+	if len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
+		t.Fatalf("roundIDs = %#v, want slot round", roundIDs)
+	}
+	if count := manager.PendingGuidanceCount(slot.GoalSessionKey); count != 1 {
+		t.Fatalf("PendingGuidanceCount = %d, want 1", count)
+	}
+
+	cleanup()
+	if _, err := manager.QueueGuidanceInput(context.Background(), slot.GoalSessionKey, "goal-event-2", "late guidance"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
+		t.Fatalf("QueueGuidanceInput() after cleanup error = %v, want ErrNoRunningRound", err)
+	}
+}
+
+func TestAppendGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
+	sharedSessionKey := "room:group:conversation-1"
+	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
+	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
+		runtimeContexts: map[string]string{
+			sharedSessionKey:  "shared goal context",
+			runtimeSessionKey: "runtime goal context",
+		},
+		runtimeGoals: map[string]*protocol.Goal{
+			sharedSessionKey: {
+				ID:         "goal-shared",
+				SessionKey: sharedSessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+			runtimeSessionKey: {
+				ID:         "goal-runtime",
+				SessionKey: runtimeSessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}}
+	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
+
+	prompt, goalID, goalSessionKey := service.appendGoalRuntimeContextForSlot(
+		context.Background(),
+		&activeRoomRound{SessionKey: sharedSessionKey},
+		slot,
+		"base prompt",
+	)
+
+	if goalID != "goal-shared" || goalSessionKey != sharedSessionKey {
+		t.Fatalf("goalID=%q goalSessionKey=%q, want shared goal", goalID, goalSessionKey)
+	}
+	if !strings.Contains(prompt, "shared goal context") || strings.Contains(prompt, "runtime goal context") {
+		t.Fatalf("prompt = %q, want only shared goal context", prompt)
+	}
+}
+
+func TestAppendGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
+	sharedSessionKey := "room:group:conversation-1"
+	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
+	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
+		runtimeContexts: map[string]string{
+			runtimeSessionKey: "runtime goal context",
+		},
+		runtimeGoals: map[string]*protocol.Goal{
+			runtimeSessionKey: {
+				ID:         "goal-runtime",
+				SessionKey: runtimeSessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}}
+	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
+
+	prompt, goalID, goalSessionKey := service.appendGoalRuntimeContextForSlot(
+		context.Background(),
+		&activeRoomRound{SessionKey: sharedSessionKey},
+		slot,
+		"base prompt",
+	)
+
+	if goalID != "goal-runtime" || goalSessionKey != runtimeSessionKey {
+		t.Fatalf("goalID=%q goalSessionKey=%q, want runtime goal fallback", goalID, goalSessionKey)
+	}
+	if !strings.Contains(prompt, "runtime goal context") {
+		t.Fatalf("prompt = %q, want runtime goal context", prompt)
+	}
+}
+
 func TestClearGoalUsageForRoomSlotStopsLaterAccounting(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &RealtimeService{goals: goalProvider}
@@ -148,6 +257,25 @@ func TestClearGoalUsageForRoomSlotStopsLaterAccounting(t *testing.T) {
 
 	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
 		t.Fatalf("usages = %#v, want none after clear", usages)
+	}
+}
+
+func TestRecordGoalUsageLimitForRoomSlotUsesGoalSessionKey(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
+		GoalSessionKey:    "room:group:conversation-1",
+		AgentRoundID:      "round-1",
+	}
+
+	service.recordGoalUsageLimitForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "The usage limit has been reached",
+	})
+
+	if len(goalProvider.usageLimitKeys) != 1 || goalProvider.usageLimitKeys[0] != slot.GoalSessionKey {
+		t.Fatalf("usageLimitKeys = %#v, want shared goal session", goalProvider.usageLimitKeys)
 	}
 }
 
