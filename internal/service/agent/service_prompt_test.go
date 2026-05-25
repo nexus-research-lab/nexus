@@ -86,6 +86,8 @@ func TestServiceBuildRuntimePromptDirectsScheduledTaskSkill(t *testing.T) {
 	assertPromptContains(t, prompt, "scheduled-task-manager")
 	assertPromptContains(t, prompt, "nexus_automation")
 	assertPromptContains(t, prompt, "短提醒不要猜 execution_mode / reply_mode")
+	assertPromptContains(t, prompt, "不要用 ScheduleWakeup")
+	assertPromptContains(t, prompt, "会话内临时 wakeup")
 	assertPromptContains(t, prompt, "检查发送情况")
 	assertPromptContains(t, prompt, "补发投递失败")
 	assertPromptContains(t, prompt, "重新启用已暂停任务")
