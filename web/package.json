@@ -21,6 +21,7 @@
     "docx-preview": "^0.3.7",
     "dompurify": "^3.4.5",
     "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "katex": "^0.16.25",
     "lucide-react": "^0.554.0",
     "matter-js": "^0.20.0",
