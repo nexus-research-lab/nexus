@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import {
   CheckCircle2,
   CircleSlash,
@@ -25,6 +25,8 @@ import {
   goal_status_tone,
   goal_usage_total,
 } from "./goal-panel-model";
+
+const GOAL_ELAPSED_TICK_MS = 1000;
 
 interface GoalStatusStripProps {
   can_resume: boolean;
@@ -94,7 +96,47 @@ export function GoalStatusStrip({
   const tone = goal_status_tone(goal.status);
   const runtime_label = goal_runtime_label(goal, is_generating);
   const latest_event = recent_events[0] ?? null;
-  const elapsed_label = goal_elapsed_label(goal.time_used_seconds);
+  const [observed_at_ms, set_observed_at_ms] = useState(() => Date.now());
+  const [active_turn_started_at_ms, set_active_turn_started_at_ms] = useState<
+    number | null
+  >(null);
+  const [now_ms, set_now_ms] = useState(() => Date.now());
+
+  useEffect(() => {
+    const now = Date.now();
+    set_observed_at_ms(now);
+    set_now_ms(now);
+  }, [goal.id, goal.status, goal.time_used_seconds, goal.updated_at]);
+
+  useEffect(() => {
+    if (goal.status !== "active" || !is_generating) {
+      set_active_turn_started_at_ms(null);
+      return;
+    }
+    set_active_turn_started_at_ms((current) => current ?? Date.now());
+  }, [goal.id, goal.status, is_generating]);
+
+  useEffect(() => {
+    if (active_turn_started_at_ms === null) return;
+    const timer = window.setInterval(() => {
+      set_now_ms(Date.now());
+    }, GOAL_ELAPSED_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [active_turn_started_at_ms]);
+
+  const active_elapsed_seconds =
+    active_turn_started_at_ms !== null
+      ? Math.max(
+          0,
+          Math.floor(
+            (now_ms - Math.max(observed_at_ms, active_turn_started_at_ms)) /
+              1000,
+          ),
+        )
+      : 0;
+  const elapsed_label = goal_elapsed_label(
+    (goal.time_used_seconds ?? 0) + active_elapsed_seconds,
+  );
 
   return (
     <div
