@@ -112,6 +112,7 @@ type RoundMapper interface {
 type RoundExecutionRequest struct {
 	Query                  string
 	Content                any
+	ContextualInputs       []ContextualInputBlock
 	InputOptions           sdkprotocol.OutboundMessageOptions
 	Client                 Client
 	Mapper                 RoundMapper
@@ -150,7 +151,11 @@ func ExecuteRound(
 	}
 	startedAt := time.Now()
 
-	if err := QueryClientContentWithOptions(ctx, request.Client, roundQueryContent(request), request.InputOptions); err != nil {
+	queryContent, err := prepareRoundContentWithContext(ctx, request.Client, roundQueryContent(request), request.ContextualInputs)
+	if err != nil {
+		return RoundExecutionResult{}, err
+	}
+	if err := QueryClientContentWithOptions(ctx, request.Client, queryContent, request.InputOptions); err != nil {
 		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		}

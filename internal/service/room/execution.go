@@ -168,7 +168,7 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
-	appendSystemPrompt, slot.GoalIDForUsage, slot.GoalSessionKey = s.appendGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
+	appendSystemPrompt, slot.GoalContext, slot.GoalIDForUsage, slot.GoalSessionKey = s.resolveGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
 	beginGoalUsageForSlot(slot)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
@@ -266,10 +266,11 @@ func (s *RealtimeService) runSlot(
 	}
 	slot.beginNoReplyCandidate()
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
-		Content:      dispatchRuntimeContent.Payload(),
-		InputOptions: roomRoundInputOptions(roundValue),
-		Client:       client,
-		Mapper:       roomRoundMapperAdapter{mapper: mapper},
+		Content:          dispatchRuntimeContent.Payload(),
+		ContextualInputs: goalContextualInputs(slot.GoalContext, slot.GoalIDForUsage, goalSessionKeyForSlot(slot)),
+		InputOptions:     roomRoundInputOptions(roundValue),
+		Client:           client,
+		Mapper:           roomRoundMapperAdapter{mapper: mapper},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
 		},

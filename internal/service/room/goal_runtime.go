@@ -12,20 +12,20 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
-func (s *RealtimeService) appendGoalRuntimeContextForSlot(
+func (s *RealtimeService) resolveGoalRuntimeContextForSlot(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 	appendSystemPrompt string,
-) (string, string, string) {
+) (string, string, string, string) {
 	for _, sessionKey := range goalSessionCandidates(roundValue, slot) {
-		nextPrompt, goalID, ok := s.appendGoalRuntimeContext(ctx, sessionKey, appendSystemPrompt)
+		goalContext, goalID, ok := s.goalRuntimeContext(ctx, sessionKey)
 		if !ok {
 			continue
 		}
-		return nextPrompt, goalID, sessionKey
+		return appendSystemPrompt, goalContext, goalID, sessionKey
 	}
-	return appendSystemPrompt, "", ""
+	return appendSystemPrompt, "", "", ""
 }
 
 func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {
@@ -52,23 +52,23 @@ func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []
 	return result
 }
 
-func (s *RealtimeService) appendGoalRuntimeContext(ctx context.Context, sessionKey string, appendSystemPrompt string) (string, string, bool) {
+func (s *RealtimeService) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, bool) {
 	if s.goals == nil {
-		return appendSystemPrompt, "", false
+		return "", "", false
 	}
 	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
 		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
-			return appendSystemPrompt, "", false
+			return "", "", false
 		}
 		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
-		return appendSystemPrompt, "", false
+		return "", "", false
 	}
 	goalID := goalIDForRuntimeUsage(goal)
 	if strings.TrimSpace(goalContext) == "" {
-		return appendSystemPrompt, goalID, true
+		return "", goalID, true
 	}
-	return appendPromptSection(appendSystemPrompt, goalContext), goalID, true
+	return strings.TrimSpace(goalContext), goalID, true
 }
 
 func goalIDForRuntimeUsage(goal *protocol.Goal) string {

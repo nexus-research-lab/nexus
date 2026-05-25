@@ -79,6 +79,22 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
   }
 }
 
+export function goal_context_label(goal: Goal, is_generating: boolean): string | null {
+  switch (goal.status) {
+    case "active":
+      return is_generating ? "携带上下文" : "下轮上下文";
+    case "paused":
+      return "上下文暂停";
+    case "blocked":
+      return "上下文阻塞";
+    case "budget_limited":
+    case "usage_limited":
+      return "上下文受限";
+    default:
+      return null;
+  }
+}
+
 export function goal_event_label(event: GoalEvent): string {
   const label = GOAL_EVENT_LABEL[event.event_type] ?? event.event_type;
   const source = GOAL_SOURCE_LABEL[event.source] ?? event.source;

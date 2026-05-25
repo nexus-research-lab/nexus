@@ -6,6 +6,7 @@ import {
   CircleSlash,
   Clock3,
   GaugeCircle,
+  Layers3,
   Pause,
   Pencil,
   Play,
@@ -19,6 +20,7 @@ import type { Goal, GoalEvent } from "@/types/conversation/goal";
 import {
   GOAL_STATUS_LABEL,
   goal_budget_percent,
+  goal_context_label,
   goal_elapsed_label,
   goal_event_label,
   goal_runtime_label,
@@ -119,6 +121,7 @@ export function GoalStatusStrip({
   const usage_percent = goal_budget_percent(goal);
   const tone = goal_status_tone(goal.status);
   const runtime_label = goal_runtime_label(goal, is_generating);
+  const context_label = goal_context_label(goal, is_generating);
   const latest_event = recent_events[0] ?? null;
   const continuation_suppressed =
     goal.status === "active" && (goal.empty_progress_count ?? 0) > 0;
@@ -198,6 +201,14 @@ export function GoalStatusStrip({
               {goal.objective}
             </div>
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+              {context_label ? (
+                <GoalMetricPill
+                  icon={<Layers3 className="h-3.5 w-3.5 shrink-0" />}
+                  title="Goal 运行上下文状态"
+                >
+                  {context_label}
+                </GoalMetricPill>
+              ) : null}
               <GoalMetricPill
                 icon={<GaugeCircle className="h-3.5 w-3.5 shrink-0" />}
                 title="已用 token"

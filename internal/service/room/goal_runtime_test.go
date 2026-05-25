@@ -174,7 +174,7 @@ func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	}
 }
 
-func TestAppendGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
+func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 	sharedSessionKey := "room:group:conversation-1"
 	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
 	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
@@ -197,7 +197,7 @@ func TestAppendGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 	}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalID, goalSessionKey := service.appendGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
 		slot,
@@ -207,12 +207,15 @@ func TestAppendGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 	if goalID != "goal-shared" || goalSessionKey != sharedSessionKey {
 		t.Fatalf("goalID=%q goalSessionKey=%q, want shared goal", goalID, goalSessionKey)
 	}
-	if !strings.Contains(prompt, "shared goal context") || strings.Contains(prompt, "runtime goal context") {
-		t.Fatalf("prompt = %q, want only shared goal context", prompt)
+	if prompt != "base prompt" {
+		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
+	}
+	if !strings.Contains(goalContext, "shared goal context") || strings.Contains(goalContext, "runtime goal context") {
+		t.Fatalf("goalContext = %q, want only shared goal context", goalContext)
 	}
 }
 
-func TestAppendGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
+func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
 	sharedSessionKey := "room:group:conversation-1"
 	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
 	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
@@ -229,7 +232,7 @@ func TestAppendGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
 	}}
 	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
 
-	prompt, goalID, goalSessionKey := service.appendGoalRuntimeContextForSlot(
+	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
 		slot,
@@ -239,8 +242,11 @@ func TestAppendGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
 	if goalID != "goal-runtime" || goalSessionKey != runtimeSessionKey {
 		t.Fatalf("goalID=%q goalSessionKey=%q, want runtime goal fallback", goalID, goalSessionKey)
 	}
-	if !strings.Contains(prompt, "runtime goal context") {
-		t.Fatalf("prompt = %q, want runtime goal context", prompt)
+	if prompt != "base prompt" {
+		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
+	}
+	if !strings.Contains(goalContext, "runtime goal context") {
+		t.Fatalf("goalContext = %q, want runtime goal context", goalContext)
 	}
 }
 

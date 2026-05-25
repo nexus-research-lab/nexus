@@ -121,6 +121,26 @@ func (c *sdkClientAdapter) QueryContentWithOptions(ctx context.Context, content 
 	return c.SendContentWithOptions(ctx, content, nil, "", options)
 }
 
+func (c *sdkClientAdapter) SetNextTurnContext(ctx context.Context, blocks []ContextualInputBlock) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	sdkBlocks := make([]agentclient.InternalContextBlock, 0, len(blocks))
+	for _, block := range normalizeContextualInputBlocks(blocks) {
+		sdkBlocks = append(sdkBlocks, agentclient.InternalContextBlock{
+			Name:     block.Name,
+			Content:  block.Content,
+			Priority: block.Priority,
+			Metadata: cloneStringMap(block.Metadata),
+		})
+	}
+	if len(sdkBlocks) == 0 {
+		return nil
+	}
+	return session.Control().SetNextTurnContext(ctx, sdkBlocks)
+}
+
 func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
 	c.mu.Lock()
 	defer c.mu.Unlock()

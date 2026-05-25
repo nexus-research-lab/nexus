@@ -16,6 +16,7 @@ import (
 type fakeRoundExecutionClient struct {
 	sessionID    string
 	queryErr     error
+	contextErr   error
 	streamErr    error
 	waitErr      error
 	messages     chan sdkprotocol.ReceivedMessage
@@ -23,6 +24,7 @@ type fakeRoundExecutionClient struct {
 	disconnects  int
 	queryPrompts []string
 	queryContent []any
+	contextInput []ContextualInputBlock
 }
 
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
@@ -35,6 +37,11 @@ func (c *fakeRoundExecutionClient) Query(_ context.Context, prompt string) error
 func (c *fakeRoundExecutionClient) QueryContent(_ context.Context, content any) error {
 	c.queryContent = append(c.queryContent, content)
 	return c.queryErr
+}
+
+func (c *fakeRoundExecutionClient) SetNextTurnContext(_ context.Context, blocks []ContextualInputBlock) error {
+	c.contextInput = append([]ContextualInputBlock(nil), blocks...)
+	return c.contextErr
 }
 
 func (c *fakeRoundExecutionClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
@@ -211,6 +218,117 @@ func TestExecuteRoundUsesStructuredContent(t *testing.T) {
 	}
 	if len(client.queryContent) != 1 {
 		t.Fatalf("结构化输入未走 QueryContent: %+v", client.queryContent)
+	}
+}
+
+func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-context",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "用户输入",
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal_context", "<goal_context>\nContinue.\n</goal_context>", 0, map[string]string{"goal_id": "goal-1"}),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal_context" {
+		t.Fatalf("contextInput = %#v, want goal_context", client.contextInput)
+	}
+	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "用户输入" {
+		t.Fatalf("queryPrompts = %#v, want unmodified user input", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:  "sdk-session-context-fallback",
+		contextErr: agentclient.ErrUnsupportedCapability,
+		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-fallback",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "用户输入",
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal_context", "<goal_context>\nContinue.\n</goal_context>", 0, nil),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.queryPrompts) != 1 ||
+		!strings.HasPrefix(client.queryPrompts[0], "<goal_context>\nContinue.\n</goal_context>\n\n") ||
+		!strings.Contains(client.queryPrompts[0], "用户输入") {
+		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupported(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:  "sdk-session-context-structured",
+		contextErr: agentclient.ErrUnsupportedCapability,
+		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-structured",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+	content := []map[string]any{{"type": "text", "text": "描述图片"}}
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: content,
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal_context", "<goal_context>\nContinue.\n</goal_context>", 0, nil),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.queryContent) != 1 {
+		t.Fatalf("queryContent = %#v, want one structured payload", client.queryContent)
+	}
+	blocks, ok := client.queryContent[0].([]map[string]any)
+	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<goal_context>\nContinue.\n</goal_context>" {
+		t.Fatalf("queryContent[0] = %#v, want prepended context text block", client.queryContent[0])
 	}
 }
 

@@ -62,6 +62,7 @@ type roundRunner struct {
 	mapper            *dmdomain.MessageMapper
 	inputOptions      sdkprotocol.OutboundMessageOptions
 	internal          bool
+	goalContext       string
 	goalIDForUsage    string
 	goalUsage         *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted  time.Time
@@ -119,10 +120,11 @@ func (r *roundRunner) executeRound(
 	logger *slog.Logger,
 ) (runtimectx.RoundExecutionResult, error) {
 	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
-		Content:      r.runtimeContent.Payload(),
-		InputOptions: r.inputOptions,
-		Client:       r.client,
-		Mapper:       dmRoundMapperAdapter{mapper: r.mapper},
+		Content:          r.runtimeContent.Payload(),
+		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
+		InputOptions:     r.inputOptions,
+		Client:           r.client,
+		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
 		InterruptReason: func() string {
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
