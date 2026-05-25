@@ -29,7 +29,6 @@ interface GoalPanelProps {
   compact?: boolean;
   disabled?: boolean;
   activity_key?: string | number | null;
-  edit_request_key?: string | number | null;
   is_generating?: boolean;
   scope_label?: string;
 }
@@ -71,7 +70,6 @@ export function GoalPanel({
   compact = false,
   disabled = false,
   activity_key = null,
-  edit_request_key = null,
   is_generating = false,
   scope_label = "会话 Goal",
 }: GoalPanelProps) {
@@ -86,7 +84,6 @@ export function GoalPanel({
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
   const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
   const resume_prompt_key_ref = useRef<string | null>(null);
-  const edit_request_key_ref = useRef<string | number | null>(null);
 
   const refresh_goal_events = useCallback(async (goal_id: string) => {
     try {
@@ -157,17 +154,6 @@ export function GoalPanel({
     set_budget(current.token_budget ? String(current.token_budget) : "");
     set_is_editing(true);
   }, []);
-
-  useEffect(() => {
-    if (edit_request_key === null || edit_request_key === undefined || disabled || !goal) {
-      return;
-    }
-    if (edit_request_key_ref.current === edit_request_key) {
-      return;
-    }
-    edit_request_key_ref.current = edit_request_key;
-    begin_editing_goal(goal);
-  }, [begin_editing_goal, disabled, edit_request_key, goal]);
 
   const submit_goal = async (event: FormEvent) => {
     event.preventDefault();

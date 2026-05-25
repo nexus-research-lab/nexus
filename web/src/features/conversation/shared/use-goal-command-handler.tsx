@@ -19,7 +19,6 @@ import {
 interface GoalCommandHandlerOptions {
   session_key: string | null;
   on_refresh: () => void;
-  on_edit_goal?: () => void;
 }
 
 interface PendingGoalReplacement {
@@ -30,7 +29,6 @@ interface PendingGoalReplacement {
 export function useGoalCommandHandler({
   session_key,
   on_refresh,
-  on_edit_goal,
 }: GoalCommandHandlerOptions): {
   try_handle_goal_command: (content: string) => Promise<boolean>;
   goal_command_dialog: ReactNode;
@@ -65,11 +63,6 @@ export function useGoalCommandHandler({
       if (!session_key) {
         return true;
       }
-      if (command.kind === "edit") {
-        on_edit_goal?.();
-        on_refresh();
-        return true;
-      }
       if (command.kind === "create") {
         const decision = await goal_create_decision(session_key, command);
         if (decision.kind === "confirm") {
@@ -90,7 +83,7 @@ export function useGoalCommandHandler({
       on_refresh();
       return true;
     },
-    [on_edit_goal, on_refresh, session_key],
+    [on_refresh, session_key],
   );
 
   const confirm_replacement = useCallback(() => {

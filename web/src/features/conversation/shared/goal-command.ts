@@ -10,7 +10,6 @@ import type { Goal } from "@/types/conversation/goal";
 
 export type GoalCommand =
   | { kind: "show" }
-  | { kind: "edit" }
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "clear" }
@@ -42,9 +41,8 @@ export function parse_goal_command(content: string): GoalCommand | null {
     return { kind: "show" };
   }
   const normalized = body.toLowerCase();
-  if (normalized === "edit") return { kind: "edit" };
   if (normalized === "pause") return { kind: "pause" };
-  if (normalized === "resume" || normalized === "start") return { kind: "resume" };
+  if (normalized === "resume") return { kind: "resume" };
   if (normalized === "clear") return { kind: "clear" };
   const objective = body.trim();
   const objective_chars = Array.from(objective).length;
@@ -62,7 +60,7 @@ export async function run_goal_command(
   command: GoalCommand,
   options: RunGoalCommandOptions = {},
 ) {
-  if (command.kind === "show" || command.kind === "edit") {
+  if (command.kind === "show") {
     return;
   }
   if (command.kind === "invalid") {
