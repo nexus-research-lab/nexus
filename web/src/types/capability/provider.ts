@@ -9,19 +9,78 @@
  * # =====================================================
  */
 
+export type ProviderApiFormat = "chat_completions" | "responses" | "anthropic_messages";
+
+export interface ProviderModelCapabilities {
+  vision?: boolean;
+  image_output?: boolean;
+  tool_calling?: boolean;
+  reasoning?: boolean;
+  embedding?: boolean;
+}
+
+export interface ProviderModelRecord {
+  id: string;
+  provider_id: string;
+  model_id: string;
+  display_name: string;
+  category: string;
+  enabled: boolean;
+  capabilities_auto: ProviderModelCapabilities;
+  capabilities_override: ProviderModelCapabilities;
+  context_window?: number | null;
+  max_output_tokens?: number | null;
+  provider_options: Record<string, unknown>;
+  last_seen_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 export interface ProviderConfigRecord {
   id: string;
   provider_kind: "llm" | "image_generation";
   provider: string;
+  preset_key: string;
+  api_format: ProviderApiFormat;
   display_name: string;
   auth_token_masked: string;
   base_url: string;
+  models_path: string;
   model: string;
   enabled: boolean;
   is_default: boolean;
   usage_count: number;
+  used_by_agents: ProviderUsageAgent[];
+  last_test_status: string;
+  last_test_error: string;
+  last_test_at?: string | null;
+  agent_runtime_supported: boolean;
+  models: ProviderModelRecord[];
   created_at?: string | null;
   updated_at?: string | null;
+}
+
+export interface ProviderUsageAgent {
+  agent_id: string;
+  name: string;
+  display_name: string;
+  avatar?: string;
+  is_main?: boolean;
+}
+
+export interface ProviderPresetFormat {
+  api_format: ProviderApiFormat;
+  base_url: string;
+  models_path: string;
+}
+
+export interface ProviderPreset {
+  preset_key: string;
+  display_name: string;
+  description: string;
+  key_url: string;
+  default_api_format: ProviderApiFormat;
+  formats: ProviderPresetFormat[];
 }
 
 export interface ProviderOption {
@@ -38,9 +97,12 @@ export interface ProviderOptionsResponse {
 export interface ProviderConfigPayload {
   provider_kind: "llm" | "image_generation";
   provider: string;
+  preset_key?: string;
+  api_format?: ProviderApiFormat;
   display_name: string;
   auth_token: string;
   base_url: string;
+  models_path?: string;
   model: string;
   enabled: boolean;
   is_default: boolean;
@@ -48,12 +110,38 @@ export interface ProviderConfigPayload {
 
 export interface UpdateProviderConfigPayload {
   provider_kind?: "llm" | "image_generation";
+  preset_key?: string;
+  api_format?: ProviderApiFormat;
   display_name: string;
   auth_token?: string;
   base_url: string;
+  models_path?: string;
   model: string;
   enabled: boolean;
   is_default: boolean;
+}
+
+export interface FetchProviderModelsResponse {
+  provider: string;
+  models: ProviderModelRecord[];
+  count: number;
+}
+
+export interface UpdateProviderModelPayload {
+  enabled: boolean;
+  capabilities_override: ProviderModelCapabilities;
+  context_window?: number | null;
+  max_output_tokens?: number | null;
+  provider_options: Record<string, unknown>;
+}
+
+export interface ProviderTestResult {
+  provider: string;
+  model?: string;
+  success: boolean;
+  status: string;
+  error?: string;
+  tested_at?: string | null;
 }
 
 export function format_provider_label(provider?: string | null, display_name?: string | null): string {

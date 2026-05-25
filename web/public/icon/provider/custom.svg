@@ -1,0 +1,5 @@
+<svg fill="none" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <title>Custom Provider</title>
+  <rect fill="#F8FAFC" height="24" rx="6" width="24"/>
+  <path d="M12 6v12M6 12h12" stroke="#64748B" stroke-linecap="round" stroke-width="2"/>
+</svg>
