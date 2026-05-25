@@ -3,6 +3,7 @@ package goal
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -93,11 +94,15 @@ func (s *Service) createFromThreadGoalParams(
 		return nil, err
 	}
 	now := s.nowFn()
+	status := statusAfterThreadGoalBudget(protocol.Goal{
+		Status:      protocol.GoalStatusActive,
+		TokenBudget: tokenBudget,
+	}, targetStatus, hasStatus)
 	item := protocol.Goal{
 		ID:          s.idFactory("goal"),
 		SessionKey:  sessionKey,
 		Objective:   objective,
-		Status:      protocol.GoalStatusActive,
+		Status:      status,
 		TokenBudget: tokenBudget,
 		Version:     1,
 		CreatedBy:   "app_server",
@@ -107,6 +112,7 @@ func (s *Service) createFromThreadGoalParams(
 			"created_via": "thread_goal_set",
 		},
 	}
+	applyInitialGoalStatusTime(&item, now)
 	created, err := s.repo.CreateGoal(ctx, item)
 	if err != nil {
 		return nil, err
@@ -115,11 +121,18 @@ func (s *Service) createFromThreadGoalParams(
 	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceExternal, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
-	status := statusAfterThreadGoalBudget(*created, targetStatus, hasStatus)
-	if !hasStatus || status == protocol.GoalStatusActive {
-		return created, nil
+	return created, nil
+}
+
+func applyInitialGoalStatusTime(item *protocol.Goal, now time.Time) {
+	switch protocol.NormalizeGoalStatus(item.Status) {
+	case protocol.GoalStatusComplete:
+		item.CompletedAt = &now
+	case protocol.GoalStatusBlocked:
+		item.BlockedAt = &now
+	case protocol.GoalStatusCleared:
+		item.ClearedAt = &now
 	}
-	return s.persistTransition(ctx, *created, status, protocol.GoalUpdateSourceExternal, threadGoalStatusEventType(status), "", nil)
 }
 
 func (s *Service) updateFromThreadGoalParams(

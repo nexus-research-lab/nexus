@@ -55,7 +55,7 @@ func protocolGoalEventType(eventType string) (protocol.EventType, bool) {
 		return protocol.EventTypeGoalCleared, true
 	case "usage_recorded":
 		return protocol.EventTypeGoalProgress, true
-	case "continuation_scheduled":
+	case "continuation_scheduled", "continuation_suppressed":
 		return protocol.EventTypeGoalContinuation, true
 	case "checkpoint_created":
 		return protocol.EventTypeGoalCheckpoint, true

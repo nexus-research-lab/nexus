@@ -114,6 +114,33 @@ func TestServiceBroadcastsGoalEvents(t *testing.T) {
 	}
 }
 
+func TestServiceBroadcastsContinuationSuppressedEvent(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	broadcaster := &fakeGoalBroadcaster{}
+	service.SetEventBroadcaster(broadcaster)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Broadcast suppression",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal_continuation_1", false); err != nil {
+		t.Fatal(err)
+	}
+	if len(broadcaster.events) != 2 || broadcaster.events[1].EventType != protocol.EventTypeGoalContinuation {
+		t.Fatalf("events = %#v, want goal_continuation for suppressed continuation", broadcaster.events)
+	}
+	if broadcaster.events[1].Data["goal_event_type"] != "continuation_suppressed" {
+		t.Fatalf("payload = %#v, want continuation_suppressed goal_event_type", broadcaster.events[1].Data)
+	}
+}
+
 func TestServiceStateTransitions(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -198,6 +225,42 @@ func TestServiceEditCompletedGoalReactivatesIt(t *testing.T) {
 	}
 }
 
+func TestServiceModelStatusUpdateFlushesButDoesNotClearRuntimeAccountingEarly(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Complete from tool",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	accountant := &fakeExternalMutationAccountant{
+		service: service,
+		usage:   protocol.GoalUsage{InputTokens: 4, OutputTokens: 5},
+		roundID: "round-running",
+	}
+	service.SetExternalMutationAccountant(accountant)
+
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-running"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete {
+		t.Fatalf("completed status = %q, want complete", completed.Status)
+	}
+	if len(accountant.sessionKeys) != 1 || accountant.sessionKeys[0] != created.SessionKey {
+		t.Fatalf("accountant flush=%#v, want one best-effort flush for model update", accountant.sessionKeys)
+	}
+	if len(accountant.clearedSessionKeys) != 0 {
+		t.Fatalf("accountant clear=%#v, want no early clear for model update", accountant.clearedSessionKeys)
+	}
+}
+
 func TestServiceRuntimeContextSkipsCompletedGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -258,6 +321,41 @@ func TestServiceSetFromThreadGoalParamsCreatesAndUpdatesGoal(t *testing.T) {
 	}
 	if updated.ID != created.ID || updated.Status != protocol.GoalStatusUsageLimited {
 		t.Fatalf("updated = %#v, want same goal usage_limited", updated)
+	}
+}
+
+func TestServiceSetFromThreadGoalParamsCreatesFinalStatusDirectly(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	broadcaster := &fakeGoalBroadcaster{}
+	service.SetEventBroadcaster(broadcaster)
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Create paused without active flicker"
+	paused := protocol.ThreadGoalStatusPaused
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+		Status:    &paused,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Status != protocol.GoalStatusPaused {
+		t.Fatalf("created status = %q, want paused", created.Status)
+	}
+	if len(repo.events) != 1 || repo.events[0].EventType != "created" {
+		t.Fatalf("events = %#v, want a single created event", repo.events)
+	}
+	if len(broadcaster.events) != 1 || broadcaster.events[0].EventType != protocol.EventTypeGoalCreated {
+		t.Fatalf("broadcast events = %#v, want one final created event", broadcaster.events)
+	}
+	goal, _ := broadcaster.events[0].Data["goal"].(protocol.Goal)
+	if goal.Status != protocol.GoalStatusPaused {
+		t.Fatalf("broadcast goal = %#v, want paused final status", broadcaster.events[0].Data["goal"])
 	}
 }
 

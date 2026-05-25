@@ -281,7 +281,9 @@ func (s *Service) persistTransition(
 	if err := s.appendEvent(ctx, *updated, eventType, source, roundID, payload); err != nil {
 		return nil, err
 	}
-	s.clearExternalGoalAccounting(*updated)
+	if shouldClearAccountingAfterMutation(source) {
+		s.clearExternalGoalAccounting(*updated)
+	}
 	return updated, nil
 }
 
