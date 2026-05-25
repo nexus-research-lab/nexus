@@ -205,7 +205,7 @@ export function GoalStatusStrip({
               {context_label ? (
                 <GoalMetricPill
                   icon={<Layers3 className="h-3.5 w-3.5 shrink-0" />}
-                  title="Goal 运行上下文注入状态"
+                  title="Goal 上下文携带状态"
                 >
                   {context_label}
                 </GoalMetricPill>

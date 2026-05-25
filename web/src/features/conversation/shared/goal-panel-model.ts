@@ -82,7 +82,7 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
 export function goal_context_label(goal: Goal, is_generating: boolean): string | null {
   switch (goal.status) {
     case "active":
-      return is_generating ? "goal_context 已注入" : "goal_context 待注入";
+      return is_generating ? "上下文已携带" : "下轮携带上下文";
     case "paused":
       return "上下文暂停";
     case "blocked":
@@ -120,7 +120,7 @@ export function goal_run_state(goal: Goal, is_generating: boolean): GoalRunState
             tone: "active",
           }
         : {
-            detail: "下一轮会携带 goal_context 继续推进",
+            detail: "下一轮会携带 Goal 上下文继续推进",
             label: "下轮继续",
             tone: "active",
           };
