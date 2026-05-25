@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 定时任务新建/编辑对话框新增“Agent 执行 / 脚本执行”入口；脚本任务只保留目标智能体、脚本内容和调度配置，隐藏执行会话与结果回传路由。
 - 定时任务运行历史新增“复制诊断”和失败 run “重新运行”操作，便于从错误记录直接排查并补跑。
 - `nexus_automation` 定时任务工具新增显式通道投递参数和卡住任务恢复工具，Agent 可创建投递到指定 session/IM 通道的任务，并可查询运行历史、释放卡住 run、修改或停用任务。
-- Agent 运行提示和 `scheduled-task-manager` 明确要求用户可见的提醒、延迟提醒和定时任务必须走 Nexus 持久化定时任务，不再用 `ScheduleWakeup` / Cron harness / 会话内临时 wakeup 承诺用户提醒。
+- Agent 运行提示、workspace `AGENTS.md` 和 `scheduled-task-manager` 明确要求用户可见的提醒、延迟提醒和定时任务必须走 Nexus 持久化定时任务；运行时会显式禁用 Claude Code 内建的 `ScheduleWakeup` / `CronCreate` / `CronList` / `CronDelete`，避免模型用会话内临时 wakeup 承诺用户提醒。
 - `update_scheduled_task` 支持单独修改或关闭结果投递，不再要求为了 `reply_mode=none/channel/agent/selected` 同时重写执行会话，便于 Agent 处理“不要再发送结果 / 改发到飞书群 / 改投给某个智能体”这类自然语言修改。
 - `update_scheduled_task` 新增 `instruction_append`，Agent 处理“给这个任务再加一条要求/补充任务细节”时可安全追加到原任务内容，避免把短补充误当成完整 `instruction` 覆盖。
 - `create_scheduled_task` / `update_scheduled_task` 会根据 `reply_channel` / `reply_to` / `reply_session_key` 或 `reply_agent_id` 推断结果回传模式，降低 Agent 漏填 `reply_mode` 时导致创建失败或空更新的概率。

@@ -55,16 +55,8 @@ func EnsureInitialized(
 	}
 	for key, relativePath := range workspaceFiles {
 		targetPath := filepath.Join(root, relativePath)
-		if _, err := os.Stat(targetPath); err == nil {
-			continue
-		} else if err != nil && !os.IsNotExist(err) {
-			return err
-		}
 		content := renderTemplate(workspaceTemplate(key, isMainAgent), context)
-		if strings.TrimSpace(content) == "" {
-			continue
-		}
-		if err := os.WriteFile(targetPath, []byte(strings.TrimSpace(content)+"\n"), 0o644); err != nil {
+		if err := ensureWorkspaceTemplateFile(targetPath, key, content); err != nil {
 			return err
 		}
 	}
@@ -144,6 +136,68 @@ func managedSkillNames(isMainAgent bool) []string {
 		items = append(items, mainAgentSkillNames...)
 	}
 	return items
+}
+
+func ensureWorkspaceTemplateFile(targetPath string, key string, content string) error {
+	rendered := strings.TrimSpace(content)
+	if rendered == "" {
+		return nil
+	}
+	if _, err := os.Stat(targetPath); err != nil {
+		if os.IsNotExist(err) {
+			return os.WriteFile(targetPath, []byte(rendered+"\n"), 0o644)
+		}
+		return err
+	}
+	if key != "agents" {
+		return nil
+	}
+	return repairAgentsScheduleGuidance(targetPath, rendered+"\n")
+}
+
+func repairAgentsScheduleGuidance(targetPath string, rendered string) error {
+	currentBytes, err := os.ReadFile(targetPath)
+	if err != nil {
+		return err
+	}
+	current := string(currentBytes)
+	if !strings.Contains(current, "ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒") {
+		return nil
+	}
+	repaired, ok := replaceMarkdownSection(current, rendered, []string{"## 定时任务路由", "## 定时任务"})
+	if !ok || repaired == current {
+		return nil
+	}
+	return os.WriteFile(targetPath, []byte(strings.TrimRight(repaired, "\n")+"\n"), 0o644)
+}
+
+func replaceMarkdownSection(current string, rendered string, headings []string) (string, bool) {
+	for _, heading := range headings {
+		currentStart, currentEnd, currentOK := markdownSectionBounds(current, heading)
+		renderedStart, renderedEnd, renderedOK := markdownSectionBounds(rendered, heading)
+		if !currentOK || !renderedOK {
+			continue
+		}
+		return current[:currentStart] + rendered[renderedStart:renderedEnd] + current[currentEnd:], true
+	}
+	return "", false
+}
+
+func markdownSectionBounds(content string, heading string) (int, int, bool) {
+	start := -1
+	if strings.HasPrefix(content, heading+"\n") {
+		start = 0
+	} else if index := strings.Index(content, "\n"+heading+"\n"); index >= 0 {
+		start = index + 1
+	}
+	if start < 0 {
+		return 0, 0, false
+	}
+	searchFrom := start + len(heading) + 1
+	if next := strings.Index(content[searchFrom:], "\n## "); next >= 0 {
+		return start, searchFrom + next + 1, true
+	}
+	return start, len(content), true
 }
 
 func buildTemplateContext(agentID string, agentName string, workspacePath string, createdAt time.Time) map[string]string {
@@ -360,19 +414,16 @@ var defaultWorkspaceTemplates = map[string]string{
 
 ## 定时任务
 
-平台里有两种看起来像「定时」的工具，用途不同，不要混用，也**永远不要向用户介绍这两种类型**——用户只需描述需求：
+用户凡是提出「提醒我...」「几分钟后...」「每天/每周...」「定时检查/汇报/投递」等用户可见的提醒或定时任务，都必须创建 Nexus 持久化任务。
 
-- **nexus_automation（create_scheduled_task 等）= 产品级定时任务**
+- **nexus_automation（create_scheduled_task 等）= 唯一用户可见定时任务入口**
   用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
   字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
   你只能 CRUD **自己 agent_id 名下**的任务，list 也只会看到自己的任务，越权操作会被后端拒绝。
-  短文本提醒类任务可以只填 name+instruction+schedule，工具会默认按 existing+execution 创建可见提醒；日报、监控、飞书群投递和检查发送情况必须先加载 scheduled-task-manager。
+  短文本提醒类任务也走 create_scheduled_task：可以只填 name+instruction+schedule，工具会默认按 existing+execution 创建可见提醒；日报、监控、飞书群投递和检查发送情况必须先加载 scheduled-task-manager。
 
-- **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
-  仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。
-  这类节拍不会落到任务管理页面，用户看不到，也无法管理。
-
-任何涉及「每天/每周/定时汇报/定时检查/定时提醒」的需求 → 一律走 create_scheduled_task。
+不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺/交付用户提醒；这些即使在运行环境里出现，也只属于运行时自我续跑机制，不会进入任务管理，不可查询、不可停止、不可补发，丢失后用户目标会失败。
+不要向用户解释工具差异；用户只需描述需求，你负责把它落成可管理的任务。
 `,
 	"user": `# USER.md
 
@@ -434,19 +485,17 @@ var mainAgentWorkspaceTemplates = map[string]string{
 
 ## 定时任务路由
 
-平台里有两种看起来像「定时」的工具，用途不同，不要混用，也**永远不要向用户介绍这两种类型**——用户只需描述需求：
+用户凡是提出「提醒我...」「几分钟后...」「每天/每周...」「定时检查/汇报/投递」等用户可见的提醒或定时任务，都必须创建 Nexus 持久化任务。
 
-- **nexus_automation（create_scheduled_task 等）= 产品级定时任务**
+- **nexus_automation（create_scheduled_task 等）= 唯一用户可见定时任务入口**
   用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
   字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
   作为主智能体，你不受 agent_id scope 限制，可以查看/管理任意智能体的任务；普通 Agent 只能 CRUD 自己的任务。
+  短文本提醒类任务也走 create_scheduled_task：可以只填 name+instruction+schedule，工具会默认按 existing+execution 创建可见提醒。
   遇到不确定字段必须先向用户确认，禁止默认套值；在网页/桌面会话可用 AskUserQuestion，在飞书/IM 等外部通道用普通文本回复让用户补充。检查发送情况、恢复卡住任务、补发投递失败时必须使用 scheduled-task-manager 里的工具顺序。
 
-- **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
-  仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。
-  这类"节拍"不会落到任务管理页面，用户看不到，也无法管理。
-
-任何涉及"每天/每周/定时汇报/定时检查/定时提醒别人"的需求 → 一律走 create_scheduled_task。
+不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺/交付用户提醒；这些即使在运行环境里出现，也只属于运行时自我续跑机制，不会进入任务管理，不可查询、不可停止、不可补发，丢失后用户目标会失败。
+不要向用户解释工具差异；用户只需描述需求，你负责把它落成可管理的任务。
 `,
 	"user": defaultWorkspaceTemplates["user"],
 	"memory": `# MEMORY.md
