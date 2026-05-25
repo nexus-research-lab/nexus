@@ -128,21 +128,25 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		if err != nil {
 			return nil, err
 		}
-		item.Objective = objective
-		changed = true
-		payload["objective_updated"] = true
+		if item.Objective != objective {
+			item.Objective = objective
+			changed = true
+			payload["objective_updated"] = true
+		}
 	}
 	if request.TokenBudget.Present {
 		tokenBudget, err := normalizeUpdateBudget(request.TokenBudget.Value)
 		if err != nil {
 			return nil, err
 		}
-		item.TokenBudget = tokenBudget
-		changed = true
-		if item.TokenBudget != nil {
-			payload["token_budget"] = *item.TokenBudget
-		} else {
-			payload["token_budget"] = nil
+		if !goalTokenBudgetEqual(item.TokenBudget, tokenBudget) {
+			item.TokenBudget = tokenBudget
+			changed = true
+			if item.TokenBudget != nil {
+				payload["token_budget"] = *item.TokenBudget
+			} else {
+				payload["token_budget"] = nil
+			}
 		}
 	}
 	if request.Metadata != nil {
@@ -306,6 +310,13 @@ func statusAfterUserGoalUpdate(status protocol.GoalStatus, objectiveUpdated bool
 	default:
 		return normalized
 	}
+}
+
+func goalTokenBudgetEqual(left *int64, right *int64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType string, source protocol.GoalUpdateSource, roundID string, payload map[string]any) error {

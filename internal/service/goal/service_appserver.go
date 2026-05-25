@@ -149,21 +149,25 @@ func (s *Service) updateFromThreadGoalParams(
 		if err != nil {
 			return nil, err
 		}
-		item.Objective = objective
-		changed = true
-		payload["objective_updated"] = true
+		if item.Objective != objective {
+			item.Objective = objective
+			changed = true
+			payload["objective_updated"] = true
+		}
 	}
 	if request.TokenBudget.Present {
 		tokenBudget, err := normalizeThreadGoalBudget(request.TokenBudget)
 		if err != nil {
 			return nil, err
 		}
-		item.TokenBudget = tokenBudget
-		changed = true
-		if tokenBudget != nil {
-			payload["token_budget"] = *tokenBudget
-		} else {
-			payload["token_budget"] = nil
+		if !goalTokenBudgetEqual(item.TokenBudget, tokenBudget) {
+			item.TokenBudget = tokenBudget
+			changed = true
+			if tokenBudget != nil {
+				payload["token_budget"] = *tokenBudget
+			} else {
+				payload["token_budget"] = nil
+			}
 		}
 	}
 	nextStatus := protocol.NormalizeGoalStatus(item.Status)

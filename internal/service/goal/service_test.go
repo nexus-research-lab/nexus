@@ -995,6 +995,38 @@ func TestServiceQueuesObjectiveUpdateSteering(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateSameObjectiveDoesNotQueueObjectiveSteering(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeGuidanceDispatcher{}
+	service.SetGuidanceDispatcher(dispatcher)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Same objective",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameObjective := "Same objective"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &sameObjective})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Version != created.Version {
+		t.Fatalf("updated version = %d, want unchanged %d", updated.Version, created.Version)
+	}
+	if len(dispatcher.items) != 0 {
+		t.Fatalf("guidance = %#v, want no objective update steering", dispatcher.items)
+	}
+	if len(repo.events) != 1 {
+		t.Fatalf("events = %#v, want no update event for unchanged objective", repo.events)
+	}
+}
+
 func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 	repo := newMemoryRepository()
 	budget := int64(10)
@@ -1404,6 +1436,42 @@ func TestServiceSetFromThreadGoalParamsUpdateFillsEmptyPreview(t *testing.T) {
 	}
 	if len(preview.items) != 1 || preview.items[0].sessionKey != updated.SessionKey || preview.items[0].title != updated.Objective {
 		t.Fatalf("preview items = %#v, want app-server updated goal objective", preview.items)
+	}
+}
+
+func TestServiceSetFromThreadGoalParamsSameObjectiveDoesNotQueueSteering(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeGuidanceDispatcher{}
+	service.SetGuidanceDispatcher(dispatcher)
+	ctx := context.Background()
+	threadID := "room:group:conversation-1"
+	objective := "Stable app-server goal"
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Version != created.Version {
+		t.Fatalf("updated version = %d, want unchanged %d", updated.Version, created.Version)
+	}
+	if len(dispatcher.items) != 0 {
+		t.Fatalf("guidance = %#v, want no objective update steering", dispatcher.items)
+	}
+	if len(repo.events) != 1 {
+		t.Fatalf("events = %#v, want no update event for unchanged objective", repo.events)
 	}
 }
 

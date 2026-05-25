@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal runtime 进一步对齐 Codex plan mode 语义，Plan 模式下不再注入 Goal 上下文、记录 Goal usage 或标记 Goal usage limit。
 - Goal runtime context 进一步收口到 active Goal，paused/blocked/usage_limited/budget_limited 等停止态不再继续注入隐藏上下文。
 - Goal budget_limited 状态下调高预算恢复 active 后，会立即尝试触发下一轮 Goal 续跑。
+- Goal objective/budget 更新仅在归一化后实际变化时记录事件和触发 objective-updated steering。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
