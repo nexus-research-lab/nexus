@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -162,6 +163,13 @@ type pairingApprovalError struct {
 	Message   string
 }
 
+type feishuIngressConfig struct {
+	OwnerUserID       string
+	AppID             string
+	VerificationToken string
+	EncryptKey        string
+}
+
 func (e *pairingApprovalError) Error() string {
 	return e.Message
 }
@@ -171,14 +179,15 @@ func (e *pairingApprovalError) Unwrap() error {
 }
 
 type ControlService struct {
-	config    config.Config
-	db        *sql.DB
-	driver    string
-	key       []byte
-	agents    agentWorkspaceResolver
-	router    *Router
-	idFactory func(string) string
-	keyErr    error
+	config     config.Config
+	db         *sql.DB
+	driver     string
+	key        []byte
+	agents     agentWorkspaceResolver
+	router     *Router
+	httpClient *http.Client
+	idFactory  func(string) string
+	keyErr     error
 }
 
 func NewControlService(
@@ -198,6 +207,11 @@ func NewControlService(
 		idFactory: newDeliveryID,
 		keyErr:    err,
 	}
+}
+
+// SetHTTPClient 注入 IM 通道主动投递使用的 HTTP client，主要用于测试或统一出站链路配置。
+func (s *ControlService) SetHTTPClient(client *http.Client) {
+	s.httpClient = client
 }
 
 func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) ([]ChannelConfigView, error) {
@@ -523,6 +537,153 @@ func (s *ControlService) ResolveIngressAgent(ctx context.Context, request Ingres
 	}
 }
 
+func (s *ControlService) ResolveChannelOwnerByConfig(ctx context.Context, channelType string, key string, value string) (string, error) {
+	channelType = normalizeIMChannelType(channelType)
+	key = strings.TrimSpace(key)
+	value = strings.TrimSpace(value)
+	if channelType == "" || key == "" || value == "" {
+		return "", nil
+	}
+	rows, err := s.listAllChannelConfigRows(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, row := range rows {
+		if row.Status == ChannelConfigStatusDisabled || row.ChannelType != channelType {
+			continue
+		}
+		publicConfig, decodeErr := decodeStringMap(row.ConfigJSON)
+		if decodeErr != nil {
+			return "", decodeErr
+		}
+		if strings.TrimSpace(publicConfig[key]) == value {
+			return row.OwnerUserID, nil
+		}
+	}
+	return "", nil
+}
+
+func (s *ControlService) PrepareFeishuIngress(ctx context.Context, raw []byte, header http.Header) (FeishuIngressPreparation, error) {
+	encryptValue, encrypted, err := feishuEncryptEnvelope(raw)
+	if err != nil {
+		return FeishuIngressPreparation{}, err
+	}
+	configs, err := s.listFeishuIngressConfigs(ctx)
+	if err != nil {
+		return FeishuIngressPreparation{}, err
+	}
+	if encrypted {
+		return s.prepareEncryptedFeishuIngress(raw, header, encryptValue, configs)
+	}
+	callback, err := DecodeFeishuIngressCallback(raw)
+	if err != nil {
+		return FeishuIngressPreparation{}, err
+	}
+	config := matchFeishuIngressConfig(configs, callback)
+	if config == nil {
+		if strings.TrimSpace(callback.AppID) == "" && strings.TrimSpace(callback.Token) == "" {
+			return FeishuIngressPreparation{Body: raw}, nil
+		}
+		return FeishuIngressPreparation{}, fmt.Errorf("%w: unknown feishu app", ErrFeishuCallbackUnauthorized)
+	}
+	if strings.TrimSpace(config.EncryptKey) != "" {
+		return FeishuIngressPreparation{}, fmt.Errorf("%w: encrypted feishu callback expected", ErrFeishuCallbackUnauthorized)
+	}
+	if err = verifyFeishuCallbackToken(callback, config.VerificationToken); err != nil {
+		return FeishuIngressPreparation{}, err
+	}
+	return FeishuIngressPreparation{
+		Body:        raw,
+		OwnerUserID: config.OwnerUserID,
+		AppID:       config.AppID,
+	}, nil
+}
+
+func (s *ControlService) prepareEncryptedFeishuIngress(
+	raw []byte,
+	header http.Header,
+	encryptValue string,
+	configs []feishuIngressConfig,
+) (FeishuIngressPreparation, error) {
+	for _, config := range configs {
+		if strings.TrimSpace(config.EncryptKey) == "" {
+			continue
+		}
+		plain, decryptErr := decryptFeishuEncryptedPayload(encryptValue, config.EncryptKey)
+		if decryptErr != nil {
+			continue
+		}
+		callback, decodeErr := DecodeFeishuIngressCallback(plain)
+		if decodeErr != nil {
+			continue
+		}
+		if strings.TrimSpace(callback.AppID) != "" && strings.TrimSpace(callback.AppID) != strings.TrimSpace(config.AppID) {
+			continue
+		}
+		if err := verifyFeishuCallbackSignature(raw, header, config.EncryptKey); err != nil {
+			return FeishuIngressPreparation{}, err
+		}
+		if err := verifyFeishuCallbackToken(callback, config.VerificationToken); err != nil {
+			return FeishuIngressPreparation{}, err
+		}
+		return FeishuIngressPreparation{
+			Body:        plain,
+			OwnerUserID: config.OwnerUserID,
+			AppID:       config.AppID,
+		}, nil
+	}
+	return FeishuIngressPreparation{}, fmt.Errorf("%w: encrypted feishu callback did not match configured apps", ErrFeishuCallbackUnauthorized)
+}
+
+func (s *ControlService) listFeishuIngressConfigs(ctx context.Context) ([]feishuIngressConfig, error) {
+	rows, err := s.listAllChannelConfigRows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]feishuIngressConfig, 0, len(rows))
+	for _, row := range rows {
+		if row.Status == ChannelConfigStatusDisabled || row.ChannelType != ChannelTypeFeishu {
+			continue
+		}
+		publicConfig, decodeErr := decodeStringMap(row.ConfigJSON)
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		secrets, decryptErr := s.decryptCredentials(row.CredentialsEncrypted)
+		if decryptErr != nil {
+			return nil, decryptErr
+		}
+		result = append(result, feishuIngressConfig{
+			OwnerUserID:       strings.TrimSpace(row.OwnerUserID),
+			AppID:             strings.TrimSpace(publicConfig["app_id"]),
+			VerificationToken: strings.TrimSpace(secrets["verification_token"]),
+			EncryptKey:        strings.TrimSpace(secrets["encrypt_key"]),
+		})
+	}
+	return result, nil
+}
+
+func matchFeishuIngressConfig(configs []feishuIngressConfig, callback FeishuIngressCallback) *feishuIngressConfig {
+	appID := strings.TrimSpace(callback.AppID)
+	token := strings.TrimSpace(callback.Token)
+	for index := range configs {
+		config := &configs[index]
+		if appID != "" && strings.TrimSpace(config.AppID) == appID {
+			return config
+		}
+	}
+	if appID != "" {
+		return nil
+	}
+	for index := range configs {
+		config := &configs[index]
+		if token != "" && strings.TrimSpace(config.VerificationToken) == token {
+			return config
+		}
+	}
+	return nil
+}
+
 func (s *ControlService) LoadConfiguredChannels(ctx context.Context) error {
 	rows, err := s.listAllChannelConfigRows(ctx)
 	if err != nil {
@@ -544,6 +705,14 @@ func (s *ControlService) bind(index int) string {
 		return fmt.Sprintf("$%d", index)
 	}
 	return "?"
+}
+
+func (s *ControlService) bindList(count int) string {
+	items := make([]string, 0, count)
+	for index := 1; index <= count; index++ {
+		items = append(items, s.bind(index))
+	}
+	return strings.Join(items, ",")
 }
 
 func (s *ControlService) listChannelConfigRows(ctx context.Context, ownerUserID string) ([]channelConfigRow, error) {
@@ -1041,18 +1210,30 @@ func (s *ControlService) configureRouterChannel(
 		return err
 	}
 	switch normalizeIMChannelType(channelType) {
+	case ChannelTypeFeishu:
+		publicConfig, _ := decodeStringMap(configJSON)
+		appID := strings.TrimSpace(publicConfig["app_id"])
+		appSecret := strings.TrimSpace(secrets["app_secret"])
+		if appID == "" || appSecret == "" {
+			return nil
+		}
+		channel := newFeishuChannel(appID, appSecret, s.httpClient).WithOwner(ownerUserID)
+		if baseURL := strings.TrimSpace(publicConfig["base_url"]); baseURL != "" {
+			channel.baseURL = baseURL
+		}
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	case ChannelTypeTelegram:
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
 			return nil
 		}
-		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newTelegramChannel(token, nil).WithOwner(ownerUserID))
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newTelegramChannel(token, s.httpClient).WithOwner(ownerUserID))
 	case ChannelTypeDiscord:
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
 			return nil
 		}
-		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newDiscordChannel(token, nil).WithOwner(ownerUserID))
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newDiscordChannel(token, s.httpClient).WithOwner(ownerUserID))
 	default:
 		return nil
 	}
@@ -1225,14 +1406,16 @@ func channelCatalog() []ChannelCatalogItem {
 			ChannelType:   ChannelTypeFeishu,
 			Title:         "飞书",
 			BotLabel:      "飞书机器人",
-			Description:   "未上线",
+			Description:   "支持飞书群/用户消息入站和主动文本投递",
 			DocsURL:       "https://open.feishu.cn/",
-			RuntimeStatus: "planned",
-			RuntimeNote:   "未上线：消息渠道接入将在后续版本补充",
+			RuntimeStatus: "ready",
+			RuntimeNote:   "支持飞书事件回调入站、配对授权、最近路由记忆，以及投递到 chat_id/open_id 等 receive_id。",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "app_id", Label: "App ID", Kind: "text", Required: true, Placeholder: "例如 cli_xxxxxxxxx"},
 				{Key: "app_secret", Label: "App Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写应用 App Secret"},
+				{Key: "verification_token", Label: "Verification Token", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Verification Token"},
+				{Key: "encrypt_key", Label: "Encrypt Key", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Encrypt Key"},
 			},
 		},
 		{

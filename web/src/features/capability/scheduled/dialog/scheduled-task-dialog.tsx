@@ -20,6 +20,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
 import {
   EVERY_UNIT_OPTIONS,
+  EXECUTION_KIND_OPTIONS,
   EXECUTION_MODE_OPTIONS,
   REPLY_MODE_OPTIONS,
   SCHEDULE_OPTIONS,
@@ -101,6 +102,8 @@ export function ScheduledTaskDialog({
               agents_error={state.agents_error}
               agents_loading={state.agents_loading}
               dedicated_session_key={state.dedicated_session_key}
+              execution_kind={state.execution_kind}
+              execution_kind_options={EXECUTION_KIND_OPTIONS}
               execution_mode={state.execution_mode}
               execution_mode_options={EXECUTION_MODE_OPTIONS}
               name_ref={state.name_ref}
@@ -128,6 +131,7 @@ export function ScheduledTaskDialog({
               session_loading={state.target_type === "agent" ? state.agent_sessions_loading : state.room_contexts_loading}
               session_options={state.session_options}
               set_dedicated_session_key={state.set_dedicated_session_key}
+              set_execution_kind={state.set_execution_kind}
               set_execution_mode={state.set_execution_mode}
               set_reply_mode={state.set_reply_mode}
               set_selected_agent_id={state.set_selected_agent_id}
@@ -139,7 +143,7 @@ export function ScheduledTaskDialog({
               target_type={state.target_type}
               target_type_options={TARGET_TYPE_OPTIONS}
               task_name={state.task_name}
-              require_session_selection={state.execution_mode === "existing" || state.is_room_executor_selection_required()}
+              require_session_selection={state.execution_kind === "agent" && (state.execution_mode === "existing" || state.is_room_executor_selection_required())}
             />
 
             <TaskSchedulePanel
@@ -156,6 +160,8 @@ export function ScheduledTaskDialog({
               every_unit_options={EVERY_UNIT_OPTIONS}
               every_value={state.every_value}
               instruction={state.instruction}
+              instruction_label={state.execution_kind === "script" ? "脚本内容" : "任务指令"}
+              instruction_placeholder={state.execution_kind === "script" ? "输入要在目标工作区执行的 shell 脚本" : "输入 Agent 需要执行的指令"}
               is_daily_picker_open={state.is_daily_picker_open}
               is_single_picker_open={state.is_single_picker_open}
               is_single_date_disabled={state.is_single_date_disabled}

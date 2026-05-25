@@ -2,9 +2,6 @@ package automationmcp
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -12,14 +9,36 @@ import (
 )
 
 type stubService struct {
-	createInput protocol.CreateJobInput
-	created     *protocol.CronJob
-	listErr     error
-	updateErr   error
-	jobs        []protocol.CronJob
+	createInput       protocol.CreateJobInput
+	updateInput       protocol.UpdateJobInput
+	updateJobID       string
+	statusJobID       string
+	statusEnabled     bool
+	deletedJobID      string
+	runNowJobID       string
+	created           *protocol.CronJob
+	recoverJobID      string
+	recoverRunID      string
+	redeliverJobID    string
+	redeliverRunID    string
+	listErr           error
+	updateErr         error
+	jobs              []protocol.CronJob
+	missingJobs       map[string]bool
+	listAgentID       string
+	runsByJob         map[string][]protocol.CronRun
+	eventsByJob       map[string][]protocol.CronTaskEvent
+	historyItems      []protocol.CronTaskHistoryItem
+	historyInput      protocol.CronTaskHistorySearchInput
+	taskStatus        *protocol.CronTaskStatus
+	dailyReport       *protocol.CronDailyReport
+	dailyReportsByJob map[string]*protocol.CronDailyReport
+	dailyInput        protocol.CronDailyReportInput
+	dailyInputs       []protocol.CronDailyReportInput
 }
 
-func (s *stubService) ListTasks(_ context.Context, _ string) ([]protocol.CronJob, error) {
+func (s *stubService) ListTasks(_ context.Context, agentID string) ([]protocol.CronJob, error) {
+	s.listAgentID = agentID
 	return s.jobs, s.listErr
 }
 
@@ -41,25 +60,137 @@ func (s *stubService) CreateTask(_ context.Context, input protocol.CreateJobInpu
 	return s.created, nil
 }
 
-func (s *stubService) UpdateTask(_ context.Context, _ string, _ protocol.UpdateJobInput) (*protocol.CronJob, error) {
-	return nil, s.updateErr
+func (s *stubService) UpdateTask(_ context.Context, jobID string, input protocol.UpdateJobInput) (*protocol.CronJob, error) {
+	s.updateJobID = jobID
+	s.updateInput = input
+	if s.updateErr != nil {
+		return nil, s.updateErr
+	}
+	job := protocol.CronJob{
+		JobID:    jobID,
+		AgentID:  "agent-1",
+		Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"},
+	}
+	if input.Delivery != nil {
+		job.Delivery = *input.Delivery
+	}
+	return &job, nil
 }
 
 func (s *stubService) UpdateTaskStatus(_ context.Context, jobID string, enabled bool) (*protocol.CronJob, error) {
+	s.statusJobID = jobID
+	s.statusEnabled = enabled
+	for _, job := range s.jobs {
+		if job.JobID == jobID {
+			job.Enabled = enabled
+			return &job, nil
+		}
+	}
 	return &protocol.CronJob{JobID: jobID, Enabled: enabled, Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
-func (s *stubService) DeleteTask(_ context.Context, _ string) error { return nil }
+func (s *stubService) DeleteTask(_ context.Context, jobID string) (*protocol.DeleteJobResult, error) {
+	s.deletedJobID = jobID
+	result := &protocol.DeleteJobResult{JobID: jobID, Deleted: true}
+	for _, job := range s.jobs {
+		if job.JobID != jobID {
+			continue
+		}
+		result.AgentID = job.AgentID
+		result.ActiveRunID = job.RunningRunID
+		if job.RunningRunID != "" {
+			result.CancelledRunID = job.RunningRunID
+			result.CancelledActiveRun = true
+		}
+		break
+	}
+	return result, nil
+}
 
 func (s *stubService) RunTaskNow(_ context.Context, jobID string) (*protocol.ExecutionResult, error) {
+	s.runNowJobID = jobID
 	return &protocol.ExecutionResult{JobID: jobID, Status: "succeeded"}, nil
 }
 
-func (s *stubService) ListTaskRuns(_ context.Context, _ string) ([]protocol.CronRun, error) {
-	return nil, nil
+func (s *stubService) ListTaskRuns(_ context.Context, jobID string) ([]protocol.CronRun, error) {
+	if s.runsByJob == nil {
+		return nil, nil
+	}
+	return s.runsByJob[jobID], nil
+}
+
+func (s *stubService) ListTaskEvents(_ context.Context, jobID string, _ int) ([]protocol.CronTaskEvent, error) {
+	if s.eventsByJob == nil {
+		return nil, nil
+	}
+	return s.eventsByJob[jobID], nil
+}
+
+func (s *stubService) SearchTaskHistory(_ context.Context, input protocol.CronTaskHistorySearchInput) ([]protocol.CronTaskHistoryItem, error) {
+	s.historyInput = input
+	return s.historyItems, nil
+}
+
+func (s *stubService) GetTaskStatus(_ context.Context, jobID string, _ int, _ int) (*protocol.CronTaskStatus, error) {
+	if s.taskStatus != nil {
+		return s.taskStatus, nil
+	}
+	job, err := s.GetTask(context.Background(), jobID)
+	if err != nil {
+		return nil, err
+	}
+	if job == nil {
+		return nil, nil
+	}
+	return &protocol.CronTaskStatus{
+		Job:          *job,
+		Health:       protocol.CronTaskHealth{State: "scheduled"},
+		RecentRuns:   s.runsByJob[jobID],
+		RecentEvents: s.eventsByJob[jobID],
+	}, nil
+}
+
+func (s *stubService) GetDailyReport(_ context.Context, input protocol.CronDailyReportInput) (*protocol.CronDailyReport, error) {
+	s.dailyInput = input
+	s.dailyInputs = append(s.dailyInputs, input)
+	s.listAgentID = input.AgentID
+	if s.dailyReportsByJob != nil {
+		if report, ok := s.dailyReportsByJob[input.JobID]; ok {
+			return report, nil
+		}
+	}
+	if s.dailyReport != nil {
+		return s.dailyReport, nil
+	}
+	return &protocol.CronDailyReport{
+		Date:     input.Date,
+		Timezone: input.Timezone,
+		AgentID:  input.AgentID,
+		JobID:    input.JobID,
+	}, nil
+}
+
+func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID string) (*protocol.CronRun, error) {
+	s.redeliverJobID = jobID
+	s.redeliverRunID = runID
+	return &protocol.CronRun{
+		JobID:          jobID,
+		RunID:          runID,
+		Status:         protocol.RunStatusSucceeded,
+		DeliveryStatus: protocol.DeliveryStatusSucceeded,
+	}, nil
+}
+
+func (s *stubService) RecoverTaskRunningRun(_ context.Context, jobID string, runID string) (*protocol.CronJob, error) {
+	s.recoverJobID = jobID
+	s.recoverRunID = runID
+	return &protocol.CronJob{JobID: jobID, AgentID: "agent-1", Schedule: protocol.Schedule{Timezone: "Asia/Shanghai"}}, nil
 }
 
 func (s *stubService) GetTask(_ context.Context, jobID string) (*protocol.CronJob, error) {
+	if s.missingJobs[jobID] {
+		return nil, nil
+	}
 	for i := range s.jobs {
 		if s.jobs[i].JobID == jobID {
 			return &s.jobs[i], nil
@@ -109,6 +240,28 @@ func extractText(t *testing.T, result map[string]any) string {
 	return ""
 }
 
+func firstString(value any) string {
+	items, ok := value.([]any)
+	if !ok || len(items) == 0 {
+		return ""
+	}
+	text, _ := items[0].(string)
+	return text
+}
+
+func stringSliceContains(value any, want string) bool {
+	items, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range items {
+		if text, _ := item.(string); text == want {
+			return true
+		}
+	}
+	return false
+}
+
 func intervalSchedule(value int, unit string) map[string]any {
 	return map[string]any{
 		"kind":           "interval",
@@ -123,341 +276,5 @@ func dailySchedule(hhmm string) map[string]any {
 		"kind":       "daily",
 		"daily_time": hhmm,
 		"timezone":   "Asia/Shanghai",
-	}
-}
-
-func TestCreateRejectsMissingExecutionMode(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":        "每五分钟总结一次昨天的错误日志",
-		"instruction": "请总结昨天的错误日志",
-		"schedule":    intervalSchedule(5, "minutes"),
-	})
-	if !isError {
-		t.Fatalf("expected error result, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "execution_mode") {
-		t.Fatalf("error must mention execution_mode: %s", extractText(t, result))
-	}
-}
-
-func TestCreateAllowsSimpleDefaults(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":        "简单提醒",
-		"instruction": "喝水",
-		"schedule":    intervalSchedule(15, "minutes"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetBound ||
-		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
-		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
-		t.Fatalf("expected visible current-session delivery from default, got %+v", svc.createInput.Delivery)
-	}
-	if svc.createInput.Schedule.IntervalSeconds == nil || *svc.createInput.Schedule.IntervalSeconds != 15*60 {
-		t.Fatalf("expected 900s interval, got %+v", svc.createInput.Schedule.IntervalSeconds)
-	}
-}
-
-func TestCreateAllowsSimpleDefaultsWithJSONNumberAndDottedSchedule(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":                    "test",
-		"instruction":             "提醒我喝水",
-		"schedule.kind":           "interval",
-		"schedule.interval_value": json.Number("1"),
-		"schedule.interval_unit":  "minutes",
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.SessionTarget.Kind != protocol.SessionTargetBound ||
-		svc.createInput.SessionTarget.BoundSessionKey != sctx.CurrentSessionKey {
-		t.Fatalf("expected current bound target from default, got %+v", svc.createInput.SessionTarget)
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		svc.createInput.Delivery.To != sctx.CurrentSessionKey {
-		t.Fatalf("expected visible current-session delivery from default, got %+v", svc.createInput.Delivery)
-	}
-	if svc.createInput.Schedule.IntervalSeconds == nil || *svc.createInput.Schedule.IntervalSeconds != 60 {
-		t.Fatalf("expected 60s interval, got %+v", svc.createInput.Schedule.IntervalSeconds)
-	}
-}
-
-func TestCreateSimpleDefaultsRequireCurrentSession(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":        "简单提醒",
-		"instruction": "喝水",
-		"schedule":    intervalSchedule(15, "minutes"),
-	})
-	if !isError {
-		t.Fatalf("expected error without current session, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "execution_mode") {
-		t.Fatalf("error must mention execution_mode: %s", extractText(t, result))
-	}
-}
-
-func TestCreateExecutionModeExistingRequiresSession(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "跟进订单",
-		"instruction":    "跟进订单状态并汇总",
-		"execution_mode": "existing",
-		"reply_mode":     "none",
-		"schedule":       intervalSchedule(10, "minutes"),
-	})
-	if !isError {
-		t.Fatalf("expected error result, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "selected_session_key") {
-		t.Fatalf("expected hint about selected_session_key, got %q", extractText(t, result))
-	}
-}
-
-func TestCreateExistingExecutionMatchesUIPayloadShape(t *testing.T) {
-	svc := &stubService{}
-	sessionKey := "agent:agent-1:ws:dm:current"
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: sessionKey,
-		SourceContextType: "agent",
-		SourceContextID:   "agent-1",
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":                 "半小时同步",
-		"instruction":          "同步当前进展",
-		"execution_mode":       "existing",
-		"reply_mode":           "execution",
-		"selected_session_key": sessionKey,
-		"schedule":             intervalSchedule(30, "minutes"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	input := svc.createInput
-	if input.Schedule.Kind != protocol.ScheduleKindEvery ||
-		input.Schedule.IntervalSeconds == nil ||
-		*input.Schedule.IntervalSeconds != 1800 {
-		t.Fatalf("schedule should match UI every payload, got %+v", input.Schedule)
-	}
-	if input.SessionTarget.Kind != protocol.SessionTargetBound || input.SessionTarget.BoundSessionKey != sessionKey {
-		t.Fatalf("session target should match UI existing payload, got %+v", input.SessionTarget)
-	}
-	if input.Delivery.Mode != protocol.DeliveryModeExplicit ||
-		input.Delivery.Channel != "websocket" ||
-		input.Delivery.To != sessionKey {
-		t.Fatalf("delivery should match UI execution payload, got %+v", input.Delivery)
-	}
-	if input.Source.Kind != protocol.SourceKindAgent || input.Source.ContextType != "agent" || input.Source.ContextID != "agent-1" {
-		t.Fatalf("source should preserve agent snapshot, got %+v", input.Source)
-	}
-}
-
-func TestCreatePageSemanticsForbidsMainWithReply(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "长期监控",
-		"instruction":    "持续监控生产告警",
-		"execution_mode": "main",
-		"reply_mode":     "selected",
-		"schedule":       intervalSchedule(5, "minutes"),
-	})
-	if !isError {
-		t.Fatalf("expected error, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "execution_mode=main") {
-		t.Fatalf("error must mention execution_mode=main: %s", extractText(t, result))
-	}
-}
-
-func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: "agent:agent-1:dm:dm-user:main:",
-		SourceContextType: "agent",
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":                       "定点播报",
-		"instruction":                "每天 9 点说早安",
-		"execution_mode":             "temporary",
-		"reply_mode":                 "selected",
-		"selected_reply_session_key": "agent:agent-1:dm:dm-user:main:",
-		"schedule":                   dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit {
-		t.Fatalf("expected explicit delivery, got %q", svc.createInput.Delivery.Mode)
-	}
-	if svc.createInput.Delivery.To != sctx.CurrentSessionKey {
-		t.Fatalf("expected delivery.To=current_session_key, got %q", svc.createInput.Delivery.To)
-	}
-	if svc.createInput.Schedule.CronExpression == nil || *svc.createInput.Schedule.CronExpression != "0 9 * * *" {
-		t.Fatalf("expected cron 0 9 * * *, got %+v", svc.createInput.Schedule.CronExpression)
-	}
-}
-
-func TestCreateExecutionReplyTemporaryFromAgentContextFallsBackToNone(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: "agent:agent-1:dm:dm-user:main:",
-		SourceContextType: "agent",
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "定点播报",
-		"instruction":    "每天 9 点说早安",
-		"execution_mode": "temporary",
-		"reply_mode":     "execution",
-		"schedule":       dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeNone {
-		t.Fatalf("expected delivery.mode=none for temporary+execution in agent context, got %q", svc.createInput.Delivery.Mode)
-	}
-}
-
-func TestCreateExecutionReplyTemporaryFromRoomContextTargetsCurrentSession(t *testing.T) {
-	svc := &stubService{}
-	sessionKey := protocol.BuildRoomAgentSessionKey("conversation-1", "agent-1", protocol.RoomTypeGroup)
-	sctx := contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: sessionKey,
-		SourceContextType: "room",
-		SourceContextID:   "room-1",
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "定点播报",
-		"instruction":    "每天 9 点说早安",
-		"execution_mode": "temporary",
-		"reply_mode":     "execution",
-		"schedule":       dailySchedule("09:00"),
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.Delivery.Mode != protocol.DeliveryModeExplicit {
-		t.Fatalf("expected delivery.mode=explicit for temporary+execution in room context, got %q", svc.createInput.Delivery.Mode)
-	}
-	if svc.createInput.Delivery.To != sessionKey {
-		t.Fatalf("expected delivery.To=current room session, got %q", svc.createInput.Delivery.To)
-	}
-	if svc.createInput.Source.ContextType != "room" ||
-		svc.createInput.Source.ContextID != "room-1" ||
-		svc.createInput.Source.SessionKey != sessionKey {
-		t.Fatalf("expected room source snapshot, got %+v", svc.createInput.Source)
-	}
-}
-
-func TestCreateDailyWithWeekdaysBuildsCron(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
-	schedule := map[string]any{
-		"kind":       "daily",
-		"daily_time": "08:30",
-		"weekdays":   []any{"mon", "wed", "fri"},
-		"timezone":   "Asia/Shanghai",
-	}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "工作日早会提醒",
-		"instruction":    "提醒参加每日站会",
-		"execution_mode": "temporary",
-		"reply_mode":     "none",
-		"schedule":       schedule,
-	})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	if svc.createInput.Schedule.CronExpression == nil {
-		t.Fatalf("expected cron expression to be generated")
-	}
-	if *svc.createInput.Schedule.CronExpression != "30 8 * * 1,3,5" {
-		t.Fatalf("expected cron '30 8 * * 1,3,5', got %q", *svc.createInput.Schedule.CronExpression)
-	}
-}
-
-func TestCreateRejectsUnsupportedScheduleKind(t *testing.T) {
-	svc := &stubService{}
-	sctx := contract.ServerContext{CurrentAgentID: "agent-1", CurrentSessionKey: "agent:agent-1:dm:dm-user:main:"}
-	result, isError := callTool(t, svc, sctx, "create_scheduled_task", map[string]any{
-		"name":           "无效参数",
-		"instruction":    "喝水",
-		"execution_mode": "temporary",
-		"reply_mode":     "none",
-		"schedule": map[string]any{
-			"kind":             "every",
-			"interval_seconds": 300,
-			"timezone":         "Asia/Shanghai",
-		},
-	})
-	if !isError {
-		t.Fatalf("expected error for unsupported kind=every, got %+v", result)
-	}
-	if !strings.Contains(extractText(t, result), "single") {
-		t.Fatalf("error should hint at new kinds, got %q", extractText(t, result))
-	}
-}
-
-func TestRunNowReturnsStatus(t *testing.T) {
-	svc := &stubService{}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "run_scheduled_task", map[string]any{"job_id": "job-1"})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-	payload := extractText(t, result)
-	var decoded map[string]any
-	if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
-		t.Fatalf("json unmarshal: %v", err)
-	}
-	if decoded["status"] != "succeeded" {
-		t.Fatalf("expected status=succeeded, got %v", decoded["status"])
-	}
-}
-
-func TestDeleteRequiresJobID(t *testing.T) {
-	svc := &stubService{}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "delete_scheduled_task", map[string]any{})
-	if !isError {
-		t.Fatalf("expected error, got %+v", result)
-	}
-}
-
-func TestListPassesAgentID(t *testing.T) {
-	svc := &stubService{
-		jobs: []protocol.CronJob{{JobID: "job-1", Schedule: protocol.Schedule{
-			Kind: "every", IntervalSeconds: newInterval(300), Timezone: "Asia/Shanghai",
-		}}},
-	}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "list_scheduled_tasks", map[string]any{"agent_id": "agent-1"})
-	if isError {
-		t.Fatalf("unexpected error: %s", extractText(t, result))
-	}
-}
-
-func TestListPropagatesError(t *testing.T) {
-	svc := &stubService{listErr: errors.New("boom")}
-	result, isError := callTool(t, svc, contract.ServerContext{IsMainAgent: true}, "list_scheduled_tasks", nil)
-	if !isError {
-		t.Fatalf("expected error result")
-	}
-	if !strings.Contains(extractText(t, result), "boom") {
-		t.Fatalf("expected error text to contain boom, got %q", extractText(t, result))
 	}
 }

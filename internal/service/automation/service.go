@@ -26,8 +26,16 @@ type dmRunner interface {
 	HandleChat(context.Context, dmsvc.Request) error
 }
 
+type dmInterruptRunner interface {
+	HandleInterrupt(context.Context, dmsvc.InterruptRequest) error
+}
+
 type roomRunner interface {
 	HandleChat(context.Context, roomsvc.ChatRequest) error
+}
+
+type roomInterruptRunner interface {
+	HandleInterrupt(context.Context, roomsvc.InterruptRequest) error
 }
 
 type workspaceReader interface {
@@ -58,13 +66,14 @@ type Service struct {
 	nowFn     func() time.Time
 	idFactory func(string) string
 
-	mu             sync.Mutex
-	jobStates      map[string]*automationdomain.JobRuntimeState
-	heartbeatState map[string]*automationdomain.HeartbeatRuntimeState
-	wakeRequests   map[string][]automationdomain.HeartbeatWakeRequest
-	started        bool
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
+	mu                   sync.Mutex
+	jobStates            map[string]*automationdomain.JobRuntimeState
+	heartbeatState       map[string]*automationdomain.HeartbeatRuntimeState
+	wakeRequests         map[string][]automationdomain.HeartbeatWakeRequest
+	deliveryRetryRunning bool
+	started              bool
+	cancel               context.CancelFunc
+	wg                   sync.WaitGroup
 }
 
 // NewService 创建自动化服务。
@@ -191,16 +200,9 @@ func (s *Service) ensureDirectTargetSupported(target protocol.SessionTarget) err
 	if strings.TrimSpace(target.Kind) == protocol.SessionTargetMain {
 		return nil
 	}
-	sessionKey, err := automationdomain.ResolveSessionKey(protocol.CronJob{
+	_, err := automationdomain.ResolveSessionKey(protocol.CronJob{
 		AgentID:       "noop",
 		SessionTarget: target,
 	}, stringPointer("noop"))
-	if err != nil {
-		return err
-	}
-	parsed := protocol.ParseSessionKey(sessionKey)
-	if parsed.Kind == protocol.SessionKeyKindRoom {
-		return errors.New("shared room session automation 暂不支持")
-	}
-	return nil
+	return err
 }

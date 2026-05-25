@@ -7,8 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 新增 Codex 内置 skill 借鉴分析文档，逐项评估 `imagegen`、`openai-docs`、`skill-installer`、`skill-creator` 和 `plugin-creator` 对 Nexus skill 生态的适配价值与落地优先级。
+- 定时任务调度器持久化下一次运行、运行中 run、失败次数、最近错误和运行输出，重启后会恢复未完成 run 并重新安排重试；每次完成的 run 会生成 Markdown 运行产物，任务列表与运行历史同步展示最近状态、失败诊断、本次输出和产物下载入口。
+- 定时任务新增 `execution_kind=script` 执行体，可直接在目标 Agent workspace 中执行脚本并复用 run ledger、运行产物、失败退避和重叠控制，不再强制占用 Agent 会话。
+- 定时任务新建/编辑对话框新增“Agent 执行 / 脚本执行”入口；脚本任务只保留目标智能体、脚本内容和调度配置，隐藏执行会话与结果回传路由。
+- 定时任务运行历史新增“复制诊断”和失败 run “重新运行”操作，便于从错误记录直接排查并补跑。
+- `nexus_automation` 定时任务工具新增显式通道投递参数和卡住任务恢复工具，Agent 可创建投递到指定 session/IM 通道的任务，并可查询运行历史、释放卡住 run、修改或停用任务。
+- `update_scheduled_task` 支持单独修改或关闭结果投递，不再要求为了 `reply_mode=none/channel/agent/selected` 同时重写执行会话，便于 Agent 处理“不要再发送结果 / 改发到飞书群 / 改投给某个智能体”这类自然语言修改。
+- `update_scheduled_task` 新增 `instruction_append`，Agent 处理“给这个任务再加一条要求/补充任务细节”时可安全追加到原任务内容，避免把短补充误当成完整 `instruction` 覆盖。
+- `create_scheduled_task` / `update_scheduled_task` 会根据 `reply_channel` / `reply_to` / `reply_session_key` 或 `reply_agent_id` 推断结果回传模式，降低 Agent 漏填 `reply_mode` 时导致创建失败或空更新的概率。
+- `nexus_automation` 新增 `reply_mode=agent` / `reply_agent_id`，可把长期任务结果投递到指定智能体的固定“定时任务收件箱”；内部投递首次触达时会自动创建该会话，避免因目标 session 尚不存在导致日报类任务失败。
+- 从飞书/Telegram/Discord/钉钉/微信等结构化 IM 群会话里创建或修改任务时，`reply_mode=channel` 可默认投递回当前群，`reply_mode=execution` 也会按当前结构化 session 解析为真实 IM 通道，不再误落到 websocket。
+- 从结构化飞书/IM 群里创建任务时，任务文本只要有明确“发送/推送/播报/投递”意图，即使没说“这个群”也会默认临时执行并回投当前群；纯“搜索/整理新闻”或“不要推送/静默运行”等否定语义仍要求明确回传目标，避免误投递。
+- 从当前 DM/Room 里创建“每天搜索新闻发给我/告诉我/通知我”这类独立重任务时，`create_scheduled_task` 可默认使用临时执行会话并把结果回投当前会话；涉及“总结当前对话/聊天记录”的任务仍要求显式选择执行会话，避免隔离执行丢失上下文。
+- 在当前 DM/Room 里修改任务投递目标时，`update_scheduled_task reply_mode=selected` 可默认回投当前会话；外部 IM 群仍使用 `reply_mode=channel`，保持飞书/IM 群投递语义清晰。
+- 从结构化飞书/IM 群里创建或修改任务时，如果模型只传了与当前会话一致的 `reply_channel` 但漏填 `reply_to`，工具会用当前群 ref 补齐投递目标，减少对话里“发到这个群”被半显式参数误判失败。
+- `nexus_automation` 新增 `get_scheduled_task_daily_report`，Agent 可按日期一次性查看任务运行次数、成功/失败/跳过计数、投递成功/失败状态和当天 run 明细，用于回答“今天的定时任务发送情况”。
+- `get_scheduled_task_daily_report` 的任务明细新增 `signals`、`suggested_tools`、`recovery_run_id`、`manual_redelivery_run_ids` 和 `delivery_dead_letter_run_ids`，Agent 可直接从日报进入卡住恢复或失败补投递流程。
+- `nexus_automation` 新增 `get_scheduled_task_status`，Agent 可一次性查看单个任务的配置、健康信号、最近 run 和最近管理事件，并根据状态发现可恢复 run 或可手动重投递的发送失败。
+- `get_scheduled_task_status` 健康摘要新增 `recovery_run_id`、`manual_redelivery_run_ids` 和 `delivery_dead_letter_run_ids`，Agent 可直接拿这些 run id 调用 `recover_scheduled_task` 或 `retry_scheduled_task_delivery`，不必再从 recent_runs 中猜。
+- `nexus_automation` 管理类工具统一 `job_id` 解析、owner 上下文和普通 Agent 归属校验，启停、删除、立即运行、查看 run、恢复和补投递保持同一套权限语义；`list_scheduled_tasks` 支持 `query` / `enabled` 定位候选任务，便于 Agent 处理“停止那个新闻日报/修改已停用任务”等自然语言管理请求。
+- `run_scheduled_task` 现在可以手动触发已停用任务且不会重新启用它，便于用户在暂停长期排程后仍能对同一任务执行一次验证或补跑；cron 调度仍只会自动触发启用任务。
+- 在飞书/IM 群里按 `query` 管理或检查当前任务时，`list_scheduled_tasks`、`search_scheduled_task_history`、`update_scheduled_task`、`disable_scheduled_task`、`delete_scheduled_task`、`run_scheduled_task`、`get_scheduled_task_status`、`get_scheduled_task_daily_report`、`get_scheduled_task_runs`、`get_scheduled_task_events` 等工具会把“这个群/这里/当前频道”限定为当前结构化外部会话，再用剩余词匹配任务名、内容或投递目标，避免误操作其他飞书群任务。
+- 在飞书/IM 群里按普通任务名管理或查询时，即使用户没说“这个群”，`nexus_automation` 也会优先匹配当前群相关的当前任务和已删除任务；当前群没有候选时才回退当前权限范围，减少“暂停新闻日报/查新闻任务历史”误命中其他群的概率。
+- 在 DM/Room 中按 `query` 管理或查询任务时，`nexus_automation` 也会优先匹配当前会话相关的 source、执行会话或回投目标；用户说“当前会话/这里的新闻任务/这个任务/当前任务”会限定到当前会话，避免刚创建的“发给我”任务被同名任务干扰。
+- 飞书/IM 群里直接询问“有哪些定时任务/列一下任务”时，`list_scheduled_tasks` 未指定 `agent_id/query` 会默认只列当前群相关任务，并继续支持 `enabled` 在当前群范围内筛选启用或停用任务。
+- 飞书/IM 群里直接询问“今天定时任务发送情况”时，`get_scheduled_task_daily_report` 会默认聚合当前群相关任务；DM/Room/IM 群里泛化询问“这里/当前会话/这个群定时任务发送情况”会聚合当前会话任务，不再因为多个任务而要求用户先选 job_id，带具体任务名时仍保持唯一定位。
+- 当前飞书/IM 群或显式查询的当前 DM/Room 没有任何相关定时任务时，`get_scheduled_task_daily_report` 会返回空日报而不是错误，Agent 可直接说明当前会话还没有任务或今天没有发送记录。
+- `nexus_automation` 新增 `search_scheduled_task_history`，可按名称、job_id、任务内容、投递目标、来源、动作或审计 detail 搜索当前与已删除的定时任务候选，返回可继续用于日报、运行历史和审计查询的 `job_id`，避免用户只说“那个已删新闻日报/发到飞书群的任务”时 Agent 无法定位历史任务。
+- 主智能体代管修改任务投递目标时，`update_scheduled_task reply_mode=agent` 不传 `reply_agent_id` 会默认投递到该任务所属 Agent 的定时任务收件箱，而不是误用当前调用 Agent。
+- 定时任务 HTTP/API 新增单任务状态、任务管理事件和每日发送报告接口，并同步前端 API 类型与调用方法，外部界面和 Agent 工具可共用同一套观测数据。
+- `nexusctl automation task` 补齐 `inspect`、`events`、`report`、`recover`、`retry-delivery`、`enable` 和 `disable` 运维命令，并支持创建/修改完整投递目标字段，便于本机脚本或 Agent 外围流程检查发送情况、追溯审计、恢复卡住任务和单独补投递失败 run。
+- 定时任务调度器新增运行超时看门狗，可通过 `AUTOMATION_RUN_TIMEOUT_SECONDS` 配置；超时后自动把卡住 run 标记为 cancelled、释放运行占用、重新安排后续调度，并写入 recover 审计事件。
+- 定时任务多调度器竞态下未抢到执行权的一侧不再写入伪 `skipped` run，而是刷新当前运行态并返回已被其他调度器领取的 running run，避免历史记录和日报出现误导性的跳过次数。
+- 定时任务后台执行到 DM 或 Room 会话时，遇到运行时工具授权或交互式确认会立即拒绝并写入失败观测，不再隐性等待前端权限弹窗超时；需要搜索新闻、读文件等能力时应预先配置 Agent 允许工具，失败可在 run ledger / 日报里追踪。
+- 定时任务后台执行统一接管权限模式：不再继承 Agent 的 `bypassPermissions` 直接放行，也不再在 `default` 模式下拒绝所有工具；后台会拒绝 `AskUserQuestion`，并按目标 Agent 的 allowed/disallowed 工具配置自动授权 `WebSearch` / `WebFetch` 等能力，让“每天搜新闻并投递到飞书群”这类任务可无人值守运行。
+- 定时任务后台运行、脚本执行、结果投递和失败补投递会使用任务 owner 上下文，避免多用户或 owner 级飞书/IM 通道在后台执行时找不到正确连接。
+- 定时任务现在允许绑定到 Room shared session 执行，Room 内创建的上下文任务不会再被调度器以“shared room session automation 暂不支持”提前拒绝。
+- 停用正在运行的定时任务时不再清空当前 `running_run_id`；停用只阻止后续触发，active run 仍可被状态查询、看门狗和 `recover_scheduled_task` 观测与恢复，停用审计会关联当前 run。
+- 删除正在运行的定时任务时会先把当前 active run 条件标记为 `cancelled`，迟到的执行完成不会覆盖 ledger；删除接口和 MCP 工具会返回 `active_run_id`、`cancelled_run_id` 和 `cancelled_active_run`，删除审计也会记录被取消的 `run_id`。
+- 删除定时任务后不再通过数据库外键级联清理 run ledger，`get_scheduled_task_runs` 和带 `job_id` 的 `get_scheduled_task_daily_report` 仍可读取已删除任务的历史运行、投递状态和失败诊断，便于 Agent 回答删除前后的发送情况和审计问题。
+- 删除定时任务时会把该任务仍待自动补发的失败投递 run 立即转为死信，并在删除审计中记录 `dead_lettered_delivery_run_ids`；已删除任务日报保留失败信号但不再建议不可执行的补投递工具。
+- 系统托管 `scheduled-task-manager` skill 更新为长程任务操作手册，覆盖飞书/IM 群投递、智能体收件箱、今日发送检查、审计追溯、卡住恢复、失败补投递、修改投递目标和停用/删除决策。
+- `scheduled-task-manager` 补充飞书官方 `larksuite/lark-openapi-mcp` 的使用边界：接口/权限/错误码不确定时可用官方文档召回 MCP 辅助排障，但定时任务生产投递仍必须走 Nexus delivery ledger、重试和日报链路。
+- 定时任务 run ledger 新增逐 run `delivery_status`、`delivery_error`、`delivered_at`、`delivery_attempts`、`delivery_next_attempt_at` 和 `delivery_dead_letter_at`；投递失败不再把任务执行结果误判为失败，后台会按退避自动重试飞书/IM 发送，重试耗尽后进入可观测死信状态，运行历史、复制诊断、日报工具和 `retry_scheduled_task_delivery` 可精确查看并单独重试“任务已跑完但结果没送出”的投递。
+- 自动投递重试会写入任务审计事件 `auto_retry_delivery`，并记录本次 attempts、实际投递目标、错误、下次重试时间或死信时间，便于 Agent 回答“系统后来有没有自动补发/为什么仍未送出”。
+- `retry_scheduled_task_delivery` 未传 `run_id` 时会读取任务健康摘要并自动选择唯一可手动补投递的失败 run；存在多个失败 run 时返回候选并要求用户确认，减少“补发这个任务刚才没发出去的结果”这类对话里的手动查 id 步骤。
+- `retry_scheduled_task_delivery` 仅允许补投递 `delivery_status=failed` 的 run，避免 Agent 对已经成功投递的历史 run 误调用补发导致重复消息。
+- 投递失败后修改任务投递目标再自动重试或手动补投时，run ledger 会同步记录本次实际使用的 `delivery_mode` / `delivery_to`，避免发送成功后仍显示旧飞书群或旧 IM 目标。
+- 定时任务新增 `automation_task_events` 管理审计 ledger，并通过 `get_scheduled_task_events` 暴露给 Agent；创建、修改、启停、删除、立即运行、卡住恢复和手动重投递都会留下任务级事件，任务删除后仍可按 job_id 追溯这些事件，方便回答“这个任务什么时候被改过/停过/删过/补投过”。
+- 飞书通道新增事件回调入站、配对授权、最近路由记忆和主动文本投递；配置 App ID / App Secret 后，飞书群里发送“检查今天的定时任务发送情况 / 修改 / 停止”可进入对应 Agent，定时任务结果也可回投到同一飞书群或指定 receive_id。
+- 外部 IM 入站默认授权 `nexus_automation` 定时任务工具，并允许加载托管 `scheduled-task-manager` skill；飞书/Telegram/Discord/钉钉/微信群里可直接创建、检查、修改、停用、删除和补投递定时任务；本地写文件等非定时任务副作用工具仍默认拒绝。
+- 飞书事件回调支持可选 Verification Token 与 Encrypt Key：已配置时会校验 token、解密 encrypted payload、验证 `X-Lark-Signature`，并按 app_id 绑定到正确 owner 后再进入 Agent。
+- IM 入站新增 `im_ingress_messages` 幂等 ledger，按 owner/channel/req_id 领取消息处理权；飞书等 webhook 重试同一 message_id 时不会重复下发给 Agent，避免重复创建或修改定时任务，前次下发失败后仍允许同一 req_id 重试。
+
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
+- 修复定时任务 HTTP 新建/编辑未接收 `execution_kind`，导致页面创建脚本任务被后端当成 Agent 任务的问题。
 
 ## [0.1.8] - 2026-05-21
 

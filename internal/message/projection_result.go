@@ -56,6 +56,10 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 	if usage, ok := result["usage"].(map[string]any); ok && len(usage) > 0 {
 		summary["usage"] = usage
 	}
+	copyNonEmptyResultField(summary, result, "permission_denials")
+	copyNonEmptyResultField(summary, result, "errors")
+	copyNonEmptyResultField(summary, result, "terminal_reason")
+	copyNonEmptyResultField(summary, result, "stop_reason")
 
 	resultText := NormalizeDisplayText(resultValue)
 	if resultText != "" {
@@ -64,6 +68,36 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 		}
 	}
 	return summary
+}
+
+func copyNonEmptyResultField(target map[string]any, source protocol.Message, key string) {
+	value, exists := source[key]
+	if !exists || value == nil {
+		return
+	}
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return
+		}
+	case []string:
+		if len(typed) == 0 {
+			return
+		}
+	case []any:
+		if len(typed) == 0 {
+			return
+		}
+	case []map[string]any:
+		if len(typed) == 0 {
+			return
+		}
+	case map[string]any:
+		if len(typed) == 0 {
+			return
+		}
+	}
+	target[key] = value
 }
 
 // ExtractAssistantDisplayText 提取 assistant 主正文文本，用于去重 result 文本。

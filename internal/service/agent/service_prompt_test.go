@@ -86,6 +86,13 @@ func TestServiceBuildRuntimePromptDirectsScheduledTaskSkill(t *testing.T) {
 	assertPromptContains(t, prompt, "scheduled-task-manager")
 	assertPromptContains(t, prompt, "nexus_automation")
 	assertPromptContains(t, prompt, "短提醒不要猜 execution_mode / reply_mode")
+	assertPromptContains(t, prompt, "检查发送情况")
+	assertPromptContains(t, prompt, "补发投递失败")
+	assertPromptContains(t, prompt, "重新启用已暂停任务")
+	assertPromptContains(t, prompt, "retry_scheduled_task_delivery")
+	assertPromptContains(t, prompt, "cancel_active_run=true")
+	assertPromptContains(t, prompt, "未授权工具")
+	assertPromptContains(t, prompt, "run_scheduled_task")
 }
 
 func TestServiceBuildRuntimePromptUsesMainAgentPromptOverride(t *testing.T) {

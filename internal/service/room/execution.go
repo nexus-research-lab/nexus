@@ -172,15 +172,21 @@ func (s *RealtimeService) runSlot(
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
-			slot.RuntimeSessionKey,
+			roundValue.SessionKey,
 			"room",
 			roundValue.RoomID,
 			roomSourceContextLabel(roundValue),
 		)
 	}
-	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
-	permissionHandler := func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+	permissionMode := roundValue.PermissionMode
+	if permissionMode == "" {
+		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
+	}
+	permissionHandler := roundValue.PermissionHandler
+	if permissionHandler == nil {
+		permissionHandler = func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+		}
 	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,

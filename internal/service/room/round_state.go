@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -50,20 +51,23 @@ type activeRoomSlot struct {
 }
 
 type activeRoomRound struct {
-	SessionKey     string
-	RoomID         string
-	ConversationID string
-	RoomType       string
-	Context        *protocol.ConversationContextAggregate
-	RoundID        string
-	RootRoundID    string
-	HopIndex       int
-	OwnerUserID    string
-	Cancel         context.CancelFunc
-	Slots          map[string]*activeRoomSlot
-	PublicMentions []publicMentionWake
-	Done           chan struct{}
-	doneOnce       sync.Once
+	SessionKey        string
+	RoomID            string
+	ConversationID    string
+	RoomType          string
+	Context           *protocol.ConversationContextAggregate
+	RoundID           string
+	RootRoundID       string
+	HopIndex          int
+	OwnerUserID       string
+	Cancel            context.CancelFunc
+	PermissionMode    sdkpermission.Mode
+	PermissionHandler sdkpermission.Handler
+	EventObserver     RoomEventObserver
+	Slots             map[string]*activeRoomSlot
+	PublicMentions    []publicMentionWake
+	Done              chan struct{}
+	doneOnce          sync.Once
 }
 
 type roomTrigger = roomdomain.Trigger

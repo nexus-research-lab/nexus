@@ -8,9 +8,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -31,6 +33,29 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebFetch":  {},
 	"WebSearch": {},
 }
+
+var defaultScheduledTaskApprovedTools = map[string]struct{}{
+	"create_scheduled_task":           {},
+	"delete_scheduled_task":           {},
+	"disable_scheduled_task":          {},
+	"enable_scheduled_task":           {},
+	"get_scheduled_task_daily_report": {},
+	"get_scheduled_task_events":       {},
+	"get_scheduled_task_runs":         {},
+	"get_scheduled_task_status":       {},
+	"list_scheduled_tasks":            {},
+	"recover_scheduled_task":          {},
+	"retry_scheduled_task_delivery":   {},
+	"run_scheduled_task":              {},
+	"search_scheduled_task_history":   {},
+	"update_scheduled_task":           {},
+}
+
+var defaultScheduledTaskSupportTools = map[string]struct{}{
+	"Skill": {},
+}
+
+var defaultExternalApprovedTools = toolpolicy.MergeSets(defaultReadOnlyApprovedTools, defaultScheduledTaskApprovedTools)
 
 // DMHandler 定义统一 DM 入口能力。
 type DMHandler interface {
@@ -63,10 +88,12 @@ type IngressResult struct {
 	SessionKey         string          `json:"session_key"`
 	RoundID            string          `json:"round_id"`
 	ReqID              string          `json:"req_id"`
+	Duplicate          bool            `json:"duplicate,omitempty"`
 	RememberedDelivery *DeliveryTarget `json:"remembered_delivery,omitempty"`
 }
 
 type normalizedIngressRequest struct {
+	ownerUserID      string
 	channelStored    string
 	sessionKey       string
 	parsed           protocol.SessionKey
@@ -146,9 +173,31 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		"content_chars", utf8.RuneCountInString(normalized.content),
 	)
 
+	claimedIngress := false
+	if s.control != nil && normalized.reqID != "" {
+		claimed, duplicate, claimErr := s.control.claimIngressMessage(ctx, ingressMessageClaimInput{
+			OwnerUserID: normalized.ownerUserID,
+			Channel:     normalized.channelStored,
+			ReqID:       normalized.reqID,
+			AgentID:     normalized.agentID,
+			SessionKey:  normalized.sessionKey,
+			RoundID:     normalized.roundID,
+		})
+		if claimErr != nil {
+			logger.Error("领取通道消息幂等处理权失败", "err", claimErr)
+			return nil, claimErr
+		}
+		if !claimed {
+			logger.Info("忽略重复外部通道消息")
+			return duplicate, nil
+		}
+		claimedIngress = true
+	}
+
 	agentValue, err := s.agents.GetAgent(ctx, normalized.agentID)
 	if err != nil {
 		logger.Error("解析通道消息目标 Agent 失败", "err", err)
+		s.markIngressMessageFailed(ctx, claimedIngress, normalized, err)
 		return nil, err
 	}
 	if err = s.dm.HandleChat(ctx, dmsvc.Request{
@@ -161,7 +210,19 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		PermissionHandler: s.buildPermissionHandler(agentValue, normalized),
 	}); err != nil {
 		logger.Error("下发通道消息失败", "err", err)
+		s.markIngressMessageFailed(ctx, claimedIngress, normalized, err)
 		return nil, err
+	}
+	if claimedIngress {
+		if err = s.control.finishIngressMessage(ctx, ingressMessageFinishInput{
+			OwnerUserID: normalized.ownerUserID,
+			Channel:     normalized.channelStored,
+			ReqID:       normalized.reqID,
+			Status:      ingressMessageStatusAccepted,
+		}); err != nil {
+			logger.Error("标记通道消息幂等状态失败", "err", err)
+			return nil, err
+		}
 	}
 
 	var remembered *DeliveryTarget
@@ -184,6 +245,26 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		ReqID:              normalized.reqID,
 		RememberedDelivery: remembered,
 	}, nil
+}
+
+func (s *IngressService) markIngressMessageFailed(ctx context.Context, claimed bool, request normalizedIngressRequest, err error) {
+	if !claimed || s.control == nil || err == nil {
+		return
+	}
+	message := err.Error()
+	if finishErr := s.control.finishIngressMessage(ctx, ingressMessageFinishInput{
+		OwnerUserID:  request.ownerUserID,
+		Channel:      request.channelStored,
+		ReqID:        request.reqID,
+		Status:       ingressMessageStatusFailed,
+		ErrorMessage: &message,
+	}); finishErr != nil {
+		s.loggerFor(ctx).Warn("标记通道消息失败幂等状态失败",
+			"channel", request.channelStored,
+			"req_id", request.reqID,
+			"err", finishErr,
+		)
+	}
 }
 
 func (s *IngressService) loggerFor(ctx context.Context) *slog.Logger {
@@ -209,6 +290,7 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	roundID := firstNonEmptyIngress(request.RoundID, s.idFactory("ingress_round"))
 
 	return normalizedIngressRequest{
+		ownerUserID:      normalizeChannelOwnerUserID(firstNonEmptyIngress(request.OwnerUserID, authctx.OwnerUserID(ctx))),
 		channelStored:    channelStored,
 		sessionKey:       sessionKey,
 		parsed:           parsed,
@@ -309,14 +391,8 @@ func (s *IngressService) resolveRememberedTarget(
 			SessionKey: parsed.Raw,
 		}
 		return &target, nil
-	case ChannelTypeTelegram:
-		target := DeliveryTarget{
-			Mode:     DeliveryModeExplicit,
-			Channel:  ChannelTypeTelegram,
-			To:       strings.TrimSpace(parsed.Ref),
-			ThreadID: strings.TrimSpace(parsed.ThreadID),
-		}
-		return &target, nil
+	case ChannelTypeTelegram, ChannelTypeDingTalk, ChannelTypeWeChat, ChannelTypeFeishu:
+		return deliveryTargetFromSessionRef(channelStored, parsed), nil
 	case ChannelTypeDiscord:
 		if parsed.ChatType != "group" {
 			return nil, nil
@@ -338,24 +414,37 @@ func (s *IngressService) resolveRememberedTarget(
 	}
 }
 
+func deliveryTargetFromSessionRef(channel string, parsed protocol.SessionKey) *DeliveryTarget {
+	ref := strings.TrimSpace(parsed.Ref)
+	if ref == "" {
+		return nil
+	}
+	return &DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  channel,
+		To:       ref,
+		ThreadID: strings.TrimSpace(parsed.ThreadID),
+	}
+}
+
 func (s *IngressService) resolveApprovedTools(channel string, explicit []string) map[string]struct{} {
 	if len(explicit) > 0 {
-		return normalizeToolSet(explicit)
+		return toolpolicy.NormalizeSet(explicit)
 	}
 	if channel == ChannelTypeInternal {
 		return nil
 	}
-	return copyToolSet(defaultReadOnlyApprovedTools)
+	return toolpolicy.CopySet(defaultExternalApprovedTools)
 }
 
 func (s *IngressService) buildPermissionHandler(
 	agentValue *protocol.Agent,
 	request normalizedIngressRequest,
 ) sdkpermission.Handler {
-	allowedByAgent := normalizeToolSet(agentValue.Options.AllowedTools)
+	allowedByAgent := toolpolicy.NormalizeSet(agentValue.Options.AllowedTools)
 	approved := request.autoApproveTools
 	if request.channelStored == ChannelTypeInternal && len(approved) == 0 {
-		approved = copyToolSet(allowedByAgent)
+		approved = toolpolicy.CopySet(allowedByAgent)
 	}
 	return func(_ context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
 		toolName := strings.TrimSpace(permissionRequest.ToolName)
@@ -371,18 +460,26 @@ func (s *IngressService) buildPermissionHandler(
 			return sdkpermission.Allow(permissionRequest.Input, nil), nil
 		}
 		if len(allowedByAgent) > 0 {
-			if _, ok := allowedByAgent[toolName]; !ok {
+			if !toolpolicy.Contains(allowedByAgent, toolName) && !isManagedScheduledTaskIngressTool(toolName) {
 				return sdkpermission.Deny("当前 agent 未授权该工具", false), nil
 			}
 		}
 		if len(approved) == 0 {
 			return sdkpermission.Deny("当前通道未配置自动授权工具", false), nil
 		}
-		if _, ok := approved[toolName]; !ok {
+		if !toolpolicy.Contains(approved, toolName) {
 			return sdkpermission.Deny("当前通道不允许自动授权该工具", false), nil
 		}
 		return sdkpermission.Allow(permissionRequest.Input, nil), nil
 	}
+}
+
+func isManagedScheduledTaskTool(toolName string) bool {
+	return toolpolicy.Contains(defaultScheduledTaskApprovedTools, toolName)
+}
+
+func isManagedScheduledTaskIngressTool(toolName string) bool {
+	return isManagedScheduledTaskTool(toolName) || toolpolicy.Contains(defaultScheduledTaskSupportTools, toolName)
 }
 
 func splitDiscordRoute(ref string) (string, string) {
@@ -391,35 +488,6 @@ func splitDiscordRoute(ref string) (string, string) {
 		return "", strings.TrimSpace(parts[0])
 	}
 	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-}
-
-func normalizeToolSet(items []string) map[string]struct{} {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make(map[string]struct{}, len(items))
-	for _, item := range items {
-		value := strings.TrimSpace(item)
-		if value == "" {
-			continue
-		}
-		result[value] = struct{}{}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
-func copyToolSet(items map[string]struct{}) map[string]struct{} {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make(map[string]struct{}, len(items))
-	for key := range items {
-		result[key] = struct{}{}
-	}
-	return result
 }
 
 func firstNonEmptyIngress(values ...string) string {

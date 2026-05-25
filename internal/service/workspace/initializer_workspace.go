@@ -366,7 +366,7 @@ var defaultWorkspaceTemplates = map[string]string{
   用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
   字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
   你只能 CRUD **自己 agent_id 名下**的任务，list 也只会看到自己的任务，越权操作会被后端拒绝。
-  短文本提醒类任务可以只填 name+instruction+schedule，工具会默认按 temporary+none 创建；想让结果回当前会话才需要显式 existing+execution。
+  短文本提醒类任务可以只填 name+instruction+schedule，工具会默认按 existing+execution 创建可见提醒；日报、监控、飞书群投递和检查发送情况必须先加载 scheduled-task-manager。
 
 - **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
   仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。
@@ -438,9 +438,9 @@ var mainAgentWorkspaceTemplates = map[string]string{
 
 - **nexus_automation（create_scheduled_task 等）= 产品级定时任务**
   用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
-  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 三种 kind）。
+  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
   作为主智能体，你不受 agent_id scope 限制，可以查看/管理任意智能体的任务；普通 Agent 只能 CRUD 自己的任务。
-  遇到不确定的字段用 AskUserQuestion 问用户，禁止默认套值。
+  遇到不确定字段必须先向用户确认，禁止默认套值；在网页/桌面会话可用 AskUserQuestion，在飞书/IM 等外部通道用普通文本回复让用户补充。检查发送情况、恢复卡住任务、补发投递失败时必须使用 scheduled-task-manager 里的工具顺序。
 
 - **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**
   仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。

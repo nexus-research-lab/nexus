@@ -34,6 +34,8 @@ export interface TaskSchedulePanelProps {
   every_unit_options: Array<{ key: EveryUnit; label: string }>;
   every_value: string;
   instruction: string;
+  instruction_label: string;
+  instruction_placeholder: string;
   is_daily_picker_open: boolean;
   is_single_picker_open: boolean;
   is_single_date_disabled: (value: string) => boolean;

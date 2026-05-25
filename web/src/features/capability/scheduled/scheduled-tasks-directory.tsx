@@ -4,13 +4,19 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/capability/use-automation-controller";
-import { delete_scheduled_task_api, run_scheduled_task_api, update_scheduled_task_status_api } from "@/lib/api/scheduled-task-api";
+import {
+  delete_scheduled_task_api,
+  recover_scheduled_task_run_api,
+  retry_scheduled_task_run_delivery_api,
+  run_scheduled_task_api,
+  update_scheduled_task_status_api,
+} from "@/lib/api/scheduled-task-api";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
 
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
@@ -211,6 +217,55 @@ export function ScheduledTasksDirectory() {
     }
   };
 
+  const handle_recover_task_run = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
+    try {
+      const updated_task = await recover_scheduled_task_run_api(task.job_id, { run_id: run.run_id });
+      set_history_task((current) => current?.job_id === updated_task.job_id ? updated_task : current);
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: "运行占用已释放",
+          message: `${task.name} 的当前 run 已标记为 cancelled`,
+        },
+        "任务列表刷新失败，运行状态稍后会同步",
+        set_feedback,
+      );
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: "释放运行占用失败",
+        message: error instanceof Error ? error.message : "释放运行占用失败",
+      });
+      throw error;
+    }
+  };
+
+  const handle_retry_delivery = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
+    try {
+      const updated_run = await retry_scheduled_task_run_delivery_api(task.job_id, run.run_id);
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: updated_run.delivery_status === "succeeded" ? "投递已恢复" : "投递已重试",
+          message: updated_run.delivery_status === "succeeded"
+            ? `${task.name} 的运行结果已重新投递`
+            : `${task.name} 的投递状态已更新为 ${updated_run.delivery_status ?? "unknown"}`,
+        },
+        "任务列表刷新失败，投递状态稍后会同步",
+        set_feedback,
+      );
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: "重试投递失败",
+        message: error instanceof Error ? error.message : "重试投递失败",
+      });
+      throw error;
+    }
+  };
+
   const handle_delete = async (task: ScheduledTaskItem) => {
     if (!window.confirm(`确认删除任务“${task.name}”吗？`)) {
       return;
@@ -335,6 +390,9 @@ export function ScheduledTasksDirectory() {
       <ScheduledTaskRunHistoryDialog
         is_open={history_task !== null}
         on_close={() => set_history_task(null)}
+        on_recover_task_run={(task, run) => handle_recover_task_run(task, run)}
+        on_retry_delivery={(task, run) => handle_retry_delivery(task, run)}
+        on_retry_task={(task) => handle_run_now(task)}
         task={history_task}
       />
 
