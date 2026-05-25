@@ -92,8 +92,25 @@ func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
 	if len(eventPage.Items) != 2 {
 		t.Fatalf("direct 私域事件数量不正确: %+v", eventPage.Items)
 	}
-	if eventPage.Items[0].Direction != "incoming" || eventPage.Items[1].Direction != "outgoing" {
+
+	var incoming, outgoing *protocol.AgentPrivateEvent
+	for i := range eventPage.Items {
+		event := &eventPage.Items[i]
+		switch event.Direction {
+		case "incoming":
+			incoming = event
+		case "outgoing":
+			outgoing = event
+		}
+	}
+	if incoming == nil || outgoing == nil {
 		t.Fatalf("direct 私域事件方向不正确: %+v", eventPage.Items)
+	}
+	if incoming.SourceAgentID != amy.AgentID || incoming.TargetAgentID != devin.AgentID || incoming.Content != "今晚请先给出查验目标" {
+		t.Fatalf("incoming direct 私域事件内容不正确: %+v", *incoming)
+	}
+	if outgoing.SourceAgentID != devin.AgentID || outgoing.TargetAgentID != amy.AgentID || outgoing.Content != "我想查验 Sam" {
+		t.Fatalf("outgoing direct 私域事件内容不正确: %+v", *outgoing)
 	}
 
 	samPage, err := roomService.ListAgentPrivateThreads(ctx, sam.AgentID, roomsvc.AgentPrivateDomainQuery{})
