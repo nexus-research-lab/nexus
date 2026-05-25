@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 续跑与 steering prompt 移除 Nexus 私有措辞和内部 round ID，进一步贴近 Codex thread goal 模板。
 - Goal runtime context 改为优先注入下一轮运行时上下文，bridge 暂不支持时降级为用户输入前缀；前端 Goal 面板新增运行上下文状态。
 - Goal runtime context 中的 objective 与 checkpoint 摘要按 Codex 方式转义 XML 分隔符，避免用户目标内容闭合隐藏上下文。
+- Goal app-server `thread/goal/updated` 通知补齐 turnId，模型轮次内的 Goal 更新可按触发 round 归因。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

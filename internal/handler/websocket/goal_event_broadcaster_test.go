@@ -21,7 +21,8 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 		Status:     protocol.GoalStatusComplete,
 	}
 	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalStatusChanged, goal, map[string]any{
-		"source": string(protocol.GoalUpdateSourceModel),
+		"source":   string(protocol.GoalUpdateSourceModel),
+		"round_id": "round-1",
 	})
 	broadcaster.BroadcastEvent(context.Background(), threadID, event)
 
@@ -41,6 +42,9 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 	params, ok := notification.Params.(protocol.ThreadGoalUpdatedNotification)
 	if !ok || params.Goal.Status != protocol.ThreadGoalStatusComplete {
 		t.Fatalf("notification params = %#v", notification.Params)
+	}
+	if params.TurnID == nil || *params.TurnID != "round-1" {
+		t.Fatalf("notification turnId = %#v, want round-1", params.TurnID)
 	}
 }
 

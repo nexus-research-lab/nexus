@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -62,9 +63,21 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 			Method: "thread/goal/updated",
 			Params: protocol.ThreadGoalUpdatedNotification{
 				ThreadID: threadID,
-				TurnID:   nil,
+				TurnID:   goalEventTurnID(event),
 				Goal:     protocol.ThreadGoalFromGoal(goal),
 			},
 		})
 	}
+}
+
+func goalEventTurnID(event protocol.EventMessage) *string {
+	if event.Data == nil {
+		return nil
+	}
+	value, _ := event.Data["round_id"].(string)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }
