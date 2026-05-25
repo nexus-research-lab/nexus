@@ -14,7 +14,6 @@ type Service interface {
 	Current(context.Context, string) (*protocol.Goal, error)
 	CurrentOptional(context.Context, string) (*protocol.Goal, error)
 	CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error)
-	BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error)
 }
 
 // ServerContext 绑定当前运行时会话。

@@ -874,12 +874,15 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		"Complete parity",
 		"PreviousRoundID: round-1",
 		"Completion audit:",
-		"Blocked audit:",
+		"Do not call update_goal unless the goal is complete.",
 		"Tokens remaining:",
 	} {
 		if !strings.Contains(plan.Prompt, want) {
 			t.Fatalf("continuation prompt missing %q: %s", want, plan.Prompt)
 		}
+	}
+	if strings.Contains(plan.Prompt, "status \"blocked\"") {
+		t.Fatalf("continuation prompt should not expose model blocked status: %s", plan.Prompt)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
 	if err != nil {
@@ -1175,6 +1178,9 @@ func TestBuildRuntimeContext(t *testing.T) {
 		if !strings.Contains(contextText, want) {
 			t.Fatalf("RuntimeContext missing %q: %s", want, contextText)
 		}
+	}
+	if strings.Contains(contextText, "status=blocked") {
+		t.Fatalf("RuntimeContext should not expose model blocked status: %s", contextText)
 	}
 }
 

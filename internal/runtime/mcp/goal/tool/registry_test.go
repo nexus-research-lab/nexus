@@ -51,14 +51,81 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("status.description = %#v, want string", status["description"])
 	}
-	for _, want := range []string{"three consecutive goal turns", "fresh blocked audit"} {
-		if !strings.Contains(description, want) {
-			t.Fatalf("status.description missing %q: %s", want, description)
-		}
+	if !strings.Contains(description, "objective is achieved") {
+		t.Fatalf("status.description = %q, want completion-only description", description)
 	}
-	for _, want := range []string{"genuinely blocked", "three consecutive goal turns", "usage-limit"} {
+	if strings.Contains(description, "blocked") {
+		t.Fatalf("status.description = %q, should not expose blocked", description)
+	}
+	enum, ok := status["enum"].([]string)
+	if !ok || !slices.Equal(enum, []string{"complete"}) {
+		t.Fatalf("status.enum = %#v, want [complete]", status["enum"])
+	}
+	for _, want := range []string{"only to mark the goal achieved", "budget-limit"} {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
+		}
+	}
+	for _, forbidden := range []string{"genuinely blocked", "three consecutive goal turns"} {
+		if strings.Contains(tool.Description, forbidden) {
+			t.Fatalf("tool description contains %q: %s", forbidden, tool.Description)
+		}
+	}
+}
+
+func TestUpdateGoalRejectsBlockedStatusBeforeLoadingCurrent(t *testing.T) {
+	svc := &fakeUpdateGoalService{}
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+
+	result, err := tool.Handler(context.Background(), map[string]any{"status": "blocked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Fatalf("result = %#v, want MCP error", result)
+	}
+	text, _ := result.Content[0]["text"].(string)
+	if !strings.Contains(text, "only mark the existing goal complete") {
+		t.Fatalf("error text = %q, want completion-only rejection", text)
+	}
+	if svc.currentCalls != 0 || svc.completeCalls != 0 {
+		t.Fatalf("calls = current:%d complete:%d, want no service calls", svc.currentCalls, svc.completeCalls)
+	}
+}
+
+func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
+	svc := &fakeUpdateGoalService{
+		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
+		completed: &protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "agent:nexus:ws:dm:chat",
+			Objective:  "Complete parity",
+			Status:     protocol.GoalStatusComplete,
+		},
+	}
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+
+	result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("result = %#v, want success", result)
+	}
+	if svc.currentCalls != 1 || svc.completeCalls != 1 || svc.completedGoalID != "goal-1" {
+		t.Fatalf("calls = current:%d complete:%d goal:%q", svc.currentCalls, svc.completeCalls, svc.completedGoalID)
+	}
+	goal, ok := result.StructuredContent["goal"].(map[string]any)
+	if !ok || goal["status"] != "complete" {
+		t.Fatalf("goal payload = %#v, want complete goal", result.StructuredContent["goal"])
+	}
+}
+
+func TestGetGoalDescriptionMatchesCodexShape(t *testing.T) {
+	tool := getGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	for _, want := range []string{"current goal for this thread", "elapsed-time usage", "remaining token budget"} {
+		if !strings.Contains(tool.Description, want) {
+			t.Fatalf("get_goal description missing %q: %s", want, tool.Description)
 		}
 	}
 }
@@ -75,6 +142,18 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	}
 	if budget["type"] != "integer" {
 		t.Fatalf("token_budget.type = %#v, want integer", budget["type"])
+	}
+	objective, ok := properties["objective"].(map[string]any)
+	if !ok {
+		t.Fatalf("objective = %#v, want map", properties["objective"])
+	}
+	objectiveDescription, _ := objective["description"].(string)
+	if !strings.Contains(objectiveDescription, "starts a new active goal only when no goal is currently defined") {
+		t.Fatalf("objective.description = %q, want Codex create semantics", objectiveDescription)
+	}
+	budgetDescription, _ := budget["description"].(string)
+	if !strings.Contains(budgetDescription, "Optional positive token budget for the new active goal") {
+		t.Fatalf("token_budget.description = %q, want Codex budget semantics", budgetDescription)
 	}
 }
 
@@ -121,6 +200,35 @@ func (fakeGoalService) CompleteByModel(context.Context, string, protocol.Complet
 	return nil, nil
 }
 
-func (fakeGoalService) BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error) {
+type fakeUpdateGoalService struct {
+	current         *protocol.Goal
+	completed       *protocol.Goal
+	currentCalls    int
+	completeCalls   int
+	completedGoalID string
+}
+
+func (s *fakeUpdateGoalService) Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error) {
 	return nil, nil
+}
+
+func (s *fakeUpdateGoalService) Current(context.Context, string) (*protocol.Goal, error) {
+	s.currentCalls++
+	if s.current == nil {
+		return nil, errors.New("current goal not configured")
+	}
+	return s.current, nil
+}
+
+func (s *fakeUpdateGoalService) CurrentOptional(context.Context, string) (*protocol.Goal, error) {
+	return s.current, nil
+}
+
+func (s *fakeUpdateGoalService) CompleteByModel(_ context.Context, goalID string, _ protocol.CompleteGoalRequest) (*protocol.Goal, error) {
+	s.completeCalls++
+	s.completedGoalID = goalID
+	if s.completed == nil {
+		return nil, errors.New("completed goal not configured")
+	}
+	return s.completed, nil
 }

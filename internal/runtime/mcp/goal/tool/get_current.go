@@ -9,7 +9,7 @@ import (
 )
 
 func getGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return readGoalTool("get_goal", "Read the current thread goal, usage, and remaining token budget.", svc, sctx)
+	return readGoalTool("get_goal", "Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.", svc, sctx)
 }
 
 func readGoalTool(name string, description string, svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
