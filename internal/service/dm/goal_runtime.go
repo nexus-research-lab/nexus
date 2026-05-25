@@ -13,7 +13,7 @@ import (
 )
 
 func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult, finalAssistant protocol.Message) {
-	if r.service.goals == nil {
+	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
 	snapshot, ok := r.finalGoalUsageSnapshot(result, finalAssistant)
@@ -24,7 +24,7 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult, fi
 }
 
 func (r *roundRunner) recordGoalUsageLimit(result runtimectx.RoundExecutionResult) {
-	if r.service.goals == nil || !result.UsageLimitReached {
+	if r.service.goals == nil || r.ignoreGoalRuntime() || !result.UsageLimitReached {
 		return
 	}
 	_, err := r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
@@ -67,7 +67,7 @@ func (r *roundRunner) lastGoalAssistantMessage() protocol.Message {
 }
 
 func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Message) {
-	if r.service.goals == nil {
+	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
 	observations := messageutil.AssistantToolResults(message)
@@ -108,7 +108,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 }
 
 func (r *roundRunner) recordGoalContinuationProgress() {
-	if r.service.goals == nil || strings.TrimSpace(r.goalIDForUsage) == "" {
+	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.goalIDForUsage) == "" {
 		return
 	}
 	progressed := strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" || r.hasGoalToolProgress()
@@ -190,7 +190,7 @@ func (r *roundRunner) recordGoalUsageSnapshot(snapshot goalsvc.RuntimeUsageSnaps
 }
 
 func (r *roundRunner) recordGoalUsageDelta(usage protocol.GoalUsage) {
-	if r.service.goals == nil || isZeroGoalUsage(usage) {
+	if r.service.goals == nil || r.ignoreGoalRuntime() || isZeroGoalUsage(usage) {
 		return
 	}
 	var err error
@@ -218,6 +218,13 @@ func (r *roundRunner) elapsedGoalUsageSeconds() int64 {
 		return 0
 	}
 	return elapsed
+}
+
+func (r *roundRunner) ignoreGoalRuntime() bool {
+	if r == nil {
+		return false
+	}
+	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(r.permissionMode))
 }
 
 func isZeroGoalUsage(usage protocol.GoalUsage) bool {

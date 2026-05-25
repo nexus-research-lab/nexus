@@ -8,7 +8,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -48,7 +47,7 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, ag
 		s.loggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
 		return false
 	}
-	return sdkpermission.Mode(strings.TrimSpace(agentValue.Options.PermissionMode)) == sdkpermission.ModePlan
+	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
 }
 
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {

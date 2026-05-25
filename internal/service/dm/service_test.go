@@ -186,13 +186,23 @@ type fakeGoalContextProvider struct {
 	mu               sync.Mutex
 	plan             *protocol.GoalContinuation
 	planCalls        int
+	runtimeContext   string
+	runtimeGoal      *protocol.Goal
+	runtimeCalls     int
 	usage            []protocol.GoalUsage
 	usageLimitReason []string
 	progress         []bool
 }
 
 func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
-	return "", nil, nil
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.runtimeCalls++
+	if p.runtimeGoal == nil {
+		return p.runtimeContext, nil, nil
+	}
+	goal := *p.runtimeGoal
+	return p.runtimeContext, &goal, nil
 }
 
 func (p *fakeGoalContextProvider) RecordUsageForSession(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
@@ -442,6 +452,43 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerIgnoresGoalRuntimeInPlanMode(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:          &Service{goals: goalProvider},
+		sessionKey:       "agent:nexus:ws:dm:test-goal-plan-runtime",
+		roundID:          "round-plan",
+		goalIDForUsage:   "goal-plan",
+		goalUsage:        goalsvc.NewRuntimeUsageAccumulator(true),
+		goalUsageStarted: time.Now(),
+		permissionMode:   sdkpermission.ModePlan,
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 2,
+		},
+		ElapsedTimeSeconds: 3,
+	}, protocol.Message{})
+	runner.recordGoalUsageLimit(runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "usage limit",
+	})
+	runner.recordGoalContinuationProgress()
+
+	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
+		t.Fatalf("plan mode recorded goal usage: %#v", usages)
+	}
+	if reasons := goalProvider.recordedUsageLimitReasons(); len(reasons) != 0 {
+		t.Fatalf("plan mode recorded usage limit: %#v", reasons)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("plan mode recorded continuation progress: %#v", progress)
+	}
+}
+
 func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -458,6 +505,12 @@ func (p *fakeGoalContextProvider) recordedProgress() []bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]bool(nil), p.progress...)
+}
+
+func (p *fakeGoalContextProvider) runtimeContextCallCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.runtimeCalls
 }
 
 func goalToolResultAssistantMessage(
@@ -832,7 +885,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	if _, _, _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	if _, _, _, _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	}); err != nil {
@@ -848,6 +901,54 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 	if !strings.Contains(appendSystemPrompt, "运行前先汇总 workspace 规则") {
 		t.Fatalf("runtime prompt 未注入 Agent profile_markdown: %s", appendSystemPrompt)
+	}
+}
+
+func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取默认 agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeDMFactory{client: newFakeDMClient()}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	goalProvider := &fakeGoalContextProvider{
+		runtimeContext: "<goal_context>\nshould not enter plan mode\n</goal_context>",
+		runtimeGoal: &protocol.Goal{
+			ID:         "goal-plan-context",
+			SessionKey: "agent:nexus:ws:dm:test-plan-context",
+			Status:     protocol.GoalStatusActive,
+		},
+	}
+	service.SetGoalContextProvider(goalProvider)
+
+	sessionKey := protocol.BuildAgentSessionKey(cfg.DefaultAgentID, protocol.SessionChannelWebSocketSegment, "dm", "plan-context", "")
+	parsed := protocol.ParseSessionKey(sessionKey)
+	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
+	if err != nil {
+		t.Fatalf("初始化 session 失败: %v", err)
+	}
+	_, _, _, goalID, goalContext, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+		SessionKey:     sessionKey,
+		PermissionMode: sdkpermission.ModePlan,
+	})
+	if err != nil {
+		t.Fatalf("构建 plan mode runtime client 失败: %v", err)
+	}
+	if permissionMode != sdkpermission.ModePlan {
+		t.Fatalf("permissionMode = %q, want plan", permissionMode)
+	}
+	if goalID != "" || goalContext != "" {
+		t.Fatalf("plan mode goal runtime context = (%q, %q), want empty", goalID, goalContext)
+	}
+	if calls := goalProvider.runtimeContextCallCount(); calls != 0 {
+		t.Fatalf("plan mode should not read Goal runtime context, calls = %d", calls)
 	}
 }
 

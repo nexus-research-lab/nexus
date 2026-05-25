@@ -79,7 +79,7 @@ func goalIDForRuntimeUsage(goal *protocol.Goal) string {
 }
 
 func beginGoalUsageForSlot(slot *activeRoomSlot) {
-	if slot == nil {
+	if slot == nil || slot.GoalRuntimeIgnored {
 		return
 	}
 	slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(slot.GoalIDForUsage) != "")
@@ -87,7 +87,7 @@ func beginGoalUsageForSlot(slot *activeRoomSlot) {
 }
 
 func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
-	if s.runtime == nil || slot == nil {
+	if s.runtime == nil || slot == nil || slot.GoalRuntimeIgnored {
 		return func() {}
 	}
 	sessionKey := goalSessionKeyForSlot(slot)
@@ -115,7 +115,7 @@ func (s *RealtimeService) recordGoalUsageForSlot(
 	result runtimectx.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) {
-	if s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
 		return
 	}
 	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
@@ -130,7 +130,7 @@ func (s *RealtimeService) recordGoalUsageLimitForSlot(
 	slot *activeRoomSlot,
 	result runtimectx.RoundExecutionResult,
 ) {
-	if s.goals == nil || slot == nil || !result.UsageLimitReached {
+	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || !result.UsageLimitReached {
 		return
 	}
 	_, err := s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
@@ -154,7 +154,7 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) {
-	if s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
 		return
 	}
 	observations := messageutil.AssistantToolResults(message)
@@ -199,7 +199,7 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 	slot *activeRoomSlot,
 	roundValue *activeRoomRound,
 ) {
-	if s.goals == nil || slot == nil || strings.TrimSpace(slot.GoalIDForUsage) == "" {
+	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || strings.TrimSpace(slot.GoalIDForUsage) == "" {
 		return
 	}
 	purpose := ""
@@ -270,7 +270,7 @@ func (s *RealtimeService) recordGoalUsageSnapshotForSlot(
 	slot *activeRoomSlot,
 	snapshot goalsvc.RuntimeUsageSnapshot,
 ) {
-	if s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored {
 		return
 	}
 	slot.stateMu.Lock()
@@ -293,7 +293,7 @@ func (s *RealtimeService) recordGoalUsageSnapshotForSlot(
 }
 
 func (s *RealtimeService) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) {
-	if s.goals == nil || slot == nil || isZeroRoomGoalUsage(usage) {
+	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || isZeroRoomGoalUsage(usage) {
 		return
 	}
 	var err error

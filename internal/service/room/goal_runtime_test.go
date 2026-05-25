@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -309,6 +310,47 @@ func TestRecordGoalUsageLimitForRoomSlot(t *testing.T) {
 	reasons := goalProvider.recordedUsageLimitReasons()
 	if len(reasons) != 1 || reasons[0] != "The usage limit has been reached" {
 		t.Fatalf("usage limit reasons = %#v, want runtime reason", reasons)
+	}
+}
+
+func TestRoomSlotIgnoresGoalRuntimeInPlanMode(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey:  "room:agent:runtime",
+		GoalSessionKey:     "room:group:conversation-1",
+		AgentRoundID:       "round-plan",
+		GoalIDForUsage:     "goal-plan",
+		GoalRuntimeIgnored: true,
+		GoalUsage:          goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalUsageStartedAt: time.Now(),
+	}
+
+	beginGoalUsageForSlot(slot)
+	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
+	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 2,
+		},
+		ElapsedTimeSeconds: 3,
+	}, protocol.Message{})
+	service.recordGoalUsageLimitForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "usage limit",
+	})
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
+	})
+
+	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
+		t.Fatalf("plan mode recorded room goal usage: %#v", usages)
+	}
+	if reasons := goalProvider.recordedUsageLimitReasons(); len(reasons) != 0 {
+		t.Fatalf("plan mode recorded room usage limit: %#v", reasons)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("plan mode recorded room continuation progress: %#v", progress)
 	}
 }
 

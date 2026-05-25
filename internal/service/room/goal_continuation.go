@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -69,7 +69,7 @@ func (s *RealtimeService) shouldDeferGoalContinuationForPlanMode(ctx context.Con
 	if agentValue == nil {
 		return false
 	}
-	return sdkpermission.Mode(strings.TrimSpace(agentValue.Options.PermissionMode)) == sdkpermission.ModePlan
+	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
 }
 
 func goalContinuationTargetAgentID(

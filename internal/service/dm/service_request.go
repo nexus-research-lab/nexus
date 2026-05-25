@@ -85,7 +85,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	}
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
 
-	client, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
+	client, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, permissionMode, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM runtime client 初始化失败",
 			"session_key", sessionKey,
@@ -130,7 +130,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		goalIDForUsage:    goalIDForUsage,
 		goalUsage:         goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(goalIDForUsage) != ""),
 		goalUsageStarted:  time.Now(),
-		permissionMode:    request.PermissionMode,
+		permissionMode:    permissionMode,
 		permissionHandler: request.PermissionHandler,
 	}
 	s.runtime.RegisterGoalAccountingFlush(sessionKey, request.RoundID, runner.flushGoalUsage)
@@ -413,7 +413,7 @@ func (s *Service) ensureClient(
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
-) (runtimectx.Client, string, string, string, string, error) {
+) (runtimectx.Client, string, string, string, string, sdkpermission.Mode, error) {
 	permissionMode := request.PermissionMode
 	if permissionMode == "" {
 		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
@@ -434,13 +434,16 @@ func (s *Service) ensureClient(
 		agentValue.IsMain,
 		agentValue.CreatedAt,
 	); err != nil {
-		return nil, "", "", "", "", err
+		return nil, "", "", "", "", permissionMode, err
 	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", "", "", err
+		return nil, "", "", "", "", permissionMode, err
 	}
-	goalContext, goalIDForUsage := s.goalRuntimeContext(ctx, sessionKey)
+	goalContext, goalIDForUsage := "", ""
+	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) {
+		goalContext, goalIDForUsage = s.goalRuntimeContext(ctx, sessionKey)
+	}
 	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
@@ -460,7 +463,7 @@ func (s *Service) ensureClient(
 		MCPServers:         mcpServers,
 	})
 	if err != nil {
-		return nil, "", "", "", "", err
+		return nil, "", "", "", "", permissionMode, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
@@ -472,9 +475,9 @@ func (s *Service) ensureClient(
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
-		return nil, "", "", "", "", err
+		return nil, "", "", "", "", permissionMode, err
 	}
-	return client, runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, nil
+	return client, runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string) {

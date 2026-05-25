@@ -20,6 +20,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -168,7 +169,11 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
-	appendSystemPrompt, slot.GoalContext, slot.GoalIDForUsage, slot.GoalSessionKey = s.resolveGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
+	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
+	slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
+	if !slot.GoalRuntimeIgnored {
+		appendSystemPrompt, slot.GoalContext, slot.GoalIDForUsage, slot.GoalSessionKey = s.resolveGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
+	}
 	beginGoalUsageForSlot(slot)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
@@ -182,7 +187,6 @@ func (s *RealtimeService) runSlot(
 			roomSourceContextLabel(roundValue),
 		)
 	}
-	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
 	permissionHandler := func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
 	}

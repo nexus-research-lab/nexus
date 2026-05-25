@@ -25,6 +25,7 @@ type activeRoomSlot struct {
 	GoalSessionKey     string
 	GoalContext        string
 	GoalIDForUsage     string
+	GoalRuntimeIgnored bool
 	GoalUsage          *goalsvc.RuntimeUsageAccumulator
 	GoalUsageStartedAt time.Time
 	GoalLastAssistant  protocol.Message
