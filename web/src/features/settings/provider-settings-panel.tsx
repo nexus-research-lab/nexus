@@ -25,12 +25,10 @@ import {
   Plus,
   RefreshCw,
   SlidersHorizontal,
-  Star,
   Trash2,
   Wrench,
 } from "lucide-react";
 
-import { set_default_agent_provider } from "@/config/options";
 import { invalidate_provider_availability } from "@/hooks/capability/use-provider-availability";
 import {
   create_provider_config_api,
@@ -95,7 +93,6 @@ interface ProviderDraft {
   base_url: string;
   models_path: string;
   enabled: boolean;
-  is_default: boolean;
 }
 
 interface ProviderSettingsPanelProps {
@@ -181,7 +178,6 @@ function build_provider_draft(
     base_url: format?.base_url ?? "",
     models_path: format?.models_path ?? "",
     enabled: false,
-    is_default: false,
   };
 }
 
@@ -195,7 +191,6 @@ function to_provider_draft(item: ProviderConfigRecord): ProviderDraft {
     base_url: item.base_url,
     models_path: item.models_path || "",
     enabled: item.enabled,
-    is_default: item.is_default,
   };
 }
 
@@ -227,10 +222,7 @@ function parse_provider_options(raw: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function build_provider_payload_from_draft(
-  draft: ProviderDraft,
-  current_record: ProviderConfigRecord | null,
-): UpdateProviderConfigPayload {
+function build_provider_payload_from_draft(draft: ProviderDraft): UpdateProviderConfigPayload {
   return {
     provider_kind: "llm",
     preset_key: draft.preset_key,
@@ -238,9 +230,7 @@ function build_provider_payload_from_draft(
     display_name: draft.display_name.trim() || draft.provider.trim(),
     base_url: draft.base_url.trim(),
     models_path: draft.models_path.trim(),
-    model: current_record?.model ?? "",
     enabled: draft.enabled,
-    is_default: draft.is_default && draft.api_format === "anthropic_messages",
   };
 }
 
@@ -278,8 +268,7 @@ function provider_draft_has_changes(draft: ProviderDraft, record: ProviderConfig
     || (draft.display_name.trim() || draft.provider.trim()) !== (record.display_name || record.provider)
     || draft.base_url.trim() !== record.base_url
     || draft.models_path.trim() !== (record.models_path || "")
-    || draft.enabled !== record.enabled
-    || draft.is_default !== record.is_default;
+    || draft.enabled !== record.enabled;
 }
 
 function format_token_preview(masked_token?: string | null): string {
@@ -388,6 +377,7 @@ function model_update_payload(
 ): UpdateProviderModelPayload {
   return {
     enabled: model.enabled,
+    is_default: model.is_default,
     capabilities_override: model.capabilities_override ?? {},
     context_window: model.context_window ?? null,
     max_output_tokens: model.max_output_tokens ?? null,
@@ -502,9 +492,6 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       set_presets(next_presets);
       const ordered_items = order_provider_records(next_providers, providers_ref.current);
       set_providers(ordered_items);
-      set_default_agent_provider(
-        ordered_items.find((item) => item.provider_kind === "llm" && item.is_default && item.agent_runtime_supported)?.provider,
-      );
       invalidate_provider_availability();
       const target = ordered_items.find((item) => item.provider === preferred_provider)
         ?? ordered_items.find((item) => item.provider === selected_provider_ref.current);
@@ -579,7 +566,6 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       api_format,
       base_url: format?.base_url ?? current.base_url,
       models_path: format?.models_path ?? current.models_path,
-      is_default: api_format === "anthropic_messages" ? current.is_default : false,
     }));
   }, [current_preset]);
 
@@ -617,7 +603,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     const save_promise = (async () => {
       set_submitting(true);
       try {
-        const payload = build_provider_payload_from_draft(next_draft, selected_record);
+        const payload = build_provider_payload_from_draft(next_draft);
         const normalized_auth_token = next_draft.auth_token.trim();
         if (normalized_auth_token) {
           payload.auth_token = normalized_auth_token;
@@ -631,9 +617,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
             provider_kind: "llm",
             display_name: payload.display_name,
             base_url: payload.base_url,
-            model: payload.model,
             enabled: payload.enabled,
-            is_default: payload.is_default,
           });
         await refresh_all(result.provider);
         if (show_success) {
@@ -690,35 +674,6 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       }
     })();
   }, [handle_save]);
-
-  const handle_set_default = useCallback(async (item: ProviderConfigRecord) => {
-    if (submitting || pending_action || item.is_default || !item.agent_runtime_supported) {
-      return;
-    }
-    try {
-      set_pending_action(`default:${item.provider}`);
-      await update_provider_config_api(item.provider, {
-        provider_kind: item.provider_kind,
-        preset_key: item.preset_key,
-        api_format: item.api_format,
-        display_name: get_provider_title(item),
-        base_url: item.base_url,
-        models_path: item.models_path,
-        model: item.model,
-        enabled: true,
-        is_default: true,
-      });
-      await refresh_all(selected_provider_ref.current ?? item.provider);
-    } catch (error) {
-      set_feedback({
-        tone: "error",
-        title: "默认 Provider 设置失败",
-        message: error instanceof Error ? error.message : "当前 Provider 暂不可设为 Agent 默认",
-      });
-    } finally {
-      set_pending_action(null);
-    }
-  }, [pending_action, refresh_all, submitting]);
 
   const handle_request_delete_provider = useCallback((item: ProviderConfigRecord) => {
     if (!is_custom_provider_record(item)) {
@@ -822,6 +777,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       set_pending_action(`add-model:${model_id}`);
       await update_provider_model_api(selected_record.provider, model_id, {
         enabled: manual_model_enabled,
+        is_default: false,
         capabilities_override: {},
         context_window: null,
         max_output_tokens: null,
@@ -946,6 +902,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       const provider_options = parse_provider_options(model_options.provider_options_text);
       await update_provider_model_api(selected_record.provider, model_options.model.model_id, {
         enabled: model_options.model.enabled,
+        is_default: model_options.model.is_default,
         capabilities_override: model_options.capabilities,
         context_window: model_options.context_window.trim() ? Number(model_options.context_window) : null,
         max_output_tokens: model_options.max_output_tokens.trim() ? Number(model_options.max_output_tokens) : null,
@@ -1153,23 +1110,6 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2 pt-0.5">
-                  {selected_record?.agent_runtime_supported ? (
-                    <UiButton
-                      disabled={pending_action !== null || selected_record.is_default}
-                      size="xs"
-                      variant="surface"
-                      class_name="min-w-16"
-                      onClick={() => void handle_set_default(selected_record)}
-                      type="button"
-                    >
-                      {pending_action === `default:${selected_record.provider}` ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Star className={cn("h-4 w-4", selected_record.is_default && "fill-current")} />
-                      )}
-                      {selected_record.is_default ? "默认" : "设为默认"}
-                    </UiButton>
-                  ) : null}
                   {is_editing ? (
                     <UiSelectMenu
                       aria_label="测试 Provider"
@@ -1303,8 +1243,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     <div className="flex items-center gap-2">
                       {is_editing && selected_record ? (
                         <>
-	                          <UiButton
-	                            disabled={pending_action !== null || !is_api_format_supported}
+                          <UiButton
+                            disabled={pending_action !== null || !is_api_format_supported}
                             onClick={handle_open_add_model}
                             size="xs"
                             type="button"

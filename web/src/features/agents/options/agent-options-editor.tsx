@@ -21,7 +21,7 @@ import type {
 import type { ProviderOption } from "@/types/capability/provider";
 import { UiButton } from "@/shared/ui/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { set_default_agent_provider } from "@/config/options";
+import { set_default_agent_model, set_default_agent_provider } from "@/config/options";
 import {
   AgentOptionsNav,
   type TabKey,
@@ -31,6 +31,7 @@ import { AgentOptionsSkillsTab } from "@/features/agents/options/components/agen
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
 import {
   build_agent_option_provider_options,
+  DEFAULT_AGENT_OPTION_MODEL,
   DEFAULT_AGENT_OPTION_PROVIDER,
   normalize_agent_option_provider,
 } from "@/features/agents/options/agent-options-constants";
@@ -107,10 +108,15 @@ export function AgentOptionsEditor({
   const [avatar, setAvatar] = useState(initial_avatar);
   const [description, setDescription] = useState(initial_description);
   const [vibeTags, setVibeTags] = useState<string[]>(initial_vibe_tags);
+  const sourceModel = sourceOptions.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
   const [provider, setProvider] = useState<AgentProvider>(
-    normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
+    sourceModel
+      ? normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
+      : DEFAULT_AGENT_OPTION_PROVIDER
   );
+  const [model, setModel] = useState<string>(sourceModel);
   const [defaultProvider, setDefaultProvider] = useState<AgentProvider>("");
+  const [defaultModel, setDefaultModel] = useState<string>("");
   const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
   const [providerOptionsError, setProviderOptionsError] = useState<string | null>(null);
@@ -143,8 +149,11 @@ export function AgentOptionsEditor({
     setAvatar(initial_avatar);
     setDescription(initial_description);
     setVibeTags(initial_vibe_tags);
-    setProvider(normalize_agent_option_provider(opts.provider));
+    const nextModel = opts.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
+    setProvider(nextModel ? normalize_agent_option_provider(opts.provider) : DEFAULT_AGENT_OPTION_PROVIDER);
+    setModel(nextModel);
     setDefaultProvider("");
+    setDefaultModel("");
     setProviderOptionsError(null);
     setPermissionMode(opts.permission_mode || "bypassPermissions");
     setAllowedTools(opts.allowed_tools || []);
@@ -170,7 +179,9 @@ export function AgentOptionsEditor({
         }
         setProviderOptions(payload.items);
         setDefaultProvider(normalize_agent_option_provider(payload.default_provider));
+        setDefaultModel(payload.default_model?.trim() || "");
         set_default_agent_provider(payload.default_provider);
+        set_default_agent_model(payload.default_model);
         setProviderOptionsError(null);
       } catch (error) {
         if (!cancelled) {
@@ -302,8 +313,12 @@ export function AgentOptionsEditor({
       }
     }
 
+    const selectedProvider = provider.trim();
+    const selectedModel = model.trim();
+    const hasExplicitModel = Boolean(selectedProvider && selectedModel);
     const options: AgentConfigOptions = {
-      provider: provider.trim(),
+      provider: hasExplicitModel ? selectedProvider : DEFAULT_AGENT_OPTION_PROVIDER,
+      model: hasExplicitModel ? selectedModel : DEFAULT_AGENT_OPTION_MODEL,
       permission_mode: permissionMode,
       allowed_tools: allowedTools,
       disallowed_tools: disallowedTools,
@@ -344,11 +359,14 @@ export function AgentOptionsEditor({
           vibe_tags={vibeTags}
           on_vibe_tags_change={setVibeTags}
           provider={provider}
+          model={model}
           default_provider={defaultProvider}
-          provider_options={build_agent_option_provider_options(providerOptions, provider)}
+          default_model={defaultModel}
+          provider_options={build_agent_option_provider_options(providerOptions, provider, model)}
           provider_options_error={providerOptionsError}
           provider_options_loading={providerOptionsLoading}
           on_provider_change={setProvider}
+          on_model_change={setModel}
           name_validation={nameValidation}
           is_validating_name={isValidatingName}
           variant={variant}

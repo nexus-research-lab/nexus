@@ -14,6 +14,7 @@ export type AgentProvider = string;
 
 export interface AgentOptions {
     provider?: AgentProvider;
+    model?: string;
     permission_mode?: string;
     allowed_tools?: string[];
     disallowed_tools?: string[];

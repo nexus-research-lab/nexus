@@ -64,6 +64,7 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 			DisplayName:              displayName,
 			Category:                 category,
 			Enabled:                  false,
+			IsDefault:                false,
 			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
 			CapabilitiesOverrideJSON: "{}",
 			ContextWindow:            contextWindow,
@@ -79,13 +80,6 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	}
 	if err = s.repository.UpsertModels(ctx, entities); err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(item.Model) == "" {
-		item.Model = entities[0].ModelID
-		item.UpdatedAt = now
-		if updateErr := s.repository.Update(ctx, *item); updateErr != nil {
-			return nil, updateErr
-		}
 	}
 	saved, err := s.modelsForRecord(ctx, item.ID)
 	if err != nil {
@@ -108,6 +102,14 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
+	if input.IsDefault {
+		if item.ProviderKind == ProviderKindLLM && (!item.Enabled || !isAgentRuntimeProvider(*item)) {
+			return nil, fmt.Errorf("provider=%s 暂不可设为 Agent 默认模型", item.Provider)
+		}
+		if item.ProviderKind != ProviderKindLLM && item.ProviderKind != ProviderKindImageGeneration {
+			return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
+		}
+	}
 	model, err := s.repository.GetModel(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
@@ -127,7 +129,8 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			ModelID:                  modelID,
 			DisplayName:              modelID,
 			Category:                 category,
-			Enabled:                  input.Enabled,
+			Enabled:                  input.Enabled || input.IsDefault,
+			IsDefault:                input.IsDefault,
 			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
 			CapabilitiesOverrideJSON: encodeModelCapabilities(input.CapabilitiesOverride),
 			ContextWindow:            contextWindow,
@@ -141,7 +144,11 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			return nil, err
 		}
 	} else {
-		model.Enabled = input.Enabled
+		if model.IsDefault && !input.Enabled && !input.IsDefault {
+			return nil, fmt.Errorf("默认模型不能禁用: %s", modelID)
+		}
+		model.Enabled = input.Enabled || input.IsDefault || model.IsDefault
+		model.IsDefault = input.IsDefault || model.IsDefault
 		model.CapabilitiesOverrideJSON = encodeModelCapabilities(input.CapabilitiesOverride)
 		model.ContextWindow = input.ContextWindow
 		model.MaxOutputTokens = input.MaxOutputTokens
@@ -151,12 +158,44 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			return nil, err
 		}
 	}
-	if input.Enabled && strings.TrimSpace(item.Model) == "" {
-		item.Model = model.ModelID
-		item.UpdatedAt = s.now()
-		if err = s.repository.Update(ctx, *item); err != nil {
+	if input.IsDefault {
+		if err = s.repository.UpdateDefaultModel(ctx, item.ID, model.ModelID, s.now()); err != nil {
 			return nil, err
 		}
+	}
+	updated, err := s.repository.GetModel(ctx, item.ID, modelID)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, fmt.Errorf("模型不存在: %s", modelID)
+	}
+	record := toModelRecord(*updated)
+	return &record, nil
+}
+
+// SetDefaultModel 把指定模型设置为当前 Provider 类型的默认模型，不改写模型卡其它字段。
+func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID string) (*ModelRecord, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return nil, errors.New("model_id 不能为空")
+	}
+	if item.ProviderKind == ProviderKindLLM && (!item.Enabled || !isAgentRuntimeProvider(*item)) {
+		return nil, fmt.Errorf("provider=%s 暂不可设为 Agent 默认模型", item.Provider)
+	}
+	model, err := s.repository.GetModel(ctx, item.ID, modelID)
+	if err != nil {
+		return nil, err
+	}
+	if model == nil {
+		return nil, fmt.Errorf("模型不存在: %s", modelID)
+	}
+	if err = s.repository.UpdateDefaultModel(ctx, item.ID, model.ModelID, s.now()); err != nil {
+		return nil, err
 	}
 	updated, err := s.repository.GetModel(ctx, item.ID, modelID)
 	if err != nil {
@@ -175,14 +214,11 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 	if err != nil {
 		return nil, err
 	}
-	modelID := strings.TrimSpace(item.Model)
 	models, modelsErr := s.fetchRemoteModels(ctx, *item)
 	if modelsErr != nil {
 		return s.persistTestResult(ctx, *item, "", modelsErr)
 	}
-	if modelID == "" {
-		modelID = s.pickTestModel(ctx, *item, models)
-	}
+	modelID := s.pickTestModel(ctx, *item, models)
 	if modelID == "" {
 		return s.persistTestResult(ctx, *item, "", errors.New("未找到可测试模型"))
 	}
@@ -202,38 +238,6 @@ func (s *Service) TestModel(ctx context.Context, provider string, modelID string
 	}
 	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
 	return s.persistTestResult(ctx, *item, modelID, testErr)
-}
-
-func (s *Service) ensureModelSeed(ctx context.Context, item providerstore.Entity) error {
-	modelID := strings.TrimSpace(item.Model)
-	if modelID == "" {
-		return nil
-	}
-	existing, err := s.repository.GetModel(ctx, item.ID, modelID)
-	if err != nil {
-		return err
-	}
-	if existing != nil {
-		return nil
-	}
-	capabilities, category, contextWindow, maxOutput := defaultModelCard()
-	now := s.now()
-	return s.repository.UpsertModels(ctx, []providerstore.ModelEntity{{
-		ID:                       s.idFactory("provider_model"),
-		ProviderID:               item.ID,
-		ModelID:                  modelID,
-		DisplayName:              modelID,
-		Category:                 category,
-		Enabled:                  true,
-		CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
-		CapabilitiesOverrideJSON: "{}",
-		ContextWindow:            contextWindow,
-		MaxOutputTokens:          maxOutput,
-		ProviderOptionsJSON:      "{}",
-		LastSeenAt:               now,
-		CreatedAt:                now,
-		UpdatedAt:                now,
-	}})
 }
 
 func (s *Service) modelsForRecord(ctx context.Context, providerID string) ([]ModelRecord, error) {
@@ -420,6 +424,7 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 		DisplayName:          item.DisplayName,
 		Category:             item.Category,
 		Enabled:              item.Enabled,
+		IsDefault:            item.IsDefault,
 		CapabilitiesAuto:     decodeModelCapabilities(item.CapabilitiesAutoJSON),
 		CapabilitiesOverride: decodeModelCapabilities(item.CapabilitiesOverrideJSON),
 		ContextWindow:        item.ContextWindow,

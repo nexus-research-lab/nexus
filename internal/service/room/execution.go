@@ -186,6 +186,7 @@ func (s *RealtimeService) runSlot(
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
 		Provider:           agentValue.Options.Provider,
+		Model:              agentValue.Options.Model,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
 		AllowedTools:       agentValue.Options.AllowedTools,

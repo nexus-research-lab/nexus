@@ -64,7 +64,7 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defaultProvider, err := h.providers.DefaultProvider(request.Context())
+	providerOptions, err := h.providers.ListOptions(request.Context())
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
@@ -81,7 +81,8 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		"data": map[string]any{
 			"default_agent_id":       defaultAgent.AgentID,
 			"default_agent_avatar":   defaultAgent.Avatar,
-			"default_agent_provider": defaultProvider,
+			"default_agent_provider": providerOptions.DefaultProvider,
+			"default_agent_model":    providerOptions.DefaultModel,
 			"preferences":            prefs,
 		},
 	})
@@ -176,6 +177,24 @@ func (h *Handlers) HandleUpdateProviderModel(writer http.ResponseWriter, request
 		chi.URLParam(request, "provider"),
 		chi.URLParam(request, "model_id"),
 		payload,
+	)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleSetDefaultProviderModel 设置默认运行模型。
+func (h *Handlers) HandleSetDefaultProviderModel(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.providers.SetDefaultModel(
+		request.Context(),
+		chi.URLParam(request, "provider"),
+		chi.URLParam(request, "model_id"),
 	)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "不存在") {

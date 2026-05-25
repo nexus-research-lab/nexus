@@ -874,16 +874,21 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
 	providerService := providercfg.NewServiceWithDB(cfg, db)
-	if _, err = providerService.Create(context.Background(), providercfg.CreateInput{
+	createdProvider, err := providerService.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
+	if _, err = providerService.UpdateModel(context.Background(), createdProvider.Provider, "glm-5.1", providercfg.UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置默认模型失败: %v", err)
 	}
 
 	ctx := context.Background()

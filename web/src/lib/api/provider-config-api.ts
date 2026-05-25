@@ -96,6 +96,18 @@ export async function update_provider_model_api(
   );
 }
 
+export async function set_default_provider_model_api(
+  provider: string,
+  model_id: string,
+): Promise<ProviderModelRecord> {
+  return request_api<ProviderModelRecord>(
+    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(model_id)}/default`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export async function test_provider_config_api(
   provider: string,
 ): Promise<ProviderTestResult> {
@@ -122,13 +134,23 @@ export async function test_provider_model_api(
 export async function delete_provider_config_api(
   provider: string,
   options: { force?: boolean } = {},
-): Promise<{ provider: string; replacement_provider?: string; reassigned_runtime_count?: number }> {
+): Promise<{
+  provider: string;
+  replacement_provider?: string;
+  replacement_model?: string;
+  reassigned_runtime_count?: number;
+}> {
   const search_params = new URLSearchParams();
   if (options.force) {
     search_params.set("force", "1");
   }
   const query = search_params.toString();
-  return request_api<{ provider: string; replacement_provider?: string; reassigned_runtime_count?: number }>(
+  return request_api<{
+    provider: string;
+    replacement_provider?: string;
+    replacement_model?: string;
+    reassigned_runtime_count?: number;
+  }>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}${query ? `?${query}` : ""}`,
     {
       method: "DELETE",

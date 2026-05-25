@@ -27,13 +27,14 @@ const askUserQuestionToolName = "AskUserQuestion"
 
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*RuntimeConfig, error)
+	ResolveRuntimeConfig(context.Context, string, string) (*RuntimeConfig, error)
 }
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
 	WorkspacePath      string
 	Provider           string
+	Model              string
 	PermissionMode     sdkpermission.Mode
 	PermissionHandler  sdkpermission.Handler
 	AllowedTools       []string
@@ -53,7 +54,7 @@ func BuildAgentClientOptions(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model)
 	if err != nil {
 		return agentclient.Options{}, err
 	}
@@ -137,8 +138,9 @@ func BuildRuntimeEnv(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	provider string,
+	model string,
 ) (map[string]string, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider, model)
 	if err != nil {
 		return nil, err
 	}
@@ -175,11 +177,12 @@ func resolveRuntimeConfig(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	provider string,
+	model string,
 ) (*RuntimeConfig, error) {
 	if resolver == nil {
 		return nil, nil
 	}
-	runtimeConfig, err := resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
+	runtimeConfig, err := resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider), strings.TrimSpace(model))
 	if err != nil {
 		return nil, err
 	}

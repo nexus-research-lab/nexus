@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/storage"
@@ -40,13 +41,11 @@ func (r *Repository) List(ctx context.Context) ([]Entity, error) {
 	    preset_key,
 	    api_format,
 	    display_name,
-	    auth_token,
-	    base_url,
-	    models_path,
-	    model,
-	    enabled,
-	    is_default,
-	    last_test_status,
+		    auth_token,
+		    base_url,
+		    models_path,
+		    enabled,
+		    last_test_status,
 	    last_test_error,
 	    last_test_at,
 	    created_at,
@@ -78,13 +77,11 @@ func (r *Repository) GetByProvider(ctx context.Context, provider string) (*Entit
 	    preset_key,
 	    api_format,
 	    display_name,
-	    auth_token,
-	    base_url,
-	    models_path,
-	    model,
-	    enabled,
-	    is_default,
-	    last_test_status,
+		    auth_token,
+		    base_url,
+		    models_path,
+		    enabled,
+		    last_test_status,
 	    last_test_error,
 	    last_test_at,
 	    created_at,
@@ -104,11 +101,11 @@ LIMIT 1`, strings.TrimSpace(provider))
 
 func (r *Repository) Create(ctx context.Context, item Entity) error {
 	_, err := r.db.ExecContext(ctx, `
-	INSERT INTO provider (
-	    id, provider_kind, provider, preset_key, api_format, display_name, auth_token, base_url,
-	    models_path, model, enabled, is_default, last_test_status,
-	    last_test_error, last_test_at, created_at, updated_at
-	) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+r.bind(15)+`, `+r.bind(16)+`, `+r.bind(17)+`)`,
+		INSERT INTO provider (
+		    id, provider_kind, provider, preset_key, api_format, display_name, auth_token, base_url,
+		    models_path, enabled, last_test_status,
+		    last_test_error, last_test_at, created_at, updated_at
+		) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+r.bind(15)+`)`,
 		item.ID,
 		item.ProviderKind,
 		item.Provider,
@@ -118,9 +115,7 @@ func (r *Repository) Create(ctx context.Context, item Entity) error {
 		item.AuthToken,
 		item.BaseURL,
 		item.ModelsPath,
-		item.Model,
 		item.Enabled,
-		item.IsDefault,
 		item.LastTestStatus,
 		item.LastTestError,
 		item.LastTestAt,
@@ -134,23 +129,19 @@ func (r *Repository) Update(ctx context.Context, item Entity) error {
 	_, err := r.db.ExecContext(ctx, `
 	UPDATE provider
 	SET display_name = `+r.bind(1)+`,
-	    auth_token = `+r.bind(2)+`,
-	    base_url = `+r.bind(3)+`,
-	    models_path = `+r.bind(4)+`,
-	    model = `+r.bind(5)+`,
-	    enabled = `+r.bind(6)+`,
-	    is_default = `+r.bind(7)+`,
-	    preset_key = `+r.bind(8)+`,
-	    api_format = `+r.bind(9)+`,
-	    updated_at = `+r.bind(10)+`
-	WHERE provider = `+r.bind(11),
+		    auth_token = `+r.bind(2)+`,
+		    base_url = `+r.bind(3)+`,
+		    models_path = `+r.bind(4)+`,
+		    enabled = `+r.bind(5)+`,
+		    preset_key = `+r.bind(6)+`,
+		    api_format = `+r.bind(7)+`,
+		    updated_at = `+r.bind(8)+`
+		WHERE provider = `+r.bind(9),
 		item.DisplayName,
 		item.AuthToken,
 		item.BaseURL,
 		item.ModelsPath,
-		item.Model,
 		item.Enabled,
-		item.IsDefault,
 		item.PresetKey,
 		item.APIFormat,
 		item.UpdatedAt.UTC(),
@@ -159,44 +150,20 @@ func (r *Repository) Update(ctx context.Context, item Entity) error {
 	return err
 }
 
-func (r *Repository) UpdateDefaultFlags(ctx context.Context, providerKind string, targetProvider string) error {
-	kind := strings.TrimSpace(providerKind)
-	if strings.TrimSpace(targetProvider) == "" {
-		query := `
-UPDATE provider
-SET is_default = ` + r.falseValue() + `,
-    updated_at = ` + r.currentTimestamp()
-		if kind != "" {
-			query += `
-WHERE provider_kind = ` + r.bind(1)
-			_, err := r.db.ExecContext(ctx, query, kind)
-			return err
-		}
-		_, err := r.db.ExecContext(ctx, query)
-		return err
-	}
-	query := `
-UPDATE provider
-SET is_default = CASE WHEN provider = ` + r.bind(1) + ` THEN ` + r.trueValue() + ` ELSE ` + r.falseValue() + ` END,
-    updated_at = ` + r.currentTimestamp() + `
-WHERE enabled = ` + r.trueValue() + `
-  AND provider_kind = ` + r.bind(2)
-	_, err := r.db.ExecContext(ctx, query, strings.TrimSpace(targetProvider), kind)
-	return err
-}
-
 func (r *Repository) Delete(ctx context.Context, provider string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM provider WHERE provider = `+r.bind(1), strings.TrimSpace(provider))
 	return err
 }
 
-func (r *Repository) ReplaceRuntimeProvider(ctx context.Context, oldProvider string, newProvider string) (int, error) {
+func (r *Repository) ReplaceRuntimeProvider(ctx context.Context, oldProvider string, newProvider string, newModel string) (int, error) {
 	result, err := r.db.ExecContext(ctx, `
-UPDATE runtimes
-SET provider = `+r.bind(1)+`,
-    updated_at = `+r.currentTimestamp()+`
-WHERE COALESCE(NULLIF(TRIM(provider), ''), '') = `+r.bind(2),
+	UPDATE runtimes
+	SET provider = `+r.bind(1)+`,
+	    model = `+r.bind(2)+`,
+	    updated_at = `+r.currentTimestamp()+`
+	WHERE COALESCE(NULLIF(TRIM(provider), ''), '') = `+r.bind(3),
 		strings.TrimSpace(newProvider),
+		strings.TrimSpace(newModel),
 		strings.TrimSpace(oldProvider),
 	)
 	if err != nil {
@@ -295,10 +262,11 @@ func (r *Repository) ListModelsByProviderID(ctx context.Context, providerID stri
 	    id,
 	    provider_id,
 	    model_id,
-	    display_name,
-	    category,
-	    enabled,
-	    capabilities_auto_json,
+		    display_name,
+		    category,
+		    enabled,
+		    is_default,
+		    capabilities_auto_json,
 	    capabilities_override_json,
 	    context_window,
 	    max_output_tokens,
@@ -308,7 +276,7 @@ func (r *Repository) ListModelsByProviderID(ctx context.Context, providerID stri
 	    updated_at
 	FROM provider_models
 	WHERE provider_id = `+r.bind(1)+`
-	ORDER BY enabled DESC, display_name ASC, model_id ASC`, strings.TrimSpace(providerID))
+		ORDER BY enabled DESC, is_default DESC, display_name ASC, model_id ASC`, strings.TrimSpace(providerID))
 	if err != nil {
 		return nil, err
 	}
@@ -331,10 +299,11 @@ func (r *Repository) GetModel(ctx context.Context, providerID string, modelID st
 	    id,
 	    provider_id,
 	    model_id,
-	    display_name,
-	    category,
-	    enabled,
-	    capabilities_auto_json,
+		    display_name,
+		    category,
+		    enabled,
+		    is_default,
+		    capabilities_auto_json,
 	    capabilities_override_json,
 	    context_window,
 	    max_output_tokens,
@@ -367,13 +336,13 @@ func (r *Repository) UpsertModels(ctx context.Context, items []ModelEntity) erro
 func (r *Repository) upsertModel(ctx context.Context, item ModelEntity) error {
 	_, err := r.db.ExecContext(ctx, `
 	INSERT INTO provider_models (
-	    id, provider_id, model_id, display_name, category, enabled,
-	    capabilities_auto_json, capabilities_override_json, context_window,
-	    max_output_tokens, provider_options_json, last_seen_at, created_at, updated_at
-	) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`)
-	ON CONFLICT (provider_id, model_id) DO UPDATE SET
-	    display_name = excluded.display_name,
-	    category = excluded.category,
+		    id, provider_id, model_id, display_name, category, enabled,
+		    is_default, capabilities_auto_json, capabilities_override_json, context_window,
+		    max_output_tokens, provider_options_json, last_seen_at, created_at, updated_at
+		) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+r.bind(15)+`)
+		ON CONFLICT (provider_id, model_id) DO UPDATE SET
+		    display_name = excluded.display_name,
+		    category = excluded.category,
 	    capabilities_auto_json = excluded.capabilities_auto_json,
 	    context_window = excluded.context_window,
 	    max_output_tokens = excluded.max_output_tokens,
@@ -385,6 +354,7 @@ func (r *Repository) upsertModel(ctx context.Context, item ModelEntity) error {
 		item.DisplayName,
 		item.Category,
 		item.Enabled,
+		item.IsDefault,
 		item.CapabilitiesAutoJSON,
 		item.CapabilitiesOverrideJSON,
 		item.ContextWindow,
@@ -401,13 +371,15 @@ func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
 	_, err := r.db.ExecContext(ctx, `
 	UPDATE provider_models
 	SET enabled = `+r.bind(1)+`,
-	    capabilities_override_json = `+r.bind(2)+`,
-	    context_window = `+r.bind(3)+`,
-	    max_output_tokens = `+r.bind(4)+`,
-	    provider_options_json = `+r.bind(5)+`,
-	    updated_at = `+r.bind(6)+`
-	WHERE provider_id = `+r.bind(7)+` AND model_id = `+r.bind(8),
+	    is_default = `+r.bind(2)+`,
+	    capabilities_override_json = `+r.bind(3)+`,
+	    context_window = `+r.bind(4)+`,
+	    max_output_tokens = `+r.bind(5)+`,
+	    provider_options_json = `+r.bind(6)+`,
+	    updated_at = `+r.bind(7)+`
+	WHERE provider_id = `+r.bind(8)+` AND model_id = `+r.bind(9),
 		item.Enabled,
+		item.IsDefault,
 		item.CapabilitiesOverrideJSON,
 		item.ContextWindow,
 		item.MaxOutputTokens,
@@ -417,6 +389,47 @@ func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
 		item.ModelID,
 	)
 	return err
+}
+
+func (r *Repository) UpdateDefaultModel(ctx context.Context, providerID string, modelID string, updatedAt time.Time) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `
+	UPDATE provider_models
+	SET is_default = `+r.falseValue()+`,
+	    updated_at = `+r.bind(1)+`
+	WHERE is_default = `+r.trueValue()+`
+	  AND provider_id IN (
+	      SELECT candidate.id
+	      FROM provider candidate
+	      WHERE candidate.provider_kind = (
+	          SELECT target.provider_kind
+	          FROM provider target
+	          WHERE target.id = `+r.bind(2)+`
+	          LIMIT 1
+	      )
+	  )`,
+		updatedAt.UTC(),
+		strings.TrimSpace(providerID),
+	); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `
+	UPDATE provider_models
+	SET is_default = `+r.trueValue()+`,
+	    enabled = `+r.trueValue()+`,
+	    updated_at = `+r.bind(1)+`
+	WHERE provider_id = `+r.bind(2)+` AND model_id = `+r.bind(3),
+		updatedAt.UTC(),
+		strings.TrimSpace(providerID),
+		strings.TrimSpace(modelID),
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *Repository) trueValue() string {
@@ -457,9 +470,7 @@ func scanEntity(scanner interface {
 		&item.AuthToken,
 		&item.BaseURL,
 		&item.ModelsPath,
-		&item.Model,
 		&item.Enabled,
-		&item.IsDefault,
 		&lastTestStatus,
 		&lastTestError,
 		&lastTestAt,
@@ -489,7 +500,6 @@ func scanEntity(scanner interface {
 	if item.ModelsPath == "" {
 		item.ModelsPath = "/v1/models"
 	}
-	item.Model = strings.TrimSpace(item.Model)
 	item.LastTestStatus = strings.TrimSpace(lastTestStatus.String)
 	item.LastTestError = strings.TrimSpace(lastTestError.String)
 	if lastTestAt.Valid {
@@ -514,6 +524,7 @@ func scanModelEntity(scanner interface {
 		&item.DisplayName,
 		&item.Category,
 		&item.Enabled,
+		&item.IsDefault,
 		&item.CapabilitiesAutoJSON,
 		&item.CapabilitiesOverrideJSON,
 		&contextWindow,

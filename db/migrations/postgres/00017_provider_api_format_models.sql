@@ -5,6 +5,7 @@ ALTER TABLE provider ADD COLUMN models_path TEXT NOT NULL DEFAULT '/v1/models';
 ALTER TABLE provider ADD COLUMN last_test_status VARCHAR(32) NOT NULL DEFAULT '';
 ALTER TABLE provider ADD COLUMN last_test_error TEXT NOT NULL DEFAULT '';
 ALTER TABLE provider ADD COLUMN last_test_at TIMESTAMP WITHOUT TIME ZONE;
+ALTER TABLE runtimes ADD COLUMN model VARCHAR(255);
 
 CREATE INDEX idx_provider_preset_format ON provider (preset_key, api_format);
 
@@ -20,6 +21,7 @@ CREATE TABLE provider_models (
     context_window INTEGER,
     max_output_tokens INTEGER,
     provider_options_json TEXT NOT NULL DEFAULT '{}',
+    is_default BOOLEAN NOT NULL DEFAULT false,
     last_seen_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
@@ -28,8 +30,64 @@ CREATE TABLE provider_models (
 );
 CREATE INDEX idx_provider_models_provider_enabled ON provider_models (provider_id, enabled);
 CREATE INDEX idx_provider_models_last_seen ON provider_models (provider_id, last_seen_at);
+CREATE INDEX idx_provider_models_default ON provider_models (is_default, provider_id);
+
+INSERT INTO provider_models (
+    id, provider_id, model_id, display_name, category, enabled,
+    capabilities_auto_json, capabilities_override_json, context_window,
+    max_output_tokens, provider_options_json, is_default,
+    last_seen_at, created_at, updated_at
+)
+SELECT
+    'provider_model_' || p.id || '_legacy',
+    p.id,
+    TRIM(p.model),
+    TRIM(p.model),
+    'chat',
+    TRUE,
+    '{}',
+    '{}',
+    NULL,
+    NULL,
+    '{}',
+    CASE WHEN p.is_default THEN TRUE ELSE FALSE END,
+    now(),
+    now(),
+    now()
+FROM provider p
+WHERE TRIM(COALESCE(p.model, '')) <> '';
+
+UPDATE runtimes
+SET model = p.model
+FROM provider p
+WHERE p.provider = runtimes.provider
+  AND TRIM(COALESCE(p.model, '')) <> ''
+  AND runtimes.model IS NULL;
+
+ALTER TABLE provider DROP COLUMN is_default;
+ALTER TABLE provider DROP COLUMN model;
 
 -- +goose Down
+ALTER TABLE provider ADD COLUMN model VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE provider ADD COLUMN is_default BOOLEAN NOT NULL DEFAULT false;
+UPDATE provider
+SET model = COALESCE((
+    SELECT pm.model_id
+    FROM provider_models pm
+    WHERE pm.provider_id = provider.id
+      AND pm.enabled = TRUE
+    ORDER BY pm.is_default DESC, pm.updated_at DESC
+    LIMIT 1
+), '');
+UPDATE provider
+SET is_default = EXISTS (
+    SELECT 1
+    FROM provider_models pm
+    WHERE pm.provider_id = provider.id
+      AND pm.is_default = TRUE
+);
+ALTER TABLE runtimes DROP COLUMN model;
+DROP INDEX idx_provider_models_default;
 DROP INDEX idx_provider_models_last_seen;
 DROP INDEX idx_provider_models_provider_enabled;
 DROP TABLE provider_models;

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 重构 Provider 默认模型配置：默认模型改为 Provider + Model 显式选择，Provider 配置不再直接持有模型字段，Agent 运行时保存所选 Provider 模型。
+
 ## [0.1.9] - 2026-05-23
 
 ### Added

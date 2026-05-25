@@ -13,9 +13,7 @@ type Entity struct {
 	AuthToken      string
 	BaseURL        string
 	ModelsPath     string
-	Model          string
 	Enabled        bool
-	IsDefault      bool
 	LastTestStatus string
 	LastTestError  string
 	LastTestAt     *time.Time
@@ -31,6 +29,7 @@ type ModelEntity struct {
 	DisplayName              string
 	Category                 string
 	Enabled                  bool
+	IsDefault                bool
 	CapabilitiesAutoJSON     string
 	CapabilitiesOverrideJSON string
 	ContextWindow            *int

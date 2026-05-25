@@ -26,6 +26,7 @@ export interface ProviderModelRecord {
   display_name: string;
   category: string;
   enabled: boolean;
+  is_default: boolean;
   capabilities_auto: ProviderModelCapabilities;
   capabilities_override: ProviderModelCapabilities;
   context_window?: number | null;
@@ -46,9 +47,7 @@ export interface ProviderConfigRecord {
   auth_token_masked: string;
   base_url: string;
   models_path: string;
-  model: string;
   enabled: boolean;
-  is_default: boolean;
   usage_count: number;
   used_by_agents: ProviderUsageAgent[];
   last_test_status: string;
@@ -86,11 +85,26 @@ export interface ProviderPreset {
 export interface ProviderOption {
   provider: string;
   display_name: string;
+  models: ProviderModelOption[];
+}
+
+export interface ProviderModelOption {
+  model_id: string;
+  display_name: string;
   is_default: boolean;
+}
+
+export interface ProviderModelSelection {
+  provider: string;
+  provider_display_name: string;
+  model: string;
+  model_display_name: string;
 }
 
 export interface ProviderOptionsResponse {
   default_provider: string | null;
+  default_model: string | null;
+  default_selection: ProviderModelSelection | null;
   items: ProviderOption[];
 }
 
@@ -103,9 +117,7 @@ export interface ProviderConfigPayload {
   auth_token: string;
   base_url: string;
   models_path?: string;
-  model: string;
   enabled: boolean;
-  is_default: boolean;
 }
 
 export interface UpdateProviderConfigPayload {
@@ -116,9 +128,7 @@ export interface UpdateProviderConfigPayload {
   auth_token?: string;
   base_url: string;
   models_path?: string;
-  model: string;
   enabled: boolean;
-  is_default: boolean;
 }
 
 export interface FetchProviderModelsResponse {
@@ -129,6 +139,7 @@ export interface FetchProviderModelsResponse {
 
 export interface UpdateProviderModelPayload {
   enabled: boolean;
+  is_default?: boolean;
   capabilities_override: ProviderModelCapabilities;
   context_window?: number | null;
   max_output_tokens?: number | null;

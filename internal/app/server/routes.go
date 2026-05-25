@@ -36,6 +36,7 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.core.HandleCreateProviderConfig)
 	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.core.HandleFetchProviderModels)
 	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.core.HandleUpdateProviderModel)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/default"), s.handlers.core.HandleSetDefaultProviderModel)
 	s.router.Post(s.prefixPath("/settings/providers/{provider}/test"), s.handlers.core.HandleTestProviderConfig)
 	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/test"), s.handlers.core.HandleTestProviderModel)
 	s.router.Put(s.prefixPath("/settings/providers/{provider}"), s.handlers.core.HandleUpdateProviderConfig)

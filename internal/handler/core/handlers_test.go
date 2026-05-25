@@ -48,16 +48,21 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	agents := agentpkg.NewService(cfg, sqlitestorage.NewAgentRepository(db))
 	providers := providercfg.NewServiceWithDB(cfg, db)
-	if _, err := providers.Create(context.Background(), providercfg.CreateInput{
+	createdProvider, err := providers.Create(context.Background(), providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("创建默认 provider 失败: %v", err)
+	}
+	if _, err = providers.UpdateModel(context.Background(), createdProvider.Provider, "glm-5.1", providercfg.UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置默认模型失败: %v", err)
 	}
 	defaultAgent, err := agents.GetDefaultAgent(context.Background())
 	if err != nil {
@@ -88,6 +93,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 			DefaultAgentID       string  `json:"default_agent_id"`
 			DefaultAgentAvatar   string  `json:"default_agent_avatar"`
 			DefaultAgentProvider *string `json:"default_agent_provider"`
+			DefaultAgentModel    *string `json:"default_agent_model"`
 		} `json:"data"`
 	}
 	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -98,6 +104,9 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	}
 	if payload.Data.DefaultAgentProvider == nil || *payload.Data.DefaultAgentProvider != "glm" {
 		t.Fatalf("default_agent_provider 不正确: got=%v", payload.Data.DefaultAgentProvider)
+	}
+	if payload.Data.DefaultAgentModel == nil || *payload.Data.DefaultAgentModel != "glm-5.1" {
+		t.Fatalf("default_agent_model 不正确: got=%v", payload.Data.DefaultAgentModel)
 	}
 	if payload.Data.DefaultAgentAvatar != avatar {
 		t.Fatalf("default_agent_avatar 不正确: got=%s want=%s", payload.Data.DefaultAgentAvatar, avatar)

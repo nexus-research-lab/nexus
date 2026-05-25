@@ -237,6 +237,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		Description:         description,
 		VibeTagsJSON:        mustJSONString(vibeTags, "[]"),
 		Provider:            nextOptions.Provider,
+		Model:               nextOptions.Model,
 		PermissionMode:      nextOptions.PermissionMode,
 		AllowedToolsJSON:    mustJSONString(nextOptions.AllowedTools, "[]"),
 		DisallowedToolsJSON: mustJSONString(nextOptions.DisallowedTools, "[]"),

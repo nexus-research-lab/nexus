@@ -31,9 +31,7 @@ type Record struct {
 	AuthTokenMasked       string        `json:"auth_token_masked"`
 	BaseURL               string        `json:"base_url"`
 	ModelsPath            string        `json:"models_path"`
-	Model                 string        `json:"model"`
 	Enabled               bool          `json:"enabled"`
-	IsDefault             bool          `json:"is_default"`
 	UsageCount            int           `json:"usage_count"`
 	UsedByAgents          []UsageAgent  `json:"used_by_agents"`
 	LastTestStatus        string        `json:"last_test_status"`
@@ -54,17 +52,34 @@ type UsageAgent struct {
 	IsMain      bool   `json:"is_main,omitempty"`
 }
 
-// Option 表示可供 Agent 选择的 Provider 选项。
-type Option struct {
-	Provider    string `json:"provider"`
+// ModelOption 表示可供 Agent 选择的单个模型。
+type ModelOption struct {
+	ModelID     string `json:"model_id"`
 	DisplayName string `json:"display_name"`
 	IsDefault   bool   `json:"is_default"`
 }
 
+// ModelSelection 表示完整运行模型选择。
+type ModelSelection struct {
+	Provider            string `json:"provider"`
+	ProviderDisplayName string `json:"provider_display_name"`
+	Model               string `json:"model"`
+	ModelDisplayName    string `json:"model_display_name"`
+}
+
+// Option 表示可供 Agent 选择的 Provider 选项。
+type Option struct {
+	Provider    string        `json:"provider"`
+	DisplayName string        `json:"display_name"`
+	Models      []ModelOption `json:"models"`
+}
+
 // OptionsResponse 表示 Provider 下拉选项响应。
 type OptionsResponse struct {
-	DefaultProvider *string  `json:"default_provider"`
-	Items           []Option `json:"items"`
+	DefaultProvider  *string         `json:"default_provider"`
+	DefaultModel     *string         `json:"default_model"`
+	DefaultSelection *ModelSelection `json:"default_selection"`
+	Items            []Option        `json:"items"`
 }
 
 // CreateInput 表示新增 Provider 配置的输入。
@@ -77,9 +92,7 @@ type CreateInput struct {
 	AuthToken    string `json:"auth_token"`
 	BaseURL      string `json:"base_url"`
 	ModelsPath   string `json:"models_path"`
-	Model        string `json:"model"`
 	Enabled      bool   `json:"enabled"`
-	IsDefault    bool   `json:"is_default"`
 }
 
 // UpdateInput 表示更新 Provider 配置的输入。
@@ -91,9 +104,7 @@ type UpdateInput struct {
 	AuthToken    *string `json:"auth_token,omitempty"`
 	BaseURL      string  `json:"base_url"`
 	ModelsPath   string  `json:"models_path"`
-	Model        string  `json:"model"`
 	Enabled      bool    `json:"enabled"`
-	IsDefault    bool    `json:"is_default"`
 }
 
 // DeleteInput 表示删除 Provider 的行为选项。
@@ -105,6 +116,7 @@ type DeleteInput struct {
 type DeleteResult struct {
 	Provider               string `json:"provider"`
 	ReplacementProvider    string `json:"replacement_provider,omitempty"`
+	ReplacementModel       string `json:"replacement_model,omitempty"`
 	ReassignedRuntimeCount int    `json:"reassigned_runtime_count,omitempty"`
 }
 
@@ -133,6 +145,7 @@ type ModelRecord struct {
 	DisplayName          string            `json:"display_name"`
 	Category             string            `json:"category"`
 	Enabled              bool              `json:"enabled"`
+	IsDefault            bool              `json:"is_default"`
 	CapabilitiesAuto     ModelCapabilities `json:"capabilities_auto"`
 	CapabilitiesOverride ModelCapabilities `json:"capabilities_override"`
 	ContextWindow        *int              `json:"context_window,omitempty"`
@@ -155,6 +168,7 @@ type ModelCapabilities struct {
 // UpdateModelInput 表示模型卡更新输入。
 type UpdateModelInput struct {
 	Enabled              bool              `json:"enabled"`
+	IsDefault            bool              `json:"is_default"`
 	CapabilitiesOverride ModelCapabilities `json:"capabilities_override"`
 	ContextWindow        *int              `json:"context_window,omitempty"`
 	MaxOutputTokens      *int              `json:"max_output_tokens,omitempty"`

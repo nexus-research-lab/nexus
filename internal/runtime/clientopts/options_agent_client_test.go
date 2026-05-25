@@ -21,6 +21,7 @@ type fakeRuntimeConfigResolver struct {
 func (r fakeRuntimeConfigResolver) ResolveRuntimeConfig(
 	context.Context,
 	string,
+	string,
 ) (*RuntimeConfig, error) {
 	if r.calls != nil {
 		*r.calls = *r.calls + 1

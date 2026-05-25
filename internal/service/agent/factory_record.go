@@ -45,6 +45,7 @@ func BuildCreateRecord(
 		RuntimeID:           buildStableID("runtime", agentID),
 		ProfileID:           buildStableID("profile", agentID),
 		Provider:            options.Provider,
+		Model:               options.Model,
 		PermissionMode:      options.PermissionMode,
 		AllowedToolsJSON:    mustJSONString(options.AllowedTools, "[]"),
 		DisallowedToolsJSON: mustJSONString(options.DisallowedTools, "[]"),
@@ -89,9 +90,10 @@ func pointer(value protocol.Options) *protocol.Options {
 
 func mergeOptions(base protocol.Options, incoming protocol.Options) protocol.Options {
 	result := base
-	// 当前 Web 主流程会显式提交 provider 字段；
-	// 这里按完整快照语义处理，空字符串表示“跟随默认 Provider”。
+	// 当前 Web 主流程会显式提交 provider/model 字段；
+	// 这里按完整快照语义处理，空字符串表示“跟随默认模型”。
 	result.Provider = strings.TrimSpace(incoming.Provider)
+	result.Model = strings.TrimSpace(incoming.Model)
 	if incoming.PermissionMode != "" {
 		result.PermissionMode = incoming.PermissionMode
 	}

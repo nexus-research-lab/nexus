@@ -52,7 +52,6 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		PresetKey: presetOpenAI,
 		AuthToken: "openai-key",
 		Enabled:   true,
-		IsDefault: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 OpenAI provider 失败: %v", err)
@@ -63,10 +62,10 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if openai.BaseURL != "https://api.openai.com/v1" || openai.ModelsPath != "/models" {
 		t.Fatalf("OpenAI 预置 endpoint 不正确: %+v", openai)
 	}
-	if openai.AgentRuntimeSupported || openai.IsDefault {
+	if openai.AgentRuntimeSupported {
 		t.Fatalf("chat_completions 暂不应成为 Agent runtime provider: %+v", openai)
 	}
-	if _, err = service.ResolveRuntimeConfig(ctx, "openai"); err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+	if _, err = service.ResolveRuntimeConfig(ctx, "openai", "gpt-4o"); err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
 		t.Fatalf("OpenAI chat_completions 应被 Agent runtime 拒绝: %v", err)
 	}
 
@@ -92,32 +91,23 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		PresetKey: presetKimiCode,
 		AuthToken: "kimi-key",
 		Enabled:   true,
-		IsDefault: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 Kimi Code provider 失败: %v", err)
 	}
-	if kimi.APIFormat != APIFormatAnthropicMessages || kimi.Model != "" {
+	if kimi.APIFormat != APIFormatAnthropicMessages {
 		t.Fatalf("Kimi Code 默认配置不正确: %+v", kimi)
 	}
-	if _, err = service.ResolveRuntimeConfig(ctx, "kimi-code"); err == nil || !strings.Contains(err.Error(), "model") {
+	if _, err = service.ResolveRuntimeConfig(ctx, "kimi-code", ""); err == nil || !strings.Contains(err.Error(), "model") {
 		t.Fatalf("未设置模型的 Kimi Code 应被 Agent runtime 拒绝: %v", err)
 	}
-	kimi, err = service.Update(ctx, "kimi-code", UpdateInput{
-		ProviderKind: kimi.ProviderKind,
-		PresetKey:    kimi.PresetKey,
-		APIFormat:    kimi.APIFormat,
-		DisplayName:  kimi.DisplayName,
-		BaseURL:      kimi.BaseURL,
-		ModelsPath:   kimi.ModelsPath,
-		Model:        "kimi-for-coding",
-		Enabled:      true,
-		IsDefault:    true,
-	})
-	if err != nil {
-		t.Fatalf("显式设置 Kimi Code 模型失败: %v", err)
+	if _, err = service.UpdateModel(ctx, "kimi-code", "kimi-for-coding", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置 Kimi Code 默认模型失败: %v", err)
 	}
-	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, "kimi-code")
+	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, "kimi-code", "kimi-for-coding")
 	if err != nil {
 		t.Fatalf("Kimi Code 应可用于 Agent runtime: %v", err)
 	}
@@ -139,7 +129,6 @@ func TestProviderListIncludesUsageAgents(t *testing.T) {
 		AuthToken:   "blocked-key",
 		BaseURL:     "https://api.example.com",
 		ModelsPath:  "/models",
-		Model:       "model-1",
 		DisplayName: "Blocked",
 	})
 	if err != nil {
@@ -187,13 +176,17 @@ func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
 		AuthToken:   "fallback-key",
 		BaseURL:     "https://api.fallback.example.com",
 		ModelsPath:  "/models",
-		Model:       "fallback-model",
 		Enabled:     true,
-		IsDefault:   true,
 		DisplayName: "Fallback",
 	})
 	if err != nil {
 		t.Fatalf("创建 fallback provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, fallback.Provider, "fallback-model", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置 fallback 默认模型失败: %v", err)
 	}
 	target, err := service.Create(ctx, CreateInput{
 		Provider:    "delete-target",
@@ -202,7 +195,6 @@ func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
 		AuthToken:   "target-key",
 		BaseURL:     "https://api.target.example.com",
 		ModelsPath:  "/models",
-		Model:       "target-model",
 		Enabled:     true,
 		DisplayName: "Target",
 	})
@@ -218,21 +210,25 @@ func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("强制删除 provider 失败: %v", err)
 	}
-	if result.ReplacementProvider != fallback.Provider || result.ReassignedRuntimeCount != 2 {
+	if result.ReplacementProvider != fallback.Provider || result.ReplacementModel != "fallback-model" || result.ReassignedRuntimeCount != 2 {
 		t.Fatalf("强制删除结果不正确: %+v", result)
 	}
 	if _, err = service.Get(ctx, target.Provider); err == nil {
 		t.Fatalf("待删除 provider 应已移除")
 	}
-	runtimes := runtimeProvidersByAgent(t, db, "agent-force-a", "agent-force-b")
-	if runtimes["agent-force-a"] != fallback.Provider || runtimes["agent-force-b"] != fallback.Provider {
-		t.Fatalf("runtime provider 未切换到默认 provider: %+v", runtimes)
+	runtimes := runtimeSelectionsByAgent(t, db, "agent-force-a", "agent-force-b")
+	if runtimes["agent-force-a"].provider != fallback.Provider ||
+		runtimes["agent-force-a"].model != "fallback-model" ||
+		runtimes["agent-force-b"].provider != fallback.Provider ||
+		runtimes["agent-force-b"].model != "fallback-model" {
+		t.Fatalf("runtime provider/model 未切换到默认模型: %+v", runtimes)
 	}
 	options, err := service.ListOptions(ctx)
 	if err != nil {
 		t.Fatalf("读取 provider options 失败: %v", err)
 	}
-	if options.DefaultProvider == nil || *options.DefaultProvider != fallback.Provider {
+	if options.DefaultProvider == nil || *options.DefaultProvider != fallback.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "fallback-model" {
 		t.Fatalf("默认 provider 不正确: %+v", options)
 	}
 }
@@ -259,9 +255,7 @@ func TestFetchModelsMergesCardsAndPreservesOverride(t *testing.T) {
 		AuthToken:   "fetch-key",
 		BaseURL:     server.URL,
 		ModelsPath:  "/models",
-		Model:       "gpt-old",
 		Enabled:     true,
-		IsDefault:   false,
 		DisplayName: "Fetcher",
 	})
 	if err != nil {
@@ -490,16 +484,21 @@ INSERT INTO runtimes (
 	}
 }
 
-func runtimeProvidersByAgent(t *testing.T, db *sql.DB, agentIDs ...string) map[string]string {
+type runtimeSelection struct {
+	provider string
+	model    string
+}
+
+func runtimeSelectionsByAgent(t *testing.T, db *sql.DB, agentIDs ...string) map[string]runtimeSelection {
 	t.Helper()
-	result := map[string]string{}
+	result := map[string]runtimeSelection{}
 	for _, agentID := range agentIDs {
-		row := db.QueryRow(`SELECT provider FROM runtimes WHERE agent_id = ? LIMIT 1`, agentID)
-		var provider string
-		if err := row.Scan(&provider); err != nil {
-			t.Fatalf("读取 runtime provider 失败: %v", err)
+		row := db.QueryRow(`SELECT COALESCE(provider, ''), COALESCE(model, '') FROM runtimes WHERE agent_id = ? LIMIT 1`, agentID)
+		var item runtimeSelection
+		if err := row.Scan(&item.provider, &item.model); err != nil {
+			t.Fatalf("读取 runtime provider/model 失败: %v", err)
 		}
-		result[agentID] = provider
+		result[agentID] = item
 	}
 	return result
 }
@@ -548,8 +547,8 @@ func TestUpdateModelCreatesManualModel(t *testing.T) {
 	if len(records) != 1 || len(records[0].Models) != 1 || records[0].Models[0].ModelID != "claude-manual-1" {
 		t.Fatalf("手动模型未出现在 provider 模型列表: %+v", records)
 	}
-	if records[0].Model != "claude-manual-1" {
-		t.Fatalf("空默认模型应被手动启用模型补全: %+v", records[0])
+	if records[0].Models[0].IsDefault {
+		t.Fatalf("手动启用模型不应自动成为默认模型: %+v", records[0].Models[0])
 	}
 }
 

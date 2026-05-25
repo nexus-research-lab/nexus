@@ -5,6 +5,7 @@ import "time"
 // Options 表示 Agent 运行时配置。
 type Options struct {
 	Provider          string         `json:"provider,omitempty"`
+	Model             string         `json:"model,omitempty"`
 	PermissionMode    string         `json:"permission_mode,omitempty"`
 	AllowedTools      []string       `json:"allowed_tools,omitempty"`
 	DisallowedTools   []string       `json:"disallowed_tools,omitempty"`

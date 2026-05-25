@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Plus, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
@@ -31,11 +31,14 @@ interface AgentOptionsIdentityTabProps {
   vibe_tags: string[];
   on_vibe_tags_change: (tags: string[]) => void;
   provider: AgentProvider;
+  model: string;
   default_provider: AgentProvider;
+  default_model: string;
   provider_options: ProviderOption[];
   provider_options_error: string | null;
   provider_options_loading: boolean;
   on_provider_change: (value: AgentProvider) => void;
+  on_model_change: (value: string) => void;
   name_validation: AgentNameValidationResult | null;
   is_validating_name: boolean;
   variant?: "dialog" | "inline";
@@ -52,29 +55,61 @@ export function AgentOptionsIdentityTab({
   vibe_tags,
   on_vibe_tags_change,
   provider,
+  model,
   default_provider,
+  default_model,
   provider_options,
   provider_options_error,
   provider_options_loading,
   on_provider_change,
+  on_model_change,
   name_validation,
   is_validating_name,
   variant = "dialog",
 }: AgentOptionsIdentityTabProps) {
   const { t } = useI18n();
   const [tagInput, setTagInput] = useState("");
-  const defaultProviderOptionLabel = default_provider
+  const defaultModelOptionLabel = default_provider && default_model
     ? t("agent_options.identity.follow_default_provider_named", {
-      name: format_provider_label(default_provider),
+      name: `${format_provider_label(default_provider)} / ${default_model}`,
     })
     : t("agent_options.identity.follow_default_provider");
-  const provider_select_options = [
-    { value: "", label: defaultProviderOptionLabel },
-    ...provider_options.map((item) => ({
-      value: item.provider,
-      label: item.display_name,
+  const selected_model_value = provider.trim() && model.trim()
+    ? JSON.stringify([provider.trim(), model.trim()])
+    : "";
+  const model_select_options = useMemo(() => [
+    { value: "", label: defaultModelOptionLabel },
+    ...provider_options.flatMap((provider_option) => provider_option.models.map((model_option) => {
+      const provider_label = provider_option.display_name || format_provider_label(provider_option.provider);
+      const model_label = model_option.display_name || model_option.model_id;
+      return {
+        value: JSON.stringify([provider_option.provider, model_option.model_id]),
+        label: `${provider_label} / ${model_label}`,
+      };
     })),
-  ];
+  ], [defaultModelOptionLabel, provider_options]);
+
+  const handle_model_select_change = useCallback((value: string) => {
+    if (!value) {
+      on_provider_change("");
+      on_model_change("");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed) || parsed.length !== 2) {
+        return;
+      }
+      const [next_provider, next_model] = parsed;
+      if (typeof next_provider !== "string" || typeof next_model !== "string") {
+        return;
+      }
+      on_provider_change(next_provider.trim());
+      on_model_change(next_model.trim());
+    } catch {
+      return;
+    }
+  }, [on_model_change, on_provider_change]);
 
   /** 添加标签 */
   const handleAddTag = useCallback(() => {
@@ -228,16 +263,16 @@ export function AgentOptionsIdentityTab({
 
             <div className="space-y-2.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
-                {t("agent_options.identity.provider")}
+                {t("agent_options.identity.model")}
               </label>
               <UiSelectMenu
-                aria_label={t("agent_options.identity.provider")}
+                aria_label={t("agent_options.identity.model")}
                 disabled={provider_options_loading && provider_options.length === 0}
-                on_change={(value) => on_provider_change(value as AgentProvider)}
-                options={provider_select_options}
+                on_change={handle_model_select_change}
+                options={model_select_options}
                 size="sm"
                 surface="dialog"
-                value={provider}
+                value={selected_model_value}
               />
               {provider_options_error ? (
                 <p className="text-xs text-rose-500">{provider_options_error}</p>
@@ -315,15 +350,15 @@ export function AgentOptionsIdentityTab({
 
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">
-              {t("agent_options.identity.provider")}
+              {t("agent_options.identity.model")}
             </label>
             <UiSelectMenu
-              aria_label={t("agent_options.identity.provider")}
+              aria_label={t("agent_options.identity.model")}
               disabled={provider_options_loading && provider_options.length === 0}
-              on_change={(value) => on_provider_change(value as AgentProvider)}
-              options={provider_select_options}
+              on_change={handle_model_select_change}
+              options={model_select_options}
               surface="dialog"
-              value={provider}
+              value={selected_model_value}
             />
             {provider_options_error ? (
               <p className="mt-2 text-xs text-rose-500">{provider_options_error}</p>
