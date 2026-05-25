@@ -83,6 +83,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	goalService.SetPreviewFiller(titleService)
 	goalService.SetGuidanceDispatcher(runtimeManager)
 	goalService.SetExternalMutationAccountant(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)

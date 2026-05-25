@@ -111,6 +111,7 @@ func (s *Service) createFromThreadGoalParams(
 	if err != nil {
 		return nil, err
 	}
+	s.fillEmptyPreviewFromGoal(ctx, *created)
 	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceExternal, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}

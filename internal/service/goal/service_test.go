@@ -49,6 +49,26 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	}
 }
 
+func TestServiceCreateFillsEmptyPreviewFromGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	preview := &fakePreviewFiller{}
+	service.SetPreviewFiller(preview)
+
+	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Ship goal mode",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.items) != 1 || preview.items[0].sessionKey != created.SessionKey || preview.items[0].title != created.Objective {
+		t.Fatalf("preview items = %#v, want created goal objective", preview.items)
+	}
+}
+
 func TestServiceCurrentOptionalAllowsMissingGoal(t *testing.T) {
 	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
 
@@ -1039,6 +1059,31 @@ func TestServiceSetFromThreadGoalParamsDispatchesActiveGoalImmediately(t *testin
 	}
 }
 
+func TestServiceSetFromThreadGoalParamsFillsEmptyPreview(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true, GoalAutoContinueEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	preview := &fakePreviewFiller{}
+	service.SetPreviewFiller(preview)
+	ctx := context.Background()
+	objective := "Ship app-server RPC parity"
+	status := protocol.ThreadGoalStatusActive
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:    "room:group:conversation-1",
+		Objective:   &objective,
+		Status:      &status,
+		TokenBudget: protocol.OptionalInt64{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.items) != 1 || preview.items[0].sessionKey != created.SessionKey || preview.items[0].title != created.Objective {
+		t.Fatalf("preview items = %#v, want app-server created goal objective", preview.items)
+	}
+}
+
 func TestServiceSetFromThreadGoalParamsDoesNotDispatchPausedGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -1263,6 +1308,20 @@ type fakeGoalBroadcaster struct {
 
 func (b *fakeGoalBroadcaster) BroadcastEvent(_ context.Context, _ string, event protocol.EventMessage) []error {
 	b.events = append(b.events, event)
+	return nil
+}
+
+type fakePreviewFiller struct {
+	items []fakePreviewItem
+}
+
+type fakePreviewItem struct {
+	sessionKey string
+	title      string
+}
+
+func (f *fakePreviewFiller) FillEmptyPreviewFromGoal(_ context.Context, sessionKey string, title string) error {
+	f.items = append(f.items, fakePreviewItem{sessionKey: sessionKey, title: title})
 	return nil
 }
 

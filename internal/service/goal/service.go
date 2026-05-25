@@ -23,6 +23,7 @@ type Service struct {
 	repo             Repository
 	events           eventBroadcaster
 	guidance         guidanceDispatcher
+	preview          previewFiller
 	externalMutation externalMutationAccountant
 	continuations    ContinuationDispatcher
 	nowFn            func() time.Time
@@ -77,6 +78,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
+	s.fillEmptyPreviewFromGoal(ctx, *created)
 	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceUser, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
