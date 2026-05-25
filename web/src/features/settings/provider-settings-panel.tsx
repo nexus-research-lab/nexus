@@ -43,6 +43,7 @@ import {
 } from "@/lib/api/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { UiField, UiInput, UiSearchInput, UiTextarea } from "@/shared/ui/form-control";
@@ -210,14 +211,16 @@ function get_usage_agent_title(agent: ProviderConfigRecord["used_by_agents"][num
   return agent.display_name?.trim() || agent.name?.trim() || agent.agent_id;
 }
 
-function parse_provider_options(raw: string): Record<string, unknown> {
+type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string;
+
+function parse_provider_options(raw: string, invalid_object_message: string): Record<string, unknown> {
   const trimmed = raw.trim();
   if (!trimmed) {
     return {};
   }
   const parsed = JSON.parse(trimmed);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Provider Options 必须是 JSON object");
+    throw new Error(invalid_object_message);
   }
   return parsed as Record<string, unknown>;
 }
@@ -234,24 +237,28 @@ function build_provider_payload_from_draft(draft: ProviderDraft): UpdateProvider
   };
 }
 
-function get_provider_draft_error(draft: ProviderDraft, is_creating: boolean): string | null {
+function get_provider_draft_error(
+  draft: ProviderDraft,
+  is_creating: boolean,
+  translate: TranslateFn,
+): string | null {
   if (!draft.provider.trim() && draft.preset_key === "custom") {
-    return "Provider Name 需要包含英文或数字";
+    return translate("settings.providers.validation_provider_name_required");
   }
   if (!draft.provider.trim()) {
-    return "Provider 不能为空";
+    return translate("settings.providers.validation_provider_required");
   }
   if (!draft.base_url.trim()) {
-    return "base_url 不能为空";
+    return translate("settings.providers.validation_base_url_required");
   }
   if (!draft.api_format.trim()) {
-    return "api_format 不能为空";
+    return translate("settings.providers.validation_api_format_required");
   }
   if (draft.api_format !== SUPPORTED_PROVIDER_API_FORMAT) {
-    return "当前暂只支持 Anthropic Messages 协议";
+    return translate("settings.providers.api_format_unsupported_message");
   }
   if (is_creating && !draft.auth_token.trim()) {
-    return "auth_token 不能为空";
+    return translate("settings.providers.validation_auth_token_required");
   }
   return null;
 }
@@ -271,10 +278,10 @@ function provider_draft_has_changes(draft: ProviderDraft, record: ProviderConfig
     || draft.enabled !== record.enabled;
 }
 
-function format_token_preview(masked_token?: string | null): string {
+function format_token_preview(masked_token: string | null | undefined, empty_label: string): string {
   const normalized_masked_token = masked_token?.trim();
   if (!normalized_masked_token) {
-    return "未填写 Key";
+    return empty_label;
   }
   return normalized_masked_token;
 }
@@ -456,10 +463,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       value: item.api_format,
       label: item.api_format === SUPPORTED_PROVIDER_API_FORMAT
         ? API_FORMAT_LABELS[item.api_format]
-        : `${API_FORMAT_LABELS[item.api_format]}（暂不支持）`,
+        : `${API_FORMAT_LABELS[item.api_format]}${t("settings.providers.unsupported_suffix")}`,
       disabled: item.api_format !== SUPPORTED_PROVIDER_API_FORMAT,
     })),
-    [current_preset],
+    [current_preset, t],
   );
   const filtered_models = useMemo(() => {
     const query = model_query.trim().toLowerCase();
@@ -480,8 +487,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (is_empty_mode) {
       return false;
     }
-    return get_provider_draft_error(draft, is_creating) === null;
-  }, [draft, is_creating, is_empty_mode]);
+    return get_provider_draft_error(draft, is_creating, t) === null;
+  }, [draft, is_creating, is_empty_mode, t]);
 
   const refresh_all = useCallback(async (preferred_provider?: string | null) => {
     try {
@@ -518,13 +525,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "加载 Provider 失败",
-        message: error instanceof Error ? error.message : "请稍后重试",
+        title: t("settings.providers.load_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.retry_later"),
       });
     } finally {
       set_loading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refresh_all();
@@ -555,8 +562,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (api_format !== SUPPORTED_PROVIDER_API_FORMAT) {
       set_feedback({
         tone: "error",
-        title: "协议暂不支持",
-        message: "当前运行时暂只支持 Anthropic Messages 协议。",
+        title: t("settings.providers.api_format_unsupported_title"),
+        message: t("settings.providers.api_format_unsupported_message"),
       });
       return;
     }
@@ -567,7 +574,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       base_url: format?.base_url ?? current.base_url,
       models_path: format?.models_path ?? current.models_path,
     }));
-  }, [current_preset]);
+  }, [current_preset, t]);
 
   const handle_save = useCallback(async (options?: {
     draft_overrides?: Partial<ProviderDraft>;
@@ -586,12 +593,12 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     };
     const show_error = options?.show_error ?? true;
     const show_success = options?.show_success ?? false;
-    const validation_error = get_provider_draft_error(next_draft, is_creating);
+    const validation_error = get_provider_draft_error(next_draft, is_creating, t);
     if (validation_error) {
       if (show_error) {
         set_feedback({
           tone: "error",
-          title: "Provider 配置不完整",
+          title: t("settings.providers.config_incomplete_title"),
           message: validation_error,
         });
       }
@@ -623,8 +630,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         if (show_success) {
           set_feedback({
             tone: "success",
-            title: "Provider 已保存",
-            message: `${result.display_name || result.provider} 的配置已更新。`,
+            title: t("settings.providers.saved_title"),
+            message: t("settings.providers.saved_message", { name: result.display_name || result.provider }),
           });
         }
         return result;
@@ -632,8 +639,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         if (show_error) {
           set_feedback({
             tone: "error",
-            title: "保存 Provider 失败",
-            message: error instanceof Error ? error.message : "请检查配置后重试",
+            title: t("settings.providers.save_failed_title"),
+            message: error instanceof Error ? error.message : t("settings.providers.check_config_retry"),
           });
         }
         return null;
@@ -649,7 +656,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         save_promise_ref.current = null;
       }
     }
-  }, [draft, is_creating, is_editing, is_empty_mode, refresh_all, selected_record]);
+  }, [draft, is_creating, is_editing, is_empty_mode, refresh_all, selected_record, t]);
 
   const handle_provider_field_blur = useCallback(() => {
     if (!can_save || pending_action || submitting) {
@@ -705,11 +712,14 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       set_delete_target_provider(null);
       await refresh_all();
       const replacement_message = result.replacement_provider
-        ? `已将 ${result.reassigned_runtime_count ?? 0} 个绑定切换到 ${result.replacement_provider}。`
-        : `${get_provider_title(delete_target_record)} 已移除。`;
+        ? t("settings.providers.delete_reassigned_message", {
+          count: result.reassigned_runtime_count ?? 0,
+          provider: result.replacement_provider,
+        })
+        : t("settings.providers.delete_removed_message", { name: get_provider_title(delete_target_record) });
       set_feedback({
         tone: "success",
-        title: "Provider 已删除",
+        title: t("settings.providers.deleted_title"),
         message: replacement_message,
       });
     } catch (error) {
@@ -718,13 +728,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       set_delete_target_provider(null);
       set_feedback({
         tone: "error",
-        title: "删除 Provider 失败",
-        message: error instanceof Error ? error.message : "仍有 Agent 使用该 Provider 时不能删除",
+        title: t("settings.providers.delete_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.delete_in_use_fallback"),
       });
     } finally {
       set_submitting(false);
     }
-  }, [delete_target_record, refresh_all, submitting]);
+  }, [delete_target_record, refresh_all, submitting, t]);
 
   const handle_fetch_models = useCallback(async () => {
     if (!selected_record || pending_action) {
@@ -740,19 +750,19 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       await refresh_all(provider_record.provider);
       set_feedback({
         tone: "success",
-        title: "模型列表已更新",
-        message: `已同步 ${result.count} 个模型。`,
+        title: t("settings.providers.models_synced_title"),
+        message: t("settings.providers.models_synced_message", { count: result.count }),
       });
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "同步模型列表失败",
-        message: error instanceof Error ? error.message : "请检查 API Key、Base URL 和 Models Path",
+        title: t("settings.providers.models_sync_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.models_sync_failed_message"),
       });
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record]);
+  }, [handle_save, pending_action, refresh_all, selected_record, t]);
 
   const handle_open_add_model = useCallback(() => {
     set_manual_model_id("");
@@ -768,8 +778,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (!model_id) {
       set_feedback({
         tone: "error",
-        title: "模型 ID 不能为空",
-        message: "请输入 Provider 实际使用的 model id。",
+        title: t("settings.providers.model_id_required_title"),
+        message: t("settings.providers.model_id_required_message"),
       });
       return;
     }
@@ -788,19 +798,19 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       await refresh_all(selected_record.provider);
       set_feedback({
         tone: "success",
-        title: "模型已添加",
-        message: `${model_id} 已添加到模型列表。`,
+        title: t("settings.providers.model_added_title"),
+        message: t("settings.providers.model_added_message", { model: model_id }),
       });
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "添加模型失败",
-        message: error instanceof Error ? error.message : "请检查模型 ID 后重试",
+        title: t("settings.providers.model_add_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.model_add_failed_message"),
       });
     } finally {
       set_pending_action(null);
     }
-  }, [manual_model_enabled, manual_model_id, pending_action, refresh_all, selected_record]);
+  }, [manual_model_enabled, manual_model_id, pending_action, refresh_all, selected_record, t]);
 
   const handle_test_provider = useCallback(async () => {
     if (!selected_record || pending_action) {
@@ -816,19 +826,23 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       await refresh_all(provider_record.provider);
       set_feedback({
         tone: result.success ? "success" : "error",
-        title: result.success ? "Provider 测试通过" : "Provider 测试失败",
-        message: result.success ? `测试模型：${result.model || "auto"}` : (result.error || "连通性测试失败"),
+        title: result.success
+          ? t("settings.providers.provider_test_passed_title")
+          : t("settings.providers.provider_test_failed_title"),
+        message: result.success
+          ? t("settings.providers.test_model_message", { model: result.model || t("settings.providers.auto_model") })
+          : (result.error || t("settings.providers.connectivity_failed")),
       });
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "Provider 测试失败",
-        message: error instanceof Error ? error.message : "请检查网络和鉴权配置",
+        title: t("settings.providers.provider_test_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.check_network_auth"),
       });
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record]);
+  }, [handle_save, pending_action, refresh_all, selected_record, t]);
 
   const handle_test_model = useCallback(async (model_id: string) => {
     if (!selected_record || pending_action) {
@@ -848,19 +862,23 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       await refresh_all(provider_record.provider);
       set_feedback({
         tone: result.success ? "success" : "error",
-        title: result.success ? "模型测试通过" : "模型测试失败",
-        message: result.success ? `测试模型：${result.model || normalized_model_id}` : (result.error || "连通性测试失败"),
+        title: result.success
+          ? t("settings.providers.model_test_passed_title")
+          : t("settings.providers.model_test_failed_title"),
+        message: result.success
+          ? t("settings.providers.test_model_message", { model: result.model || normalized_model_id })
+          : (result.error || t("settings.providers.connectivity_failed")),
       });
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "模型测试失败",
-        message: error instanceof Error ? error.message : "请检查网络、鉴权和模型 ID",
+        title: t("settings.providers.model_test_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.check_network_auth_model"),
       });
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record]);
+  }, [handle_save, pending_action, refresh_all, selected_record, t]);
 
   const handle_test_selection = useCallback((value: string) => {
     if (value === AUTO_TEST_MODEL_VALUE) {
@@ -885,13 +903,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "模型状态更新失败",
-        message: error instanceof Error ? error.message : "请稍后重试",
+        title: t("settings.providers.model_status_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.retry_later"),
       });
     } finally {
       set_pending_action(null);
     }
-  }, [pending_action, refresh_all, selected_record]);
+  }, [pending_action, refresh_all, selected_record, t]);
 
   const handle_save_model_options = useCallback(async () => {
     if (!selected_record || !model_options || pending_action) {
@@ -899,7 +917,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     }
     try {
       set_pending_action(`options:${model_options.model.model_id}`);
-      const provider_options = parse_provider_options(model_options.provider_options_text);
+      const provider_options = parse_provider_options(
+        model_options.provider_options_text,
+        t("settings.providers.provider_options_json_object"),
+      );
       await update_provider_model_api(selected_record.provider, model_options.model.model_id, {
         enabled: model_options.model.enabled,
         is_default: model_options.model.is_default,
@@ -913,13 +934,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } catch (error) {
       set_feedback({
         tone: "error",
-        title: "模型 Options 保存失败",
-        message: error instanceof Error ? error.message : "请检查 JSON 格式",
+        title: t("settings.providers.model_options_save_failed_title"),
+        message: error instanceof Error ? error.message : t("settings.providers.check_json_format"),
       });
     } finally {
       set_pending_action(null);
     }
-  }, [model_options, pending_action, refresh_all, selected_record]);
+  }, [model_options, pending_action, refresh_all, selected_record, t]);
 
   const configured_by_preset = useMemo(() => {
     const result = new Map<string, ProviderConfigRecord>();
@@ -937,7 +958,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   const preset_sidebar_items = presets.filter((preset) => preset.preset_key !== "custom");
   const detail_title = is_editing && selected_record
     ? get_provider_title(selected_record)
-    : draft.display_name || current_preset?.display_name || "Custom Provider";
+    : draft.display_name || current_preset?.display_name || t("settings.providers.custom_provider");
   const is_custom_provider = draft.preset_key === "custom";
   const is_api_format_supported = draft.api_format === SUPPORTED_PROVIDER_API_FORMAT;
   const current_format = get_preset_format(current_preset, draft.api_format);
@@ -945,7 +966,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   const test_model_options = useMemo(() => {
     const models = sort_models_enabled_first(selected_record?.models ?? []);
     return [
-      { value: AUTO_TEST_MODEL_VALUE, label: "自动选择模型" },
+      { value: AUTO_TEST_MODEL_VALUE, label: t("settings.providers.auto_select_model") },
       ...models.map((model) => {
         const display_name = model.display_name || model.model_id;
         return {
@@ -954,7 +975,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         };
       }),
     ];
-  }, [selected_record]);
+  }, [selected_record, t]);
   const base_url_preview = format_endpoint_preview(
     draft.base_url.trim() || current_format?.base_url || "",
     draft.api_format,
@@ -990,7 +1011,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-(--surface-interactive-active-border) text-primary">
                     <Plus className="h-3.5 w-3.5" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate">Custom Provider</span>
+                  <span className="min-w-0 flex-1 truncate">{t("settings.providers.custom_provider")}</span>
                 </button>
 
                 {preset_sidebar_items.map((preset) => {
@@ -1027,7 +1048,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
                       {is_unsupported_preset ? (
                         <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
-                          暂不支持
+                          {t("settings.providers.unsupported_badge")}
                         </span>
                       ) : null}
                     </button>
@@ -1057,7 +1078,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       </button>
                       {can_show_delete ? (
                         <UiIconButton
-                          aria-label={`删除 ${get_provider_title(item)}`}
+                          aria-label={t("settings.providers.delete_aria", { name: get_provider_title(item) })}
                           class_name={cn(
                             "mr-1 h-7 w-7 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
                             is_active ? "opacity-100" : "opacity-0",
@@ -1065,7 +1086,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                           disabled={submitting || pending_action !== null}
                           onClick={() => handle_request_delete_provider(item)}
                           size="xs"
-                          title={item.usage_count > 0 ? `仍被 ${item.usage_count} 个 Agent 使用` : "删除 Provider"}
+                          title={item.usage_count > 0
+                            ? t("settings.providers.delete_in_use_title", { count: item.usage_count })
+                            : t("settings.providers.delete_provider")}
                           tone={item.usage_count > 0 ? undefined : "danger"}
                           type="button"
                           variant="ghost"
@@ -1098,7 +1121,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                           : "bg-(--surface-muted-background) text-(--text-muted)",
                       )}
                       >
-                        {draft.enabled ? "Active" : "Inactive"}
+                        {draft.enabled
+                          ? t("settings.providers.status_active")
+                          : t("settings.providers.status_inactive")}
                       </span>
                     ) : null}
                   </div>
@@ -1112,7 +1137,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 <div className="flex shrink-0 items-center gap-2 pt-0.5">
                   {is_editing ? (
                     <UiSelectMenu
-                      aria_label="测试 Provider"
+                      aria_label={t("settings.providers.test_provider")}
                       button_class_name="px-2"
                       class_name="w-auto min-w-18"
                       disabled={pending_action !== null || submitting || !is_api_format_supported}
@@ -1124,7 +1149,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       menu_class_name="min-w-[220px]"
                       on_change={handle_test_selection}
                       options={test_model_options}
-                      placeholder="测试"
+                      placeholder={t("settings.providers.test")}
                       size="xs"
                       value=""
                     />
@@ -1142,7 +1167,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 {is_custom_provider ? (
                   <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
                     <label className="space-y-2">
-                      <span className={PROVIDER_LABEL_CLASS_NAME}>Provider Name</span>
+                      <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.provider_name")}</span>
                       <UiInput
                         autoCapitalize="off"
                         autoCorrect="off"
@@ -1156,7 +1181,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                           }));
                         }}
                         onBlur={handle_provider_field_blur}
-                        placeholder="My Provider"
+                        placeholder={t("settings.providers.provider_name_placeholder")}
                         spellCheck={false}
                         type="text"
                         value={draft.display_name}
@@ -1164,9 +1189,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     </label>
 
                     <label className="space-y-2">
-                      <span className={PROVIDER_LABEL_CLASS_NAME}>API Format</span>
+                      <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.api_format")}</span>
                       <UiSelectMenu
-                        aria_label="API Format"
+                        aria_label={t("settings.providers.api_format")}
                         class_name="h-11"
                         on_change={handle_api_format_change}
                         options={format_options}
@@ -1175,7 +1200,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       />
                       {!is_api_format_supported ? (
                         <p className={PROVIDER_HINT_CLASS_NAME}>
-                          当前暂只支持 Anthropic Messages 协议。
+                          {t("settings.providers.api_format_unsupported_message")}
                         </p>
                       ) : null}
                     </label>
@@ -1183,7 +1208,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 ) : null}
 
                 <label className="block space-y-2">
-                  <span className={PROVIDER_LABEL_CLASS_NAME}>API Key</span>
+                  <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.api_key")}</span>
                   <UiInput
                     autoCapitalize="off"
                     autoComplete="off"
@@ -1194,7 +1219,12 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     name="provider-auth-token"
                     onChange={(event) => set_draft((current) => ({ ...current, auth_token: event.target.value }))}
                     onBlur={handle_provider_field_blur}
-                    placeholder={is_editing ? format_token_preview(selected_record?.auth_token_masked) : "Enter your API key"}
+                    placeholder={is_editing
+                      ? format_token_preview(
+                        selected_record?.auth_token_masked,
+                        t("settings.providers.api_key_empty"),
+                      )
+                      : t("settings.providers.api_key_placeholder")}
                     spellCheck={false}
                     type="password"
                     value={draft.auth_token}
@@ -1206,14 +1236,14 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       rel="noreferrer"
                       target="_blank"
                     >
-                      Get your API key from {detail_title} API Keys
+                      {t("settings.providers.get_api_key_from", { name: detail_title })}
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
                   ) : null}
                 </label>
 
                 <label className="block space-y-2">
-                  <span className={PROVIDER_LABEL_CLASS_NAME}>Base URL</span>
+                  <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.base_url")}</span>
                   <UiInput
                     autoCapitalize="off"
                     autoCorrect="off"
@@ -1226,14 +1256,16 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     value={draft.base_url}
                   />
                   <p className={PROVIDER_HINT_CLASS_NAME}>
-                    预览：<span className="break-all font-mono text-(--text-default)">{base_url_preview}</span>
+                    {t("settings.providers.preview_prefix")}<span className="break-all font-mono text-(--text-default)">{base_url_preview}</span>
                   </p>
                 </label>
 
                 <div className="space-y-3 pt-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-baseline gap-2">
-                      <h3 className="text-[14px] font-semibold tracking-tight text-(--text-strong)">Models</h3>
+                      <h3 className="text-[14px] font-semibold tracking-tight text-(--text-strong)">
+                        {t("settings.providers.models")}
+                      </h3>
                       {selected_record ? (
                         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--surface-muted-background) px-1.5 text-[11px] font-semibold text-(--text-muted)">
                           {displayed_models.length}
@@ -1251,7 +1283,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             variant="surface"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            添加模型
+                            {t("settings.providers.add_model")}
                           </UiButton>
                           <UiButton
                             disabled={pending_action !== null || !is_api_format_supported}
@@ -1261,7 +1293,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             variant="surface"
                           >
                             {pending_action === "fetch" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                            同步模型列表
+                            {t("settings.providers.sync_models")}
                           </UiButton>
                         </>
                       ) : null}
@@ -1272,7 +1304,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     class_name="w-full"
                     control_size="md"
                     on_change={set_model_query}
-                    placeholder="Search models..."
+                    placeholder={t("settings.providers.search_models")}
                     value={model_query}
                     variant="dialog"
                   />
@@ -1280,7 +1312,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   <div className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
                     {!selected_record || displayed_models.length === 0 ? (
                       <div className="flex min-h-28 items-center justify-center text-sm text-(--text-soft)">
-                        {selected_record ? "没有可显示的模型" : "保存后可拉取模型列表"}
+                        {selected_record
+                          ? t("settings.providers.models_empty")
+                          : t("settings.providers.models_after_save")}
                       </div>
                     ) : (
                       displayed_models.map((model) => {
@@ -1314,7 +1348,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                               <UiIconButton
                                 onClick={() => set_model_options(model_options_from_record(model))}
                                 size="xs"
-                                title="Model Options"
+                                title={t("settings.providers.model_options")}
                                 type="button"
                                 variant="ghost"
                               >
@@ -1379,7 +1413,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       <ConfirmDialog
         confirm_text={t("common.delete")}
         is_open={delete_confirm_open}
-        message={`${delete_target_record ? get_provider_title(delete_target_record) : ""} 将被删除。删除前会再次检查是否仍被 Agent 使用。`}
+        message={t("settings.providers.delete_confirm_runtime_message", {
+          name: delete_target_record ? get_provider_title(delete_target_record) : "",
+        })}
         on_cancel={() => {
           set_delete_confirm_open(false);
           set_delete_usage_open(false);
@@ -1388,7 +1424,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         on_confirm={() => {
           void handle_delete();
         }}
-        title="删除 Provider"
+        title={t("settings.providers.delete_provider")}
         variant="danger"
       />
 
@@ -1409,13 +1445,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   set_delete_usage_open(false);
                   set_delete_target_provider(null);
                 }}
-                subtitle={`${get_provider_title(delete_target_record)} 当前被 Agent 使用`}
-                title="Provider 正在使用中"
+                subtitle={t("settings.providers.delete_usage_subtitle", { name: get_provider_title(delete_target_record) })}
+                title={t("settings.providers.delete_usage_title")}
                 title_id="provider-delete-blocked-title"
               />
               <UiDialogBody class_name="space-y-3">
                 <div className="rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2 text-[12px] leading-5 text-(--text-muted)">
-                  强制删除会将以下 Agent 的显式 Provider 切换到平台默认 Provider，然后删除当前 Provider。
+                  {t("settings.providers.force_delete_description")}
                 </div>
                 {delete_usage_agents.length > 0 ? (
                   <div className="max-h-64 overflow-y-auto rounded-[12px] border border-(--divider-subtle-color)">
@@ -1434,7 +1470,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             </span>
                             {agent.is_main ? (
                               <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-muted)">
-                                Main
+                                {t("settings.providers.main_agent_badge")}
                               </span>
                             ) : null}
                           </div>
@@ -1447,7 +1483,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   </div>
                 ) : (
                   <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-3 text-[12px] leading-5 text-(--text-muted)">
-                    当前记录显示有 {delete_target_record.usage_count} 个 Agent 正在使用，但列表数据尚未刷新。
+                    {t("settings.providers.delete_usage_stale", { count: delete_target_record.usage_count })}
                   </div>
                 )}
               </UiDialogBody>
@@ -1460,7 +1496,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   type="button"
                   variant="surface"
                 >
-                  取消
+                  {t("common.cancel")}
                 </UiButton>
                 <UiButton
                   disabled={submitting}
@@ -1471,7 +1507,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   type="button"
                   variant="solid"
                 >
-                  强制删除
+                  {t("settings.providers.force_delete")}
                 </UiButton>
               </UiDialogFooter>
             </UiDialogShell>
@@ -1497,14 +1533,14 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
               <UiDialogHeader
                 icon={<ListPlus className="h-4.5 w-4.5" />}
                 on_close={() => set_add_model_open(false)}
-                subtitle="添加远端模型列表未返回、但当前 Provider 实际可用的 model id。"
-                title="手动添加模型"
+                subtitle={t("settings.providers.add_model_subtitle")}
+                title={t("settings.providers.add_model_title")}
                 title_id="provider-add-model-title"
               />
               <UiDialogBody class_name="space-y-4">
                 <UiField
-                  description="添加后可以继续在模型配置里覆盖能力、上下文窗口和请求参数。"
-                  label="Model ID"
+                  description={t("settings.providers.add_model_description")}
+                  label={t("settings.providers.model_id")}
                 >
                   <UiInput
                     autoCapitalize="off"
@@ -1527,9 +1563,11 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 </UiField>
                 <div className="flex items-center justify-between gap-3 rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
                   <div className="min-w-0">
-                    <div className="text-[13px] font-semibold text-(--text-strong)">添加后启用</div>
+                    <div className="text-[13px] font-semibold text-(--text-strong)">
+                      {t("settings.providers.enable_after_add")}
+                    </div>
                     <div className="mt-0.5 text-[11px] leading-4 text-(--text-muted)">
-                      启用后会进入测试模型和 Agent 可选模型列表。
+                      {t("settings.providers.enable_after_add_description")}
                     </div>
                   </div>
                   <GlassSwitch
@@ -1555,7 +1593,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   variant="solid"
                 >
                   {pending_action?.startsWith("add-model:") ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}
-                  {manual_model_enabled ? "添加并启用" : "添加"}
+                  {manual_model_enabled
+                    ? t("settings.providers.add_and_enable")
+                    : t("settings.providers.add")}
                 </UiButton>
               </UiDialogFooter>
             </UiDialogFormShell>
@@ -1577,26 +1617,30 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 on_close={() => set_model_options(null)}
                 subtitle={(
                   <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <span>覆盖模型能力和请求参数</span>
+                    <span>{t("settings.providers.model_options_subtitle")}</span>
                     <code className="max-w-[260px] truncate rounded-[7px] bg-(--surface-muted-background) px-1.5 py-0.5 font-mono text-[11px] text-(--text-default)">
                       {model_options.model.model_id}
                     </code>
                   </span>
                 )}
-                title="模型配置"
+                title={t("settings.providers.model_options")}
                 title_id="provider-model-options-title"
               />
               <UiDialogBody class_name="space-y-5" scrollable>
                 <section className="space-y-2.5">
                   <div>
-                    <h3 className="text-[13px] font-semibold text-(--text-strong)">模型能力</h3>
-                    <p className="mt-0.5 text-[11px] leading-4 text-(--text-muted)">覆盖自动识别结果，仅影响该模型。</p>
+                    <h3 className="text-[13px] font-semibold text-(--text-strong)">
+                      {t("settings.providers.model_capabilities")}
+                    </h3>
+                    <p className="mt-0.5 text-[11px] leading-4 text-(--text-muted)">
+                      {t("settings.providers.model_capabilities_description")}
+                    </p>
                   </div>
                   <div className="grid gap-2.5 md:grid-cols-2">
                     <CapabilitySwitch
                       checked={!!model_options.capabilities.vision}
                       icon={<Eye className="h-3.5 w-3.5" />}
-                      label="Vision"
+                      label={t("settings.providers.capability_vision")}
                       on_change={(checked) => set_model_options((current) => current ? ({
                         ...current,
                         capabilities: { ...current.capabilities, vision: checked },
@@ -1605,7 +1649,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     <CapabilitySwitch
                       checked={!!model_options.capabilities.image_output}
                       icon={<Image className="h-3.5 w-3.5" />}
-                      label="Image Output"
+                      label={t("settings.providers.capability_image_output")}
                       on_change={(checked) => set_model_options((current) => current ? ({
                         ...current,
                         capabilities: { ...current.capabilities, image_output: checked },
@@ -1614,7 +1658,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     <CapabilitySwitch
                       checked={!!model_options.capabilities.tool_calling}
                       icon={<Wrench className="h-3.5 w-3.5" />}
-                      label="Tool Calling"
+                      label={t("settings.providers.capability_tool_calling")}
                       on_change={(checked) => set_model_options((current) => current ? ({
                         ...current,
                         capabilities: { ...current.capabilities, tool_calling: checked },
@@ -1623,7 +1667,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     <CapabilitySwitch
                       checked={!!model_options.capabilities.reasoning}
                       icon={<Brain className="h-3.5 w-3.5" />}
-                      label="Reasoning"
+                      label={t("settings.providers.capability_reasoning")}
                       on_change={(checked) => set_model_options((current) => current ? ({
                         ...current,
                         capabilities: { ...current.capabilities, reasoning: checked },
@@ -1632,7 +1676,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     <CapabilitySwitch
                       checked={!!model_options.capabilities.embedding}
                       icon={<Database className="h-3.5 w-3.5" />}
-                      label="Embedding"
+                      label={t("settings.providers.capability_embedding")}
                       on_change={(checked) => set_model_options((current) => current ? ({
                         ...current,
                         capabilities: { ...current.capabilities, embedding: checked },
@@ -1643,7 +1687,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
                 <section className="grid gap-3 md:grid-cols-2">
                   <label className="space-y-1.5">
-                    <span className="text-[12px] font-medium text-(--text-muted)">Context Window</span>
+                    <span className="text-[12px] font-medium text-(--text-muted)">
+                      {t("settings.providers.context_window")}
+                    </span>
                     <UiInput
                       control_size="sm"
                       inputMode="numeric"
@@ -1653,7 +1699,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     />
                   </label>
                   <label className="space-y-1.5">
-                    <span className="text-[12px] font-medium text-(--text-muted)">Max Output Tokens</span>
+                    <span className="text-[12px] font-medium text-(--text-muted)">
+                      {t("settings.providers.max_output_tokens")}
+                    </span>
                     <UiInput
                       control_size="sm"
                       inputMode="numeric"
@@ -1665,7 +1713,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 </section>
 
                 <label className="block space-y-1.5">
-                  <span className="text-[12px] font-medium text-(--text-muted)">Provider Options (JSON)</span>
+                  <span className="text-[12px] font-medium text-(--text-muted)">
+                    {t("settings.providers.provider_options_json")}
+                  </span>
                   <UiTextarea
                     class_name="min-h-28 font-mono text-[12px] leading-5"
                     control_size="md"
