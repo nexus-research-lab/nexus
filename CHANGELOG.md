@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 聊天输入框新增 Goal 斜杠命令提示，输入 `/goal` 时可直接看到创建、查看、暂停、继续和清除入口。
 - Goal `/goal` 斜杠命令移除 Codex 未提供的 `complete/done` 子命令，完成 Goal 仍通过模型工具或面板按钮触发。
 - Goal `/goal` 斜杠命令继续收口到 Codex 文档语义，移除 `edit/start` 私有别名，编辑和继续操作分别保留在面板按钮与 `/goal resume`。
+- Goal runtime context 移除要求模型记录 checkpoint 的私有提示，避免提示模型使用 Codex 三件套之外的不可见能力。
 - Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
 
 ### Fixed

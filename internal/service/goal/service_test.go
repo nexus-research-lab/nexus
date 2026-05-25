@@ -1448,6 +1448,9 @@ func TestBuildRuntimeContext(t *testing.T) {
 	if strings.Contains(contextText, "<nexus_goal>") {
 		t.Fatalf("RuntimeContext still uses legacy nexus_goal tag: %s", contextText)
 	}
+	if strings.Contains(contextText, "Record a checkpoint") {
+		t.Fatalf("RuntimeContext asks model to record unavailable checkpoint: %s", contextText)
+	}
 }
 
 func TestBuildRuntimeContextEscapesObjectiveAndCheckpoint(t *testing.T) {
