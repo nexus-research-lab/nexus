@@ -162,9 +162,14 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		s.fillEmptyPreviewFromGoal(ctx, *updated)
 	}
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusBudgetLimited && !s.goalBudgetExhausted(*updated) {
-		return s.persistTransition(ctx, *updated, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", map[string]any{
+		resumed, err := s.persistTransition(ctx, *updated, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", map[string]any{
 			"reason": "token budget updated",
 		})
+		if err != nil {
+			return nil, err
+		}
+		s.maybeDispatchActiveGoalContinuation(ctx, *resumed)
+		return resumed, nil
 	}
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive && s.goalBudgetExhausted(*updated) {
 		return s.limitForSystem(ctx, *updated, protocol.GoalStatusBudgetLimited, "budget_limited", "", "Goal token budget exhausted")

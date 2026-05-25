@@ -688,6 +688,8 @@ func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 		t.Fatalf("current status = %q, want budget_limited", current.Status)
 	}
 
+	dispatcher := &fakeContinuationDispatcher{}
+	service.SetContinuationDispatcher(dispatcher)
 	resumed, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: optionalBudget(raisedBudget)})
 	if err != nil {
 		t.Fatal(err)
@@ -697,6 +699,9 @@ func TestServiceUpdateBudgetSteersLimitedStatus(t *testing.T) {
 	}
 	if resumed.TokenBudget == nil || *resumed.TokenBudget != raisedBudget {
 		t.Fatalf("TokenBudget = %#v, want %d", resumed.TokenBudget, raisedBudget)
+	}
+	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != resumed.ID {
+		t.Fatalf("plans = %#v, want continuation after budget resume", dispatcher.plans)
 	}
 }
 
