@@ -253,6 +253,9 @@ func (s *Service) persistTransition(
 	expectedVersion := item.Version
 	now := s.nowFn()
 	item.Status = status
+	if resetEmptyProgressForTransition(source, status) {
+		item.EmptyProgressCount = 0
+	}
 	item.Version++
 	item.UpdatedAt = now
 	switch status {

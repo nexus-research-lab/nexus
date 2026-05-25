@@ -117,6 +117,7 @@ type goalContextProvider interface {
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
 }
 
 // NewRealtimeService 创建 Room 实时编排服务。

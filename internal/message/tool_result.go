@@ -47,6 +47,16 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 	return observations
 }
 
+// AssistantHasCountedToolProgress 判断 assistant 快照里是否包含应计为 Goal 进展的工具完成。
+func AssistantHasCountedToolProgress(message protocol.Message) bool {
+	for _, observation := range AssistantToolResults(message) {
+		if normalizeString(observation.ToolName) != "update_goal" {
+			return true
+		}
+	}
+	return false
+}
+
 func messageContentBlocks(value any) []map[string]any {
 	switch typed := value.(type) {
 	case []map[string]any:

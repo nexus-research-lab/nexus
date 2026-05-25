@@ -35,6 +35,9 @@ func (s *Service) PlanContinuationForSession(ctx context.Context, sessionKey str
 		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", strings.TrimSpace(previousRoundID), "Goal token budget exhausted")
 		return nil, err
 	}
+	if item.EmptyProgressCount > 0 {
+		return nil, nil
+	}
 	if max := s.config.GoalMaxContinuationsPerRun; max > 0 && item.ContinuationCount >= max {
 		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", strings.TrimSpace(previousRoundID), "Goal auto-continuation limit reached")
 		return nil, err

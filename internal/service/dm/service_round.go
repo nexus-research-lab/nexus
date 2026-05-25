@@ -67,6 +67,7 @@ type roundRunner struct {
 	goalUsageStarted  time.Time
 	goalUsageMu       sync.Mutex
 	goalLastAssistant protocol.Message
+	goalToolProgress  bool
 	permissionMode    sdkpermission.Mode
 	permissionHandler sdkpermission.Handler
 }
@@ -97,6 +98,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	)
 	r.recordGoalUsage(result, r.mapper.LastAssistantMessage())
 	r.recordGoalUsageLimit(result)
+	r.recordGoalContinuationProgress()
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 		go r.commitMemoryTurn()

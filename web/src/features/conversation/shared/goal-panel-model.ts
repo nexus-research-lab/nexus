@@ -22,6 +22,7 @@ export const GOAL_EVENT_LABEL: Record<string, string> = {
   budget_limited: "预算",
   usage_limited: "受限",
   continuation_scheduled: "续跑",
+  continuation_suppressed: "续跑暂停",
   checkpoint_created: "检查点",
 };
 
@@ -91,6 +92,7 @@ function goal_event_detail(event: GoalEvent): string {
     case "blocked":
     case "budget_limited":
     case "usage_limited":
+    case "continuation_suppressed":
       return string_payload(payload, "reason");
     case "continuation_scheduled": {
       const count = number_payload(payload, "continuation_count");

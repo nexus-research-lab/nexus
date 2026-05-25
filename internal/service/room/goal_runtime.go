@@ -161,6 +161,7 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 	if len(observations) == 0 {
 		return
 	}
+	rememberGoalToolProgressForSlot(slot, messageutil.AssistantHasCountedToolProgress(message))
 	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
 	hasSuccessfulCreate := false
 	hasSuccessfulUpdate := false
@@ -191,6 +192,49 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 	if hasSuccessfulUpdate {
 		clearGoalUsageForSlot(slot)
 	}
+}
+
+func (s *RealtimeService) recordGoalContinuationProgressForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	roundValue *activeRoomRound,
+) {
+	if s.goals == nil || slot == nil || strings.TrimSpace(slot.GoalIDForUsage) == "" {
+		return
+	}
+	purpose := ""
+	if roundValue != nil {
+		purpose = strings.TrimSpace(roundValue.InputOptions.Purpose)
+	}
+	hasProgress := purpose != "goal_continuation" || slotHasGoalToolProgress(slot)
+	_, err := s.goals.RecordContinuationProgress(ctx, slot.GoalIDForUsage, slot.AgentRoundID, hasProgress)
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+		s.loggerFor(ctx).Warn("记录 Room Goal 续跑进展失败",
+			"session_key", goalSessionKeyForSlot(slot),
+			"goal_id", slot.GoalIDForUsage,
+			"round_id", slot.AgentRoundID,
+			"progressed", hasProgress,
+			"err", err,
+		)
+	}
+}
+
+func rememberGoalToolProgressForSlot(slot *activeRoomSlot, progressed bool) {
+	if slot == nil || !progressed {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.GoalToolProgress = true
+	slot.stateMu.Unlock()
+}
+
+func slotHasGoalToolProgress(slot *activeRoomSlot) bool {
+	if slot == nil {
+		return false
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return slot.GoalToolProgress
 }
 
 func slotFinalGoalUsageSnapshot(

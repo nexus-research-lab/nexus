@@ -22,6 +22,7 @@ type fakeRoomGoalContextProvider struct {
 	usageSessionKeys []string
 	usageLimitReason []string
 	usageLimitKeys   []string
+	progress         []bool
 }
 
 func (p *fakeRoomGoalContextProvider) RuntimeContext(_ context.Context, sessionKey string) (string, *protocol.Goal, error) {
@@ -53,6 +54,13 @@ func (p *fakeRoomGoalContextProvider) UsageLimitForSession(_ context.Context, se
 	defer p.mu.Unlock()
 	p.usageLimitKeys = append(p.usageLimitKeys, sessionKey)
 	p.usageLimitReason = append(p.usageLimitReason, reason)
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.progress = append(p.progress, progressed)
 	return nil, nil
 }
 
@@ -298,6 +306,52 @@ func TestRecordGoalUsageLimitForRoomSlot(t *testing.T) {
 	}
 }
 
+func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "goal_continuation_1",
+		GoalIDForUsage:    "goal-1",
+	}
+	roundValue := &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue)
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || progress[0] {
+		t.Fatalf("progress = %#v, want one false continuation progress", progress)
+	}
+}
+
+func TestRecordGoalContinuationProgressForRoomSlotCountsToolProgress(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "goal_continuation_1",
+		GoalIDForUsage:    "goal-1",
+		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+	roundValue := &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue)
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || !progress[0] {
+		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	}
+}
+
 func (p *fakeRoomGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -308,6 +362,12 @@ func (p *fakeRoomGoalContextProvider) recordedUsageLimitReasons() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]string(nil), p.usageLimitReason...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedProgress() []bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]bool(nil), p.progress...)
 }
 
 func roomGoalToolResultAssistantMessage(

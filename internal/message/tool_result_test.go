@@ -38,3 +38,29 @@ func TestAssistantToolResultsIgnoresNonAssistant(t *testing.T) {
 		t.Fatalf("results = %#v, want none", results)
 	}
 }
+
+func TestAssistantHasCountedToolProgress(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_use", "id": "tool-1", "name": "read_file"},
+			{"type": "tool_result", "tool_use_id": "tool-1", "is_error": true},
+		},
+	}
+	if !AssistantHasCountedToolProgress(message) {
+		t.Fatal("AssistantHasCountedToolProgress() = false, want true")
+	}
+}
+
+func TestAssistantHasCountedToolProgressIgnoresUpdateGoal(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_use", "id": "tool-1", "name": "update_goal"},
+			{"type": "tool_result", "tool_use_id": "tool-1"},
+		},
+	}
+	if AssistantHasCountedToolProgress(message) {
+		t.Fatal("AssistantHasCountedToolProgress() = true, want false for update_goal")
+	}
+}

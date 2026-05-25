@@ -27,6 +27,7 @@ type activeRoomSlot struct {
 	GoalUsage          *goalsvc.RuntimeUsageAccumulator
 	GoalUsageStartedAt time.Time
 	GoalLastAssistant  protocol.Message
+	GoalToolProgress   bool
 	WorkspacePath      string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc

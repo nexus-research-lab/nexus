@@ -188,6 +188,7 @@ type fakeGoalContextProvider struct {
 	planCalls        int
 	usage            []protocol.GoalUsage
 	usageLimitReason []string
+	progress         []bool
 }
 
 func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
@@ -212,6 +213,13 @@ func (p *fakeGoalContextProvider) UsageLimitForSession(_ context.Context, _ stri
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.usageLimitReason = append(p.usageLimitReason, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.progress = append(p.progress, progressed)
 	return nil, nil
 }
 
@@ -313,6 +321,48 @@ func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerRecordsEmptyGoalContinuationProgress(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalContinuationProgress()
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || progress[0] {
+		t.Fatalf("progress = %#v, want one false continuation progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.recordGoalContinuationProgress()
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || !progress[0] {
+		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	}
+}
+
 func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
@@ -402,6 +452,12 @@ func (p *fakeGoalContextProvider) recordedUsageLimitReasons() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]string(nil), p.usageLimitReason...)
+}
+
+func (p *fakeGoalContextProvider) recordedProgress() []bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]bool(nil), p.progress...)
 }
 
 func goalToolResultAssistantMessage(

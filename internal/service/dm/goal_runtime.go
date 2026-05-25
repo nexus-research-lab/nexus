@@ -74,6 +74,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	if len(observations) == 0 {
 		return
 	}
+	r.rememberGoalToolProgress(messageutil.AssistantHasCountedToolProgress(message))
 	snapshot := r.assistantGoalUsageSnapshot(message)
 	hasSuccessfulCreate := false
 	hasSuccessfulUpdate := false
@@ -104,6 +105,38 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	if hasSuccessfulUpdate {
 		r.clearGoalUsage()
 	}
+}
+
+func (r *roundRunner) recordGoalContinuationProgress() {
+	if r.service.goals == nil || strings.TrimSpace(r.goalIDForUsage) == "" {
+		return
+	}
+	progressed := strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" || r.hasGoalToolProgress()
+	_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
+	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+		r.service.loggerFor(context.Background()).Warn("记录 Goal 续跑进展失败",
+			"session_key", r.sessionKey,
+			"goal_id", r.goalIDForUsage,
+			"round_id", r.roundID,
+			"progressed", progressed,
+			"err", err,
+		)
+	}
+}
+
+func (r *roundRunner) rememberGoalToolProgress(progressed bool) {
+	if !progressed {
+		return
+	}
+	r.goalUsageMu.Lock()
+	r.goalToolProgress = true
+	r.goalUsageMu.Unlock()
+}
+
+func (r *roundRunner) hasGoalToolProgress() bool {
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	return r.goalToolProgress
 }
 
 func (r *roundRunner) finalGoalUsageSnapshot(

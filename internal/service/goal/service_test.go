@@ -969,6 +969,96 @@ func TestServicePlanContinuationStopsAtUsageLimit(t *testing.T) {
 	}
 }
 
+func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Stop empty loop",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil {
+		t.Fatal("plan = nil, want first continuation")
+	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, plan.RoundID, false); err != nil {
+		t.Fatal(err)
+	}
+	if next, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID); err != nil {
+		t.Fatal(err)
+	} else if next != nil {
+		t.Fatalf("next plan = %#v, want nil after empty continuation progress", next)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.EmptyProgressCount != 1 || current.ContinuationCount != 1 {
+		t.Fatalf("current = %#v, want empty progress suppression without extra continuation", current)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.RoundID != plan.RoundID {
+		t.Fatalf("last event = %#v, want continuation_suppressed for continuation round", got)
+	}
+}
+
+func TestServiceContinuationProgressResetAllowsNextContinuation(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Reset empty loop",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil {
+		t.Fatal("plan = nil, want first continuation")
+	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, plan.RoundID, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "round-user", true); err != nil {
+		t.Fatal(err)
+	}
+	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next == nil {
+		t.Fatal("next plan = nil, want continuation after progress reset")
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.EmptyProgressCount != 0 || current.ContinuationCount != 2 {
+		t.Fatalf("current = %#v, want reset empty progress and second continuation", current)
+	}
+}
+
 func TestServiceRunAutoResumeOnceDispatchesActiveGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
