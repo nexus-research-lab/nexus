@@ -67,6 +67,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	authService := authsvc.NewServiceWithDB(cfg, db)
 	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
+	providerService.SetLogger(logger.With("component", "provider"))
 	imagegenService := imagegensvc.NewService(providerService)
 	preferencesService := preferencessvc.NewService(cfg)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)

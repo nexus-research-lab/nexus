@@ -5,16 +5,22 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
 var providerPattern = regexp.MustCompile(`[^a-z0-9]+`)
+
+var providerIDCounter atomic.Uint64
 
 const (
 	// ProviderKindLLM 表示对话运行时 Provider。
@@ -28,6 +34,8 @@ type Service struct {
 	repository *providerstore.Repository
 	now        func() time.Time
 	idFactory  func(string) string
+	client     *http.Client
+	logger     *slog.Logger
 }
 
 // NewServiceWithDB 使用共享 DB 创建 Provider 配置服务。
@@ -36,7 +44,29 @@ func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 		repository: providerstore.NewRepository(cfg, db),
 		now:        func() time.Time { return time.Now().UTC() },
 		idFactory:  newProviderID,
+		client:     &http.Client{Timeout: 30 * time.Second},
+		logger:     logx.NewDiscardLogger(),
 	}
+}
+
+// SetLogger 注入 Provider 服务日志器。
+func (s *Service) SetLogger(logger *slog.Logger) {
+	if logger == nil {
+		s.logger = logx.NewDiscardLogger()
+		return
+	}
+	s.logger = logger
+}
+
+// SetHTTPClient 覆盖 Provider 服务使用的 HTTP client，主要用于测试。
+func (s *Service) SetHTTPClient(client *http.Client) {
+	if client != nil {
+		s.client = client
+	}
+}
+
+func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
+	return logx.Resolve(ctx, s.logger)
 }
 
 // List 返回完整 Provider 配置列表。
@@ -45,7 +75,7 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	usageCounts, err := s.repository.ListUsageCounts(ctx)
+	usageAgents, err := s.repository.ListUsageAgents(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -53,9 +83,13 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 	for _, item := range items {
 		usageCount := 0
 		if item.ProviderKind == ProviderKindLLM {
-			usageCount = usageCounts[item.Provider]
+			usageCount = len(usageAgents[item.Provider])
 		}
-		result = append(result, toRecord(item, usageCount))
+		models, err := s.modelsForRecord(ctx, item.ID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, toRecord(item, usageCount, usageAgents[item.Provider], models))
 	}
 	return result, nil
 }
@@ -70,7 +104,7 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 		Items: make([]Option, 0, len(items)),
 	}
 	for _, item := range items {
-		if !item.Enabled || item.ProviderKind != ProviderKindLLM {
+		if !item.Enabled || !isAgentRuntimeProvider(item) {
 			continue
 		}
 		if item.IsDefault {
@@ -93,7 +127,7 @@ func (s *Service) DefaultProvider(ctx context.Context) (*string, error) {
 		return nil, err
 	}
 	for _, item := range items {
-		if item.Enabled && item.IsDefault && item.ProviderKind == ProviderKindLLM {
+		if item.Enabled && item.IsDefault && isAgentRuntimeProvider(item) {
 			value := item.Provider
 			return &value, nil
 		}
@@ -120,7 +154,7 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 			continue
 		}
 		state.Total++
-		if !item.Enabled {
+		if !item.Enabled || !isAgentRuntimeProvider(item) {
 			continue
 		}
 		state.EnabledList = append(state.EnabledList, item.Provider)
@@ -146,20 +180,30 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (*Record, error
 	}
 	now := s.now()
 	item := providerstore.Entity{
-		ID:           s.idFactory("provider"),
-		ProviderKind: normalized.ProviderKind,
-		Provider:     normalized.Provider,
-		DisplayName:  normalized.DisplayName,
-		AuthToken:    normalized.AuthToken,
-		BaseURL:      normalized.BaseURL,
-		Model:        normalized.Model,
-		Enabled:      normalized.Enabled,
-		IsDefault:    normalized.IsDefault,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:             s.idFactory("provider"),
+		ProviderKind:   normalized.ProviderKind,
+		Provider:       normalized.Provider,
+		PresetKey:      normalized.PresetKey,
+		APIFormat:      normalized.APIFormat,
+		DisplayName:    normalized.DisplayName,
+		AuthToken:      normalized.AuthToken,
+		BaseURL:        normalized.BaseURL,
+		ModelsPath:     normalized.ModelsPath,
+		Model:          normalized.Model,
+		Enabled:        normalized.Enabled,
+		IsDefault:      normalized.IsDefault,
+		LastTestStatus: "",
+		LastTestError:  "",
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	if err = s.repository.Create(ctx, item); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(item.Model) != "" {
+		if err = s.ensureModelSeed(ctx, item); err != nil {
+			return nil, err
+		}
 	}
 	if err = s.ensureDefault(ctx, item.ProviderKind, preferredDefault(item)); err != nil {
 		return nil, err
@@ -201,30 +245,47 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 	return s.Get(ctx, normalizedProvider)
 }
 
-// Delete 删除 Provider 配置。
-func (s *Service) Delete(ctx context.Context, provider string) error {
+// Delete 删除 Provider 配置；强制删除会先把显式绑定切到平台默认 Provider。
+func (s *Service) Delete(ctx context.Context, provider string, input DeleteInput) (*DeleteResult, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	current, err := s.repository.GetByProvider(ctx, normalizedProvider)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if current == nil {
-		return fmt.Errorf("provider 不存在: %s", normalizedProvider)
+		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
 	usageCount, err := s.repository.UsageCount(ctx, normalizedProvider)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	result := &DeleteResult{Provider: normalizedProvider}
 	if current.ProviderKind == ProviderKindLLM && usageCount > 0 {
-		return fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
+		if !input.Force {
+			return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
+		}
+		replacementProvider, replacementErr := s.replacementProviderForDelete(ctx, *current)
+		if replacementErr != nil {
+			return nil, replacementErr
+		}
+		reassigned, replaceErr := s.repository.ReplaceRuntimeProvider(ctx, normalizedProvider, replacementProvider)
+		if replaceErr != nil {
+			return nil, replaceErr
+		}
+		result.ReplacementProvider = replacementProvider
+		result.ReassignedRuntimeCount = reassigned
 	}
 	if err = s.repository.Delete(ctx, normalizedProvider); err != nil {
-		return err
+		return nil, err
 	}
-	return s.ensureDefault(ctx, current.ProviderKind, "")
+	preferredDefault := result.ReplacementProvider
+	if err = s.ensureDefault(ctx, current.ProviderKind, preferredDefault); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Get 读取单个 Provider 配置。
@@ -244,14 +305,24 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
 	usageCount := 0
+	usageAgents := []providerstore.UsageAgentEntity(nil)
 	if item.ProviderKind == ProviderKindLLM {
 		var countErr error
 		usageCount, countErr = s.repository.UsageCount(ctx, item.Provider)
 		if countErr != nil {
 			return nil, countErr
 		}
+		var usageErr error
+		usageAgents, usageErr = s.repository.ListUsageAgentsByProvider(ctx, item.Provider)
+		if usageErr != nil {
+			return nil, usageErr
+		}
 	}
-	record := toRecord(*item, usageCount)
+	models, err := s.modelsForRecord(ctx, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	record := toRecord(*item, usageCount, usageAgents, models)
 	return &record, nil
 }
 
@@ -279,7 +350,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*c
 		}
 	} else {
 		for index := range items {
-			if items[index].Enabled && items[index].IsDefault && items[index].ProviderKind == ProviderKindLLM {
+			if items[index].Enabled && items[index].IsDefault && isAgentRuntimeProvider(items[index]) {
 				target = &items[index]
 				break
 			}
@@ -293,6 +364,9 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*c
 	}
 	if target.ProviderKind != ProviderKindLLM {
 		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
+	}
+	if !isAgentRuntimeProvider(*target) {
+		return nil, fmt.Errorf("provider=%s 的 api_format=%s 暂不可用于 Agent runtime", target.Provider, target.APIFormat)
 	}
 
 	missing := make([]string, 0, 3)
@@ -314,6 +388,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string) (*c
 		AuthToken:   target.AuthToken,
 		BaseURL:     target.BaseURL,
 		Model:       target.Model,
+		APIFormat:   target.APIFormat,
 	}, nil
 }
 
@@ -430,7 +505,11 @@ func (s *Service) ensureDefault(ctx context.Context, providerKind string, prefer
 func (s *Service) ensureDefaultFromItems(ctx context.Context, items []providerstore.Entity, preferred string) (bool, error) {
 	changed := false
 	for _, providerKind := range []string{ProviderKindLLM, ProviderKindImageGeneration} {
-		kindChanged, err := s.ensureDefaultForKind(ctx, filterItemsByKind(items, providerKind), preferred)
+		kindItems := filterItemsByKind(items, providerKind)
+		if providerKind == ProviderKindLLM {
+			kindItems = filterAgentRuntimeProviders(kindItems)
+		}
+		kindChanged, err := s.ensureDefaultForKind(ctx, kindItems, preferred)
 		if err != nil {
 			return false, err
 		}
@@ -488,18 +567,43 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 	if err != nil {
 		return CreateInput{}, err
 	}
+	preset := resolvePreset(input.PresetKey)
+	apiFormat := normalizeAPIFormat(input.APIFormat)
+	if apiFormat == "" {
+		if strings.TrimSpace(input.PresetKey) == "" {
+			apiFormat = APIFormatAnthropicMessages
+		} else {
+			apiFormat = preset.DefaultFormat
+		}
+	}
+	format := preset.Format(apiFormat)
+	baseURL := strings.TrimSpace(input.BaseURL)
+	if baseURL == "" {
+		baseURL = format.BaseURL
+	}
+	modelsPath := strings.TrimSpace(input.ModelsPath)
+	if modelsPath == "" {
+		modelsPath = format.ModelsPath
+	}
+	model := strings.TrimSpace(input.Model)
 	result := CreateInput{
 		ProviderKind: normalizeProviderKind(input.ProviderKind),
 		Provider:     provider,
+		PresetKey:    preset.PresetKey,
+		APIFormat:    apiFormat,
 		DisplayName:  strings.TrimSpace(input.DisplayName),
 		AuthToken:    strings.TrimSpace(input.AuthToken),
-		BaseURL:      strings.TrimSpace(input.BaseURL),
-		Model:        strings.TrimSpace(input.Model),
+		BaseURL:      baseURL,
+		ModelsPath:   modelsPath,
+		Model:        model,
 		Enabled:      input.Enabled,
 		IsDefault:    input.IsDefault,
 	}
 	if result.DisplayName == "" {
-		return CreateInput{}, errors.New("display_name 不能为空")
+		result.DisplayName = preset.DisplayName
+	}
+	if result.DisplayName == "" {
+		result.DisplayName = result.Provider
 	}
 	if result.AuthToken == "" {
 		return CreateInput{}, errors.New("auth_token 不能为空")
@@ -507,24 +611,40 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 	if result.BaseURL == "" {
 		return CreateInput{}, errors.New("base_url 不能为空")
 	}
-	if result.Model == "" {
-		return CreateInput{}, errors.New("model 不能为空")
+	if result.ProviderKind == ProviderKindLLM && !isAgentRuntimeAPIFormat(result.APIFormat) {
+		result.IsDefault = false
 	}
 	return result, nil
 }
 
 func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (providerstore.Entity, error) {
+	preset := resolvePreset(firstNonEmpty(input.PresetKey, current.PresetKey))
+	apiFormat := normalizeAPIFormat(firstNonEmpty(input.APIFormat, current.APIFormat))
+	if apiFormat == "" {
+		apiFormat = preset.DefaultFormat
+	}
+	format := preset.Format(apiFormat)
 	displayName := strings.TrimSpace(input.DisplayName)
 	if displayName == "" {
-		return providerstore.Entity{}, errors.New("display_name 不能为空")
+		displayName = preset.DisplayName
+	}
+	if displayName == "" {
+		displayName = current.Provider
 	}
 	baseURL := strings.TrimSpace(input.BaseURL)
 	if baseURL == "" {
+		baseURL = format.BaseURL
+	}
+	if baseURL == "" {
 		return providerstore.Entity{}, errors.New("base_url 不能为空")
+	}
+	modelsPath := strings.TrimSpace(input.ModelsPath)
+	if modelsPath == "" {
+		modelsPath = format.ModelsPath
 	}
 	model := strings.TrimSpace(input.Model)
 	if model == "" {
-		return providerstore.Entity{}, errors.New("model 不能为空")
+		model = current.Model
 	}
 	authToken := current.AuthToken
 	if input.AuthToken != nil {
@@ -536,9 +656,12 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	current.DisplayName = displayName
 	current.AuthToken = authToken
 	current.BaseURL = baseURL
+	current.ModelsPath = modelsPath
 	current.Model = model
 	current.Enabled = input.Enabled
-	current.IsDefault = input.IsDefault
+	current.PresetKey = preset.PresetKey
+	current.APIFormat = apiFormat
+	current.IsDefault = input.IsDefault && (current.ProviderKind != ProviderKindLLM || isAgentRuntimeProvider(current))
 	return current, nil
 }
 
@@ -564,6 +687,28 @@ func selectImageProvider(items []providerstore.Entity, targetProvider string) (*
 	return nil, nil
 }
 
+func (s *Service) replacementProviderForDelete(ctx context.Context, deleting providerstore.Entity) (string, error) {
+	items, err := s.listAndNormalize(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, item := range items {
+		if item.Provider == deleting.Provider || !item.Enabled || !isAgentRuntimeProvider(item) {
+			continue
+		}
+		if item.IsDefault {
+			return item.Provider, nil
+		}
+	}
+	for _, item := range items {
+		if item.Provider == deleting.Provider || !item.Enabled || !isAgentRuntimeProvider(item) {
+			continue
+		}
+		return item.Provider, nil
+	}
+	return "", fmt.Errorf("provider=%s 仍被 Agent 使用，但没有可替换的默认 Provider", deleting.Provider)
+}
+
 func preferredDefault(item providerstore.Entity) string {
 	if item.Enabled && item.IsDefault {
 		return item.Provider
@@ -571,23 +716,55 @@ func preferredDefault(item providerstore.Entity) string {
 	return ""
 }
 
-func toRecord(item providerstore.Entity, usageCount int) Record {
+func toRecord(
+	item providerstore.Entity,
+	usageCount int,
+	usageAgents []providerstore.UsageAgentEntity,
+	models []ModelRecord,
+) Record {
 	createdAt := item.CreatedAt
 	updatedAt := item.UpdatedAt
 	return Record{
-		ID:              item.ID,
-		ProviderKind:    item.ProviderKind,
-		Provider:        item.Provider,
-		DisplayName:     item.DisplayName,
-		AuthTokenMasked: maskToken(item.AuthToken),
-		BaseURL:         item.BaseURL,
-		Model:           item.Model,
-		Enabled:         item.Enabled,
-		IsDefault:       item.IsDefault,
-		UsageCount:      usageCount,
-		CreatedAt:       &createdAt,
-		UpdatedAt:       &updatedAt,
+		ID:                    item.ID,
+		ProviderKind:          item.ProviderKind,
+		Provider:              item.Provider,
+		PresetKey:             item.PresetKey,
+		APIFormat:             item.APIFormat,
+		DisplayName:           item.DisplayName,
+		AuthTokenMasked:       maskToken(item.AuthToken),
+		BaseURL:               item.BaseURL,
+		ModelsPath:            item.ModelsPath,
+		Model:                 item.Model,
+		Enabled:               item.Enabled,
+		IsDefault:             item.IsDefault,
+		UsageCount:            usageCount,
+		UsedByAgents:          toUsageAgents(usageAgents),
+		LastTestStatus:        item.LastTestStatus,
+		LastTestError:         item.LastTestError,
+		LastTestAt:            item.LastTestAt,
+		AgentRuntimeSupported: isAgentRuntimeProvider(item),
+		Models:                models,
+		CreatedAt:             &createdAt,
+		UpdatedAt:             &updatedAt,
 	}
+}
+
+func toUsageAgents(items []providerstore.UsageAgentEntity) []UsageAgent {
+	result := make([]UsageAgent, 0, len(items))
+	for _, item := range items {
+		displayName := strings.TrimSpace(item.DisplayName)
+		if displayName == "" {
+			displayName = strings.TrimSpace(item.Name)
+		}
+		result = append(result, UsageAgent{
+			AgentID:     strings.TrimSpace(item.AgentID),
+			Name:        strings.TrimSpace(item.Name),
+			DisplayName: displayName,
+			Avatar:      strings.TrimSpace(item.Avatar),
+			IsMain:      item.IsMain,
+		})
+	}
+	return result
 }
 
 func maskToken(token string) string {
@@ -595,12 +772,12 @@ func maskToken(token string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if len(trimmed) <= 4 {
+	if len(trimmed) <= 10 {
 		return strings.Repeat("*", len(trimmed))
 	}
-	return strings.Repeat("*", len(trimmed)-4) + trimmed[len(trimmed)-4:]
+	return trimmed[:5] + strings.Repeat("*", 24) + trimmed[len(trimmed)-5:]
 }
 
 func newProviderID(prefix string) string {
-	return fmt.Sprintf("%s_%d", prefix, time.Now().UTC().UnixNano())
+	return fmt.Sprintf("%s_%d_%d", prefix, time.Now().UTC().UnixNano(), providerIDCounter.Add(1))
 }

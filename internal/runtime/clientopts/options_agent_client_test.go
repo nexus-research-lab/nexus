@@ -76,6 +76,20 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsRejectsNonAnthropicAPIFormat(t *testing.T) {
+	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com",
+			Model:     "gpt-4o",
+			APIFormat: "chat_completions",
+		},
+	}, AgentClientOptionsInput{})
+	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+		t.Fatalf("非 anthropic_messages provider 应被拒绝: %v", err)
+	}
+}
+
 func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	workspacePath := "/tmp/workspace"
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{

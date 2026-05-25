@@ -136,11 +136,85 @@ func (h *Handlers) HandleListProviderConfigs(writer http.ResponseWriter, request
 	h.api.WriteSuccess(writer, items)
 }
 
+// HandleListProviderPresets 返回内置 Provider 模板列表。
+func (h *Handlers) HandleListProviderPresets(writer http.ResponseWriter, request *http.Request) {
+	h.api.WriteSuccess(writer, h.providers.ListPresets())
+}
+
 // HandleListProviderOptions 返回 provider 下拉选项。
 func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.providers.ListOptions(request.Context())
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleFetchProviderModels 拉取并保存 Provider 模型列表。
+func (h *Handlers) HandleFetchProviderModels(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.providers.FetchModels(request.Context(), chi.URLParam(request, "provider"))
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleUpdateProviderModel 更新 Provider 模型卡。
+func (h *Handlers) HandleUpdateProviderModel(writer http.ResponseWriter, request *http.Request) {
+	var payload providercfg.UpdateModelInput
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.providers.UpdateModel(
+		request.Context(),
+		chi.URLParam(request, "provider"),
+		chi.URLParam(request, "model_id"),
+		payload,
+	)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleTestProviderConfig 执行 Provider 连通性测试。
+func (h *Handlers) HandleTestProviderConfig(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.providers.TestProvider(request.Context(), chi.URLParam(request, "provider"))
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleTestProviderModel 执行指定模型的连通性测试。
+func (h *Handlers) HandleTestProviderModel(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.providers.TestModel(
+		request.Context(),
+		chi.URLParam(request, "provider"),
+		chi.URLParam(request, "model_id"),
+	)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -181,7 +255,10 @@ func (h *Handlers) HandleUpdateProviderConfig(writer http.ResponseWriter, reques
 // HandleDeleteProviderConfig 删除 provider 配置。
 func (h *Handlers) HandleDeleteProviderConfig(writer http.ResponseWriter, request *http.Request) {
 	provider := chi.URLParam(request, "provider")
-	if err := h.providers.Delete(request.Context(), provider); err != nil {
+	result, err := h.providers.Delete(request.Context(), provider, providercfg.DeleteInput{
+		Force: parseBoolQuery(request.URL.Query().Get("force")),
+	})
+	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "不存在") {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
@@ -189,5 +266,14 @@ func (h *Handlers) HandleDeleteProviderConfig(writer http.ResponseWriter, reques
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
-	h.api.WriteSuccess(writer, map[string]any{"provider": provider})
+	h.api.WriteSuccess(writer, result)
+}
+
+func parseBoolQuery(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }

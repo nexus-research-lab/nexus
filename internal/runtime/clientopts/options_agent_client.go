@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
+const apiFormatAnthropicMessages = "anthropic_messages"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -150,6 +152,9 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	if runtimeConfig == nil {
 		return nil
 	}
+	if apiFormat := strings.TrimSpace(runtimeConfig.APIFormat); apiFormat != "" && apiFormat != apiFormatAnthropicMessages {
+		return nil
+	}
 	env := map[string]string{
 		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
 		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
@@ -174,7 +179,18 @@ func resolveRuntimeConfig(
 	if resolver == nil {
 		return nil, nil
 	}
-	return resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
+	runtimeConfig, err := resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
+	if err != nil {
+		return nil, err
+	}
+	if runtimeConfig == nil {
+		return nil, nil
+	}
+	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
+	if apiFormat != "" && apiFormat != apiFormatAnthropicMessages {
+		return nil, fmt.Errorf("api_format=%s 暂不可用于 Agent runtime", apiFormat)
+	}
+	return runtimeConfig, nil
 }
 
 func cloneMCPServers(
