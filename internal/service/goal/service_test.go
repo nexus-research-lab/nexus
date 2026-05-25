@@ -957,7 +957,7 @@ func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey:  "agent:nexus:ws:dm:chat",
-		Objective:   "Budget work",
+		Objective:   "Budget <work>",
 		TokenBudget: &budget,
 	})
 	if err != nil {
@@ -972,8 +972,12 @@ func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey ||
 		item.contextName != "goal_context" ||
 		!strings.Contains(item.content, "active thread goal has reached its token budget") ||
+		!strings.Contains(item.content, "<untrusted_objective>") ||
+		!strings.Contains(item.content, "</untrusted_objective>") ||
 		!strings.Contains(item.content, "budget_limited") ||
-		!strings.Contains(item.content, "Budget work") ||
+		!strings.Contains(item.content, "Budget &lt;work&gt;") ||
+		strings.Contains(item.content, "<objective>") ||
+		strings.Contains(item.content, "Budget <work>") ||
 		strings.Contains(item.content, "Nexus Goal") {
 		t.Fatalf("guidance item = %#v, want budget limit steering", item)
 	}
