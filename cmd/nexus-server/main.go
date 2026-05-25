@@ -39,6 +39,13 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
+	version, err = reconcileLegacySQLiteMigrationVersion(db, cfg.DatabaseDriver, version, logger)
+	if err != nil {
+		return err
+	}
+	if version > 0 {
+		logger.Info("数据库迁移版本就绪", "current_version", version)
+	}
 	if err = goose.Up(db, dir); err != nil {
 		return fmt.Errorf("run goose up: %w", err)
 	}
