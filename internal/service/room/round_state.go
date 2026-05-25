@@ -66,6 +66,8 @@ type activeRoomRound struct {
 	RootRoundID    string
 	HopIndex       int
 	OwnerUserID    string
+	Internal       bool
+	InputOptions   sdkprotocol.OutboundMessageOptions
 	Cancel         context.CancelFunc
 	Slots          map[string]*activeRoomSlot
 	PublicMentions []publicMentionWake

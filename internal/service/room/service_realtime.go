@@ -20,6 +20,7 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 const (
@@ -44,15 +45,18 @@ func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Cl
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。
 type ChatRequest struct {
-	SessionKey        string
-	RoomID            string
-	ConversationID    string
-	AttachmentAgentID string
-	Content           string
-	Attachments       []protocol.ChatAttachment
-	RoundID           string
-	ReqID             string
-	DeliveryPolicy    protocol.ChatDeliveryPolicy
+	SessionKey           string
+	RoomID               string
+	ConversationID       string
+	AttachmentAgentID    string
+	Content              string
+	Attachments          []protocol.ChatAttachment
+	RoundID              string
+	ReqID                string
+	DeliveryPolicy       protocol.ChatDeliveryPolicy
+	BroadcastUserMessage bool
+	Internal             bool
+	InputOptions         sdkprotocol.OutboundMessageOptions
 }
 
 // InterruptRequest 表示 Room 会话中断请求。

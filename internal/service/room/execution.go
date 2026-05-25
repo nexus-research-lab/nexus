@@ -255,7 +255,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	if err := s.recordPrivateRoundMarker(slot, dispatchPrompt); err != nil {
+	if err := s.recordPrivateRoundMarker(roundValue, slot, dispatchPrompt); err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
@@ -266,9 +266,10 @@ func (s *RealtimeService) runSlot(
 	}
 	slot.beginNoReplyCandidate()
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
-		Content: dispatchRuntimeContent.Payload(),
-		Client:  client,
-		Mapper:  roomRoundMapperAdapter{mapper: mapper},
+		Content:      dispatchRuntimeContent.Payload(),
+		InputOptions: roomRoundInputOptions(roundValue),
+		Client:       client,
+		Mapper:       roomRoundMapperAdapter{mapper: mapper},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
 		},
@@ -655,17 +656,58 @@ func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound,
 	}
 }
 
-func (s *RealtimeService) recordPrivateRoundMarker(slot *activeRoomSlot, dispatchPrompt string) error {
+func (s *RealtimeService) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *activeRoomSlot, dispatchPrompt string) error {
 	if s.history == nil {
 		return nil
 	}
-	return s.history.AppendRoundMarker(
+	options := roomRoundMarkerOptions(roundValue)
+	if !options.HiddenFromUser && !options.Synthetic && strings.TrimSpace(options.Purpose) == "" && len(options.Metadata) == 0 {
+		return s.history.AppendRoundMarker(
+			slot.WorkspacePath,
+			slot.RuntimeSessionKey,
+			slot.AgentRoundID,
+			strings.TrimSpace(dispatchPrompt),
+			time.Now().UnixMilli(),
+		)
+	}
+	return s.history.AppendRoundMarkerWithOptions(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		slot.AgentRoundID,
 		strings.TrimSpace(dispatchPrompt),
 		time.Now().UnixMilli(),
+		options,
 	)
+}
+
+func roomRoundInputOptions(roundValue *activeRoomRound) sdkprotocol.OutboundMessageOptions {
+	if roundValue == nil {
+		return sdkprotocol.OutboundMessageOptions{}
+	}
+	options := roundValue.InputOptions
+	if roundValue.Internal {
+		options.HiddenFromUser = true
+		options.Synthetic = true
+		if strings.TrimSpace(options.Priority) == "" {
+			options.Priority = "internal"
+		}
+	}
+	return options
+}
+
+func roomRoundMarkerOptions(roundValue *activeRoomRound) workspacestore.RoundMarkerOptions {
+	options := workspacestore.RoundMarkerOptions{}
+	if roundValue == nil {
+		return options
+	}
+	options.HiddenFromUser = roundValue.Internal || roundValue.InputOptions.HiddenFromUser
+	options.Synthetic = roundValue.InputOptions.Synthetic
+	options.Purpose = roundValue.InputOptions.Purpose
+	options.Metadata = roundValue.InputOptions.Metadata
+	if roundValue.Internal {
+		options.Synthetic = true
+	}
+	return options
 }
 
 func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, message protocol.Message) error {

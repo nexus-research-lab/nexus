@@ -88,14 +88,21 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if len(attachments) > 0 {
 		userMessage["attachments"] = attachments
 	}
-	if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
-		return err
+	if !request.Internal || request.BroadcastUserMessage {
+		if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
+			return err
+		}
+		history = append(history, userMessage)
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
 	}
-	history = append(history, userMessage)
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
-	s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
+	if !request.Internal {
+		s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
+	}
 
 	if len(targetAgentIDs) == 0 {
+		if request.Internal {
+			return errors.New("room internal continuation has no target agent")
+		}
 		s.loggerFor(ctx).Warn("Room 消息未命中任何目标成员",
 			"session_key", sessionKey,
 			"room_id", roomID,
@@ -143,7 +150,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "finished", "success"))
 		return nil
 	}
-	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
+	if !request.Internal && protocol.ShouldQueueRunningRound(deliveryPolicy) {
 		queuedAgentIDs, queueErr := s.enqueueForActiveAgentSlots(
 			ctx,
 			sessionKey,
@@ -178,7 +185,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 	}
 
-	if protocol.ShouldGuideRunningRound(deliveryPolicy) && len(targetAgentIDs) > 0 {
+	if !request.Internal && protocol.ShouldGuideRunningRound(deliveryPolicy) && len(targetAgentIDs) > 0 {
 		guidedAgentIDs, guideErr := s.guideActiveAgentSlots(
 			ctx,
 			sessionKey,
@@ -208,7 +215,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
 
-	if deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
+	if !request.Internal && deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
 		if err = s.interruptAgentSlots(ctx, sessionKey, targetAgentIDs, "收到新的用户消息，上一轮已停止", true); err != nil {
 			return err
 		}
@@ -237,6 +244,8 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		RoundID:        request.RoundID,
 		RootRoundID:    request.RoundID,
 		OwnerUserID:    authctx.OwnerUserID(ctx),
+		Internal:       request.Internal,
+		InputOptions:   request.InputOptions,
 		Slots:          make(map[string]*activeRoomSlot),
 		Done:           make(chan struct{}),
 	}
@@ -309,7 +318,9 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
+	if !request.Internal {
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
+	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)
