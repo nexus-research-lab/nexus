@@ -25,6 +25,7 @@ import {
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
@@ -405,6 +406,7 @@ export function DmChatPanel({
       <ComposerPanel
         allow_send_while_loading
         compact={is_mobile_layout}
+        command_hint_items={GOAL_COMMAND_HINT_ITEMS}
         control_status_text={session_control_text}
         default_delivery_policy={default_delivery_policy}
         input_queue_items={input_queue_items}

@@ -28,6 +28,7 @@ import {
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
+import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
@@ -597,6 +598,7 @@ export function GroupChatPanel({
           <ComposerPanel
             allow_send_while_loading
             compact={is_mobile_layout}
+            command_hint_items={GOAL_COMMAND_HINT_ITEMS}
             control_status_text={session_control_text}
             default_delivery_policy={default_delivery_policy}
             input_queue_items={input_queue_items}

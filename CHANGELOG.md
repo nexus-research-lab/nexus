@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal `update_goal` 工具描述与续跑 prompt 统一为三轮同一阻塞条件后才能标记 blocked。
 - Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
 - Goal 面板上下文状态文案从调试式 `goal_context` 改为用户可理解的运行状态表达。
+- 聊天输入框新增 Goal 斜杠命令提示，输入 `/goal` 时可直接看到创建、查看、暂停、继续和清除入口。
 - Goal `/goal` 斜杠命令移除 Codex 未提供的 `complete/done` 子命令，完成 Goal 仍通过模型工具或面板按钮触发。
 - Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
 
