@@ -97,6 +97,24 @@ func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 	}
 }
 
+func TestIsRuntimeGoalStatusOnlyAllowsActiveGoal(t *testing.T) {
+	if !IsRuntimeGoalStatus(GoalStatusActive) {
+		t.Fatal("active goal should provide runtime context")
+	}
+	for _, status := range []GoalStatus{
+		GoalStatusPaused,
+		GoalStatusBlocked,
+		GoalStatusBudgetLimited,
+		GoalStatusUsageLimited,
+		GoalStatusComplete,
+		GoalStatusCleared,
+	} {
+		if IsRuntimeGoalStatus(status) {
+			t.Fatalf("status %q should not provide runtime context", status)
+		}
+	}
+}
+
 func TestGoalUsageBudgetTokensExcludeCachedAndReasoningTokens(t *testing.T) {
 	usage := GoalUsage{
 		InputTokens:              100,

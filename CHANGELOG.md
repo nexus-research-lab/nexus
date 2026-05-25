@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
 - Goal 自动续跑对齐 Codex plan mode 语义，目标 Agent 处于 Plan 模式时不会启动隐藏续跑，并在 Goal 面板显式展示暂停原因。
 - Goal runtime 进一步对齐 Codex plan mode 语义，Plan 模式下不再注入 Goal 上下文、记录 Goal usage 或标记 Goal usage limit。
+- Goal runtime context 进一步收口到 active Goal，paused/blocked/usage_limited/budget_limited 等停止态不再继续注入隐藏上下文。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

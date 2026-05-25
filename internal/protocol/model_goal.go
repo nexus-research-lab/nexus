@@ -254,7 +254,7 @@ func IsCurrentGoalStatus(status GoalStatus) bool {
 // IsRuntimeGoalStatus 判断状态是否应注入运行时上下文。
 func IsRuntimeGoalStatus(status GoalStatus) bool {
 	switch NormalizeGoalStatus(status) {
-	case GoalStatusActive, GoalStatusPaused, GoalStatusBlocked, GoalStatusBudgetLimited, GoalStatusUsageLimited:
+	case GoalStatusActive:
 		return true
 	default:
 		return false

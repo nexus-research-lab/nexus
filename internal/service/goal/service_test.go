@@ -291,29 +291,74 @@ func TestServiceModelStatusUpdateFlushesButDoesNotClearRuntimeAccountingEarly(t 
 	}
 }
 
-func TestServiceRuntimeContextSkipsCompletedGoal(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
+func TestServiceRuntimeContextSkipsStoppedGoals(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		mutateGoal func(context.Context, *Service, protocol.Goal) error
+	}{
+		{
+			name: "paused",
+			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
+				_, err := service.Pause(ctx, item.ID)
+				return err
+			},
+		},
+		{
+			name: "blocked",
+			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
+				_, err := service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{RoundID: "round-1"})
+				return err
+			},
+		},
+		{
+			name: "budget_limited",
+			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
+				_, err := service.RecordUsageForSession(ctx, item.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1")
+				return err
+			},
+		},
+		{
+			name: "usage_limited",
+			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
+				_, err := service.UsageLimitForSession(ctx, item.SessionKey, "round-1", "usage limit")
+				return err
+			},
+		},
+		{
+			name: "completed",
+			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
+				_, err := service.CompleteByModel(ctx, item.ID, protocol.CompleteGoalRequest{RoundID: "round-1"})
+				return err
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newMemoryRepository()
+			budget := int64(10)
+			service := NewService(config.Config{GoalEnabled: true}, repo)
+			service.nowFn = fixedClock()
+			service.idFactory = sequentialID()
+			ctx := context.Background()
 
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Completed work",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{}); err != nil {
-		t.Fatal(err)
-	}
-	contextText, goal, err := service.RuntimeContext(ctx, created.SessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if contextText != "" || goal != nil {
-		t.Fatalf("RuntimeContext() = %q, %#v; want no runtime context for completed goal", contextText, goal)
+			created, err := service.Create(ctx, protocol.CreateGoalRequest{
+				SessionKey:  "agent:nexus:ws:dm:" + tc.name,
+				Objective:   "Stopped work",
+				TokenBudget: &budget,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tc.mutateGoal(ctx, service, *created); err != nil {
+				t.Fatal(err)
+			}
+			contextText, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if contextText != "" || goal != nil {
+				t.Fatalf("RuntimeContext() = %q, %#v; want no runtime context for stopped goal", contextText, goal)
+			}
+		})
 	}
 }
 
