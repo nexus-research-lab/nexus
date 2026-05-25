@@ -17,6 +17,7 @@ import {
 
 import { cn, format_tokens } from "@/lib/utils";
 import type { Goal, GoalEvent } from "@/types/conversation/goal";
+import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   GOAL_STATUS_LABEL,
   goal_budget_percent,
@@ -34,6 +35,7 @@ const GOAL_ELAPSED_TICK_MS = 1000;
 interface GoalStatusStripProps {
   can_resume: boolean;
   compact: boolean;
+  continuation_hold?: GoalContinuationHold | null;
   disabled: boolean;
   error: string | null;
   goal: Goal;
@@ -101,6 +103,7 @@ function GoalMetricPill({ children, className, icon, title }: GoalMetricPillProp
 export function GoalStatusStrip({
   can_resume,
   compact,
+  continuation_hold = null,
   disabled,
   error,
   goal,
@@ -124,8 +127,21 @@ export function GoalStatusStrip({
   const runtime_label = goal_runtime_label(goal, is_generating);
   const context_label = goal_context_label(goal, is_generating);
   const latest_event = recent_events[0] ?? null;
+  const active_continuation_hold =
+    goal.status === "active" ? continuation_hold : null;
   const continuation_suppressed =
-    goal.status === "active" && (goal.empty_progress_count ?? 0) > 0;
+    goal.status === "active" &&
+    (active_continuation_hold !== null || (goal.empty_progress_count ?? 0) > 0);
+  const continuation_metric_title = active_continuation_hold
+    ? active_continuation_hold.detail
+    : continuation_suppressed
+      ? "隐藏续跑无可计入进展，等待新的用户或外部活动"
+      : "Goal 自动续跑次数";
+  const continuation_metric_label = active_continuation_hold
+    ? active_continuation_hold.label
+    : continuation_suppressed
+      ? "续跑暂停"
+      : `续跑 ${goal.continuation_count}`;
   const [observed_at_ms, set_observed_at_ms] = useState(() => Date.now());
   const [active_turn_started_at_ms, set_active_turn_started_at_ms] = useState<
     number | null
@@ -197,6 +213,7 @@ export function GoalStatusStrip({
               {goal.objective}
             </div>
             <GoalRunStateLine
+              continuation_hold={active_continuation_hold}
               goal={goal}
               is_generating={is_generating}
               latest_event={latest_event}
@@ -244,15 +261,9 @@ export function GoalStatusStrip({
                     <Repeat2 className="h-3.5 w-3.5 shrink-0" />
                   )
                 }
-                title={
-                  continuation_suppressed
-                    ? "隐藏续跑无可计入进展，等待新的用户或外部活动"
-                    : "Goal 自动续跑次数"
-                }
+                title={continuation_metric_title}
               >
-                {continuation_suppressed
-                  ? "续跑暂停"
-                  : `续跑 ${goal.continuation_count}`}
+                {continuation_metric_label}
               </GoalMetricPill>
               {goal.last_error ? (
                 <span className="inline-flex h-6 max-w-full items-center truncate rounded-md border border-destructive/20 bg-destructive/10 px-2 text-destructive">

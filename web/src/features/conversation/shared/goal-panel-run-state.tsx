@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, CheckCircle2, PauseCircle } from "lucide-react
 
 import { cn } from "@/lib/utils";
 import type { Goal, GoalEvent } from "@/types/conversation/goal";
+import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   goal_event_label,
   goal_run_state,
@@ -41,6 +42,7 @@ const GOAL_RUN_TONE_CLASS: Record<
 };
 
 interface GoalRunStateLineProps {
+  continuation_hold?: GoalContinuationHold | null;
   goal: Goal;
   is_generating: boolean;
   latest_event: GoalEvent | null;
@@ -55,11 +57,12 @@ function GoalRunIcon({ tone }: { tone: GoalRunTone }) {
 }
 
 export function GoalRunStateLine({
+  continuation_hold = null,
   goal,
   is_generating,
   latest_event,
 }: GoalRunStateLineProps) {
-  const state = goal_run_state(goal, is_generating);
+  const state = goal_run_state(goal, is_generating, continuation_hold);
   const tone = GOAL_RUN_TONE_CLASS[state.tone];
 
   return (

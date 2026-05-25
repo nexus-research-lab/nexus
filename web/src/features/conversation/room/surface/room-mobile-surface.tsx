@@ -19,6 +19,8 @@ interface RoomMobileSurfaceProps {
   current_room_type: string;
   room_id: string | null;
   room_members: Agent[];
+  room_host_agent_id?: string | null;
+  room_host_auto_reply_enabled: boolean;
   current_room_title: string;
   current_room_conversation: RoomConversationView | null;
   current_agent_session_identity: AgentConversationIdentity | null;
@@ -39,6 +41,8 @@ export function RoomMobileSurface({
   current_room_type,
   room_id,
   room_members,
+  room_host_agent_id,
+  room_host_auto_reply_enabled,
   current_room_title,
   current_room_conversation,
   current_agent_session_identity,
@@ -114,6 +118,7 @@ export function RoomMobileSurface({
           <DmChatPanel
             current_agent_name={current_agent.name}
             current_agent_avatar={current_agent.avatar ?? null}
+            current_agent_permission_mode={current_agent.options.permission_mode ?? null}
             initial_draft={initial_draft}
             layout="mobile"
             on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -136,6 +141,8 @@ export function RoomMobileSurface({
               on_initial_draft_consumed={on_initial_draft_consumed}
               on_loading_change={on_loading_change}
               on_room_event={on_room_event}
+              room_host_agent_id={room_host_agent_id}
+              room_host_auto_reply_enabled={room_host_auto_reply_enabled}
               room_id={room_id}
               room_members={room_members}
             />

@@ -1,4 +1,5 @@
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
+import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   active: "运行中",
@@ -103,9 +104,20 @@ export interface GoalRunState {
   tone: GoalRunTone;
 }
 
-export function goal_run_state(goal: Goal, is_generating: boolean): GoalRunState {
+export function goal_run_state(
+  goal: Goal,
+  is_generating: boolean,
+  continuation_hold: GoalContinuationHold | null = null,
+): GoalRunState {
   switch (goal.status) {
     case "active":
+      if (continuation_hold) {
+        return {
+          detail: continuation_hold.detail,
+          label: continuation_hold.label,
+          tone: "waiting",
+        };
+      }
       if ((goal.empty_progress_count ?? 0) > 0) {
         return {
           detail: "上一轮没有可计入进展，等待新的用户或外部活动",

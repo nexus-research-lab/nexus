@@ -25,6 +25,7 @@ import {
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { goal_continuation_hold_for_permission } from "@/features/conversation/shared/goal-continuation-hold";
 import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
@@ -41,6 +42,7 @@ const HISTORY_LOAD_THRESHOLD_PX = 120;
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
   current_agent_avatar?: string | null;
+  current_agent_permission_mode?: string | null;
   session_identity: AgentConversationIdentity | null;
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
@@ -58,6 +60,7 @@ export interface DmChatPanelProps {
 export function DmChatPanel({
   current_agent_name,
   current_agent_avatar,
+  current_agent_permission_mode,
   session_identity,
   layout = "desktop",
   initial_draft = null,
@@ -77,6 +80,14 @@ export function DmChatPanel({
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
+  const goal_continuation_hold = useMemo(
+    () =>
+      goal_continuation_hold_for_permission(
+        current_agent_name,
+        current_agent_permission_mode,
+      ),
+    [current_agent_name, current_agent_permission_mode],
+  );
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
     session_key,
     on_refresh: refresh_goal_panel,
@@ -391,6 +402,7 @@ export function DmChatPanel({
       <GoalPanel
         activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
         compact={is_mobile_layout}
+        continuation_hold={goal_continuation_hold}
         disabled={!can_control_session}
         is_generating={is_loading}
         session_key={session_key}

@@ -136,6 +136,8 @@ export function RoomSurfaceShell({
         current_room_type={current_room_type}
         room_id={room_id}
         room_members={room_members}
+        room_host_agent_id={room_host_agent_id}
+        room_host_auto_reply_enabled={room_host_auto_reply_enabled}
         current_room_conversation={current_room_conversation}
         current_agent_session_identity={current_agent_session_identity}
         conversation_id={conversation_id}

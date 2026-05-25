@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal runtime context 移除要求模型记录 checkpoint 的私有提示，避免提示模型使用 Codex 三件套之外的不可见能力。
 - Goal budget limit steering 的目标段落改为 Codex 模板一致的 `<untrusted_objective>`，继续把用户目标按不可信数据处理。
 - Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
+- Goal 自动续跑对齐 Codex plan mode 语义，目标 Agent 处于 Plan 模式时不会启动隐藏续跑，并在 Goal 面板显式展示暂停原因。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

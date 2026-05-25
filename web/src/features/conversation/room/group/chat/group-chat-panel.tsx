@@ -28,6 +28,10 @@ import {
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
+import {
+  goal_continuation_hold_for_agent,
+  resolve_goal_continuation_target_agent,
+} from "@/features/conversation/shared/goal-continuation-hold";
 import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
@@ -60,6 +64,8 @@ export interface GroupChatPanelProps {
   conversation_id: string | null;
   room_id?: string | null;
   room_members: Agent[];
+  room_host_agent_id?: string | null;
+  room_host_auto_reply_enabled?: boolean;
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
   on_initial_draft_consumed?: () => void;
@@ -116,6 +122,8 @@ export function GroupChatPanel({
   conversation_id,
   room_id = null,
   room_members,
+  room_host_agent_id,
+  room_host_auto_reply_enabled = false,
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
@@ -141,6 +149,14 @@ export function GroupChatPanel({
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
+  const goal_continuation_hold = useMemo(() => {
+    const target_agent = resolve_goal_continuation_target_agent(
+      room_members,
+      room_host_agent_id,
+      room_host_auto_reply_enabled,
+    );
+    return goal_continuation_hold_for_agent(target_agent);
+  }, [room_host_agent_id, room_host_auto_reply_enabled, room_members]);
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
     session_key,
     on_refresh: refresh_goal_panel,
@@ -583,6 +599,7 @@ export function GroupChatPanel({
           <GoalPanel
             activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
             compact={is_mobile_layout}
+            continuation_hold={goal_continuation_hold}
             disabled={!can_control_session}
             is_generating={is_loading}
             session_key={session_key}

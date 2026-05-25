@@ -1040,6 +1040,42 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "计划模式助手")
+	if _, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{PermissionMode: string(sdkpermission.ModePlan)},
+	}); err != nil {
+		t.Fatalf("更新 room member plan mode 失败: %v", err)
+	}
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("Room Goal continuation should defer while the target agent is in plan mode")
+	}
+}
+
 func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

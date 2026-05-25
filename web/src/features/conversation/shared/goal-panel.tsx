@@ -22,6 +22,7 @@ import {
 import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
+import type { GoalContinuationHold } from "./goal-continuation-hold";
 import { GoalDraftForm, GoalStatusStrip } from "./goal-panel-view";
 
 interface GoalPanelProps {
@@ -29,6 +30,7 @@ interface GoalPanelProps {
   compact?: boolean;
   disabled?: boolean;
   activity_key?: string | number | null;
+  continuation_hold?: GoalContinuationHold | null;
   is_generating?: boolean;
   scope_label?: string;
 }
@@ -68,6 +70,7 @@ function resume_prompt_key(goal: Goal): string {
 export function GoalPanel({
   session_key,
   compact = false,
+  continuation_hold = null,
   disabled = false,
   activity_key = null,
   is_generating = false,
@@ -265,6 +268,7 @@ export function GoalPanel({
       <GoalStatusStrip
         can_resume={can_resume_current_goal}
         compact={compact}
+        continuation_hold={continuation_hold}
         disabled={disabled}
         error={error}
         goal={goal}

@@ -7,10 +7,11 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// ShouldDeferGoalContinuation 先让 Room 里用户显式排队输入获得执行机会。
+// ShouldDeferGoalContinuation 避免隐藏 Goal 续跑抢占显式输入，并按 Codex 语义跳过 Plan 模式续跑。
 func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if s == nil || sessionKey == "" {
@@ -40,7 +41,7 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	}
 	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
 	if !ok {
-		return false
+		return s.shouldDeferGoalContinuationForPlanMode(ctx, contextValue)
 	}
 	s.dispatchNextInputQueueItem(
 		contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
@@ -49,6 +50,41 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 		contextValue.Conversation.ID,
 	)
 	return true
+}
+
+func (s *RealtimeService) shouldDeferGoalContinuationForPlanMode(ctx context.Context, contextValue *protocol.ConversationContextAggregate) bool {
+	if s == nil || s.agents == nil || contextValue == nil {
+		return false
+	}
+	agentNameByID, agentByID, err := s.buildAgentDirectory(ctx, contextValue)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
+		return false
+	}
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID)
+	if targetAgentID == "" {
+		return false
+	}
+	agentValue := agentByID[targetAgentID]
+	if agentValue == nil {
+		return false
+	}
+	return sdkpermission.Mode(strings.TrimSpace(agentValue.Options.PermissionMode)) == sdkpermission.ModePlan
+}
+
+func goalContinuationTargetAgentID(
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) string {
+	if len(agentNameByID) == 1 {
+		for agentID := range agentNameByID {
+			return agentID
+		}
+	}
+	if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByID); ok {
+		return hostAgentID
+	}
+	return ""
 }
 
 // DispatchGoalContinuation 把共享 Room Goal 的隐藏续跑交给 Room 运行链路。

@@ -8,10 +8,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// ShouldDeferGoalContinuation 先让用户队列输入获得执行机会，避免隐藏 Goal 续跑抢占用户显式输入。
+// ShouldDeferGoalContinuation 避免隐藏 Goal 续跑抢占显式输入，并按 Codex 语义跳过 Plan 模式续跑。
 func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string, agentID string) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if s == nil || sessionKey == "" {
@@ -31,10 +32,23 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 		return false
 	}
 	if len(items) == 0 {
-		return false
+		return s.shouldDeferGoalContinuationForPlanMode(ctx, agentID)
 	}
 	s.dispatchNextInputQueueItemAtLocation(ctx, normalizedSessionKey, agentID, location)
 	return true
+}
+
+func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, agentID string) bool {
+	agentID = strings.TrimSpace(agentID)
+	if s == nil || s.agents == nil || agentID == "" {
+		return false
+	}
+	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
+		return false
+	}
+	return sdkpermission.Mode(strings.TrimSpace(agentValue.Options.PermissionMode)) == sdkpermission.ModePlan
 }
 
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {

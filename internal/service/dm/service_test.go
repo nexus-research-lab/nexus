@@ -2001,6 +2001,24 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	}
 }
 
+func TestServiceGoalContinuationDefersInPlanMode(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	if _, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{PermissionMode: string(sdkpermission.ModePlan)},
+	}); err != nil {
+		t.Fatalf("更新 agent plan mode 失败: %v", err)
+	}
+	service := NewService(cfg, agentService, runtimectx.NewManager(), permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:test-goal-defer-plan"
+
+	if !service.ShouldDeferGoalContinuation(context.Background(), sessionKey, cfg.DefaultAgentID) {
+		t.Fatal("Goal continuation should defer while the target agent is in plan mode")
+	}
+}
+
 func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
