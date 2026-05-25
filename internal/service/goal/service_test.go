@@ -906,7 +906,10 @@ func TestServiceQueuesObjectiveUpdateSteering(t *testing.T) {
 		t.Fatalf("guidance = %#v, want one objective update steering item", dispatcher.items)
 	}
 	item := dispatcher.items[0]
-	if item.sessionKey != created.SessionKey || !strings.Contains(item.content, "objective was edited") || !strings.Contains(item.content, "Updated &lt;goal&gt;") {
+	if item.sessionKey != created.SessionKey ||
+		!strings.Contains(item.content, "active thread goal objective was edited") ||
+		!strings.Contains(item.content, "Updated &lt;goal&gt;") ||
+		strings.Contains(item.content, "Nexus Goal") {
 		t.Fatalf("guidance item = %#v, want escaped objective update steering", item)
 	}
 }
@@ -935,7 +938,11 @@ func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 	if len(dispatcher.items) != 1 {
 		t.Fatalf("guidance = %#v, want one budget limit steering item", dispatcher.items)
 	}
-	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey || !strings.Contains(item.content, "budget_limited") || !strings.Contains(item.content, "Budget work") {
+	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey ||
+		!strings.Contains(item.content, "active thread goal has reached its token budget") ||
+		!strings.Contains(item.content, "budget_limited") ||
+		!strings.Contains(item.content, "Budget work") ||
+		strings.Contains(item.content, "Nexus Goal") {
 		t.Fatalf("guidance item = %#v, want budget limit steering", item)
 	}
 }
@@ -969,8 +976,8 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		t.Fatalf("plan visibility = %#v, want hidden synthetic goal continuation", plan)
 	}
 	for _, want := range []string{
+		"Continue working toward the active thread goal.",
 		"Complete parity",
-		"PreviousRoundID: round-1",
 		"Completion audit:",
 		"Blocked audit:",
 		"Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied.",
@@ -978,6 +985,11 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	} {
 		if !strings.Contains(plan.Prompt, want) {
 			t.Fatalf("continuation prompt missing %q: %s", want, plan.Prompt)
+		}
+	}
+	for _, forbidden := range []string{"active Nexus Goal", "Nexus runtime:", "PreviousRoundID:"} {
+		if strings.Contains(plan.Prompt, forbidden) {
+			t.Fatalf("continuation prompt contains legacy runtime wording %q: %s", forbidden, plan.Prompt)
 		}
 	}
 	current, err := service.Current(ctx, created.SessionKey)
