@@ -1,6 +1,5 @@
 import {
   clear_goal_api,
-  complete_goal_api,
   create_goal_api,
   get_current_goal_api,
   pause_goal_api,
@@ -15,7 +14,6 @@ export type GoalCommand =
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "clear" }
-  | { kind: "complete" }
   | { kind: "invalid"; message: string }
   | { kind: "create"; objective: string; token_budget: number | null };
 
@@ -48,7 +46,6 @@ export function parse_goal_command(content: string): GoalCommand | null {
   if (normalized === "pause") return { kind: "pause" };
   if (normalized === "resume" || normalized === "start") return { kind: "resume" };
   if (normalized === "clear") return { kind: "clear" };
-  if (normalized === "complete" || normalized === "done") return { kind: "complete" };
   const objective = body.trim();
   const objective_chars = Array.from(objective).length;
   if (objective_chars > MAX_GOAL_OBJECTIVE_CHARS) {
@@ -89,7 +86,6 @@ export async function run_goal_command(
   if (command.kind === "pause") await pause_goal_api(current.id);
   if (command.kind === "resume") await resume_goal_api(current.id);
   if (command.kind === "clear") await clear_goal_api(current.id);
-  if (command.kind === "complete") await complete_goal_api(current.id);
 }
 
 export async function goal_create_decision(
