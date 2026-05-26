@@ -136,8 +136,8 @@ export function useScheduledTaskDialogState({
     selected_room_id,
   });
 
-  const selected_session = data.session_options.find((option) => option.session_key === selected_session_key) ?? null;
-  const selected_reply_session = data.session_options.find((option) => option.session_key === selected_reply_session_key) ?? null;
+  const selected_session = data.session_options.find((option) => option.value === selected_session_key) ?? null;
+  const selected_reply_session = data.session_options.find((option) => option.value === selected_reply_session_key) ?? null;
 
   const apply_dialog_initial_state = useCallback(() => {
     const next_state = initial_task

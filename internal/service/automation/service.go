@@ -10,6 +10,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation"
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -32,6 +33,7 @@ type dmInterruptRunner interface {
 
 type roomRunner interface {
 	HandleChat(context.Context, roomsvc.ChatRequest) error
+	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
 }
 
 type roomInterruptRunner interface {
@@ -192,6 +194,23 @@ func (s *Service) validateAgentAndTarget(ctx context.Context, agentID string, ta
 	parsed := protocol.ParseSessionKey(target.BoundSessionKey)
 	if parsed.Kind == protocol.SessionKeyKindAgent && parsed.AgentID != "" && parsed.AgentID != strings.TrimSpace(agentID) {
 		return errors.New("agent_id 与 session_target 不一致")
+	}
+	if parsed.Kind == protocol.SessionKeyKindRoom {
+		return s.validateRoomTargetAgent(ctx, parsed.ConversationID, agentID)
+	}
+	return nil
+}
+
+func (s *Service) validateRoomTargetAgent(ctx context.Context, conversationID string, agentID string) error {
+	if s.room == nil {
+		return errors.New("automation room runner is not configured")
+	}
+	contextValue, err := s.room.GetConversationContext(ctx, strings.TrimSpace(conversationID))
+	if err != nil {
+		return err
+	}
+	if contextValue == nil || !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+		return errors.New("agent_id 不是目标 Room 的成员")
 	}
 	return nil
 }

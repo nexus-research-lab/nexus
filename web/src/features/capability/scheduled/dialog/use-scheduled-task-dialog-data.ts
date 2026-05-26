@@ -173,6 +173,7 @@ export function useScheduledTaskDialogData({
 
   const agent_session_options = useMemo<ScheduledTaskDialogSessionOption[]>(
     () => agent_sessions.map((session) => ({
+      value: session.session_key,
       session_key: session.session_key,
       agent_id: session.agent_id,
       label: format_session_label(session.title?.trim() || "未命名会话", agent_name_by_id.get(session.agent_id) || session.agent_id),
@@ -183,6 +184,7 @@ export function useScheduledTaskDialogData({
   const room_session_options = useMemo<ScheduledTaskDialogSessionOption[]>(() => {
     const options = build_room_session_selections(room_contexts, agent_name_by_id);
     return options.map((option) => ({
+      value: option.value,
       session_key: option.session_key,
       agent_id: option.agent_id,
       label: option.label,

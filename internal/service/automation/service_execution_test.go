@@ -346,6 +346,9 @@ func TestServiceDispatchRoomTaskUsesNonInteractivePermissionHandler(t *testing.T
 	if requests[0].PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("Room 定时任务请求应由后台权限处理器接管授权，实际 mode=%s", requests[0].PermissionMode)
 	}
+	if len(requests[0].TargetAgentIDs) != 1 || requests[0].TargetAgentIDs[0] != "agent-1" {
+		t.Fatalf("Room 定时任务应显式指定目标成员: %+v", requests[0].TargetAgentIDs)
+	}
 	decision, err := requests[0].PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "AskUserQuestion"})
 	if err != nil {
 		t.Fatalf("AskUserQuestion 权限处理失败: %v", err)
@@ -401,6 +404,9 @@ func TestServiceRunTaskNowSupportsBoundRoomSessionTarget(t *testing.T) {
 	if len(requests) != 1 || requests[0].SessionKey != sessionKey || requests[0].ConversationID != "conversation-1" {
 		t.Fatalf("Room runner 请求不正确: %+v", requests)
 	}
+	if len(requests[0].TargetAgentIDs) != 1 || requests[0].TargetAgentIDs[0] != "agent-1" {
+		t.Fatalf("Room runner 应收到显式目标成员: %+v", requests[0].TargetAgentIDs)
+	}
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
@@ -412,6 +418,50 @@ func TestServiceRunTaskNowSupportsBoundRoomSessionTarget(t *testing.T) {
 	}
 	if runs[0].ResultText == nil || *runs[0].ResultText != "Room 定时总结完成" {
 		t.Fatalf("Room 定时任务应持久化执行结果: %+v", runs[0])
+	}
+}
+
+func TestServiceCreateTaskRejectsRoomTargetAgentOutsideMembers(t *testing.T) {
+	db := newAutomationTestDB(t)
+	roomRunner := &fakeRoomRunner{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conversation-1": {
+				Room: protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
+				Members: []protocol.MemberRecord{
+					{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-2"},
+				},
+				Conversation: protocol.ConversationRecord{ID: "conversation-1", RoomID: "room-1"},
+			},
+		},
+	}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		nil,
+		roomRunner,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	_, err := service.CreateTask(context.Background(), protocol.CreateJobInput{
+		Name:        "room-summary",
+		AgentID:     "agent-1",
+		Instruction: "整理 Room 今日进展",
+		Schedule: protocol.Schedule{
+			Kind:            protocol.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: protocol.SessionTarget{
+			Kind:            protocol.SessionTargetBound,
+			BoundSessionKey: protocol.BuildRoomSharedSessionKey("conversation-1"),
+		},
+		Delivery: protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone},
+		Enabled:  true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "不是目标 Room 的成员") {
+		t.Fatalf("非 Room 成员不应创建 Room 定时任务: %v", err)
 	}
 }
 

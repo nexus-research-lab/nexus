@@ -38,8 +38,10 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
-	targetResolution := roomTargetResolution(targetAgentIDs)
+	targetAgentIDs, targetResolution, err := resolveChatTargetAgentIDs(request, contextValue, agentNameByID)
+	if err != nil {
+		return err
+	}
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 	if len(targetAgentIDs) == 0 && len(agentNameByID) == 1 {
 		// 单成员直聊 Room 再强制 @mention 只会制造额外交互噪音，
@@ -391,6 +393,44 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 		return "", "", errors.New("conversation_id is required")
 	}
 	return sessionKey, conversationID, nil
+}
+
+func resolveChatTargetAgentIDs(
+	request ChatRequest,
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) ([]string, string, error) {
+	if len(request.TargetAgentIDs) > 0 {
+		targetAgentIDs := normalizeExplicitTargetAgentIDs(request.TargetAgentIDs)
+		if len(targetAgentIDs) == 0 {
+			return nil, "", errors.New("target_agent_ids must not be empty")
+		}
+		for _, agentID := range targetAgentIDs {
+			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+				return nil, "", fmt.Errorf("target_agent_id is not a room member: %s", agentID)
+			}
+		}
+		return targetAgentIDs, "explicit_target", nil
+	}
+	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
+	return targetAgentIDs, roomTargetResolution(targetAgentIDs), nil
+}
+
+func normalizeExplicitTargetAgentIDs(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		agentID := strings.TrimSpace(value)
+		if agentID == "" {
+			continue
+		}
+		if _, ok := seen[agentID]; ok {
+			continue
+		}
+		seen[agentID] = struct{}{}
+		result = append(result, agentID)
+	}
+	return result
 }
 
 func (s *RealtimeService) buildAgentDirectory(

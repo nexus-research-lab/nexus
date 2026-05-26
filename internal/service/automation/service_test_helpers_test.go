@@ -167,11 +167,34 @@ type fakeRoomRunner struct {
 	permission *permissionctx.Context
 	resultText string
 	delay      time.Duration
+	contexts   map[string]*protocol.ConversationContextAggregate
 
 	mu         sync.Mutex
 	requests   []roomsvc.ChatRequest
 	interrupts []roomsvc.InterruptRequest
 	err        error
+}
+
+func (f *fakeRoomRunner) GetConversationContext(_ context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	if f.contexts != nil {
+		if contextValue := f.contexts[conversationID]; contextValue != nil {
+			return contextValue, nil
+		}
+	}
+	return &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-1"},
+		},
+		MemberAgents: []protocol.Agent{
+			{AgentID: "agent-1", Name: "Agent 1"},
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: "room-1"},
+		Sessions: []protocol.SessionRecord{
+			{ConversationID: conversationID, AgentID: "agent-1", Status: "active"},
+		},
+	}, nil
 }
 
 func (f *fakeRoomRunner) HandleChat(_ context.Context, request roomsvc.ChatRequest) error {

@@ -451,6 +451,7 @@ func (s *Service) dispatchJobToSession(
 			SessionKey:        sessionKey,
 			ConversationID:    parsed.ConversationID,
 			Content:           job.Instruction,
+			TargetAgentIDs:    []string{strings.TrimSpace(job.AgentID)},
 			RoundID:           roundID,
 			ReqID:             roundID,
 			PermissionMode:    sdkpermission.ModeDefault,

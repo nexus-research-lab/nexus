@@ -54,6 +54,7 @@ type ChatRequest struct {
 	AttachmentAgentID string
 	Content           string
 	Attachments       []protocol.ChatAttachment
+	TargetAgentIDs    []string
 	RoundID           string
 	ReqID             string
 	DeliveryPolicy    protocol.ChatDeliveryPolicy

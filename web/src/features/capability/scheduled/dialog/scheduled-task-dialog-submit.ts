@@ -61,6 +61,16 @@ export interface ScheduledTaskDialogSubmitState {
 }
 
 function build_session_target(state: ScheduledTaskDialogSubmitState): ScheduledTaskSessionTarget {
+  if (state.target_type === "room") {
+    if (!state.selected_session) {
+      throw new Error("请选择执行成员");
+    }
+    return {
+      kind: "bound",
+      bound_session_key: state.selected_session.session_key,
+      wake_mode: "next-heartbeat",
+    };
+  }
   if (state.execution_mode === "main") {
     return { kind: "main", wake_mode: "next-heartbeat" };
   }
@@ -90,7 +100,7 @@ function build_delivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDel
     }
     if (state.execution_mode === "existing" || state.target_type === "room") {
       if (!state.selected_session) {
-        throw new Error(state.target_type === "room" ? "请选择一个 Room 会话作为回传目标" : "请选择执行会话");
+        throw new Error(state.target_type === "room" ? "请选择执行成员" : "请选择执行会话");
       }
       return { mode: "explicit", channel: "websocket", to: state.selected_session.session_key };
     }
@@ -110,7 +120,7 @@ function resolve_agent_id_for_task(state: ScheduledTaskDialogSubmitState): strin
     return state.selected_agent_id.trim();
   }
   if (!state.selected_session) {
-    throw new Error("请选择一个 Room 会话来确定执行智能体");
+    throw new Error("请选择执行成员");
   }
   return state.selected_session.agent_id;
 }
@@ -183,11 +193,11 @@ export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSu
     return "请选择 Room";
   }
   if (state.execution_kind !== "script") {
+    if (state.target_type === "room" && !state.selected_session_key.trim()) {
+      return "请选择执行成员";
+    }
     if (state.execution_mode === "existing" && !state.selected_session_key.trim()) {
       return "请选择执行会话";
-    }
-    if (state.target_type === "room" && state.execution_mode !== "existing" && !state.selected_session_key.trim()) {
-      return "请选择一个 Room 会话来确定执行智能体";
     }
     if (state.execution_mode === "dedicated" && !state.dedicated_session_key.trim()) {
       return "请输入专用长期会话名称";

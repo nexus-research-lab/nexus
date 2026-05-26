@@ -44,7 +44,7 @@ interface TaskBasicsPanelProps {
   set_dedicated_session_key: (value: string) => void;
   selected_session_key: string;
   set_selected_session_key: (value: string) => void;
-  session_options: Array<{ session_key: string; label: string }>;
+  session_options: Array<{ value: string; session_key: string; label: string }>;
   session_loading: boolean;
   session_error: string | null;
   session_empty_message: string | null;
@@ -256,10 +256,10 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
           description={session_empty_message}
           error={session_error}
           html_for="task-session-key"
-          label="执行会话"
+          label={target_type === "room" ? "执行成员" : "执行会话"}
         >
           <UiSelectMenu
-            aria_label="选择执行会话"
+            aria_label={target_type === "room" ? "选择执行成员" : "选择执行会话"}
             disabled={session_loading || session_options.length === 0}
             id="task-session-key"
             on_change={(value) => {
@@ -267,9 +267,9 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
               on_reset_context_error();
             }}
             options={[
-              { value: "", label: session_loading ? "正在加载会话..." : "请选择会话" },
+              { value: "", label: session_loading ? "正在加载会话..." : target_type === "room" ? "请选择执行成员" : "请选择会话" },
               ...session_options.map((option) => ({
-                value: option.session_key,
+                value: option.value,
                 label: option.label,
               })),
             ]}
@@ -316,7 +316,7 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
             options={[
               { value: "", label: session_loading ? "正在加载会话..." : "请选择回复会话" },
               ...session_options.map((option) => ({
-                value: option.session_key,
+                value: option.value,
                 label: option.label,
               })),
             ]}

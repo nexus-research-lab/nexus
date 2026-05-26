@@ -31,6 +31,7 @@ export interface ScheduledTaskDialogLabelOption {
 }
 
 export interface ScheduledTaskDialogSessionOption {
+  value: string;
   session_key: string;
   agent_id: string;
   label: string;
