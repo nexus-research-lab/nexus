@@ -216,6 +216,46 @@ func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
 	}
 }
 
+func TestResolveGoalRuntimeContextForSlotKeepsBudgetLimitedSharedGoalTarget(t *testing.T) {
+	sharedSessionKey := "room:group:conversation-1"
+	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
+	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
+		runtimeContexts: map[string]string{
+			runtimeSessionKey: "runtime goal context",
+		},
+		runtimeGoals: map[string]*protocol.Goal{
+			sharedSessionKey: {
+				ID:         "goal-shared-budget",
+				SessionKey: sharedSessionKey,
+				Status:     protocol.GoalStatusBudgetLimited,
+			},
+			runtimeSessionKey: {
+				ID:         "goal-runtime",
+				SessionKey: runtimeSessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}}
+	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
+
+	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+		context.Background(),
+		&activeRoomRound{SessionKey: sharedSessionKey},
+		slot,
+		"base prompt",
+	)
+
+	if goalID != "goal-shared-budget" || goalSessionKey != sharedSessionKey {
+		t.Fatalf("goalID=%q goalSessionKey=%q, want budget-limited shared usage target", goalID, goalSessionKey)
+	}
+	if prompt != "base prompt" {
+		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
+	}
+	if goalContext != "" {
+		t.Fatalf("goalContext = %q, want no injected context for budget_limited goal", goalContext)
+	}
+}
+
 func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
 	sharedSessionKey := "room:group:conversation-1"
 	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"

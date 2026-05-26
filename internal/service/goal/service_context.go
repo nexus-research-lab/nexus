@@ -19,8 +19,11 @@ func (s *Service) RuntimeContext(ctx context.Context, sessionKey string) (string
 	if err != nil {
 		return "", nil, err
 	}
-	if !protocol.IsRuntimeGoalStatus(item.Status) {
+	if !protocol.IsRuntimeAccountingGoalStatus(item.Status) {
 		return "", nil, nil
+	}
+	if !protocol.IsRuntimeGoalStatus(item.Status) {
+		return "", item, nil
 	}
 	checkpoint, err := s.repo.LatestCheckpoint(ctx, item.ID)
 	if err != nil {

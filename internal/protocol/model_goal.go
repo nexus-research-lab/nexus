@@ -260,3 +260,13 @@ func IsRuntimeGoalStatus(status GoalStatus) bool {
 		return false
 	}
 }
+
+// IsRuntimeAccountingGoalStatus 判断状态是否应作为运行中 round 的 Goal usage 目标。
+func IsRuntimeAccountingGoalStatus(status GoalStatus) bool {
+	switch NormalizeGoalStatus(status) {
+	case GoalStatusActive, GoalStatusBudgetLimited:
+		return true
+	default:
+		return false
+	}
+}

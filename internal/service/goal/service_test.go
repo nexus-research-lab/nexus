@@ -311,13 +311,6 @@ func TestServiceRuntimeContextSkipsStoppedGoals(t *testing.T) {
 			},
 		},
 		{
-			name: "budget_limited",
-			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
-				_, err := service.RecordUsageForSession(ctx, item.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1")
-				return err
-			},
-		},
-		{
 			name: "usage_limited",
 			mutateGoal: func(ctx context.Context, service *Service, item protocol.Goal) error {
 				_, err := service.UsageLimitForSession(ctx, item.SessionKey, "round-1", "usage limit")
@@ -359,6 +352,42 @@ func TestServiceRuntimeContextSkipsStoppedGoals(t *testing.T) {
 				t.Fatalf("RuntimeContext() = %q, %#v; want no runtime context for stopped goal", contextText, goal)
 			}
 		})
+	}
+}
+
+func TestServiceRuntimeContextKeepsBudgetLimitedGoalForUsageAccounting(t *testing.T) {
+	repo := newMemoryRepository()
+	budget := int64(10)
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "agent:nexus:ws:dm:budget-limited-context",
+		Objective:   "Account budget-limited wrap-up",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	limited, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("limited status = %q, want budget_limited", limited.Status)
+	}
+
+	contextText, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contextText != "" {
+		t.Fatalf("RuntimeContext() context = %q, want no injected context for budget_limited goal", contextText)
+	}
+	if goal == nil || goal.ID != limited.ID || goal.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("RuntimeContext() goal = %#v, want budget_limited usage target", goal)
 	}
 }
 

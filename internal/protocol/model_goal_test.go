@@ -115,6 +115,25 @@ func TestIsRuntimeGoalStatusOnlyAllowsActiveGoal(t *testing.T) {
 	}
 }
 
+func TestIsRuntimeAccountingGoalStatusAllowsActiveAndBudgetLimitedGoals(t *testing.T) {
+	for _, status := range []GoalStatus{GoalStatusActive, GoalStatusBudgetLimited} {
+		if !IsRuntimeAccountingGoalStatus(status) {
+			t.Fatalf("status %q should be a runtime accounting target", status)
+		}
+	}
+	for _, status := range []GoalStatus{
+		GoalStatusPaused,
+		GoalStatusBlocked,
+		GoalStatusUsageLimited,
+		GoalStatusComplete,
+		GoalStatusCleared,
+	} {
+		if IsRuntimeAccountingGoalStatus(status) {
+			t.Fatalf("status %q should not be a runtime accounting target", status)
+		}
+	}
+}
+
 func TestGoalUsageBudgetTokensExcludeCachedAndReasoningTokens(t *testing.T) {
 	usage := GoalUsage{
 		InputTokens:              100,

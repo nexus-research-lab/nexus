@@ -985,6 +985,47 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	}
 }
 
+func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取默认 agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeDMFactory{client: newFakeDMClient()}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	goalProvider := &fakeGoalContextProvider{
+		runtimeGoal: &protocol.Goal{
+			ID:         "goal-budget-limited",
+			SessionKey: "agent:nexus:ws:dm:test-budget-limited",
+			Status:     protocol.GoalStatusBudgetLimited,
+		},
+	}
+	service.SetGoalContextProvider(goalProvider)
+
+	sessionKey := protocol.BuildAgentSessionKey(cfg.DefaultAgentID, protocol.SessionChannelWebSocketSegment, "dm", "budget-limited", "")
+	parsed := protocol.ParseSessionKey(sessionKey)
+	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
+	if err != nil {
+		t.Fatalf("初始化 session 失败: %v", err)
+	}
+	_, _, _, goalID, goalContext, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+		SessionKey:     sessionKey,
+		PermissionMode: sdkpermission.ModeDefault,
+	})
+	if err != nil {
+		t.Fatalf("构建 runtime client 失败: %v", err)
+	}
+	if goalID != "goal-budget-limited" || goalContext != "" {
+		t.Fatalf("budget_limited goal runtime = (%q, %q), want usage target without context", goalID, goalContext)
+	}
+}
+
 func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
