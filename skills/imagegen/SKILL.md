@@ -36,6 +36,7 @@ nexusctl imagegen generate \
 如果用户明确要横幅、封面或宽图，使用 `--size 1792x1024`，仍保持 `--quality low`。如果图片服务返回 429/过载，最多再调用 1 次 Bash，降低尺寸或保持 low 重试。
 
 CLI JSON 的 `item.path` 和 `item.markdown` 是结果真相源。不要打开生成后的 PNG/JPG/WebP 文件验证，这会把二进制或 base64 塞回上下文。
+一般不要传 `--provider` 或 `--model`，让 Settings 里的默认生图模型决定；只有用户明确指定模型时才同时传 `--provider` 和 `--model`。
 
 ## 判断
 

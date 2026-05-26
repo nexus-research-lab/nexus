@@ -50,7 +50,8 @@ nexusctl imagegen edit \
 ## 常用参数
 
 - `--prompt` / `--prompt-file`：二选一。
-- `--provider`：可选；不传则使用默认图片 Provider。
+- `--provider`：可选；不传则使用默认生图模型。
+- `--model`：可选；指定时需同时指定 `--provider`，用于覆盖默认生图模型。
 - `--workspace-path`：可选；Agent 运行时不传则使用注入的 workspace，手工终端调用时回退到当前目录。
 - `--size`：例如 `1024x1024`。
 - `--quality`：由 Provider 支持情况决定，常用 `low` 做草稿。

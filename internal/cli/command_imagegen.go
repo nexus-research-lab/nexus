@@ -51,7 +51,7 @@ func newImagegenGenerateCommand(services *cliServiceProvider) *cobra.Command {
 			return emitImagegenResult("generate", result, len(payload))
 		},
 	}
-	bindImagegenCommonFlags(command, &input.Provider, &input.WorkspacePath, &input.Prompt, &promptFile, &input.Size, &input.Quality, &input.OutputFormat, &input.OutputCompression, &input.FileName)
+	bindImagegenCommonFlags(command, &input.Provider, &input.Model, &input.WorkspacePath, &input.Prompt, &promptFile, &input.Size, &input.Quality, &input.OutputFormat, &input.OutputCompression, &input.FileName)
 	command.Flags().StringVar(&input.Background, "background", "", "OpenAI 兼容背景参数")
 	return command
 }
@@ -84,7 +84,7 @@ func newImagegenEditCommand(services *cliServiceProvider) *cobra.Command {
 			return emitImagegenResult("edit", result, len(payload))
 		},
 	}
-	bindImagegenCommonFlags(command, &input.Provider, &input.WorkspacePath, &input.Prompt, &promptFile, &input.Size, &input.Quality, &input.OutputFormat, &input.OutputCompression, &input.FileName)
+	bindImagegenCommonFlags(command, &input.Provider, &input.Model, &input.WorkspacePath, &input.Prompt, &promptFile, &input.Size, &input.Quality, &input.OutputFormat, &input.OutputCompression, &input.FileName)
 	command.Flags().StringVar(&input.ImagePath, "image-path", "", "workspace 内待编辑图片路径")
 	command.Flags().StringVar(&input.MaskPath, "mask-path", "", "workspace 内 mask 图片路径")
 	_ = command.MarkFlagRequired("image-path")
@@ -94,6 +94,7 @@ func newImagegenEditCommand(services *cliServiceProvider) *cobra.Command {
 func bindImagegenCommonFlags(
 	command *cobra.Command,
 	provider *string,
+	model *string,
 	workspacePath *string,
 	prompt *string,
 	promptFile *string,
@@ -104,6 +105,7 @@ func bindImagegenCommonFlags(
 	fileName *string,
 ) {
 	command.Flags().StringVar(provider, "provider", "", "可选图片生成 Provider key")
+	command.Flags().StringVar(model, "model", "", "可选图片生成模型；指定时需同时指定 --provider")
 	command.Flags().StringVar(workspacePath, "workspace-path", "", "workspace 绝对路径；缺省使用当前目录")
 	command.Flags().StringVar(prompt, "prompt", "", "图片生成/编辑 prompt")
 	command.Flags().StringVar(promptFile, "prompt-file", "", "从文件读取 prompt")

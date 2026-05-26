@@ -78,7 +78,7 @@ func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Resu
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := s.resolveImageConfig(ctx, normalized.Provider)
+	config, err := s.resolveImageConfig(ctx, normalized.Provider, normalized.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -120,7 +120,7 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := s.resolveImageConfig(ctx, normalized.Provider)
+	config, err := s.resolveImageConfig(ctx, normalized.Provider, normalized.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -159,8 +159,14 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 	return result, payload, nil
 }
 
-func (s *Service) resolveImageConfig(ctx context.Context, provider string) (*providercfg.ImageConfig, error) {
-	if strings.TrimSpace(provider) != "" || s.prefs == nil {
+func (s *Service) resolveImageConfig(ctx context.Context, provider string, model string) (*providercfg.ImageConfig, error) {
+	if strings.TrimSpace(provider) != "" || strings.TrimSpace(model) != "" || s.prefs == nil {
+		if strings.TrimSpace(model) != "" {
+			if resolver, ok := s.providers.(providerModelResolver); ok {
+				return resolver.ResolveImageModelConfig(ctx, provider, model)
+			}
+			return nil, errors.New("图片生成 Provider 不支持显式 model 选择")
+		}
 		return s.providers.ResolveImageConfig(ctx, provider)
 	}
 	prefs, err := s.prefs.Get(ctx, authctx.OwnerUserID(ctx))
@@ -515,6 +521,7 @@ func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType strin
 
 func normalizeInput(input GenerateInput) (GenerateInput, error) {
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.WorkspacePath = strings.TrimSpace(input.WorkspacePath)
 	input.Size = strings.TrimSpace(input.Size)
@@ -552,6 +559,7 @@ func normalizeInput(input GenerateInput) (GenerateInput, error) {
 
 func normalizeEditInput(input EditInput) (EditInput, error) {
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.WorkspacePath = strings.TrimSpace(input.WorkspacePath)
 	input.ImagePath = strings.TrimSpace(input.ImagePath)
