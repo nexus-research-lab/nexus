@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
 - Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 - Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。
+- Goal `update_goal` 工具描述补齐 Codex 当前 blocked 审计语义，包括 resumed 后重新审计和 usage-limit 由系统控制。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
