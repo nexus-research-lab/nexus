@@ -108,6 +108,28 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		t.Fatalf("Qwen Token Plan OpenAI 兼容 endpoint 不正确: %+v", format)
 	}
 
+	miniMaxTokenPlan, err := service.Create(ctx, CreateInput{
+		Provider:  "minimax-token-plan",
+		PresetKey: presetMiniMaxToken,
+		AuthToken: "minimax-token-plan-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 MiniMax Token Plan provider 失败: %v", err)
+	}
+	if miniMaxTokenPlan.APIFormat != APIFormatAnthropicMessages ||
+		miniMaxTokenPlan.BaseURL != "https://api.minimaxi.com/anthropic" ||
+		miniMaxTokenPlan.ModelsPath != "https://api.minimaxi.com/v1/models" {
+		t.Fatalf("MiniMax Token Plan 默认配置不正确: %+v", miniMaxTokenPlan)
+	}
+	if !miniMaxTokenPlan.AgentRuntimeSupported {
+		t.Fatalf("MiniMax Token Plan Anthropic format 应可用于 Agent runtime: %+v", miniMaxTokenPlan)
+	}
+	miniMaxPreset := resolvePreset(presetMiniMaxToken)
+	if format := miniMaxPreset.Format(APIFormatChatCompletions); format.BaseURL != "https://api.minimaxi.com/v1" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("MiniMax Token Plan OpenAI 兼容 endpoint 不正确: %+v", format)
+	}
+
 	kimi, err := service.Create(ctx, CreateInput{
 		Provider:  "kimi-code",
 		PresetKey: presetKimiCode,

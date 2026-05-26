@@ -134,6 +134,7 @@ const PRESET_PROVIDER_KEYS: Record<string, string> = {
   openai: "openai",
   deepseek: "deepseek",
   "qwen-token-plan": "qwen-token-plan",
+  "minimax-token-plan": "minimax-token-plan",
   "glm-coding-plan": "glm-coding-plan",
   "kimi-code": "kimi-code",
   "volcengine-coding-plan": "volcengine-coding-plan",

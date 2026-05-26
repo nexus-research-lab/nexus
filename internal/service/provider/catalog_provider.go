@@ -11,6 +11,7 @@ const (
 	presetOpenAI        = "openai"
 	presetDeepSeek      = "deepseek"
 	presetQwenTokenPlan = "qwen-token-plan"
+	presetMiniMaxToken  = "minimax-token-plan"
 	presetGLMCodingPlan = "glm-coding-plan"
 	presetKimiCode      = "kimi-code"
 	presetVolcengine    = "volcengine-coding-plan"
@@ -80,6 +81,25 @@ var providerPresets = []Preset{
 			{
 				APIFormat:  APIFormatChatCompletions,
 				BaseURL:    "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+				ModelsPath: "/models",
+			},
+		},
+	},
+	{
+		PresetKey:     presetMiniMaxToken,
+		DisplayName:   "MiniMax Token Plan",
+		Description:   "MiniMax Token Plan for M2.7 coding models through Anthropic-compatible or OpenAI-compatible APIs.",
+		KeyURL:        "https://platform.minimaxi.com/user-center/payment/token-plan",
+		DefaultFormat: APIFormatAnthropicMessages,
+		Formats: []PresetFormat{
+			{
+				APIFormat:  APIFormatAnthropicMessages,
+				BaseURL:    "https://api.minimaxi.com/anthropic",
+				ModelsPath: "https://api.minimaxi.com/v1/models",
+			},
+			{
+				APIFormat:  APIFormatChatCompletions,
+				BaseURL:    "https://api.minimaxi.com/v1",
 				ModelsPath: "/models",
 			},
 		},

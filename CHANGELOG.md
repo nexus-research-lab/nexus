@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.10] - 2026-05-26
 
 ### Changed
-- 重构 Provider 配置与默认模型选择：默认模型改为 Provider + Model 显式选择，Provider 页面补齐国际化，内置 Provider 新增 Qwen Token Plan 与 Volcengine Coding Plan，运行时不再依赖 `is_default` 和 `model` 旧列。
+- 重构 Provider 配置与默认模型选择：默认模型改为 Provider + Model 显式选择，Provider 页面补齐国际化，内置 Provider 新增 Qwen Token Plan、MiniMax Token Plan 与 Volcengine Coding Plan，运行时不再依赖 `is_default` 和 `model` 旧列。
 - 完善长程定时任务体系：支持脚本执行、显式成员执行、运行产物、卡住恢复、每日发送报告、单任务状态、管理事件、历史搜索、CLI 运维命令和运行超时看门狗。
 - 收口定时任务结果投递：支持 DM/Room/Agent 收件箱/飞书等 IM 群回投，新增投递 ledger、自动重试、死信、手动补投递和任务删除后的历史追溯。
 - 飞书与外部 IM 入站可直接创建、检查、修改、停用、删除和补投递定时任务，并通过幂等 ledger、签名校验、owner 上下文和托管 skill 保证后台处理可观测、可恢复。

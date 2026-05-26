@@ -5,6 +5,7 @@ const PROVIDER_ICON_SRC: Record<string, string> = {
   deepseek: "/icon/provider/deepseek.svg",
   "glm-coding-plan": "/icon/provider/zai.svg",
   "kimi-code": "/icon/provider/moonshot.svg",
+  "minimax-token-plan": "/icon/provider/minimax.svg",
   openai: "/icon/provider/openai.svg",
   "qwen-token-plan": "/icon/provider/qwen.svg",
   "volcengine-coding-plan": "/icon/provider/volcengine.svg",
