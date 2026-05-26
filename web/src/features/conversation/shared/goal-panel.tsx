@@ -22,7 +22,7 @@ import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
-import { GoalDraftForm, GoalStatusStrip } from "./goal-panel-view";
+import { GoalDraftForm, GoalEmptyStrip, GoalStatusStrip } from "./goal-panel-view";
 
 interface GoalPanelProps {
   session_key: string | null;
@@ -79,6 +79,7 @@ export function GoalPanel({
   const [events, set_events] = useState<GoalEvent[]>([]);
   const [is_available, set_is_available] = useState(true);
   const [is_loading, set_is_loading] = useState(false);
+  const [is_creating, set_is_creating] = useState(false);
   const [is_editing, set_is_editing] = useState(false);
   const [objective, set_objective] = useState("");
   const [budget, set_budget] = useState("");
@@ -116,12 +117,15 @@ export function GoalPanel({
     if (!session_key) {
       set_goal(null);
       set_events([]);
+      set_is_creating(false);
+      set_is_editing(false);
       return;
     }
     set_is_loading(true);
     try {
       const current = await get_current_goal_api(session_key);
       set_goal(current);
+      set_is_creating(false);
       maybe_prompt_resume_goal(current);
       await refresh_goal_events(current.id);
       set_is_available(true);
@@ -131,6 +135,8 @@ export function GoalPanel({
         set_is_available(false);
         set_goal(null);
         set_events([]);
+        set_is_creating(false);
+        set_is_editing(false);
         set_resume_prompt_goal(null);
         return;
       }
@@ -154,6 +160,7 @@ export function GoalPanel({
   const begin_editing_goal = useCallback((current: Goal) => {
     set_objective(current.objective);
     set_budget(current.token_budget ? String(current.token_budget) : "");
+    set_is_creating(false);
     set_is_editing(true);
   }, []);
 
@@ -179,6 +186,7 @@ export function GoalPanel({
       await refresh_goal_events(updated.id);
       set_objective("");
       set_budget("");
+      set_is_creating(false);
       set_is_editing(false);
       set_error(null);
     } catch (err) {
@@ -196,6 +204,8 @@ export function GoalPanel({
       if (updated.status === "cleared") {
         set_goal(null);
         set_events([]);
+        set_is_creating(false);
+        set_is_editing(false);
       } else {
         set_goal(updated);
         await refresh_goal_events(updated.id);
@@ -227,9 +237,17 @@ export function GoalPanel({
     begin_editing_goal(goal);
   };
 
+  const start_creating_goal = () => {
+    set_objective("");
+    set_budget("");
+    set_is_editing(false);
+    set_is_creating(true);
+  };
+
   const cancel_editing_goal = () => {
     set_objective("");
     set_budget("");
+    set_is_creating(false);
     set_is_editing(false);
   };
 
@@ -243,10 +261,25 @@ export function GoalPanel({
     return null;
   }
 
-  if (!goal || is_editing) {
+  if (!goal && !is_creating) {
+    return (
+      <GoalEmptyStrip
+        compact={compact}
+        disabled={disabled}
+        error={error}
+        is_loading={is_loading}
+        scope_label={scope_label}
+        on_create={start_creating_goal}
+        on_refresh={() => void refresh_goal()}
+      />
+    );
+  }
+
+  if (is_creating || is_editing) {
     return (
       <GoalDraftForm
         budget={budget}
+        can_cancel={is_creating}
         compact={compact}
         disabled={disabled}
         error={error}
@@ -260,6 +293,10 @@ export function GoalPanel({
         on_submit={submit_goal}
       />
     );
+  }
+
+  if (!goal) {
+    return null;
   }
 
   return (

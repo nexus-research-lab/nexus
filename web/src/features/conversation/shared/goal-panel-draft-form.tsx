@@ -10,6 +10,7 @@ interface GoalDraftFormProps {
   compact: boolean;
   disabled: boolean;
   error: string | null;
+  can_cancel?: boolean;
   is_editing: boolean;
   is_loading: boolean;
   objective: string;
@@ -52,6 +53,7 @@ export function GoalDraftForm({
   compact,
   disabled,
   error,
+  can_cancel = false,
   is_editing,
   is_loading,
   objective,
@@ -78,7 +80,7 @@ export function GoalDraftForm({
             {scope_label}
           </span>
           <span className="rounded border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {is_editing ? "编辑中" : "未设置"}
+            {is_editing ? "编辑中" : "新建"}
           </span>
         </div>
         <input
@@ -108,7 +110,7 @@ export function GoalDraftForm({
       >
         {is_editing ? <Save className="h-4 w-4" /> : <Target className="h-4 w-4" />}
       </button>
-      {is_editing ? (
+      {is_editing || can_cancel ? (
         <GoalDraftButton
           disabled={disabled || is_loading}
           title="取消"
