@@ -70,9 +70,14 @@ func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request protoco
 	if refreshed == nil {
 		return false, nil
 	}
-	if _, err := s.persistTransition(ctx, *refreshed, protocol.GoalStatusCleared, protocol.GoalUpdateSourceExternal, "cleared", "", nil); err != nil {
+	deleted, err := s.repo.DeleteGoal(ctx, refreshed.ID)
+	if err != nil {
 		return false, err
 	}
+	if !deleted {
+		return false, nil
+	}
+	s.clearDeletedGoalRuntimeAccounting(*refreshed)
 	return true, nil
 }
 

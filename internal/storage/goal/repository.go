@@ -200,6 +200,23 @@ WHERE goal_id = %s AND version = %s`,
 	return r.GetGoal(ctx, goal.ID)
 }
 
+// DeleteGoal 删除指定 Goal。
+func (r *Repository) DeleteGoal(ctx context.Context, goalID string) (bool, error) {
+	result, err := r.db.ExecContext(
+		ctx,
+		"DELETE FROM session_goals WHERE goal_id = "+r.bind(1),
+		strings.TrimSpace(goalID),
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
+}
+
 func (r *Repository) bind(position int) string {
 	if r.isPostgres {
 		return fmt.Sprintf("$%d", position)

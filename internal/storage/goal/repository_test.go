@@ -117,6 +117,28 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if len(runnable) != 1 || runnable[0].ID != "goal-2" {
 		t.Fatalf("runnable = %#v, want active goal-2", runnable)
 	}
+
+	deleted, err := repository.DeleteGoal(ctx, "goal-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !deleted {
+		t.Fatal("DeleteGoal(goal-2) = false, want true")
+	}
+	current, err = repository.GetGoal(ctx, "goal-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("goal-2 = %#v, want nil after delete", current)
+	}
+	deleted, err = repository.DeleteGoal(ctx, "goal-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted {
+		t.Fatal("second DeleteGoal(goal-2) = true, want false")
+	}
 }
 
 func TestRepositoryEvents(t *testing.T) {

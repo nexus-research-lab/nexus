@@ -50,6 +50,14 @@ func (s *Service) clearExternalGoalAccounting(item protocol.Goal) {
 	_ = s.externalMutation.ClearGoalAccounting(item.SessionKey)
 }
 
+func (s *Service) clearDeletedGoalRuntimeAccounting(item protocol.Goal) {
+	s.clearWallClockGoal(item)
+	if s.externalMutation == nil {
+		return
+	}
+	_ = s.externalMutation.ClearGoalAccounting(item.SessionKey)
+}
+
 func (s *Service) activateExternalGoalAccounting(ctx context.Context, item protocol.Goal) {
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return

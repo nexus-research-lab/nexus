@@ -740,7 +740,7 @@ func TestServicePauseAndModelBlockPreserveBudgetLimitedGoal(t *testing.T) {
 	}
 }
 
-func TestServiceClearFromThreadGoalParamsUsesExternalSource(t *testing.T) {
+func TestServiceClearFromThreadGoalParamsDeletesCurrentGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -748,6 +748,8 @@ func TestServiceClearFromThreadGoalParamsUsesExternalSource(t *testing.T) {
 	ctx := context.Background()
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Clear through app-server"
+	accountant := &fakeExternalMutationAccountant{}
+	service.SetExternalMutationAccountant(accountant)
 
 	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
 		ThreadID:  threadID,
@@ -771,12 +773,15 @@ func TestServiceClearFromThreadGoalParamsUsesExternalSource(t *testing.T) {
 	if current != nil {
 		t.Fatalf("current = %#v, want nil after clear", current)
 	}
-	events, err := repo.ListEvents(ctx, created.ID, 10)
+	deleted, err := repo.GetGoal(ctx, created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) < 2 || events[len(events)-1].Source != protocol.GoalUpdateSourceExternal {
-		t.Fatalf("events = %#v, want external clear event", events)
+	if deleted != nil {
+		t.Fatalf("deleted = %#v, want hard-deleted app-server goal", deleted)
+	}
+	if len(accountant.clearedSessionKeys) != 1 || accountant.clearedSessionKeys[0] != threadID {
+		t.Fatalf("clearedSessionKeys = %#v, want app-server clear to stop runtime accounting", accountant.clearedSessionKeys)
 	}
 
 	cleared, err = service.ClearFromThreadGoalParams(ctx, protocol.ThreadGoalClearParams{ThreadID: threadID})
@@ -2026,6 +2031,14 @@ func (r *memoryRepository) UpdateGoal(_ context.Context, item protocol.Goal, exp
 	}
 	r.goals[item.ID] = item
 	return cloneGoal(item), nil
+}
+
+func (r *memoryRepository) DeleteGoal(_ context.Context, goalID string) (bool, error) {
+	if _, ok := r.goals[goalID]; !ok {
+		return false, nil
+	}
+	delete(r.goals, goalID)
+	return true, nil
 }
 
 func (r *memoryRepository) AppendEvent(_ context.Context, event protocol.GoalEvent) error {
