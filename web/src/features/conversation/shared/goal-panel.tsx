@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import { GoalDraftForm, GoalEmptyStrip, GoalStatusStrip } from "./goal-panel-view";
+import type { GoalPanelEditRequest } from "./use-goal-panel-edit-request";
 
 interface GoalPanelProps {
   session_key: string | null;
@@ -30,6 +31,7 @@ interface GoalPanelProps {
   disabled?: boolean;
   activity_key?: string | number | null;
   continuation_hold?: GoalContinuationHold | null;
+  edit_request?: GoalPanelEditRequest | null;
   is_generating?: boolean;
   scope_label?: string;
 }
@@ -72,6 +74,7 @@ export function GoalPanel({
   continuation_hold = null,
   disabled = false,
   activity_key = null,
+  edit_request = null,
   is_generating = false,
   scope_label = "会话 Goal",
 }: GoalPanelProps) {
@@ -86,6 +89,7 @@ export function GoalPanel({
   const [error, set_error] = useState<string | null>(null);
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
   const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
+  const handled_edit_request_ref = useRef<number | null>(null);
   const resume_prompt_key_ref = useRef<string | null>(null);
 
   const refresh_goal_events = useCallback(async (goal_id: string) => {
@@ -163,6 +167,18 @@ export function GoalPanel({
     set_is_creating(false);
     set_is_editing(true);
   }, []);
+
+  useEffect(() => {
+    if (!edit_request || handled_edit_request_ref.current === edit_request.request_id) {
+      return;
+    }
+    handled_edit_request_ref.current = edit_request.request_id;
+    set_goal(edit_request.goal);
+    set_events([]);
+    set_error(null);
+    begin_editing_goal(edit_request.goal);
+    void refresh_goal_events(edit_request.goal.id);
+  }, [begin_editing_goal, edit_request, refresh_goal_events]);
 
   const submit_goal = async (event: FormEvent) => {
     event.preventDefault();

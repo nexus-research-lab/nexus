@@ -11,6 +11,10 @@ export const GOAL_COMMAND_HINT_ITEMS: ComposerCommandHintItem[] = [
     detail: "查看当前 Goal",
   },
   {
+    command: "/goal edit",
+    detail: "编辑当前 Goal",
+  },
+  {
     command: "/goal pause",
     detail: "暂停当前 Goal",
   },

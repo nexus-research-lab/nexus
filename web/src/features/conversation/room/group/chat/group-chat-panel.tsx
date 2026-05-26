@@ -36,6 +36,7 @@ import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-com
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
+import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
 import {
   get_room_agent_round_entry,
   get_room_base_round_id,
@@ -146,6 +147,7 @@ export function GroupChatPanel({
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const { goal_edit_request, request_goal_edit } = useGoalPanelEditRequest();
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -158,6 +160,7 @@ export function GroupChatPanel({
     return goal_continuation_hold_for_agent(target_agent);
   }, [room_host_agent_id, room_host_auto_reply_enabled, room_members]);
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
+    on_edit: request_goal_edit,
     session_key,
     on_refresh: refresh_goal_panel,
   });
@@ -601,6 +604,7 @@ export function GroupChatPanel({
             compact={is_mobile_layout}
             continuation_hold={goal_continuation_hold}
             disabled={!can_control_session}
+            edit_request={goal_edit_request}
             is_generating={is_loading}
             session_key={session_key}
             scope_label="房间 Goal"

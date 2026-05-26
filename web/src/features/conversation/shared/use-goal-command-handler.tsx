@@ -8,8 +8,10 @@ import {
   FeedbackBannerStack,
   type FeedbackBannerItem,
 } from "@/shared/ui/feedback/feedback-banner-stack";
+import type { Goal } from "@/types/conversation/goal";
 
 import {
+  current_goal_or_null,
   goal_create_decision,
   parse_goal_command,
   run_goal_command,
@@ -18,6 +20,7 @@ import {
 
 interface GoalCommandHandlerOptions {
   session_key: string | null;
+  on_edit?: (goal: Goal) => void;
   on_refresh: () => void;
 }
 
@@ -28,6 +31,7 @@ interface PendingGoalReplacement {
 
 export function useGoalCommandHandler({
   session_key,
+  on_edit,
   on_refresh,
 }: GoalCommandHandlerOptions): {
   try_handle_goal_command: (content: string) => Promise<boolean>;
@@ -63,6 +67,16 @@ export function useGoalCommandHandler({
       if (!session_key) {
         return true;
       }
+      if (command.kind === "edit") {
+        const current = await current_goal_or_null(session_key);
+        if (current === null) {
+          set_command_error("当前没有 Goal 可编辑");
+          on_refresh();
+          return true;
+        }
+        on_edit?.(current);
+        return true;
+      }
       if (command.kind === "create") {
         const decision = await goal_create_decision(session_key, command);
         if (decision.kind === "confirm") {
@@ -83,7 +97,7 @@ export function useGoalCommandHandler({
       on_refresh();
       return true;
     },
-    [on_refresh, session_key],
+    [on_edit, on_refresh, session_key],
   );
 
   const confirm_replacement = useCallback(() => {

@@ -31,6 +31,7 @@ import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
+import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
 import {
   group_messages_by_round,
   get_latest_reply_timestamp,
@@ -77,6 +78,7 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const { goal_edit_request, request_goal_edit } = useGoalPanelEditRequest();
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -89,6 +91,7 @@ export function DmChatPanel({
     [current_agent_name, current_agent_permission_mode],
   );
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
+    on_edit: request_goal_edit,
     session_key,
     on_refresh: refresh_goal_panel,
   });
@@ -404,6 +407,7 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         continuation_hold={goal_continuation_hold}
         disabled={!can_control_session}
+        edit_request={goal_edit_request}
         is_generating={is_loading}
         session_key={session_key}
         scope_label="会话 Goal"

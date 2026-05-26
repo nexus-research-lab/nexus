@@ -10,6 +10,7 @@ import type { Goal } from "@/types/conversation/goal";
 
 export type GoalCommand =
   | { kind: "show" }
+  | { kind: "edit" }
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "clear" }
@@ -41,6 +42,7 @@ export function parse_goal_command(content: string): GoalCommand | null {
     return { kind: "show" };
   }
   const normalized = body.toLowerCase();
+  if (normalized === "edit") return { kind: "edit" };
   if (normalized === "pause") return { kind: "pause" };
   if (normalized === "resume") return { kind: "resume" };
   if (normalized === "clear") return { kind: "clear" };
@@ -110,7 +112,7 @@ async function clear_current_goal_if_present(session_key: string) {
   }
 }
 
-async function current_goal_or_null(session_key: string): Promise<Goal | null> {
+export async function current_goal_or_null(session_key: string): Promise<Goal | null> {
   try {
     return await get_current_goal_api(session_key);
   } catch (error) {
