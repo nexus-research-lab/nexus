@@ -118,6 +118,39 @@ func TestPersonalProfileAndChangePassword(t *testing.T) {
 	}
 }
 
+func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	cfg.AppMode = "desktop"
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	profile := getPersonalProfile(t, httpServer.URL, nil)
+	if profile.User.UserID != authsvc.SystemUserID || profile.User.Username != "local" {
+		t.Fatalf("desktop 个人资料应返回本地用户: %+v", profile.User)
+	}
+	if profile.User.AuthMethod != authsvc.AuthMethodLocal {
+		t.Fatalf("desktop 个人资料应返回本地认证方式: %+v", profile.User)
+	}
+	if profile.CanChangePassword || !profile.CanUpdateProfile {
+		t.Fatalf("desktop 本地用户应只允许修改资料不允许改密: %+v", profile)
+	}
+
+	updatedProfile := updatePersonalAvatar(t, httpServer.URL, nil, "15")
+	if updatedProfile.User.Avatar != "15" {
+		t.Fatalf("desktop 本地头像更新未生效: %+v", updatedProfile.User)
+	}
+	statusWithAvatar := getAuthStatus(t, httpServer.URL, nil)
+	if statusWithAvatar.Avatar == nil || *statusWithAvatar.Avatar != "15" {
+		t.Fatalf("desktop auth status 应返回最新头像: %+v", statusWithAvatar)
+	}
+}
+
 type authStatusResponse struct {
 	AuthRequired         bool    `json:"auth_required"`
 	PasswordLoginEnabled bool    `json:"password_login_enabled"`
@@ -175,7 +208,9 @@ func getPersonalProfile(t *testing.T, baseURL string, cookie *http.Cookie) perso
 	t.Helper()
 
 	request := mustNewRequest(t, http.MethodGet, baseURL+"/nexus/v1/settings/profile", nil)
-	request.AddCookie(cookie)
+	if cookie != nil {
+		request.AddCookie(cookie)
+	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("请求个人设置资料失败: %v", err)
@@ -204,7 +239,9 @@ func updatePersonalAvatar(t *testing.T, baseURL string, cookie *http.Cookie, ava
 
 	request := mustNewRequest(t, http.MethodPatch, baseURL+"/nexus/v1/settings/profile", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	request.AddCookie(cookie)
+	if cookie != nil {
+		request.AddCookie(cookie)
+	}
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("头像更新请求失败: %v", err)

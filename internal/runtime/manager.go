@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -186,6 +187,9 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 	c.mu.Unlock()
 	if session != nil {
 		if err := applyRuntimeControls(ctx, session, currentOptions, options); err != nil {
+			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
+				closeSDKSession(session)
+			}
 			return err
 		}
 	}
@@ -239,6 +243,19 @@ func (c *sdkClientAdapter) setStreamError(err error) {
 	c.streamErr = err
 }
 
+func (c *sdkClientAdapter) markDisconnected(session *agentclient.Session, err error) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.session != session {
+		return false
+	}
+	c.session = nil
+	c.messages = nil
+	c.cancel = nil
+	c.streamErr = err
+	return true
+}
+
 func (c *sdkClientAdapter) currentSession() (*agentclient.Session, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -253,14 +270,20 @@ func (c *sdkClientAdapter) pumpMessages(
 	session *agentclient.Session,
 	messages chan<- sdkprotocol.ReceivedMessage,
 ) {
+	var readErr error
 	defer close(messages)
+	defer func() {
+		if c.markDisconnected(session, readErr) {
+			closeSDKSession(session)
+		}
+	}()
 	for {
 		message, err := session.Recv(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
 				return
 			}
-			c.setStreamError(err)
+			readErr = err
 			return
 		}
 		select {
@@ -354,13 +377,20 @@ func NewManagerWithFactory(factory Factory) *Manager {
 // GetOrCreate 获取或创建 client，并在复用时应用最新运行时配置。
 func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options agentclient.Options) (Client, error) {
 	m.mu.RLock()
-	state, ok := m.sessions[sessionKey]
+	state := m.sessions[sessionKey]
+	var existing Client
+	if state != nil {
+		existing = state.Client
+	}
 	m.mu.RUnlock()
-	if ok && state.Client != nil {
-		if err := state.Client.Reconfigure(ctx, options); err != nil {
+	if existing != nil {
+		if err := existing.Reconfigure(ctx, options); err != nil {
+			if IsRuntimeTransportClosedError(err) {
+				return m.replaceDisconnectedClient(ctx, sessionKey, existing, options)
+			}
 			return nil, err
 		}
-		return state.Client, nil
+		return existing, nil
 	}
 
 	m.mu.Lock()
@@ -376,6 +406,64 @@ func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options ag
 		return nil, err
 	}
 	return client, nil
+}
+
+func (m *Manager) replaceDisconnectedClient(
+	ctx context.Context,
+	sessionKey string,
+	stale Client,
+	options agentclient.Options,
+) (Client, error) {
+	next := m.factory.New(options)
+	m.mu.Lock()
+	state := m.ensureStateLocked(sessionKey)
+	if state.Client != stale {
+		next = state.Client
+		m.mu.Unlock()
+		if next == nil {
+			return nil, agentclient.ErrNotConnected
+		}
+		return next, nil
+	}
+	state.Client = next
+	m.mu.Unlock()
+
+	disconnectCtx, cancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	defer cancel()
+	if err := stale.Disconnect(disconnectCtx); err != nil && !IsRuntimeTransportClosedError(err) {
+		return nil, err
+	}
+	if next == nil {
+		return nil, agentclient.ErrNotConnected
+	}
+	return next, nil
+}
+
+// IsRuntimeTransportClosedError 判断底层 SDK transport 是否已经断开。
+func IsRuntimeTransportClosedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, agentclient.ErrNotConnected) ||
+		errors.Is(err, io.ErrClosedPipe) ||
+		errors.Is(err, os.ErrClosed) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "write payload failed") ||
+		strings.Contains(message, "pipe has been ended") ||
+		strings.Contains(message, "broken pipe") ||
+		strings.Contains(message, "file already closed") ||
+		strings.Contains(message, "client: not connected")
+}
+
+func closeSDKSession(session *agentclient.Session) {
+	if session == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
+	defer cancel()
+	_ = session.Close(ctx)
 }
 
 // StartRound 注册运行中的 round，并记录其取消函数。

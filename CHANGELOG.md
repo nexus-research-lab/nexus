@@ -62,8 +62,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
 - Goal `/goal pause|resume|clear` 在当前会话没有 Goal 时会展示明确反馈，不再静默刷新。
 
+## [0.1.10] - 2026-05-26
+
+### Changed
+- 重构 Provider 配置与默认模型选择：默认模型改为 Provider + Model 显式选择，Provider 页面补齐国际化，运行时不再依赖 `is_default` 和 `model` 旧列。
+- 完善长程定时任务体系：支持脚本执行、显式成员执行、运行产物、卡住恢复、每日发送报告、单任务状态、管理事件、历史搜索、CLI 运维命令和运行超时看门狗。
+- 收口定时任务结果投递：支持 DM/Room/Agent 收件箱/飞书等 IM 群回投，新增投递 ledger、自动重试、死信、手动补投递和任务删除后的历史追溯。
+- 飞书与外部 IM 入站可直接创建、检查、修改、停用、删除和补投递定时任务，并通过幂等 ledger、签名校验、owner 上下文和托管 skill 保证后台处理可观测、可恢复。
+- 工作区文件预览支持 DOCX、XLSX、PPTX，并优化 Office 预览布局、缩放、侧栏占位、PPTX 母版占位符和文本样式还原。
+- 桌面端支持本地用户头像设置，Windows 更新检查可展示 Release 更新内容。
+- 新增 Codex 内置 skill 借鉴分析文档，明确 Nexus skill 生态可复用能力和落地优先级。
+
 ### Fixed
+- 修复 SQLite legacy 迁移启动失败、迁移编号冲突、server 单文件运行迁移引用和测试稳定性问题。
+- 修复定时任务 HTTP 新建/编辑未接收 `execution_kind`，导致页面创建脚本任务被后端当成 Agent 任务的问题。
+- 修复 Claude 临时调度工具可能承接用户提醒的问题，提醒和长期任务统一要求走 Nexus 持久化定时任务。
+- 修复 Office 文件预览布局、表格预览放大侧栏占位、XLSX 放大范围、PPTX 显示和 PPTX 文本样式还原问题。
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
+
+## [0.1.9] - 2026-05-23
+
+### Added
+- 新增飞书云文档完整连接器能力：支持用户自助 OAuth Client 配置、Callback URL 复制、文档阅读/创建/追加/Block 更新、云空间与知识库浏览、全文搜索、Sheet 内容读取和 Bitable 记录查看。
+- 新增用户级记忆管理与 Agent 记忆入口：联系人详情和记忆页支持搜索、筛选、删除、脏数据清理、孤立 session 摘要和 checkpoint 清理。
+- 新增 MCP 工具延迟加载元数据，连接器与自动化工具可按需返回工具说明和输入 schema，减少默认上下文负担。
+- 新增 Agent 联络视图：联系人详情页和 Room 右侧成员面板可查看私信、请求、私有备注和小范围记录投影。
+
+### Changed
+- 重构 Web 基础设计系统，统一 Button、Dialog、Panel、SelectMenu、Avatar、ListRow、Badge、StateBlock、FormControl、Tabs 等共享控件，移除无入口旧组件和多余 Liquid Glass 壳体。
+- 统一能力区信息架构：连接器、技能、消息渠道、配对授权、定时任务和记忆页改为轻量目录、统一搜索筛选、独立详情页和一致的弹窗/空态。
+- 收口飞书连接器配置体验，连接器详情从弹窗改为二级页面，OAuth Client 配置和 Device Flow 授权复用统一 Dialog 与 Panel。
+- 优化 DM/Room 工作台：会话切换改为 Safari 风格标签栏，Room 头像可直达 Agent 联络信息，新建/管理群聊弹窗简化为单列表选择。
+- 优化 Markdown 流式渲染，尾部 URL 暂缓成链接，外链协议白名单收紧，并压缩裸 URL 展示长度。
+- 统一设置、Agent 配置、定时任务、记忆和能力页的版心、按钮、输入、下拉、加载骨架与状态反馈，减少页面级重复样式。
+
+### Fixed
+- 修复访问日志可能泄露 `access_token`、`token`、`api_key` 等 query 参数的问题，并补充回归测试。
+- 修复 WebSocket Origin 校验、服务启动 panic、文件句柄软限制、session 标题刷新和 Room 公区投影染色等后端稳定性问题。
+- 修复 OAuth 授权成功后 callback 弹窗无法自动关闭、连接器列表可能不刷新，以及 nginx callback 路由过重的问题。
+- 修复引导中心关闭按钮、删除会话确认框失败态、默认权限下拉遮挡、首次未打开工作区时文件引用不可点击等界面问题。
+- 修复图片生成落错目录、聊天图片预览过大、有序列表序号遮挡、自动记忆提交触发和低价值任务记忆抽取等体验问题。
+
+### Security
+- 修复 PostCSS 安全公告 GHSA-qx2v-qp2m-jg93，并收紧 WebSocket Origin 与访问日志脱敏策略。
 
 ## [0.1.8] - 2026-05-21
 
@@ -72,6 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `make app-win-build` 默认使用当前时间戳作为 Windows 桌面 app 构建号，方便未提交改动的本地临时测试；需要固定构建号时仍可通过 `APP_WIN_BUILD_NUMBER` 覆盖。
+- 精简 GitHub `Publish Release` 资产：发布页只上传 macOS DMG、Windows 安装器及必要 sha256/metadata，不再上传自定义源码归档、Linux/Windows bin 包或 Windows 便携 zip。
+- Windows 桌面 package 脚本改为安装器优先，本地默认只产出 installer、sha256 和 metadata。
 - 收口 Memory 调度与接口测试，提升记忆动态召回、checkpoint 和 HTTP API 的回归覆盖。
 - Windows 桌面 App 点击窗口关闭按钮时改为隐藏到系统托盘，真正退出需通过托盘图标右键菜单执行。
 - Windows 桌面 App 托盘右键菜单改为带标题、分组和悬停高亮的样式化菜单。

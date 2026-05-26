@@ -10,7 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
 const defaultBaseSystemPrompt = `# Nexus Base System Prompt
@@ -105,16 +104,6 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 		return "", err
 	}
 	sections = append(sections, fileSections...)
-
-	if workspacePath != "" {
-		reviewMarkdown, reviewErr := memorysvc.NewService(workspacePath).BuildReviewMarkdown(3, 6, 1200)
-		if reviewErr != nil {
-			return "", reviewErr
-		}
-		if strings.TrimSpace(reviewMarkdown) != "" {
-			sections = append(sections, "## 最近日记提醒\n"+strings.TrimSpace(reviewMarkdown))
-		}
-	}
 
 	sections = compactPromptSections(sections)
 	if len(sections) == 0 {
@@ -232,6 +221,10 @@ func buildManagedSkillUsageSection(workspacePath string) string {
 		"## 托管 Skill 使用要求",
 		"- 涉及定时任务、提醒、每天/每周/每隔一段时间自动执行时，必须先使用 Skill 工具加载 scheduled-task-manager，再调用 nexus_automation。",
 		"- 创建定时任务时按 scheduled-task-manager 的模板生成参数；短提醒不要猜 execution_mode / reply_mode，复杂任务先向用户确认。",
+		"- 用户可见的提醒、延迟提醒、定时任务必须创建 Nexus 持久化定时任务；不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺用户提醒。",
+		"- 检查发送情况、恢复卡住任务、补发投递失败、修改投递目标、停止任务或重新启用已暂停任务时，也必须按 scheduled-task-manager 的工具顺序执行。",
+		"- 投递失败先查日报/状态并修正投递目标或通道配置，再 retry_scheduled_task_delivery；用户要停止正在跑的这次时，disable_scheduled_task 必须传 cancel_active_run=true。",
+		"- 执行失败且错误包含未授权工具或 AskUserQuestion 时，不要补投递旧 run；先让用户授权目标 Agent 工具或修改任务，再按需 run_scheduled_task 重新执行。",
 	}, "\n")
 }
 

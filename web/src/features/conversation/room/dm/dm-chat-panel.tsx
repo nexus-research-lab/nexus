@@ -33,8 +33,11 @@ import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-l
 import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
 import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
 import {
+  build_conversation_activity_snapshot,
   group_messages_by_round,
   get_latest_reply_timestamp,
+  should_emit_conversation_activity,
+  type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
@@ -48,6 +51,7 @@ export interface DmChatPanelProps {
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
   on_initial_draft_consumed?: () => void;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
@@ -66,6 +70,7 @@ export function DmChatPanel({
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_todos_change,
   on_loading_change,
@@ -164,6 +169,7 @@ export function DmChatPanel({
     history_prepend_token,
   });
   const last_snapshot_key_ref = useRef<string | null>(null);
+  const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
   const consumed_initial_draft_ref = useRef<string | null>(null);
   const can_control_session = session_control_state !== "observer";
   const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
@@ -187,26 +193,36 @@ export function DmChatPanel({
     if (!session_key || messages.length === 0) return;
     const last = messages[messages.length - 1];
     const latest_reply_timestamp = get_latest_reply_timestamp(messages);
-    const snapshot = {
+    const should_report_last_activity = should_emit_conversation_activity(
+      last_activity_snapshot_ref.current,
+      session_key,
+      latest_reply_timestamp,
+    );
+    const snapshot: SessionSnapshotPayload = {
       session_key,
       agent_id: session_identity?.agent_id ?? null,
       room_id: session_identity?.room_id ?? null,
       conversation_id: session_identity?.conversation_id ?? null,
       room_session_id: session_identity?.room_session_id ?? null,
-      message_count: messages.length,
-      ...(latest_reply_timestamp
+      ...(should_report_last_activity && latest_reply_timestamp !== null
         ? { last_activity_at: latest_reply_timestamp }
         : {}),
       session_id: last?.session_id ?? null,
     };
     const snapshot_key = JSON.stringify(snapshot);
+    const next_activity_snapshot = build_conversation_activity_snapshot(
+      session_key,
+      latest_reply_timestamp,
+    );
 
     // DM 与 Room 共用流式消息模式，这里同样需要阻断重复快照回写。
     if (last_snapshot_key_ref.current === snapshot_key) {
+      last_activity_snapshot_ref.current = next_activity_snapshot;
       return;
     }
 
     last_snapshot_key_ref.current = snapshot_key;
+    last_activity_snapshot_ref.current = next_activity_snapshot;
     on_conversation_snapshot_change?.(snapshot);
   }, [
     session_identity,
@@ -374,6 +390,7 @@ export function DmChatPanel({
           live_round_ids={live_round_ids}
           is_mobile_layout={is_mobile_layout}
           message_groups={message_groups}
+          on_open_agent_contact={on_open_agent_contact}
           on_open_workspace_file={on_open_workspace_file}
           on_permission_response={send_permission_response}
           can_respond_to_permissions={can_control_session}

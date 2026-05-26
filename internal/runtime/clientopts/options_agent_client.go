@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,8 @@ import (
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
+const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
+const apiFormatAnthropicMessages = "anthropic_messages"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -22,15 +25,23 @@ const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
 
+var claudeSessionScheduleTools = []string{
+	"ScheduleWakeup",
+	"CronCreate",
+	"CronList",
+	"CronDelete",
+}
+
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*RuntimeConfig, error)
+	ResolveRuntimeConfig(context.Context, string, string) (*RuntimeConfig, error)
 }
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
 	WorkspacePath      string
 	Provider           string
+	Model              string
 	PermissionMode     sdkpermission.Mode
 	PermissionHandler  sdkpermission.Handler
 	AllowedTools       []string
@@ -50,7 +61,7 @@ func BuildAgentClientOptions(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model)
 	if err != nil {
 		return agentclient.Options{}, err
 	}
@@ -76,7 +87,7 @@ func BuildAgentClientOptions(
 		},
 		Tools: agentclient.ToolOptions{
 			Allow: append([]string(nil), input.AllowedTools...),
-			Deny:  append([]string(nil), input.DisallowedTools...),
+			Deny:  appendDistinctTools(input.DisallowedTools, claudeSessionScheduleTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
 			PermissionMode: permissionMode,
@@ -101,6 +112,23 @@ func BuildAgentClientOptions(
 		options.MCP.SDKServers = cloneMCPServers(input.MCPServers)
 	}
 	return options, nil
+}
+
+func appendDistinctTools(base []string, extra ...string) []string {
+	result := make([]string, 0, len(base)+len(extra))
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	for _, tool := range append(append([]string(nil), base...), extra...) {
+		normalized := strings.TrimSpace(tool)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 func permissionHandlerForMode(
@@ -134,8 +162,9 @@ func BuildRuntimeEnv(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	provider string,
+	model string,
 ) (map[string]string, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider, model)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +176,9 @@ func BuildRuntimeEnv(
 
 func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	if runtimeConfig == nil {
+		return nil
+	}
+	if apiFormat := strings.TrimSpace(runtimeConfig.APIFormat); apiFormat != "" && apiFormat != apiFormatAnthropicMessages {
 		return nil
 	}
 	env := map[string]string{
@@ -169,11 +201,23 @@ func resolveRuntimeConfig(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	provider string,
+	model string,
 ) (*RuntimeConfig, error) {
 	if resolver == nil {
 		return nil, nil
 	}
-	return resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
+	runtimeConfig, err := resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider), strings.TrimSpace(model))
+	if err != nil {
+		return nil, err
+	}
+	if runtimeConfig == nil {
+		return nil, nil
+	}
+	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
+	if apiFormat != "" && apiFormat != apiFormatAnthropicMessages {
+		return nil, fmt.Errorf("api_format=%s 暂不可用于 Agent runtime", apiFormat)
+	}
+	return runtimeConfig, nil
 }
 
 func cloneMCPServers(
@@ -220,7 +264,8 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 	}
 	binDir := filepath.Join(trimmedWorkspacePath, ".agents", "bin")
 	env := map[string]string{
-		"NEXUS_PROJECT_ROOT": strings.TrimSpace(appfs.Root()),
+		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
+		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,
 	}
 	currentPath := strings.TrimSpace(os.Getenv("PATH"))
 	if currentPath == "" {

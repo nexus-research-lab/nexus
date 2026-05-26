@@ -22,6 +22,7 @@ SELECT
     cron_expression,
     timezone,
     instruction,
+    execution_kind,
     session_target_kind,
     bound_session_key,
     named_session_key,
@@ -39,7 +40,15 @@ SELECT
     source_session_key,
     source_session_label,
     overlap_policy,
-    enabled
+    enabled,
+    next_run_at,
+    running_run_id,
+    running_started_at,
+    last_run_at,
+    last_run_status,
+    failure_streak,
+    last_error,
+    last_delivery_status
 FROM automation_cron_jobs`
 	args := []any{}
 	conditions := make([]string, 0, 2)
@@ -106,6 +115,7 @@ SELECT
     cron_expression,
     timezone,
     instruction,
+    execution_kind,
     session_target_kind,
     bound_session_key,
     named_session_key,
@@ -123,7 +133,15 @@ SELECT
     source_session_key,
     source_session_label,
     overlap_policy,
-    enabled
+    enabled,
+    next_run_at,
+    running_run_id,
+    running_started_at,
+    last_run_at,
+    last_run_status,
+    failure_streak,
+    last_error,
+    last_delivery_status
 FROM automation_cron_jobs
 WHERE job_id = ` + r.bind(1)
 
@@ -159,6 +177,7 @@ func (r *Repository) UpsertCronJob(ctx context.Context, job protocol.CronJob) (*
 		nullStringPointer(job.Schedule.CronExpression),
 		job.Schedule.Timezone,
 		job.Instruction,
+		protocol.NormalizeExecutionKind(job.ExecutionKind),
 		job.SessionTarget.Kind,
 		nullString(job.SessionTarget.BoundSessionKey),
 		nullString(job.SessionTarget.NamedSessionKey),

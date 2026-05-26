@@ -183,7 +183,7 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
 
     const play_result = video.play();
     if (play_result && typeof play_result.catch === "function") {
-      play_result.catch(() => { });
+      play_result.catch((err: unknown) => console.debug("[theme-overlay] Video autoplay blocked:", err));
     }
   }, [active]);
 

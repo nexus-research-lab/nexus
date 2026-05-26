@@ -9,7 +9,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircle } from 'lucide-react';
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
+import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { cn } from '@/lib/utils';
+import { get_ui_choice_class_name } from "@/shared/ui/choice-styles";
 import { CodeBlock } from './code-block';
 import { ImageBlock } from "./image-block";
 import { type ImageContent, type ToolResultContent, type ToolUseContent } from '@/types/conversation/message';
@@ -195,12 +197,7 @@ const TOOL_LABEL_STYLES: Record<string, string> = {
 };
 
 const get_permission_choice_class_name = (selected: boolean) =>
-  cn(
-    "inline-flex items-center rounded-[7px] border px-2 py-1 text-[11px] font-medium transition-colors",
-    selected
-      ? "border-primary/24 bg-primary/6 text-primary"
-      : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-  );
+  get_ui_choice_class_name({ active: selected, size: "xs", variant: "surface" });
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
   "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
@@ -225,7 +222,7 @@ export function ToolBlock({
     anchor_ref: toolAnchorRef,
   } = useScrollAnchoredState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
 
   // 复制工具执行结果
   const handleCopyResult = useCallback(async (e: React.MouseEvent) => {
@@ -234,14 +231,8 @@ export function ToolBlock({
     const contentToCopy = typeof tool_result.content === 'string'
       ? tool_result.content
       : JSON.stringify(tool_result.content, null, 2);
-    try {
-      await navigator.clipboard.writeText(contentToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
-  }, [tool_result]);
+    await copy(contentToCopy);
+  }, [copy, tool_result]);
 
   // 计算执行时间
   const duration = useMemo(() => {

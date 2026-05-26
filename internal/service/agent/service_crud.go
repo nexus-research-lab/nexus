@@ -58,6 +58,19 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 	return agent, nil
 }
 
+// GetAgentsByIDs 批量获取指定 ID 列表的活跃 Agent。
+func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	agents, err := s.repository.ListAgentsByIDs(ctx, ownerUserID, agentIDs)
+	if err != nil {
+		return nil, err
+	}
+	return agents, nil
+}
+
 // GetDefaultAgent 返回当前作用域下的主智能体。
 func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) {
 	if err := s.EnsureReady(ctx); err != nil {
@@ -224,6 +237,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		Description:         description,
 		VibeTagsJSON:        mustJSONString(vibeTags, "[]"),
 		Provider:            nextOptions.Provider,
+		Model:               nextOptions.Model,
 		PermissionMode:      nextOptions.PermissionMode,
 		AllowedToolsJSON:    mustJSONString(nextOptions.AllowedTools, "[]"),
 		DisallowedToolsJSON: mustJSONString(nextOptions.DisallowedTools, "[]"),

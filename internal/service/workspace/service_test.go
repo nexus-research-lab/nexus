@@ -46,6 +46,11 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
+	agentsContent, err := os.ReadFile(filepath.Join(agentValue.WorkspacePath, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("读取 AGENTS.md 失败: %v", err)
+	}
+	assertAgentsScheduleGuidance(t, string(agentsContent))
 	attachmentPath := filepath.Join(agentValue.WorkspacePath, ".nexus", "attachments", "demo", "input.md")
 	if err = os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
 		t.Fatalf("创建附件目录失败: %v", err)
@@ -76,6 +81,13 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	} else if info.Mode()&0o111 == 0 {
 		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
 	}
+	shimPayload, err := os.ReadFile(nexusctlShim)
+	if err != nil {
+		t.Fatalf("读取 nexusctl shim 失败: %v", err)
+	}
+	if !strings.Contains(string(shimPayload), "NEXUSCTL_WORKSPACE_PATH") {
+		t.Fatalf("nexusctl shim 应保留调用方 workspace 路径: %s", shimPayload)
+	}
 	nexusctlCmdShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl.cmd")
 	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
 	if err != nil {
@@ -97,8 +109,25 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(staleImagegenScript); !os.IsNotExist(err) {
 		t.Fatalf("系统托管 skill 同步后应删除已移除脚本: %v", err)
 	}
-	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")); err != nil {
+	scheduledTaskSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")
+	if _, err = os.Stat(scheduledTaskSkillPath); err != nil {
 		t.Fatalf("系统托管 scheduled-task-manager skill 未部署: %v", err)
+	}
+	scheduledTaskSkill, err := os.ReadFile(scheduledTaskSkillPath)
+	if err != nil {
+		t.Fatalf("读取 scheduled-task-manager skill 失败: %v", err)
+	}
+	for _, expected := range []string{
+		"get_scheduled_task_daily_report",
+		"get_scheduled_task_status",
+		"retry_scheduled_task_delivery",
+		"reply_mode\": \"channel\"",
+		"reply_mode\": \"agent\"",
+		"larksuite/lark-openapi-mcp",
+	} {
+		if !strings.Contains(string(scheduledTaskSkill), expected) {
+			t.Fatalf("scheduled-task-manager skill 缺少 %q", expected)
+		}
 	}
 	claudeSkillLink := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "scheduled-task-manager")
 	if info, statErr := os.Lstat(claudeSkillLink); statErr != nil {
@@ -149,6 +178,79 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, ".agents/forbidden.txt", "x"); err == nil {
 		t.Fatal("不应允许直接写入内部运行时目录")
 	}
+	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, "nested/.git/config", "x"); err == nil {
+		t.Fatal("不应允许写入嵌套仓库内部目录")
+	}
+}
+
+func TestWorkspaceHiddenEntryMatchesNestedHeavyDirs(t *testing.T) {
+	testCases := []string{
+		".git/config",
+		"repo/.git/config",
+		"repo/.claude/settings.json",
+		"repo/node_modules/pkg/index.js",
+		"repo/web/node_modules/pkg/index.js",
+		"repo/web/.next/server/app.js",
+		"repo/web/dist/assets/main.js",
+		"repo/coverage/index.html",
+		"repo/__pycache__/cache.pyc",
+		"repo/.DS_Store",
+	}
+	for _, testCase := range testCases {
+		if !shouldHideWorkspaceEntry(testCase) {
+			t.Fatalf("应隐藏 workspace 重目录: %s", testCase)
+		}
+	}
+
+	visibleCases := []string{
+		"repo/internal/service/workspace/service.go",
+		"repo/web/src/main.tsx",
+		"repo/docs/spec.md",
+	}
+	for _, testCase := range visibleCases {
+		if shouldHideWorkspaceEntry(testCase) {
+			t.Fatalf("不应隐藏普通 workspace 文件: %s", testCase)
+		}
+	}
+}
+
+func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
+	cases := []struct {
+		name        string
+		isMainAgent bool
+		heading     string
+	}{
+		{name: "default agent", heading: "## 定时任务"},
+		{name: "main agent", isMainAgent: true, heading: "## 定时任务路由"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			stale := "# AGENTS.md\n\n## Agent Profile\n\n用户自定义内容\n\n" + tc.heading + "\n\n" +
+				"- **ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒**\n" +
+				"  仅在**全部**满足时使用：一次性、延迟 < 30 分钟、只活在当前会话里、丢了不影响用户目标。\n\n" +
+				"## Custom\n\n保留我\n"
+			if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(stale), 0o644); err != nil {
+				t.Fatalf("写入旧 AGENTS.md 失败: %v", err)
+			}
+
+			err := EnsureInitialized("agent-1", "测试助手", root, tc.isMainAgent, time.Now())
+			if err != nil {
+				t.Fatalf("初始化 workspace 失败: %v", err)
+			}
+
+			repaired, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+			if err != nil {
+				t.Fatalf("读取修复后 AGENTS.md 失败: %v", err)
+			}
+			got := string(repaired)
+			assertAgentsScheduleGuidance(t, got)
+			if !strings.Contains(got, "用户自定义内容") || !strings.Contains(got, "## Custom\n\n保留我") {
+				t.Fatalf("修复不应覆盖用户自定义内容: %s", got)
+			}
+		})
+	}
 }
 
 func TestUploadFileToRootReusesIdenticalTargetByMD5(t *testing.T) {
@@ -179,6 +281,27 @@ func TestUploadFileToRootReusesIdenticalTargetByMD5(t *testing.T) {
 	}
 	if changed.Path == first.Path {
 		t.Fatalf("不同内容不应复用原文件: first=%+v changed=%+v", first, changed)
+	}
+}
+
+func assertAgentsScheduleGuidance(t *testing.T, content string) {
+	t.Helper()
+	for _, expected := range []string{
+		"唯一用户可见定时任务入口",
+		"短文本提醒类任务也走 create_scheduled_task",
+		"不要用 ScheduleWakeup",
+	} {
+		if !strings.Contains(content, expected) {
+			t.Fatalf("AGENTS.md 缺少定时任务规则 %q: %s", expected, content)
+		}
+	}
+	for _, stale := range []string{
+		"ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒",
+		"仅在**全部**满足时使用",
+	} {
+		if strings.Contains(content, stale) {
+			t.Fatalf("AGENTS.md 仍包含旧 ScheduleWakeup 规则 %q: %s", stale, content)
+		}
 	}
 }
 

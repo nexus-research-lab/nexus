@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.1.8",
+  "version": "0.1.10",
   "private": true,
   "packageManager": "pnpm@9.15.2",
   "scripts": {
@@ -18,7 +18,10 @@
     "@types/matter-js": "^0.20.2",
     "@types/react-syntax-highlighter": "^15.5.13",
     "clsx": "^2.1.1",
+    "docx-preview": "^0.3.7",
     "dompurify": "^3.4.5",
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "katex": "^0.16.25",
     "lucide-react": "^0.554.0",
     "matter-js": "^0.20.0",
@@ -34,6 +37,7 @@
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.4.0",
     "unicode-animations": "^1.0.3",
+    "x-data-spreadsheet": "^1.1.9",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

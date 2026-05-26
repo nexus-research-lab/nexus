@@ -368,6 +368,78 @@ func TestExecuteRoundCompletesFromTerminalAssistantWhenResultMissing(t *testing.
 	}
 }
 
+func TestExecuteRoundKeepsAssistantCompletionWhenResultArrives(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 2),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{
+				{
+					DurableMessages: []protocol.Message{{
+						"message_id":  "assistant-1",
+						"role":        "assistant",
+						"is_complete": true,
+						"stop_reason": "end_turn",
+					}},
+				},
+				{
+					DurableMessages: []protocol.Message{{
+						"message_id": "result-1",
+						"role":       "result",
+						"subtype":    "success",
+					}},
+					TerminalStatus: "finished",
+					ResultSubtype:  "success",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("result 到达后不应失败: %v", err)
+	}
+	if result.TerminalStatus != "finished" || result.ResultSubtype != "success" || !result.CompletedByAssistant {
+		t.Fatalf("result 到达后应保留 assistant 完成状态: %+v", result)
+	}
+}
+
+func TestExecuteRoundTreatsSuccessfulResultAsAssistantCompletion(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-result-only",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{
+				DurableMessages: []protocol.Message{{
+					"message_id": "result-1",
+					"role":       "result",
+					"subtype":    "success",
+					"result":     "完成",
+				}},
+				TerminalStatus: "finished",
+				ResultSubtype:  "success",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("result-only 成功终态不应失败: %v", err)
+	}
+	if result.TerminalStatus != "finished" || result.ResultSubtype != "success" || !result.CompletedByAssistant {
+		t.Fatalf("result-only 成功终态应触发 assistant 完成: %+v", result)
+	}
+}
+
 func TestExecuteRoundKeepsWaitingForToolUseAssistant(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",

@@ -15,12 +15,12 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   type CSSProperties,
 } from "react";
 
 import { useAssistantContentMerge } from "@/hooks/conversation/use-assistant-content-merge";
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
+import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import {
   get_system_message_display_meta,
   type AssistantMessage,
@@ -88,15 +88,14 @@ export function useMessageItemState({
   runtime_phase,
   messages,
   pending_permissions = [],
-  on_permission_response,
   hidden_tool_names = ["TodoWrite"],
   on_stop_message,
   round_id,
   default_process_expanded = false,
   assistant_content_mode = "dm_archived",
 }: MessageItemProps): MessageItemState {
-  const [copied_user, set_copied_user] = useState(false);
-  const [copied_assistant, set_copied_assistant] = useState(false);
+  const { copied: copied_user, copy: copy_user } = useCopyToClipboard();
+  const { copied: copied_assistant, copy: copy_assistant } = useCopyToClipboard();
   const {
     is_open: is_process_expanded,
     toggle: toggle_process_expanded,
@@ -983,27 +982,15 @@ export function useMessageItemState({
     if (!user_content) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(user_content);
-      set_copied_user(true);
-      setTimeout(() => set_copied_user(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
-    }
-  }, [user_content]);
+    await copy_user(user_content);
+  }, [copy_user, user_content]);
 
   const handle_copy_assistant = useCallback(async () => {
     if (!final_assistant_text) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(final_assistant_text);
-      set_copied_assistant(true);
-      setTimeout(() => set_copied_assistant(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
-    }
-  }, [final_assistant_text]);
+    await copy_assistant(final_assistant_text);
+  }, [copy_assistant, final_assistant_text]);
 
   const show_cursor = Boolean(
     is_last_round &&

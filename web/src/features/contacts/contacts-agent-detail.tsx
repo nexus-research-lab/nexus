@@ -4,17 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Album,
-  Bot,
+  Brain,
+  Handshake,
   MessageSquareText,
   ToolCase,
   UserPen,
   Users,
 } from "lucide-react";
 
+import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
-import { get_icon_avatar_src } from "@/lib/utils";
+import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
@@ -44,6 +48,8 @@ interface ContactsAgentDetailProps {
   ) => Promise<AgentNameValidationResult>;
 }
 
+type ContactDetailTabKey = TabKey | "private_domain" | "memory";
+
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
@@ -55,11 +61,12 @@ export function ContactsAgentDetail({
   on_validate_agent_name,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
-  const avatar_src = get_icon_avatar_src(agent.avatar);
-  const [active_tab, set_active_tab] = useState<TabKey>("identity");
+  const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("private_domain");
 
   const config_tabs = useMemo(
     () => [
+      { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
+      { key: "memory" as ContactDetailTabKey, label: "记忆", icon: Brain },
       { key: "identity" as TabKey, label: t("agent_options.nav.identity"), icon: UserPen },
       { key: "advanced" as TabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
       { key: "skills" as TabKey, label: t("agent_options.nav.skills"), icon: Album },
@@ -74,7 +81,7 @@ export function ContactsAgentDetail({
   }, [agent.vibe_tags]);
 
   useEffect(() => {
-    set_active_tab("identity");
+    set_active_tab("private_domain");
   }, [agent.agent_id]);
 
   const initial_options = useMemo(
@@ -140,7 +147,7 @@ export function ContactsAgentDetail({
     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
       {tag_labels.map((tag) => (
         <span
-          className="max-w-[120px] truncate rounded-full border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_68%,transparent)] px-2 py-0.5 text-[10.5px] font-semibold text-(--text-muted)"
+          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-[10.5px] font-medium text-(--text-muted)"
           key={tag}
           title={tag}
         >
@@ -155,15 +162,7 @@ export function ContactsAgentDetail({
       <WorkspaceSurfaceHeader
         active_tab={active_tab}
         density="compact"
-        leading={avatar_src ? (
-          <img
-            alt={agent.name}
-            className="h-full w-full rounded-full object-cover"
-            src={avatar_src}
-          />
-        ) : (
-          <Bot className="h-4 w-4 text-(--icon-default)" />
-        )}
+        leading={<UiAgentAvatar avatar={agent.avatar} class_name="h-full w-full border-0 shadow-none" name={agent.name} size="sm" />}
         on_change_tab={set_active_tab}
         tabs={config_tabs}
         title={agent.name}
@@ -171,26 +170,32 @@ export function ContactsAgentDetail({
         trailing={trailing}
       />
 
-      <AgentOptionsEditor
-        active_tab={active_tab}
-        agent_id={agent.agent_id}
-        content_max_width_class_name="max-w-[860px]"
-        hide_inline_nav
-        initial_avatar={agent.avatar ?? ""}
-        initial_description={agent.description ?? ""}
-        initial_options={initial_options}
-        initial_title={agent.name}
-        initial_vibe_tags={agent.vibe_tags ?? []}
-        is_active
-        mode="edit"
-        on_delete={on_delete_agent}
-        on_save={handle_save}
-        on_tab_change={set_active_tab}
-        on_validate_name={handle_validate_name}
-        show_cancel_button={false}
-        show_delete_button
-        variant="inline"
-      />
+      {active_tab === "private_domain" ? (
+        <AgentPrivateDomainView agent={agent} />
+      ) : active_tab === "memory" ? (
+        <ContactsAgentMemoryTab agent={agent} />
+      ) : (
+        <AgentOptionsEditor
+          active_tab={active_tab}
+          agent_id={agent.agent_id}
+          content_max_width_class_name={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
+          hide_inline_nav
+          initial_avatar={agent.avatar ?? ""}
+          initial_description={agent.description ?? ""}
+          initial_options={initial_options}
+          initial_title={agent.name}
+          initial_vibe_tags={agent.vibe_tags ?? []}
+          is_active
+          mode="edit"
+          on_delete={on_delete_agent}
+          on_save={handle_save}
+          on_tab_change={set_active_tab}
+          on_validate_name={handle_validate_name}
+          show_cancel_button={false}
+          show_delete_button
+          variant="inline"
+        />
+      )}
     </div>
   );
 }

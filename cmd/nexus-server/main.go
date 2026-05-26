@@ -13,6 +13,7 @@ import (
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
@@ -38,6 +39,9 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
+	if version > 0 {
+		logger.Info("数据库迁移版本就绪", "current_version", version)
+	}
 	if err = goose.Up(db, dir); err != nil {
 		return fmt.Errorf("run goose up: %w", err)
 	}
@@ -74,6 +78,17 @@ func runServer() error {
 			Compress:    cfg.LogCompress,
 		},
 	})
+
+	limitSnapshot, limitErr := syslimit.EnsureOpenFilesLimit(8192)
+	if limitErr != nil {
+		logger.Warn("提升文件句柄限制失败", "err", limitErr)
+	} else if limitSnapshot.Soft > 0 {
+		logger.Info("文件句柄限制就绪",
+			"soft_limit", limitSnapshot.Soft,
+			"hard_limit", limitSnapshot.Hard,
+			"raised", limitSnapshot.Raised,
+		)
+	}
 
 	// 自动运行 schema migrations，确保首次启动或升级时数据库 schema 就绪。
 	if err := runMigrations(cfg, logger); err != nil {

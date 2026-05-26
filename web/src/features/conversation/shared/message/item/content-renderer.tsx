@@ -14,7 +14,6 @@ import {
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 
 import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
-import { CodeBlock } from "../blocks/code-block";
 import { ImageBlock } from "../blocks/image-block";
 import { ThinkingBlock } from "../blocks/thinking-block";
 import { ToolBlock } from "../blocks/tool-block";

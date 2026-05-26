@@ -70,6 +70,207 @@ func TestEngineCommitRecallAndCheckpoint(t *testing.T) {
 	}
 }
 
+func TestEngineSkipsLowSignalTaskCompletion(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+	scope := MemoryScope{
+		Kind:       ScopeKindDMSession,
+		UserID:     "owner",
+		AgentID:    "nexus",
+		SessionKey: "dm:web:nexus",
+	}
+
+	result, err := engine.CommitTurn(context.Background(), scope, CommittedTurn{
+		UserText:      "你的 AGENTS.md 换行符被硬编码了，改成真正的换行符",
+		AssistantText: "搞定了。原来的文件内容全部挤在一行里，已经用真实的换行符重写了整个文件，现在格式正常了。",
+		SessionKey:    "dm:web:nexus",
+		RoundID:       "round-low-signal",
+		AgentID:       "nexus",
+	})
+	if err != nil {
+		t.Fatalf("低信号对话判断失败: %v", err)
+	}
+	if !result.Skipped || result.Reason != "low_signal" {
+		t.Fatalf("一次性任务完成摘要不应进入记忆: %+v", result)
+	}
+	items, err := engine.List(context.Background(), MemoryListOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("读取记忆列表失败: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("低信号对话不应产生记忆条目: %+v", items)
+	}
+	if _, err = os.Stat(filepath.Join(workspace, "memory", "checkpoints.json")); !os.IsNotExist(err) {
+		t.Fatalf("低信号对话不应推进 checkpoint: %v", err)
+	}
+}
+
+func TestEngineCapturesDurableDecision(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+	scope := MemoryScope{
+		Kind:       ScopeKindDMSession,
+		UserID:     "owner",
+		AgentID:    "nexus",
+		SessionKey: "dm:web:nexus",
+	}
+
+	result, err := engine.CommitTurn(context.Background(), scope, CommittedTurn{
+		UserText:      "结论：Nexus 记忆需要分 User Memory 和 Agent Memory，两层不能混用。",
+		AssistantText: "已按这个分层推进，用户偏好进入 User Memory，Agent 工作习惯进入 Agent Memory。",
+		SessionKey:    "dm:web:nexus",
+		RoundID:       "round-decision",
+		AgentID:       "nexus",
+	})
+	if err != nil {
+		t.Fatalf("稳定结论抽取失败: %v", err)
+	}
+	if !result.Processed || len(result.Items) != 1 {
+		t.Fatalf("稳定结论应进入自动记忆: %+v", result)
+	}
+	if result.Items[0].Category != "decision" {
+		t.Fatalf("稳定结论分类不正确: %+v", result.Items[0])
+	}
+	if result.Items[0].Kind != "LRN" {
+		t.Fatalf("稳定结论应写成学习类记忆，而不是任务流水账: %+v", result.Items[0])
+	}
+	if strings.Contains(result.Items[0].Content, "结论：") || !strings.Contains(result.Items[0].Content, "User Memory 和 Agent Memory") {
+		t.Fatalf("稳定结论内容应是可召回事实: %+v", result.Items[0])
+	}
+	for _, field := range result.Items[0].Fields {
+		switch field.Key {
+		case "做了什么", "结果", "反思", "经验":
+			t.Fatalf("自动抽取不应再产生任务总结字段: %+v", result.Items[0].Fields)
+		}
+	}
+}
+
+func TestEngineCapturesIncidentAsErrorMemory(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+	scope := MemoryScope{
+		Kind:       ScopeKindDMSession,
+		UserID:     "owner",
+		AgentID:    "nexus",
+		SessionKey: "dm:web:nexus",
+	}
+
+	result, err := engine.CommitTurn(context.Background(), scope, CommittedTurn{
+		UserText:      "根因：Room 共享记忆串到 DM，是 scope 过滤遗漏。",
+		AssistantText: "已修复 scopeCanAccessItem，DM 召回不会再读 Room 共享记忆。",
+		SessionKey:    "dm:web:nexus",
+		RoundID:       "round-incident",
+		AgentID:       "nexus",
+	})
+	if err != nil {
+		t.Fatalf("事故经验抽取失败: %v", err)
+	}
+	if !result.Processed || len(result.Items) != 1 {
+		t.Fatalf("事故经验应进入自动记忆: %+v", result)
+	}
+	if result.Items[0].Kind != "ERR" || result.Items[0].Category != "incident" {
+		t.Fatalf("事故经验应写成错误类记忆: %+v", result.Items[0])
+	}
+	if strings.Contains(result.Items[0].Content, "根因：") || !strings.Contains(result.Items[0].Content, "scope 过滤遗漏") {
+		t.Fatalf("事故经验内容应是可复用根因: %+v", result.Items[0])
+	}
+	items, err := engine.List(context.Background(), MemoryListOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("重新读取事故记忆失败: %v", err)
+	}
+	if len(items) != 1 || items[0].Category != "incident" {
+		t.Fatalf("事故记忆重新解析后应保留 category: %+v", items)
+	}
+}
+
+func TestEngineSkipsReadmeImageTask(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+	scope := MemoryScope{
+		Kind:       ScopeKindDMSession,
+		UserID:     "owner",
+		AgentID:    "nexus",
+		SessionKey: "dm:web:nexus",
+	}
+
+	result, err := engine.CommitTurn(context.Background(), scope, CommittedTurn{
+		UserText:      "根据内容画一个插图，简笔风格的，适合放在readme里面",
+		AssistantText: "已生成：`output/imagegen/nexus-readme-illustration.png`",
+		SessionKey:    "dm:web:nexus",
+		RoundID:       "round-readme-image",
+		AgentID:       "nexus",
+	})
+	if err != nil {
+		t.Fatalf("README 插图任务判断失败: %v", err)
+	}
+	if !result.Skipped || result.Reason != "low_signal" {
+		t.Fatalf("一次性图片生成任务不应进入记忆: %+v", result)
+	}
+}
+
+func TestEngineRejectsUnscopedStructuredMemory(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+
+	_, err := engine.Add(context.Background(), MemoryScope{Kind: ScopeKindAgent}, MemoryWriteInput{
+		Title:   "无 scope 记忆",
+		Content: "没有明确作用域的结构化记忆不应写入。",
+	})
+	if err == nil || !IsClientError(err) {
+		t.Fatalf("缺少明确 scope 时应返回客户端错误: %v", err)
+	}
+
+	result, err := engine.CommitTurn(context.Background(), MemoryScope{Kind: ScopeKindAgent}, CommittedTurn{
+		UserText:      "结论：没有 agent_id 的自动记忆不能落盘。",
+		AssistantText: "已跳过这类无明确作用域的自动记忆。",
+		RoundID:       "round-invalid-scope",
+	})
+	if err != nil {
+		t.Fatalf("无 scope 自动记忆不应返回硬错误: %v", err)
+	}
+	if !result.Skipped || result.Reason != "invalid_scope" {
+		t.Fatalf("无 scope 自动记忆应被跳过: %+v", result)
+	}
+}
+
+func TestEngineCleanupRemovesOrphanSessionAndCheckpoint(t *testing.T) {
+	workspace := t.TempDir()
+	memoryDir := filepath.Join(workspace, "memory")
+	sessionsDir := filepath.Join(memoryDir, "sessions")
+	if err := os.MkdirAll(sessionsDir, 0o755); err != nil {
+		t.Fatalf("创建 session 目录失败: %v", err)
+	}
+	sessionPath := filepath.Join(sessionsDir, "dm-web-nexus.md")
+	if err := os.WriteFile(sessionPath, []byte("## 2026-05-21 10:00\n\n- Entry: REF-20260521-100000-stale\n- User: 一次性任务\n"), 0o644); err != nil {
+		t.Fatalf("写入孤立 session 摘要失败: %v", err)
+	}
+	checkpoints := memoryCheckpoints{Scopes: map[string]memoryScopeCheckpoint{
+		"dm_session:nexus:dm:web:nexus": {
+			TurnCount:   1,
+			LastRoundID: "round-stale",
+			RoundIDs:    []string{"round-stale"},
+		},
+	}}
+	repository := NewRepository(workspace)
+	if err := repository.WriteCheckpoints(checkpoints); err != nil {
+		t.Fatalf("写入 checkpoint 失败: %v", err)
+	}
+
+	result, err := NewEngine(workspace, DefaultOptions()).Cleanup(context.Background())
+	if err != nil {
+		t.Fatalf("清理孤立记忆失败: %v", err)
+	}
+	if result.RemovedSessionFiles != 1 || result.RemovedCheckpoints != 1 {
+		t.Fatalf("清理结果不正确: %+v", result)
+	}
+	if _, err = os.Stat(sessionPath); !os.IsNotExist(err) {
+		t.Fatalf("孤立 session 摘要应被删除: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(memoryDir, "checkpoints.json")); !os.IsNotExist(err) {
+		t.Fatalf("孤立 checkpoint 应被删除: %v", err)
+	}
+}
+
 func TestEngineScopeRankingAndDelete(t *testing.T) {
 	workspace := t.TempDir()
 	engine := NewEngine(workspace, DefaultOptions())
@@ -109,6 +310,13 @@ func TestEngineScopeRankingAndDelete(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("新增 Agent 记忆失败: %v", err)
 	}
+	if _, err = engine.Add(context.Background(), MemoryScope{Kind: ScopeKindAgent, AgentID: "nexus-2"}, MemoryWriteInput{
+		Title:   "另一个 Agent 中文注释偏好",
+		Content: "另一个 Agent 也提到中文注释。",
+		Status:  "candidate",
+	}); err != nil {
+		t.Fatalf("新增相似 Agent 记忆失败: %v", err)
+	}
 
 	items, err := engine.Search(context.Background(), dmScope, RecallRequest{
 		Query:      "中文 注释",
@@ -127,6 +335,9 @@ func TestEngineScopeRankingAndDelete(t *testing.T) {
 		if strings.HasPrefix(item.Scope, string(ScopeKindRoomShared)+":") {
 			t.Fatalf("DM 召回不应串入 Room 共享记忆: %+v", items)
 		}
+		if item.Scope == "agent:nexus-2" {
+			t.Fatalf("AgentID 前缀相似的记忆不应串入当前 Agent: %+v", items)
+		}
 	}
 
 	if err = engine.Delete(context.Background(), dmItem.EntryID); err != nil {
@@ -142,6 +353,59 @@ func TestEngineScopeRankingAndDelete(t *testing.T) {
 	for _, item := range items {
 		if item.EntryID == dmItem.EntryID {
 			t.Fatalf("删除后的记忆不应被召回: %+v", items)
+		}
+	}
+}
+
+func TestEngineRoomSharedScopeRequiresSameConversation(t *testing.T) {
+	workspace := t.TempDir()
+	engine := NewEngine(workspace, DefaultOptions())
+	roomOne := MemoryScope{
+		Kind:           ScopeKindRoomShared,
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+	}
+	roomTwo := MemoryScope{
+		Kind:           ScopeKindRoomShared,
+		RoomID:         "room-2",
+		ConversationID: "conversation-2",
+	}
+	roomAgent := MemoryScope{
+		Kind:           ScopeKindRoomAgentSession,
+		AgentID:        "nexus",
+		RoomID:         "room-1",
+		ConversationID: "conversation-1",
+		SessionKey:     "room-agent-session",
+	}
+	roomOneItem, err := engine.Add(context.Background(), roomOne, MemoryWriteInput{
+		Title:   "Room 一共享结论",
+		Content: "Room 一约定所有发布说明都用中文。",
+		Status:  "candidate",
+	})
+	if err != nil {
+		t.Fatalf("新增 Room 一共享记忆失败: %v", err)
+	}
+	if _, err = engine.Add(context.Background(), roomTwo, MemoryWriteInput{
+		Title:   "Room 二共享结论",
+		Content: "Room 二约定所有发布说明都用中文。",
+		Status:  "candidate",
+	}); err != nil {
+		t.Fatalf("新增 Room 二共享记忆失败: %v", err)
+	}
+
+	items, err := engine.Search(context.Background(), roomAgent, RecallRequest{
+		Query:      "发布 说明 中文",
+		MaxResults: 5,
+	})
+	if err != nil {
+		t.Fatalf("Room 成员召回失败: %v", err)
+	}
+	if len(items) == 0 || items[0].EntryID != roomOneItem.EntryID {
+		t.Fatalf("Room 成员应优先召回同 conversation 共享记忆: %+v", items)
+	}
+	for _, item := range items {
+		if item.Scope == roomTwo.Key() {
+			t.Fatalf("Room 共享记忆不能跨 conversation 召回: %+v", items)
 		}
 	}
 }
@@ -210,5 +474,20 @@ func TestMemorySchedulerCadence(t *testing.T) {
 	}
 	if !idle.ShouldCapture {
 		t.Fatalf("空闲 10 分钟后应抽取: %+v", idle)
+	}
+}
+
+func TestExtractMessageTextSupportsTypedContentBlocks(t *testing.T) {
+	message := map[string]any{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "第一段"},
+			{"type": "text", "text": "第二段"},
+		},
+	}
+
+	text := ExtractMessageText(message)
+	if text != "第一段\n第二段" {
+		t.Fatalf("typed content blocks 提取失败: %q", text)
 	}
 }

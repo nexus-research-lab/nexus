@@ -41,6 +41,7 @@ export interface MessageItemProps {
   permission_read_only_reason?: string;
   hidden_tool_names?: string[];
   on_edit_user_message?: (message_id: string, new_content: string) => void;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_stop_message?: (msg_id: string) => void;
   default_process_expanded?: boolean;

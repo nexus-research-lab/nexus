@@ -14,6 +14,12 @@ import {
 } from "@/types/agent/agent-conversation";
 import { WorkspaceEventPayload } from "@/types/app/workspace-live";
 
+function is_event_message(data: unknown): data is EventMessage {
+  if (typeof data !== "object" || data === null) return false;
+  const msg = data as Record<string, unknown>;
+  return typeof msg.event_type === "string" && typeof msg.protocol_version === "number";
+}
+
 import {
   apply_stream_message,
   normalize_assistant_message,
@@ -41,7 +47,11 @@ export function handle_agent_conversation_web_socket_message({
   track_chat_ack,
   track_assistant_message,
 }: HandleAgentConversationWebSocketMessageParams): void {
-  const event = backend_message as EventMessage;
+  if (!is_event_message(backend_message)) {
+    console.warn("[websocket-event-handler] Received unexpected message shape:", backend_message);
+    return;
+  }
+  const event = backend_message;
   const incoming_session_key = event.session_key || null;
 
   if (event.event_type === "error") {

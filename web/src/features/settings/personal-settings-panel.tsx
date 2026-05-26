@@ -27,7 +27,6 @@ import {
   Loader2,
   LockKeyhole,
   ShieldCheck,
-  UserRound,
 } from "lucide-react";
 
 import {
@@ -42,12 +41,14 @@ import {
   AGENT_ICON_ID_START,
   cn,
   format_tokens,
-  get_icon_avatar_src,
 } from "@/lib/utils";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 
 type FeedbackTone = "success" | "error";
 
@@ -69,9 +70,14 @@ const EMPTY_PASSWORD_DRAFT: PasswordDraft = {
   confirm_password: "",
 };
 
-const PERSONAL_ACTION_BUTTON_CLASS_NAME = "inline-flex h-9 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium tracking-tight transition-[border-color,background,color,box-shadow,transform] duration-(--motion-duration-fast) ease-out disabled:pointer-events-none disabled:opacity-(--disabled-opacity)";
-const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = `${PERSONAL_ACTION_BUTTON_CLASS_NAME} border-(--surface-interactive-active-border) bg-primary text-white shadow-[0_8px_24px_rgba(16,185,129,0.16)] hover:-translate-y-px hover:shadow-[0_12px_28px_rgba(16,185,129,0.22)]`;
-const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = `${PERSONAL_ACTION_BUTTON_CLASS_NAME} border-(--divider-subtle-color) bg-(--surface-base-background) text-(--text-strong) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)`;
+const PERSONAL_PRIMARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", tone: "primary", variant: "solid" },
+  "gap-2 tracking-tight",
+);
+const PERSONAL_SECONDARY_BUTTON_CLASS_NAME = get_ui_button_class_name(
+  { size: "md", variant: "surface" },
+  "gap-2 tracking-tight",
+);
 
 function format_updated_at(value: string, locale: "zh" | "en"): string {
   const date = new Date(value);
@@ -155,7 +161,6 @@ export function PersonalSettingsPanel() {
   const can_submit_password = !validation_error && !submitting && !loading;
   const usage = profile?.token_usage;
   const avatar = profile?.user.avatar ?? "";
-  const avatar_src = get_icon_avatar_src(avatar);
   const can_update_avatar = Boolean(profile?.can_update_profile) && !saving_avatar;
   const quota_text = usage?.quota_limit_tokens == null
     ? t("settings.personal.quota_unset")
@@ -225,7 +230,7 @@ export function PersonalSettingsPanel() {
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-1 py-3">
+      <div className={cn("mx-auto flex w-full flex-col gap-3 px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
         <section>
           <h2 className="text-[20px] font-semibold tracking-tight text-(--text-strong)">
             {t("settings.personal.title")}
@@ -233,26 +238,21 @@ export function PersonalSettingsPanel() {
         </section>
 
         {loading ? (
-          <section className="flex min-h-[220px] items-center justify-center rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background) text-(--text-soft)">
+          <section className="flex min-h-[220px] items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-(--text-soft)">
             <Loader2 className="h-5 w-5 animate-spin" />
           </section>
         ) : (
           <>
-            <section className="overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
+            <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-start">
                 <div className="min-w-0 space-y-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[16px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-primary shadow-(--surface-avatar-shadow)">
-                      {avatar_src ? (
-                        <img
-                          alt={t("settings.personal.avatar_alt")}
-                          className="h-full w-full object-cover"
-                          src={avatar_src}
-                        />
-                      ) : (
-                        <UserRound className="h-5 w-5" />
-                      )}
-                    </div>
+                    <UiAgentAvatar
+                      avatar={avatar}
+                      class_name="h-12 w-12 rounded-[16px]"
+                      name={profile?.user.display_name || profile?.user.username || t("settings.personal.avatar_alt")}
+                      shape="rounded"
+                    />
                     <div className="min-w-0">
                       <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
                         {profile?.user.display_name || profile?.user.username || "--"}
@@ -263,10 +263,10 @@ export function PersonalSettingsPanel() {
                     </div>
                   </div>
                   <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2">
-                    <span className="rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2">
+                    <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
                       {t("settings.personal.role")}: {profile?.user.role || "--"}
                     </span>
-                    <span className="rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-2">
+                    <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
                       {t("settings.personal.auth_method")}: {auth_method_label(profile?.user.auth_method ?? "", t)}
                     </span>
                   </div>
@@ -305,7 +305,7 @@ export function PersonalSettingsPanel() {
               </div>
             </section>
 
-            <section className="order-last overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
+            <section className="order-last overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
               <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -378,7 +378,7 @@ export function PersonalSettingsPanel() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)">
+            <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
               <form className="grid gap-3 px-3 py-3" onSubmit={handle_change_password}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
@@ -496,8 +496,8 @@ function UsageMetric({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-(--divider-subtle-color) bg-(--surface-inset-background) px-3 py-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[16px] bg-(--surface-card-background) text-primary">
+    <div className="flex min-w-0 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
         {icon}
       </div>
       <div className="min-w-0">
@@ -550,7 +550,7 @@ function TokenUsageChart({
 
   return (
     <div className="px-3 py-3">
-      <div className="flex h-2 overflow-hidden rounded-full bg-(--surface-inset-background)">
+      <div className="flex h-2 overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_55%,transparent)]">
         {items.map((item) => (
           <div
             className={cn(item.value > 0 ? "min-w-[2px]" : "", item.class_name)}

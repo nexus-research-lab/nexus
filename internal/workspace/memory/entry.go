@@ -37,7 +37,7 @@ type Entry struct {
 // Headline 返回条目标题行。
 func (e *Entry) Headline() string {
 	timestamp := e.CreatedAt.Format("2006-01-02 15:04")
-	if e.Kind == "LRN" && strings.TrimSpace(e.Category) != "" {
+	if strings.TrimSpace(e.Category) != "" {
 		return fmt.Sprintf("### %s - [%s] %s: %s", timestamp, e.Kind, e.Category, e.Title)
 	}
 	return fmt.Sprintf("### %s - [%s] %s", timestamp, e.Kind, e.Title)

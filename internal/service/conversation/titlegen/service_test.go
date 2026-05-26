@@ -362,7 +362,11 @@ type fakeProviderResolver struct {
 	config *clientopts.RuntimeConfig
 }
 
-func (f *fakeProviderResolver) ResolveRuntimeConfig(_ context.Context, _ string) (*clientopts.RuntimeConfig, error) {
+func (f *fakeProviderResolver) ResolveRuntimeConfig(
+	_ context.Context,
+	_ string,
+	_ string,
+) (*clientopts.RuntimeConfig, error) {
 	return f.config, nil
 }
 

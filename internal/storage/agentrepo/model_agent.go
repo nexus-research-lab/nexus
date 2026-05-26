@@ -18,6 +18,7 @@ type CreateRecord struct {
 	RuntimeID           string
 	ProfileID           string
 	Provider            string
+	Model               string
 	PermissionMode      string
 	AllowedToolsJSON    string
 	DisallowedToolsJSON string
@@ -39,6 +40,7 @@ type UpdateRecord struct {
 	Description         string
 	VibeTagsJSON        string
 	Provider            string
+	Model               string
 	PermissionMode      string
 	AllowedToolsJSON    string
 	DisallowedToolsJSON string

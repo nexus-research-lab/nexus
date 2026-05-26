@@ -674,6 +674,27 @@ func newDMProviderService(t *testing.T, cfg config.Config) *providercfg.Service 
 	return providercfg.NewServiceWithDB(cfg, db)
 }
 
+func createDMProviderWithModel(
+	t *testing.T,
+	service *providercfg.Service,
+	input providercfg.CreateInput,
+	model string,
+	isDefault bool,
+) *providercfg.Record {
+	t.Helper()
+	record, err := service.Create(context.Background(), input)
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(context.Background(), record.Provider, model, providercfg.UpdateModelInput{
+		Enabled:   true,
+		IsDefault: isDefault,
+	}); err != nil {
+		t.Fatalf("设置 provider 模型失败: %v", err)
+	}
+	return record
+}
+
 func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -1229,17 +1250,13 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	maxThinkingTokens := 2048
 	maxTurns := 6
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建默认 provider 失败: %v", err)
-	}
+	}, "glm-5.1", true)
 	updatedAgent, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
 		Options: &protocol.Options{
 			MaxThinkingTokens: &maxThinkingTokens,
@@ -1388,33 +1405,26 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建默认 provider 失败: %v", err)
-	}
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	}, "glm-5.1", true)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "kimi",
 		DisplayName: "Kimi",
 		AuthToken:   "kimi-token",
 		BaseURL:     "https://api.moonshot.cn/anthropic",
-		Model:       "kimi-k2.5",
 		Enabled:     true,
-		IsDefault:   false,
-	}); err != nil {
-		t.Fatalf("创建显式 provider 失败: %v", err)
-	}
+	}, "kimi-k2.5", false)
 
 	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
 		Name: "显式 Provider 助手",
 		Options: &protocol.Options{
 			Provider: "kimi",
+			Model:    "kimi-k2.5",
 		},
 	})
 	if err != nil {
@@ -1547,17 +1557,13 @@ func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissi
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
+	}, "glm-5.1", true)
 
 	resumeID := "sdk-legacy-resume-1"
 	permission := permissionctx.NewContext()
@@ -1641,17 +1647,13 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
+	}, "glm-5.1", true)
 
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()

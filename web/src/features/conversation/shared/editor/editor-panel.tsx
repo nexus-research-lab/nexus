@@ -1,16 +1,14 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Download,
   Eye,
   EyeOff,
   FileImage,
+  FileSpreadsheet,
   FileText,
   FileWarning,
   LoaderCircle,
-  Maximize2,
-  Minimize2,
   Pencil,
   Save,
 } from "lucide-react";
@@ -18,7 +16,6 @@ import {
 import {
   get_workspace_file_content_api,
   update_workspace_file_content_api,
-  get_workspace_file_download_url,
   get_workspace_file_preview_url,
 } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
@@ -27,9 +24,38 @@ import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import { MermaidView } from "@/features/conversation/shared/message/markdown/mermaid-view";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
+import {
+  WorkspaceFileDownloadButton,
+  WorkspaceFilePreviewFocusButton,
+  WorkspaceFilePreviewHeader,
+  WorkspaceFileToolbarButton,
+} from "./workspace-file-preview-chrome";
+
+const SpreadsheetFilePreview = lazy(() => import("./spreadsheet-file-preview").then((module) => ({
+  default: module.SpreadsheetFilePreview,
+})));
+
+const DocumentFilePreview = lazy(() => import("./document-file-preview").then((module) => ({
+  default: module.DocumentFilePreview,
+})));
+
+const PresentationFilePreview = lazy(() => import("./presentation-file-preview").then((module) => ({
+  default: module.PresentationFilePreview,
+})));
 
 // 文件类型检测
-type WorkspaceFilePreviewKind = "text" | "markdown" | "html" | "mermaid" | "pdf" | "image" | "binary" | "unknown";
+type WorkspaceFilePreviewKind =
+  | "text"
+  | "markdown"
+  | "html"
+  | "mermaid"
+  | "pdf"
+  | "image"
+  | "spreadsheet"
+  | "document"
+  | "presentation"
+  | "binary"
+  | "unknown";
 
 function get_file_type(path: string): WorkspaceFilePreviewKind {
   const ext = path.split(".").pop()?.toLowerCase() || "";
@@ -45,6 +71,9 @@ function get_file_type(path: string): WorkspaceFilePreviewKind {
   ]);
   if (ext === "pdf") return "pdf";
   if (imageExtensions.has(ext)) return "image";
+  if (ext === "xlsx") return "spreadsheet";
+  if (ext === "docx") return "document";
+  if (ext === "pptx") return "presentation";
   if (ext === "md" || ext === "markdown") return "markdown";
   if (ext === "html" || ext === "htm") return "html";
   if (ext === "mmd" || ext === "mermaid") return "mermaid";
@@ -62,144 +91,6 @@ interface EditorPanelProps {
   is_preview_focused?: boolean;
   on_resize_start: () => void;
   on_toggle_preview_focus?: () => void;
-}
-
-function EditorPanelHeader({
-  actions,
-  embedded,
-  meta,
-  title,
-}: {
-  actions: ReactNode;
-  embedded?: boolean;
-  meta?: ReactNode;
-  title: string;
-}) {
-  if (embedded) {
-    return (
-      <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <p
-            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
-            title={title}
-          >
-            {title}
-          </p>
-          <div className="flex shrink-0 items-center gap-2 self-start">
-            {actions}
-          </div>
-        </div>
-        {meta ? (
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-            {meta}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-14 min-w-0 items-center justify-between overflow-hidden border-b divider-subtle px-4">
-      <div className="min-w-0 flex-1 overflow-hidden pr-3">
-        <p
-          className="w-full truncate text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
-          title={title}
-        >
-          {title}
-        </p>
-        {meta ? (
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-[10px] text-muted-foreground">
-            {meta}
-          </div>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {actions}
-      </div>
-    </div>
-  );
-}
-
-function WorkspaceFileDownloadButton({
-  agent_id,
-  path,
-  file_name,
-  label = "下载",
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  label?: string;
-}) {
-  const download_url = get_workspace_file_download_url(agent_id, path);
-
-  return (
-    <a
-      aria-label={`下载 ${file_name}`}
-      className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
-      download={file_name}
-      href={download_url}
-      rel="noopener noreferrer"
-      target="_blank"
-    >
-      <Download className="h-3.5 w-3.5" />
-      <span>{label}</span>
-    </a>
-  );
-}
-
-const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
-  "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",
-  "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
-  "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
-  "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:border-(--divider-subtle-color) disabled:hover:bg-(--surface-panel-background) disabled:hover:text-(--text-default)",
-);
-
-function WorkspaceFileToolbarButton({
-  children,
-  disabled = false,
-  on_click,
-  title,
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  on_click: () => void;
-  title?: string;
-}) {
-  return (
-    <button
-      className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
-      disabled={disabled}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={on_click}
-      title={title}
-      type="button"
-    >
-      {children}
-    </button>
-  );
-}
-
-function WorkspaceFilePreviewFocusButton({
-  is_preview_focused = false,
-  on_toggle_preview_focus,
-}: {
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-}) {
-  if (!on_toggle_preview_focus) {
-    return null;
-  }
-
-  return (
-    <WorkspaceFileToolbarButton
-      on_click={on_toggle_preview_focus}
-      title={is_preview_focused ? "还原文件树" : "聚焦预览"}
-    >
-      {is_preview_focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-      <span>{is_preview_focused ? "还原" : "放大"}</span>
-    </WorkspaceFileToolbarButton>
-  );
 }
 
 function workspace_file_kind_label(file_type: WorkspaceFilePreviewKind): string {
@@ -518,7 +409,7 @@ function PdfPreview({
         />
       ) : null}
 
-      <EditorPanelHeader
+      <WorkspaceFilePreviewHeader
         actions={(
           <>
             <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
@@ -595,7 +486,7 @@ function ImagePreview({
         />
       ) : null}
 
-      <EditorPanelHeader
+      <WorkspaceFilePreviewHeader
         actions={(
           <>
             <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
@@ -672,7 +563,7 @@ function BinaryFilePlaceholder({
 }) {
   return (
     <>
-      <EditorPanelHeader
+      <WorkspaceFilePreviewHeader
         actions={(
           <>
             <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
@@ -699,8 +590,197 @@ function BinaryFilePlaceholder({
           </div>
           <p className="text-sm font-medium text-(--text-strong)">不支持预览此文件</p>
           <p className="mt-2 text-xs leading-5 text-(--text-soft)">
-            当前预览仅支持文本、PDF 和图片文件。您可以点击上方"下载"按钮来获取此文件。
+            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"下载"按钮来获取此文件。
           </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SpreadsheetPreviewFallback({
+  agent_id,
+  path,
+  file_name,
+  is_preview_focused,
+  on_toggle_preview_focus,
+  on_resize_start,
+  embedded,
+}: {
+  agent_id: string;
+  path: string;
+  file_name: string;
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
+  on_resize_start: () => void;
+  embedded?: boolean;
+}) {
+  return (
+    <>
+      {!embedded ? (
+        <ConversationResizeHandle
+          aria_label="调整编辑器宽度"
+          class_name="flex"
+          on_mouse_down={on_resize_start}
+        />
+      ) : null}
+
+      <WorkspaceFilePreviewHeader
+        actions={(
+          <>
+            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFilePreviewFocusButton
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
+            />
+          </>
+        )}
+        embedded={embedded}
+        meta={(
+          <>
+            <span className="flex items-center gap-1">
+              <FileSpreadsheet className="h-3 w-3" />
+              xlsx 预览
+            </span>
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载预览组件中
+            </span>
+          </>
+        )}
+        title={file_name}
+      />
+
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
+        <div className="max-w-xs">
+          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm font-medium text-(--text-strong)">正在加载 xlsx 预览组件</p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DocumentPreviewFallback({
+  agent_id,
+  path,
+  file_name,
+  is_preview_focused,
+  on_toggle_preview_focus,
+  on_resize_start,
+  embedded,
+}: {
+  agent_id: string;
+  path: string;
+  file_name: string;
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
+  on_resize_start: () => void;
+  embedded?: boolean;
+}) {
+  return (
+    <>
+      {!embedded ? (
+        <ConversationResizeHandle
+          aria_label="调整编辑器宽度"
+          class_name="flex"
+          on_mouse_down={on_resize_start}
+        />
+      ) : null}
+
+      <WorkspaceFilePreviewHeader
+        actions={(
+          <>
+            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFilePreviewFocusButton
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
+            />
+          </>
+        )}
+        embedded={embedded}
+        meta={(
+          <>
+            <span className="flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              docx 预览
+            </span>
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载预览组件中
+            </span>
+          </>
+        )}
+        title={file_name}
+      />
+
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
+        <div className="max-w-xs">
+          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm font-medium text-(--text-strong)">正在加载 docx 预览组件</p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PresentationPreviewFallback({
+  agent_id,
+  path,
+  file_name,
+  is_preview_focused,
+  on_toggle_preview_focus,
+  on_resize_start,
+  embedded,
+}: {
+  agent_id: string;
+  path: string;
+  file_name: string;
+  is_preview_focused?: boolean;
+  on_toggle_preview_focus?: () => void;
+  on_resize_start: () => void;
+  embedded?: boolean;
+}) {
+  return (
+    <>
+      {!embedded ? (
+        <ConversationResizeHandle
+          aria_label="调整编辑器宽度"
+          class_name="flex"
+          on_mouse_down={on_resize_start}
+        />
+      ) : null}
+
+      <WorkspaceFilePreviewHeader
+        actions={(
+          <>
+            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFilePreviewFocusButton
+              is_preview_focused={is_preview_focused}
+              on_toggle_preview_focus={on_toggle_preview_focus}
+            />
+          </>
+        )}
+        embedded={embedded}
+        meta={(
+          <>
+            <span className="flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              pptx 预览
+            </span>
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载预览组件中
+            </span>
+          </>
+        )}
+        title={file_name}
+      />
+
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
+        <div className="max-w-xs">
+          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm font-medium text-(--text-strong)">正在加载 pptx 预览组件</p>
         </div>
       </div>
     </>
@@ -733,8 +813,11 @@ export function EditorPanel({
   const file_type = path ? get_file_type(path) : "unknown";
   const is_pdf = file_type === "pdf";
   const is_image = file_type === "image";
+  const is_spreadsheet = file_type === "spreadsheet";
+  const is_document = file_type === "document";
+  const is_presentation = file_type === "presentation";
   const is_text = file_type === "text" || file_type === "markdown" || file_type === "html" || file_type === "mermaid";
-  const is_binary = !is_text && !is_pdf && !is_image && file_type !== "unknown";
+  const is_binary = !is_text && !is_pdf && !is_image && !is_spreadsheet && !is_document && !is_presentation && file_type !== "unknown";
   const file_name = path ? path.split("/").at(-1) || "" : "";
 
   const live_state = path ? file_states[`${agent_id}:${path}`] : undefined;
@@ -899,6 +982,78 @@ export function EditorPanel({
               on_resize_start={on_resize_start}
               embedded={embedded}
             />
+          ) : is_spreadsheet ? (
+            <Suspense
+              fallback={(
+                <SpreadsheetPreviewFallback
+                  agent_id={agent_id}
+                  path={path}
+                  file_name={file_name}
+                  is_preview_focused={is_preview_focused}
+                  on_toggle_preview_focus={on_toggle_preview_focus}
+                  on_resize_start={on_resize_start}
+                  embedded={embedded}
+                />
+              )}
+            >
+              <SpreadsheetFilePreview
+                agent_id={agent_id}
+                path={path}
+                file_name={file_name}
+                is_preview_focused={is_preview_focused}
+                on_toggle_preview_focus={on_toggle_preview_focus}
+                on_resize_start={on_resize_start}
+                embedded={embedded}
+              />
+            </Suspense>
+          ) : is_document ? (
+            <Suspense
+              fallback={(
+                <DocumentPreviewFallback
+                  agent_id={agent_id}
+                  path={path}
+                  file_name={file_name}
+                  is_preview_focused={is_preview_focused}
+                  on_toggle_preview_focus={on_toggle_preview_focus}
+                  on_resize_start={on_resize_start}
+                  embedded={embedded}
+                />
+              )}
+            >
+              <DocumentFilePreview
+                agent_id={agent_id}
+                path={path}
+                file_name={file_name}
+                is_preview_focused={is_preview_focused}
+                on_toggle_preview_focus={on_toggle_preview_focus}
+                on_resize_start={on_resize_start}
+                embedded={embedded}
+              />
+            </Suspense>
+          ) : is_presentation ? (
+            <Suspense
+              fallback={(
+                <PresentationPreviewFallback
+                  agent_id={agent_id}
+                  path={path}
+                  file_name={file_name}
+                  is_preview_focused={is_preview_focused}
+                  on_toggle_preview_focus={on_toggle_preview_focus}
+                  on_resize_start={on_resize_start}
+                  embedded={embedded}
+                />
+              )}
+            >
+              <PresentationFilePreview
+                agent_id={agent_id}
+                path={path}
+                file_name={file_name}
+                is_preview_focused={is_preview_focused}
+                on_toggle_preview_focus={on_toggle_preview_focus}
+                on_resize_start={on_resize_start}
+                embedded={embedded}
+              />
+            </Suspense>
           ) : is_binary ? (
             <BinaryFilePlaceholder
               agent_id={agent_id}
@@ -919,7 +1074,7 @@ export function EditorPanel({
                 />
               ) : null}
 
-              <EditorPanelHeader
+              <WorkspaceFilePreviewHeader
                 actions={(
                   <>
                     <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />

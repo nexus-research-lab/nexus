@@ -140,7 +140,8 @@ function read_volatile_conversation_snapshot(
         : [],
       updated_at: typeof parsed.updated_at === "number" ? parsed.updated_at : 0,
     };
-  } catch {
+  } catch (err) {
+    console.debug("[conversation] Failed to parse snapshot from sessionStorage:", err);
     return null;
   }
 }
@@ -154,13 +155,26 @@ function write_volatile_conversation_snapshot(
     return;
   }
 
+  // 保留最近 200 条消息以防止序列化负载过大。
+  const capped: VolatileConversationSnapshot =
+    snapshot.messages.length > 200
+      ? { ...snapshot, messages: snapshot.messages.slice(-200) }
+      : snapshot;
+
   try {
     storage.setItem(
       build_volatile_conversation_storage_key(session_key),
-      JSON.stringify(snapshot),
+      JSON.stringify(capped),
     );
-  } catch {
-    // sessionStorage 满了时直接忽略，不阻断会话流程
+  } catch (err) {
+    const is_quota =
+      err instanceof DOMException &&
+      (err.code === 22 || err.name === "QuotaExceededError");
+    if (is_quota) {
+      console.warn("[conversation] sessionStorage quota exceeded, snapshot not persisted");
+    } else {
+      console.warn("[conversation] sessionStorage write failed:", err);
+    }
   }
 }
 

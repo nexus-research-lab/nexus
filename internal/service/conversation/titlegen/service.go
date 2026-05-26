@@ -36,6 +36,7 @@ var (
 type Request struct {
 	SessionKey               string
 	Provider                 string
+	Model                    string
 	Content                  string
 	SessionTitle             string
 	SessionMessageCount      int
@@ -47,7 +48,7 @@ type Request struct {
 }
 
 type providerResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*clientopts.RuntimeConfig, error)
+	ResolveRuntimeConfig(context.Context, string, string) (*clientopts.RuntimeConfig, error)
 }
 
 type sessionService interface {
@@ -230,7 +231,7 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 		return
 	}
 
-	title, err := s.generateTitle(ctx, request.Provider, request.Content)
+	title, err := s.generateTitle(ctx, request.Provider, request.Model, request.Content)
 	if err != nil {
 		s.logger.Warn("生成会话标题失败",
 			"session_key", request.SessionKey,
@@ -284,9 +285,10 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 func (s *Service) generateTitle(
 	ctx context.Context,
 	provider string,
+	model string,
 	content string,
 ) (string, error) {
-	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, provider)
+	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, provider, model)
 	if err != nil {
 		return "", err
 	}

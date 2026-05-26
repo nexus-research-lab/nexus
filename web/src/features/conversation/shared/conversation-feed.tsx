@@ -28,6 +28,7 @@ interface ConversationFeedProps {
   live_round_ids: string[];
   is_mobile_layout: boolean;
   message_groups: Map<string, Message[]>;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
@@ -92,11 +93,11 @@ export const ConversationFeed = memo(function ConversationFeed({
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
-  is_loading,
   runtime_phase,
   live_round_ids,
   is_mobile_layout,
   message_groups,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
@@ -120,11 +121,11 @@ export const ConversationFeed = memo(function ConversationFeed({
         agent_name_map={agent_name_map}
         agent_avatar_map={agent_avatar_map}
         is_last_round_pending_permissions={is_last_round_pending_permissions}
-        is_loading={is_loading}
         runtime_phase={runtime_phase}
         live_round_ids={live_round_ids}
         is_mobile_layout={is_mobile_layout}
         message_groups={message_groups}
+        on_open_agent_contact={on_open_agent_contact}
         on_open_workspace_file={on_open_workspace_file}
         on_permission_response={on_permission_response}
         can_respond_to_permissions={can_respond_to_permissions}
@@ -166,6 +167,7 @@ export const ConversationFeed = memo(function ConversationFeed({
             on_permission_response={on_permission_response}
             can_respond_to_permissions={can_respond_to_permissions}
             permission_read_only_reason={permission_read_only_reason}
+            on_open_agent_contact={on_open_agent_contact}
             on_open_workspace_file={on_open_workspace_file}
             on_stop_message={on_stop_message}
           />
@@ -190,18 +192,18 @@ function VirtualFeed({
   agent_name_map,
   agent_avatar_map,
   is_last_round_pending_permissions,
-  is_loading,
   runtime_phase,
   live_round_ids,
   is_mobile_layout,
   message_groups,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
   permission_read_only_reason,
   on_stop_message,
   round_ids,
-}: Omit<ConversationFeedProps, "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
+}: Omit<ConversationFeedProps, "is_loading" | "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
   const container_ref = useRef<HTMLDivElement>(null);
 
   // Measure scroll container width for pretext height estimation
@@ -286,6 +288,7 @@ function VirtualFeed({
                 on_permission_response={on_permission_response}
                 can_respond_to_permissions={can_respond_to_permissions}
                 permission_read_only_reason={permission_read_only_reason}
+                on_open_agent_contact={on_open_agent_contact}
                 on_open_workspace_file={on_open_workspace_file}
                 on_stop_message={on_stop_message}
               />

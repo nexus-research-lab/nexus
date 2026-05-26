@@ -7,14 +7,18 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
-import { Plus, X as XIcon, User } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Plus, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
+import { UiIconButton } from "@/shared/ui/button";
+import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
-import { AGENT_ICON_ID_END, AGENT_ICON_ID_START, get_icon_avatar_src } from "@/lib/utils";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { AGENT_ICON_ID_END, AGENT_ICON_ID_START } from "@/lib/utils";
 import { format_provider_label } from "@/types/capability/provider";
 
 interface AgentOptionsIdentityTabProps {
@@ -27,11 +31,14 @@ interface AgentOptionsIdentityTabProps {
   vibe_tags: string[];
   on_vibe_tags_change: (tags: string[]) => void;
   provider: AgentProvider;
+  model: string;
   default_provider: AgentProvider;
+  default_model: string;
   provider_options: ProviderOption[];
   provider_options_error: string | null;
   provider_options_loading: boolean;
   on_provider_change: (value: AgentProvider) => void;
+  on_model_change: (value: string) => void;
   name_validation: AgentNameValidationResult | null;
   is_validating_name: boolean;
   variant?: "dialog" | "inline";
@@ -48,22 +55,61 @@ export function AgentOptionsIdentityTab({
   vibe_tags,
   on_vibe_tags_change,
   provider,
+  model,
   default_provider,
+  default_model,
   provider_options,
   provider_options_error,
   provider_options_loading,
   on_provider_change,
+  on_model_change,
   name_validation,
   is_validating_name,
   variant = "dialog",
 }: AgentOptionsIdentityTabProps) {
   const { t } = useI18n();
   const [tagInput, setTagInput] = useState("");
-  const defaultProviderOptionLabel = default_provider
+  const defaultModelOptionLabel = default_provider && default_model
     ? t("agent_options.identity.follow_default_provider_named", {
-      name: format_provider_label(default_provider),
+      name: `${format_provider_label(default_provider)} / ${default_model}`,
     })
     : t("agent_options.identity.follow_default_provider");
+  const selected_model_value = provider.trim() && model.trim()
+    ? JSON.stringify([provider.trim(), model.trim()])
+    : "";
+  const model_select_options = useMemo(() => [
+    { value: "", label: defaultModelOptionLabel },
+    ...provider_options.flatMap((provider_option) => provider_option.models.map((model_option) => {
+      const provider_label = provider_option.display_name || format_provider_label(provider_option.provider);
+      const model_label = model_option.display_name || model_option.model_id;
+      return {
+        value: JSON.stringify([provider_option.provider, model_option.model_id]),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })),
+  ], [defaultModelOptionLabel, provider_options]);
+
+  const handle_model_select_change = useCallback((value: string) => {
+    if (!value) {
+      on_provider_change("");
+      on_model_change("");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed) || parsed.length !== 2) {
+        return;
+      }
+      const [next_provider, next_model] = parsed;
+      if (typeof next_provider !== "string" || typeof next_model !== "string") {
+        return;
+      }
+      on_provider_change(next_provider.trim());
+      on_model_change(next_model.trim());
+    } catch {
+      return;
+    }
+  }, [on_model_change, on_provider_change]);
 
   /** 添加标签 */
   const handleAddTag = useCallback(() => {
@@ -115,7 +161,7 @@ export function AgentOptionsIdentityTab({
 
   const render_vibe_tags_row = (
     input_class_name: string,
-    button_class_name: string,
+    add_button_size: "sm" | "md",
     gap_class_name: string
   ) => (
     <div className="soft-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden pb-1">
@@ -123,35 +169,41 @@ export function AgentOptionsIdentityTab({
         <span
           key={tag}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/18 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary"
+            "inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-primary"
           )}
         >
           {tag}
-          <button
-            type="button"
+          <UiIconButton
+            aria-label={`移除 ${tag}`}
+            class_name="ml-0.5 h-5 w-5 rounded-full"
             onClick={() => handleRemoveTag(tag)}
-            className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-primary/20"
+            size="xs"
+            type="button"
+            variant="ghost"
           >
             <XIcon className="h-3 w-3" />
-          </button>
+          </UiIconButton>
         </span>
       ))}
       <div className={cn("flex shrink-0 items-center", gap_class_name)}>
-        <input
-          type="text"
-          value={tagInput}
+        <UiInput
+          class_name={input_class_name}
+          control_size={add_button_size === "md" ? "sm" : "xs"}
           onChange={(e) => setTagInput(e.target.value)}
           onKeyDown={handleTagKeyDown}
-          className={input_class_name}
           placeholder={t("agent_options.identity.add_tag")}
+          type="text"
+          value={tagInput}
         />
-        <button
-          type="button"
+        <UiIconButton
+          aria-label={t("agent_options.identity.add_tag")}
+          size={add_button_size}
           onClick={handleAddTag}
-          className={button_class_name}
+          type="button"
+          variant="ghost"
         >
           <Plus className="h-3.5 w-3.5" />
-        </button>
+        </UiIconButton>
       </div>
     </div>
   );
@@ -162,27 +214,23 @@ export function AgentOptionsIdentityTab({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1 space-y-3 xl:max-w-[480px]">
             <div className="flex items-end gap-2.5">
-              <div className="flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-[12px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-                {get_icon_avatar_src(avatar) ? (
-                  <img
-                    alt={t("agent_options.identity.avatar_alt")}
-                    className="h-full w-full object-cover"
-                    src={get_icon_avatar_src(avatar) ?? undefined}
-                  />
-                ) : (
-                  <User className="h-6 w-6 text-primary" />
-                )}
-              </div>
+              <UiAgentAvatar
+                avatar={avatar}
+                class_name="h-13 w-13 rounded-[12px]"
+                name={title || t("agent_options.identity.avatar_alt")}
+                shape="rounded"
+              />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                   {t("agent_options.identity.name")} <span className="text-red-500">*</span>
                 </label>
-                <input
+                <UiInput
+                  class_name="rounded-xl"
+                  control_size="md"
+                  onChange={(e) => on_title_change(e.target.value)}
+                  placeholder={t("agent_options.identity.name_placeholder")}
                   type="text"
                   value={title}
-                  onChange={(e) => on_title_change(e.target.value)}
-                  className="dialog-input rounded-xl flex h-9 w-full px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                  placeholder={t("agent_options.identity.name_placeholder")}
                 />
               </div>
             </div>
@@ -207,48 +255,25 @@ export function AgentOptionsIdentityTab({
                 {t("agent_options.identity.vibe_tags")}
               </label>
               {render_vibe_tags_row(
-                "dialog-input rounded-full h-8 w-[112px] px-3 text-[13px] text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none transition-all",
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                "w-[112px] rounded-full",
+                "md",
                 "gap-2"
               )}
             </div>
 
             <div className="space-y-2.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
-                {t("agent_options.identity.provider")}
+                {t("agent_options.identity.model")}
               </label>
-              <div className="relative">
-                <select
-                  value={provider}
-                  onChange={(e) => on_provider_change(e.target.value as AgentProvider)}
-                  className="dialog-input rounded-xl flex h-9 w-full appearance-none px-3 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                  disabled={provider_options_loading && provider_options.length === 0}
-                >
-                  <option value="">{defaultProviderOptionLabel}</option>
-                  {provider_options.map((item) => (
-                    <option key={item.provider} value={item.provider}>
-                      {item.display_name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  <svg
-                    width="10"
-                    height="6"
-                    viewBox="0 0 10 6"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M1 1L5 5L9 1"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              </div>
+              <UiSelectMenu
+                aria_label={t("agent_options.identity.model")}
+                disabled={provider_options_loading && provider_options.length === 0}
+                on_change={handle_model_select_change}
+                options={model_select_options}
+                size="sm"
+                surface="dialog"
+                value={selected_model_value}
+              />
               {provider_options_error ? (
                 <p className="text-xs text-rose-500">{provider_options_error}</p>
               ) : null}
@@ -258,12 +283,12 @@ export function AgentOptionsIdentityTab({
 
         <div className="space-y-2">
           <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.description")}</label>
-          <textarea
-            value={description}
+          <UiTextarea
+            class_name="min-h-[72px] rounded-2xl"
             onChange={(e) => on_description_change(e.target.value)}
-            className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-            rows={3}
             placeholder={t("agent_options.identity.description_placeholder")}
+            rows={3}
+            value={description}
           />
         </div>
       </div>
@@ -275,27 +300,24 @@ export function AgentOptionsIdentityTab({
       <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] gap-5">
         <div className="space-y-3">
           <div className="flex items-end gap-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)">
-              {get_icon_avatar_src(avatar) ? (
-                <img
-                  alt={t("agent_options.identity.avatar_alt")}
-                  className="h-full w-full object-cover"
-                  src={get_icon_avatar_src(avatar) ?? undefined}
-                />
-              ) : (
-                <User className="h-7 w-7 text-primary" />
-              )}
-            </div>
+            <UiAgentAvatar
+              avatar={avatar}
+              class_name="h-14 w-14 rounded-[14px]"
+              name={title || t("agent_options.identity.avatar_alt")}
+              shape="rounded"
+              size="lg"
+            />
             <div className="min-w-0 flex-1 space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                 {t("agent_options.identity.name")} <span className="text-red-500">*</span>
               </label>
-              <input
+              <UiInput
+                class_name="h-10 rounded-xl"
+                control_size="md"
+                onChange={(e) => on_title_change(e.target.value)}
+                placeholder={t("agent_options.identity.name_placeholder")}
                 type="text"
                 value={title}
-                onChange={(e) => on_title_change(e.target.value)}
-                className="dialog-input rounded-xl flex h-10 w-full px-3.5 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                placeholder={t("agent_options.identity.name_placeholder")}
               />
             </div>
           </div>
@@ -317,10 +339,10 @@ export function AgentOptionsIdentityTab({
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.vibe_tags")}</label>
-            <div className="rounded-[18px] border border-(--divider-subtle-color) px-3.5 py-3">
+            <div className="rounded-[12px] border border-transparent px-0 py-0">
               {render_vibe_tags_row(
-                "dialog-input rounded-lg h-7 w-[108px] px-2 text-xs text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none transition-all",
-                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                "w-[108px] rounded-lg",
+                "sm",
                 "gap-1"
               )}
             </div>
@@ -328,40 +350,16 @@ export function AgentOptionsIdentityTab({
 
           <div className="space-y-2">
             <label className="text-[11px] font-semibold text-(--text-muted)">
-              {t("agent_options.identity.provider")}
+              {t("agent_options.identity.model")}
             </label>
-            <div className="relative">
-              <select
-                value={provider}
-                onChange={(e) => on_provider_change(e.target.value as AgentProvider)}
-                className="dialog-input rounded-xl flex h-10 w-full appearance-none px-3.5 py-2 text-sm text-(--text-strong) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-                disabled={provider_options_loading && provider_options.length === 0}
-              >
-                <option value="">{defaultProviderOptionLabel}</option>
-                {provider_options.map((item) => (
-                  <option key={item.provider} value={item.provider}>
-                    {item.display_name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <svg
-                  width="10"
-                  height="6"
-                  viewBox="0 0 10 6"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M1 1L5 5L9 1"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-            </div>
+            <UiSelectMenu
+              aria_label={t("agent_options.identity.model")}
+              disabled={provider_options_loading && provider_options.length === 0}
+              on_change={handle_model_select_change}
+              options={model_select_options}
+              surface="dialog"
+              value={selected_model_value}
+            />
             {provider_options_error ? (
               <p className="mt-2 text-xs text-rose-500">{provider_options_error}</p>
             ) : null}
@@ -371,12 +369,12 @@ export function AgentOptionsIdentityTab({
 
       <div className="space-y-2">
         <label className="text-[11px] font-semibold text-(--text-muted)">{t("agent_options.identity.description")}</label>
-        <textarea
-          value={description}
+        <UiTextarea
+          class_name="min-h-[72px] rounded-2xl"
           onChange={(e) => on_description_change(e.target.value)}
-          className="dialog-input rounded-2xl flex min-h-[72px] w-full resize-y px-3.5 py-2.5 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) transition-all"
-          rows={3}
           placeholder={t("agent_options.identity.description_placeholder")}
+          rows={3}
+          value={description}
         />
       </div>
     </div>

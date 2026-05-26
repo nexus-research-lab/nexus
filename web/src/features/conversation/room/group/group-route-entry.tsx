@@ -34,7 +34,7 @@ export function GroupRouteEntry({
 
   return (
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-      <section className="radius-shell-xl border border-(--divider-subtle-color) px-6 py-6">
+      <section className="surface-radius-xl border border-(--divider-subtle-color) px-6 py-6">
         <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-(--text-strong)">
           {room_agent ? room_agent.name : t("room.route_empty_title")}
         </h2>
@@ -60,7 +60,7 @@ export function GroupRouteEntry({
         </WorkspaceActionBar>
       </section>
 
-      <aside className="radius-shell-xl border border-(--divider-subtle-color) px-6 py-6">
+      <aside className="surface-radius-xl border border-(--divider-subtle-color) px-6 py-6">
         <div className="mt-4">
           <div className={METRIC_ROW_CLASS_NAME}>
             <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">Room</p>

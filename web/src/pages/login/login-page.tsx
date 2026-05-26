@@ -13,6 +13,9 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button";
+import { UiInput } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
 
 function resolve_redirect_path(raw_redirect: string | null): string {
   if (!raw_redirect || !raw_redirect.startsWith("/")) {
@@ -34,7 +37,7 @@ export function LoginPage() {
   );
   const { status, loading, is_bootstrapped, error, login, refresh_status } = useAuth();
   const handle_refresh = () => {
-    void refresh_status().catch(() => undefined);
+    void refresh_status().catch((err: unknown) => console.warn("[LoginPage] Auth refresh failed:", err));
   };
   const [username, set_username] = useState("");
   const [password, set_password] = useState("");
@@ -72,7 +75,7 @@ export function LoginPage() {
       <div className="pointer-events-none absolute left-[-12%] top-[8%] h-72 w-72 rounded-full bg-[rgba(var(--primary-rgb),0.08)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-10%] right-[-4%] h-80 w-80 rounded-full bg-[rgba(196,154,108,0.10)] blur-3xl" />
 
-      <section className="surface-panel radius-shell-xl relative w-full max-w-[430px] overflow-hidden border px-8 py-8 shadow-(--surface-popover-shadow)">
+      <section className="relative w-full max-w-[430px] overflow-hidden border-y border-(--divider-subtle-color) px-8 py-8">
         {/* <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,rgba(var(--primary-rgb),0.88),rgba(196,154,108,0.88))]" /> */}
 
         <div className="flex items-start justify-between gap-4">
@@ -81,33 +84,34 @@ export function LoginPage() {
               {t("login.title")}
             </h1>
           </div>
-          <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-black tracking-[-0.08em] text-(--text-strong)">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-lg font-black tracking-[-0.08em] text-(--text-strong)">
             N
           </div>
         </div>
 
         {error ? (
-          <div className="mt-4 rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
+          <div className="mt-4 rounded-[12px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
             {error}
           </div>
         ) : null}
 
         {show_disabled_state ? (
           <div className="mt-6 space-y-4">
-            <div className="rounded-[22px] border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) px-5 py-5">
+            <UiPanel padding="lg" radius="lg" variant="inset">
               <h2 className="text-md font-semibold text-(--text-strong)">{t("login.disabled_title")}</h2>
               <p className="mt-2 text-base leading-6 text-(--text-muted)">
                 {t("login.disabled_description")}
               </p>
-            </div>
+            </UiPanel>
 
-            <button
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-(--button-tonal-border) bg-(--button-tonal-background) px-5 text-base font-semibold text-(--button-tonal-color) transition hover:bg-(--button-tonal-hover-background) hover:text-(--button-tonal-hover-color)"
+            <UiButton
+              class_name="w-full rounded-full px-5 text-base"
               onClick={handle_refresh}
-              type="button"
+              size="lg"
+              variant="solid"
             >
               {t("login.refresh")}
-            </button>
+            </UiButton>
           </div>
         ) : (
           <form className="mt-6 space-y-4" onSubmit={handle_submit}>
@@ -115,12 +119,14 @@ export function LoginPage() {
               <span className="mb-2 block text-sm font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
                 {t("login.username")}
               </span>
-              <input
+              <UiInput
                 autoComplete="username"
-                className="input-shell min-h-12 w-full rounded-[18px] px-4 text-base text-(--text-strong) outline-none"
+                class_name="min-h-12 rounded-[12px] px-4 text-base"
+                control_size="lg"
                 onChange={(event) => set_username(event.target.value)}
                 placeholder={t("login.username_placeholder")}
                 type="text"
+                variant="surface"
                 value={username}
               />
             </label>
@@ -129,29 +135,34 @@ export function LoginPage() {
               <span className="mb-2 block text-sm font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
                 {t("login.password")}
               </span>
-              <input
+              <UiInput
                 autoComplete="current-password"
-                className="input-shell min-h-12 w-full rounded-[18px] px-4 text-base text-(--text-strong) outline-none"
+                class_name="min-h-12 rounded-[12px] px-4 text-base"
+                control_size="lg"
                 onChange={(event) => set_password(event.target.value)}
                 placeholder={t("login.password_placeholder")}
                 type="password"
+                variant="surface"
                 value={password}
               />
             </label>
 
             {submit_error ? (
-              <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
+              <div className="rounded-[12px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
                 {submit_error}
               </div>
             ) : null}
 
-            <button
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-(--button-primary-border) bg-(--button-primary-background) px-5 text-base font-semibold text-(--button-primary-color) transition hover:bg-(--button-primary-hover-background) disabled:cursor-not-allowed disabled:opacity-60"
+            <UiButton
+              class_name="min-h-12 w-full rounded-full px-5 text-base"
               disabled={is_submitting}
+              size="lg"
+              tone="primary"
               type="submit"
+              variant="solid"
             >
               {is_submitting ? t("login.submitting") : t("login.submit")}
-            </button>
+            </UiButton>
           </form>
         )}
       </section>

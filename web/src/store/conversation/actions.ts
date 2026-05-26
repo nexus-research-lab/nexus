@@ -40,7 +40,7 @@ export const sync_conversation_snapshot_action = (
   set: ConversationStoreSetter
 ) => (
   key: string,
-  patch: Partial<Pick<Conversation, 'message_count' | 'last_activity_at' | 'session_id'>>
+  patch: Partial<Pick<Conversation, 'last_activity_at' | 'session_id'>>
 ): void => {
   set((state) => {
     const idx = state.conversations.findIndex((c) => c.session_key === key);
@@ -48,11 +48,9 @@ export const sync_conversation_snapshot_action = (
 
     const current = state.conversations[idx];
     const next_last_activity_at = patch.last_activity_at ?? current.last_activity_at;
-    const next_message_count = patch.message_count ?? current.message_count;
     const next_session_id = patch.session_id ?? current.session_id;
     const has_changed =
       current.last_activity_at !== next_last_activity_at ||
-      current.message_count !== next_message_count ||
       current.session_id !== next_session_id;
 
     // 流式过程中会高频同步快照，同值更新必须直接短路，避免触发无意义重渲染。

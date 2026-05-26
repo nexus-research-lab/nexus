@@ -41,6 +41,17 @@ func Get(connectorID string) (Provider, error) {
 		if tokenURL := os.Getenv("NEXUS_CONNECTOR_INSTAGRAM_TOKEN_URL"); tokenURL != "" {
 			return NewInstagramProvider(defaultInstagramAuthURL, tokenURL), nil
 		}
+	case "feishu-docx":
+		authURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_AUTH_URL")
+		tokenURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL")
+		apiURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_API_BASE_URL")
+		if authURL != "" || tokenURL != "" || apiURL != "" {
+			return NewFeishuDocxProvider(
+				firstNonEmpty(authURL, defaultFeishuDocxAuthURL),
+				firstNonEmpty(tokenURL, defaultFeishuDocxTokenURL),
+				firstNonEmpty(apiURL, defaultFeishuDocxAPIURL),
+			), nil
+		}
 	}
 	p, ok := registry[connectorID]
 	if !ok {

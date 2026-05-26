@@ -20,19 +20,30 @@
 
 ---
 
-In Nexus, AI agents work like colleagues.
+## Overview
 
-They have names, their own workspaces, and remember where you left off. You can create a room, pull in a few agents, and watch them discuss, divide tasks, and organize results around a problem. Or you can work with just one agent in a focused conversation.
+Nexus is a multi-agent collaboration platform for enterprises, research teams, and developers. Agents can be named independently, own their own workspaces, and keep persistent memory, so task context and knowledge can continue across sessions. Rooms can organize multiple agents to discuss, divide work, and synthesize results around complex tasks, while DMs support focused work with a single agent.
+
+Compared with traditional single-agent AI office tools, Nexus provides:
+
+- Multi-agent collaboration: multiple agents can participate in the same task and produce results together
+- Persistent memory and knowledge accumulation: work output is retained in each Agent workspace and can continue across sessions
+- Proactive execution: agents can drive work forward through scheduled tasks, heartbeat tasks, and environment awareness
+- Flexible extensibility: Skills extend agent capabilities, and Connectors integrate external services such as GitHub and Gmail
+
+Nexus brings agent management, task collaboration, and external service connections into one unified platform for a modern AI collaboration ecosystem.
 
 ---
 
 ## Features
 
-- Agents have independent identities, workspaces, and skill configurations. Memory persists across sessions; work output accumulates over time
-- Rooms let multiple agents collaborate with you through @mentions, private actions, targeted replies, and multi-threaded workflows
-- Through heartbeat, scheduled tasks, and environment awareness, agents can proactively drive work forward instead of just responding
-- Skills extend capabilities; Connectors integrate external services (GitHub, Gmail, LinkedIn, X, Instagram, Shopify)
-- Supports web interface, Linux/Windows server deployment, and native macOS desktop app
+| **Category** | **Capabilities** | **Benefit** |
+|--------------|------------------|-------------|
+| **Agent Management** | Independent identity, workspace, skill configuration, and cross-session memory | Continuous workflows with less repeated context |
+| **Room Collaboration** | Multi-agent collaboration with @mentions, targeted replies, and multi-threaded progress | Clear division of work for team-style collaboration |
+| **Proactive Execution** | Heartbeats, scheduled tasks, and environment awareness | Agents can move work forward instead of only responding |
+| **Skills & Connectors** | Skill extensions and Connector integrations with external services | Extensible business logic and integration with existing systems |
+| **Deployment Flexibility** | Web UI, Docker/source server deployment, and native macOS/Windows desktop apps | Fits multiple platforms and deployment scenarios |
 
 ---
 
@@ -62,52 +73,39 @@ Or install with WinGet:
 winget install Anthropic.ClaudeCode
 ```
 
-After installation, run `claude` once and complete login. On native Windows, Git for Windows is recommended so Claude Code can use its Bash tool; without it, Claude Code falls back to PowerShell. See the [official Claude Code setup guide](https://code.claude.com/docs/en/getting-started) for the latest platform-specific instructions.
+### Desktop Apps
 
-### Run a Release Package
+- macOS: `Nexus-macos-<version>-<build>.dmg`
+- Windows: `NexusSetup-<version>-<build>.exe`
 
-```bash
-# Linux x86_64 example
-tar -xzf nexus-v0.1.8-linux-amd64.tar.gz
-cd nexus-v0.1.8-linux-amd64
+Verify the matching `.sha256` file before installing. Desktop app data is stored under `~/.nexus`.
 
-# Initialize database and create admin account
-./bin/nexus-migrate up
-printf '%s\n' 'your-password' | ./bin/nexusctl auth init-owner --username admin --password-stdin
+### Server Deployment
 
-# Start
-./run-nexus
-```
+#### Docker Deployment
 
-Open `http://localhost:8010` and sign in.
-
-Windows packages include `run-nexus.cmd`:
-
-```bat
-bin\nexus-migrate.exe up
-echo your-password| bin\nexusctl.exe auth init-owner --username admin --password-stdin
-run-nexus.cmd
-```
-
-macOS app packages are published in the same GitHub Release as `Nexus-macos-<version>-<build>.dmg`. The current app package is ad-hoc signed and not notarized; verify the sha256 file before installing, then use Finder right-click Open for trusted builds if macOS blocks the first launch.
-
-To upgrade a release package, open Settings in the Web UI and use the release download link. Download the matching package for your platform, stop Nexus, replace the extracted package directory, then run migration and start Nexus again.
-
-### Docker
+Docker Compose is recommended for server deployment:
 
 ```bash
-docker build -f deploy/Dockerfile -t nexus:latest .
-docker run -d \
-  -p 8010:8010 \
-  -v nexus-data:/home/agent/.nexus \
-  --name nexus \
-  nexus:latest
+cat > .env <<'EOF'
+AUTH_INIT_OWNER_PASSWORD=your-password
+HTTP_PORT=80
+HOST_DATA_DIR=./data
+EOF
+
+make start
 ```
 
-Create the admin account:
+Open `http://localhost`.
+
+#### Source Deployment
 
 ```bash
-printf '%s\n' 'your-password' | docker exec -i nexus nexusctl auth init-owner --username admin --password-stdin
+make install
+cd web && pnpm build && cd ..
+make db-init
+printf '%s\n' 'your-password' | go run ./cmd/nexusctl auth init-owner --username admin --password-stdin
+PORT=8010 go run ./cmd/nexus-server
 ```
 
 ### Local Development
@@ -117,9 +115,7 @@ make install
 make dev
 ```
 
-The backend starts at `http://localhost:8010`, the frontend dev server at `http://localhost:3000`. Both run independently with hot reload.
-
-Requirements: Go 1.26+, Node.js 22+, pnpm 9.15+, and Claude Code available as `claude`
+The backend starts at `http://localhost:8010`, the frontend dev server at `http://localhost:3000`.
 
 ---
 
@@ -134,18 +130,6 @@ Requirements: Go 1.26+, Node.js 22+, pnpm 9.15+, and Claude Code available as `c
 | **Skill** | A capability extension installed on an agent — built-in or custom |
 | **Connector** | Manages OAuth app configurations and external service account connections |
 | **Main Agent** | A reserved system agent responsible for default entry and platform-level orchestration |
-
----
-
-## Built-in Skills
-
-| Skill | Description |
-|-------|-------------|
-| `imagegen` | Generate images via an image-generation provider and save results to the workspace |
-| `nexus-manager` | Operate Nexus agents, rooms, sessions, and workspaces from an agent context |
-| `room-playbook` | Provide fixed rules and operation guides for room collaboration |
-| `scheduled-task-manager` | Manage scheduled tasks and heartbeat-style follow-up tasks |
-| `memory-manager` | Maintain project memory files through a structured workflow |
 
 ---
 

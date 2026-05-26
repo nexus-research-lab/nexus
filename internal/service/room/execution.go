@@ -33,6 +33,7 @@ func (s *RealtimeService) runRound(
 	agentNameByID map[string]string,
 	agentByID map[string]*protocol.Agent,
 ) {
+	ctx = contextWithQueueOwner(ctx, roundValue.OwnerUserID)
 	logger := s.loggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
@@ -170,6 +171,9 @@ func (s *RealtimeService) runSlot(
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
 	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
+	if roundValue.PermissionMode != "" {
+		permissionMode = roundValue.PermissionMode
+	}
 	slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
 	if !slot.GoalRuntimeIgnored {
 		appendSystemPrompt, slot.GoalContext, slot.GoalIDForUsage, slot.GoalSessionKey = s.resolveGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
@@ -181,18 +185,22 @@ func (s *RealtimeService) runSlot(
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
-			slot.RuntimeSessionKey,
+			roundValue.SessionKey,
 			"room",
 			roundValue.RoomID,
 			roomSourceContextLabel(roundValue),
 		)
 	}
-	permissionHandler := func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+	permissionHandler := roundValue.PermissionHandler
+	if permissionHandler == nil {
+		permissionHandler = func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+		}
 	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
 		Provider:           agentValue.Options.Provider,
+		Model:              agentValue.Options.Model,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
 		AllowedTools:       agentValue.Options.AllowedTools,

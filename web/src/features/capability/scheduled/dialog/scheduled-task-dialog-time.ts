@@ -9,7 +9,7 @@
 
 "use client";
 
-import { build_room_agent_session_key } from "@/lib/conversation/session-key";
+import { build_room_shared_session_key } from "@/lib/conversation/session-key";
 import type { RoomContextAggregate, RoomSessionSelection } from "@/types/conversation/room";
 
 import { type Weekday, WEEKDAY_OPTIONS } from "../pickers/picker-types";
@@ -219,12 +219,10 @@ export function build_room_session_selections(
       const label = room_type === "group"
         ? `${room_title} · ${agent_name}`
         : `${agent_name} · ${room_title}`;
+      const shared_session_key = build_room_shared_session_key(context.conversation.id);
       return {
-        session_key: build_room_agent_session_key(
-          context.conversation.id,
-          session.agent_id,
-          room_type === "dm" ? "dm" : "room",
-        ),
+        value: build_room_executor_selection_key(shared_session_key, session.agent_id),
+        session_key: shared_session_key,
         agent_id: session.agent_id,
         room_id: context.room.id,
         conversation_id: context.conversation.id,
@@ -235,4 +233,8 @@ export function build_room_session_selections(
       };
     });
   });
+}
+
+export function build_room_executor_selection_key(shared_session_key: string, agent_id: string): string {
+  return `${shared_session_key.trim()}::executor:${agent_id.trim()}`;
 }

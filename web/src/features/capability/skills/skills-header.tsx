@@ -5,13 +5,14 @@ import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
 
 import type { DiscoveryMode, SkillMarketplaceController } from "./skills-view-model";
 
-const DISCOVERY_OPTIONS: { key: DiscoveryMode; label: string }[] = [
-  { key: "catalog", label: "库内技能" },
-  { key: "external", label: "社区技能" },
+const DISCOVERY_OPTIONS: { key: DiscoveryMode; label_key: TranslationKey }[] = [
+  { key: "catalog", label_key: "capability.skills_tab_catalog" },
+  { key: "external", label_key: "capability.skills_tab_external" },
 ];
 
 interface SkillsHeaderProps {
@@ -27,8 +28,11 @@ export function SkillsHeader({ ctrl, on_replay_tour }: SkillsHeaderProps) {
       badge={t("capability.skills_badge", { count: ctrl.catalog_count })}
       density="compact"
       leading={<Puzzle className="h-4 w-4" />}
-      title={t("capability.skills_title")}
-      tabs={DISCOVERY_OPTIONS}
+      title={t("capability.skills")}
+      tabs={DISCOVERY_OPTIONS.map((item) => ({
+        key: item.key,
+        label: t(item.label_key),
+      }))}
       tabs_nav_anchor={SKILLS_TOUR_ANCHORS.modes}
       active_tab={ctrl.discovery_mode}
       on_change_tab={ctrl.set_discovery_mode}

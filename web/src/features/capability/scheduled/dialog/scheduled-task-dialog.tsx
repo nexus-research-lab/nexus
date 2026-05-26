@@ -9,17 +9,22 @@
 
 "use client";
 
-import { createPortal } from "react-dom";
-import { Pencil, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 
+import { UiButton } from "@/shared/ui/button";
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
-  get_dialog_action_class_name,
-} from "@/shared/ui/dialog/dialog-styles";
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
 
 import {
   EVERY_UNIT_OPTIONS,
+  EXECUTION_KIND_OPTIONS,
   EXECUTION_MODE_OPTIONS,
   REPLY_MODE_OPTIONS,
   SCHEDULE_OPTIONS,
@@ -58,49 +63,39 @@ export function ScheduledTaskDialog({
 
   if (!is_open) return null;
 
-  return createPortal(
-    <>
-      <div
-        aria-hidden="true"
-        className="dialog-backdrop z-[9998] animate-in fade-in duration-(--motion-duration-fast)"
-        onClick={on_close}
-      />
-      <div
-        data-modal-root="true"
-        aria-labelledby="create-task-dialog-title"
-        aria-modal="true"
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-6"
-        role="dialog"
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        class_name="z-[9999]"
+        labelled_by="create-task-dialog-title"
+        on_close={on_close}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <div className="dialog-shell radius-shell-lg w-full max-w-[1120px] animate-in zoom-in-95 duration-(--motion-duration-fast)">
-          <div className="dialog-header">
-            <div className="min-w-0 flex-1">
-              <h3 className="dialog-title" id="create-task-dialog-title">
-                {initial_task ? "编辑任务" : "新建任务"}
-              </h3>
-              <p className="dialog-subtitle">
-                {initial_task ? "修改调度、执行会话和结果回传方式。" : "先选目标对象，再决定执行会话和结果回传方式。"}
-              </p>
-            </div>
-            <button
-              aria-label="关闭"
-              className={DIALOG_ICON_BUTTON_CLASS_NAME}
-              onClick={on_close}
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+        <UiDialogShell class_name="max-h-[90vh] max-w-[1120px]" size="wide">
+          <UiDialogHeader
+            on_close={on_close}
+            subtitle={
+              initial_task
+                ? "修改调度、执行会话和结果回传方式。"
+                : "先选目标对象，再决定执行会话和结果回传方式。"
+            }
+            title={initial_task ? "编辑任务" : "新建任务"}
+            title_id="create-task-dialog-title"
+          />
 
-          <div className="dialog-body grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
+          <UiDialogBody
+            class_name="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start"
+            scrollable
+          >
             <TaskBasicsPanel
               agent_options={state.agent_options}
               agents_error={state.agents_error}
               agents_loading={state.agents_loading}
               dedicated_session_key={state.dedicated_session_key}
+              execution_kind={state.execution_kind}
+              execution_kind_options={EXECUTION_KIND_OPTIONS}
               execution_mode={state.execution_mode}
               execution_mode_options={EXECUTION_MODE_OPTIONS}
               name_ref={state.name_ref}
@@ -128,6 +123,7 @@ export function ScheduledTaskDialog({
               session_loading={state.target_type === "agent" ? state.agent_sessions_loading : state.room_contexts_loading}
               session_options={state.session_options}
               set_dedicated_session_key={state.set_dedicated_session_key}
+              set_execution_kind={state.set_execution_kind}
               set_execution_mode={state.set_execution_mode}
               set_reply_mode={state.set_reply_mode}
               set_selected_agent_id={state.set_selected_agent_id}
@@ -139,7 +135,7 @@ export function ScheduledTaskDialog({
               target_type={state.target_type}
               target_type_options={TARGET_TYPE_OPTIONS}
               task_name={state.task_name}
-              require_session_selection={state.execution_mode === "existing" || state.is_room_executor_selection_required()}
+              require_session_selection={state.execution_kind === "agent" && (state.execution_mode === "existing" || state.is_room_executor_selection_required())}
             />
 
             <TaskSchedulePanel
@@ -156,6 +152,8 @@ export function ScheduledTaskDialog({
               every_unit_options={EVERY_UNIT_OPTIONS}
               every_value={state.every_value}
               instruction={state.instruction}
+              instruction_label={state.execution_kind === "script" ? "脚本内容" : "任务指令"}
+              instruction_placeholder={state.execution_kind === "script" ? "输入要在目标工作区执行的 shell 脚本" : "输入 Agent 需要执行的指令"}
               is_daily_picker_open={state.is_daily_picker_open}
               is_single_picker_open={state.is_single_picker_open}
               is_single_date_disabled={state.is_single_date_disabled}
@@ -204,22 +202,25 @@ export function ScheduledTaskDialog({
               timezone={state.timezone}
               timezone_options={TIMEZONE_OPTIONS}
             />
-          </div>
+          </UiDialogBody>
 
-          <div className="dialog-footer">
-            <button
-              className={get_dialog_action_class_name("default")}
+          <UiDialogFooter>
+            <UiButton
+              class_name="min-w-[104px]"
               disabled={state.is_submitting}
               onClick={on_close}
               type="button"
+              variant="surface"
             >
               取消
-            </button>
-            <button
-              className={get_dialog_action_class_name("primary")}
+            </UiButton>
+            <UiButton
+              class_name="min-w-[124px]"
               disabled={state.is_submitting}
               onClick={() => void state.handle_submit()}
+              tone="primary"
               type="button"
+              variant="solid"
             >
               {state.is_submitting ? (initial_task ? "保存中" : "创建中") : (
                 <>
@@ -227,11 +228,10 @@ export function ScheduledTaskDialog({
                   {initial_task ? "保存修改" : "创建"}
                 </>
               )}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>,
-    document.body,
+            </UiButton>
+          </UiDialogFooter>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

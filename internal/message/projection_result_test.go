@@ -62,3 +62,25 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 		})
 	}
 }
+
+func TestBuildAssistantResultSummaryPreservesPermissionDenials(t *testing.T) {
+	summary := BuildAssistantResultSummary(protocol.Message{
+		"message_id": "result-1",
+		"role":       "result",
+		"subtype":    "success",
+		"result":     "无法完成搜索：WebSearch 未被允许",
+		"permission_denials": []map[string]any{{
+			"tool_name": "WebSearch",
+		}},
+		"errors": []string{"permission denied"},
+	}, "")
+
+	denials, ok := summary["permission_denials"].([]map[string]any)
+	if !ok || len(denials) != 1 || denials[0]["tool_name"] != "WebSearch" {
+		t.Fatalf("permission_denials 未进入 result_summary: %+v", summary)
+	}
+	errorsValue, ok := summary["errors"].([]string)
+	if !ok || len(errorsValue) != 1 || errorsValue[0] != "permission denied" {
+		t.Fatalf("errors 未进入 result_summary: %+v", summary)
+	}
+}

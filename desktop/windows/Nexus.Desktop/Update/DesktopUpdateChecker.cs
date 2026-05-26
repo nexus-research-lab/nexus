@@ -17,6 +17,8 @@ internal sealed class DesktopUpdateChecker
     private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(24);
     private static readonly TimeSpan MetadataRequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan DownloadRequestTimeout = TimeSpan.FromMinutes(10);
+    private const int ReleaseNotesMaxCharacters = 1800;
+    private const int ReleaseNotesMaxLines = 24;
     private static readonly Uri LatestReleaseUrl = new("https://api.github.com/repos/nexus-research-lab/nexus/releases/latest");
     private static readonly Uri FallbackReleasePageUrl = new("https://github.com/nexus-research-lab/nexus/releases/latest");
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -197,7 +199,6 @@ internal sealed class DesktopUpdateChecker
         GitHubReleaseAsset? metadataAsset = FindWindowsMetadataAsset(release.Assets);
         GitHubReleaseAsset? installerAsset = FindWindowsInstallerAsset(release.Assets);
         GitHubReleaseAsset? installerSha256Asset = FindWindowsInstallerSha256Asset(release.Assets, installerAsset);
-        GitHubReleaseAsset? zipAsset = FindWindowsZipAsset(release.Assets);
 
         if (metadataAsset?.BrowserDownloadUrl is not null)
         {
@@ -213,7 +214,7 @@ internal sealed class DesktopUpdateChecker
                     installerAsset?.BrowserDownloadUrl,
                     installerSha256Asset?.Name,
                     installerSha256Asset?.BrowserDownloadUrl,
-                    zipAsset?.BrowserDownloadUrl,
+                    release.Body,
                     release.PublishedAt,
                     release.Prerelease,
                     "github_release_metadata");
@@ -236,7 +237,7 @@ internal sealed class DesktopUpdateChecker
             installerAsset?.BrowserDownloadUrl,
             installerSha256Asset?.Name,
             installerSha256Asset?.BrowserDownloadUrl,
-            zipAsset?.BrowserDownloadUrl,
+            release.Body,
             release.PublishedAt,
             release.Prerelease,
             "github_release");
@@ -569,6 +570,14 @@ internal sealed class DesktopUpdateChecker
         }
 
         lines.Add(string.Empty);
+        string? releaseNotes = FormatReleaseNotes(latest.ReleaseNotes);
+        if (!string.IsNullOrWhiteSpace(releaseNotes))
+        {
+            lines.Add("更新内容：");
+            lines.Add(releaseNotes);
+            lines.Add(string.Empty);
+        }
+
         if (latest.CanDownloadInstaller)
         {
             lines.Add("选择“是”将下载安装器和 sha256 文件，校验通过后再询问是否启动安装。");
@@ -579,6 +588,41 @@ internal sealed class DesktopUpdateChecker
             lines.Add("当前 Release 缺少 Windows 安装器或 sha256 文件。选择“是”打开下载页手动处理。");
         }
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string? FormatReleaseNotes(string? rawNotes)
+    {
+        if (string.IsNullOrWhiteSpace(rawNotes))
+        {
+            return null;
+        }
+
+        string normalized = rawNotes
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        var lines = normalized
+            .Split('\n')
+            .Take(ReleaseNotesMaxLines + 1)
+            .ToList();
+        bool wasTruncated = normalized.Length > ReleaseNotesMaxCharacters || lines.Count > ReleaseNotesMaxLines;
+        string clipped = string.Join(Environment.NewLine, lines.Take(ReleaseNotesMaxLines)).Trim();
+        if (clipped.Length > ReleaseNotesMaxCharacters)
+        {
+            clipped = clipped[..ReleaseNotesMaxCharacters].TrimEnd();
+            wasTruncated = true;
+        }
+
+        if (wasTruncated)
+        {
+            clipped = $"{clipped}{Environment.NewLine}...{Environment.NewLine}完整更新内容请打开 Release 页面查看。";
+        }
+        return clipped;
     }
 
     private string InstallReadyMessage(DesktopReleaseInfo latest, DownloadedUpdate downloadedUpdate)
@@ -672,13 +716,6 @@ internal sealed class DesktopUpdateChecker
             return name.StartsWith("nexussetup-", StringComparison.Ordinal) && name.EndsWith(".exe.sha256", StringComparison.Ordinal);
         });
     }
-
-    private static GitHubReleaseAsset? FindWindowsZipAsset(IEnumerable<GitHubReleaseAsset> assets) =>
-        assets.FirstOrDefault(asset =>
-        {
-            string name = asset.Name.ToLowerInvariant();
-            return name.Contains("windows", StringComparison.Ordinal) && name.EndsWith(".zip", StringComparison.Ordinal);
-        });
 
     private static string ReadExpectedSha256(string sha256Path, string installerFileName)
     {
@@ -830,7 +867,7 @@ internal sealed record DesktopReleaseInfo(
     Uri? InstallerDownloadUrl,
     string? InstallerSha256FileName,
     Uri? InstallerSha256Url,
-    Uri? FallbackDownloadUrl,
+    string? ReleaseNotes,
     string? PublishedAt,
     bool IsPrerelease,
     string Source)
@@ -932,6 +969,8 @@ internal sealed class GitHubRelease
 
     [JsonPropertyName("html_url")]
     public Uri? HtmlUrl { get; set; }
+
+    public string? Body { get; set; }
 
     public bool Prerelease { get; set; }
 

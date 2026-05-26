@@ -1,6 +1,8 @@
 "use client";
 
-import { ReactNode } from "react";
+import { type ReactNode } from "react";
+
+import { UiBadge } from "@/shared/ui/badge";
 
 interface WorkspaceStatusBadgeProps {
   label: string;
@@ -16,13 +18,13 @@ export function WorkspaceStatusBadge({
   icon,
 }: WorkspaceStatusBadgeProps) {
   return (
-    <span
-      className="status-badge"
-      data-size={size}
-      data-tone={tone}
+    <UiBadge
+      icon={icon}
+      show_dot={!icon}
+      size={size === "compact" ? "xs" : "sm"}
+      tone={tone}
     >
-      {icon ?? <span className="h-2 w-2 rounded-full bg-current" />}
       {label}
-    </span>
+    </UiBadge>
   );
 }

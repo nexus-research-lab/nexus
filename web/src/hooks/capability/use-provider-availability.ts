@@ -20,7 +20,7 @@ async function fetch_availability(): Promise<void> {
   in_flight = (async () => {
     try {
       const response = await list_provider_options_api();
-      const next_value = (response?.items?.length ?? 0) > 0;
+      const next_value = (response?.items ?? []).some((provider) => (provider.models?.length ?? 0) > 0);
       cached_has_provider = next_value;
       subscribers.forEach((subscriber) => subscriber(next_value));
     } catch (error) {

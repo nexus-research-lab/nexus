@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -309,6 +310,138 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	}
 }
 
+func TestRouterDeliverTextPersistsSharedRoomDelivery(t *testing.T) {
+	workspacePath := t.TempDir()
+	t.Setenv("NEXUS_CONFIG_DIR", t.TempDir())
+	db := newChannelTestDB(t)
+	permission := permissionctx.NewContext()
+	resolver := &stubAgentResolver{
+		agentByID: map[string]*protocol.Agent{
+			"agent-1": {
+				AgentID:       "agent-1",
+				WorkspacePath: workspacePath,
+			},
+		},
+	}
+	router := NewRouter(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		resolver,
+		permission,
+	)
+
+	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
+	sender := &stubPermissionSender{key: "room-sender-1"}
+	permission.BindSession(sessionKey, sender, "client-1", true)
+
+	target, err := router.DeliverText(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeWebSocket,
+		To:      sessionKey,
+	})
+	if err != nil {
+		t.Fatalf("Room 共享投递失败: %v", err)
+	}
+	if target.Channel != ChannelTypeWebSocket || target.To != sessionKey || target.SessionKey != sessionKey {
+		t.Fatalf("解析后的投递目标不正确: %+v", target)
+	}
+
+	roomHistory := workspacestore.NewRoomHistoryStore(workspacePath)
+	messages, err := roomHistory.ReadMessages("conversation-1", nil)
+	if err != nil {
+		t.Fatalf("读取 Room 共享历史失败: %v", err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("期望写入 1 条 Room assistant 消息，实际 %d", len(messages))
+	}
+	if stringValue(messages[0]["role"]) != "assistant" {
+		t.Fatalf("Room 投递消息角色不正确: %+v", messages[0])
+	}
+	if stringValue(messages[0]["agent_id"]) != "agent-1" {
+		t.Fatalf("Room 投递消息缺少 agent 归属: %+v", messages[0])
+	}
+	if stringValue(messages[0]["conversation_id"]) != "conversation-1" {
+		t.Fatalf("Room 投递消息 conversation_id 不正确: %+v", messages[0])
+	}
+	if extractAssistantText(messages[0]) != "今日新闻摘要" {
+		t.Fatalf("Room assistant 正文不正确: %+v", messages[0])
+	}
+
+	events := sender.Events()
+	if len(events) != 1 {
+		t.Fatalf("期望广播 1 条 Room durable message，实际 %d", len(events))
+	}
+	if events[0].EventType != protocol.EventTypeMessage ||
+		events[0].SessionKey != sessionKey ||
+		events[0].ConversationID != "conversation-1" ||
+		events[0].AgentID != "agent-1" {
+		t.Fatalf("Room 广播事件不正确: %+v", events[0])
+	}
+}
+
+func TestRouterDeliverTextCreatesInternalAutomationInbox(t *testing.T) {
+	workspacePath := t.TempDir()
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{
+		agentByID: map[string]*protocol.Agent{
+			"agent-1": {
+				AgentID:       "agent-1",
+				WorkspacePath: workspacePath,
+			},
+		},
+	}
+	router := NewRouter(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		db,
+		resolver,
+		nil,
+	)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	store := workspacestore.NewSessionFileStore(workspacePath)
+	sessionKey := protocol.BuildAgentSessionKey(
+		"agent-1",
+		protocol.SessionChannelInternalSegment,
+		"dm",
+		protocol.AutomationInboxSessionRef,
+		"",
+	)
+	target, err := router.DeliverText(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeInternal,
+		To:      sessionKey,
+	})
+	if err != nil {
+		t.Fatalf("internal 投递失败: %v", err)
+	}
+	if target.Channel != ChannelTypeInternal || target.To != sessionKey || target.SessionKey != sessionKey {
+		t.Fatalf("解析后的投递目标不正确: %+v", target)
+	}
+
+	sessionValue, _, err := store.FindSession([]string{workspacePath}, sessionKey)
+	if err != nil {
+		t.Fatalf("读取自动创建 session 失败: %v", err)
+	}
+	if sessionValue == nil {
+		t.Fatal("internal 投递应自动创建定时任务收件箱 session")
+	}
+	if sessionValue.Title != "定时任务收件箱" || sessionValue.ChannelType != protocol.SessionChannelInternalSegment {
+		t.Fatalf("自动创建 session 元数据不正确: %+v", sessionValue)
+	}
+
+	history := workspacestore.NewAgentHistoryStore(workspacePath)
+	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
+	if err != nil {
+		t.Fatalf("读取消息失败: %v", err)
+	}
+	if len(messages) != 1 || extractAssistantText(messages[0]) != "今日新闻摘要" {
+		t.Fatalf("internal 投递历史不正确: %+v", messages)
+	}
+}
+
 func TestDiscordChannelSendDeliveryText(t *testing.T) {
 	requests := make([]*http.Request, 0)
 	channel := newDiscordChannel("token-1", &http.Client{
@@ -369,6 +502,72 @@ func TestTelegramChannelSendDeliveryText(t *testing.T) {
 	}
 	if !strings.HasSuffix(requests[0].URL.Path, "/bottoken-2/sendMessage") {
 		t.Fatalf("Telegram 路径不正确: %s", requests[0].URL.Path)
+	}
+}
+
+func TestFeishuChannelSendDeliveryText(t *testing.T) {
+	var tokenRequests int
+	var messagePayload map[string]string
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/open-apis/auth/v3/tenant_access_token/internal":
+			tokenRequests++
+			var payload map[string]string
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析 token 请求失败: %w", err)
+			}
+			if payload["app_id"] != "cli_test" || payload["app_secret"] != "secret_test" {
+				return nil, fmt.Errorf("token 请求凭据不正确: %+v", payload)
+			}
+			return jsonResponse(`{"code":0,"tenant_access_token":"tenant-token","expire":7200}`), nil
+		case "/open-apis/im/v1/messages":
+			if request.URL.Query().Get("receive_id_type") != "chat_id" {
+				return nil, fmt.Errorf("receive_id_type 不正确: %s", request.URL.RawQuery)
+			}
+			if request.Header.Get("Authorization") != "Bearer tenant-token" {
+				return nil, fmt.Errorf("Authorization 不正确: %s", request.Header.Get("Authorization"))
+			}
+			if err := json.NewDecoder(request.Body).Decode(&messagePayload); err != nil {
+				return nil, fmt.Errorf("解析消息请求失败: %w", err)
+			}
+			return jsonResponse(`{"code":0,"msg":"ok"}`), nil
+		default:
+			return nil, fmt.Errorf("未知飞书请求路径: %s", request.URL.Path)
+		}
+	})}
+
+	channel := newFeishuChannel("cli_test", "secret_test", client)
+	channel.baseURL = "https://feishu.test"
+	if err := channel.Start(context.Background()); err != nil {
+		t.Fatalf("飞书通道启动失败: %v", err)
+	}
+	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeFeishu,
+		To:      "oc_group_123",
+	}, "今日新闻摘要"); err != nil {
+		t.Fatalf("飞书发送失败: %v", err)
+	}
+	if tokenRequests != 1 {
+		t.Fatalf("token 请求次数不正确: %d", tokenRequests)
+	}
+	if messagePayload["receive_id"] != "oc_group_123" || messagePayload["msg_type"] != "text" {
+		t.Fatalf("飞书消息请求不正确: %+v", messagePayload)
+	}
+	var content map[string]string
+	if err := json.Unmarshal([]byte(messagePayload["content"]), &content); err != nil {
+		t.Fatalf("解析飞书消息 content 失败: %v", err)
+	}
+	if content["text"] != "今日新闻摘要" {
+		t.Fatalf("飞书消息正文不正确: %+v", content)
+	}
+}
+
+func jsonResponse(body string) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
 	}
 }
 

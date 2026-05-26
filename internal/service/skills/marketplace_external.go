@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -112,6 +113,9 @@ func (s *Service) ImportGit(ctx context.Context, repositoryURL string, branch st
 	if repositoryURL == "" {
 		return nil, errors.New("url 不能为空")
 	}
+	if parsed, parseErr := url.Parse(repositoryURL); parseErr != nil || !strings.EqualFold(parsed.Scheme, "https") {
+		return nil, errors.New("仅支持 https:// 协议的 Git 仓库地址")
+	}
 	tempDir, err := os.MkdirTemp("", "nexus-skill-git-*")
 	if err != nil {
 		return nil, err
@@ -130,7 +134,10 @@ func (s *Service) ImportGit(ctx context.Context, repositoryURL string, branch st
 	if err != nil {
 		return nil, err
 	}
-	commitOutput, _ := s.runCommand(ctx, tempDir, "git", "rev-parse", "HEAD")
+	commitOutput, revErr := s.runCommand(ctx, tempDir, "git", "rev-parse", "HEAD")
+	if revErr != nil {
+		slog.WarnContext(ctx, "git rev-parse HEAD 失败", "repository_url", repositoryURL, "err", revErr)
+	}
 	return s.importSourceDir(sourceDir, externalManifest{
 		SourceType: sourceTypeExternal,
 		SourceRef:  repositoryURL,

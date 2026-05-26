@@ -1,14 +1,18 @@
 "use client";
 
+import { UiChoiceButton } from "@/shared/ui/choice";
+import { UiCheckboxRow } from "@/shared/ui/checkbox-row";
+import { UiInput, UiTextarea } from "@/shared/ui/form-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { UiSegmentedControl } from "@/shared/ui/segmented-control";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiStateBlock } from "@/shared/ui/state-block";
+
 import { DailyTimePicker } from "../pickers/daily-time-picker";
 import { SingleRunPicker } from "../pickers/single-run-picker";
 import { WEEKDAY_OPTIONS } from "../pickers/picker-types";
 import type { EveryUnit } from "./scheduled-task-dialog-types";
 import {
-  COMPACT_SELECT_CLASS_NAME,
-  COMPACT_STEPPER_CLASS_NAME,
-  get_schedule_tab_class_name,
-  get_weekday_pill_class_name,
   type TaskSchedulePanelProps,
 } from "./task-schedule-panel-model";
 
@@ -27,6 +31,8 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
     every_unit_options,
     every_value,
     instruction,
+    instruction_label,
+    instruction_placeholder,
     is_daily_picker_open,
     is_single_picker_open,
     is_single_date_disabled,
@@ -74,18 +80,16 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
       <div className="dialog-field">
         <div className="flex items-center justify-between gap-4">
           <span className="dialog-label !mb-0">调度</span>
-          <div className="inline-flex shrink-0 items-center rounded-[14px] bg-(--surface-panel-subtle-background) p-1">
-            {schedule_options.map((opt) => (
-              <button
-                className={get_schedule_tab_class_name(schedule_kind === opt.key)}
-                key={opt.key}
-                onClick={() => set_schedule_kind(opt.key)}
-                type="button"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <UiSegmentedControl
+            class_name="shrink-0"
+            on_change={set_schedule_kind}
+            options={schedule_options.map((option) => ({
+              label: option.label,
+              value: option.key,
+            }))}
+            title="调度"
+            value={schedule_kind}
+          />
         </div>
       </div>
 
@@ -139,14 +143,16 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
               {WEEKDAY_OPTIONS.map((option) => {
                 const is_selected = selected_weekdays.includes(option.key);
                 return (
-                  <button
-                    className={get_weekday_pill_class_name(is_selected)}
+                  <UiChoiceButton
+                    active={is_selected}
+                    choice_size="md"
+                    class_name="min-w-9 px-3"
                     key={option.key}
                     onClick={() => on_toggle_weekday(option.key)}
-                    type="button"
+                    shape="pill"
                   >
                     {option.short_label}
-                  </button>
+                  </UiChoiceButton>
                 );
               })}
             </div>
@@ -158,11 +164,12 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
       ) : null}
 
       {schedule_kind === "every" ? (
-        <div className="rounded-[18px] border border-(--divider-subtle-color) bg-white/35 px-4 py-4">
+        <UiPanel padding="md" variant="inset">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-semibold text-(--text-default)">每隔</span>
-            <input
-              className={`${COMPACT_STEPPER_CLASS_NAME} min-w-[96px]`}
+            <UiInput
+              class_name="min-w-[96px]"
+              control_size="lg"
               id="task-every-value"
               max="999"
               min="1"
@@ -171,68 +178,61 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
               type="number"
               value={every_value}
             />
-            <select
-              className={`${COMPACT_SELECT_CLASS_NAME} min-w-[132px]`}
+            <UiSelectMenu
+              aria_label="选择间隔单位"
+              class_name="min-w-[132px]"
               id="task-every-unit"
-              onChange={(e) => set_every_unit(e.target.value as EveryUnit)}
+              on_change={(value) => set_every_unit(value as EveryUnit)}
+              options={every_unit_options.map((option) => ({
+                value: option.key,
+                label: option.label,
+              }))}
+              surface="dialog"
               value={every_unit}
-            >
-              {every_unit_options.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            />
           </div>
-        </div>
+        </UiPanel>
       ) : null}
 
       <div className="dialog-field">
         <label className="dialog-label" htmlFor="task-timezone">
           时区
         </label>
-        <select
-          className={COMPACT_SELECT_CLASS_NAME}
+        <UiSelectMenu
+          aria_label="选择任务时区"
           id="task-timezone"
-          onChange={(e) => set_timezone(e.target.value)}
+          on_change={set_timezone}
+          options={timezone_options.map((option) => ({
+            value: option,
+            label: option,
+          }))}
+          surface="dialog"
           value={timezone}
-        >
-          {timezone_options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       <div className="dialog-field">
         <label className="dialog-label" htmlFor="task-instruction">
-          任务指令
+          {instruction_label}
         </label>
-        <textarea
-          className="dialog-input radius-shell-sm w-full resize-none px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+        <UiTextarea
+          class_name="resize-none"
           id="task-instruction"
           onChange={(e) => set_instruction(e.target.value)}
-          placeholder="输入 Agent 需要执行的指令"
+          placeholder={instruction_placeholder}
           rows={4}
           value={instruction}
         />
       </div>
 
-      <label className="flex items-center gap-3 rounded-[18px] border border-(--divider-subtle-color) bg-white/45 px-4 py-3 text-sm text-(--text-default)">
-        <input
-          checked={enabled}
-          className="h-4 w-4"
-          onChange={(e) => set_enabled(e.target.checked)}
-          type="checkbox"
-        />
-        创建后立即启用任务
-      </label>
+      <UiCheckboxRow
+        checked={enabled}
+        label="创建后立即启用任务"
+        on_change={set_enabled}
+      />
 
       {error_message ? (
-        <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-4 py-3 text-sm text-(--destructive)">
-          {error_message}
-        </div>
+        <UiStateBlock description={error_message} size="sm" title="任务配置无效" tone="danger" />
       ) : null}
     </div>
   );

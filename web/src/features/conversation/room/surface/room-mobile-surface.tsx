@@ -71,7 +71,7 @@ export function RoomMobileSurface({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <div className="px-2 pb-2 pt-2">
-        <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
+        <div className="surface-radius-lg flex items-center gap-2 px-2 py-2">
           <button
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
             onClick={on_back_to_directory}
@@ -81,7 +81,7 @@ export function RoomMobileSurface({
           </button>
 
           <button
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
             onClick={() => setIsConversationSheetOpen(true)}
             type="button"
           >
@@ -202,7 +202,7 @@ export function RoomMobileSurface({
                         {conversation.title?.trim() || "未命名会话"}
                       </p>
                       <p className="mt-1 text-xs text-(--text-muted)">
-                        {format_relative_time(conversation.last_activity_at)} · {conversation.message_count ?? 0} 条
+                        {format_relative_time(conversation.last_activity_at)}
                       </p>
                     </div>
                   </button>

@@ -1,14 +1,19 @@
 "use client";
 
-import { ExternalLink, Loader2, PackagePlus, X } from "lucide-react";
+import { ExternalLink, Loader2, PackagePlus, Puzzle } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiButton } from "@/shared/ui/button";
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
 import {
-  DIALOG_ICON_BUTTON_CLASS_NAME,
-  DIALOG_TAG_CLASS_NAME,
-  get_dialog_action_class_name,
-} from "@/shared/ui/dialog/dialog-styles";
-import { ExternalSkillSearchItem } from "@/types/capability/skill";
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import type { ExternalSkillSearchItem } from "@/types/capability/skill";
 
 import { SkillMarkdown } from "./skill-markdown";
 
@@ -46,78 +51,57 @@ export function ExternalSkillPreviewDialog({
     : (item.readme_markdown || item.description || "暂无预览内容");
 
   return (
-    <div
-      className="dialog-backdrop"
-      onClick={on_close}
-    >
-      <div
-        className="dialog-shell radius-shell-xl flex h-[84vh] w-full max-w-5xl flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-header">
-          <div className="min-w-0 flex-1">
-            <h2 className="dialog-title truncate" data-size="hero">
-              {item.title || item.skill_slug}
-            </h2>
-            <p className="dialog-subtitle">
-              {item.package_spec} · {format_installs(item.installs)} installs
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase")}>
-                社区技能
-              </span>
-              {already_imported ? (
-                <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-emerald-700")}>
-                  已导入
-                </span>
-              ) : name_conflict ? (
-                <span className={cn(DIALOG_TAG_CLASS_NAME, "gap-0 px-3 py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-amber-700")}>
-                  同名冲突
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <button
-            className={DIALOG_ICON_BUTTON_CLASS_NAME}
-            aria-label="关闭"
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="dialog-body dialog-body--scroll soft-scrollbar flex-1">
-          <SkillMarkdown
-            description={item.description}
-            markdown={preview_markdown}
+    <UiDialogPortal>
+      <UiDialogBackdrop class_name="z-[9999]" on_close={on_close}>
+        <UiDialogShell class_name="h-[84vh]" size="xl">
+          <UiDialogHeader
+            icon={<Puzzle className="h-4 w-4" />}
+            on_close={on_close}
+            subtitle={`${item.package_spec} · ${format_installs(item.installs)} 次安装`}
             title={item.title || item.skill_slug}
           />
-        </div>
+          <UiDialogBody scrollable>
+            <div className="mb-5 flex flex-wrap gap-2">
+              <UiBadge size="xs">社区技能</UiBadge>
+              {already_imported ? (
+                <UiBadge size="xs" tone="success">已导入</UiBadge>
+              ) : name_conflict ? (
+                <UiBadge size="xs" tone="warning">同名冲突</UiBadge>
+              ) : null}
+            </div>
+            <SkillMarkdown
+              description={item.description}
+              markdown={preview_markdown}
+              title={item.title || item.skill_slug}
+            />
+          </UiDialogBody>
 
-        <div className="dialog-footer flex-wrap justify-between gap-3">
-          <a
-            className="inline-flex items-center gap-2 text-sm font-semibold text-sky-600 underline decoration-sky-300 underline-offset-4"
-            href={item.detail_url}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <ExternalLink className="h-4 w-4" />
-            打开原始页面
-          </a>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              className={get_dialog_action_class_name("primary")}
-              disabled={busy || already_imported || name_conflict}
-              onClick={on_import_only}
-              type="button"
+          <UiDialogFooter class_name="flex-wrap justify-between gap-3">
+            <a
+              className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
+              href={item.detail_url}
+              rel="noreferrer"
+              target="_blank"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
-              导入到技能库
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+              <ExternalLink className="h-4 w-4" />
+              打开原始页面
+            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <UiButton
+                disabled={busy || already_imported || name_conflict}
+                onClick={on_import_only}
+                size="sm"
+                tone="primary"
+                type="button"
+                variant="solid"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />}
+                导入到技能库
+              </UiButton>
+            </div>
+          </UiDialogFooter>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

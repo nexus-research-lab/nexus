@@ -34,6 +34,8 @@ export interface TaskSchedulePanelProps {
   every_unit_options: Array<{ key: EveryUnit; label: string }>;
   every_value: string;
   instruction: string;
+  instruction_label: string;
+  instruction_placeholder: string;
   is_daily_picker_open: boolean;
   is_single_picker_open: boolean;
   is_single_date_disabled: (value: string) => boolean;
@@ -74,28 +76,4 @@ export interface TaskSchedulePanelProps {
   single_second: string;
   timezone: string;
   timezone_options: string[];
-}
-
-export const COMPACT_STEPPER_CLASS_NAME =
-  "dialog-input radius-shell-sm w-full px-5 py-3 text-[15px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20";
-
-export const COMPACT_SELECT_CLASS_NAME =
-  "dialog-input radius-shell-sm w-full appearance-none px-5 py-3 text-[15px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20";
-
-export function get_schedule_tab_class_name(is_active: boolean): string {
-  return [
-    "inline-flex min-w-[64px] items-center justify-center rounded-[10px] border px-3 py-1.5 text-sm font-semibold transition-[background,color,border-color] duration-(--motion-duration-fast)",
-    is_active
-      ? "border-[color:color-mix(in_srgb,var(--primary)_30%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
-      : "border-transparent text-(--text-muted) hover:text-(--text-strong)",
-  ].join(" ");
-}
-
-export function get_weekday_pill_class_name(is_active: boolean): string {
-  return [
-    "inline-flex h-9 min-w-9 items-center justify-center rounded-full border px-3 text-sm font-semibold transition-[background,color,border-color] duration-(--motion-duration-fast)",
-    is_active
-      ? "border-[color:color-mix(in_srgb,var(--primary)_34%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
-      : "border-(--divider-subtle-color) text-(--text-muted) hover:border-(--text-default) hover:text-(--text-strong)",
-  ].join(" ");
 }

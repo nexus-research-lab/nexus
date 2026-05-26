@@ -30,8 +30,3 @@ func OwnerUserID(ctx context.Context) string {
 func WithState(ctx context.Context, state State) context.Context {
 	return authctx.WithState(ctx, state)
 }
-
-// StateFromContext 读取请求上下文中的认证系统状态。
-func StateFromContext(ctx context.Context) (State, bool) {
-	return authctx.StateFromContext(ctx)
-}

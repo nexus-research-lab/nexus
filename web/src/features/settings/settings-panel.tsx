@@ -14,7 +14,6 @@
 import {
   ArrowLeft,
   Cable,
-  ChevronDown,
   Compass,
   Download,
   ExternalLink,
@@ -28,7 +27,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
@@ -47,20 +46,29 @@ import {
 import { cn } from "@/lib/utils";
 import {
   get_user_preferences,
+  set_default_agent_model,
+  set_default_agent_provider,
   set_user_preferences,
 } from "@/config/options";
 import {
   AGENT_PERMISSION_MODES,
 } from "@/features/agents/options/agent-options-constants";
+import {
+  list_provider_options_api,
+  set_default_provider_model_api,
+} from "@/lib/api/provider-config-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
+import type { ProviderOption } from "@/types/capability/provider";
 import type { UserPreferences } from "@/types/settings/preferences";
 import type { Locale } from "@/shared/i18n/messages";
 
@@ -110,7 +118,7 @@ interface PreferenceFeedback {
 }
 
 const SETTINGS_SECTION_TITLE_CLASS_NAME = "px-1 text-[17px] font-semibold tracking-tight text-(--text-strong)";
-const SETTINGS_CARD_CLASS_NAME = "overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)";
+const SETTINGS_CARD_CLASS_NAME = "overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent";
 const SETTINGS_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-center";
 const SETTINGS_TEXT_ROW_CLASS_NAME = "flex min-w-0 items-start gap-3";
 const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center justify-center rounded-[14px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary";
@@ -119,7 +127,7 @@ const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = "mt-1 max-w-[520px] text-[12px] lea
 const SETTINGS_CONTROL_LABEL_CLASS_NAME = "text-[11px] font-medium text-(--text-soft)";
 const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
 const SETTINGS_CONTROL_TEXT_CLASS_NAME = "text-[11px] font-semibold leading-none";
-const SETTINGS_SELECT_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full appearance-none rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 pr-7 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) outline-none transition-colors focus:border-(--surface-interactive-active-border) disabled:opacity-(--disabled-opacity)`;
+const SETTINGS_SELECT_BUTTON_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full rounded-[10px] border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) shadow-none hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-0`;
 const DEFAULT_RELEASE_PAGE_URL = "https://github.com/nexus-research-lab/nexus/releases/latest";
 
 interface SettingsSegmentedControlOption<T extends string> {
@@ -143,7 +151,7 @@ function SettingsSegmentedControl<T extends string>({
   return (
     <div
       aria-label={aria_label}
-      className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) p-0.5`}
+      className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-transparent p-0.5`}
       role="group"
     >
       {options.map((option) => {
@@ -198,6 +206,31 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
   };
 }
 
+function encode_default_model_value(provider: string, model: string): string {
+  return JSON.stringify([provider, model]);
+}
+
+function decode_default_model_value(value: string): { provider: string; model: string } | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed) || parsed.length !== 2) {
+      return null;
+    }
+    const [provider, model] = parsed;
+    if (typeof provider !== "string" || typeof model !== "string") {
+      return null;
+    }
+    const normalized_provider = provider.trim();
+    const normalized_model = model.trim();
+    if (!normalized_provider || !normalized_model) {
+      return null;
+    }
+    return { provider: normalized_provider, model: normalized_model };
+  } catch {
+    return null;
+  }
+}
+
 function GeneralSettingsSection() {
   const { locale, set_locale, t } = useI18n();
   const { set_theme, theme } = useTheme();
@@ -206,6 +239,11 @@ function GeneralSettingsSection() {
   const [preferences_loading, set_preferences_loading] = useState(true);
   const [preferences_saving, set_preferences_saving] = useState(false);
   const [preference_feedback, set_preference_feedback] = useState<PreferenceFeedback | null>(null);
+  const [provider_options, set_provider_options] = useState<ProviderOption[]>([]);
+  const [default_model_value, set_default_model_value] = useState("");
+  const [provider_options_loading, set_provider_options_loading] = useState(true);
+  const [default_model_saving, set_default_model_saving] = useState(false);
+  const [default_model_feedback, set_default_model_feedback] = useState<PreferenceFeedback | null>(null);
   const [system_version, set_system_version] = useState<SystemVersionInfo | null>(null);
   const [system_version_loading, set_system_version_loading] = useState(true);
   const [system_version_feedback, set_system_version_feedback] = useState<PreferenceFeedback | null>(null);
@@ -218,6 +256,32 @@ function GeneralSettingsSection() {
   const [desktop_version, set_desktop_version] = useState<DesktopAppVersion | null>(null);
   const [desktop_feedback, set_desktop_feedback] = useState<PreferenceFeedback | null>(null);
   const [exporting_logs, set_exporting_logs] = useState(false);
+
+  const load_provider_options = useCallback(async () => {
+    try {
+      set_provider_options_loading(true);
+      const result = await list_provider_options_api();
+      set_provider_options(result.items ?? []);
+      set_default_agent_provider(result.default_provider);
+      set_default_agent_model(result.default_model);
+      set_default_model_value(
+        result.default_provider && result.default_model
+          ? encode_default_model_value(result.default_provider, result.default_model)
+          : "",
+      );
+      set_default_model_feedback(null);
+    } catch (error) {
+      set_default_model_feedback({
+        message: error instanceof Error ? error.message : "默认模型加载失败",
+      });
+    } finally {
+      set_provider_options_loading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load_provider_options();
+  }, [load_provider_options]);
 
   useEffect(() => {
     let cancelled = false;
@@ -369,6 +433,43 @@ function GeneralSettingsSection() {
     });
   }, [persist_preferences]);
 
+  const default_model_options = useMemo(() => provider_options.flatMap((provider) => (
+    provider.models.map((model) => {
+      const provider_label = provider.display_name || provider.provider;
+      const model_label = model.display_name || model.model_id;
+      return {
+        value: encode_default_model_value(provider.provider, model.model_id),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })
+  )), [provider_options]);
+
+  const handle_default_model_change = useCallback((value: string) => {
+    const selection = decode_default_model_value(value);
+    if (!selection || default_model_saving) {
+      return;
+    }
+    void (async () => {
+      set_default_model_saving(true);
+      set_default_model_feedback(null);
+      const previous_value = default_model_value;
+      set_default_model_value(value);
+      try {
+        await set_default_provider_model_api(selection.provider, selection.model);
+        set_default_agent_provider(selection.provider);
+        set_default_agent_model(selection.model);
+        await load_provider_options();
+      } catch (error) {
+        set_default_model_value(previous_value);
+        set_default_model_feedback({
+          message: error instanceof Error ? error.message : "默认模型保存失败",
+        });
+      } finally {
+        set_default_model_saving(false);
+      }
+    })();
+  }, [default_model_saving, default_model_value, load_provider_options]);
+
   const handle_export_logs = useCallback(async () => {
     try {
       set_exporting_logs(true);
@@ -401,7 +502,7 @@ function GeneralSettingsSection() {
       : t("settings.system.version_unavailable");
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-3">
+    <div className={cn("mx-auto flex w-full flex-col gap-5 px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
       <section className="space-y-2.5">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
@@ -429,7 +530,7 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <a
-              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
               href={release_page_url}
               rel="noreferrer"
               target="_blank"
@@ -470,6 +571,49 @@ function GeneralSettingsSection() {
                 }))}
                 value={theme}
               />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <MonitorCog className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || default_model_saving || default_model_options.length === 0}
+                leading={default_model_saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={handle_default_model_change}
+                options={default_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_model_empty")}
+                size="xs"
+                value={default_model_value}
+              />
+              {default_model_feedback ? (
+                <span className="truncate text-[11px] text-(--text-soft)">
+                  {default_model_feedback.message}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -557,7 +701,7 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <button
-              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
               onClick={reset_all_tours}
               type="button"
             >
@@ -601,7 +745,7 @@ function GeneralSettingsSection() {
               </div>
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <button
-                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
                   disabled={exporting_logs}
                   onClick={handle_export_logs}
                   type="button"
@@ -649,20 +793,22 @@ function GeneralSettingsSection() {
               <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME} htmlFor="default-permission-mode">
                 {t("settings.general.default_permission_mode")}
               </label>
-              <select
-                id="default-permission-mode"
-                className={SETTINGS_SELECT_CLASS_NAME}
+              <UiSelectMenu
+                aria_label={t("settings.general.default_permission_mode")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
                 disabled={preferences_loading}
-                onChange={(event) => handle_permission_mode_change(event.target.value)}
+                id="default-permission-mode"
+                menu_class_name="rounded-[12px]"
+                on_change={handle_permission_mode_change}
+                options={AGENT_PERMISSION_MODES.map((mode) => ({
+                  value: mode.value,
+                  label: t(mode.label_key),
+                }))}
+                placement="top"
+                size="xs"
                 value={permission_mode}
-              >
-                {AGENT_PERMISSION_MODES.map((mode) => (
-                  <option key={mode.value} value={mode.value}>
-                    {t(mode.label_key)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-[28px] h-3 w-3 text-(--text-soft)" />
+              />
               <p className="text-[11px] leading-4 text-(--text-soft)">
                 {t(selected_permission_mode.description_key)}
               </p>

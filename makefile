@@ -5,7 +5,7 @@ include $(ENV_FILE)
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 
-TAG ?= 0.1.8
+TAG ?= 0.1.10
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 AGENT_UID ?= 1001
@@ -125,7 +125,7 @@ app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1
 
-app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app zip、installer、sha256 和 metadata
+app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app installer、sha256 和 metadata
 	pwsh scripts/desktop/package-windows-app.ps1
 
 # Docker commands

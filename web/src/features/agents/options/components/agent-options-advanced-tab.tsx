@@ -8,6 +8,7 @@
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiChoiceButton } from "@/shared/ui/choice";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { AGENT_PERMISSION_MODES, AVAILABLE_AGENT_TOOLS } from "../agent-options-constants";
 
@@ -26,9 +27,10 @@ export function AgentOptionsAdvancedTab({
   on_toggle_tool,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
+  const is_bypass_permission_mode = permission_mode === "bypassPermissions";
 
   return (
-    <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+    <div className="space-y-4 animate-in slide-in-from-right-4 duration-300 [overflow-anchor:none]">
       {/* 权限模式 */}
       <div className="space-y-2.5">
         <div className="flex items-end justify-between gap-4">
@@ -46,15 +48,12 @@ export function AgentOptionsAdvancedTab({
         </div>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {AGENT_PERMISSION_MODES.map((pm) => (
-            <button
+            <UiChoiceButton
+              active={permission_mode === pm.value}
+              class_name="relative w-full flex-col items-stretch overflow-hidden text-left"
+              choice_size="md"
               key={pm.value}
               onClick={() => on_permission_mode_change(pm.value)}
-              className={cn(
-                "relative overflow-hidden rounded-[15px] border px-3 py-2.5 text-left transition-[background,border-color,color] duration-(--motion-duration-normal)",
-                permission_mode === pm.value
-                  ? "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)"
-                  : "border-(--divider-subtle-color) bg-transparent text-(--text-strong) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
-              )}
             >
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
@@ -81,17 +80,16 @@ export function AgentOptionsAdvancedTab({
               <p className="text-[11.5px] leading-[1.5] text-muted-foreground">
                 {t(pm.description_key)}
               </p>
-            </button>
+            </UiChoiceButton>
           ))}
         </div>
 
         {/* bypassPermissions 警告 */}
-        {permission_mode === "bypassPermissions" &&
-          allowed_tools.length > 0 && (
-            <div className="rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
-              {t("agent_options.advanced.bypass_warning")}
-            </div>
-          )}
+        {is_bypass_permission_mode ? (
+          <div className="rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
+            {t("agent_options.advanced.bypass_warning")}
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-2.5">
@@ -104,7 +102,7 @@ export function AgentOptionsAdvancedTab({
               {t("agent_options.advanced.tool_access")}
             </h3>
           </div>
-          <span className="text-[11px] text-(--text-soft)">
+          <span className="min-w-[92px] text-right text-[11px] tabular-nums text-(--text-soft)">
             {t("agent_options.advanced.enabled_tools", { count: allowed_tools.length })}
           </span>
         </div>
@@ -136,14 +134,14 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* 工具列表 */}
-        <div className="grid grid-cols-1 gap-1.5">
+        <div className="grid grid-cols-1 gap-1.5 [overflow-anchor:none]">
           {AVAILABLE_AGENT_TOOLS.map((tool) => {
             const isChecked = allowed_tools.includes(tool.name);
             return (
               <div
                 key={tool.name}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-[15px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
+                  "flex min-h-[60px] items-center justify-between gap-3 rounded-[15px] border px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast)",
                   isChecked
                     ? "border-[color-mix(in_srgb,var(--primary)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)]"
                     : "border-(--divider-subtle-color) bg-transparent hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)"
@@ -155,7 +153,7 @@ export function AgentOptionsAdvancedTab({
                     {t(tool.description_key)}
                   </div>
                 </div>
-                <div className="origin-right scale-[0.84]">
+                <div className="flex h-7 w-[58px] shrink-0 origin-right scale-[0.84] items-center justify-end">
                   <GlassSwitch
                     checked={isChecked}
                     on_change={() => on_toggle_tool(tool.name, "allowed")}

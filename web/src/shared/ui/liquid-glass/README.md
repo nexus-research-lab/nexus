@@ -1,6 +1,6 @@
 # Liquid Glass 资产说明
 
-这个目录里的 `glass-switch`、`liquid-glass-panel` 和 `liquid-glass-engine` 共享同一套液态玻璃思路：
+这个目录里的 `glass-switch`、`glass-magnifier` 和 `liquid-glass-engine` 共享同一套液态玻璃思路：
 
 - 几何参数先定义玻璃曲面
 - 位移图负责折射方向

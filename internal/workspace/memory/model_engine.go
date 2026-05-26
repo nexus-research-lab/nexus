@@ -1,6 +1,9 @@
 package memory
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // ScopeKind 描述记忆隔离边界。
 type ScopeKind string
@@ -28,18 +31,50 @@ type MemoryScope struct {
 func (s MemoryScope) Key() string {
 	switch s.Kind {
 	case ScopeKindRoomShared:
-		return joinScopeParts(string(s.Kind), s.RoomID, s.ConversationID)
+		return buildScopeKey(s.Kind, s.RoomID, s.ConversationID)
 	case ScopeKindRoomAgentSession:
-		return joinScopeParts(string(s.Kind), s.RoomID, s.ConversationID, s.AgentID)
+		return buildScopeKey(s.Kind, s.RoomID, s.ConversationID, s.AgentID)
 	case ScopeKindDMSession:
-		return joinScopeParts(string(s.Kind), s.AgentID, s.SessionKey)
+		return buildScopeKey(s.Kind, s.AgentID, s.SessionKey)
 	case ScopeKindAgent:
-		return joinScopeParts(string(s.Kind), s.AgentID)
+		return buildScopeKey(s.Kind, s.AgentID)
 	case ScopeKindUser:
-		return joinScopeParts(string(s.Kind), s.UserID)
+		return buildScopeKey(s.Kind, s.UserID)
 	default:
-		return joinScopeParts("unknown", s.AgentID, s.SessionKey, s.RoomID, s.ConversationID)
+		return s.inferredKey()
 	}
+}
+
+func (s MemoryScope) inferredKey() string {
+	if strings.TrimSpace(s.RoomID) != "" && strings.TrimSpace(s.ConversationID) != "" && strings.TrimSpace(s.AgentID) != "" {
+		return buildScopeKey(ScopeKindRoomAgentSession, s.RoomID, s.ConversationID, s.AgentID)
+	}
+	if strings.TrimSpace(s.AgentID) != "" && strings.TrimSpace(s.SessionKey) != "" {
+		return buildScopeKey(ScopeKindDMSession, s.AgentID, s.SessionKey)
+	}
+	if strings.TrimSpace(s.AgentID) != "" {
+		return buildScopeKey(ScopeKindAgent, s.AgentID)
+	}
+	if strings.TrimSpace(s.UserID) != "" {
+		return buildScopeKey(ScopeKindUser, s.UserID)
+	}
+	if strings.TrimSpace(s.RoomID) != "" && strings.TrimSpace(s.ConversationID) != "" {
+		return buildScopeKey(ScopeKindRoomShared, s.RoomID, s.ConversationID)
+	}
+	return ""
+}
+
+func buildScopeKey(kind ScopeKind, requiredParts ...string) string {
+	parts := make([]string, 0, len(requiredParts)+1)
+	parts = append(parts, string(kind))
+	for _, part := range requiredParts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			return ""
+		}
+		parts = append(parts, value)
+	}
+	return strings.Join(parts, ":")
 }
 
 // MemoryOptions 控制 v1 记忆行为。
@@ -161,6 +196,14 @@ type MemoryStats struct {
 	Candidate    int            `json:"candidate"`
 	Accessed     int            `json:"accessed"`
 	Checkpointed int            `json:"checkpointed"`
+}
+
+// MemoryCleanupResult 描述记忆清理结果。
+type MemoryCleanupResult struct {
+	RemovedSessionFiles int      `json:"removed_session_files"`
+	RemovedCheckpoints  int      `json:"removed_checkpoints"`
+	RemovedEmptyDiaries int      `json:"removed_empty_diaries"`
+	RemovedFiles        []string `json:"removed_files,omitempty"`
 }
 
 // MemoryIndex 是 v2 接入 FTS、向量或图谱索引的边界。

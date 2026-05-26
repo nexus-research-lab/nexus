@@ -4,13 +4,24 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/capability/use-automation-controller";
-import { delete_scheduled_task_api, run_scheduled_task_api, update_scheduled_task_status_api } from "@/lib/api/scheduled-task-api";
+import {
+  delete_scheduled_task_api,
+  recover_scheduled_task_run_api,
+  retry_scheduled_task_run_delivery_api,
+  run_scheduled_task_api,
+  update_scheduled_task_status_api,
+} from "@/lib/api/scheduled-task-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
+import {
+  CapabilityPageLayout,
+  CapabilitySectionHeader,
+} from "@/features/capability/shared/capability-page-layout";
 
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
@@ -24,6 +35,30 @@ interface FeedbackState {
 }
 
 const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
+
+interface ScheduledMetricItemProps {
+  description: string;
+  label: string;
+  value: number;
+}
+
+function ScheduledMetricItem({ description, label, value }: ScheduledMetricItemProps) {
+  return (
+    <div className="min-w-0 py-3 md:px-4 md:first:pl-0 md:last:pr-0">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-(--text-muted)">
+        {label}
+      </p>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <p className="text-[28px] font-semibold tracking-[-0.04em] text-(--text-strong)">
+          {value}
+        </p>
+        <p className="min-w-0 truncate text-[12px] leading-5 text-(--text-muted)">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function notify_scheduled_tasks_mutated(agent_id: string) {
   if (typeof window === "undefined") {
@@ -54,6 +89,7 @@ async function refresh_tasks_best_effort(
 }
 
 export function ScheduledTasksDirectory() {
+  const { t } = useI18n();
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [editing_task, set_editing_task] = useState<ScheduledTaskItem | null>(null);
   const [history_task, set_history_task] = useState<ScheduledTaskItem | null>(null);
@@ -88,7 +124,7 @@ export function ScheduledTasksDirectory() {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_tasks({ silent: true }).catch(() => undefined);
+      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
     };
 
     window.addEventListener("focus", handle_page_revalidate);
@@ -113,7 +149,7 @@ export function ScheduledTasksDirectory() {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_tasks({ silent: true }).catch(() => undefined);
+      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
     }, poll_interval_ms);
 
     return () => window.clearInterval(interval_id);
@@ -211,6 +247,55 @@ export function ScheduledTasksDirectory() {
     }
   };
 
+  const handle_recover_task_run = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
+    try {
+      const updated_task = await recover_scheduled_task_run_api(task.job_id, { run_id: run.run_id });
+      set_history_task((current) => current?.job_id === updated_task.job_id ? updated_task : current);
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: "运行占用已释放",
+          message: `${task.name} 的当前 run 已标记为 cancelled`,
+        },
+        "任务列表刷新失败，运行状态稍后会同步",
+        set_feedback,
+      );
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: "释放运行占用失败",
+        message: error instanceof Error ? error.message : "释放运行占用失败",
+      });
+      throw error;
+    }
+  };
+
+  const handle_retry_delivery = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
+    try {
+      const updated_run = await retry_scheduled_task_run_delivery_api(task.job_id, run.run_id);
+      await refresh_tasks_best_effort(
+        automation,
+        automation.agent_id,
+        {
+          title: updated_run.delivery_status === "succeeded" ? "投递已恢复" : "投递已重试",
+          message: updated_run.delivery_status === "succeeded"
+            ? `${task.name} 的运行结果已重新投递`
+            : `${task.name} 的投递状态已更新为 ${updated_run.delivery_status ?? "unknown"}`,
+        },
+        "任务列表刷新失败，投递状态稍后会同步",
+        set_feedback,
+      );
+    } catch (error) {
+      set_feedback({
+        tone: "error",
+        title: "重试投递失败",
+        message: error instanceof Error ? error.message : "重试投递失败",
+      });
+      throw error;
+    }
+  };
+
   const handle_delete = async (task: ScheduledTaskItem) => {
     if (!window.confirm(`确认删除任务“${task.name}”吗？`)) {
       return;
@@ -245,80 +330,66 @@ export function ScheduledTasksDirectory() {
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={`${automation.scheduled_tasks.length} 个任务`}
+            badge={t("capability.scheduled_badge", { count: automation.scheduled_tasks.length })}
             density="compact"
             leading={<CalendarClock className="h-4 w-4" />}
-            title="任务管理"
+            subtitle={t("capability.scheduled_subtitle")}
+            title={t("capability.scheduled")}
             trailing={(
               <>
                 <WorkspaceSurfaceToolbarAction onClick={() => void handle_refresh_all()}>
                   <RefreshCw className="h-3.5 w-3.5" />
-                  刷新全部
+                  {t("capability.refresh_all")}
                 </WorkspaceSurfaceToolbarAction>
                 <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
                   <Plus className="h-3.5 w-3.5" />
-                  新建任务
+                  {t("capability.create_task")}
                 </WorkspaceSurfaceToolbarAction>
               </>
             )}
           />
         )}
+        stable_gutter
       >
-        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
-          <section className="mb-4 grid gap-3 md:grid-cols-3">
-            <div className="surface-card rounded-[20px] px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                执行中的任务
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-                {running_count}
-              </p>
-              <p className="mt-1 text-sm text-(--text-default)">
-                当前有多少任务正在占用执行会话
-              </p>
-            </div>
-            <div className="surface-card rounded-[20px] px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                已启用
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-                {enabled_count}
-              </p>
-              <p className="mt-1 text-sm text-(--text-default)">
-                后续还会继续参与调度的任务数量
-              </p>
-            </div>
-            <div className="surface-card rounded-[20px] px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                已暂停
-              </p>
-              <p className="mt-2 text-2xl font-bold tracking-[-0.03em] text-(--text-strong)">
-                {paused_count}
-              </p>
-              <p className="mt-1 text-sm text-(--text-default)">
-                仍保留在列表里，但暂时不会再自动触发
-              </p>
-            </div>
+        <CapabilityPageLayout
+          description={t("capability.scheduled_intro_description")}
+          title={t("capability.scheduled_intro_title")}
+        >
+          <CapabilitySectionHeader title={t("capability.scheduled_overview_title")} />
+          <section className="mb-7 grid gap-0 divide-y divide-(--divider-subtle-color) border-b border-(--divider-subtle-color) pb-2 md:grid-cols-3 md:divide-x md:divide-y-0">
+            <ScheduledMetricItem
+              description="当前占用执行会话"
+              label="执行中"
+              value={running_count}
+            />
+            <ScheduledMetricItem
+              description="后续继续参与调度"
+              label="已启用"
+              value={enabled_count}
+            />
+            <ScheduledMetricItem
+              description="暂时不会自动触发"
+              label="已暂停"
+              value={paused_count}
+            />
           </section>
 
-          <div className="min-h-full">
-            <ScheduledTaskList
-              error_message={automation.tasks_error}
-              is_loading={automation.tasks_loading}
-              items={automation.scheduled_tasks}
-              on_create={() => set_is_dialog_open(true)}
-              on_open_history={set_history_task}
-              on_refresh={() => void refresh_tasks().catch(() => undefined)}
-              on_run_now={(task) => void handle_run_now(task)}
-              on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
-              on_delete={(task) => void handle_delete(task)}
-              on_edit={set_editing_task}
-              delete_pending_job_id={delete_pending_job_id}
-              run_pending_job_id={run_pending_job_id}
-              toggle_pending_job_id={toggle_pending_job_id}
-            />
-          </div>
-        </div>
+          <ScheduledTaskList
+            error_message={automation.tasks_error}
+            is_loading={automation.tasks_loading}
+            items={automation.scheduled_tasks}
+            on_create={() => set_is_dialog_open(true)}
+            on_open_history={set_history_task}
+            on_refresh={() => void refresh_tasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
+            on_run_now={(task) => void handle_run_now(task)}
+            on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
+            on_delete={(task) => void handle_delete(task)}
+            on_edit={set_editing_task}
+            delete_pending_job_id={delete_pending_job_id}
+            run_pending_job_id={run_pending_job_id}
+            toggle_pending_job_id={toggle_pending_job_id}
+          />
+        </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       <ScheduledTaskDialog
@@ -335,6 +406,9 @@ export function ScheduledTasksDirectory() {
       <ScheduledTaskRunHistoryDialog
         is_open={history_task !== null}
         on_close={() => set_history_task(null)}
+        on_recover_task_run={(task, run) => handle_recover_task_run(task, run)}
+        on_retry_delivery={(task, run) => handle_retry_delivery(task, run)}
+        on_retry_task={(task) => handle_run_now(task)}
         task={history_task}
       />
 

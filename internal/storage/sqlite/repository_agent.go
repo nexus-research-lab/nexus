@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -35,9 +36,10 @@ func (r *AgentRepository) ListActiveAgents(ctx context.Context, ownerUserID stri
 	    COALESCE(p.display_name, ''),
 	    COALESCE(p.headline, ''),
 	    COALESCE(p.profile_markdown, ''),
-	    a.created_at,
-	    COALESCE(rt.provider, ''),
-	    COALESCE(rt.permission_mode, ''),
+		    a.created_at,
+		    COALESCE(rt.provider, ''),
+		    COALESCE(rt.model, ''),
+		    COALESCE(rt.permission_mode, ''),
 	    COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -72,6 +74,65 @@ ORDER BY a.is_main DESC, a.created_at ASC`
 	return result, rows.Err()
 }
 
+// ListAgentsByIDs 批量返回指定 ID 列表的活跃 Agent。
+func (r *AgentRepository) ListAgentsByIDs(ctx context.Context, ownerUserID string, agentIDs []string) ([]protocol.Agent, error) {
+	if len(agentIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(agentIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := `
+	SELECT
+	    a.id,
+	    a.name,
+	    a.owner_user_id,
+	    a.workspace_path,
+	    a.status,
+	    a.is_main,
+	    COALESCE(a.avatar, ''),
+	    COALESCE(a.description, ''),
+	    COALESCE(a.vibe_tags, '[]'),
+	    COALESCE(p.display_name, ''),
+	    COALESCE(p.headline, ''),
+	    COALESCE(p.profile_markdown, ''),
+		    a.created_at,
+		    COALESCE(rt.provider, ''),
+		    COALESCE(rt.model, ''),
+		    COALESCE(rt.permission_mode, ''),
+	    COALESCE(rt.allowed_tools_json, '[]'),
+    COALESCE(rt.disallowed_tools_json, '[]'),
+    COALESCE(rt.mcp_servers_json, '{}'),
+    rt.max_turns,
+    rt.max_thinking_tokens,
+    COALESCE(rt.setting_sources_json, '[]')
+FROM agents a
+LEFT JOIN profiles p ON p.agent_id = a.id
+LEFT JOIN runtimes rt ON rt.agent_id = a.id
+WHERE a.status = 'active' AND a.id IN (` + placeholders + `)`
+	args := make([]any, len(agentIDs))
+	for i, id := range agentIDs {
+		args[i] = id
+	}
+	if ownerUserID != "" {
+		query += ` AND a.owner_user_id = ?`
+		args = append(args, ownerUserID)
+	}
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]protocol.Agent, 0, len(agentIDs))
+	for rows.Next() {
+		item, err := agentrepo.ScanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
 // GetAgent 返回指定 Agent。
 func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUserID string) (*protocol.Agent, error) {
 	query := `
@@ -88,9 +149,10 @@ func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUse
 	    COALESCE(p.display_name, ''),
 	    COALESCE(p.headline, ''),
 	    COALESCE(p.profile_markdown, ''),
-	    a.created_at,
-	    COALESCE(rt.provider, ''),
-	    COALESCE(rt.permission_mode, ''),
+		    a.created_at,
+		    COALESCE(rt.provider, ''),
+		    COALESCE(rt.model, ''),
+		    COALESCE(rt.permission_mode, ''),
 	    COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -137,9 +199,10 @@ SELECT
     COALESCE(p.display_name, ''),
     COALESCE(p.headline, ''),
     COALESCE(p.profile_markdown, ''),
-    a.created_at,
-    COALESCE(rt.provider, ''),
-    COALESCE(rt.permission_mode, ''),
+	    a.created_at,
+	    COALESCE(rt.provider, ''),
+	    COALESCE(rt.model, ''),
+	    COALESCE(rt.permission_mode, ''),
     COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -202,12 +265,13 @@ VALUES (?, ?, ?, NULL, ?, ?)`,
 
 	if _, err = tx.ExecContext(ctx, `
 	INSERT INTO runtimes (
-	    id, agent_id, provider, permission_mode, allowed_tools_json, disallowed_tools_json,
+	    id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
 	    mcp_servers_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.RuntimeID,
 		record.AgentID,
 		nullIfEmpty(record.Provider),
+		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
@@ -262,10 +326,11 @@ WHERE agent_id = ?`,
 
 	if _, err = tx.ExecContext(ctx, `
 	UPDATE runtimes
-	SET provider = ?, permission_mode = ?, allowed_tools_json = ?, disallowed_tools_json = ?,
-	    mcp_servers_json = ?, max_turns = ?, max_thinking_tokens = ?, setting_sources_json = ?, updated_at = CURRENT_TIMESTAMP
-	WHERE agent_id = ?`,
+		SET provider = ?, model = ?, permission_mode = ?, allowed_tools_json = ?, disallowed_tools_json = ?,
+		    mcp_servers_json = ?, max_turns = ?, max_thinking_tokens = ?, setting_sources_json = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE agent_id = ?`,
 		nullIfEmpty(record.Provider),
+		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
