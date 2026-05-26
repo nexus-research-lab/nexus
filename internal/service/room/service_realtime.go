@@ -20,6 +20,7 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 const (
@@ -35,6 +36,9 @@ type roomClientFactory interface {
 type RoomBroadcaster interface {
 	Broadcast(context.Context, string, protocol.EventMessage) []error
 }
+
+// RoomEventObserver 接收 Room 共享事件的内部镜像，用于后台自动化等非 UI 消费者。
+type RoomEventObserver func(context.Context, protocol.EventMessage)
 
 type defaultRoomClientFactory struct{}
 
@@ -53,6 +57,9 @@ type ChatRequest struct {
 	RoundID           string
 	ReqID             string
 	DeliveryPolicy    protocol.ChatDeliveryPolicy
+	PermissionMode    sdkpermission.Mode
+	PermissionHandler sdkpermission.Handler
+	EventObserver     RoomEventObserver
 }
 
 // InterruptRequest 表示 Room 会话中断请求。

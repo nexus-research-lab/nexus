@@ -2,7 +2,9 @@ package channel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -27,6 +29,8 @@ type Control interface {
 	CreatePairing(context.Context, string, channelspkg.CreatePairingRequest) (*channelspkg.PairingView, error)
 	UpdatePairing(context.Context, string, string, channelspkg.UpdatePairingRequest) (*channelspkg.PairingView, error)
 	DeletePairing(context.Context, string, string) error
+	ResolveChannelOwnerByConfig(context.Context, string, string, string) (string, error)
+	PrepareFeishuIngress(context.Context, []byte, http.Header) (channelspkg.FeishuIngressPreparation, error)
 }
 
 // Handlers 封装通道域 HTTP handlers。
@@ -190,6 +194,90 @@ func (h *Handlers) HandleDiscordChannelIngress(writer http.ResponseWriter, reque
 
 func (h *Handlers) HandleTelegramChannelIngress(writer http.ResponseWriter, request *http.Request) {
 	h.handleChannelIngressByName(writer, request, channelspkg.ChannelTypeTelegram)
+}
+
+func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	if h.ingress == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(request.Body, 1<<20))
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	preparedBody := body
+	ownerUserID := ""
+	if h.control != nil {
+		prepared, prepareErr := h.control.PrepareFeishuIngress(request.Context(), body, request.Header)
+		if errors.Is(prepareErr, channelspkg.ErrFeishuCallbackUnauthorized) {
+			h.api.WriteFailure(writer, http.StatusUnauthorized, "feishu callback verification failed")
+			return
+		}
+		if prepareErr != nil {
+			h.api.WriteFailure(writer, http.StatusBadRequest, prepareErr.Error())
+			return
+		}
+		if len(prepared.Body) > 0 {
+			preparedBody = prepared.Body
+		}
+		ownerUserID = strings.TrimSpace(prepared.OwnerUserID)
+	}
+	callback, err := channelspkg.DecodeFeishuIngressCallback(preparedBody)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(callback.Challenge) != "" {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(writer).Encode(map[string]string{"challenge": callback.Challenge})
+		return
+	}
+	if callback.Request == nil {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted": false,
+			"ignored":  true,
+			"reason":   callback.IgnoredReason,
+		})
+		return
+	}
+	if ownerUserID != "" {
+		callback.Request.OwnerUserID = ownerUserID
+	} else if h.control != nil && strings.TrimSpace(callback.AppID) != "" {
+		ownerUserID, ownerErr := h.control.ResolveChannelOwnerByConfig(
+			request.Context(),
+			channelspkg.ChannelTypeFeishu,
+			"app_id",
+			callback.AppID,
+		)
+		if ownerErr != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, ownerErr.Error())
+			return
+		}
+		if strings.TrimSpace(ownerUserID) != "" {
+			callback.Request.OwnerUserID = ownerUserID
+		}
+	}
+
+	result, err := h.ingress.Accept(request.Context(), *callback.Request)
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
+	if err != nil {
+		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, result)
 }
 
 func (h *Handlers) handleChannelIngressByName(

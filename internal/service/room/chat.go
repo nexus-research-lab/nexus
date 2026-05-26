@@ -229,16 +229,19 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		MessageID:   request.RoundID,
 	}
 	activeRound := &activeRoomRound{
-		SessionKey:     sessionKey,
-		RoomID:         roomID,
-		ConversationID: conversationID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        request.RoundID,
-		RootRoundID:    request.RoundID,
-		OwnerUserID:    authctx.OwnerUserID(ctx),
-		Slots:          make(map[string]*activeRoomSlot),
-		Done:           make(chan struct{}),
+		SessionKey:        sessionKey,
+		RoomID:            roomID,
+		ConversationID:    conversationID,
+		RoomType:          contextValue.Room.RoomType,
+		Context:           contextValue,
+		RoundID:           request.RoundID,
+		RootRoundID:       request.RoundID,
+		OwnerUserID:       authctx.OwnerUserID(ctx),
+		PermissionMode:    request.PermissionMode,
+		PermissionHandler: request.PermissionHandler,
+		EventObserver:     request.EventObserver,
+		Slots:             make(map[string]*activeRoomSlot),
+		Done:              make(chan struct{}),
 	}
 
 	pending := make([]map[string]any, 0, len(targetAgentIDs))

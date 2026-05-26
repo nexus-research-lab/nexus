@@ -72,6 +72,11 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Runtime.MaxThinkingTokens != 2048 || options.Runtime.MaxTurns != 8 {
 		t.Fatalf("思考/轮次限制未透传: %+v", options)
 	}
+	for _, tool := range []string{"Edit", "ScheduleWakeup", "CronCreate", "CronList", "CronDelete"} {
+		if !containsTool(options.Tools.Deny, tool) {
+			t.Fatalf("运行时 deny 工具缺少 %s: %+v", tool, options.Tools.Deny)
+		}
+	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
 	}
@@ -88,6 +93,24 @@ func TestBuildAgentClientOptionsRejectsNonAnthropicAPIFormat(t *testing.T) {
 	}, AgentClientOptionsInput{})
 	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
 		t.Fatalf("非 anthropic_messages provider 应被拒绝: %v", err)
+	}
+}
+
+func TestBuildAgentClientOptionsDeniesClaudeSessionScheduleTools(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath:   "/tmp/workspace",
+		DisallowedTools: []string{" ScheduleWakeup ", "Write"},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for _, tool := range []string{"ScheduleWakeup", "CronCreate", "CronList", "CronDelete", "Write"} {
+		if !containsTool(options.Tools.Deny, tool) {
+			t.Fatalf("运行时 deny 工具缺少 %s: %+v", tool, options.Tools.Deny)
+		}
+	}
+	if countTool(options.Tools.Deny, "ScheduleWakeup") != 1 {
+		t.Fatalf("ScheduleWakeup deny 规则应去重: %+v", options.Tools.Deny)
 	}
 }
 
@@ -217,4 +240,18 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 	if bypassDecision.UpdatedInput["command"] != "pwd" {
 		t.Fatalf("bypass 工具输入未原样保留: %+v", bypassDecision.UpdatedInput)
 	}
+}
+
+func containsTool(tools []string, expected string) bool {
+	return countTool(tools, expected) > 0
+}
+
+func countTool(tools []string, expected string) int {
+	count := 0
+	for _, tool := range tools {
+		if tool == expected {
+			count++
+		}
+	}
+	return count
 }

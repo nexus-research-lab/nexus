@@ -31,6 +31,8 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
     every_unit_options,
     every_value,
     instruction,
+    instruction_label,
+    instruction_placeholder,
     is_daily_picker_open,
     is_single_picker_open,
     is_single_date_disabled,
@@ -211,13 +213,13 @@ export function TaskSchedulePanel(props: TaskSchedulePanelProps) {
 
       <div className="dialog-field">
         <label className="dialog-label" htmlFor="task-instruction">
-          任务指令
+          {instruction_label}
         </label>
         <UiTextarea
           class_name="resize-none"
           id="task-instruction"
           onChange={(e) => set_instruction(e.target.value)}
-          placeholder="输入 Agent 需要执行的指令"
+          placeholder={instruction_placeholder}
           rows={4}
           value={instruction}
         />

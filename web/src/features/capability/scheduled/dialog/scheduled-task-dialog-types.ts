@@ -9,13 +9,14 @@
 
 "use client";
 
-import type { ScheduledTaskSchedule } from "@/types/capability/scheduled-task";
+import type { ScheduledTaskExecutionKind, ScheduledTaskSchedule } from "@/types/capability/scheduled-task";
 
 import type { Weekday } from "../pickers/picker-types";
 
 export type ScheduleKind = ScheduledTaskSchedule["kind"];
 export type EveryUnit = "seconds" | "minutes" | "hours";
 export type TargetType = "agent" | "room";
+export type ExecutionKind = ScheduledTaskExecutionKind;
 export type ExecutionMode = "main" | "existing" | "temporary" | "dedicated";
 export type ReplyMode = "none" | "execution" | "selected";
 
@@ -47,6 +48,7 @@ export interface ScheduledTaskDialogScheduleSnapshot {
 export interface ScheduledTaskDialogInitialState {
   task_name: string;
   target_type: TargetType;
+  execution_kind: ExecutionKind;
   selected_agent_id: string;
   selected_room_id: string;
   execution_mode: ExecutionMode;

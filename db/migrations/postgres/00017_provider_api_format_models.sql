@@ -77,7 +77,144 @@ WHERE p.provider = runtimes.provider
 ALTER TABLE provider DROP COLUMN is_default;
 ALTER TABLE provider DROP COLUMN model;
 
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ;
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS running_run_id VARCHAR(64);
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS running_started_at TIMESTAMPTZ;
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS last_run_at TIMESTAMPTZ;
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS last_run_status VARCHAR(32);
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS failure_streak INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS last_error TEXT;
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS last_delivery_status VARCHAR(32);
+ALTER TABLE automation_cron_jobs ADD COLUMN IF NOT EXISTS execution_kind VARCHAR(32) NOT NULL DEFAULT 'agent';
+
+CREATE INDEX IF NOT EXISTS idx_automation_cron_jobs_runtime_due ON automation_cron_jobs (enabled, next_run_at);
+CREATE INDEX IF NOT EXISTS idx_automation_cron_jobs_runtime_running ON automation_cron_jobs (running_run_id);
+
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS assistant_text TEXT;
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS result_text TEXT;
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS artifact_path VARCHAR(512);
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(32);
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS delivery_error TEXT;
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS delivery_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS delivery_next_attempt_at TIMESTAMPTZ;
+ALTER TABLE automation_cron_runs ADD COLUMN IF NOT EXISTS delivery_dead_letter_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS im_ingress_messages (
+    owner_user_id VARCHAR(64) NOT NULL,
+    channel_type VARCHAR(32) NOT NULL,
+    req_id VARCHAR(255) NOT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    session_key VARCHAR(512) NOT NULL,
+    round_id VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    error_message TEXT,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL,
+    completed_at TIMESTAMP WITHOUT TIME ZONE,
+    PRIMARY KEY (owner_user_id, channel_type, req_id),
+    CONSTRAINT ck_im_ingress_messages_status CHECK (status IN ('processing', 'accepted', 'failed'))
+);
+CREATE INDEX IF NOT EXISTS idx_im_ingress_messages_updated ON im_ingress_messages (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS automation_task_events (
+    event_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    job_id VARCHAR(64) NOT NULL,
+    owner_user_id VARCHAR(64) NOT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    action VARCHAR(32) NOT NULL,
+    actor_user_id VARCHAR(64),
+    actor_agent_id VARCHAR(64),
+    run_id VARCHAR(64),
+    detail_json TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_automation_task_events_job_created ON automation_task_events (job_id, created_at DESC, event_id DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_task_events_owner_created ON automation_task_events (owner_user_id, created_at DESC, event_id DESC);
+
+DO $$
+DECLARE
+    constraint_name TEXT;
+BEGIN
+    SELECT con.conname
+    INTO constraint_name
+    FROM pg_constraint AS con
+    JOIN pg_class AS rel ON rel.oid = con.conrelid
+    JOIN pg_class AS ref ON ref.oid = con.confrelid
+    JOIN pg_attribute AS att ON att.attrelid = rel.oid AND att.attnum = ANY(con.conkey)
+    WHERE con.contype = 'f'
+      AND rel.relname = 'automation_cron_runs'
+      AND ref.relname = 'automation_cron_jobs'
+      AND att.attname = 'job_id'
+    LIMIT 1;
+
+    IF constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE automation_cron_runs DROP CONSTRAINT %I', constraint_name);
+    END IF;
+END $$;
+
 -- +goose Down
+DELETE FROM automation_cron_runs AS run
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM automation_cron_jobs AS job
+    WHERE job.job_id = run.job_id
+);
+
+DO $$
+DECLARE
+    constraint_exists BOOLEAN;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1
+        FROM pg_constraint AS con
+        JOIN pg_class AS rel ON rel.oid = con.conrelid
+        JOIN pg_class AS ref ON ref.oid = con.confrelid
+        JOIN pg_attribute AS att ON att.attrelid = rel.oid AND att.attnum = ANY(con.conkey)
+        WHERE con.contype = 'f'
+          AND rel.relname = 'automation_cron_runs'
+          AND ref.relname = 'automation_cron_jobs'
+          AND att.attname = 'job_id'
+    )
+    INTO constraint_exists;
+
+    IF NOT constraint_exists THEN
+        ALTER TABLE automation_cron_runs
+            ADD CONSTRAINT automation_cron_runs_job_id_fkey
+            FOREIGN KEY (job_id) REFERENCES automation_cron_jobs (job_id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DROP INDEX IF EXISTS idx_automation_task_events_owner_created;
+DROP INDEX IF EXISTS idx_automation_task_events_job_created;
+DROP TABLE IF EXISTS automation_task_events;
+
+DROP INDEX IF EXISTS idx_im_ingress_messages_updated;
+DROP TABLE IF EXISTS im_ingress_messages;
+
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS delivery_dead_letter_at;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS delivery_next_attempt_at;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS delivery_attempts;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS delivered_at;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS delivery_error;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS delivery_status;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS artifact_path;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS result_text;
+ALTER TABLE automation_cron_runs DROP COLUMN IF EXISTS assistant_text;
+
+DROP INDEX IF EXISTS idx_automation_cron_jobs_runtime_running;
+DROP INDEX IF EXISTS idx_automation_cron_jobs_runtime_due;
+
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS execution_kind;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS last_delivery_status;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS last_error;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS failure_streak;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS last_run_status;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS last_run_at;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS running_started_at;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS running_run_id;
+ALTER TABLE automation_cron_jobs DROP COLUMN IF EXISTS next_run_at;
+
 ALTER TABLE provider ADD COLUMN model VARCHAR(255) NOT NULL DEFAULT '';
 ALTER TABLE provider ADD COLUMN is_default BOOLEAN NOT NULL DEFAULT false;
 UPDATE provider

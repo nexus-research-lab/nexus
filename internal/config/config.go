@@ -59,6 +59,7 @@ type Config struct {
 	ConnectorOAuthAllowedOrigins   []string
 	AllowedWebSocketOrigins        []string
 	ConnectorOAuthStateTTLSeconds  int
+	AutomationRunTimeoutSeconds    int
 	ConnectorCredentialsKey        string
 	ConnectorGitHubClientID        string
 	ConnectorGitHubClientSecret    string
@@ -151,6 +152,7 @@ func Load() Config {
 		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
 		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
 		ConnectorOAuthStateTTLSeconds:  mustInt(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600")),
+		AutomationRunTimeoutSeconds:    mustInt(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600")),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),

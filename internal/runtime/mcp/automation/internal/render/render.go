@@ -32,7 +32,23 @@ func Error(err error) sdkmcp.ToolResult {
 }
 
 // timeFields 是会被 DecorateTimes 自动追加 *_display 字段的时间字段。
-var timeFields = []string{"next_run_at", "last_run_at", "scheduled_for", "started_at", "finished_at"}
+var timeFields = []string{
+	"next_run_at",
+	"last_run_at",
+	"running_started_at",
+	"scheduled_for",
+	"started_at",
+	"finished_at",
+	"delivered_at",
+	"delivery_next_attempt_at",
+	"delivery_dead_letter_at",
+	"start_at",
+	"end_at",
+	"created_at",
+	"updated_at",
+	"latest_event_at",
+	"deleted_at",
+}
 
 // DecorateTimes 为返回 payload 附加本地时区字符串字段（*_display）。
 func DecorateTimes(payload any, timezoneHint string) any {
@@ -56,11 +72,20 @@ func decorateNode(node any, tz string) any {
 		return v
 	case map[string]any:
 		resolvedTz := tz
+		if s := strings.TrimSpace(argx.StringOf(v["timezone"])); s != "" {
+			resolvedTz = s
+		}
 		if schedule, ok := v["schedule"].(map[string]any); ok {
 			if s := strings.TrimSpace(argx.StringOf(schedule["timezone"])); s != "" {
 				resolvedTz = s
 			}
 			v["schedule"] = decorateNode(schedule, resolvedTz)
+		}
+		for key, value := range v {
+			if key == "schedule" {
+				continue
+			}
+			v[key] = decorateNode(value, resolvedTz)
 		}
 		for _, key := range timeFields {
 			if s := strings.TrimSpace(argx.StringOf(v[key])); s != "" {

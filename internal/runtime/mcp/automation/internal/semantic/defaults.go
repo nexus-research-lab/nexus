@@ -91,9 +91,11 @@ func ApplyDefaultTimezone(args map[string]any, sctx contract.ServerContext) {
 // 中英双语：避免英文 instruction（"summary of today"）绕过判断走默认。
 var contextHeavyKeywords = []string{
 	"总结", "汇总", "简报", "报告", "跟进", "复盘", "检查", "分析", "研究", "整理", "回顾", "监控",
+	"搜索", "检索", "新闻", "日报", "周报", "月报", "告警", "报警", "推送", "发送", "发到", "投递", "播报",
 	"summary", "summarize", "summarise", "report", "review", "analyze", "analyse",
 	"analysis", "follow up", "follow-up", "followup", "audit", "investigate",
-	"monitor", "digest", "recap", "retrospective",
+	"monitor", "digest", "recap", "retrospective", "search", "news", "newsletter",
+	"alert", "push", "send", "deliver", "broadcast",
 }
 
 func containsHeavyKeyword(instruction string) bool {
@@ -119,32 +121,16 @@ func CanDefaultSimpleReminder(args map[string]any, sctx contract.ServerContext) 
 	if containsHeavyKeyword(instruction) {
 		return false
 	}
-	schedule, ok := args["schedule"].(map[string]any)
-	if !ok {
-		return false
-	}
-	kind := strings.TrimSpace(argx.String(schedule, "kind"))
-	switch kind {
-	case "interval":
-		if argx.Int(schedule["interval_value"]) <= 0 {
-			return false
-		}
-	case "daily":
-		if strings.TrimSpace(argx.String(schedule, "daily_time")) == "" {
-			return false
-		}
-	case "single":
-		if strings.TrimSpace(argx.String(schedule, "run_at")) == "" {
-			return false
-		}
-	case "cron":
-		if strings.TrimSpace(argx.FirstNonEmpty(argx.String(schedule, "expr"), argx.String(schedule, "cron"))) == "" {
-			return false
-		}
-	default:
-		return false
-	}
-	return true
+	return hasRunnableScheduleShape(args)
+}
+
+// ApplyConversationDefaults 按对话上下文补齐安全默认值。
+// 优先处理“发到当前 IM/飞书群”的明确投递诉求，再处理复杂任务可见回传，最后处理普通短提醒。
+func ApplyConversationDefaults(args map[string]any, sctx contract.ServerContext) map[string]any {
+	args = ApplyDeliveryFieldDefaults(args)
+	args = ApplyCurrentChannelDefaults(args, sctx)
+	args = ApplyVisibleResultDefaults(args, sctx)
+	return ApplySimpleDefaults(args, sctx)
 }
 
 // ApplySimpleDefaults 在允许的前提下补齐 execution_mode / reply_mode 默认值。
@@ -177,11 +163,34 @@ func ApplySimpleDefaults(args map[string]any, sctx contract.ServerContext) map[s
 	return args
 }
 
+func hasRunnableScheduleShape(args map[string]any) bool {
+	schedule, ok := args["schedule"].(map[string]any)
+	if !ok {
+		return false
+	}
+	kind := strings.TrimSpace(argx.String(schedule, "kind"))
+	switch kind {
+	case "interval":
+		return argx.Int(schedule["interval_value"]) > 0
+	case "daily":
+		return strings.TrimSpace(argx.String(schedule, "daily_time")) != ""
+	case "single":
+		return strings.TrimSpace(argx.String(schedule, "run_at")) != ""
+	case "cron":
+		return strings.TrimSpace(argx.FirstNonEmpty(argx.String(schedule, "expr"), argx.String(schedule, "cron"))) != ""
+	default:
+		return false
+	}
+}
+
 // RequireExplicitCreateFields 在不允许默认时强制要求 execution_mode / reply_mode 字段齐全。
 // 注意：schedule.timezone 现在由 ApplyDefaultTimezone 自动补齐，这里不再强求。
 func RequireExplicitCreateFields(args map[string]any, sctx contract.ServerContext) error {
 	if _, ok := args["schedule"].(map[string]any); !ok {
 		return missingFieldsError([]string{"schedule"})
+	}
+	if strings.TrimSpace(argx.String(args, "execution_kind")) == "script" {
+		return nil
 	}
 	if CanDefaultSimpleReminder(args, sctx) {
 		return nil
@@ -209,7 +218,8 @@ type requiredFieldError struct {
 
 func (e *requiredFieldError) Error() string {
 	return "missing required scheduling fields: " + strings.Join(e.Missing, ", ") +
-		". Either ask the user to confirm these fields (e.g. via AskUserQuestion), " +
+		". Ask the user in the current conversation to confirm these fields, " +
+		"or, if the request already says the result should be sent/told back here and does not depend on current chat history, retry with execution_mode=temporary + reply_mode=selected. " +
 		"or shorten the instruction to a short reminder (≤24 chars / 24 字) without heavy-context keywords " +
 		"(summary / report / analyze / 总结 / 汇总 / 分析 …) from an active chat to qualify for the default visible reminder mode."
 }

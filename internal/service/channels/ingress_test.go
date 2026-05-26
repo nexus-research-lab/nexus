@@ -3,11 +3,13 @@ package channels
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -21,10 +23,14 @@ import (
 
 type fakeIngressDMHandler struct {
 	requests []dmsvc.Request
+	err      error
 }
 
 func (f *fakeIngressDMHandler) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.requests = append(f.requests, request)
+	if f.err != nil {
+		return f.err
+	}
 	return nil
 }
 
@@ -80,7 +86,176 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 	}
 }
 
-func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) {
+func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+
+	result, err := service.Accept(context.Background(), IngressRequest{
+		Channel:  "feishu",
+		ChatType: "group",
+		Ref:      "oc_group_123",
+		Content:  "检查今天的定时任务发送情况",
+	})
+	if err != nil {
+		t.Fatalf("Accept 失败: %v", err)
+	}
+
+	if result.SessionKey != "agent:nexus:fs:group:oc_group_123" {
+		t.Fatalf("feishu session_key 不正确: %s", result.SessionKey)
+	}
+	if result.RememberedDelivery == nil {
+		t.Fatal("feishu ingress 应记录回投目标")
+	}
+	route, err := router.GetLastRoute(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取 last route 失败: %v", err)
+	}
+	if route == nil || route.Channel != ChannelTypeFeishu || route.To != "oc_group_123" {
+		t.Fatalf("feishu route 记忆不正确: %+v", route)
+	}
+}
+
+func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	if _, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{AllowedTools: []string{"nexus_automation"}},
+	}); err != nil {
+		t.Fatalf("收紧默认 agent 工具权限失败: %v", err)
+	}
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+
+	if _, err := service.Accept(context.Background(), IngressRequest{
+		Channel:  "feishu",
+		ChatType: "group",
+		Ref:      "oc_group_123",
+		Content:  "检查今天的定时任务发送情况",
+	}); err != nil {
+		t.Fatalf("Accept 失败: %v", err)
+	}
+	if len(handler.requests) != 1 || handler.requests[0].PermissionHandler == nil {
+		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
+	}
+
+	skillDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Skill",
+		Input:    map[string]any{"name": "scheduled-task-manager"},
+	})
+	if err != nil {
+		t.Fatalf("Skill 权限处理失败: %v", err)
+	}
+	if skillDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("限制 allowlist 时仍应允许加载托管定时任务 skill: %+v", skillDecision)
+	}
+
+	reportDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_automation__get_scheduled_task_daily_report",
+		Input:    map[string]any{"date": "today"},
+	})
+	if err != nil {
+		t.Fatalf("日报工具权限处理失败: %v", err)
+	}
+	if reportDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("限制 allowlist 时仍应允许托管定时任务工具: %+v", reportDecision)
+	}
+
+	readDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Read",
+		Input:    map[string]any{"file_path": "README.md"},
+	})
+	if err != nil {
+		t.Fatalf("Read 权限处理失败: %v", err)
+	}
+	if readDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("限制 allowlist 时不应顺带放开普通只读工具: %+v", readDecision)
+	}
+}
+
+func TestIngressServiceDeduplicatesReqID(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agentService, router)
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetControlService(control)
+
+	request := IngressRequest{
+		Channel: "internal",
+		Ref:     "chat",
+		Content: "创建每天九点的新闻定时任务",
+		RoundID: "evt-1",
+		ReqID:   "message-1",
+	}
+	first, err := service.Accept(context.Background(), request)
+	if err != nil {
+		t.Fatalf("第一次 Accept 失败: %v", err)
+	}
+	second, err := service.Accept(context.Background(), request)
+	if err != nil {
+		t.Fatalf("重复 Accept 不应失败: %v", err)
+	}
+	if len(handler.requests) != 1 {
+		t.Fatalf("重复 req_id 不应再次下发 DM，实际请求数: %d", len(handler.requests))
+	}
+	if second == nil || !second.Duplicate {
+		t.Fatalf("重复消息应返回 duplicate=true: %+v", second)
+	}
+	if second.SessionKey != first.SessionKey || second.RoundID != first.RoundID || second.ReqID != first.ReqID {
+		t.Fatalf("重复消息返回的原始结果不一致: first=%+v second=%+v", first, second)
+	}
+}
+
+func TestIngressServiceRetriesFailedReqID(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	handler := &fakeIngressDMHandler{err: errors.New("dm temporarily unavailable")}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agentService, router)
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetControlService(control)
+
+	request := IngressRequest{
+		Channel: "internal",
+		Ref:     "chat",
+		Content: "停止每日新闻定时任务",
+		RoundID: "evt-1",
+		ReqID:   "message-1",
+	}
+	if _, err := service.Accept(context.Background(), request); err == nil {
+		t.Fatal("第一次 DM 失败应返回错误")
+	}
+	handler.err = nil
+	result, err := service.Accept(context.Background(), request)
+	if err != nil {
+		t.Fatalf("失败后的同 req_id 应允许重试: %v", err)
+	}
+	if result == nil || result.Duplicate {
+		t.Fatalf("失败重试成功不应标记 duplicate: %+v", result)
+	}
+	if len(handler.requests) != 2 {
+		t.Fatalf("失败后重试应再次下发 DM，实际请求数: %d", len(handler.requests))
+	}
+}
+
+func TestIngressServiceAcceptTelegramAllowsScheduledTaskToolsOnly(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -123,6 +298,28 @@ func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) 
 		t.Fatalf("telegram ingress 的 Read 应自动允许: %+v", readDecision)
 	}
 
+	createTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "create_scheduled_task",
+		Input:    map[string]any{"name": "新闻日报"},
+	})
+	if err != nil {
+		t.Fatalf("create_scheduled_task 权限处理失败: %v", err)
+	}
+	if createTaskDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("telegram ingress 的 create_scheduled_task 应自动允许: %+v", createTaskDecision)
+	}
+
+	mcpDeleteTaskDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_automation__delete_scheduled_task",
+		Input:    map[string]any{"job_id": "job-1"},
+	})
+	if err != nil {
+		t.Fatalf("mcp delete_scheduled_task 权限处理失败: %v", err)
+	}
+	if mcpDeleteTaskDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("telegram ingress 的 nexus_automation delete_scheduled_task 应自动允许: %+v", mcpDeleteTaskDecision)
+	}
+
 	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Write",
 		Input:    map[string]any{"file_path": "README.md"},
@@ -132,6 +329,50 @@ func TestIngressServiceAcceptTelegramUsesReadOnlyPermissionPolicy(t *testing.T) 
 	}
 	if writeDecision.Behavior != sdkpermission.BehaviorDeny {
 		t.Fatalf("telegram ingress 的 Write 应默认拒绝: %+v", writeDecision)
+	}
+}
+
+func TestIngressServiceAutoApproveToolsCanAllowNexusAutomationServer(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+
+	if _, err := service.Accept(context.Background(), IngressRequest{
+		Channel:          "feishu",
+		ChatType:         "group",
+		Ref:              "oc_group_123",
+		Content:          "停止每日新闻定时任务",
+		AutoApproveTools: []string{"nexus_automation"},
+	}); err != nil {
+		t.Fatalf("Accept 失败: %v", err)
+	}
+	if len(handler.requests) != 1 || handler.requests[0].PermissionHandler == nil {
+		t.Fatalf("未下发带权限处理器的请求: %+v", handler.requests)
+	}
+	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_automation__disable_scheduled_task",
+		Input:    map[string]any{"job_id": "job-1"},
+	})
+	if err != nil {
+		t.Fatalf("nexus_automation 权限处理失败: %v", err)
+	}
+	if decision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("auto_approve_tools=nexus_automation 应允许 MCP 前缀工具: %+v", decision)
+	}
+	historyDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_automation__search_scheduled_task_history",
+		Input:    map[string]any{"query": "每日新闻"},
+	})
+	if err != nil {
+		t.Fatalf("nexus_automation history search 权限处理失败: %v", err)
+	}
+	if historyDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("auto_approve_tools=nexus_automation 应允许历史搜索工具: %+v", historyDecision)
 	}
 }
 

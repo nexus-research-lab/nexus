@@ -464,7 +464,42 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	payload["usage"] = firstNonNilMap(message.Result.Usage, map[string]any{})
 	payload["result"] = message.Result.Result
 	payload["is_error"] = subtype == "error"
+	if strings.TrimSpace(message.Result.TerminalReason) != "" {
+		payload["terminal_reason"] = strings.TrimSpace(message.Result.TerminalReason)
+	}
+	if message.Result.StopReason != nil {
+		payload["stop_reason"] = message.Result.StopReason
+	}
+	if denials := projectPermissionDenials(message.Result.PermissionDenials); len(denials) > 0 {
+		payload["permission_denials"] = denials
+	}
+	if len(message.Result.Errors) > 0 {
+		payload["errors"] = append([]string(nil), message.Result.Errors...)
+	}
 	return protocol.Message(payload)
+}
+
+func projectPermissionDenials(items []sdkprotocol.PermissionDenial) []map[string]any {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		payload := map[string]any{}
+		if toolName := strings.TrimSpace(item.ToolName); toolName != "" {
+			payload["tool_name"] = toolName
+		}
+		if toolUseID := strings.TrimSpace(item.ToolUseID); toolUseID != "" {
+			payload["tool_use_id"] = toolUseID
+		}
+		if len(item.ToolInput) > 0 {
+			payload["tool_input"] = cloneMap(item.ToolInput)
+		}
+		if len(payload) > 0 {
+			result = append(result, payload)
+		}
+	}
+	return result
 }
 
 func (p *Processor) buildBlockStreamPayload(streamType string, index int, block map[string]any) StreamPayload {

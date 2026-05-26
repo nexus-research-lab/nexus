@@ -103,6 +103,9 @@ function get_context_summary(task: ScheduledTaskItem): string {
 }
 
 function get_session_summary(task: ScheduledTaskItem): string {
+  if (task.execution_kind === "script") {
+    return "脚本执行";
+  }
   const source = task.source;
   if (source?.session_label) {
     return source.session_label;
@@ -122,6 +125,9 @@ function is_same_session_loop(task: ScheduledTaskItem): boolean {
 }
 
 function get_behavior_summary(task: ScheduledTaskItem): string {
+  if (task.execution_kind === "script") {
+    return "直接在工作区执行脚本，不占用 Agent 会话；运行输出会写入产物。";
+  }
   if (is_same_session_loop(task)) {
     return "在当前会话里持续执行，并直接回到这条会话。";
   }
@@ -141,10 +147,38 @@ function get_primary_status(task: ScheduledTaskItem) {
   if (task.running) {
     return { label: "运行中", tone: "running" as const };
   }
+  if (task.failure_streak > 0) {
+    return { label: "待恢复", tone: "default" as const };
+  }
   if (task.enabled) {
     return { label: "已启用", tone: "active" as const };
   }
   return { label: "已暂停", tone: "idle" as const };
+}
+
+function get_run_status_label(status: string | null | undefined): string {
+  if (status === "succeeded") {
+    return "成功";
+  }
+  if (status === "running") {
+    return "运行中";
+  }
+  if (status === "pending") {
+    return "等待中";
+  }
+  if (status === "cancelled") {
+    return "已取消";
+  }
+  if (status === "queued_to_main_session") {
+    return "已入主会话";
+  }
+  if (status === "skipped") {
+    return "已跳过";
+  }
+  if (status === "failed") {
+    return "失败";
+  }
+  return status || "暂无记录";
 }
 
 function get_toggle_action(task: ScheduledTaskItem): {
@@ -300,6 +334,9 @@ export function ScheduledTaskList({
                         {task.running ? (
                           <WorkspaceStatusBadge label="执行占用中" size="compact" tone="running" />
                         ) : null}
+                        {task.failure_streak > 0 ? (
+                          <WorkspaceStatusBadge label={`连续失败 ${task.failure_streak} 次`} size="compact" tone="default" />
+                        ) : null}
                       </div>
                       <UiMetaGrid>
                         <UiMetaItem label="归属对象" value={get_context_summary(task)} />
@@ -309,13 +346,22 @@ export function ScheduledTaskList({
                       </UiMetaGrid>
                       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-(--text-default)">
                         <span>下次运行 {format_scheduled_datetime(task.next_run_at, { empty_label: "未安排" })}</span>
+                        {task.running_started_at ? (
+                          <span>本次开始 {format_scheduled_datetime(task.running_started_at, { include_seconds: true })}</span>
+                        ) : null}
                         <span>最近执行 {format_scheduled_datetime(task.last_run_at, { empty_label: "未安排" })}</span>
+                        <span>最近状态 {get_run_status_label(task.last_run_status)}</span>
                         <span>Agent {task.agent_id}</span>
                         <span>来源 {get_source_kind_label(task.source)}</span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-(--text-default)">
                         {get_behavior_summary(task)}
                       </p>
+                      {task.last_error ? (
+                        <p className="mt-2 break-words rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] px-3 py-2 text-xs leading-5 text-(--destructive)">
+                          {task.last_error}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-3 lg:justify-end">

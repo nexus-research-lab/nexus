@@ -34,6 +34,13 @@ func nullIntPointer(value *int) any {
 	return *value
 }
 
+func nullableTime(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return value.UTC()
+}
+
 func nullTimePointer(value sql.NullTime) *time.Time {
 	if !value.Valid {
 		return nil

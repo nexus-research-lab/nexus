@@ -24,6 +24,7 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
@@ -1058,6 +1059,81 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	}
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
+	}
+}
+
+func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "非交互助手")
+	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	if err != nil {
+		t.Fatalf("创建直聊 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "room-result-permission-handler",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+		return nil
+	}
+
+	var handledTools []string
+	requestHandler := func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		handledTools = append(handledTools, request.ToolName)
+		return sdkpermission.Deny("non-interactive room request", request.ToolName == "AskUserQuestion"), nil
+	}
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-permission-handler")
+	permission.BindSession(sharedSessionKey, sender, "client-permission-handler", true)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:        sharedSessionKey,
+		RoomID:            dmContext.Room.ID,
+		ConversationID:    dmContext.Conversation.ID,
+		Content:           "测试 room 请求级权限处理器",
+		RoundID:           "room-round-permission-handler",
+		ReqID:             "room-round-permission-handler",
+		PermissionHandler: requestHandler,
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Callbacks.PermissionHandler == nil {
+		t.Fatalf("room 请求级权限处理器未透传: %+v", options)
+	}
+	decision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "Write"})
+	if err != nil {
+		t.Fatalf("执行 room 请求级权限处理器失败: %v", err)
+	}
+	if decision.Behavior != sdkpermission.BehaviorDeny || len(handledTools) != 1 || handledTools[0] != "Write" {
+		t.Fatalf("room 请求级权限处理器未生效: decision=%+v tools=%+v", decision, handledTools)
 	}
 }
 
@@ -2178,6 +2254,103 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if err = service.HandleInterrupt(ctx, roomsvc.InterruptRequest{SessionKey: sharedSessionKey}); err != nil {
 		t.Fatalf("清理活跃 Room round 失败: %v", err)
 	}
+}
+
+func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	agentValue := createTestAgent(t, agentService, ctx, "助手甲")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID},
+		Name:     "定时任务测试房间",
+		Title:    "定时任务对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	client.onQuery = func(_ context.Context, _ string) error {
+		go sendFakeTerminalAssistantAndClose(client, "assistant-mcp-context", "ok", nil)
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+
+	type builderCall struct {
+		agentID            string
+		sessionKey         string
+		sourceContextType  string
+		sourceContextID    string
+		sourceContextLabel string
+	}
+	calls := make(chan builderCall, 1)
+	service.SetMCPServerBuilder(func(agentID string, sessionKey string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.SDKMCPServer {
+		calls <- builderCall{
+			agentID:            agentID,
+			sessionKey:         sessionKey,
+			sourceContextType:  sourceContextType,
+			sourceContextID:    sourceContextID,
+			sourceContextLabel: sourceContextLabel,
+		}
+		return nil
+	})
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-mcp-context")
+	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@助手甲 每天 9 点检查新闻并发回这个房间",
+		RoundID:        "room-round-mcp-context",
+		ReqID:          "room-round-mcp-context",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	var call builderCall
+	select {
+	case call = <-calls:
+	case <-time.After(3 * time.Second):
+		t.Fatal("等待 Room MCP builder 调用超时")
+	}
+	if call.agentID != agentValue.AgentID {
+		t.Fatalf("MCP builder agentID 不正确: %+v", call)
+	}
+	if call.sessionKey != sharedSessionKey {
+		t.Fatalf("Room MCP 上下文应使用共享 session key，实际 %+v", call)
+	}
+	if call.sourceContextType != "room" ||
+		call.sourceContextID != roomContext.Room.ID ||
+		call.sourceContextLabel != roomContext.Room.Name {
+		t.Fatalf("Room MCP 来源上下文不正确: %+v", call)
+	}
+
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
 }
 
 func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing.T) {

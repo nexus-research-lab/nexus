@@ -25,6 +25,13 @@ const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
 
+var claudeSessionScheduleTools = []string{
+	"ScheduleWakeup",
+	"CronCreate",
+	"CronList",
+	"CronDelete",
+}
+
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
 	ResolveRuntimeConfig(context.Context, string, string) (*RuntimeConfig, error)
@@ -80,7 +87,7 @@ func BuildAgentClientOptions(
 		},
 		Tools: agentclient.ToolOptions{
 			Allow: append([]string(nil), input.AllowedTools...),
-			Deny:  append([]string(nil), input.DisallowedTools...),
+			Deny:  appendDistinctTools(input.DisallowedTools, claudeSessionScheduleTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
 			PermissionMode: permissionMode,
@@ -105,6 +112,23 @@ func BuildAgentClientOptions(
 		options.MCP.SDKServers = cloneMCPServers(input.MCPServers)
 	}
 	return options, nil
+}
+
+func appendDistinctTools(base []string, extra ...string) []string {
+	result := make([]string, 0, len(base)+len(extra))
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	for _, tool := range append(append([]string(nil), base...), extra...) {
+		normalized := strings.TrimSpace(tool)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 func permissionHandlerForMode(

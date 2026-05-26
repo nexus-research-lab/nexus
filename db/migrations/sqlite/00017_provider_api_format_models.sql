@@ -92,7 +92,234 @@ WHERE EXISTS (
 ALTER TABLE provider DROP COLUMN is_default;
 ALTER TABLE provider DROP COLUMN model;
 
+ALTER TABLE automation_cron_jobs ADD COLUMN next_run_at DATETIME;
+ALTER TABLE automation_cron_jobs ADD COLUMN running_run_id VARCHAR(64);
+ALTER TABLE automation_cron_jobs ADD COLUMN running_started_at DATETIME;
+ALTER TABLE automation_cron_jobs ADD COLUMN last_run_at DATETIME;
+ALTER TABLE automation_cron_jobs ADD COLUMN last_run_status VARCHAR(32);
+ALTER TABLE automation_cron_jobs ADD COLUMN failure_streak INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE automation_cron_jobs ADD COLUMN last_error TEXT;
+ALTER TABLE automation_cron_jobs ADD COLUMN last_delivery_status VARCHAR(32);
+ALTER TABLE automation_cron_jobs ADD COLUMN execution_kind VARCHAR(32) NOT NULL DEFAULT 'agent';
+
+CREATE INDEX IF NOT EXISTS idx_automation_cron_jobs_runtime_due ON automation_cron_jobs (enabled, next_run_at);
+CREATE INDEX IF NOT EXISTS idx_automation_cron_jobs_runtime_running ON automation_cron_jobs (running_run_id);
+
+ALTER TABLE automation_cron_runs ADD COLUMN assistant_text TEXT;
+ALTER TABLE automation_cron_runs ADD COLUMN result_text TEXT;
+ALTER TABLE automation_cron_runs ADD COLUMN artifact_path VARCHAR(512);
+ALTER TABLE automation_cron_runs ADD COLUMN delivery_status VARCHAR(32);
+ALTER TABLE automation_cron_runs ADD COLUMN delivery_error TEXT;
+ALTER TABLE automation_cron_runs ADD COLUMN delivered_at DATETIME;
+ALTER TABLE automation_cron_runs ADD COLUMN delivery_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE automation_cron_runs ADD COLUMN delivery_next_attempt_at DATETIME;
+ALTER TABLE automation_cron_runs ADD COLUMN delivery_dead_letter_at DATETIME;
+
+CREATE TABLE im_ingress_messages (
+    owner_user_id VARCHAR(64) NOT NULL,
+    channel_type VARCHAR(32) NOT NULL,
+    req_id VARCHAR(255) NOT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    session_key VARCHAR(512) NOT NULL,
+    round_id VARCHAR(255) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    completed_at DATETIME,
+    PRIMARY KEY (owner_user_id, channel_type, req_id),
+    CONSTRAINT ck_im_ingress_messages_status CHECK (status IN ('processing', 'accepted', 'failed'))
+);
+CREATE INDEX idx_im_ingress_messages_updated ON im_ingress_messages (updated_at DESC);
+
+CREATE TABLE automation_task_events (
+    event_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    job_id VARCHAR(64) NOT NULL,
+    owner_user_id VARCHAR(64) NOT NULL,
+    agent_id VARCHAR(64) NOT NULL,
+    action VARCHAR(32) NOT NULL,
+    actor_user_id VARCHAR(64),
+    actor_agent_id VARCHAR(64),
+    run_id VARCHAR(64),
+    detail_json TEXT NOT NULL DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX idx_automation_task_events_job_created ON automation_task_events (job_id, created_at DESC, event_id DESC);
+CREATE INDEX idx_automation_task_events_owner_created ON automation_task_events (owner_user_id, created_at DESC, event_id DESC);
+
+PRAGMA foreign_keys = OFF;
+
+DROP INDEX IF EXISTS idx_automation_cron_runs_owner_job_created;
+DROP INDEX IF EXISTS idx_automation_cron_runs_job_created;
+DROP INDEX IF EXISTS idx_automation_cron_runs_status;
+DROP INDEX IF EXISTS idx_automation_cron_runs_job;
+
+ALTER TABLE automation_cron_runs RENAME TO automation_cron_runs_old;
+
+CREATE TABLE automation_cron_runs (
+    run_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    job_id VARCHAR(64) NOT NULL,
+    owner_user_id VARCHAR(64) NOT NULL DEFAULT '__system__',
+    status VARCHAR(32) NOT NULL,
+    trigger_kind VARCHAR(32) NOT NULL DEFAULT '',
+    session_key VARCHAR(255),
+    round_id VARCHAR(64),
+    session_id VARCHAR(255),
+    message_count INTEGER NOT NULL DEFAULT 0,
+    delivery_mode VARCHAR(32),
+    delivery_to VARCHAR(255),
+    delivery_status VARCHAR(32),
+    delivery_error TEXT,
+    delivered_at DATETIME,
+    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+    delivery_next_attempt_at DATETIME,
+    delivery_dead_letter_at DATETIME,
+    scheduled_for DATETIME,
+    started_at DATETIME,
+    finished_at DATETIME,
+    attempts INTEGER NOT NULL,
+    error_message TEXT,
+    result_summary TEXT,
+    assistant_text TEXT,
+    result_text TEXT,
+    artifact_path VARCHAR(512),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ck_automation_cron_runs_status CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled', 'queued_to_main_session', 'skipped'))
+);
+
+INSERT INTO automation_cron_runs (
+    run_id, job_id, owner_user_id, status, trigger_kind, session_key, round_id,
+    session_id, message_count, delivery_mode, delivery_to, delivery_status,
+    delivery_error, delivered_at, delivery_attempts, delivery_next_attempt_at,
+    delivery_dead_letter_at, scheduled_for, started_at, finished_at, attempts,
+    error_message, result_summary, assistant_text, result_text, artifact_path,
+    created_at, updated_at
+)
+SELECT
+    run_id, job_id, owner_user_id, status, trigger_kind, session_key, round_id,
+    session_id, message_count, delivery_mode, delivery_to, delivery_status,
+    delivery_error, delivered_at, delivery_attempts, delivery_next_attempt_at,
+    delivery_dead_letter_at, scheduled_for, started_at, finished_at, attempts,
+    error_message, result_summary, assistant_text, result_text, artifact_path,
+    created_at, updated_at
+FROM automation_cron_runs_old;
+
+DROP TABLE automation_cron_runs_old;
+
+CREATE INDEX idx_automation_cron_runs_job ON automation_cron_runs (job_id);
+CREATE INDEX idx_automation_cron_runs_status ON automation_cron_runs (status);
+CREATE INDEX IF NOT EXISTS idx_automation_cron_runs_job_created ON automation_cron_runs (job_id, created_at DESC, run_id DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_cron_runs_owner_job_created ON automation_cron_runs (owner_user_id, job_id, created_at DESC, run_id DESC);
+
+PRAGMA foreign_keys = ON;
+
 -- +goose Down
+PRAGMA foreign_keys = OFF;
+
+DELETE FROM automation_cron_runs
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM automation_cron_jobs
+    WHERE automation_cron_jobs.job_id = automation_cron_runs.job_id
+);
+
+DROP INDEX IF EXISTS idx_automation_cron_runs_owner_job_created;
+DROP INDEX IF EXISTS idx_automation_cron_runs_job_created;
+DROP INDEX IF EXISTS idx_automation_cron_runs_status;
+DROP INDEX IF EXISTS idx_automation_cron_runs_job;
+
+ALTER TABLE automation_cron_runs RENAME TO automation_cron_runs_old;
+
+CREATE TABLE automation_cron_runs (
+    run_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    job_id VARCHAR(64) NOT NULL,
+    owner_user_id VARCHAR(64) NOT NULL DEFAULT '__system__',
+    status VARCHAR(32) NOT NULL,
+    trigger_kind VARCHAR(32) NOT NULL DEFAULT '',
+    session_key VARCHAR(255),
+    round_id VARCHAR(64),
+    session_id VARCHAR(255),
+    message_count INTEGER NOT NULL DEFAULT 0,
+    delivery_mode VARCHAR(32),
+    delivery_to VARCHAR(255),
+    delivery_status VARCHAR(32),
+    delivery_error TEXT,
+    delivered_at DATETIME,
+    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+    delivery_next_attempt_at DATETIME,
+    delivery_dead_letter_at DATETIME,
+    scheduled_for DATETIME,
+    started_at DATETIME,
+    finished_at DATETIME,
+    attempts INTEGER NOT NULL,
+    error_message TEXT,
+    result_summary TEXT,
+    assistant_text TEXT,
+    result_text TEXT,
+    artifact_path VARCHAR(512),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ck_automation_cron_runs_status CHECK (status IN ('pending', 'running', 'succeeded', 'failed', 'cancelled', 'queued_to_main_session', 'skipped')),
+    FOREIGN KEY(job_id) REFERENCES automation_cron_jobs (job_id) ON DELETE CASCADE
+);
+
+INSERT INTO automation_cron_runs (
+    run_id, job_id, owner_user_id, status, trigger_kind, session_key, round_id,
+    session_id, message_count, delivery_mode, delivery_to, delivery_status,
+    delivery_error, delivered_at, delivery_attempts, delivery_next_attempt_at,
+    delivery_dead_letter_at, scheduled_for, started_at, finished_at, attempts,
+    error_message, result_summary, assistant_text, result_text, artifact_path,
+    created_at, updated_at
+)
+SELECT
+    run_id, job_id, owner_user_id, status, trigger_kind, session_key, round_id,
+    session_id, message_count, delivery_mode, delivery_to, delivery_status,
+    delivery_error, delivered_at, delivery_attempts, delivery_next_attempt_at,
+    delivery_dead_letter_at, scheduled_for, started_at, finished_at, attempts,
+    error_message, result_summary, assistant_text, result_text, artifact_path,
+    created_at, updated_at
+FROM automation_cron_runs_old;
+
+DROP TABLE automation_cron_runs_old;
+
+CREATE INDEX idx_automation_cron_runs_job ON automation_cron_runs (job_id);
+CREATE INDEX idx_automation_cron_runs_status ON automation_cron_runs (status);
+CREATE INDEX IF NOT EXISTS idx_automation_cron_runs_job_created ON automation_cron_runs (job_id, created_at DESC, run_id DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_cron_runs_owner_job_created ON automation_cron_runs (owner_user_id, job_id, created_at DESC, run_id DESC);
+
+PRAGMA foreign_keys = ON;
+
+DROP INDEX IF EXISTS idx_automation_task_events_owner_created;
+DROP INDEX IF EXISTS idx_automation_task_events_job_created;
+DROP TABLE IF EXISTS automation_task_events;
+
+DROP INDEX IF EXISTS idx_im_ingress_messages_updated;
+DROP TABLE IF EXISTS im_ingress_messages;
+
+ALTER TABLE automation_cron_runs DROP COLUMN delivery_dead_letter_at;
+ALTER TABLE automation_cron_runs DROP COLUMN delivery_next_attempt_at;
+ALTER TABLE automation_cron_runs DROP COLUMN delivery_attempts;
+ALTER TABLE automation_cron_runs DROP COLUMN delivered_at;
+ALTER TABLE automation_cron_runs DROP COLUMN delivery_error;
+ALTER TABLE automation_cron_runs DROP COLUMN delivery_status;
+ALTER TABLE automation_cron_runs DROP COLUMN artifact_path;
+ALTER TABLE automation_cron_runs DROP COLUMN result_text;
+ALTER TABLE automation_cron_runs DROP COLUMN assistant_text;
+
+DROP INDEX IF EXISTS idx_automation_cron_jobs_runtime_running;
+DROP INDEX IF EXISTS idx_automation_cron_jobs_runtime_due;
+
+ALTER TABLE automation_cron_jobs DROP COLUMN execution_kind;
+ALTER TABLE automation_cron_jobs DROP COLUMN last_delivery_status;
+ALTER TABLE automation_cron_jobs DROP COLUMN last_error;
+ALTER TABLE automation_cron_jobs DROP COLUMN failure_streak;
+ALTER TABLE automation_cron_jobs DROP COLUMN last_run_status;
+ALTER TABLE automation_cron_jobs DROP COLUMN last_run_at;
+ALTER TABLE automation_cron_jobs DROP COLUMN running_started_at;
+ALTER TABLE automation_cron_jobs DROP COLUMN running_run_id;
+ALTER TABLE automation_cron_jobs DROP COLUMN next_run_at;
+
 ALTER TABLE provider ADD COLUMN model VARCHAR(255) NOT NULL DEFAULT '';
 ALTER TABLE provider ADD COLUMN is_default BOOLEAN NOT NULL DEFAULT 0;
 UPDATE provider
