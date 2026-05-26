@@ -15,6 +15,7 @@ import {
   goal_create_decision,
   parse_goal_command,
   run_goal_command,
+  type GoalActionCommandKind,
   type GoalCreateCommand,
 } from "./goal-command";
 
@@ -93,7 +94,10 @@ export function useGoalCommandHandler({
         on_refresh();
         return true;
       }
-      await run_goal_command(session_key, command);
+      const result = await run_goal_command(session_key, command);
+      if (result.kind === "missing_goal") {
+        set_command_error(goal_missing_command_message(result.command));
+      }
       on_refresh();
       return true;
     },
@@ -155,4 +159,15 @@ export function useGoalCommandHandler({
   );
 
   return { try_handle_goal_command, goal_command_dialog };
+}
+
+function goal_missing_command_message(command: GoalActionCommandKind): string {
+  switch (command) {
+    case "pause":
+      return "当前没有 Goal 可暂停";
+    case "resume":
+      return "当前没有 Goal 可继续";
+    case "clear":
+      return "当前没有 Goal 可清除";
+  }
 }

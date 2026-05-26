@@ -18,6 +18,14 @@ export type GoalCommand =
   | { kind: "create"; objective: string; token_budget: number | null };
 
 export type GoalCreateCommand = Extract<GoalCommand, { kind: "create" }>;
+export type GoalActionCommandKind = Extract<
+  GoalCommand,
+  { kind: "pause" | "resume" | "clear" }
+>["kind"];
+
+export type GoalCommandRunResult =
+  | { kind: "ok" }
+  | { kind: "missing_goal"; command: GoalActionCommandKind };
 
 export type GoalCreateDecision =
   | { kind: "create" }
@@ -61,12 +69,15 @@ export async function run_goal_command(
   session_key: string,
   command: GoalCommand,
   options: RunGoalCommandOptions = {},
-) {
+): Promise<GoalCommandRunResult> {
   if (command.kind === "show") {
-    return;
+    return { kind: "ok" };
   }
   if (command.kind === "invalid") {
-    return;
+    return { kind: "ok" };
+  }
+  if (command.kind === "edit") {
+    return { kind: "ok" };
   }
   if (command.kind === "create") {
     if (options.replace_existing) {
@@ -77,15 +88,16 @@ export async function run_goal_command(
       objective: command.objective,
       token_budget: command.token_budget,
     });
-    return;
+    return { kind: "ok" };
   }
   const current = await current_goal_or_null(session_key);
   if (current === null) {
-    return;
+    return { kind: "missing_goal", command: command.kind };
   }
   if (command.kind === "pause") await pause_goal_api(current.id);
   if (command.kind === "resume") await resume_goal_api(current.id);
   if (command.kind === "clear") await clear_goal_api(current.id);
+  return { kind: "ok" };
 }
 
 export async function goal_create_decision(

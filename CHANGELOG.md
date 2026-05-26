@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal `update_goal` 工具描述补齐 Codex 当前 blocked 审计语义，包括 resumed 后重新审计和 usage-limit 由系统控制。
 - Room group runtime 中的 Goal MCP 工具改为绑定房间 shared session，房间成员完成/阻塞 Goal 时会更新同一个房间 Goal。
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
+- Goal `/goal pause|resume|clear` 在当前会话没有 Goal 时会展示明确反馈，不再静默刷新。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
