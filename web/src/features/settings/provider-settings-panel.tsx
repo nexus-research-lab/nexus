@@ -113,7 +113,6 @@ const SETTINGS_TABS: { key: SettingsTabKey; label_key: "settings.tabs.providers"
 ];
 
 const PROVIDER_LABEL_CLASS_NAME = "text-[13px] font-semibold text-(--text-strong)";
-const PROVIDER_HINT_CLASS_NAME = "text-[12px] leading-5 text-(--text-muted)";
 
 const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Chat Completions (/chat/completions)",
@@ -121,11 +120,12 @@ const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   anthropic_messages: "Anthropic Messages (/v1/messages)",
 };
 
-const API_FORMAT_ENDPOINT_PATHS: Record<ProviderApiFormat, string> = {
-  chat_completions: "/chat/completions",
-  responses: "/responses",
-  anthropic_messages: "/v1/messages",
+const API_FORMAT_SHORT_LABELS: Record<ProviderApiFormat, string> = {
+  chat_completions: "Completions",
+  responses: "Responses",
+  anthropic_messages: "Anthropic",
 };
+
 const AUTO_TEST_MODEL_VALUE = "__auto__";
 const SUPPORTED_PROVIDER_API_FORMAT: ProviderApiFormat = "anthropic_messages";
 const CONFIGURABLE_NON_RUNTIME_PRESET_KEYS = new Set(["custom", "openai"]);
@@ -167,6 +167,10 @@ function preset_supports_current_runtime(preset: ProviderPreset): boolean {
 
 function preset_allows_non_runtime_config(preset: ProviderPreset | null): boolean {
   return !!preset && CONFIGURABLE_NON_RUNTIME_PRESET_KEYS.has(preset.preset_key);
+}
+
+function preset_uses_builtin_endpoint(preset: ProviderPreset | null): boolean {
+  return !!preset && preset.preset_key !== "custom";
 }
 
 function preset_is_configurable(preset: ProviderPreset): boolean {
@@ -237,20 +241,42 @@ function parse_provider_options(raw: string, invalid_object_message: string): Re
   return parsed as Record<string, unknown>;
 }
 
-function build_provider_payload_from_draft(draft: ProviderDraft): UpdateProviderConfigPayload {
+function get_effective_endpoint_format(
+  draft: ProviderDraft,
+  preset: ProviderPreset | null,
+): ProviderPresetFormat | null {
+  if (!preset_uses_builtin_endpoint(preset)) {
+    return null;
+  }
+  return get_preset_format(preset, draft.api_format);
+}
+
+function get_effective_base_url(draft: ProviderDraft, preset: ProviderPreset | null): string {
+  return get_effective_endpoint_format(draft, preset)?.base_url ?? draft.base_url;
+}
+
+function get_effective_models_path(draft: ProviderDraft, preset: ProviderPreset | null): string {
+  return get_effective_endpoint_format(draft, preset)?.models_path ?? draft.models_path;
+}
+
+function build_provider_payload_from_draft(
+  draft: ProviderDraft,
+  preset: ProviderPreset | null,
+): UpdateProviderConfigPayload {
   return {
     provider_kind: "llm",
     preset_key: draft.preset_key,
     api_format: draft.api_format,
     display_name: draft.display_name.trim() || draft.provider.trim(),
-    base_url: draft.base_url.trim(),
-    models_path: draft.models_path.trim(),
+    base_url: get_effective_base_url(draft, preset).trim(),
+    models_path: get_effective_models_path(draft, preset).trim(),
     enabled: draft.enabled,
   };
 }
 
 function get_provider_draft_error(
   draft: ProviderDraft,
+  preset: ProviderPreset | null,
   is_creating: boolean,
   translate: TranslateFn,
 ): string | null {
@@ -260,7 +286,7 @@ function get_provider_draft_error(
   if (!draft.provider.trim()) {
     return translate("settings.providers.validation_provider_required");
   }
-  if (!draft.base_url.trim()) {
+  if (!get_effective_base_url(draft, preset).trim()) {
     return translate("settings.providers.validation_base_url_required");
   }
   if (!draft.api_format.trim()) {
@@ -272,7 +298,11 @@ function get_provider_draft_error(
   return null;
 }
 
-function provider_draft_has_changes(draft: ProviderDraft, record: ProviderConfigRecord | null): boolean {
+function provider_draft_has_changes(
+  draft: ProviderDraft,
+  record: ProviderConfigRecord | null,
+  preset: ProviderPreset | null,
+): boolean {
   if (!record) {
     return true;
   }
@@ -282,8 +312,8 @@ function provider_draft_has_changes(draft: ProviderDraft, record: ProviderConfig
   return draft.preset_key !== (record.preset_key || "custom")
     || draft.api_format !== record.api_format
     || (draft.display_name.trim() || draft.provider.trim()) !== (record.display_name || record.provider)
-    || draft.base_url.trim() !== record.base_url
-    || draft.models_path.trim() !== (record.models_path || "")
+    || get_effective_base_url(draft, preset).trim() !== record.base_url
+    || get_effective_models_path(draft, preset).trim() !== (record.models_path || "")
     || draft.enabled !== record.enabled;
 }
 
@@ -309,28 +339,12 @@ function format_count(value?: number | null): string {
   return String(value);
 }
 
-function join_url_path(base_url: string, path: string): string {
-  const normalized_base_url = base_url.trim().replace(/\/+$/, "");
-  const normalized_path = path.trim().replace(/^\/+/, "");
-  if (!normalized_base_url) {
-    return `/${normalized_path}`;
-  }
-  if (!normalized_path) {
-    return normalized_base_url;
-  }
-  return `${normalized_base_url}/${normalized_path}`;
-}
-
 function normalize_custom_provider_key(value: string): string {
   return value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-function format_endpoint_preview(base_url: string, api_format: ProviderApiFormat): string {
-  return join_url_path(base_url, API_FORMAT_ENDPOINT_PATHS[api_format]);
 }
 
 function get_effective_capabilities(model: ProviderModelRecord): ProviderModelCapabilities {
@@ -501,8 +515,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (is_empty_mode) {
       return false;
     }
-    return get_provider_draft_error(draft, is_creating, t) === null;
-  }, [draft, is_creating, is_empty_mode, t]);
+    return get_provider_draft_error(draft, current_preset, is_creating, t) === null;
+  }, [current_preset, draft, is_creating, is_empty_mode, t]);
 
   const refresh_all = useCallback(async (preferred_provider?: string | null) => {
     try {
@@ -607,7 +621,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     };
     const show_error = options?.show_error ?? true;
     const show_success = options?.show_success ?? false;
-    const validation_error = get_provider_draft_error(next_draft, is_creating, t);
+    const validation_error = get_provider_draft_error(next_draft, current_preset, is_creating, t);
     if (validation_error) {
       if (show_error) {
         set_feedback({
@@ -618,13 +632,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       }
       return null;
     }
-    if (is_editing && !provider_draft_has_changes(next_draft, selected_record)) {
+    if (is_editing && !provider_draft_has_changes(next_draft, selected_record, current_preset)) {
       return selected_record;
     }
     const save_promise = (async () => {
       set_submitting(true);
       try {
-        const payload = build_provider_payload_from_draft(next_draft);
+        const payload = build_provider_payload_from_draft(next_draft, current_preset);
         const normalized_auth_token = next_draft.auth_token.trim();
         if (normalized_auth_token) {
           payload.auth_token = normalized_auth_token;
@@ -670,17 +684,17 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         save_promise_ref.current = null;
       }
     }
-  }, [draft, is_creating, is_editing, is_empty_mode, refresh_all, selected_record, t]);
+  }, [current_preset, draft, is_creating, is_editing, is_empty_mode, refresh_all, selected_record, t]);
 
   const handle_provider_field_blur = useCallback(() => {
     if (!can_save || pending_action || submitting) {
       return;
     }
-    if (is_editing && !provider_draft_has_changes(draft, selected_record)) {
+    if (is_editing && !provider_draft_has_changes(draft, selected_record, current_preset)) {
       return;
     }
     void handle_save({ show_error: false, show_success: false });
-  }, [can_save, draft, handle_save, is_editing, pending_action, selected_record, submitting]);
+  }, [can_save, current_preset, draft, handle_save, is_editing, pending_action, selected_record, submitting]);
 
   const handle_enabled_change = useCallback((checked: boolean) => {
     set_draft((current) => ({ ...current, enabled: checked }));
@@ -974,6 +988,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     ? get_provider_title(selected_record)
     : draft.display_name || current_preset?.display_name || t("settings.providers.custom_provider");
   const is_custom_provider = draft.preset_key === "custom";
+  const uses_builtin_endpoint = preset_uses_builtin_endpoint(current_preset);
   const is_api_format_supported = draft.api_format === SUPPORTED_PROVIDER_API_FORMAT;
   const is_api_format_configurable = is_api_format_supported || preset_allows_non_runtime_config(current_preset);
   const current_format = get_preset_format(current_preset, draft.api_format);
@@ -991,10 +1006,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       }),
     ];
   }, [selected_record, t]);
-  const base_url_preview = format_endpoint_preview(
-    draft.base_url.trim() || current_format?.base_url || "",
-    draft.api_format,
-  );
+  const builtin_endpoint_formats = uses_builtin_endpoint ? current_preset?.formats ?? [] : [];
   const manual_model_placeholder = selected_record?.models[0]?.model_id
     || (draft.api_format === "anthropic_messages" ? "opus-4.7" : "model-id");
   const delete_usage_agents = delete_target_record?.used_by_agents ?? [];
@@ -1270,23 +1282,41 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   ) : null}
                 </label>
 
-                <label className="block space-y-2">
+                <div className="block space-y-2">
                   <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.base_url")}</span>
-                  <UiInput
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    control_size="md"
-                    onChange={(event) => set_draft((current) => ({ ...current, base_url: event.target.value }))}
-                    onBlur={handle_provider_field_blur}
-                    placeholder={current_format?.base_url || "https://api.example.com/v1"}
-                    spellCheck={false}
-                    type="text"
-                    value={draft.base_url}
-                  />
-                  <p className={PROVIDER_HINT_CLASS_NAME}>
-                    {t("settings.providers.preview_prefix")}<span className="break-all font-mono text-(--text-default)">{base_url_preview}</span>
-                  </p>
-                </label>
+                  {uses_builtin_endpoint ? (
+                    <div className="space-y-1.5">
+                      {builtin_endpoint_formats.map((format) => (
+                        <div
+                          className="input-shell grid min-h-9 grid-cols-1 items-center gap-1.5 rounded-[12px] px-3.5 py-1.5 text-sm text-(--text-default) sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3"
+                          key={format.api_format}
+                        >
+                          <span
+                            className="inline-flex h-6 w-fit max-w-full items-center rounded-full bg-(--surface-muted-background) px-2 text-[11px] font-semibold text-(--text-muted)"
+                            title={API_FORMAT_LABELS[format.api_format]}
+                          >
+                            {API_FORMAT_SHORT_LABELS[format.api_format]}
+                          </span>
+                          <span className="min-w-0 break-all font-mono text-(--text-strong)">
+                            {format.base_url}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <UiInput
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      control_size="md"
+                      onChange={(event) => set_draft((current) => ({ ...current, base_url: event.target.value }))}
+                      onBlur={handle_provider_field_blur}
+                      placeholder={current_format?.base_url || "https://api.example.com/v1"}
+                      spellCheck={false}
+                      type="text"
+                      value={draft.base_url}
+                    />
+                  )}
+                </div>
 
                 <div className="space-y-3 pt-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">

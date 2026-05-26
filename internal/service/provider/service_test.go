@@ -208,6 +208,79 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 }
 
+func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	openai, err := service.Create(ctx, CreateInput{
+		Provider:   "openai",
+		PresetKey:  presetOpenAI,
+		APIFormat:  APIFormatResponses,
+		AuthToken:  "openai-key",
+		BaseURL:    "https://proxy.example.com/v1",
+		ModelsPath: "/proxy-models",
+	})
+	if err != nil {
+		t.Fatalf("创建 OpenAI provider 失败: %v", err)
+	}
+	if openai.BaseURL != "https://api.openai.com/v1" || openai.ModelsPath != "/models" {
+		t.Fatalf("内置 provider create 应忽略自定义 endpoint: %+v", openai)
+	}
+
+	updated, err := service.Update(ctx, "openai", UpdateInput{
+		PresetKey:  presetOpenAI,
+		APIFormat:  APIFormatResponses,
+		BaseURL:    "https://another-proxy.example.com/v1",
+		ModelsPath: "/another-models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("更新 OpenAI provider 失败: %v", err)
+	}
+	if updated.BaseURL != "https://api.openai.com/v1" || updated.ModelsPath != "/models" {
+		t.Fatalf("内置 provider update 应忽略自定义 endpoint: %+v", updated)
+	}
+
+	entity, err := service.repository.GetByProvider(ctx, "openai")
+	if err != nil || entity == nil {
+		t.Fatalf("读取 OpenAI provider 失败: entity=%+v err=%v", entity, err)
+	}
+	entity.BaseURL = "https://dirty.example.com/v1"
+	entity.ModelsPath = "/dirty-models"
+	if err = service.repository.Update(ctx, *entity); err != nil {
+		t.Fatalf("写入脏 endpoint 失败: %v", err)
+	}
+	records, err := service.List(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider 列表失败: %v", err)
+	}
+	var listed *Record
+	for index := range records {
+		if records[index].Provider == "openai" {
+			listed = &records[index]
+			break
+		}
+	}
+	if listed == nil || listed.BaseURL != "https://api.openai.com/v1" || listed.ModelsPath != "/models" {
+		t.Fatalf("内置 provider list 应按 catalog 展示 endpoint: %+v", listed)
+	}
+
+	custom, err := service.Create(ctx, CreateInput{
+		Provider:   "custom-openai",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatChatCompletions,
+		AuthToken:  "custom-key",
+		BaseURL:    "https://proxy.example.com/v1",
+		ModelsPath: "/proxy-models",
+	})
+	if err != nil {
+		t.Fatalf("创建 custom provider 失败: %v", err)
+	}
+	if custom.BaseURL != "https://proxy.example.com/v1" || custom.ModelsPath != "/proxy-models" {
+		t.Fatalf("custom provider 应保留自定义 endpoint: %+v", custom)
+	}
+}
+
 func TestProviderListIncludesUsageAgents(t *testing.T) {
 	ctx := context.Background()
 	service, db := newTestService(t)

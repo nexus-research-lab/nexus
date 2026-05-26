@@ -539,7 +539,32 @@ func normalizeProviderKind(providerKind string) string {
 }
 
 func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
-	return s.repository.List(ctx)
+	items, err := s.repository.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		normalizeBuiltinEndpoint(&items[index])
+	}
+	return items, nil
+}
+
+func normalizeBuiltinEndpoint(item *providerstore.Entity) {
+	if item == nil || strings.TrimSpace(item.PresetKey) == "" || item.PresetKey == presetCustom {
+		return
+	}
+	preset := resolvePreset(item.PresetKey)
+	if preset.PresetKey == presetCustom {
+		return
+	}
+	apiFormat := normalizeAPIFormat(item.APIFormat)
+	if apiFormat == "" {
+		apiFormat = preset.DefaultFormat
+	}
+	format := preset.Format(apiFormat)
+	item.APIFormat = apiFormat
+	item.BaseURL = format.BaseURL
+	item.ModelsPath = format.ModelsPath
 }
 
 func (s *Service) defaultRuntimeSelection(ctx context.Context) (*providerModelTarget, error) {
@@ -719,11 +744,15 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 	}
 	format := preset.Format(apiFormat)
 	baseURL := strings.TrimSpace(input.BaseURL)
-	if baseURL == "" {
+	if preset.PresetKey != presetCustom {
+		baseURL = format.BaseURL
+	} else if baseURL == "" {
 		baseURL = format.BaseURL
 	}
 	modelsPath := strings.TrimSpace(input.ModelsPath)
-	if modelsPath == "" {
+	if preset.PresetKey != presetCustom {
+		modelsPath = format.ModelsPath
+	} else if modelsPath == "" {
 		modelsPath = format.ModelsPath
 	}
 	result := CreateInput{
@@ -767,14 +796,18 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 		displayName = current.Provider
 	}
 	baseURL := strings.TrimSpace(input.BaseURL)
-	if baseURL == "" {
+	if preset.PresetKey != presetCustom {
+		baseURL = format.BaseURL
+	} else if baseURL == "" {
 		baseURL = format.BaseURL
 	}
 	if baseURL == "" {
 		return providerstore.Entity{}, errors.New("base_url 不能为空")
 	}
 	modelsPath := strings.TrimSpace(input.ModelsPath)
-	if modelsPath == "" {
+	if preset.PresetKey != presetCustom {
+		modelsPath = format.ModelsPath
+	} else if modelsPath == "" {
 		modelsPath = format.ModelsPath
 	}
 	authToken := current.AuthToken
