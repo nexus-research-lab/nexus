@@ -25,10 +25,13 @@ import {
 } from "./workspace-file-preview-chrome";
 
 const MAX_XLSX_PREVIEW_BYTES = 15 * 1024 * 1024;
-const MIN_SHEET_ROWS = 100;
-const MIN_SHEET_COLS = 20;
+// 只读预览不补大面积空白网格，避免内容右侧/底部空白区域继续响应选区操作。
+const MIN_SHEET_ROWS = 1;
+const MIN_SHEET_COLS = 1;
 const EXCEL_COLUMN_WIDTH_TO_PX = 6;
 const EXCEL_ROW_HEIGHT_TO_PX = 4 / 3;
+const SPREADSHEET_ROW_HEADER_WIDTH = 60;
+const SPREADSHEET_VIEW_PADDING = 24;
 
 const THEME_COLORS = [
   "#ffffff",
@@ -387,13 +390,14 @@ function mount_spreadsheet(
 ): () => void {
   const event_scope = capture_event_listeners([window, document, document.body]);
   let spreadsheet: SpreadsheetRuntime | null = null;
+  const content_width = estimate_spreadsheet_content_width(data);
   const options: SpreadsheetOptions = {
     mode: "read",
     showContextmenu: false,
     showToolbar: false,
     view: {
       height: () => Math.max(container.clientHeight, 300),
-      width: () => Math.max(container.clientWidth, 320),
+      width: () => Math.max(Math.min(container.clientWidth, content_width), 320),
     },
     row: {
       height: 24,
@@ -425,6 +429,50 @@ function mount_spreadsheet(
     container.innerHTML = "";
     spreadsheet = null;
   };
+}
+
+function estimate_spreadsheet_content_width(data: XSpreadsheetData): number {
+  return Math.max(
+    ...data.map((sheet) => estimate_sheet_content_width(sheet)),
+    320,
+  );
+}
+
+function estimate_sheet_content_width(sheet: XSpreadsheetSheetData): number {
+  const used_col_indexes = new Set<number>();
+
+  Object.keys(sheet.cols).forEach((key) => {
+    const index = Number(key);
+    if (Number.isInteger(index) && index >= 0) {
+      used_col_indexes.add(index);
+    }
+  });
+
+  Object.values(sheet.rows).forEach((row) => {
+    if (!row || typeof row !== "object" || !("cells" in row)) {
+      return;
+    }
+    Object.keys(row.cells).forEach((key) => {
+      const index = Number(key);
+      if (Number.isInteger(index) && index >= 0) {
+        used_col_indexes.add(index);
+      }
+    });
+  });
+
+  sheet.merges.forEach((merge_range) => {
+    const parsed = parse_cell_range(merge_range);
+    if (parsed) {
+      used_col_indexes.add(parsed.end_col);
+    }
+  });
+
+  const max_col_index = Math.max(...used_col_indexes, 0);
+  let width = SPREADSHEET_ROW_HEADER_WIDTH + SPREADSHEET_VIEW_PADDING;
+  for (let col_index = 0; col_index <= max_col_index; col_index += 1) {
+    width += sheet.cols[col_index]?.width ?? 80;
+  }
+  return width;
 }
 
 function resolve_spreadsheet_entrypoint(module_value: unknown): SpreadsheetEntrypoint {
@@ -525,7 +573,8 @@ function worksheet_to_x_spreadsheet_sheet(worksheet: Worksheet): XSpreadsheetShe
   let max_row_index = Math.max(worksheet.rowCount - 1, 0);
   let max_col_index = Math.max(worksheet.columnCount - 1, 0);
 
-  worksheet.columns.forEach((column, index) => {
+  const worksheet_columns = Array.isArray(worksheet.columns) ? worksheet.columns : [];
+  worksheet_columns.forEach((column, index) => {
     const width = column.hidden
       ? 0.1
       : column.width
