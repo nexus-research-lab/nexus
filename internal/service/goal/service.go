@@ -82,6 +82,9 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceUser, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(created.CreatedBy) != "model" {
+		s.activateExternalGoalAccounting(ctx, *created)
+	}
 	s.maybeDispatchActiveGoalContinuation(ctx, *created)
 	return created, nil
 }
@@ -295,6 +298,9 @@ func (s *Service) persistTransition(
 	}
 	if shouldClearAccountingAfterMutation(source) {
 		s.clearExternalGoalAccounting(*updated)
+	}
+	if source != protocol.GoalUpdateSourceModel {
+		s.activateExternalGoalAccounting(ctx, *updated)
 	}
 	return updated, nil
 }

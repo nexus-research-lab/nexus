@@ -191,6 +191,47 @@ func TestManagerClearGoalAccounting(t *testing.T) {
 	}
 }
 
+func TestManagerActivateGoalAccounting(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-activate"
+	calls := []string{}
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(context.Context) error {
+		calls = append(calls, "round-b")
+		return nil
+	})
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(context.Context) error {
+		calls = append(calls, "round-a")
+		return nil
+	})
+
+	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("ActivateGoalAccounting() error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	}
+	if strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
+	}
+
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("ActivateGoalAccounting() after unregister error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	if err != nil || len(roundIDs) != 0 {
+		t.Fatalf("after round finished roundIDs=%#v err=%v, want empty nil", roundIDs, err)
+	}
+}
+
 func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:nexus:ws:dm:test-guide"

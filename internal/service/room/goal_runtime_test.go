@@ -275,6 +275,37 @@ func TestClearGoalUsageForRoomSlotStopsLaterAccounting(t *testing.T) {
 	}
 }
 
+func TestActivateGoalUsageForRoomSlotRestartsFromCurrentSnapshot(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "round-1",
+		GoalIDForUsage:    "goal-1",
+		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
+	clearGoalUsageForSlot(slot)
+	slot.rememberGoalAssistantMessage(roomGoalToolResultAssistantMessage("tool-2", "read_file", 7, 3))
+	activateGoalUsageForSlot(context.Background(), slot)
+	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+			TotalTokens:  15,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want initial usage and post-activate delta", len(usages))
+	}
+	if usages[1].InputTokens != 3 || usages[1].OutputTokens != 2 || usages[1].Total() != 5 {
+		t.Fatalf("post-activate usage = %#v, want 3/2", usages[1])
+	}
+}
+
 func TestRecordGoalUsageLimitForRoomSlotUsesGoalSessionKey(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &RealtimeService{goals: goalProvider}

@@ -26,6 +26,7 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request protocol.
 		if err != nil {
 			return nil, err
 		}
+		s.activateExternalGoalAccounting(ctx, *created)
 		s.maybeDispatchActiveGoalContinuation(ctx, *created)
 		return created, nil
 	}

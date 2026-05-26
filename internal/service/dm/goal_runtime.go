@@ -51,6 +51,20 @@ func (r *roundRunner) clearGoalUsage() {
 	}
 }
 
+func (r *roundRunner) activateGoalUsage(context.Context) error {
+	if r.service.goals == nil || r.ignoreGoalRuntime() {
+		return nil
+	}
+	snapshot := r.assistantGoalUsageSnapshot(r.lastGoalAssistantMessage())
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	if r.goalUsage == nil {
+		r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
+	}
+	r.goalUsage.Reset(snapshot)
+	return nil
+}
+
 func (r *roundRunner) rememberGoalAssistantMessage(message protocol.Message) {
 	if protocol.MessageRole(message) != "assistant" {
 		return

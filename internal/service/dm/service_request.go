@@ -135,6 +135,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	}
 	s.runtime.RegisterGoalAccountingFlush(sessionKey, request.RoundID, runner.flushGoalUsage)
 	s.runtime.RegisterGoalAccountingClear(sessionKey, request.RoundID, runner.clearGoalUsage)
+	s.runtime.RegisterGoalAccountingActivate(sessionKey, request.RoundID, runner.activateGoalUsage)
 
 	s.loggerFor(ctx).Info("受理 DM 会话消息",
 		"session_key", sessionKey,

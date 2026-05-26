@@ -10,6 +10,7 @@ import (
 type externalMutationAccountant interface {
 	FlushGoalAccounting(context.Context, string) ([]string, error)
 	ClearGoalAccounting(string) []string
+	ActivateGoalAccounting(context.Context, string) ([]string, error)
 }
 
 // SetExternalMutationAccountant 注入运行时 accounting flush，用于外部 Goal 状态变化前结算进度。
@@ -40,6 +41,16 @@ func (s *Service) clearExternalGoalAccounting(item protocol.Goal) {
 		return
 	}
 	_ = s.externalMutation.ClearGoalAccounting(item.SessionKey)
+}
+
+func (s *Service) activateExternalGoalAccounting(ctx context.Context, item protocol.Goal) {
+	if s.externalMutation == nil {
+		return
+	}
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return
+	}
+	_, _ = s.externalMutation.ActivateGoalAccounting(ctx, item.SessionKey)
 }
 
 func shouldClearRuntimeAccounting(status protocol.GoalStatus) bool {

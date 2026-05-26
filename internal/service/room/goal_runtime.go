@@ -102,9 +102,14 @@ func (s *RealtimeService) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
 		clearGoalUsageForSlot(slot)
 	})
+	s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, func(ctx context.Context) error {
+		activateGoalUsageForSlot(ctx, slot)
+		return nil
+	})
 	return func() {
 		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
 		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
+		s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
 		s.runtime.MarkRoundFinished(sessionKey, roundID)
 	}
 }
@@ -321,6 +326,19 @@ func clearGoalUsageForSlot(slot *activeRoomSlot) {
 	if slot.GoalUsage != nil {
 		slot.GoalUsage.Close()
 	}
+}
+
+func activateGoalUsageForSlot(_ context.Context, slot *activeRoomSlot) {
+	if slot == nil || slot.GoalRuntimeIgnored {
+		return
+	}
+	snapshot := slotAssistantGoalUsageSnapshot(slot, slot.lastGoalAssistantMessage())
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if slot.GoalUsage == nil {
+		slot.GoalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
+	}
+	slot.GoalUsage.Reset(snapshot)
 }
 
 func goalSessionKeyForSlot(slot *activeRoomSlot) string {

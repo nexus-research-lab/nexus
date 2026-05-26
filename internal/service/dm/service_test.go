@@ -425,6 +425,39 @@ func TestRoundRunnerClearGoalUsageStopsLaterAccounting(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerActivateGoalUsageRestartsFromCurrentSnapshot(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.clearGoalUsage()
+	runner.rememberGoalAssistantMessage(goalToolResultAssistantMessage("tool-2", "read_file", false, 7, 3))
+	if err := runner.activateGoalUsage(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+			TotalTokens:  15,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want initial usage and post-activate delta", len(usages))
+	}
+	if usages[1].InputTokens != 3 || usages[1].OutputTokens != 2 || usages[1].Total() != 5 {
+		t.Fatalf("post-activate usage = %#v, want 3/2", usages[1])
+	}
+}
+
 func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
