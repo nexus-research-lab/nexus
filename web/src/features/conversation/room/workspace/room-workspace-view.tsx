@@ -23,8 +23,10 @@ interface RoomWorkspaceViewProps {
   header_action?: ReactNode;
   is_dm: boolean;
   is_editor_open: boolean;
+  is_preview_focused: boolean;
   room_members: Agent[];
   on_open_workspace_file: (path: string | null) => void;
+  on_preview_focus_change: (is_focused: boolean) => void;
 }
 
 const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 280;
@@ -40,15 +42,16 @@ export function RoomWorkspaceView(
     header_action,
     is_dm,
     is_editor_open,
+    is_preview_focused,
     room_members,
     on_open_workspace_file,
+    on_preview_focus_change,
   }: RoomWorkspaceViewProps) {
   const {t} = useI18n();
   const file_input_ref = useRef<HTMLInputElement>(null);
   const workspace_panel_ref = useRef<HTMLDivElement>(null);
   const [file_list_width, set_file_list_width] = useState(WORKSPACE_FILE_LIST_DEFAULT_WIDTH);
   const [is_resizing_file_list, set_is_resizing_file_list] = useState(false);
-  const [is_preview_focused, set_is_preview_focused] = useState(false);
   const {
     view_agent_id,
     files,
@@ -104,15 +107,15 @@ export function RoomWorkspaceView(
   };
 
   const handle_toggle_preview_focus = () => {
-    set_is_preview_focused((value) => !value);
+    on_preview_focus_change(!is_preview_focused);
     set_is_resizing_file_list(false);
   };
 
   useEffect(() => {
     if (!active_workspace_path) {
-      set_is_preview_focused(false);
+      on_preview_focus_change(false);
     }
-  }, [active_workspace_path]);
+  }, [active_workspace_path, on_preview_focus_change]);
 
   useEffect(() => {
     if (!is_resizing_file_list) {
