@@ -82,13 +82,3 @@ export async function clear_goal_api(goal_id: string): Promise<Goal> {
     },
   );
 }
-
-export async function complete_goal_api(goal_id: string): Promise<Goal> {
-  return request_api<Goal>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}/complete`,
-    {
-      method: "POST",
-      body: {},
-    },
-  );
-}

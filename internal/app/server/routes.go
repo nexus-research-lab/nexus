@@ -168,8 +168,6 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/goals/{goal_id}/pause"), s.handlers.goal.HandlePauseGoal)
 	s.router.Post(s.prefixPath("/goals/{goal_id}/resume"), s.handlers.goal.HandleResumeGoal)
 	s.router.Post(s.prefixPath("/goals/{goal_id}/clear"), s.handlers.goal.HandleClearGoal)
-	s.router.Post(s.prefixPath("/goals/{goal_id}/complete"), s.handlers.goal.HandleCompleteGoal)
-	s.router.Post(s.prefixPath("/goals/{goal_id}/block"), s.handlers.goal.HandleBlockGoal)
 	s.router.Get(s.prefixPath("/goals/{goal_id}/events"), s.handlers.goal.HandleGoalEvents)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/set"), s.handlers.goal.HandleThreadGoalSet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/get"), s.handlers.goal.HandleThreadGoalGet)

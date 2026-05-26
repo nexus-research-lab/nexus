@@ -89,34 +89,6 @@ func (h *Handlers) HandleClearGoal(writer http.ResponseWriter, request *http.Req
 	h.api.WriteSuccess(writer, goal)
 }
 
-// HandleCompleteGoal 标记 Goal 完成。
-func (h *Handlers) HandleCompleteGoal(writer http.ResponseWriter, request *http.Request) {
-	var input protocol.CompleteGoalRequest
-	if !h.api.BindJSONAllowEmpty(writer, request, &input) {
-		return
-	}
-	goal, err := h.goals.CompleteByModel(request.Context(), chi.URLParam(request, "goal_id"), input)
-	if err != nil {
-		h.writeGoalError(writer, err)
-		return
-	}
-	h.api.WriteSuccess(writer, goal)
-}
-
-// HandleBlockGoal 标记 Goal 阻塞。
-func (h *Handlers) HandleBlockGoal(writer http.ResponseWriter, request *http.Request) {
-	var input protocol.BlockGoalRequest
-	if !h.api.BindJSON(writer, request, &input) {
-		return
-	}
-	goal, err := h.goals.BlockByModel(request.Context(), chi.URLParam(request, "goal_id"), input)
-	if err != nil {
-		h.writeGoalError(writer, err)
-		return
-	}
-	h.api.WriteSuccess(writer, goal)
-}
-
 // HandleGoalEvents 返回 Goal 审计事件。
 func (h *Handlers) HandleGoalEvents(writer http.ResponseWriter, request *http.Request) {
 	events, err := h.goals.Events(request.Context(), chi.URLParam(request, "goal_id"), 50)
