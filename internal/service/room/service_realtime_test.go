@@ -1076,6 +1076,57 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "多助手 Goal 房间",
+		Title:    "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	service := NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("Room Goal continuation should defer when a multi-agent room has no default target")
+	}
+
+	hostedContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:             []string{amy.AgentID, devin.AgentID},
+		Name:                 "主持人 Goal 房间",
+		Title:                "主对话",
+		HostAgentID:          amy.AgentID,
+		HostAutoReplyEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("创建 hosted room 失败: %v", err)
+	}
+	hostedSessionKey := protocol.BuildRoomSharedSessionKey(hostedContext.Conversation.ID)
+	if service.ShouldDeferGoalContinuation(ctx, hostedSessionKey) {
+		t.Fatal("Room Goal continuation should not defer when a host default target exists")
+	}
+}
+
 func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)

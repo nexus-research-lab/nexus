@@ -87,7 +87,7 @@ export function goal_context_label(
 ): string | null {
   switch (goal.status) {
     case "active":
-      if (continuation_hold) return "Plan 模式不注入";
+      if (continuation_hold) return continuation_hold.label;
       if ((goal.empty_progress_count ?? 0) > 0) {
         return "续跑暂停";
       }

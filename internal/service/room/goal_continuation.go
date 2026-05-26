@@ -41,7 +41,7 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	}
 	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
 	if !ok {
-		return s.shouldDeferGoalContinuationForPlanMode(ctx, contextValue)
+		return s.shouldDeferGoalContinuationForTargetState(ctx, contextValue)
 	}
 	s.dispatchNextInputQueueItem(
 		contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
@@ -52,7 +52,7 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	return true
 }
 
-func (s *RealtimeService) shouldDeferGoalContinuationForPlanMode(ctx context.Context, contextValue *protocol.ConversationContextAggregate) bool {
+func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(ctx context.Context, contextValue *protocol.ConversationContextAggregate) bool {
 	if s == nil || s.agents == nil || contextValue == nil {
 		return false
 	}
@@ -63,11 +63,11 @@ func (s *RealtimeService) shouldDeferGoalContinuationForPlanMode(ctx context.Con
 	}
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID)
 	if targetAgentID == "" {
-		return false
+		return true
 	}
 	agentValue := agentByID[targetAgentID]
 	if agentValue == nil {
-		return false
+		return true
 	}
 	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
 }

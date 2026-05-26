@@ -30,6 +30,29 @@ export function goal_continuation_hold_for_agent(
   );
 }
 
+export function goal_continuation_hold_for_room_target(
+  room_members: Agent[],
+  host_agent_id: string | null | undefined,
+  host_auto_reply_enabled: boolean,
+): GoalContinuationHold | null {
+  const target_agent = resolve_goal_continuation_target_agent(
+    room_members,
+    host_agent_id,
+    host_auto_reply_enabled,
+  );
+  if (target_agent) {
+    return goal_continuation_hold_for_agent(target_agent);
+  }
+  if (room_members.length <= 1) {
+    return null;
+  }
+  return {
+    detail:
+      "房间有多个 Agent，但没有唯一默认目标；启用主持人自动回复后，隐藏 Goal 续跑才会自动启动",
+    label: "等待目标 Agent",
+  };
+}
+
 export function resolve_goal_continuation_target_agent(
   room_members: Agent[],
   host_agent_id: string | null | undefined,

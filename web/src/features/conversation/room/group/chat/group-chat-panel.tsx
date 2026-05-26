@@ -29,8 +29,7 @@ import {
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import {
-  goal_continuation_hold_for_agent,
-  resolve_goal_continuation_target_agent,
+  goal_continuation_hold_for_room_target,
 } from "@/features/conversation/shared/goal-continuation-hold";
 import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
@@ -151,14 +150,15 @@ export function GroupChatPanel({
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
-  const goal_continuation_hold = useMemo(() => {
-    const target_agent = resolve_goal_continuation_target_agent(
-      room_members,
-      room_host_agent_id,
-      room_host_auto_reply_enabled,
-    );
-    return goal_continuation_hold_for_agent(target_agent);
-  }, [room_host_agent_id, room_host_auto_reply_enabled, room_members]);
+  const goal_continuation_hold = useMemo(
+    () =>
+      goal_continuation_hold_for_room_target(
+        room_members,
+        room_host_agent_id,
+        room_host_auto_reply_enabled,
+      ),
+    [room_host_agent_id, room_host_auto_reply_enabled, room_members],
+  );
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
     on_edit: request_goal_edit,
     session_key,
