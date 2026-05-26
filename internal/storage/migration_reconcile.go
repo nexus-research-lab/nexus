@@ -1,12 +1,10 @@
-package main
+package storage
 
 import (
 	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
-
-	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 const sqliteLegacyVersionTable = "goose_db_version"
@@ -80,8 +78,9 @@ var sqliteLegacySchemaMarkers = []sqliteSchemaMarker{
 	},
 }
 
-func reconcileLegacySQLiteMigrationVersion(db *sql.DB, driver string, currentVersion int64, logger *slog.Logger) (int64, error) {
-	if currentVersion != 0 || !storage.IsSQLiteSQLDriver(storage.NormalizeSQLDriver(driver)) {
+// ReconcileLegacySQLiteMigrationVersion 修复旧 SQLite 数据库缺失 goose 版本记录的问题。
+func ReconcileLegacySQLiteMigrationVersion(db *sql.DB, driver string, currentVersion int64, logger *slog.Logger) (int64, error) {
+	if currentVersion != 0 || !IsSQLiteSQLDriver(NormalizeSQLDriver(driver)) {
 		return currentVersion, nil
 	}
 

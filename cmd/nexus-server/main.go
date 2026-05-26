@@ -39,7 +39,7 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
-	version, err = reconcileLegacySQLiteMigrationVersion(db, cfg.DatabaseDriver, version, logger)
+	version, err = storage.ReconcileLegacySQLiteMigrationVersion(db, cfg.DatabaseDriver, version, logger)
 	if err != nil {
 		return err
 	}
