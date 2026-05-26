@@ -266,6 +266,13 @@ func (s *Service) persistTransition(
 	payload map[string]any,
 ) (*protocol.Goal, error) {
 	status = protocol.NormalizeGoalStatus(status)
+	if shouldPreserveBudgetLimitedStopRequest(item.Status, status) {
+		s.clearWallClockGoal(item)
+		if shouldClearAccountingAfterMutation(source) {
+			s.clearExternalGoalAccounting(item)
+		}
+		return &item, nil
+	}
 	if !canTransition(source, item.Status, status) {
 		return nil, ErrGoalInvalidState
 	}

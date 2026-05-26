@@ -29,6 +29,13 @@ func canTransition(source protocol.GoalUpdateSource, from protocol.GoalStatus, t
 	}
 }
 
+func shouldPreserveBudgetLimitedStopRequest(from protocol.GoalStatus, to protocol.GoalStatus) bool {
+	from = protocol.NormalizeGoalStatus(from)
+	to = protocol.NormalizeGoalStatus(to)
+	return from == protocol.GoalStatusBudgetLimited &&
+		(to == protocol.GoalStatusPaused || to == protocol.GoalStatusBlocked)
+}
+
 func canExternalTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {
 	if from == protocol.GoalStatusCleared {
 		return false
