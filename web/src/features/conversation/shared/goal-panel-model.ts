@@ -89,9 +89,9 @@ export function goal_context_label(
     case "active":
       if (continuation_hold) return "Plan 模式不注入";
       if ((goal.empty_progress_count ?? 0) > 0) {
-        return is_generating ? "上下文已携带" : "等待活动后携带";
+        return "续跑暂停";
       }
-      return is_generating ? "上下文已携带" : "下轮携带上下文";
+      return is_generating ? "仅记账不注入" : "续跑时携带";
     case "paused":
       return "暂停注入上下文";
     case "blocked":
