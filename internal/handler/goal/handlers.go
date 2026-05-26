@@ -81,12 +81,12 @@ func (h *Handlers) HandleResumeGoal(writer http.ResponseWriter, request *http.Re
 
 // HandleClearGoal 清除 Goal。
 func (h *Handlers) HandleClearGoal(writer http.ResponseWriter, request *http.Request) {
-	goal, err := h.goals.Clear(request.Context(), chi.URLParam(request, "goal_id"))
+	cleared, err := h.goals.Clear(request.Context(), chi.URLParam(request, "goal_id"))
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
 	}
-	h.api.WriteSuccess(writer, goal)
+	h.api.WriteSuccess(writer, protocol.ThreadGoalClearResponse{Cleared: cleared})
 }
 
 // HandleGoalEvents 返回 Goal 审计事件。

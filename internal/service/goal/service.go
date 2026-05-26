@@ -217,9 +217,14 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 	return resumed, nil
 }
 
-// Clear 清除当前 Goal。
-func (s *Service) Clear(ctx context.Context, goalID string) (*protocol.Goal, error) {
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusCleared, protocol.GoalUpdateSourceUser, "cleared", "", nil)
+// Clear 删除当前 Goal。
+func (s *Service) Clear(ctx context.Context, goalID string) (bool, error) {
+	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	item, err := s.loadMutableGoal(ctx, goalID)
+	if err != nil {
+		return false, err
+	}
+	return s.deleteGoal(ctx, *item, protocol.GoalUpdateSourceUser)
 }
 
 func (s *Service) changeStatus(
@@ -359,6 +364,19 @@ func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType
 	s.broadcastGoalEvent(ctx, item, event)
 	s.queueGoalSteering(ctx, item, event)
 	return nil
+}
+
+func (s *Service) deleteGoal(ctx context.Context, item protocol.Goal, source protocol.GoalUpdateSource) (bool, error) {
+	deleted, err := s.repo.DeleteGoal(ctx, item.ID)
+	if err != nil {
+		return false, err
+	}
+	if !deleted {
+		return false, nil
+	}
+	s.clearDeletedGoalRuntimeAccounting(item)
+	s.broadcastDeletedGoalEvent(ctx, item, source)
+	return true, nil
 }
 
 func (s *Service) ensureEnabled() error {

@@ -217,14 +217,26 @@ export function GoalPanel({
     set_is_loading(true);
     try {
       const updated = await action(goal.id);
-      if (updated.status === "cleared") {
+      set_goal(updated);
+      await refresh_goal_events(updated.id);
+      set_error(null);
+    } catch (err) {
+      set_error(err instanceof Error ? err.message : "Goal 操作失败");
+    } finally {
+      set_is_loading(false);
+    }
+  };
+
+  const clear_current_goal = async () => {
+    if (!goal || disabled) return;
+    set_is_loading(true);
+    try {
+      const result = await clear_goal_api(goal.id);
+      if (result.cleared) {
         set_goal(null);
         set_events([]);
         set_is_creating(false);
         set_is_editing(false);
-      } else {
-        set_goal(updated);
-        await refresh_goal_events(updated.id);
       }
       set_error(null);
     } catch (err) {
@@ -245,7 +257,7 @@ export function GoalPanel({
 
   const confirm_clear_goal = () => {
     set_is_clear_confirm_open(false);
-    void mutate_goal(clear_goal_api);
+    void clear_current_goal();
   };
 
   const start_editing_goal = () => {

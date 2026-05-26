@@ -37,12 +37,28 @@ func (s *Service) broadcastGoalEvent(ctx context.Context, item protocol.Goal, ev
 		payload["round_id"] = roundID
 	}
 	message := protocol.GoalEventEnvelope(item.SessionKey, eventType, item, payload)
+	s.broadcastGoalEventMessage(ctx, item.SessionKey, message)
+}
+
+func (s *Service) broadcastDeletedGoalEvent(ctx context.Context, item protocol.Goal, source protocol.GoalUpdateSource) {
+	if s.events == nil || strings.TrimSpace(item.SessionKey) == "" {
+		return
+	}
+	payload := map[string]any{
+		"goal_event_type": "cleared",
+		"source":          string(source),
+	}
+	message := protocol.GoalEventEnvelope(item.SessionKey, protocol.EventTypeGoalCleared, item, payload)
+	s.broadcastGoalEventMessage(ctx, item.SessionKey, message)
+}
+
+func (s *Service) broadcastGoalEventMessage(ctx context.Context, sessionKey string, message protocol.EventMessage) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	broadcastCtx, cancel := context.WithTimeout(ctx, goalBroadcastTimeout)
 	defer cancel()
-	_ = s.events.BroadcastEvent(broadcastCtx, item.SessionKey, message)
+	_ = s.events.BroadcastEvent(broadcastCtx, strings.TrimSpace(sessionKey), message)
 }
 
 func protocolGoalEventType(eventType string) (protocol.EventType, bool) {

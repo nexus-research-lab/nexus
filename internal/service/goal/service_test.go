@@ -112,6 +112,16 @@ func TestServiceBroadcastsGoalEvents(t *testing.T) {
 	if broadcaster.events[1].Data["goal_event_type"] != "paused" {
 		t.Fatalf("payload = %#v, want paused goal_event_type", broadcaster.events[1].Data)
 	}
+
+	if _, err := service.Clear(context.Background(), created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(broadcaster.events) != 3 || broadcaster.events[2].EventType != protocol.EventTypeGoalCleared {
+		t.Fatalf("events = %#v, want goal_cleared", broadcaster.events)
+	}
+	if broadcaster.events[2].Data["goal_event_type"] != "cleared" {
+		t.Fatalf("payload = %#v, want cleared goal_event_type", broadcaster.events[2].Data)
+	}
 }
 
 func TestServiceBroadcastsContinuationSuppressedEvent(t *testing.T) {
@@ -190,8 +200,22 @@ func TestServiceStateTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cleared.Status != protocol.GoalStatusCleared || cleared.ClearedAt == nil {
-		t.Fatalf("cleared = %#v, want complete goal cleared", cleared)
+	if !cleared {
+		t.Fatal("Clear() = false, want true")
+	}
+	current, err = service.CurrentOptional(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("current after clear = %#v, want nil", current)
+	}
+	deleted, err := repo.GetGoal(ctx, completed.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted != nil {
+		t.Fatalf("deleted = %#v, want nil after clear", deleted)
 	}
 }
 

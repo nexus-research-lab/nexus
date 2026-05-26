@@ -1,6 +1,7 @@
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import type {
+  ClearGoalResult,
   CreateGoalInput,
   Goal,
   GoalEvent,
@@ -74,8 +75,8 @@ export async function resume_goal_api(goal_id: string): Promise<Goal> {
   );
 }
 
-export async function clear_goal_api(goal_id: string): Promise<Goal> {
-  return request_api<Goal>(
+export async function clear_goal_api(goal_id: string): Promise<ClearGoalResult> {
+  return request_api<ClearGoalResult>(
     `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}/clear`,
     {
       method: "POST",

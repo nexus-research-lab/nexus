@@ -60,3 +60,7 @@ export interface UpdateGoalInput {
   token_budget?: number | null;
   metadata?: Record<string, unknown> | null;
 }
+
+export interface ClearGoalResult {
+  cleared: boolean;
+}

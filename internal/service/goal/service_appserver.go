@@ -70,15 +70,11 @@ func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request protoco
 	if refreshed == nil {
 		return false, nil
 	}
-	deleted, err := s.repo.DeleteGoal(ctx, refreshed.ID)
+	deleted, err := s.deleteGoal(ctx, *refreshed, protocol.GoalUpdateSourceExternal)
 	if err != nil {
 		return false, err
 	}
-	if !deleted {
-		return false, nil
-	}
-	s.clearDeletedGoalRuntimeAccounting(*refreshed)
-	return true, nil
+	return deleted, nil
 }
 
 func (s *Service) createFromThreadGoalParams(
