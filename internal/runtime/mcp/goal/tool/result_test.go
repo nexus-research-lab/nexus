@@ -89,3 +89,21 @@ func TestGoalPayloadUsesCodexStatusNames(t *testing.T) {
 		t.Fatalf("status = %#v, want budgetLimited", goal["status"])
 	}
 }
+
+func TestGoalPayloadIncludesNullTokenBudget(t *testing.T) {
+	payload := goalPayload(&protocol.Goal{
+		Status:     protocol.GoalStatusActive,
+		SessionKey: "agent:nexus:ws:dm:chat",
+	})
+	goal, ok := payload["goal"].(map[string]any)
+	if !ok {
+		t.Fatalf("goal = %#v, want map", payload["goal"])
+	}
+	value, exists := goal["tokenBudget"]
+	if !exists {
+		t.Fatalf("goal = %#v, want tokenBudget field", goal)
+	}
+	if value != nil {
+		t.Fatalf("tokenBudget = %#v, want nil", value)
+	}
+}

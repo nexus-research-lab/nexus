@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal `get_goal` 在当前线程没有 Goal 时返回空 Goal 结构化结果，不再把空状态误报为工具失败。
 - Goal 创建时不再应用隐式默认 token budget，只有显式传入 `token_budget` 时才设置预算。
 - Goal 工具结构化结果改为 Codex 风格 camelCase 字段，包括 `remainingTokens`、`completionBudgetReport` 和 `goal.tokensUsed`。
+- Goal 工具结构化结果中的 `goal.tokenBudget` 改为 Codex 一致的显式 nullable 字段，无预算时返回 `null` 而不是省略。
 - Goal 工具 schema 与文本结果继续贴近 Codex：`token_budget` 使用 integer 类型，成功结果文本输出 JSON payload。
 - Goal round usage 绑定到本轮开始时的 Goal ID，模型在本轮完成/阻塞 Goal 后仍会补记最终用量。
 - Goal 自动续跑对齐 Codex 的空进展抑制语义：隐藏续跑轮次未产生可计入工具进展时暂停下一次自动续跑，用户/外部活动或工具进展会恢复续跑。
