@@ -18,6 +18,12 @@ const EMU_PER_PIXEL = 9525;
 const DEFAULT_SLIDE_WIDTH_EMU = 12192000;
 const DEFAULT_SLIDE_HEIGHT_EMU = 6858000;
 const RELATIONSHIP_NAMESPACE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const SLIDE_LAYOUT_RELATIONSHIP_TYPE = `${RELATIONSHIP_NAMESPACE}/slideLayout`;
+const SLIDE_MASTER_RELATIONSHIP_TYPE = `${RELATIONSHIP_NAMESPACE}/slideMaster`;
+const ROUND_RECT_RADIUS_RATIO = 0.08;
+const ROUND_RECT_MAX_RADIUS = 14;
+const MIN_DECORATION_SHAPE_SIZE = 28;
+const MIN_BACKGROUND_LIKE_SHAPE_SIZE = 240;
 
 const SCHEME_COLORS: Record<string, string> = {
   accent1: "#4472c4",
@@ -47,7 +53,8 @@ type PresentationShapeGeometry =
   | "line"
   | "rect"
   | "roundRect"
-  | "triangle";
+  | "triangle"
+  | "unsupported";
 
 interface PresentationParagraph {
   align?: "center" | "left" | "right";
@@ -103,6 +110,43 @@ interface PresentationRelationship {
 interface PresentationParseResult {
   object_urls: string[];
   slides: PresentationSlide[];
+}
+
+type PresentationTransform = Pick<PresentationShapeElement, "height" | "width" | "x" | "y">;
+
+interface PresentationPlaceholderStyle {
+  fill?: string;
+  geometry: PresentationShapeGeometry;
+  key: string;
+  stroke?: string;
+  stroke_width: number;
+  transform: PresentationTransform;
+}
+
+interface PresentationPart {
+  background?: string;
+  elements: PresentationElement[];
+  placeholder_styles: Map<string, PresentationPlaceholderStyle>;
+  rels: Record<string, PresentationRelationship>;
+}
+
+interface PresentationShapeTreeContext {
+  element_index: number;
+  fallback_placeholders?: Map<string, PresentationPlaceholderStyle>;
+  id_prefix: string;
+  include_placeholder_shapes: boolean;
+}
+
+interface PresentationShapeTreeResult {
+  elements: PresentationElement[];
+  placeholder_styles: Map<string, PresentationPlaceholderStyle>;
+}
+
+interface PresentationGroupTransform extends PresentationTransform {
+  child_height: number;
+  child_width: number;
+  child_x: number;
+  child_y: number;
 }
 
 interface PresentationFilePreviewProps {
@@ -271,7 +315,7 @@ export function PresentationFilePreview({
                   {slides.map((slide, index) => (
                     <button
                       className={cn(
-                        "w-full rounded-lg border p-1.5 text-left transition-colors",
+                        "w-full rounded-[6px] border p-1 text-left transition-colors",
                         index === active_slide_index
                           ? "border-primary/45 bg-primary/8"
                           : "border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) hover:border-primary/30",
@@ -280,7 +324,7 @@ export function PresentationFilePreview({
                       onClick={() => set_active_slide_index(index)}
                       type="button"
                     >
-                      <PresentationSlideCanvas class_name="rounded-md shadow-none" slide={slide} thumbnail />
+                      <PresentationSlideCanvas class_name="rounded-[2px] shadow-none" slide={slide} thumbnail />
                       <span className="mt-1 block truncate text-[10px] font-medium text-(--text-muted)">
                         {index + 1}. {slide.title}
                       </span>
@@ -300,7 +344,7 @@ export function PresentationFilePreview({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         aria-label="上一页幻灯片"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
                         disabled={active_slide_index <= 0}
                         onClick={() => set_active_slide_index((index) => Math.max(index - 1, 0))}
                         type="button"
@@ -309,7 +353,7 @@ export function PresentationFilePreview({
                       </button>
                       <button
                         aria-label="下一页幻灯片"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
                         disabled={active_slide_index >= slides.length - 1}
                         onClick={() => set_active_slide_index((index) => Math.min(index + 1, slides.length - 1))}
                         type="button"
@@ -352,7 +396,7 @@ function PresentationSlideCanvas({
       aria-label={slide.title}
       className={cn(
         "block w-full bg-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]",
-        thumbnail ? "shadow-sm" : "rounded-lg",
+        thumbnail ? "rounded-[2px] shadow-sm" : "rounded-[2px]",
         class_name,
       )}
       role="img"
@@ -390,11 +434,14 @@ function PresentationShape({
 }) {
   const stroke = shape.stroke || "none";
   const fill = shape.geometry === "line" ? "none" : shape.fill || "transparent";
+  const text_padding = thumbnail
+    ? Math.max(Math.min(shape.width, shape.height) * 0.03, 4)
+    : Math.max(Math.min(shape.width, shape.height) * 0.045, 6);
 
   return (
     <g>
       {render_shape_geometry(shape, fill, stroke)}
-      {shape.paragraphs.length > 0 && !thumbnail ? (
+      {shape.paragraphs.length > 0 ? (
         <foreignObject height={shape.height} width={shape.width} x={shape.x} y={shape.y}>
           <div
             style={{
@@ -404,7 +451,7 @@ function PresentationShape({
               height: "100%",
               justifyContent: "center",
               overflow: "hidden",
-              padding: Math.max(Math.min(shape.width, shape.height) * 0.045, 6),
+              padding: text_padding,
               width: "100%",
             }}
           >
@@ -434,6 +481,10 @@ function PresentationShape({
 }
 
 function render_shape_geometry(shape: PresentationShapeElement, fill: string, stroke: string) {
+  if (shape.geometry === "unsupported") {
+    return null;
+  }
+
   const common_props = {
     fill,
     stroke,
@@ -474,17 +525,23 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
           y2={shape.y + shape.height}
         />
       );
-    case "roundRect":
+    case "roundRect": {
+      const radius = Math.min(
+        Math.min(shape.width, shape.height) * ROUND_RECT_RADIUS_RATIO,
+        ROUND_RECT_MAX_RADIUS,
+      );
       return (
         <rect
           height={shape.height}
-          rx={Math.min(shape.width, shape.height) * 0.08}
+          rx={radius}
+          ry={radius}
           width={shape.width}
           x={shape.x}
           y={shape.y}
           {...common_props}
         />
       );
+    }
     case "triangle":
       return (
         <polygon
@@ -496,7 +553,7 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
           {...common_props}
         />
       );
-    default:
+    case "rect":
       return (
         <rect
           height={shape.height}
@@ -582,11 +639,44 @@ async function parse_slide(
 ): Promise<PresentationSlide> {
   const slide_xml = await read_zip_text(zip, slide_path);
   const slide_doc = parse_xml(slide_xml);
-  const rels = await read_relationships(zip, slide_path);
-  const background = read_slide_background(slide_doc);
+  const slide_rels = await read_relationships(zip, slide_path);
+  const layout_path = resolve_related_part_path(slide_path, slide_rels, SLIDE_LAYOUT_RELATIONSHIP_TYPE);
+  const layout_rels = layout_path ? await read_relationships(zip, layout_path) : {};
+  const master_path = layout_path
+    ? resolve_related_part_path(layout_path, layout_rels, SLIDE_MASTER_RELATIONSHIP_TYPE)
+    : null;
+  const master_part = master_path ? await parse_presentation_part(zip, master_path, object_urls) : null;
+  const layout_part = layout_path
+    ? await parse_presentation_part(zip, layout_path, object_urls, master_part?.placeholder_styles)
+    : null;
+  const inherited_placeholders = merge_placeholder_styles(
+    master_part?.placeholder_styles,
+    layout_part?.placeholder_styles,
+  );
+  const background = read_slide_background(slide_doc)
+    || layout_part?.background
+    || master_part?.background
+    || "#ffffff";
   const shape_tree = first_descendant_by_local_name(slide_doc, "spTree");
-  const elements = shape_tree ? await parse_shape_tree(zip, slide_path, rels, shape_tree, object_urls) : [];
-  const first_text = elements
+  const slide_result = shape_tree ? await parse_shape_tree(
+    zip,
+    slide_path,
+    slide_rels,
+    shape_tree,
+    object_urls,
+    {
+      element_index: 0,
+      fallback_placeholders: inherited_placeholders,
+      id_prefix: `slide-${index + 1}`,
+      include_placeholder_shapes: true,
+    },
+  ) : { elements: [], placeholder_styles: new Map<string, PresentationPlaceholderStyle>() };
+  const elements = [
+    ...(master_part?.elements ?? []),
+    ...(layout_part?.elements ?? []),
+    ...slide_result.elements,
+  ];
+  const first_text = slide_result.elements
     .flatMap((element) => element.type === "shape" ? element.paragraphs : [])
     .map((paragraph) => paragraph.text.trim())
     .find(Boolean);
@@ -601,33 +691,110 @@ async function parse_slide(
   };
 }
 
+async function parse_presentation_part(
+  zip: JSZip,
+  part_path: string,
+  object_urls: string[],
+  fallback_placeholders?: Map<string, PresentationPlaceholderStyle>,
+): Promise<PresentationPart | null> {
+  if (!zip.file(part_path)) {
+    return null;
+  }
+
+  const part_xml = await read_zip_text(zip, part_path);
+  const part_doc = parse_xml(part_xml);
+  const rels = await read_relationships(zip, part_path);
+  const shape_tree = first_descendant_by_local_name(part_doc, "spTree");
+  const result = shape_tree ? await parse_shape_tree(zip, part_path, rels, shape_tree, object_urls, {
+    element_index: 0,
+    fallback_placeholders,
+    id_prefix: part_path.replace(/[^a-z0-9]+/gi, "-"),
+    include_placeholder_shapes: false,
+  }) : { elements: [], placeholder_styles: new Map<string, PresentationPlaceholderStyle>() };
+
+  return {
+    background: read_slide_background(part_doc),
+    elements: result.elements,
+    placeholder_styles: result.placeholder_styles,
+    rels,
+  };
+}
+
+function resolve_related_part_path(
+  source_path: string,
+  source_rels: Record<string, PresentationRelationship>,
+  relationship_type: string,
+): string | null {
+  const rel = Object.values(source_rels).find((relationship) => relationship.type === relationship_type);
+  if (!rel || rel.target_mode === "External") {
+    return null;
+  }
+  return resolve_relationship_target(source_path, rel.target);
+}
+
+function merge_placeholder_styles(
+  base?: Map<string, PresentationPlaceholderStyle>,
+  override?: Map<string, PresentationPlaceholderStyle>,
+): Map<string, PresentationPlaceholderStyle> {
+  return new Map([
+    ...(base?.entries() ?? []),
+    ...(override?.entries() ?? []),
+  ]);
+}
+
 async function parse_shape_tree(
   zip: JSZip,
   slide_path: string,
   rels: Record<string, PresentationRelationship>,
   shape_tree: Element,
   object_urls: string[],
-): Promise<PresentationElement[]> {
+  context: PresentationShapeTreeContext,
+  group_transform?: PresentationGroupTransform | null,
+): Promise<PresentationShapeTreeResult> {
   const elements: PresentationElement[] = [];
+  const placeholder_styles = new Map<string, PresentationPlaceholderStyle>();
   const children = Array.from(shape_tree.children);
 
   for (const child of children) {
     switch (child.localName) {
       case "cxnSp":
       case "sp": {
-        const shape = parse_shape(child, `shape-${elements.length}`);
-        if (shape) {
-          elements.push(shape);
+        const parsed_shape = parse_shape(child, `${context.id_prefix}-shape-${context.element_index}`, context);
+        context.element_index += 1;
+        if (parsed_shape.placeholder_style) {
+          placeholder_styles.set(parsed_shape.placeholder_style.key, parsed_shape.placeholder_style);
+        }
+        if (parsed_shape.shape && (!parsed_shape.is_placeholder || context.include_placeholder_shapes)) {
+          elements.push(parsed_shape.shape);
         }
         break;
       }
       case "grpSp": {
-        const group_elements = await parse_shape_tree(zip, slide_path, rels, child, object_urls);
-        elements.push(...group_elements);
+        const group_result = await parse_shape_tree(
+          zip,
+          slide_path,
+          rels,
+          child,
+          object_urls,
+          context,
+          read_group_transform(child),
+        );
+        group_result.placeholder_styles.forEach((style, key) => {
+          placeholder_styles.set(key, style);
+        });
+        elements.push(...group_result.elements);
         break;
       }
       case "pic": {
-        const image = await parse_picture(zip, slide_path, rels, child, `image-${elements.length}`, object_urls);
+        const image = await parse_picture(
+          zip,
+          slide_path,
+          rels,
+          child,
+          `${context.id_prefix}-image-${context.element_index}`,
+          object_urls,
+        );
+        context.element_index += 1;
         if (image) {
           elements.push(image);
         }
@@ -638,36 +805,120 @@ async function parse_shape_tree(
     }
   }
 
-  return elements;
-}
-
-function parse_shape(element: Element, id: string): PresentationShapeElement | null {
-  const shape_properties = first_child_by_local_name(element, "spPr");
-  const transform = read_transform(shape_properties);
-  if (!transform) {
-    return null;
-  }
-
-  const paragraphs = parse_text_body(first_child_by_local_name(element, "txBody"), transform.width);
-  const fill = read_fill_color(shape_properties);
-  const stroke = read_stroke_color(shape_properties);
-  const stroke_width = read_stroke_width(shape_properties);
-  const geometry = read_shape_geometry(shape_properties, element.localName === "cxnSp");
-
-  if (!fill && !stroke && paragraphs.length === 0 && geometry !== "line") {
-    return null;
+  if (!group_transform) {
+    return { elements, placeholder_styles };
   }
 
   return {
-    ...transform,
+    elements: elements.map((element) => apply_group_transform_to_element(element, group_transform)),
+    placeholder_styles: map_group_placeholder_styles(placeholder_styles, group_transform),
+  };
+}
+
+function parse_shape(
+  element: Element,
+  id: string,
+  context: PresentationShapeTreeContext,
+): {
+  is_placeholder: boolean;
+  placeholder_style: PresentationPlaceholderStyle | null;
+  shape: PresentationShapeElement | null;
+} {
+  const shape_properties = first_child_by_local_name(element, "spPr");
+  const placeholder_key = read_placeholder_key(element);
+  const fallback_placeholder = placeholder_key ? context.fallback_placeholders?.get(placeholder_key) : undefined;
+  const transform = read_transform(shape_properties) || fallback_placeholder?.transform || null;
+  if (!transform) {
+    return {
+      is_placeholder: !!placeholder_key,
+      placeholder_style: null,
+      shape: null,
+    };
+  }
+
+  const paragraphs = parse_text_body(first_child_by_local_name(element, "txBody"), transform.width);
+  const fill = read_fill_color(shape_properties) || fallback_placeholder?.fill;
+  const stroke = read_stroke_color(shape_properties) || fallback_placeholder?.stroke;
+  const stroke_width = read_stroke_width(shape_properties) || fallback_placeholder?.stroke_width || 1;
+  const geometry = read_shape_geometry(shape_properties, element.localName === "cxnSp", fallback_placeholder?.geometry);
+  const placeholder_style = placeholder_key ? {
     fill,
     geometry,
-    id,
-    paragraphs,
+    key: placeholder_key,
     stroke,
     stroke_width,
-    type: "shape",
+    transform,
+  } : null;
+
+  if (should_skip_shape_preview({ fill, geometry, height: transform.height, paragraphs, stroke, width: transform.width })) {
+    return {
+      is_placeholder: !!placeholder_key,
+      placeholder_style,
+      shape: null,
+    };
+  }
+
+  return {
+    is_placeholder: !!placeholder_key,
+    placeholder_style,
+    shape: {
+      ...transform,
+      fill,
+      geometry,
+      id,
+      paragraphs,
+      stroke,
+      stroke_width,
+      type: "shape",
+    },
   };
+}
+
+function should_skip_shape_preview({
+  fill,
+  geometry,
+  height,
+  paragraphs,
+  stroke,
+  width,
+}: {
+  fill?: string;
+  geometry: PresentationShapeGeometry;
+  height: number;
+  paragraphs: PresentationParagraph[];
+  stroke?: string;
+  width: number;
+}): boolean {
+  if (geometry === "line") {
+    return false;
+  }
+  if (geometry === "unsupported" && paragraphs.length === 0) {
+    return true;
+  }
+  if (!fill && !stroke && paragraphs.length === 0) {
+    return true;
+  }
+
+  // 中文注释：PPT 里有些装饰点/图标会以复杂几何降级成小描边矩形。
+  // 预览无法高保真还原时，隐藏它比显示误导性的半成品更接近系统预览体验。
+  return (
+    geometry === "rect" &&
+    !fill &&
+    !!stroke &&
+    paragraphs.length === 0 &&
+    Math.min(width, height) <= MIN_DECORATION_SHAPE_SIZE
+  ) || (
+    geometry === "roundRect" &&
+    is_plain_white_fill(fill) &&
+    !stroke &&
+    paragraphs.length === 0 &&
+    Math.min(width, height) >= MIN_BACKGROUND_LIKE_SHAPE_SIZE
+  );
+}
+
+function is_plain_white_fill(fill?: string): boolean {
+  const normalized_fill = fill?.toLowerCase();
+  return normalized_fill === "#ffffff" || normalized_fill === "#fff";
 }
 
 async function parse_picture(
@@ -739,7 +990,112 @@ function parse_text_body(text_body: Element | null, shape_width: number): Presen
     .filter((paragraph) => paragraph.text.trim().length > 0);
 }
 
-function read_transform(shape_properties: Element | null): Omit<PresentationShapeElement, "fill" | "geometry" | "id" | "paragraphs" | "stroke" | "stroke_width" | "type"> | null {
+function read_placeholder_key(element: Element): string | undefined {
+  const placeholder = first_descendant_by_local_name(element, "ph");
+  if (!placeholder) {
+    return undefined;
+  }
+
+  const index = placeholder.getAttribute("idx");
+  if (index) {
+    return `idx:${index}`;
+  }
+
+  const type = placeholder.getAttribute("type") || "body";
+  return `type:${type}`;
+}
+
+function read_group_transform(element: Element): PresentationGroupTransform | null {
+  const group_properties = first_child_by_local_name(element, "grpSpPr");
+  const transform = first_child_by_local_name(group_properties, "xfrm");
+  const offset = first_child_by_local_name(transform, "off");
+  const extent = first_child_by_local_name(transform, "ext");
+  const child_offset = first_child_by_local_name(transform, "chOff");
+  const child_extent = first_child_by_local_name(transform, "chExt");
+  if (!offset || !extent || !child_offset || !child_extent) {
+    return null;
+  }
+
+  const child_width = emu_to_pixel(Number(child_extent.getAttribute("cx") || 0));
+  const child_height = emu_to_pixel(Number(child_extent.getAttribute("cy") || 0));
+  const width = emu_to_pixel(Number(extent.getAttribute("cx") || 0));
+  const height = emu_to_pixel(Number(extent.getAttribute("cy") || 0));
+  if (child_width <= 0 || child_height <= 0 || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return {
+    child_height,
+    child_width,
+    child_x: emu_to_pixel(Number(child_offset.getAttribute("x") || 0)),
+    child_y: emu_to_pixel(Number(child_offset.getAttribute("y") || 0)),
+    height,
+    width,
+    x: emu_to_pixel(Number(offset.getAttribute("x") || 0)),
+    y: emu_to_pixel(Number(offset.getAttribute("y") || 0)),
+  };
+}
+
+function apply_group_transform_to_element(
+  element: PresentationElement,
+  group_transform: PresentationGroupTransform,
+): PresentationElement {
+  const transform = apply_group_transform_to_rect(element, group_transform);
+  if (element.type === "image") {
+    return {
+      ...element,
+      ...transform,
+    };
+  }
+
+  const scale = group_scale(group_transform);
+  return {
+    ...element,
+    ...transform,
+    paragraphs: element.paragraphs.map((paragraph) => ({
+      ...paragraph,
+      font_size: paragraph.font_size * scale,
+    })),
+    stroke_width: element.stroke_width * scale,
+  };
+}
+
+function map_group_placeholder_styles(
+  placeholder_styles: Map<string, PresentationPlaceholderStyle>,
+  group_transform: PresentationGroupTransform,
+): Map<string, PresentationPlaceholderStyle> {
+  return new Map(Array.from(placeholder_styles.entries()).map(([key, style]) => {
+    const scale = group_scale(group_transform);
+    return [key, {
+      ...style,
+      stroke_width: style.stroke_width * scale,
+      transform: apply_group_transform_to_rect(style.transform, group_transform),
+    }];
+  }));
+}
+
+function apply_group_transform_to_rect(
+  transform: PresentationTransform,
+  group_transform: PresentationGroupTransform,
+): PresentationTransform {
+  const scale_x = group_transform.width / group_transform.child_width;
+  const scale_y = group_transform.height / group_transform.child_height;
+  return {
+    height: transform.height * scale_y,
+    width: transform.width * scale_x,
+    x: group_transform.x + ((transform.x - group_transform.child_x) * scale_x),
+    y: group_transform.y + ((transform.y - group_transform.child_y) * scale_y),
+  };
+}
+
+function group_scale(group_transform: PresentationGroupTransform): number {
+  return Math.min(
+    group_transform.width / group_transform.child_width,
+    group_transform.height / group_transform.child_height,
+  );
+}
+
+function read_transform(shape_properties: Element | null): PresentationTransform | null {
   const transform = first_child_by_local_name(shape_properties, "xfrm") || first_descendant_by_local_name(shape_properties, "xfrm");
   const offset = first_child_by_local_name(transform, "off");
   const extent = first_child_by_local_name(transform, "ext");
@@ -755,7 +1111,11 @@ function read_transform(shape_properties: Element | null): Omit<PresentationShap
   };
 }
 
-function read_shape_geometry(shape_properties: Element | null, is_connector: boolean): PresentationShapeGeometry {
+function read_shape_geometry(
+  shape_properties: Element | null,
+  is_connector: boolean,
+  fallback_geometry?: PresentationShapeGeometry,
+): PresentationShapeGeometry {
   if (is_connector) {
     return "line";
   }
@@ -769,19 +1129,21 @@ function read_shape_geometry(shape_properties: Element | null, is_connector: boo
       return "ellipse";
     case "line":
       return "line";
+    case "rect":
+      return "rect";
     case "roundRect":
       return "roundRect";
     case "triangle":
     case "rtTriangle":
       return "triangle";
     default:
-      return "rect";
+      return fallback_geometry || "unsupported";
   }
 }
 
-function read_slide_background(slide_doc: Document): string {
+function read_slide_background(slide_doc: Document): string | undefined {
   const background = first_descendant_by_local_name(slide_doc, "bgPr");
-  return read_fill_color(background) || "#ffffff";
+  return read_fill_color(background);
 }
 
 function read_fill_color(element: Element | null): string | undefined {
@@ -798,6 +1160,21 @@ function read_fill_color(element: Element | null): string | undefined {
   const srgb_value = srgb_color?.getAttribute("val");
   if (srgb_value) {
     return `#${srgb_value}`;
+  }
+
+  const system_color = first_child_by_local_name(solid_fill, "sysClr");
+  const system_value = system_color?.getAttribute("lastClr");
+  if (system_value) {
+    return `#${system_value}`;
+  }
+
+  const preset_color = first_child_by_local_name(solid_fill, "prstClr");
+  const preset_value = preset_color?.getAttribute("val");
+  if (preset_value === "white") {
+    return "#ffffff";
+  }
+  if (preset_value === "black") {
+    return "#000000";
   }
 
   const scheme_color = first_child_by_local_name(solid_fill, "schemeClr");

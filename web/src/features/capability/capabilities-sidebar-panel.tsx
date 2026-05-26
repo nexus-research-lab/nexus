@@ -27,6 +27,7 @@ import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
 
 const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
+const CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS = 60_000;
 
 interface CapabilitySidebarItem {
   id: string;
@@ -41,7 +42,10 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
   const navigate = useNavigate();
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
+  const summary_mounted_ref = useRef(false);
   const summary_refresh_in_flight_ref = useRef(false);
+  const summary_pending_force_refresh_ref = useRef(false);
+  const summary_last_refreshed_at_ref = useRef(0);
   const [query, set_query] = useState("");
   const [summary, set_summary] = useState<CapabilitySummary>({
     skills_count: 0,
@@ -51,39 +55,33 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     active_pairings_count: 0,
   });
 
-  const refresh_capability_summary = useCallback(async (options?: { reset_on_error?: boolean }) => {
+  const refresh_capability_summary = useCallback(async (options?: { force?: boolean; reset_on_error?: boolean }) => {
     if (summary_refresh_in_flight_ref.current) {
+      if (options?.force) {
+        summary_pending_force_refresh_ref.current = true;
+      }
       return;
     }
-    summary_refresh_in_flight_ref.current = true;
-    try {
-      const next_summary = await get_capability_summary_api();
-      set_summary(next_summary);
-    } catch {
-      if (options?.reset_on_error) {
-        set_summary({
-          skills_count: 0,
-          connected_connectors_count: 0,
-          enabled_scheduled_tasks_count: 0,
-          configured_channels_count: 0,
-          active_pairings_count: 0,
-        });
-      }
-    } finally {
-      summary_refresh_in_flight_ref.current = false;
-    }
-  }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const refresh_if_mounted = async () => {
+    let next_refresh_options = options;
+    do {
+      // focus/visibility 在桌面壳里可能连续触发，摘要计数不需要每次都打后端。
+      if (
+        !next_refresh_options?.force &&
+        Date.now() - summary_last_refreshed_at_ref.current < CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS
+      ) {
+        return;
+      }
+      summary_refresh_in_flight_ref.current = true;
+      summary_pending_force_refresh_ref.current = false;
+      summary_last_refreshed_at_ref.current = Date.now();
       try {
         const next_summary = await get_capability_summary_api();
-        if (!cancelled) {
+        if (summary_mounted_ref.current) {
           set_summary(next_summary);
         }
       } catch {
-        if (!cancelled) {
+        if (next_refresh_options?.reset_on_error && summary_mounted_ref.current) {
           set_summary({
             skills_count: 0,
             connected_connectors_count: 0,
@@ -92,17 +90,29 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
             active_pairings_count: 0,
           });
         }
+      } finally {
+        summary_refresh_in_flight_ref.current = false;
       }
-    };
-    void refresh_if_mounted();
+
+      const should_run_pending_force_refresh = summary_pending_force_refresh_ref.current;
+      summary_pending_force_refresh_ref.current = false;
+      next_refresh_options = should_run_pending_force_refresh && summary_mounted_ref.current
+        ? { force: true }
+        : undefined;
+    } while (next_refresh_options);
+  }, []);
+
+  useEffect(() => {
+    summary_mounted_ref.current = true;
+    void refresh_capability_summary({ force: true, reset_on_error: true });
 
     const handle_scheduled_tasks_mutated = () => {
-      void refresh_capability_summary();
+      void refresh_capability_summary({ force: true });
     };
     window.addEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handle_scheduled_tasks_mutated);
 
     return () => {
-      cancelled = true;
+      summary_mounted_ref.current = false;
       window.removeEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handle_scheduled_tasks_mutated);
     };
   }, [refresh_capability_summary]);
