@@ -56,7 +56,7 @@ export function goal_elapsed_label(seconds?: number | null): string {
   }
   const days = Math.floor(hours / 24);
   const remaining_hours = hours % 24;
-  return `${days}d ${remaining_hours}h`;
+  return `${days}d ${remaining_hours}h ${remaining_minutes}m`;
 }
 
 export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
@@ -93,12 +93,13 @@ export function goal_context_label(
       }
       return is_generating ? "上下文已携带" : "下轮携带上下文";
     case "paused":
-      return "上下文暂停";
+      return "暂停注入上下文";
     case "blocked":
-      return "上下文阻塞";
+      return "阻塞后不注入";
     case "budget_limited":
+      return "预算耗尽不注入";
     case "usage_limited":
-      return "上下文受限";
+      return "受限后不注入";
     default:
       return null;
   }
