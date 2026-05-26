@@ -10,8 +10,10 @@ const (
 	presetAnthropic     = "anthropic"
 	presetOpenAI        = "openai"
 	presetDeepSeek      = "deepseek"
+	presetQwenTokenPlan = "qwen-token-plan"
 	presetGLMCodingPlan = "glm-coding-plan"
 	presetKimiCode      = "kimi-code"
+	presetVolcengine    = "volcengine-coding-plan"
 	presetCustom        = "custom"
 )
 
@@ -64,6 +66,25 @@ var providerPresets = []Preset{
 		},
 	},
 	{
+		PresetKey:     presetQwenTokenPlan,
+		DisplayName:   "Qwen Token Plan",
+		Description:   "Alibaba Cloud Model Studio Token Plan for coding tools through Anthropic-compatible Messages API.",
+		KeyURL:        "https://tokenplan-enterprise.bailian.console.aliyun.com/",
+		DefaultFormat: APIFormatAnthropicMessages,
+		Formats: []PresetFormat{
+			{
+				APIFormat:  APIFormatAnthropicMessages,
+				BaseURL:    "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+				ModelsPath: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/models",
+			},
+			{
+				APIFormat:  APIFormatChatCompletions,
+				BaseURL:    "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+				ModelsPath: "/models",
+			},
+		},
+	},
+	{
 		PresetKey:     presetGLMCodingPlan,
 		DisplayName:   "GLM Coding Plan",
 		Description:   "GLM Coding Plan 是专为 AI 编码打造的订阅套餐，仅需少量投入，即可为您带来智能、高速、稳定的编码体验。",
@@ -98,6 +119,25 @@ var providerPresets = []Preset{
 				APIFormat:  APIFormatChatCompletions,
 				BaseURL:    "https://api.kimi.com/coding/v1",
 				ModelsPath: "https://api.kimi.com/coding/v1/models",
+			},
+		},
+	},
+	{
+		PresetKey:     presetVolcengine,
+		DisplayName:   "Volcengine Coding Plan",
+		Description:   "火山方舟 Coding Plan 面向 AI 编码场景，支持通过 Anthropic-compatible Messages API 接入 Claude Code 类工具。",
+		KeyURL:        "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
+		DefaultFormat: APIFormatAnthropicMessages,
+		Formats: []PresetFormat{
+			{
+				APIFormat:  APIFormatAnthropicMessages,
+				BaseURL:    "https://ark.cn-beijing.volces.com/api/coding",
+				ModelsPath: "https://ark.cn-beijing.volces.com/api/coding/v3/models",
+			},
+			{
+				APIFormat:  APIFormatChatCompletions,
+				BaseURL:    "https://ark.cn-beijing.volces.com/api/coding/v3",
+				ModelsPath: "/models",
 			},
 		},
 	},

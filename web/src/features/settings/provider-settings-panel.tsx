@@ -133,8 +133,10 @@ const PRESET_PROVIDER_KEYS: Record<string, string> = {
   anthropic: "anthropic",
   openai: "openai",
   deepseek: "deepseek",
+  "qwen-token-plan": "qwen-token-plan",
   "glm-coding-plan": "glm-coding-plan",
   "kimi-code": "kimi-code",
+  "volcengine-coding-plan": "volcengine-coding-plan",
   "azure": "azure",
 };
 

@@ -86,6 +86,28 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		t.Fatalf("DeepSeek Anthropic format 应可用于 Agent runtime: %+v", deepseek)
 	}
 
+	qwenTokenPlan, err := service.Create(ctx, CreateInput{
+		Provider:  "qwen-token-plan",
+		PresetKey: presetQwenTokenPlan,
+		AuthToken: "qwen-token-plan-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 Qwen Token Plan provider 失败: %v", err)
+	}
+	if qwenTokenPlan.APIFormat != APIFormatAnthropicMessages ||
+		qwenTokenPlan.BaseURL != "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic" ||
+		qwenTokenPlan.ModelsPath != "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/models" {
+		t.Fatalf("Qwen Token Plan 默认配置不正确: %+v", qwenTokenPlan)
+	}
+	if !qwenTokenPlan.AgentRuntimeSupported {
+		t.Fatalf("Qwen Token Plan Anthropic format 应可用于 Agent runtime: %+v", qwenTokenPlan)
+	}
+	qwenPreset := resolvePreset(presetQwenTokenPlan)
+	if format := qwenPreset.Format(APIFormatChatCompletions); format.BaseURL != "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Qwen Token Plan OpenAI 兼容 endpoint 不正确: %+v", format)
+	}
+
 	kimi, err := service.Create(ctx, CreateInput{
 		Provider:  "kimi-code",
 		PresetKey: presetKimiCode,
@@ -116,6 +138,28 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 	if runtimeConfig.APIFormat != APIFormatAnthropicMessages {
 		t.Fatalf("runtime api_format 未透传: %+v", runtimeConfig)
+	}
+
+	volcengine, err := service.Create(ctx, CreateInput{
+		Provider:  "volcengine-coding-plan",
+		PresetKey: presetVolcengine,
+		AuthToken: "volcengine-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 Volcengine Coding Plan provider 失败: %v", err)
+	}
+	if volcengine.APIFormat != APIFormatAnthropicMessages ||
+		volcengine.BaseURL != "https://ark.cn-beijing.volces.com/api/coding" ||
+		volcengine.ModelsPath != "https://ark.cn-beijing.volces.com/api/coding/v3/models" {
+		t.Fatalf("Volcengine Coding Plan 默认配置不正确: %+v", volcengine)
+	}
+	if !volcengine.AgentRuntimeSupported {
+		t.Fatalf("Volcengine Coding Plan Anthropic format 应可用于 Agent runtime: %+v", volcengine)
+	}
+	volcenginePreset := resolvePreset(presetVolcengine)
+	if format := volcenginePreset.Format(APIFormatChatCompletions); format.BaseURL != "https://ark.cn-beijing.volces.com/api/coding/v3" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Volcengine Coding Plan OpenAI 兼容 endpoint 不正确: %+v", format)
 	}
 }
 

@@ -6,6 +6,8 @@ const PROVIDER_ICON_SRC: Record<string, string> = {
   "glm-coding-plan": "/icon/provider/zai.svg",
   "kimi-code": "/icon/provider/moonshot.svg",
   openai: "/icon/provider/openai.svg",
+  "qwen-token-plan": "/icon/provider/qwen.svg",
+  "volcengine-coding-plan": "/icon/provider/volcengine.svg",
   azure: "/icon/provider/azureai.svg",
 };
 
