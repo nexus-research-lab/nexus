@@ -481,6 +481,38 @@ func TestServiceExternalMutationDoesNotDoubleCountWallClockAfterRuntimeFlush(t *
 	}
 }
 
+func TestServiceRuntimeUsageAdvancesWallClockBaseline(t *testing.T) {
+	repo := newMemoryRepository()
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-runtime-usage",
+		Objective:  "Avoid double-counting runtime usage",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(5 * time.Second)
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 7, RuntimeSeconds: 5}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(3 * time.Second)
+	objective := "Avoid double-counting runtime usage, updated"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &objective})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.TimeUsedSeconds != 8 {
+		t.Fatalf("updated.TimeUsedSeconds = %d, want 8 without double-counting first 5 seconds", updated.TimeUsedSeconds)
+	}
+}
+
 func TestServiceWallClockAccountingResetsAcrossPauseAndResume(t *testing.T) {
 	repo := newMemoryRepository()
 	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))

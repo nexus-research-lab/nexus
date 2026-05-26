@@ -133,6 +133,20 @@ func (s *Service) markWallClockGoalActive(item protocol.Goal) {
 	s.wallClock.markActive(item.SessionKey, item.ID, s.nowFn())
 }
 
+func (s *Service) recordWallClockGoalUsage(item protocol.Goal, runtimeSeconds int64) {
+	if s == nil || s.wallClock == nil {
+		return
+	}
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		s.clearWallClockGoal(item)
+		return
+	}
+	if runtimeSeconds > 0 {
+		s.wallClock.markAccounted(item.SessionKey, item.ID, runtimeSeconds)
+	}
+	s.markWallClockGoalActive(item)
+}
+
 func (s *Service) clearWallClockGoal(item protocol.Goal) {
 	if s == nil || s.wallClock == nil {
 		return
