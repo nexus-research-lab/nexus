@@ -128,6 +128,7 @@ const API_FORMAT_ENDPOINT_PATHS: Record<ProviderApiFormat, string> = {
 };
 const AUTO_TEST_MODEL_VALUE = "__auto__";
 const SUPPORTED_PROVIDER_API_FORMAT: ProviderApiFormat = "anthropic_messages";
+const CONFIGURABLE_NON_RUNTIME_PRESET_KEYS = new Set(["custom", "openai"]);
 
 const PRESET_PROVIDER_KEYS: Record<string, string> = {
   anthropic: "anthropic",
@@ -162,6 +163,14 @@ function get_supported_preset_format(preset: ProviderPreset | null): ProviderPre
 
 function preset_supports_current_runtime(preset: ProviderPreset): boolean {
   return !!get_supported_preset_format(preset);
+}
+
+function preset_allows_non_runtime_config(preset: ProviderPreset | null): boolean {
+  return !!preset && CONFIGURABLE_NON_RUNTIME_PRESET_KEYS.has(preset.preset_key);
+}
+
+function preset_is_configurable(preset: ProviderPreset): boolean {
+  return preset_supports_current_runtime(preset) || preset_allows_non_runtime_config(preset);
 }
 
 function build_provider_draft(
@@ -257,9 +266,6 @@ function get_provider_draft_error(
   if (!draft.api_format.trim()) {
     return translate("settings.providers.validation_api_format_required");
   }
-  if (draft.api_format !== SUPPORTED_PROVIDER_API_FORMAT) {
-    return translate("settings.providers.api_format_unsupported_message");
-  }
   if (is_creating && !draft.auth_token.trim()) {
     return translate("settings.providers.validation_auth_token_required");
   }
@@ -287,6 +293,10 @@ function format_token_preview(masked_token: string | null | undefined, empty_lab
     return empty_label;
   }
   return normalized_masked_token;
+}
+
+function provider_has_active_config(item: ProviderConfigRecord | null | undefined): boolean {
+  return !!item?.enabled && !!item.auth_token_masked?.trim();
 }
 
 function format_count(value?: number | null): string {
@@ -461,15 +471,16 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     () => presets.find((item) => item.preset_key === draft.preset_key) ?? presets.find((item) => item.preset_key === "custom") ?? null,
     [draft.preset_key, presets],
   );
+  const can_select_non_runtime_format = preset_allows_non_runtime_config(current_preset);
   const format_options = useMemo(
     () => (current_preset?.formats ?? []).map((item) => ({
       value: item.api_format,
-      label: item.api_format === SUPPORTED_PROVIDER_API_FORMAT
+      label: item.api_format === SUPPORTED_PROVIDER_API_FORMAT || can_select_non_runtime_format
         ? API_FORMAT_LABELS[item.api_format]
         : `${API_FORMAT_LABELS[item.api_format]}${t("settings.providers.unsupported_suffix")}`,
-      disabled: item.api_format !== SUPPORTED_PROVIDER_API_FORMAT,
+      disabled: item.api_format !== SUPPORTED_PROVIDER_API_FORMAT && !can_select_non_runtime_format,
     })),
-    [current_preset, t],
+    [can_select_non_runtime_format, current_preset, t],
   );
   const filtered_models = useMemo(() => {
     const query = model_query.trim().toLowerCase();
@@ -562,7 +573,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
   const handle_api_format_change = useCallback((value: string) => {
     const api_format = value as ProviderApiFormat;
-    if (api_format !== SUPPORTED_PROVIDER_API_FORMAT) {
+    if (api_format !== SUPPORTED_PROVIDER_API_FORMAT && !can_select_non_runtime_format) {
       set_feedback({
         tone: "error",
         title: t("settings.providers.api_format_unsupported_title"),
@@ -577,7 +588,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       base_url: format?.base_url ?? current.base_url,
       models_path: format?.models_path ?? current.models_path,
     }));
-  }, [current_preset, t]);
+  }, [can_select_non_runtime_format, current_preset, t]);
 
   const handle_save = useCallback(async (options?: {
     draft_overrides?: Partial<ProviderDraft>;
@@ -964,6 +975,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     : draft.display_name || current_preset?.display_name || t("settings.providers.custom_provider");
   const is_custom_provider = draft.preset_key === "custom";
   const is_api_format_supported = draft.api_format === SUPPORTED_PROVIDER_API_FORMAT;
+  const is_api_format_configurable = is_api_format_supported || preset_allows_non_runtime_config(current_preset);
   const current_format = get_preset_format(current_preset, draft.api_format);
   const displayed_models = sort_models_enabled_first(filtered_models);
   const test_model_options = useMemo(() => {
@@ -1022,7 +1034,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   const is_active = item
                     ? item.provider === selected_provider && is_editing
                     : is_creating && draft.preset_key === preset.preset_key;
-                  const is_unsupported_preset = !preset_supports_current_runtime(preset);
+                  const is_unsupported_preset = !preset_is_configurable(preset);
                   return (
                     <button
                       className={cn(
@@ -1047,7 +1059,11 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       }}
                       type="button"
                     >
-                      <ProviderIcon name={preset.display_name} preset_key={preset.preset_key} />
+                      <ProviderIcon
+                        active={!is_unsupported_preset && provider_has_active_config(item)}
+                        name={preset.display_name}
+                        preset_key={preset.preset_key}
+                      />
                       <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
                       {is_unsupported_preset ? (
                         <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
@@ -1076,7 +1092,11 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         onClick={() => handle_select_provider(item.provider)}
                         type="button"
                       >
-                        <ProviderIcon name={get_provider_title(item)} preset_key={item.preset_key} />
+                        <ProviderIcon
+                          active={provider_has_active_config(item)}
+                          name={get_provider_title(item)}
+                          preset_key={item.preset_key}
+                        />
                         <span className="min-w-0 flex-1 truncate">{get_provider_title(item)}</span>
                       </button>
                       {can_show_delete ? (
@@ -1143,7 +1163,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       aria_label={t("settings.providers.test_provider")}
                       button_class_name="px-2"
                       class_name="w-auto min-w-18"
-                      disabled={pending_action !== null || submitting || !is_api_format_supported}
+                      disabled={pending_action !== null || submitting || !is_api_format_configurable}
                       leading={pending_action?.startsWith("test") ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
@@ -1159,7 +1179,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   ) : null}
                   <GlassSwitch
                     checked={draft.enabled}
-                    disabled={pending_action !== null || submitting || !is_api_format_supported}
+                    disabled={pending_action !== null || submitting || !is_api_format_configurable}
                     size="sm"
                     on_change={handle_enabled_change}
                   />
@@ -1192,7 +1212,17 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     </label>
 
                     <label className="space-y-2">
-                      <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.api_format")}</span>
+                      <span className="flex items-center gap-2">
+                        <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.api_format")}</span>
+                        {!is_api_format_supported ? (
+                          <span
+                            className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-medium leading-4 text-(--text-muted)"
+                            title={t("settings.providers.api_format_runtime_hint")}
+                          >
+                            {t("settings.providers.api_format_runtime_badge")}
+                          </span>
+                        ) : null}
+                      </span>
                       <UiSelectMenu
                         aria_label={t("settings.providers.api_format")}
                         class_name="h-11"
@@ -1201,11 +1231,6 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         size="sm"
                         value={draft.api_format}
                       />
-                      {!is_api_format_supported ? (
-                        <p className={PROVIDER_HINT_CLASS_NAME}>
-                          {t("settings.providers.api_format_unsupported_message")}
-                        </p>
-                      ) : null}
                     </label>
                   </div>
                 ) : null}
@@ -1279,7 +1304,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       {is_editing && selected_record ? (
                         <>
                           <UiButton
-                            disabled={pending_action !== null || !is_api_format_supported}
+                            disabled={pending_action !== null || !is_api_format_configurable}
                             onClick={handle_open_add_model}
                             size="xs"
                             type="button"
@@ -1289,7 +1314,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             {t("settings.providers.add_model")}
                           </UiButton>
                           <UiButton
-                            disabled={pending_action !== null || !is_api_format_supported}
+                            disabled={pending_action !== null || !is_api_format_configurable}
                             onClick={() => void handle_fetch_models()}
                             size="xs"
                             type="button"

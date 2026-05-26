@@ -9,15 +9,25 @@ import (
 
 // Preferences 表示当前用户的界面与运行默认偏好。
 type Preferences struct {
-	ChatDefaultDeliveryPolicy protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
-	DefaultAgentOptions       protocol.Options            `json:"default_agent_options"`
-	UpdatedAt                 string                      `json:"updated_at,omitempty"`
+	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
+	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
+	DefaultImageModelSelection      ModelSelection              `json:"default_image_model_selection,omitempty"`
+	DefaultBackgroundModelSelection ModelSelection              `json:"default_background_model_selection,omitempty"`
+	UpdatedAt                       string                      `json:"updated_at,omitempty"`
 }
 
 // UpdateRequest 表示偏好更新请求。字段为 nil 时保留原值。
 type UpdateRequest struct {
-	ChatDefaultDeliveryPolicy *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
-	DefaultAgentOptions       *protocol.Options            `json:"default_agent_options,omitempty"`
+	ChatDefaultDeliveryPolicy       *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
+	DefaultAgentOptions             *protocol.Options            `json:"default_agent_options,omitempty"`
+	DefaultImageModelSelection      *ModelSelection              `json:"default_image_model_selection,omitempty"`
+	DefaultBackgroundModelSelection *ModelSelection              `json:"default_background_model_selection,omitempty"`
+}
+
+// ModelSelection 表示一个 Provider + Model 选择。
+type ModelSelection struct {
+	Provider string `json:"provider,omitempty"`
+	Model    string `json:"model,omitempty"`
 }
 
 // DefaultAllowedTools 返回新建 Agent 默认启用的工具集合。
@@ -68,6 +78,7 @@ func normalizePreferences(item Preferences) Preferences {
 	}
 	options.PermissionMode = strings.TrimSpace(options.PermissionMode)
 	options.Provider = strings.TrimSpace(options.Provider)
+	options.Model = strings.TrimSpace(options.Model)
 	options.AllowedTools = normalizeStringSlice(options.AllowedTools)
 	options.DisallowedTools = normalizeStringSlice(options.DisallowedTools)
 	if options.AllowedTools == nil {
@@ -82,10 +93,21 @@ func normalizePreferences(item Preferences) Preferences {
 		options.SettingSources = normalizeStringSlice(options.SettingSources)
 	}
 	return Preferences{
-		ChatDefaultDeliveryPolicy: policy,
-		DefaultAgentOptions:       options,
-		UpdatedAt:                 strings.TrimSpace(item.UpdatedAt),
+		ChatDefaultDeliveryPolicy:       policy,
+		DefaultAgentOptions:             options,
+		DefaultImageModelSelection:      normalizeModelSelection(item.DefaultImageModelSelection),
+		DefaultBackgroundModelSelection: normalizeModelSelection(item.DefaultBackgroundModelSelection),
+		UpdatedAt:                       strings.TrimSpace(item.UpdatedAt),
 	}
+}
+
+func normalizeModelSelection(selection ModelSelection) ModelSelection {
+	provider := strings.TrimSpace(selection.Provider)
+	model := strings.TrimSpace(selection.Model)
+	if provider == "" || model == "" {
+		return ModelSelection{}
+	}
+	return ModelSelection{Provider: provider, Model: model}
 }
 
 func normalizeStringSlice(values []string) []string {

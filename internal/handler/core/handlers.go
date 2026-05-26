@@ -74,6 +74,14 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	defaultProvider := providerOptions.DefaultProvider
+	defaultModel := providerOptions.DefaultModel
+	if strings.TrimSpace(prefs.DefaultAgentOptions.Provider) != "" && strings.TrimSpace(prefs.DefaultAgentOptions.Model) != "" {
+		providerValue := strings.TrimSpace(prefs.DefaultAgentOptions.Provider)
+		modelValue := strings.TrimSpace(prefs.DefaultAgentOptions.Model)
+		defaultProvider = &providerValue
+		defaultModel = &modelValue
+	}
 	h.api.WriteJSON(writer, http.StatusOK, map[string]any{
 		"code":    "0000",
 		"message": "success",
@@ -81,8 +89,8 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		"data": map[string]any{
 			"default_agent_id":       defaultAgent.AgentID,
 			"default_agent_avatar":   defaultAgent.Avatar,
-			"default_agent_provider": providerOptions.DefaultProvider,
-			"default_agent_model":    providerOptions.DefaultModel,
+			"default_agent_provider": defaultProvider,
+			"default_agent_model":    defaultModel,
 			"preferences":            prefs,
 		},
 	})

@@ -17,6 +17,7 @@ import {
   Compass,
   Download,
   ExternalLink,
+  Image,
   Languages,
   Loader2,
   MessageSquareText,
@@ -25,6 +26,7 @@ import {
   Palette,
   RotateCcw,
   ShieldCheck,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -55,7 +57,6 @@ import {
 } from "@/features/agents/options/agent-options-constants";
 import {
   list_provider_options_api,
-  set_default_provider_model_api,
 } from "@/lib/api/provider-config-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
@@ -76,6 +77,7 @@ import { ProviderSettingsPanel } from "./provider-settings-panel";
 import { PersonalSettingsPanel } from "./personal-settings-panel";
 
 type SettingsTabKey = "general" | "personal" | "providers";
+type DefaultModelPreferenceRole = "agent_runtime" | "image_generation" | "background_task";
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
@@ -202,8 +204,25 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
           ["project"]),
       ],
     },
+    default_image_model_selection: normalize_model_selection_preference(
+      preferences?.default_image_model_selection ?? fallback.default_image_model_selection,
+    ),
+    default_background_model_selection: normalize_model_selection_preference(
+      preferences?.default_background_model_selection ?? fallback.default_background_model_selection,
+    ),
     updated_at: preferences?.updated_at,
   };
+}
+
+function normalize_model_selection_preference(
+  selection: UserPreferences["default_image_model_selection"],
+): UserPreferences["default_image_model_selection"] {
+  const provider = selection?.provider?.trim();
+  const model = selection?.model?.trim();
+  if (!provider || !model) {
+    return undefined;
+  }
+  return { provider, model };
 }
 
 function encode_default_model_value(provider: string, model: string): string {
@@ -231,6 +250,18 @@ function decode_default_model_value(value: string): { provider: string; model: s
   }
 }
 
+function encode_optional_model_selection(
+  provider?: string | null,
+  model?: string | null,
+): string {
+  const normalized_provider = provider?.trim();
+  const normalized_model = model?.trim();
+  if (!normalized_provider || !normalized_model) {
+    return "";
+  }
+  return encode_default_model_value(normalized_provider, normalized_model);
+}
+
 function GeneralSettingsSection() {
   const { locale, set_locale, t } = useI18n();
   const { set_theme, theme } = useTheme();
@@ -240,15 +271,21 @@ function GeneralSettingsSection() {
   const [preferences_saving, set_preferences_saving] = useState(false);
   const [preference_feedback, set_preference_feedback] = useState<PreferenceFeedback | null>(null);
   const [provider_options, set_provider_options] = useState<ProviderOption[]>([]);
+  const [background_provider_options, set_background_provider_options] = useState<ProviderOption[]>([]);
+  const [image_provider_options, set_image_provider_options] = useState<ProviderOption[]>([]);
   const [default_model_value, set_default_model_value] = useState("");
+  const [default_image_model_value, set_default_image_model_value] = useState("");
+  const [default_background_model_value, set_default_background_model_value] = useState("");
   const [provider_options_loading, set_provider_options_loading] = useState(true);
-  const [default_model_saving, set_default_model_saving] = useState(false);
+  const [default_model_saving_role, set_default_model_saving_role] = useState<DefaultModelPreferenceRole | null>(null);
   const [default_model_feedback, set_default_model_feedback] = useState<PreferenceFeedback | null>(null);
   const [system_version, set_system_version] = useState<SystemVersionInfo | null>(null);
   const [system_version_loading, set_system_version_loading] = useState(true);
   const [system_version_feedback, set_system_version_feedback] = useState<PreferenceFeedback | null>(null);
   const preferences_ref = useRef(preferences);
   const last_saved_preferences_ref = useRef<UserPreferences | null>(null);
+  const provider_default_selection_ref = useRef({ provider: "", model: "" });
+  const image_default_selection_ref = useRef({ provider: "", model: "" });
   const save_sequence_ref = useRef(0);
   const permission_mode = preferences.default_agent_options.permission_mode ?? "bypassPermissions";
   const selected_permission_mode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permission_mode) ?? AGENT_PERMISSION_MODES[0];
@@ -262,17 +299,42 @@ function GeneralSettingsSection() {
       set_provider_options_loading(true);
       const result = await list_provider_options_api();
       set_provider_options(result.items ?? []);
-      set_default_agent_provider(result.default_provider);
-      set_default_agent_model(result.default_model);
-      set_default_model_value(
-        result.default_provider && result.default_model
-          ? encode_default_model_value(result.default_provider, result.default_model)
-          : "",
+      set_background_provider_options(result.background_items ?? result.items ?? []);
+      set_image_provider_options(result.image_items ?? []);
+      provider_default_selection_ref.current = {
+        provider: result.default_provider?.trim() || "",
+        model: result.default_model?.trim() || "",
+      };
+      image_default_selection_ref.current = {
+        provider: result.default_image_provider?.trim() || "",
+        model: result.default_image_model?.trim() || "",
+      };
+      const current_preferences = preferences_ref.current;
+      const agent_provider = current_preferences.default_agent_options.provider?.trim()
+        || provider_default_selection_ref.current.provider;
+      const agent_model = current_preferences.default_agent_options.model?.trim()
+        || provider_default_selection_ref.current.model;
+      set_default_agent_provider(agent_provider);
+      set_default_agent_model(agent_model);
+      set_default_model_value(encode_optional_model_selection(agent_provider, agent_model));
+      set_default_image_model_value(
+        encode_optional_model_selection(
+          current_preferences.default_image_model_selection?.provider
+            || image_default_selection_ref.current.provider,
+          current_preferences.default_image_model_selection?.model
+            || image_default_selection_ref.current.model,
+        ),
+      );
+      set_default_background_model_value(
+        encode_optional_model_selection(
+          current_preferences.default_background_model_selection?.provider,
+          current_preferences.default_background_model_selection?.model,
+        ),
       );
       set_default_model_feedback(null);
     } catch (error) {
       set_default_model_feedback({
-        message: error instanceof Error ? error.message : "默认模型加载失败",
+        message: error instanceof Error ? error.message : "默认对话模型加载失败",
       });
     } finally {
       set_provider_options_loading(false);
@@ -326,6 +388,27 @@ function GeneralSettingsSection() {
         set_preferences(normalized);
         preferences_ref.current = normalized;
         last_saved_preferences_ref.current = normalized;
+        const agent_provider = normalized.default_agent_options.provider?.trim()
+          || provider_default_selection_ref.current.provider;
+        const agent_model = normalized.default_agent_options.model?.trim()
+          || provider_default_selection_ref.current.model;
+        set_default_agent_provider(agent_provider);
+        set_default_agent_model(agent_model);
+        set_default_model_value(encode_optional_model_selection(agent_provider, agent_model));
+        set_default_image_model_value(
+          encode_optional_model_selection(
+            normalized.default_image_model_selection?.provider
+              || image_default_selection_ref.current.provider,
+            normalized.default_image_model_selection?.model
+              || image_default_selection_ref.current.model,
+          ),
+        );
+        set_default_background_model_value(
+          encode_optional_model_selection(
+            normalized.default_background_model_selection?.provider,
+            normalized.default_background_model_selection?.model,
+          ),
+        );
         set_preference_feedback(null);
       } catch (error) {
         if (!cancelled) {
@@ -385,6 +468,8 @@ function GeneralSettingsSection() {
       const result = await update_user_preferences_api({
         chat_default_delivery_policy: normalized.chat_default_delivery_policy,
         default_agent_options: normalized.default_agent_options,
+        default_image_model_selection: normalized.default_image_model_selection,
+        default_background_model_selection: normalized.default_background_model_selection,
       });
       if (save_sequence_ref.current !== sequence) {
         return;
@@ -444,31 +529,115 @@ function GeneralSettingsSection() {
     })
   )), [provider_options]);
 
-  const handle_default_model_change = useCallback((value: string) => {
+  const default_image_model_options = useMemo(() => image_provider_options.flatMap((provider) => (
+    provider.models.map((model) => {
+      const provider_label = provider.display_name || provider.provider;
+      const model_label = model.display_name || model.model_id;
+      return {
+        value: encode_default_model_value(provider.provider, model.model_id),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })
+  )), [image_provider_options]);
+
+  const default_background_model_options = useMemo(() => background_provider_options.flatMap((provider) => (
+    provider.models.map((model) => {
+      const provider_label = provider.display_name || provider.provider;
+      const model_label = model.display_name || model.model_id;
+      return {
+        value: encode_default_model_value(provider.provider, model.model_id),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })
+  )), [background_provider_options]);
+
+  const handle_default_model_change = useCallback((value: string, role: DefaultModelPreferenceRole) => {
     const selection = decode_default_model_value(value);
-    if (!selection || default_model_saving) {
+    if (!selection || default_model_saving_role) {
       return;
     }
     void (async () => {
-      set_default_model_saving(true);
+      set_default_model_saving_role(role);
       set_default_model_feedback(null);
-      const previous_value = default_model_value;
-      set_default_model_value(value);
+      const previous_value = role === "image_generation"
+        ? default_image_model_value
+        : role === "background_task"
+        ? default_background_model_value
+        : default_model_value;
+      if (role === "image_generation") {
+        set_default_image_model_value(value);
+      } else if (role === "background_task") {
+        set_default_background_model_value(value);
+      } else {
+        set_default_model_value(value);
+      }
       try {
-        await set_default_provider_model_api(selection.provider, selection.model);
-        set_default_agent_provider(selection.provider);
-        set_default_agent_model(selection.model);
-        await load_provider_options();
+        const current_preferences = preferences_ref.current;
+        const next_preferences = normalize_preferences({
+          ...current_preferences,
+          default_agent_options: role === "agent_runtime"
+            ? {
+              ...current_preferences.default_agent_options,
+              provider: selection.provider,
+              model: selection.model,
+            }
+            : current_preferences.default_agent_options,
+          default_image_model_selection: role === "image_generation"
+            ? { provider: selection.provider, model: selection.model }
+            : current_preferences.default_image_model_selection,
+          default_background_model_selection: role === "background_task"
+            ? { provider: selection.provider, model: selection.model }
+            : current_preferences.default_background_model_selection,
+        });
+        preferences_ref.current = next_preferences;
+        set_preferences(next_preferences);
+        set_user_preferences(next_preferences);
+        const result = await update_user_preferences_api({
+          chat_default_delivery_policy: next_preferences.chat_default_delivery_policy,
+          default_agent_options: next_preferences.default_agent_options,
+          default_image_model_selection: next_preferences.default_image_model_selection,
+          default_background_model_selection: next_preferences.default_background_model_selection,
+        });
+        const saved = normalize_preferences(result);
+        preferences_ref.current = saved;
+        last_saved_preferences_ref.current = saved;
+        set_preferences(saved);
+        set_user_preferences(saved);
+        if (role === "agent_runtime") {
+          set_default_agent_provider(selection.provider);
+          set_default_agent_model(selection.model);
+        }
       } catch (error) {
-        set_default_model_value(previous_value);
+        const fallback = last_saved_preferences_ref.current;
+        if (fallback) {
+          preferences_ref.current = fallback;
+          set_preferences(fallback);
+          set_user_preferences(fallback);
+          if (role === "agent_runtime") {
+            set_default_agent_provider(fallback.default_agent_options.provider);
+            set_default_agent_model(fallback.default_agent_options.model);
+          }
+        }
+        if (role === "image_generation") {
+          set_default_image_model_value(previous_value);
+        } else if (role === "background_task") {
+          set_default_background_model_value(previous_value);
+        } else {
+          set_default_model_value(previous_value);
+        }
         set_default_model_feedback({
-          message: error instanceof Error ? error.message : "默认模型保存失败",
+          message: error instanceof Error ? error.message : "默认对话模型保存失败",
         });
       } finally {
-        set_default_model_saving(false);
+        set_default_model_saving_role(null);
       }
     })();
-  }, [default_model_saving, default_model_value, load_provider_options]);
+  }, [
+    default_background_model_value,
+    default_image_model_value,
+    default_model_saving_role,
+    default_model_value,
+  ]);
 
   const handle_export_logs = useCallback(async () => {
     try {
@@ -579,49 +748,6 @@ function GeneralSettingsSection() {
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
-                <MonitorCog className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                  {t("settings.general.default_model_title")}
-                </h3>
-                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                  {t("settings.general.default_model_description")}
-                </p>
-              </div>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-                {t("settings.general.default_model_label")}
-              </span>
-              <UiSelectMenu
-                aria_label={t("settings.general.default_model_title")}
-                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
-                disabled={provider_options_loading || default_model_saving || default_model_options.length === 0}
-                leading={default_model_saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                menu_class_name="min-w-[260px]"
-                on_change={handle_default_model_change}
-                options={default_model_options}
-                placeholder={provider_options_loading
-                  ? t("settings.general.default_model_loading")
-                  : t("settings.general.default_model_empty")}
-                size="xs"
-                value={default_model_value}
-              />
-              {default_model_feedback ? (
-                <span className="truncate text-[11px] text-(--text-soft)">
-                  {default_model_feedback.message}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="border-t border-(--divider-subtle-color)" />
-
-          <div className={SETTINGS_ROW_CLASS_NAME}>
-            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-              <div className={SETTINGS_ICON_CLASS_NAME}>
                 <Languages className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
@@ -653,6 +779,125 @@ function GeneralSettingsSection() {
           {t("settings.general.section_general")}
         </h2>
         <div className={SETTINGS_CARD_CLASS_NAME}>
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <MonitorCog className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || !!default_model_saving_role || default_model_options.length === 0}
+                leading={default_model_saving_role === "agent_runtime" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={(value) => handle_default_model_change(value, "agent_runtime")}
+                options={default_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_model_empty")}
+                size="xs"
+                value={default_model_value}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Image className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_image_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_image_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_image_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || !!default_model_saving_role || default_image_model_options.length === 0}
+                leading={default_model_saving_role === "image_generation" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={(value) => handle_default_model_change(value, "image_generation")}
+                options={default_image_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_image_model_empty")}
+                size="xs"
+                value={default_image_model_value}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_background_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_background_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_background_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || !!default_model_saving_role || default_background_model_options.length === 0}
+                leading={default_model_saving_role === "background_task" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={(value) => handle_default_model_change(value, "background_task")}
+                options={default_background_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_background_model_empty")}
+                size="xs"
+                value={default_background_model_value}
+              />
+              {default_model_feedback ? (
+                <span className="truncate text-[11px] text-(--text-soft)">
+                  {default_model_feedback.message}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>

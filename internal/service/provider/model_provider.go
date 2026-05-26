@@ -76,10 +76,15 @@ type Option struct {
 
 // OptionsResponse 表示 Provider 下拉选项响应。
 type OptionsResponse struct {
-	DefaultProvider  *string         `json:"default_provider"`
-	DefaultModel     *string         `json:"default_model"`
-	DefaultSelection *ModelSelection `json:"default_selection"`
-	Items            []Option        `json:"items"`
+	DefaultProvider       *string         `json:"default_provider"`
+	DefaultModel          *string         `json:"default_model"`
+	DefaultSelection      *ModelSelection `json:"default_selection"`
+	DefaultImageProvider  *string         `json:"default_image_provider"`
+	DefaultImageModel     *string         `json:"default_image_model"`
+	DefaultImageSelection *ModelSelection `json:"default_image_selection"`
+	Items                 []Option        `json:"items"`
+	BackgroundItems       []Option        `json:"background_items"`
+	ImageItems            []Option        `json:"image_items"`
 }
 
 // CreateInput 表示新增 Provider 配置的输入。

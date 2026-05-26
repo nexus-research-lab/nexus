@@ -30,10 +30,12 @@ function get_custom_provider_initials(name: string): string {
 }
 
 export function ProviderIcon({
+  active = false,
   name,
   preset_key,
   size = "sm",
 }: {
+  active?: boolean;
   name: string;
   preset_key?: string | null;
   size?: "sm" | "md";
@@ -45,6 +47,7 @@ export function ProviderIcon({
         aria-hidden="true"
         className={cn(
           "inline-flex shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_82%,white)] font-semibold tracking-tight text-(--text-strong)",
+          active && "border-[color:color-mix(in_srgb,var(--success)_42%,var(--divider-subtle-color))]",
           size === "md" ? "h-10 w-10 text-[13px]" : "h-7 w-7 text-[9.5px]",
         )}
       >
@@ -59,6 +62,7 @@ export function ProviderIcon({
       aria-hidden="true"
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_82%,white)]",
+        active && "border-[color:color-mix(in_srgb,var(--success)_42%,var(--divider-subtle-color))]",
         size === "md" ? "h-10 w-10" : "h-7 w-7",
       )}
     >

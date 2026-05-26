@@ -178,7 +178,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runner.session = *updatedSession
 	}
 
-	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
+	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount, runtimeProvider, runtimeModel)
 
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
@@ -230,7 +230,8 @@ func (s *Service) queueRunningInput(
 		)
 		return false, err
 	}
-	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
+	runtimeProvider, runtimeModel := runtimeSelectionFromSession(sessionItem)
+	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount, runtimeProvider, runtimeModel)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
 		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments)
@@ -288,6 +289,8 @@ func (s *Service) scheduleTitleGeneration(
 	sessionItem protocol.Session,
 	content string,
 	initialMessageCount int,
+	provider string,
+	model string,
 ) {
 	if s.titles == nil {
 		return
@@ -302,8 +305,10 @@ func (s *Service) scheduleTitleGeneration(
 		conversationMessageCount = -1
 	}
 	s.titles.Schedule(ctx, titlegen.Request{
+		OwnerUserID:              authctx.OwnerUserID(ctx),
 		SessionKey:               sessionItem.SessionKey,
-		Provider:                 "",
+		Provider:                 strings.TrimSpace(provider),
+		Model:                    strings.TrimSpace(model),
 		Content:                  content,
 		SessionTitle:             sessionItem.Title,
 		SessionMessageCount:      initialMessageCount,
@@ -311,6 +316,15 @@ func (s *Service) scheduleTitleGeneration(
 		ConversationRoomID:       roomID,
 		ConversationMessageCount: conversationMessageCount,
 	})
+}
+
+func runtimeSelectionFromSession(sessionItem protocol.Session) (string, string) {
+	if sessionItem.Options == nil {
+		return "", ""
+	}
+	provider, _ := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
+	model, _ := sessionItem.Options[protocol.OptionRuntimeModel].(string)
+	return strings.TrimSpace(provider), strings.TrimSpace(model)
 }
 
 // HandleInterrupt 处理中断请求。

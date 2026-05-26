@@ -18,6 +18,8 @@ export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 export let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
+let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
+let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
   permission_mode: "bypassPermissions",
   allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
@@ -128,6 +130,8 @@ export function get_user_preferences(): UserPreferences {
   return {
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
     default_agent_options: get_initial_agent_options(),
+    default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
+    default_background_model_selection: DEFAULT_BACKGROUND_MODEL_SELECTION,
   };
 }
 
@@ -136,6 +140,8 @@ export function set_user_preferences(preferences?: Partial<UserPreferences> | nu
   if (policy !== undefined) {
     DEFAULT_CHAT_DELIVERY_POLICY = policy;
   }
+  DEFAULT_IMAGE_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_image_model_selection);
+  DEFAULT_BACKGROUND_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_background_model_selection);
   DEFAULT_AGENT_OPTIONS = normalize_agent_options(preferences?.default_agent_options);
   notify_user_preferences_changed();
 }
@@ -192,6 +198,17 @@ function normalize_agent_options(options?: Partial<AgentOptions> | null): Partia
     disallowed_tools: [...(source.disallowed_tools ?? [])],
     setting_sources: [...(source.setting_sources ?? ["project"])],
   };
+}
+
+function normalize_model_selection_preference(
+  selection?: UserPreferences["default_image_model_selection"] | null,
+): UserPreferences["default_image_model_selection"] {
+  const provider = selection?.provider?.trim();
+  const model = selection?.model?.trim();
+  if (!provider || !model) {
+    return undefined;
+  }
+  return { provider, model };
 }
 
 function notify_user_preferences_changed(): void {

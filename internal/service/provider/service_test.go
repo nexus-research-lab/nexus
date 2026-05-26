@@ -68,6 +68,18 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if _, err = service.ResolveRuntimeConfig(ctx, "openai", "gpt-4o"); err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
 		t.Fatalf("OpenAI chat_completions 应被 Agent runtime 拒绝: %v", err)
 	}
+	if _, err = service.UpdateModel(ctx, "openai", "gpt-4o", UpdateModelInput{
+		Enabled: true,
+	}); err != nil {
+		t.Fatalf("启用 OpenAI 模型失败: %v", err)
+	}
+	llmConfig, err := service.ResolveLLMConfig(ctx, "openai", "gpt-4o")
+	if err != nil {
+		t.Fatalf("OpenAI chat_completions 应可用于后端 LLM 任务: %v", err)
+	}
+	if llmConfig.APIFormat != APIFormatChatCompletions || llmConfig.Model != "gpt-4o" {
+		t.Fatalf("OpenAI LLM config 不正确: %+v", llmConfig)
+	}
 
 	deepseek, err := service.Create(ctx, CreateInput{
 		Provider:  "deepseek",
@@ -183,6 +195,17 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		format.ModelsPath != "/models" {
 		t.Fatalf("Volcengine Coding Plan OpenAI 兼容 endpoint 不正确: %+v", format)
 	}
+
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if hasOptionProvider(options.Items, "openai") {
+		t.Fatalf("OpenAI 不应出现在默认对话模型选项: %+v", options.Items)
+	}
+	if !hasOptionProvider(options.BackgroundItems, "openai") {
+		t.Fatalf("OpenAI 应出现在后台任务模型选项: %+v", options.BackgroundItems)
+	}
 }
 
 func TestProviderListIncludesUsageAgents(t *testing.T) {
@@ -229,6 +252,43 @@ func TestProviderListIncludesUsageAgents(t *testing.T) {
 	}
 	if target.UsedByAgents[1].AgentID != "agent-worker" || target.UsedByAgents[1].DisplayName != "worker" {
 		t.Fatalf("普通 Agent 摘要不正确: %+v", target.UsedByAgents[1])
+	}
+}
+
+func TestProviderImageOptionsIncludeDefaultModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	imageProvider, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "image-default",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatChatCompletions,
+		AuthToken:    "image-key",
+		BaseURL:      "https://image.example.com/v1/images",
+		ModelsPath:   "/models",
+		Enabled:      true,
+		DisplayName:  "Image Default",
+	})
+	if err != nil {
+		t.Fatalf("创建生图 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, imageProvider.Provider, "image-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置生图默认模型失败: %v", err)
+	}
+	imageConfig, err := service.ResolveImageConfig(ctx, "")
+	if err != nil {
+		t.Fatalf("解析生图默认模型失败: %v", err)
+	}
+	if imageConfig.Provider != imageProvider.Provider || imageConfig.Model != "image-model" {
+		t.Fatalf("生图默认模型不正确: %+v", imageConfig)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultImageProvider == nil || *options.DefaultImageProvider != imageProvider.Provider ||
+		len(options.ImageItems) != 1 {
+		t.Fatalf("生图默认模型未暴露到 options: %+v", options)
 	}
 }
 
@@ -815,4 +875,13 @@ func (h *captureSlogHandler) messages() []string {
 		result = append(result, record.message)
 	}
 	return result
+}
+
+func hasOptionProvider(items []Option, provider string) bool {
+	for _, item := range items {
+		if item.Provider == provider {
+			return true
+		}
+	}
+	return false
 }
