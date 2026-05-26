@@ -1360,6 +1360,48 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	}
 }
 
+func TestServiceGoalContinuationStillCurrentRejectsStaleGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Skip stale continuation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := service.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !current {
+		t.Fatal("GoalContinuationStillCurrent() = false, want true for current active goal")
+	}
+
+	stale := repo.goals[created.ID]
+	stale.Status = protocol.GoalStatusPaused
+	stale.Version++
+	repo.goals[created.ID] = stale
+	current, err = service.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current {
+		t.Fatal("GoalContinuationStillCurrent() = true, want false after goal is no longer active")
+	}
+}
+
 func TestServicePlanContinuationStopsWhenBudgetExhausted(t *testing.T) {
 	repo := newMemoryRepository()
 	budget := int64(10)
@@ -1580,6 +1622,42 @@ func TestServiceRunAutoResumeOnceSkipsDeferredGoal(t *testing.T) {
 	}
 	if len(dispatcher.plans) != 0 {
 		t.Fatalf("plans = %#v, want no dispatch for busy session", dispatcher.plans)
+	}
+}
+
+func TestServiceRunAutoResumeOnceSkipsStaleContinuationBeforeDispatch(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Do not dispatch stale plan",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{
+		onShouldDefer: func(call int, _ string) {
+			if call != 2 {
+				return
+			}
+			stale := repo.goals[created.ID]
+			stale.Status = protocol.GoalStatusPaused
+			stale.Version++
+			repo.goals[created.ID] = stale
+		},
+	}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 0 {
+		t.Fatalf("plans = %#v, want no dispatch after goal changed before launch", dispatcher.plans)
 	}
 }
 
@@ -2064,9 +2142,15 @@ func (a *fakeExternalMutationAccountant) ActivateGoalAccounting(_ context.Contex
 type fakeContinuationDispatcher struct {
 	deferSessions map[string]bool
 	plans         []protocol.GoalContinuation
+	deferCalls    int
+	onShouldDefer func(call int, sessionKey string)
 }
 
 func (d *fakeContinuationDispatcher) ShouldDeferGoalContinuation(_ context.Context, sessionKey string) bool {
+	d.deferCalls++
+	if d.onShouldDefer != nil {
+		d.onShouldDefer(d.deferCalls, sessionKey)
+	}
 	return d.deferSessions[sessionKey]
 }
 

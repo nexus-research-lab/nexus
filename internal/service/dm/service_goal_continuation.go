@@ -69,6 +69,25 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 	if plan == nil {
 		return
 	}
+	if r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID) {
+		return
+	}
+	current, err := r.service.goals.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil {
+		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) || errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			return
+		}
+		r.service.loggerFor(ctx).Warn("校验 Goal 自动续跑状态失败",
+			"session_key", r.sessionKey,
+			"round_id", plan.RoundID,
+			"goal_id", plan.Goal.ID,
+			"err", err,
+		)
+		return
+	}
+	if !current {
+		return
+	}
 	if err := r.service.HandleChat(ctx, Request{
 		SessionKey:           r.sessionKey,
 		AgentID:              r.agent.AgentID,

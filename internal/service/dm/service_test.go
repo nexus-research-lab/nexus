@@ -192,6 +192,7 @@ type fakeGoalContextProvider struct {
 	usage            []protocol.GoalUsage
 	usageLimitReason []string
 	progress         []bool
+	current          *bool
 }
 
 func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
@@ -242,6 +243,15 @@ func (p *fakeGoalContextProvider) PlanContinuationForSession(context.Context, st
 	}
 	plan := *p.plan
 	return &plan, nil
+}
+
+func (p *fakeGoalContextProvider) GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.current == nil {
+		return true, nil
+	}
+	return *p.current, nil
 }
 
 func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {

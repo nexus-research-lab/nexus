@@ -96,6 +96,7 @@ type goalContextProvider interface {
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
+	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
 }
 
 // NewService 创建 DM 会话编排服务。

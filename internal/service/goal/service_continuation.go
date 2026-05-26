@@ -79,6 +79,36 @@ func (s *Service) PlanContinuationForSession(ctx context.Context, sessionKey str
 	}, nil
 }
 
+// GoalContinuationStillCurrent 判断已生成的隐藏续跑是否仍指向当前 active Goal。
+func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protocol.GoalContinuation) (bool, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return false, err
+	}
+	goalID := strings.TrimSpace(plan.Goal.ID)
+	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
+	if sessionKey == "" && plan.Metadata != nil {
+		sessionKey = strings.TrimSpace(plan.Metadata["session_key"])
+	}
+	if goalID == "" && plan.Metadata != nil {
+		goalID = strings.TrimSpace(plan.Metadata["goal_id"])
+	}
+	if goalID == "" || sessionKey == "" {
+		return false, fmt.Errorf("%w: continuation plan missing goal identity", ErrGoalInvalidInput)
+	}
+	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
+	if err != nil {
+		return false, fmt.Errorf("%w: %v", ErrGoalInvalidInput, err)
+	}
+	item, err := s.repo.GetCurrentGoal(ctx, normalized)
+	if err != nil {
+		return false, err
+	}
+	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return false, nil
+	}
+	return item.ID == goalID, nil
+}
+
 func (s *Service) goalBudgetExhausted(item protocol.Goal) bool {
 	if item.TokenBudget == nil || *item.TokenBudget <= 0 {
 		return false

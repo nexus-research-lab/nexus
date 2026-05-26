@@ -96,6 +96,16 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 	if plan == nil {
 		return nil
 	}
+	if dispatcher.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey) {
+		return nil
+	}
+	current, err := s.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil {
+		return err
+	}
+	if !current {
+		return nil
+	}
 	return dispatcher.DispatchGoalContinuation(ctx, *plan)
 }
 
