@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, RefObject, useCallback, useEffect, useState } from "react";
+import { Fragment, RefObject, useCallback, useState } from "react";
 import { X } from "lucide-react";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
@@ -141,8 +141,6 @@ function RoomSurfaceLayoutInner({
     active_surface_tab === "history" ||
     active_surface_tab === "workspace" ||
     active_surface_tab === "about";
-  const [is_workspace_preview_focused, set_is_workspace_preview_focused] = useState(false);
-  const is_workspace_focus_layout = active_surface_tab === "workspace" && is_workspace_preview_focused;
   const [about_request, set_about_request] = useState<{
     agent_id: string | null;
     tab: RoomAgentAboutRequestedTab;
@@ -180,12 +178,6 @@ function RoomSurfaceLayoutInner({
   const handle_close_auxiliary_panel = useCallback(() => {
     on_change_surface_tab("chat");
   }, [on_change_surface_tab]);
-
-  useEffect(() => {
-    if (active_surface_tab !== "workspace" || !active_workspace_path) {
-      set_is_workspace_preview_focused(false);
-    }
-  }, [active_surface_tab, active_workspace_path]);
 
   const auxiliary_close_action = (
     <WorkspaceSurfaceToolbarAction onClick={handle_close_auxiliary_panel}>
@@ -248,7 +240,7 @@ function RoomSurfaceLayoutInner({
           )}
         >
           <div className="flex h-full min-h-0 min-w-0">
-            <div className={cn("min-h-0 min-w-0 flex-1 overflow-hidden", is_workspace_focus_layout && "hidden")}>
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
               {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
                     进而触发 useWebSocket 清理并关闭连接。 */}
               {is_dm ? (
@@ -292,30 +284,17 @@ function RoomSurfaceLayoutInner({
 
             {is_auxiliary_panel_open ? (
               <section
-                className={cn(
-                  "relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-transparent shadow-none",
-                  is_workspace_focus_layout
-                    ? "ml-0 flex-1"
-                    : "ml-2 shrink-0 border-l divider-subtle",
-                )}
-                style={is_workspace_focus_layout
-                  ? {
-                    maxWidth: "none",
-                    minWidth: 0,
-                    width: "100%",
-                  }
-                  : {
-                    width: `${editor_width_percent}%`,
-                    minWidth: is_wide_auxiliary_panel ? "660px" : "460px",
-                    maxWidth: is_wide_auxiliary_panel ? "960px" : "660px",
-                  }}
+                className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
+                style={{
+                  width: `${editor_width_percent}%`,
+                  minWidth: is_wide_auxiliary_panel ? "660px" : "460px",
+                  maxWidth: is_wide_auxiliary_panel ? "960px" : "660px",
+                }}
               >
-                {!is_workspace_focus_layout ? (
-                  <ConversationResizeHandle
-                    aria_label="调整右侧面板宽度"
-                    on_mouse_down={on_start_editor_resize}
-                  />
-                ) : null}
+                <ConversationResizeHandle
+                  aria_label="调整右侧面板宽度"
+                  on_mouse_down={on_start_editor_resize}
+                />
 
                 <div
                   className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "history" && "hidden")}>
@@ -339,10 +318,8 @@ function RoomSurfaceLayoutInner({
                     header_action={auxiliary_close_action}
                     is_dm={is_dm}
                     is_editor_open={is_editor_open}
-                    is_preview_focused={is_workspace_preview_focused}
                     room_members={room_members}
                     on_open_workspace_file={on_open_workspace_file}
-                    on_preview_focus_change={set_is_workspace_preview_focused}
                   />
                 </div>
 
