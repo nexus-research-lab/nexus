@@ -59,14 +59,35 @@ WHERE TRIM(COALESCE(p.model, '')) <> '';
 
 UPDATE runtimes
 SET model = (
-    SELECT p.model
+    SELECT TRIM(p.model)
     FROM provider p
     WHERE p.provider = runtimes.provider
+      AND p.provider_kind = 'llm'
+      AND p.is_default = 0
       AND TRIM(COALESCE(p.model, '')) <> ''
     LIMIT 1
 )
 WHERE TRIM(COALESCE(provider, '')) <> ''
-  AND model IS NULL;
+  AND model IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM provider p
+    WHERE p.provider = runtimes.provider
+      AND p.provider_kind = 'llm'
+      AND p.is_default = 0
+      AND TRIM(COALESCE(p.model, '')) <> ''
+  );
+
+UPDATE runtimes
+SET provider = NULL,
+    model = NULL
+WHERE EXISTS (
+    SELECT 1
+    FROM provider p
+    WHERE p.provider = runtimes.provider
+      AND p.provider_kind = 'llm'
+      AND p.is_default = 1
+);
 
 ALTER TABLE provider DROP COLUMN is_default;
 ALTER TABLE provider DROP COLUMN model;
