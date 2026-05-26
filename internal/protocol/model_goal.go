@@ -17,7 +17,6 @@ const (
 	GoalStatusBlocked       GoalStatus = "blocked"
 	GoalStatusBudgetLimited GoalStatus = "budget_limited"
 	GoalStatusUsageLimited  GoalStatus = "usage_limited"
-	GoalStatusCleared       GoalStatus = "cleared"
 )
 
 // GoalUpdateSource 表示 Goal 状态变化来源。
@@ -103,7 +102,6 @@ type Goal struct {
 	UpdatedAt          time.Time      `json:"updated_at"`
 	CompletedAt        *time.Time     `json:"completed_at,omitempty"`
 	BlockedAt          *time.Time     `json:"blocked_at,omitempty"`
-	ClearedAt          *time.Time     `json:"cleared_at,omitempty"`
 	LastError          string         `json:"last_error,omitempty"`
 	Metadata           map[string]any `json:"metadata,omitempty"`
 }
@@ -234,8 +232,8 @@ func NormalizeGoalStatus(status GoalStatus) GoalStatus {
 		return GoalStatusBudgetLimited
 	case GoalStatusUsageLimited:
 		return GoalStatusUsageLimited
-	case GoalStatusCleared:
-		return GoalStatusCleared
+	case GoalStatus("cleared"):
+		return GoalStatusComplete
 	default:
 		return GoalStatusActive
 	}

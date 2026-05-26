@@ -8,7 +8,6 @@ export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   blocked: "已阻塞",
   budget_limited: "预算耗尽",
   usage_limited: "续跑受限",
-  cleared: "已清除",
 };
 
 export const GOAL_EVENT_LABEL: Record<string, string> = {
@@ -73,8 +72,6 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
       return "续跑受限";
     case "complete":
       return "已完成";
-    case "cleared":
-      return "清除";
     default:
       return "Goal";
   }
@@ -173,12 +170,6 @@ export function goal_run_state(
       return {
         detail: "目标已完成，不再自动续跑",
         label: "已完成",
-        tone: "done",
-      };
-    case "cleared":
-      return {
-        detail: "Goal 已清除",
-        label: "已清除",
         tone: "done",
       };
     default:

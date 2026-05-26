@@ -30,7 +30,6 @@ func goalSelectQuery(where string) string {
     updated_at,
     completed_at,
     blocked_at,
-    cleared_at,
     last_error,
     metadata_json
 FROM session_goals
@@ -45,7 +44,6 @@ func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 		createdBy    sql.NullString
 		completedAt  sql.NullTime
 		blockedAt    sql.NullTime
-		clearedAt    sql.NullTime
 		lastError    sql.NullString
 		metadataJSON string
 	)
@@ -70,7 +68,6 @@ func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 		&item.UpdatedAt,
 		&completedAt,
 		&blockedAt,
-		&clearedAt,
 		&lastError,
 		&metadataJSON,
 	)
@@ -82,7 +79,6 @@ func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 	item.CreatedBy = nullStringValue(createdBy)
 	item.CompletedAt = nullTimePointer(completedAt)
 	item.BlockedAt = nullTimePointer(blockedAt)
-	item.ClearedAt = nullTimePointer(clearedAt)
 	item.LastError = nullStringValue(lastError)
 	item.Metadata = parseMap(metadataJSON)
 	return item, nil

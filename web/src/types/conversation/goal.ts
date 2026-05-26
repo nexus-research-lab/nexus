@@ -4,8 +4,7 @@ export type GoalStatus =
   | "complete"
   | "blocked"
   | "budget_limited"
-  | "usage_limited"
-  | "cleared";
+  | "usage_limited";
 
 export interface GoalUsage {
   input_tokens?: number;
@@ -33,7 +32,6 @@ export interface Goal {
   updated_at: string;
   completed_at?: string | null;
   blocked_at?: string | null;
-  cleared_at?: string | null;
   last_error?: string;
   metadata?: Record<string, unknown>;
 }

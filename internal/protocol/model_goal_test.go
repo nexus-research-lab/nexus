@@ -107,7 +107,6 @@ func TestIsRuntimeGoalStatusOnlyAllowsActiveGoal(t *testing.T) {
 		GoalStatusBudgetLimited,
 		GoalStatusUsageLimited,
 		GoalStatusComplete,
-		GoalStatusCleared,
 	} {
 		if IsRuntimeGoalStatus(status) {
 			t.Fatalf("status %q should not provide runtime context", status)
@@ -126,7 +125,6 @@ func TestIsRuntimeAccountingGoalStatusAllowsActiveAndBudgetLimitedGoals(t *testi
 		GoalStatusBlocked,
 		GoalStatusUsageLimited,
 		GoalStatusComplete,
-		GoalStatusCleared,
 	} {
 		if IsRuntimeAccountingGoalStatus(status) {
 			t.Fatalf("status %q should not be a runtime accounting target", status)

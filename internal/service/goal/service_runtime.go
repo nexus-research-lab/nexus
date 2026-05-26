@@ -74,8 +74,7 @@ func shouldClearRuntimeAccounting(status protocol.GoalStatus) bool {
 	case protocol.GoalStatusPaused,
 		protocol.GoalStatusComplete,
 		protocol.GoalStatusBlocked,
-		protocol.GoalStatusUsageLimited,
-		protocol.GoalStatusCleared:
+		protocol.GoalStatusUsageLimited:
 		return true
 	default:
 		return false

@@ -37,34 +37,27 @@ func shouldPreserveBudgetLimitedStopRequest(from protocol.GoalStatus, to protoco
 }
 
 func canExternalTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {
-	if from == protocol.GoalStatusCleared {
-		return false
-	}
 	return to == protocol.GoalStatusActive ||
 		to == protocol.GoalStatusPaused ||
 		to == protocol.GoalStatusBlocked ||
 		to == protocol.GoalStatusBudgetLimited ||
 		to == protocol.GoalStatusUsageLimited ||
-		to == protocol.GoalStatusComplete ||
-		to == protocol.GoalStatusCleared
+		to == protocol.GoalStatusComplete
 }
 
 func canUserTransition(from protocol.GoalStatus, to protocol.GoalStatus) bool {
 	switch from {
 	case protocol.GoalStatusActive:
-		return to == protocol.GoalStatusPaused || to == protocol.GoalStatusComplete || to == protocol.GoalStatusBlocked || to == protocol.GoalStatusCleared
+		return to == protocol.GoalStatusPaused || to == protocol.GoalStatusComplete || to == protocol.GoalStatusBlocked
 	case protocol.GoalStatusPaused, protocol.GoalStatusBlocked:
-		return to == protocol.GoalStatusActive || to == protocol.GoalStatusCleared
+		return to == protocol.GoalStatusActive
 	case protocol.GoalStatusBudgetLimited, protocol.GoalStatusUsageLimited:
 		return to == protocol.GoalStatusActive ||
 			to == protocol.GoalStatusPaused ||
 			to == protocol.GoalStatusComplete ||
-			to == protocol.GoalStatusBlocked ||
-			to == protocol.GoalStatusCleared
+			to == protocol.GoalStatusBlocked
 	case protocol.GoalStatusComplete:
-		return to == protocol.GoalStatusActive || to == protocol.GoalStatusCleared
-	case protocol.GoalStatusCleared:
-		return false
+		return to == protocol.GoalStatusActive
 	default:
 		return false
 	}

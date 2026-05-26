@@ -235,6 +235,7 @@ func applyGoalMigration(t *testing.T, db *sql.DB) {
 		"../../../db/migrations/sqlite/00025_session_goals.sql",
 		"../../../db/migrations/sqlite/00026_goal_codex_statuses.sql",
 		"../../../db/migrations/sqlite/00027_goal_budget_token_total.sql",
+		"../../../db/migrations/sqlite/00028_goal_remove_cleared_status.sql",
 	} {
 		body, err := os.ReadFile(path)
 		if err != nil {

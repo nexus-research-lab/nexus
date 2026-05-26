@@ -48,10 +48,9 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
     updated_at,
     completed_at,
     blocked_at,
-    cleared_at,
     last_error,
     metadata_json
-) VALUES (%s)`, r.bindList(23))
+) VALUES (%s)`, r.bindList(22))
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
@@ -75,7 +74,6 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
 		goal.UpdatedAt.UTC(),
 		nullableTime(goal.CompletedAt),
 		nullableTime(goal.BlockedAt),
-		nullableTime(goal.ClearedAt),
 		nullString(goal.LastError),
 		marshalMap(goal.Metadata),
 	)
@@ -157,13 +155,12 @@ SET objective = %s,
     updated_at = %s,
     completed_at = %s,
     blocked_at = %s,
-    cleared_at = %s,
     last_error = %s,
     metadata_json = %s
 WHERE goal_id = %s AND version = %s`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
-		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19), r.bind(20),
-		r.bind(21),
+		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19),
+		r.bind(20),
 	)
 	result, err := r.db.ExecContext(
 		ctx,
@@ -184,7 +181,6 @@ WHERE goal_id = %s AND version = %s`,
 		goal.UpdatedAt.UTC(),
 		nullableTime(goal.CompletedAt),
 		nullableTime(goal.BlockedAt),
-		nullableTime(goal.ClearedAt),
 		nullString(goal.LastError),
 		marshalMap(goal.Metadata),
 		goal.ID,

@@ -132,8 +132,6 @@ func applyInitialGoalStatusTime(item *protocol.Goal, now time.Time) {
 		item.CompletedAt = &now
 	case protocol.GoalStatusBlocked:
 		item.BlockedAt = &now
-	case protocol.GoalStatusCleared:
-		item.ClearedAt = &now
 	}
 }
 

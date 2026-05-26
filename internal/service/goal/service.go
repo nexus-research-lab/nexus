@@ -294,13 +294,10 @@ func (s *Service) persistTransition(
 		item.LastError = ""
 		item.CompletedAt = nil
 		item.BlockedAt = nil
-		item.ClearedAt = nil
 	case protocol.GoalStatusComplete:
 		item.CompletedAt = &now
 	case protocol.GoalStatusBlocked:
 		item.BlockedAt = &now
-	case protocol.GoalStatusCleared:
-		item.ClearedAt = &now
 	}
 	updated, err := s.repo.UpdateGoal(ctx, item, expectedVersion)
 	if errors.Is(err, sql.ErrNoRows) {
