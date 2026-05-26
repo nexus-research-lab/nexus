@@ -2,7 +2,6 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import {
-  CheckCircle2,
   CircleSlash,
   Clock3,
   GaugeCircle,
@@ -44,7 +43,6 @@ interface GoalStatusStripProps {
   recent_events: GoalEvent[];
   scope_label: string;
   on_clear_request: () => void;
-  on_complete: () => void;
   on_edit: () => void;
   on_pause: () => void;
   on_refresh: () => void;
@@ -112,7 +110,6 @@ export function GoalStatusStrip({
   recent_events,
   scope_label,
   on_clear_request,
-  on_complete,
   on_edit,
   on_pause,
   on_refresh,
@@ -325,15 +322,6 @@ export function GoalStatusStrip({
               on_click={on_resume}
             >
               <Play className="h-4 w-4" />
-            </GoalActionButton>
-          ) : null}
-          {goal.status === "active" ? (
-            <GoalActionButton
-              disabled={disabled || is_loading}
-              title="完成"
-              on_click={on_complete}
-            >
-              <CheckCircle2 className="h-4 w-4" />
             </GoalActionButton>
           ) : null}
           <GoalActionButton

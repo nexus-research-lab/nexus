@@ -11,7 +11,6 @@ import {
 
 import {
   clear_goal_api,
-  complete_goal_api,
   create_goal_api,
   get_current_goal_api,
   list_goal_events_api,
@@ -277,7 +276,6 @@ export function GoalPanel({
         recent_events={recent_events}
         scope_label={scope_label}
         on_clear_request={() => set_is_clear_confirm_open(true)}
-        on_complete={() => void mutate_goal(complete_goal_api)}
         on_edit={start_editing_goal}
         on_pause={() => void mutate_goal(pause_goal_api)}
         on_refresh={() => void refresh_goal()}
