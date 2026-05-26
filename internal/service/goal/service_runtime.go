@@ -20,7 +20,7 @@ func (s *Service) SetExternalMutationAccountant(accountant externalMutationAccou
 
 func (s *Service) prepareExternalMutation(ctx context.Context, goalID string) {
 	goalID = strings.TrimSpace(goalID)
-	if s.externalMutation == nil || s.repo == nil || goalID == "" {
+	if s.repo == nil || goalID == "" {
 		return
 	}
 	if err := s.ensureEnabled(); err != nil {
@@ -30,24 +30,32 @@ func (s *Service) prepareExternalMutation(ctx context.Context, goalID string) {
 	if err != nil || item == nil {
 		return
 	}
-	_, _ = s.externalMutation.FlushGoalAccounting(ctx, item.SessionKey)
+	flushed := []string(nil)
+	if s.externalMutation != nil {
+		flushed, _ = s.externalMutation.FlushGoalAccounting(ctx, item.SessionKey)
+	}
+	if len(flushed) == 0 {
+		_, _ = s.accountActiveWallClockUsage(ctx, *item)
+	}
 }
 
 func (s *Service) clearExternalGoalAccounting(item protocol.Goal) {
-	if s.externalMutation == nil {
+	if !shouldClearRuntimeAccounting(item.Status) {
 		return
 	}
-	if !shouldClearRuntimeAccounting(item.Status) {
+	s.clearWallClockGoal(item)
+	if s.externalMutation == nil {
 		return
 	}
 	_ = s.externalMutation.ClearGoalAccounting(item.SessionKey)
 }
 
 func (s *Service) activateExternalGoalAccounting(ctx context.Context, item protocol.Goal) {
-	if s.externalMutation == nil {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return
 	}
-	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+	s.markWallClockGoalActive(item)
+	if s.externalMutation == nil {
 		return
 	}
 	_, _ = s.externalMutation.ActivateGoalAccounting(ctx, item.SessionKey)

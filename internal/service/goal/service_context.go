@@ -25,6 +25,10 @@ func (s *Service) RuntimeContext(ctx context.Context, sessionKey string) (string
 	if !protocol.IsRuntimeGoalStatus(item.Status) {
 		return "", item, nil
 	}
+	item, err = s.accountActiveWallClockUsage(ctx, *item)
+	if err != nil {
+		return "", nil, err
+	}
 	checkpoint, err := s.repo.LatestCheckpoint(ctx, item.ID)
 	if err != nil {
 		return "", nil, err

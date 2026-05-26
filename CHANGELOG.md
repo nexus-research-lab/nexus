@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 外部或用户操作把目标恢复为 active 时，会按当前运行中 round 的 usage 快照重置 Goal accounting 基线，后续用量继续归属该 Goal。
 - Goal 面板的上下文状态会跟随 Plan 模式与空进展暂停展示，不再误提示 Plan 模式下会注入 Goal 上下文。
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
+- Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

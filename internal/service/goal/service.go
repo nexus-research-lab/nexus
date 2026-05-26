@@ -26,6 +26,7 @@ type Service struct {
 	preview          previewFiller
 	externalMutation externalMutationAccountant
 	continuations    ContinuationDispatcher
+	wallClock        *goalWallClockAccounting
 	nowFn            func() time.Time
 	idFactory        func(string) string
 }
@@ -35,6 +36,7 @@ func NewService(cfg config.Config, repo Repository) *Service {
 	return &Service{
 		config:    cfg,
 		repo:      repo,
+		wallClock: newGoalWallClockAccounting(),
 		nowFn:     func() time.Time { return time.Now().UTC() },
 		idFactory: newID,
 	}
@@ -82,7 +84,9 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceUser, "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(created.CreatedBy) != "model" {
+	if strings.TrimSpace(created.CreatedBy) == "model" {
+		s.markWallClockGoalActive(*created)
+	} else {
 		s.activateExternalGoalAccounting(ctx, *created)
 	}
 	s.maybeDispatchActiveGoalContinuation(ctx, *created)
@@ -296,11 +300,17 @@ func (s *Service) persistTransition(
 	if err := s.appendEvent(ctx, *updated, eventType, source, roundID, payload); err != nil {
 		return nil, err
 	}
-	if shouldClearAccountingAfterMutation(source) {
-		s.clearExternalGoalAccounting(*updated)
-	}
-	if source != protocol.GoalUpdateSourceModel {
-		s.activateExternalGoalAccounting(ctx, *updated)
+	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive {
+		if source == protocol.GoalUpdateSourceModel {
+			s.markWallClockGoalActive(*updated)
+		} else {
+			s.activateExternalGoalAccounting(ctx, *updated)
+		}
+	} else {
+		s.clearWallClockGoal(*updated)
+		if shouldClearAccountingAfterMutation(source) {
+			s.clearExternalGoalAccounting(*updated)
+		}
 	}
 	return updated, nil
 }

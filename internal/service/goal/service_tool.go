@@ -136,6 +136,11 @@ func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, u
 			return nil, err
 		}
 	}
+	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive {
+		s.markWallClockGoalActive(*updated)
+	} else {
+		s.clearWallClockGoal(*updated)
+	}
 	return updated, nil
 }
 

@@ -391,6 +391,140 @@ func TestServiceRuntimeContextKeepsBudgetLimitedGoalForUsageAccounting(t *testin
 	}
 }
 
+func TestServiceRuntimeContextAccountsWallClockUsage(t *testing.T) {
+	repo := newMemoryRepository()
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-context",
+		Objective:  "Account wall clock in runtime context",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(12 * time.Second)
+	contextText, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if goal == nil || goal.TimeUsedSeconds != 12 || !strings.Contains(contextText, "TimeUsedSeconds: 12") {
+		t.Fatalf("RuntimeContext() = (%q, %#v), want 12s wall-clock usage", contextText, goal)
+	}
+
+	clock.Advance(3 * time.Second)
+	_, goal, err = service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if goal == nil || goal.TimeUsedSeconds != 15 {
+		t.Fatalf("second RuntimeContext goal = %#v, want cumulative 15s wall-clock usage", goal)
+	}
+}
+
+func TestServiceExternalMutationAccountsWallClockWithoutRunningRound(t *testing.T) {
+	repo := newMemoryRepository()
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-update",
+		Objective:  "Account before external mutation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(9 * time.Second)
+	objective := "Account before external mutation, updated"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &objective})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.TimeUsedSeconds != 9 {
+		t.Fatalf("updated.TimeUsedSeconds = %d, want 9", updated.TimeUsedSeconds)
+	}
+}
+
+func TestServiceExternalMutationDoesNotDoubleCountWallClockAfterRuntimeFlush(t *testing.T) {
+	repo := newMemoryRepository()
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	service.SetExternalMutationAccountant(&fakeExternalMutationAccountant{roundID: "round-running"})
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-flush",
+		Objective:  "Do not double count running round",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(9 * time.Second)
+	objective := "Do not double count running round, updated"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &objective})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.TimeUsedSeconds != 0 {
+		t.Fatalf("updated.TimeUsedSeconds = %d, want no wall-clock fallback after runtime flush", updated.TimeUsedSeconds)
+	}
+}
+
+func TestServiceWallClockAccountingResetsAcrossPauseAndResume(t *testing.T) {
+	repo := newMemoryRepository()
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-resume",
+		Objective:  "Reset paused wall clock",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(5 * time.Second)
+	paused, err := service.Pause(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paused.TimeUsedSeconds != 5 {
+		t.Fatalf("paused.TimeUsedSeconds = %d, want 5", paused.TimeUsedSeconds)
+	}
+
+	clock.Advance(20 * time.Second)
+	resumed, err := service.Resume(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.TimeUsedSeconds != 5 {
+		t.Fatalf("resumed.TimeUsedSeconds = %d, want paused time to stay 5", resumed.TimeUsedSeconds)
+	}
+
+	clock.Advance(3 * time.Second)
+	_, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if goal == nil || goal.TimeUsedSeconds != 8 {
+		t.Fatalf("runtime goal = %#v, want 8s after resumed active time", goal)
+	}
+}
+
 func TestServiceSetFromThreadGoalParamsCreatesAndUpdatesGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -1779,6 +1913,22 @@ func fixedClock() func() time.Time {
 	return func() time.Time {
 		return now
 	}
+}
+
+type mutableClock struct {
+	now time.Time
+}
+
+func newMutableClock(now time.Time) *mutableClock {
+	return &mutableClock{now: now}
+}
+
+func (c *mutableClock) Now() time.Time {
+	return c.now
+}
+
+func (c *mutableClock) Advance(duration time.Duration) {
+	c.now = c.now.Add(duration)
 }
 
 func sequentialID() func(string) string {
