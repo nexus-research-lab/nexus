@@ -125,10 +125,14 @@ export function GoalStatusStrip({
   const usage_percent = goal_budget_percent(goal);
   const tone = goal_status_tone(goal.status);
   const runtime_label = goal_runtime_label(goal, is_generating);
-  const context_label = goal_context_label(goal, is_generating);
   const latest_event = recent_events[0] ?? null;
   const active_continuation_hold =
     goal.status === "active" ? continuation_hold : null;
+  const context_label = goal_context_label(
+    goal,
+    is_generating,
+    active_continuation_hold,
+  );
   const continuation_suppressed =
     goal.status === "active" &&
     (active_continuation_hold !== null || (goal.empty_progress_count ?? 0) > 0);

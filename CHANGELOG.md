@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal budget_limited 状态下调高预算恢复 active 后，会立即尝试触发下一轮 Goal 续跑。
 - Goal objective/budget 更新仅在归一化后实际变化时记录事件和触发 objective-updated steering。
 - Goal 外部或用户操作把目标恢复为 active 时，会按当前运行中 round 的 usage 快照重置 Goal accounting 基线，后续用量继续归属该 Goal。
+- Goal 面板的上下文状态会跟随 Plan 模式与空进展暂停展示，不再误提示 Plan 模式下会注入 Goal 上下文。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。

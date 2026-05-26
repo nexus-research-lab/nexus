@@ -80,9 +80,17 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
   }
 }
 
-export function goal_context_label(goal: Goal, is_generating: boolean): string | null {
+export function goal_context_label(
+  goal: Goal,
+  is_generating: boolean,
+  continuation_hold: GoalContinuationHold | null = null,
+): string | null {
   switch (goal.status) {
     case "active":
+      if (continuation_hold) return "Plan 模式不注入";
+      if ((goal.empty_progress_count ?? 0) > 0) {
+        return is_generating ? "上下文已携带" : "等待活动后携带";
+      }
       return is_generating ? "上下文已携带" : "下轮携带上下文";
     case "paused":
       return "上下文暂停";
