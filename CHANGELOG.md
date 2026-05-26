@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - IM 入站新增 `im_ingress_messages` 幂等 ledger，按 owner/channel/req_id 领取消息处理权；飞书等 webhook 重试同一 message_id 时不会重复下发给 Agent，避免重复创建或修改定时任务，前次下发失败后仍允许同一 req_id 重试。
 
 ### Fixed
+- 改进工作区 PPTX 文本渲染，保留段落内 run 样式、项目符号、行高和颜色亮度，减少字体忽大忽小和文字遮挡。
 - 修复工作区 PPTX 预览未继承母版/布局占位符导致标题、图片和缩略图文字缺失的问题，并收敛导航与幻灯片圆角。
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
 - 修复定时任务 HTTP 新建/编辑未接收 `execution_kind`，导致页面创建脚本任务被后端当成 Agent 任务的问题。
