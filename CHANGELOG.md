@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 - Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。
 - Goal `update_goal` 工具描述补齐 Codex 当前 blocked 审计语义，包括 resumed 后重新审计和 usage-limit 由系统控制。
+- Room group runtime 中的 Goal MCP 工具改为绑定房间 shared session，房间成员完成/阻塞 Goal 时会更新同一个房间 Goal。
 
 ### Fixed
 - 修复聊天侧边栏删除确认在删除请求失败时不会关闭的问题。
