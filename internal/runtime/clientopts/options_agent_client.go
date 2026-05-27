@@ -90,7 +90,8 @@ func BuildAgentClientOptions(
 			Deny:  appendDistinctTools(input.DisallowedTools, claudeSessionScheduleTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
-			PermissionMode: permissionMode,
+			PermissionMode:                  permissionMode,
+			AllowDangerouslySkipPermissions: true,
 		},
 		Callbacks: agentclient.CallbackOptions{
 			PermissionHandler: permissionHandler,

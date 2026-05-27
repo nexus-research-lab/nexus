@@ -34,6 +34,7 @@ interface GoalPanelProps {
   edit_request?: GoalPanelEditRequest | null;
   is_generating?: boolean;
   scope_label?: string;
+  show_empty_state?: boolean;
 }
 
 function is_goal_unavailable(error: unknown) {
@@ -77,6 +78,7 @@ export function GoalPanel({
   edit_request = null,
   is_generating = false,
   scope_label = "会话 Goal",
+  show_empty_state = false,
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
   const [events, set_events] = useState<GoalEvent[]>([]);
@@ -290,6 +292,9 @@ export function GoalPanel({
   }
 
   if (!goal && !is_creating) {
+    if (!show_empty_state) {
+      return null;
+    }
     return (
       <GoalEmptyStrip
         compact={compact}

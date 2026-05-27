@@ -57,6 +57,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
 	}
+	if !options.Runtime.AllowDangerouslySkipPermissions {
+		t.Fatalf("运行时应允许后续切换到 bypassPermissions，避免复用 session 时发送失败")
+	}
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
@@ -204,6 +207,9 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 	}
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("bypass 模式应保留 AskUserQuestion 交互通道")
+	}
+	if !options.Runtime.AllowDangerouslySkipPermissions {
+		t.Fatalf("bypass 模式应在 session 启动时显式启用 allowDangerouslySkipPermissions")
 	}
 
 	questionDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{

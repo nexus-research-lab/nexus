@@ -135,6 +135,41 @@ func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	}
 }
 
+func TestManagerGetOrCreateReplacesClientWhenBypassSwitchRequiresLaunchFlag(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: agentclient.ErrBypassPermissionsNotAllowed,
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:bypass-switch"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{PermissionMode: sdkpermission.ModeDefault},
+	})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{
+			PermissionMode:                  sdkpermission.ModeBypassPermissions,
+			AllowDangerouslySkipPermissions: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("bypass 切换受限时应创建新 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("bypass 切换受限后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
 func TestManagerGetOrCreateKeepsNonTransportReconfigureError(t *testing.T) {
 	expectedErr := errors.New("permission mode is not supported")
 	stale := &fakeRuntimeClient{reconfigureErr: expectedErr}

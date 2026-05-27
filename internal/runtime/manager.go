@@ -385,8 +385,8 @@ func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options ag
 	m.mu.RUnlock()
 	if existing != nil {
 		if err := existing.Reconfigure(ctx, options); err != nil {
-			if IsRuntimeTransportClosedError(err) {
-				return m.replaceDisconnectedClient(ctx, sessionKey, existing, options)
+			if shouldReplaceRuntimeClientAfterReconfigureError(err) {
+				return m.replaceRuntimeClient(ctx, sessionKey, existing, options)
 			}
 			return nil, err
 		}
@@ -403,12 +403,19 @@ func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options ag
 	client := state.Client
 	m.mu.Unlock()
 	if err := client.Reconfigure(ctx, options); err != nil {
+		if shouldReplaceRuntimeClientAfterReconfigureError(err) {
+			return m.replaceRuntimeClient(ctx, sessionKey, client, options)
+		}
 		return nil, err
 	}
 	return client, nil
 }
 
-func (m *Manager) replaceDisconnectedClient(
+func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
+	return IsRuntimeTransportClosedError(err) || errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed)
+}
+
+func (m *Manager) replaceRuntimeClient(
 	ctx context.Context,
 	sessionKey string,
 	stale Client,
