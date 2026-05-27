@@ -20,7 +20,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 		Name:        "create_goal",
 		Description: createGoalDescription,
 		InputSchema: objectSchema(map[string]any{
-			"objective":    stringProperty("Required.\nThe concrete objective to start pursuing.\nThis starts a new active goal only when no goal is currently defined; if a goal already exists, this tool fails."),
+			"objective":    stringProperty("Required. The concrete objective to start pursuing. This starts a new active goal only when no goal is currently defined; if a goal already exists, this tool fails."),
 			"token_budget": integerProperty("Optional positive token budget for the new active goal."),
 		}, "objective"),
 		Handler: func(ctx context.Context, input map[string]any) (sdkmcp.ToolResult, error) {

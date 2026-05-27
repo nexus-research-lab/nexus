@@ -15,11 +15,15 @@ type updateGoalInput struct {
 	Status string `json:"status"`
 }
 
-const updateGoalDescription = "Update the existing goal. Use this tool only to mark the goal achieved or blocked.\n" +
-	"Set status to `complete` only when the objective has actually been achieved and no required work remains. Set status to `blocked` only when the goal cannot currently proceed until something external changes. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work. You cannot use this tool to pause, resume, or budget-limit a goal; those status changes are controlled by the user or system.\n" +
+const updateGoalDescription = "Update the existing goal.\n" +
+	"Use this tool only to mark the goal achieved or blocked.\n" +
+	"Set status to `complete` only when the objective has actually been achieved and no required work remains.\n" +
+	"Set status to `blocked` only when the goal cannot currently proceed until something external changes.\n" +
+	"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.\n" +
+	"You cannot use this tool to pause, resume, or budget-limit a goal; those status changes are controlled by the user or system.\n" +
 	"When marking a budgeted goal achieved with status `complete`, report the final token usage from the tool result to the user."
 
-const updateGoalStatusDescription = "Required.\nSet to complete only when the objective is achieved and no required work remains. Set to blocked only when the goal cannot currently proceed without a user decision, missing dependency, or external unblock."
+const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only when the goal cannot currently proceed without a user decision, missing dependency, or external unblock."
 
 func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	return sdkmcp.Tool{
