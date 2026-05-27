@@ -30,6 +30,7 @@ import { ConversationErrorBubble } from "@/features/conversation/shared/conversa
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import {
   goal_continuation_hold_for_room_target,
+  room_goal_scope_label,
 } from "@/features/conversation/shared/goal-continuation-hold";
 import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
@@ -158,6 +159,15 @@ export function GroupChatPanel({
   const goal_continuation_hold = useMemo(
     () =>
       goal_continuation_hold_for_room_target(
+        room_members,
+        room_host_agent_id,
+        room_host_auto_reply_enabled,
+      ),
+    [room_host_agent_id, room_host_auto_reply_enabled, room_members],
+  );
+  const goal_scope_label = useMemo(
+    () =>
+      room_goal_scope_label(
         room_members,
         room_host_agent_id,
         room_host_auto_reply_enabled,
@@ -638,7 +648,7 @@ export function GroupChatPanel({
             edit_request={goal_edit_request}
             is_generating={is_loading}
             session_key={session_key}
-            scope_label="房间 Goal"
+            scope_label={goal_scope_label}
           />
 
           <ComposerPanel
