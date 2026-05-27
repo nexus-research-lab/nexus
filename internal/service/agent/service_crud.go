@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -222,11 +221,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		vibeTags = append([]string(nil), request.VibeTags...)
 	}
 
-	identitySynced, err := syncWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, existing.Name, normalizedName)
-	if err != nil {
-		return nil, err
-	}
-
 	updated, err := s.repository.UpdateAgent(ctx, agentrepo.UpdateRecord{
 		AgentID:             existing.AgentID,
 		OwnerUserID:         updateOwnerUserID,
@@ -247,11 +241,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources, "[]"),
 	})
 	if err != nil {
-		if identitySynced {
-			if rollbackErr := rollbackWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, normalizedName, existing.Name); rollbackErr != nil {
-				return nil, errors.Join(err, fmt.Errorf("回滚 AGENTS.md 身份标识失败: %w", rollbackErr))
-			}
-		}
 		return nil, err
 	}
 	if updated == nil {

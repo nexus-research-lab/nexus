@@ -18,6 +18,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -37,6 +38,7 @@ type fakeRoomClient struct {
 	sessionID      string
 	messages       chan sdkprotocol.ReceivedMessage
 	interruptCalls int
+	queryPrompts   []string
 	sentContents   []string
 	onQuery        func(context.Context, string) error
 	onInterrupt    func(context.Context)
@@ -52,6 +54,9 @@ func newFakeRoomClient() *fakeRoomClient {
 func (c *fakeRoomClient) Connect(context.Context) error { return nil }
 
 func (c *fakeRoomClient) Query(ctx context.Context, prompt string) error {
+	c.mu.Lock()
+	c.queryPrompts = append(c.queryPrompts, prompt)
+	c.mu.Unlock()
 	if c.onQuery != nil {
 		return c.onQuery(ctx, prompt)
 	}
@@ -120,6 +125,26 @@ func (f *fakeRoomFactory) LastOptions() agentclient.Options {
 
 func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text string) {
 	sendFakeAssistantResultWithUsage(client, messageID, text, nil)
+}
+
+type fakeRoomTitleScheduler struct {
+	mu       sync.Mutex
+	requests []titlegen.Request
+}
+
+func (s *fakeRoomTitleScheduler) Schedule(_ context.Context, request titlegen.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, request)
+}
+
+func (s *fakeRoomTitleScheduler) LastRequest() titlegen.Request {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.requests) == 0 {
+		return titlegen.Request{}
+	}
+	return s.requests[len(s.requests)-1]
 }
 
 func sendFakeTerminalAssistantAndClose(client *fakeRoomClient, messageID string, text string, usage map[string]any) {
@@ -293,6 +318,25 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		protocol.EventTypeStreamEnd,
 		protocol.EventTypeRoundStatus,
 	})
+	client.mu.Lock()
+	queryPrompts := append([]string(nil), client.queryPrompts...)
+	client.mu.Unlock()
+	if len(queryPrompts) != 1 {
+		t.Fatalf("期望发送 1 条 Room runtime query，实际 %d", len(queryPrompts))
+	}
+	for _, expected := range []string{
+		"<public_feed>",
+		"<latest_trigger>",
+		"<nexus_runtime_context>",
+		"## Date Awareness",
+		"## Emotion State",
+		"Context ID: room:" + dmContext.Conversation.ID,
+		"Base: focused",
+	} {
+		if !strings.Contains(queryPrompts[0], expected) {
+			t.Fatalf("Room runtime query 缺少动态上下文 %q:\n%s", expected, queryPrompts[0])
+		}
+	}
 
 	pendingMsgID := ""
 	for _, event := range events {
@@ -321,24 +365,24 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 
 	roomSystemPrompt := factory.LastOptions().System.Append
 	for _, expected := range []string{
-		"# Nexus Room 公区协作规则",
-		"你正在 Nexus 的多人协作 Room 中参与公开协作",
-		"Room 运行时会在系统提示词中提供成员目录，并在每轮用户消息里提供 public_feed 和 latest_trigger",
-		"直接创建 Room action",
+		"# Nexus Room Public Collaboration Rules",
+		"You are participating in a multi-member Nexus Room",
+		"Each user turn includes public_feed and latest_trigger",
+		"create a Room action directly",
 		`nexusctl --json room action`,
 		`room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
 		`--wake-policy delayed --delay-seconds <seconds>`,
 		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
-		`延迟唤醒后要把最终回复发布到公区`,
-		`request-reply 指向自己并设置 --reply-target public_feed`,
-		"latest_trigger 标注“群主默认接管”",
-		"收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求",
-		"不要为了回答这个请求再调用 room action 或 CLI",
-		"不要公开复述 private_message、request_reply、private_note 中的正文",
+		`delayed wakeup should eventually publish a final reply to public_feed`,
+		`request-reply targeting yourself with --reply-target public_feed`,
+		`latest_trigger says "room host default takeover"`,
+		"When you receive request_reply, answer the request directly with this turn's final assistant reply",
+		"Do not call room action or CLI just to answer it",
+		"do not publicly restate private_message, request_reply, or private_note content",
 		`room action private-note --content "<text>"`,
 		`room action marker --visibility public|private --content "<text>"`,
-		"# Nexus Room 成员目录",
+		"# Nexus Room Member Directory",
 		"<room_member_directory>",
 		"- name=单聊助手 agent_id=" + memberAgent.AgentID,
 	} {
@@ -510,7 +554,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	})
 	select {
 	case prompt := <-hostPrompt:
-		if !strings.Contains(prompt, "群主默认接管") || !strings.Contains(prompt, "帮我拆一下这个需求") {
+		if !strings.Contains(prompt, "room host default takeover") || !strings.Contains(prompt, "帮我拆一下这个需求") {
 			t.Fatalf("群主 prompt 缺少默认接管上下文: %s", prompt)
 		}
 	case <-time.After(time.Second):
@@ -941,6 +985,8 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 		factory,
 	)
 	service.SetProviderResolver(providerService)
+	titleScheduler := &fakeRoomTitleScheduler{}
+	service.SetTitleGenerator(titleScheduler)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-model")
@@ -973,6 +1019,13 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	}
 	if options.Env["CLAUDE_CODE_SUBAGENT_MODEL"] != "glm-5.1" {
 		t.Fatalf("room runtime 未注入 subagent model: %+v", options.Env)
+	}
+	titleRequest := titleScheduler.LastRequest()
+	if titleRequest.SessionMessageCount != -1 {
+		t.Fatalf("room 标题生成不应检查共享 session 标题: %+v", titleRequest)
+	}
+	if titleRequest.ConversationID != dmContext.Conversation.ID {
+		t.Fatalf("room 标题生成未绑定 conversation: %+v", titleRequest)
 	}
 	if options.Runtime.MaxThinkingTokens != maxThinkingTokens {
 		t.Fatalf("room runtime 未向 SDK 透传 max thinking tokens: %+v", options)

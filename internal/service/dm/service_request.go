@@ -82,6 +82,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
+	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 
 	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
@@ -209,6 +210,7 @@ func (s *Service) queueRunningInput(
 	if err != nil {
 		return false, err
 	}
+	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
 		return false, err
 	}
@@ -261,6 +263,7 @@ func (s *Service) guideRunningInput(
 	if err != nil {
 		return false, err
 	}
+	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent.PlainText())
 	if err != nil {
 		return false, err

@@ -15,7 +15,7 @@ func TestRenderRuntimeContentWithAttachments(t *testing.T) {
 	t.Parallel()
 
 	workspacePath := t.TempDir()
-	attachmentPath := filepath.Join(workspacePath, ".nexus", "attachments", "demo.txt")
+	attachmentPath := filepath.Join(workspacePath, "tmp", "attachments", "demo.txt")
 	if err := os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
 		t.Fatalf("mkdir attachment dir: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestRenderRuntimeContentWithAttachments(t *testing.T) {
 		"总结一下",
 		[]protocol.ChatAttachment{{
 			FileName:      "demo.txt",
-			WorkspacePath: ".nexus/attachments/demo.txt",
+			WorkspacePath: "tmp/attachments/demo.txt",
 			Kind:          protocol.ChatAttachmentKindText,
 		}},
 		func(_ context.Context, attachment protocol.ChatAttachment) (string, error) {
@@ -53,7 +53,7 @@ func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 	t.Parallel()
 
 	workspacePath := t.TempDir()
-	attachmentPath := filepath.Join(workspacePath, ".nexus", "attachments", "demo.png")
+	attachmentPath := filepath.Join(workspacePath, "tmp", "attachments", "demo.png")
 	if err := os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
 		t.Fatalf("mkdir attachment dir: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 		"描述一下图片",
 		[]protocol.ChatAttachment{{
 			FileName:      "demo.png",
-			WorkspacePath: ".nexus/attachments/demo.png",
+			WorkspacePath: "tmp/attachments/demo.png",
 			Kind:          protocol.ChatAttachmentKindImage,
 			MIMEType:      "image/png",
 		}},
@@ -102,11 +102,45 @@ func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 	}
 }
 
+func TestRuntimeContentAppendText(t *testing.T) {
+	t.Parallel()
+
+	content := NewRuntimeTextContent("用户问题").AppendText("动态上下文")
+	if content.PlainText() != "用户问题\n\n动态上下文" {
+		t.Fatalf("text append mismatch: %q", content.PlainText())
+	}
+	if payload, ok := content.Payload().(string); !ok || payload != content.PlainText() {
+		t.Fatalf("text payload mismatch: %#v", content.Payload())
+	}
+}
+
+func TestRuntimeContentAppendTextWithBlocks(t *testing.T) {
+	t.Parallel()
+
+	content := RuntimeContent{
+		text: "用户问题",
+		blocks: []map[string]any{
+			{"type": "text", "text": "用户问题"},
+		},
+	}.AppendText("动态上下文")
+
+	if content.PlainText() != "用户问题\n\n动态上下文" {
+		t.Fatalf("block plain text mismatch: %q", content.PlainText())
+	}
+	blocks, ok := content.Payload().([]map[string]any)
+	if !ok {
+		t.Fatalf("block payload type mismatch: %#v", content.Payload())
+	}
+	if len(blocks) != 2 || blocks[1]["type"] != "text" || blocks[1]["text"] != "动态上下文" {
+		t.Fatalf("dynamic context should be appended as trailing text block: %#v", blocks)
+	}
+}
+
 func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 	t.Parallel()
 
 	workspacePath := t.TempDir()
-	attachmentPath := filepath.Join(workspacePath, ".nexus", "attachments", "diagram.svg")
+	attachmentPath := filepath.Join(workspacePath, "tmp", "attachments", "diagram.svg")
 	if err := os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
 		t.Fatalf("mkdir attachment dir: %v", err)
 	}
@@ -119,7 +153,7 @@ func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 		"看看这个图",
 		[]protocol.ChatAttachment{{
 			FileName:      "diagram.svg",
-			WorkspacePath: ".nexus/attachments/diagram.svg",
+			WorkspacePath: "tmp/attachments/diagram.svg",
 			Kind:          protocol.ChatAttachmentKindImage,
 			MIMEType:      "image/svg+xml",
 		}},

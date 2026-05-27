@@ -41,7 +41,7 @@ func (s *RealtimeService) buildRoomMemorySystemPrompt(ctx context.Context, round
 	if strings.TrimSpace(stable) == "" {
 		return ""
 	}
-	return "# Room 共享热记忆\n\n" + stable
+	return "# Room Shared Hot Memory\n\n" + stable
 }
 
 func (s *RealtimeService) prependRoomMemoryContext(

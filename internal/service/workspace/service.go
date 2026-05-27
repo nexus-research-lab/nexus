@@ -354,7 +354,7 @@ func (s *Service) UploadFile(ctx context.Context, agentID string, filename strin
 		filename,
 		destination,
 		reader,
-		uploadFileOptions{dedupeRoots: []string{".nexus/attachments"}},
+		uploadFileOptions{dedupeRoots: []string{"tmp/attachments"}},
 		func(path string) {
 			if s.live != nil {
 				s.live.SuppressWatcher(agentValue.AgentID, path)

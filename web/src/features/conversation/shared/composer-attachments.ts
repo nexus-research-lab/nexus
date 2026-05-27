@@ -102,7 +102,7 @@ const SUPPORTED_WORK_FILE_MIME_TYPES = new Set([
 ]);
 
 const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
-const ATTACHMENT_DIRECTORY = ".nexus/attachments";
+const ATTACHMENT_DIRECTORY = "tmp/attachments";
 
 export const COMPOSER_ATTACHMENT_ACCEPT =
   [

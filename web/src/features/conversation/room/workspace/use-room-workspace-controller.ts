@@ -42,13 +42,8 @@ export function get_parent_directory_path(path: string): string | null {
   return path.slice(0, last_slash_index);
 }
 
-function is_internal_attachment_workspace_path(path?: string | null): boolean {
-  const normalized_path = path?.trim().replaceAll("\\", "/").replace(/^\/+/, "") ?? "";
-  return normalized_path === ".nexus/attachments" || normalized_path.startsWith(".nexus/attachments/");
-}
-
 function get_workspace_focus_directory_path(path?: string | null): string | null {
-  if (!path || is_internal_attachment_workspace_path(path)) {
+  if (!path) {
     return null;
   }
   return get_parent_directory_path(path);
@@ -332,9 +327,7 @@ export function useRoomWorkspaceController(
     prompt_state,
     delete_target,
     focused_directory_path,
-    current_directory_label: is_internal_attachment_workspace_path(active_workspace_path)
-      ? "附件预览"
-      : (focused_directory_path ?? "/"),
+    current_directory_label: focused_directory_path ?? "/",
     handle_click_file,
     handle_click_directory,
     handle_upload_click,

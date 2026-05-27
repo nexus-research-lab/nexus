@@ -46,6 +46,13 @@ func (s *RealtimeService) roomSlotGuidanceHook(
 			if renderErr != nil {
 				return sdkhook.Output{}, renderErr
 			}
+			agentValue, agentErr := s.resolveRuntimeUserContextAgent(ctx, roundValue, slot.AgentID)
+			if agentErr != nil {
+				return sdkhook.Output{}, agentErr
+			}
+			if agentValue != nil {
+				runtimeContent = s.appendRuntimeUserContext(ctx, roundValue.ConversationID, agentValue, runtimeContent)
+			}
 			item.Content = runtimeContent.PlainText()
 			runtimeQueueItems = append(runtimeQueueItems, item)
 		}

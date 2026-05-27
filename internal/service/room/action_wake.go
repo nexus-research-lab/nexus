@@ -127,12 +127,12 @@ func roomActionWakeContent(action protocol.RoomActionRecord) (string, bool) {
 		if action.WakePolicy == protocol.RoomWakePolicyNone {
 			return "", false
 		}
-		return "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。", true
+		return "A Room private_message was delivered to you. Read the content projected in <room_actions>.", true
 	case protocol.RoomActionTypeRequestReply:
 		if action.WakePolicy != protocol.RoomWakePolicyImmediate && action.WakePolicy != protocol.RoomWakePolicyDelayed {
 			return "", false
 		}
-		return "收到一条 Room request_reply；请读取 <room_actions> 中投影给你的请求并按 reply_target 回复。", true
+		return "A Room request_reply was delivered to you. Read the request projected in <room_actions> and answer according to reply_target.", true
 	default:
 		return "", false
 	}

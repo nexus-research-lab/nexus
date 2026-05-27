@@ -138,7 +138,7 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	}
 }
 
-func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T) {
+func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
@@ -160,8 +160,8 @@ func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T)
 		t.Fatalf("写入 workspace 标记失败: %v", err)
 	}
 	agentsFile := filepath.Join(created.WorkspacePath, "AGENTS.md")
-	oldIdentity := agentIdentityLine("chatbuddy", created.AgentID)
-	if err = os.WriteFile(agentsFile, []byte("# AGENTS.md\n\n"+oldIdentity+"\n"), 0o644); err != nil {
+	customAgentsContent := "# AGENTS.md\n\n用户自定义规则\n"
+	if err = os.WriteFile(agentsFile, []byte(customAgentsContent), 0o644); err != nil {
 		t.Fatalf("写入 AGENTS.md 失败: %v", err)
 	}
 	if err = os.MkdirAll(filepath.Join(cfg.WorkspacePath, "chat"), 0o755); err != nil {
@@ -194,17 +194,9 @@ func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T)
 	if err != nil {
 		t.Fatalf("读取 AGENTS.md 失败: %v", err)
 	}
-	newIdentity := agentIdentityLine("chat", created.AgentID)
-	if !strings.Contains(string(agentsContent), newIdentity) {
-		t.Fatalf("AGENTS.md 未同步新名称: got=%s want=%s", string(agentsContent), newIdentity)
+	if string(agentsContent) != customAgentsContent {
+		t.Fatalf("改名不应重写 AGENTS.md 系统身份字段: %s", agentsContent)
 	}
-	if strings.Contains(string(agentsContent), oldIdentity) {
-		t.Fatalf("AGENTS.md 不应保留旧身份行: %s", string(agentsContent))
-	}
-}
-
-func agentIdentityLine(agentName string, agentID string) string {
-	return "当前 Agent 标识：" + agentName + "（" + agentID + "）"
 }
 
 func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {

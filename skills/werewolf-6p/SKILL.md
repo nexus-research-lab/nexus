@@ -1,53 +1,53 @@
 ---
 name: werewolf-6p
-title: 六人狼人杀调试本子
-description: 面向 1 名主持 Agent 和 6 名玩家 Agent 的 Room 通讯验证规则。
+title: Six-Player Werewolf Debug Script
+description: Room communication validation rules for one host member and six player members.
 scope: room
 tags: [room, game, werewolf]
 ---
 
-# 六人狼人杀调试本子
+# Six-Player Werewolf Debug Script
 
-本本子只用于验证 Room 通讯机制，不把业务状态交给平台固化。主持 Agent 自己维护局面，Room 只负责公区、私域投递、受众夜聊、请求回复和上下文投影。
+This script is only for validating Room communication mechanics. It does not move game state into platform-owned logic. The host member maintains the game state. Room only handles public feed, private delivery, audience night chat, request replies, and context projection.
 
-## 思考预算
+## Thinking Budget
 
-- 主持 Agent 只思考当前阶段、需要发出的 action、下一步等待谁回复；不要在思考里复述完整规则、完整角色表或失败备选方案。
-- 玩家 Agent 只基于自己可见信息发言；不要长篇复盘隐藏信息。
-- 单条公开发言控制在 120 字以内；私域请求控制在 160 字以内；私有记录控制在 12 行以内。
-- 每次只推进一个闭合步骤。不要一次性创建后续多个阶段的 action。
+- The host member should focus only on the current phase, actions to send, and who must reply next. Do not restate the full rules, full role table, or fallback plans in reasoning.
+- Player members speak only from visible information. Do not write long recaps of hidden information.
+- Keep each public statement under 120 words, each private request under 160 words, and each private note under 12 lines.
+- Advance one closed step at a time. Do not create actions for multiple future phases at once.
 
-## 人数与角色
+## Players And Roles
 
-- 1 名主持 Agent：负责发身份、收夜间行动、公布天亮、组织发言和投票。
-- 6 名玩家 Agent：2 狼人、1 预言家、1 女巫、2 平民。
-- 角色应由主持 Agent 私下随机或按测试需要指定，并通过 `private_message --wake-policy none` 发给每名玩家。
-- 主持 Agent 用 `private_note` 维护最小状态：轮次、存活、死亡、角色、女巫药水、当前等待项。
+- 1 host member: assigns roles, collects night actions, announces daybreak, organizes speeches, and runs voting.
+- 6 player members: 2 werewolves, 1 seer, 1 witch, and 2 villagers.
+- Roles should be privately randomized by the host or assigned as needed for testing, then sent to each player with `private_message --wake-policy none`.
+- The host uses `private_note` to maintain minimal state: round, alive players, dead players, roles, witch potions, and currently awaited items.
 
-## 胜负
+## Win Conditions
 
-- 好人胜利：两名狼人全部出局。
-- 狼人胜利：平民全部死亡，或神职全部死亡。
-- 每次天亮公布、投票出局后都检查胜负；未结束才进入下一阶段。
+- Good side wins when both werewolves are eliminated.
+- Werewolves win when all villagers die or all special roles die.
+- Check win conditions after each daybreak announcement and each voted elimination. Continue to the next phase only if the game has not ended.
 
-## 夜晚流程
+## Night Flow
 
-按顺序闭合：
+Close these steps in order:
 
-1. 狼人行动：给两名狼人发送 `private_message --audience-agent-id ... --wake-policy immediate` 开启夜聊；再对一名狼人提交者发送 `request-reply --reply-target sender_private`，要求只回复击杀目标名字。
-2. 预言家行动：收到狼人击杀目标后，对预言家发送 `request-reply --reply-target sender_private`，要求只回复查验对象名字；主持再用 `private_message --wake-policy none` 回告“好人/狼人”。
-3. 女巫行动：对女巫发送 `request-reply --reply-target sender_private`，告知本夜被杀者和药水剩余，要求只回复“救/不救；毒/不毒 玩家名”。
-4. 天亮：主持根据击杀、解药、毒药结算死亡，只在公区公布死亡结果，不公开身份和夜间私聊内容。
+1. Werewolf action: send `private_message --audience-agent-id ... --wake-policy immediate` to the two werewolves to start night chat. Then send `request-reply --reply-target sender_private` to one werewolf submitter and ask for only the kill target name.
+2. Seer action: after receiving the werewolf kill target, send `request-reply --reply-target sender_private` to the seer and ask for only the inspection target name. Then use `private_message --wake-policy none` to return either "good side" or "werewolf".
+3. Witch action: send `request-reply --reply-target sender_private` to the witch, include tonight's killed player and remaining potions, and ask for only "save/no save; poison/no poison player name".
+4. Daybreak: resolve deaths from kill, antidote, and poison. Announce only the death result in the public feed. Do not reveal roles or night private-chat content.
 
-## 白天流程
+## Day Flow
 
-- 主持按固定顺序逐个唤醒玩家发言，使用 `request-reply --reply-target public_feed`。
-- 所有存活玩家发言结束后，主持逐个收投票，或在调试时指定一名主持汇总者收集投票。
-- 投票结果只公布出局者和票型，不公布未公开身份。
+- The host wakes players one by one in a fixed order with `request-reply --reply-target public_feed`.
+- After all living players have spoken, the host collects votes one by one, or appoints one host-side collector during debugging.
+- Vote results announce only the eliminated player and vote shape. Do not reveal undisclosed roles.
 
-## Room action 约束
+## Room Action Constraints
 
-- 狼人夜聊使用 audience 私域；狼人之间的讨论只投影给两名狼人。
-- 需要某人给主持提交决定时，使用 `request_reply`，不要让玩家再调用 CLI。
-- 玩家收到 `request_reply` 时，最终回复就是答案；不要创建新的 Room action，除非请求明确要求转发给第三方。
-- 主持收到私域回复后，只更新私有状态并发起下一步；公开输出只用于阶段公告、死亡公告、发言和投票结果。
+- Werewolf night chat uses audience private context. Discussion between werewolves is projected only to the two werewolves.
+- When someone must submit a decision to the host, use `request_reply`; do not make players call the CLI.
+- When a player receives `request_reply`, the final reply is the answer. Do not create a new Room action unless the request explicitly asks for forwarding to a third party.
+- After the host receives a private reply, update private state and start the next step. Public output is only for phase announcements, death announcements, speeches, and vote results.
