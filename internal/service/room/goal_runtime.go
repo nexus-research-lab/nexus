@@ -18,6 +18,10 @@ func (s *RealtimeService) resolveGoalRuntimeContextForSlot(
 	slot *activeRoomSlot,
 	appendSystemPrompt string,
 ) (string, string, string, string) {
+	defaultGoalSessionKey := ""
+	if roundValue != nil {
+		defaultGoalSessionKey = strings.TrimSpace(roundValue.SessionKey)
+	}
 	for _, sessionKey := range goalSessionCandidates(roundValue, slot) {
 		goalContext, goalID, ok := s.goalRuntimeContext(ctx, sessionKey)
 		if !ok {
@@ -25,7 +29,7 @@ func (s *RealtimeService) resolveGoalRuntimeContextForSlot(
 		}
 		return appendSystemPrompt, goalContext, goalID, sessionKey
 	}
-	return appendSystemPrompt, "", "", ""
+	return appendSystemPrompt, "", "", defaultGoalSessionKey
 }
 
 func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {

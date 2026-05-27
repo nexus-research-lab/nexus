@@ -118,6 +118,38 @@ func TestRecordGoalUsageForRoomSlotUsesAssistantSnapshotOnAbort(t *testing.T) {
 	}
 }
 
+func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalTool(t *testing.T) {
+	sharedSessionKey := "room:group:conversation-1"
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
+		GoalSessionKey:    sharedSessionKey,
+		AgentRoundID:      "round-1:agent-1",
+		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(false),
+	}
+
+	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "create_goal", 4, 1))
+	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  9,
+			OutputTokens: 3,
+			TotalTokens:  12,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want post-create delta", len(usages))
+	}
+	if usages[0].InputTokens != 5 || usages[0].OutputTokens != 2 || usages[0].Total() != 7 {
+		t.Fatalf("usage = %#v, want 5/2 delta after create_goal baseline", usages[0])
+	}
+	if len(goalProvider.usageSessionKeys) != 1 || goalProvider.usageSessionKeys[0] != sharedSessionKey {
+		t.Fatalf("usageSessionKeys = %#v, want shared room goal session", goalProvider.usageSessionKeys)
+	}
+}
+
 func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 	manager := runtimectx.NewManager()
 	service := &RealtimeService{runtime: manager}
@@ -288,6 +320,30 @@ func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
 	}
 	if !strings.Contains(goalContext, "runtime goal context") {
 		t.Fatalf("goalContext = %q, want runtime goal context", goalContext)
+	}
+}
+
+func TestResolveGoalRuntimeContextForSlotKeepsSharedSessionForFutureRoomGoal(t *testing.T) {
+	sharedSessionKey := "room:group:conversation-1"
+	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
+	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{}}
+	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
+
+	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+		context.Background(),
+		&activeRoomRound{SessionKey: sharedSessionKey},
+		slot,
+		"base prompt",
+	)
+
+	if goalID != "" || goalContext != "" {
+		t.Fatalf("goalID=%q goalContext=%q, want no current goal", goalID, goalContext)
+	}
+	if goalSessionKey != sharedSessionKey {
+		t.Fatalf("goalSessionKey = %q, want shared session for future room goal", goalSessionKey)
+	}
+	if prompt != "base prompt" {
+		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
 	}
 }
 
