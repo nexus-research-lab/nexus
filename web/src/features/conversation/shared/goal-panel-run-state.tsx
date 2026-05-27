@@ -64,6 +64,7 @@ export function GoalRunStateLine({
 }: GoalRunStateLineProps) {
   const state = goal_run_state(goal, is_generating, continuation_hold);
   const tone = GOAL_RUN_TONE_CLASS[state.tone];
+  const latest_event_label = latest_event ? goal_event_label(latest_event) : null;
 
   return (
     <div
@@ -76,12 +77,18 @@ export function GoalRunStateLine({
         <GoalRunIcon tone={state.tone} />
         {state.label}
       </span>
-      <span className="min-w-0 flex-1 truncate text-muted-foreground">
+      <span
+        className="min-w-0 flex-1 truncate text-muted-foreground"
+        title={state.detail}
+      >
         {state.detail}
       </span>
-      {latest_event ? (
-        <span className="max-w-full truncate rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-muted-foreground">
-          {goal_event_label(latest_event)}
+      {latest_event_label ? (
+        <span
+          className="max-w-full truncate rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-muted-foreground"
+          title={latest_event_label}
+        >
+          {latest_event_label}
         </span>
       ) : null}
     </div>
