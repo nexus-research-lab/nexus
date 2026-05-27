@@ -64,3 +64,33 @@ func TestAssistantHasCountedToolProgressIgnoresUpdateGoal(t *testing.T) {
 		t.Fatal("AssistantHasCountedToolProgress() = true, want false for update_goal")
 	}
 }
+
+func TestAssistantHasCountedToolProgressIgnoresPermissionTimeout(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_use", "id": "tool-1", "name": "AskUserQuestion"},
+			{
+				"type":        "tool_result",
+				"tool_use_id": "tool-1",
+				"is_error":    true,
+				"error_code":  "permission_request_timeout",
+			},
+		},
+	}
+	if AssistantHasCountedToolProgress(message) {
+		t.Fatal("AssistantHasCountedToolProgress() = true, want false for non-executed permission timeout")
+	}
+}
+
+func TestAssistantHasCountedToolProgressIgnoresUnmatchedToolResult(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_result", "tool_use_id": "missing", "is_error": true},
+		},
+	}
+	if AssistantHasCountedToolProgress(message) {
+		t.Fatal("AssistantHasCountedToolProgress() = true, want false without a matched tool_use")
+	}
+}

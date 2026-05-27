@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Goal app-server `thread/goal/set` 响应和状态通知发送完成后再触发隐藏续跑，避免续跑先于客户端状态同步启动。
 - Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
+- Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
 
 ## [0.1.10] - 2026-05-26
 

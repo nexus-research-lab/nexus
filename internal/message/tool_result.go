@@ -6,6 +6,7 @@ import "github.com/nexus-research-lab/nexus/internal/protocol"
 type ToolResultObservation struct {
 	ToolUseID string
 	ToolName  string
+	ErrorCode string
 	IsError   bool
 }
 
@@ -41,6 +42,7 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 		observations = append(observations, ToolResultObservation{
 			ToolUseID: toolUseID,
 			ToolName:  toolNames[toolUseID],
+			ErrorCode: normalizeString(block["error_code"]),
 			IsError:   boolValue(block["is_error"]),
 		})
 	}
@@ -50,11 +52,24 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 // AssistantHasCountedToolProgress 判断 assistant 快照里是否包含应计为 Goal 进展的工具完成。
 func AssistantHasCountedToolProgress(message protocol.Message) bool {
 	for _, observation := range AssistantToolResults(message) {
-		if normalizeString(observation.ToolName) != "update_goal" {
+		if toolResultCountsForGoalProgress(observation) {
 			return true
 		}
 	}
 	return false
+}
+
+func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
+	switch normalizeString(observation.ToolName) {
+	case "", "update_goal":
+		return false
+	}
+	switch normalizeString(observation.ErrorCode) {
+	case askUserQuestionTimeoutErrorCode, askUserQuestionChannelUnavailableCode:
+		return false
+	default:
+		return true
+	}
 }
 
 func messageContentBlocks(value any) []map[string]any {
