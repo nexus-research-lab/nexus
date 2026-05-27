@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
 	"github.com/nexus-research-lab/nexus/internal/storage"
@@ -20,18 +23,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func runMigrations(cfg config.Config, logger *slog.Logger) error {
-	dir := "db/migrations/" + storage.MigrationDirName(cfg.DatabaseDriver)
+func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
+	dir := filepath.Join(appfs.Root(), "db", "migrations", storage.MigrationDirName(cfg.DatabaseDriver))
 
 	db, err := storage.OpenDB(cfg)
 	if err != nil {
-		return fmt.Errorf("open db for migration: %w", err)
+		return nil, "", fmt.Errorf("open db for migration: %w", err)
 	}
-	defer db.Close()
 
 	if err = goose.SetDialect(storage.GooseDialect(cfg.DatabaseDriver)); err != nil {
-		return fmt.Errorf("set goose dialect: %w", err)
+		_ = db.Close()
+		return nil, "", fmt.Errorf("set goose dialect: %w", err)
 	}
+	return db, dir, nil
+}
+
+func runMigrations(cfg config.Config, logger *slog.Logger) error {
+	db, dir, err := openMigrationDB(cfg)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
@@ -48,8 +60,51 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	return nil
 }
 
-func buildRootCommand() *cobra.Command {
+func buildMigrateCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "migrate",
+		Short: "Run Nexus database migrations",
+	}
+	for _, action := range []string{"up", "down", "status", "version"} {
+		command.AddCommand(buildMigrateActionCommand(action))
+	}
+	return command
+}
+
+func buildMigrateActionCommand(action string) *cobra.Command {
 	return &cobra.Command{
+		Use:   action,
+		Short: fmt.Sprintf("Run migration %s", action),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, dir, err := openMigrationDB(config.Load())
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			switch action {
+			case "up":
+				return goose.UpContext(cmd.Context(), db, dir)
+			case "down":
+				return goose.DownContext(cmd.Context(), db, dir)
+			case "status":
+				return goose.StatusContext(cmd.Context(), db, dir)
+			case "version":
+				version, err := goose.GetDBVersionContext(cmd.Context(), db)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), version)
+				return nil
+			default:
+				return fmt.Errorf("unsupported migration action: %s", action)
+			}
+		},
+	}
+}
+
+func buildRootCommand() *cobra.Command {
+	root := &cobra.Command{
 		Use:           "nexus-server",
 		Short:         "启动 Nexus HTTP 服务",
 		SilenceUsage:  true,
@@ -58,6 +113,8 @@ func buildRootCommand() *cobra.Command {
 			return runServer()
 		},
 	}
+	root.AddCommand(buildMigrateCommand())
+	return root
 }
 
 func runServer() error {

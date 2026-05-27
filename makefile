@@ -35,10 +35,10 @@ run-web: ## Run frontend in development mode
 	cd web && pnpm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
 db-init: ## Run Goose migrations for local database
-	go run ./cmd/nexus-migrate up
+	go run ./cmd/nexus-server migrate up
 
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
-	go run ./cmd/protocol-tsgen
+	go generate ./internal/protocol
 
 run-backend: db-init ## Run Go backend in development mode
 	PORT=$(BACKEND_PORT) go run ./cmd/nexus-server

@@ -18,7 +18,7 @@
 
 ## Architecture Flow
 - 服务入口：`cmd/nexus-server`
-- 迁移入口：`cmd/nexus-migrate`
+- 迁移入口：`go run ./cmd/nexus-server migrate up`
 - 主 CLI：`cmd/nexusctl`
 - HTTP 服务装配与生命周期：`cmd/nexus-server/app`
 - HTTP / WebSocket 处理器：`internal/handler`

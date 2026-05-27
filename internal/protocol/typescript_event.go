@@ -3,7 +3,7 @@ package protocol
 // TypeScriptDefinitions 返回生成前端类型定义所需内容。
 func TypeScriptDefinitions() string {
 	const definitions = `/**
- * 由 cmd/protocol-tsgen 自动生成，请勿手改。
+ * 由 go generate ./internal/protocol 自动生成，请勿手改。
  */
 
 export type EventType =

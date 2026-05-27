@@ -162,7 +162,7 @@ prepare_database_path() {
         sqlite|sqlite3)
             DB_PATH="$(resolve_sqlite_database_path "${DATABASE_URL}")"
             if [[ -n "${DB_PATH}" ]]; then
-                # 中文注释：SQLite 文件型数据库需要先确保父目录存在，否则迁移命令会直接失败。
+                # 中文注释：SQLite 文件型数据库需要先确保父目录存在，否则 server migration 会直接失败。
                 mkdir -p "$(dirname "${DB_PATH}")"
             fi
             ;;
@@ -174,7 +174,7 @@ prepare_database_path() {
 
 run_database_migrations() {
     echo "Applying database migrations..."
-    /usr/local/bin/nexus-migrate up
+    /usr/local/bin/nexus-server migrate up
     echo "Database migration completed."
 }
 

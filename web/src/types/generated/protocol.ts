@@ -1,5 +1,5 @@
 /**
- * 由 cmd/protocol-tsgen 自动生成，请勿手改。
+ * 由 go generate ./internal/protocol 自动生成，请勿手改。
  */
 
 export type EventType =
