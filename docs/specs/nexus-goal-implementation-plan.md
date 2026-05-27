@@ -1,5 +1,7 @@
 # Nexus Goal 长程任务改造计划
 
+> Status: 本文是早期实现计划，部分设计已经被 `codex/goal-runtime-parity` 分支后续实现取代。当前与 Codex upstream 的准绳以 `docs/specs/nexus-goal-runtime-parity-audit.md` 为准。文中提到的独立 `goal_checkpoints` / `GoalCheckpoint` 是历史方案；当前 Codex Goal 没有独立 checkpoint 协议、工具或表，Nexus 分支也已移除对应私有实现。
+
 本文基于 `docs/specs/codex-goal-implementation-analysis.md`，给出 Nexus 如果要对标 Codex `/goal` 能力的逐步改造计划。
 
 目标不是照搬 Codex 的实现细节，而是在 Nexus 现有 Go 后端、session runtime、DM/Room、automation heartbeat 基础上，补齐同等产品能力：用户可以声明一个长程目标，模型可以在目标内持续推进、更新状态、自动续跑、受预算约束，并在中断、重启、恢复后保持可解释的进度。

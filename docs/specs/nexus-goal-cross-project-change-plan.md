@@ -1,5 +1,7 @@
 # Nexus Goal 跨项目完整改造计划
 
+> Status: 本文是早期跨项目规划，部分里程碑已经被 `codex/goal-runtime-parity` 分支的实际实现取代。当前 Goal parity 评估以 `docs/specs/nexus-goal-runtime-parity-audit.md` 为准。文中独立 `GoalCheckpoint`、`goal_checkpoints` 和 `goal.checkpoint_created` 设计是历史方案；当前 Codex Goal 没有这类独立能力，Nexus 分支也已移除对应私有实现。
+
 本文面向两个当前真正相关的项目：
 
 - `nexus-core`：Nexus 产品侧、Go 后端、前端、数据库、运行时编排。
