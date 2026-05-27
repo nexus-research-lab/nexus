@@ -19,7 +19,7 @@ type ThreadGoal struct {
 	ThreadID        string           `json:"threadId"`
 	Objective       string           `json:"objective"`
 	Status          ThreadGoalStatus `json:"status"`
-	TokenBudget     *int64           `json:"tokenBudget"`
+	TokenBudget     *int64           `json:"tokenBudget,omitempty"`
 	TokensUsed      int64            `json:"tokensUsed"`
 	TimeUsedSeconds int64            `json:"timeUsedSeconds"`
 	CreatedAt       int64            `json:"createdAt"`

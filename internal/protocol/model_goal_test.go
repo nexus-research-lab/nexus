@@ -97,6 +97,23 @@ func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 	}
 }
 
+func TestThreadGoalOmitsUnsetTokenBudget(t *testing.T) {
+	output, err := json.Marshal(ThreadGoal{
+		ThreadID: "agent:nexus:ws:dm:chat",
+		Status:   ThreadGoalStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("marshal thread goal: %v", err)
+	}
+	var projected map[string]any
+	if err := json.Unmarshal(output, &projected); err != nil {
+		t.Fatalf("unmarshal thread goal: %v", err)
+	}
+	if _, ok := projected["tokenBudget"]; ok {
+		t.Fatalf("ThreadGoal JSON = %s, want omitted tokenBudget", string(output))
+	}
+}
+
 func TestIsRuntimeGoalStatusOnlyAllowsActiveGoal(t *testing.T) {
 	if !IsRuntimeGoalStatus(GoalStatusActive) {
 		t.Fatal("active goal should provide runtime context")
