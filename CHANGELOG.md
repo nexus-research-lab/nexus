@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
 - Goal `/goal pause|resume|clear` 在当前会话没有 Goal 时会展示明确反馈，不再静默刷新。
 
+### Fixed
+- Goal app-server `thread/goal/set` 响应和状态通知发送完成后再触发隐藏续跑，避免续跑先于客户端状态同步启动。
+- Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
+
 ## [0.1.10] - 2026-05-26
 
 ### Changed
