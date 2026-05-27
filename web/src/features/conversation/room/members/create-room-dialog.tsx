@@ -398,16 +398,22 @@ export function CreateRoomDialog({
                   <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
                     {filtered_agents.map((agent) => {
                       const is_selected = selected_id_set.has(agent.agent_id);
+                      const action_label = is_selected
+                        ? t("room.agent_select_remove", { name: agent.name })
+                        : t("room.agent_select_add", { name: agent.name });
                       return (
                         <button
+                          aria-label={action_label}
+                          aria-pressed={is_selected}
                           key={agent.agent_id}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
+                            "flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
                             is_selected
                               ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
                               : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
                           )}
                           onClick={() => toggle_agent(agent.agent_id)}
+                          title={action_label}
                           type="button"
                         >
                           <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />
@@ -420,7 +426,7 @@ export function CreateRoomDialog({
 
                           <div
                             className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
+                              "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
                               is_selected
                                 ? "bg-primary text-white"
                                 : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
