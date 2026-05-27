@@ -85,7 +85,10 @@ func (s *Service) createFromThreadGoalParams(
 	request protocol.ThreadGoalSetParams,
 ) (*protocol.Goal, error) {
 	if request.Objective == nil {
-		return nil, ErrGoalNotFound
+		return nil, newGoalNotFoundError(fmt.Sprintf(
+			"cannot update goal for thread %s: no goal exists",
+			sessionKey,
+		))
 	}
 	objective, err := normalizeObjective(*request.Objective)
 	if err != nil {

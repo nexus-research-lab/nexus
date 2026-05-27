@@ -699,6 +699,10 @@ func TestServiceSetFromThreadGoalParamsRequiresObjectiveWhenMissing(t *testing.T
 	if !errors.Is(err, ErrGoalNotFound) {
 		t.Fatalf("SetFromThreadGoalParams() error = %v, want ErrGoalNotFound", err)
 	}
+	want := "cannot update goal for thread agent:nexus:ws:dm:missing: no goal exists"
+	if err.Error() != want {
+		t.Fatalf("SetFromThreadGoalParams() error text = %q, want %q", err.Error(), want)
+	}
 }
 
 func TestServiceSetFromThreadGoalParamsPreservesBudgetLimitedGoal(t *testing.T) {

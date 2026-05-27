@@ -29,3 +29,22 @@ func newGoalInvalidInputError(message string) error {
 	}
 	return goalInvalidInputError{message: message}
 }
+
+type goalNotFoundError struct {
+	message string
+}
+
+func (err goalNotFoundError) Error() string {
+	return err.message
+}
+
+func (err goalNotFoundError) Is(target error) bool {
+	return target == ErrGoalNotFound
+}
+
+func newGoalNotFoundError(message string) error {
+	if message == "" {
+		return ErrGoalNotFound
+	}
+	return goalNotFoundError{message: message}
+}
