@@ -35,7 +35,11 @@ func (s *RealtimeService) resolveGoalRuntimeContextForSlot(
 func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {
 	candidates := []string{}
 	if roundValue != nil {
-		candidates = append(candidates, roundValue.SessionKey)
+		roundSessionKey := strings.TrimSpace(roundValue.SessionKey)
+		if protocol.IsRoomSharedSessionKey(roundSessionKey) {
+			return []string{roundSessionKey}
+		}
+		candidates = append(candidates, roundSessionKey)
 	}
 	if slot != nil {
 		candidates = append(candidates, slot.RuntimeSessionKey)

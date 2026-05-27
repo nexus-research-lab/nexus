@@ -1,5 +1,7 @@
 import type { Agent } from "@/types/agent/agent";
 
+export const ROOM_GOAL_SCOPE_LABEL = "房间 Goal";
+
 export interface GoalContinuationHold {
   detail: string;
   label: string;
@@ -51,26 +53,6 @@ export function goal_continuation_hold_for_room_target(
       "房间有多个 Agent，但没有唯一默认目标；启用主持人自动回复后，隐藏 Goal 续跑才会自动启动",
     label: "等待目标 Agent",
   };
-}
-
-export function room_goal_scope_label(
-  room_members: Agent[],
-  host_agent_id: string | null | undefined,
-  host_auto_reply_enabled: boolean,
-): string {
-  const target_agent = resolve_goal_continuation_target_agent(
-    room_members,
-    host_agent_id,
-    host_auto_reply_enabled,
-  );
-  const target_name = target_agent?.name?.trim();
-  if (!target_name) {
-    return "房间 Goal";
-  }
-  if (room_members.length === 1) {
-    return `房间 Goal · ${target_name}`;
-  }
-  return `房间 Goal · ${target_name} 续跑`;
 }
 
 export function resolve_goal_continuation_target_agent(

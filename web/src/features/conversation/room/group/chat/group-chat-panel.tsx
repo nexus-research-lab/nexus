@@ -28,12 +28,7 @@ import {
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
-import {
-  goal_continuation_hold_for_room_target,
-  room_goal_scope_label,
-} from "@/features/conversation/shared/goal-continuation-hold";
 import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
-import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
 import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
@@ -51,6 +46,7 @@ import {
   type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
+import { RoomGoalPanel } from "./room-goal-panel";
 import {
   useGroupThread,
   useSetGroupThreadPanelData,
@@ -156,24 +152,6 @@ export function GroupChatPanel({
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
-  const goal_continuation_hold = useMemo(
-    () =>
-      goal_continuation_hold_for_room_target(
-        room_members,
-        room_host_agent_id,
-        room_host_auto_reply_enabled,
-      ),
-    [room_host_agent_id, room_host_auto_reply_enabled, room_members],
-  );
-  const goal_scope_label = useMemo(
-    () =>
-      room_goal_scope_label(
-        room_members,
-        room_host_agent_id,
-        room_host_auto_reply_enabled,
-      ),
-    [room_host_agent_id, room_host_auto_reply_enabled, room_members],
-  );
   const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
     on_edit: request_goal_edit,
     session_key,
@@ -640,15 +618,16 @@ export function GroupChatPanel({
             <ProviderUnavailableBanner compact={is_mobile_layout} />
           ) : null}
 
-          <GoalPanel
+          <RoomGoalPanel
             activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
-            compact={is_mobile_layout}
-            continuation_hold={goal_continuation_hold}
-            disabled={!can_control_session}
+            can_control_session={can_control_session}
             edit_request={goal_edit_request}
-            is_generating={is_loading}
+            is_loading={is_loading}
+            is_mobile_layout={is_mobile_layout}
+            room_host_agent_id={room_host_agent_id}
+            room_host_auto_reply_enabled={room_host_auto_reply_enabled}
+            room_members={room_members}
             session_key={session_key}
-            scope_label={goal_scope_label}
           />
 
           <ComposerPanel

@@ -288,7 +288,7 @@ func TestResolveGoalRuntimeContextForSlotKeepsBudgetLimitedSharedGoalTarget(t *t
 	}
 }
 
-func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
+func TestResolveGoalRuntimeContextForSlotDoesNotFallBackFromSharedRoomToRuntimeGoal(t *testing.T) {
 	sharedSessionKey := "room:group:conversation-1"
 	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
 	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
@@ -308,6 +308,41 @@ func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoal(t *testing.T) {
 	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
 		context.Background(),
 		&activeRoomRound{SessionKey: sharedSessionKey},
+		slot,
+		"base prompt",
+	)
+
+	if goalID != "" || goalSessionKey != sharedSessionKey {
+		t.Fatalf("goalID=%q goalSessionKey=%q, want empty goal on shared room session", goalID, goalSessionKey)
+	}
+	if prompt != "base prompt" {
+		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
+	}
+	if goalContext != "" {
+		t.Fatalf("goalContext = %q, want no private runtime goal fallback", goalContext)
+	}
+}
+
+func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoalForLegacyRound(t *testing.T) {
+	legacySessionKey := "legacy-room-session"
+	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
+	service := &RealtimeService{goals: &fakeRoomGoalContextProvider{
+		runtimeContexts: map[string]string{
+			runtimeSessionKey: "runtime goal context",
+		},
+		runtimeGoals: map[string]*protocol.Goal{
+			runtimeSessionKey: {
+				ID:         "goal-runtime",
+				SessionKey: runtimeSessionKey,
+				Status:     protocol.GoalStatusActive,
+			},
+		},
+	}}
+	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
+
+	prompt, goalContext, goalID, goalSessionKey := service.resolveGoalRuntimeContextForSlot(
+		context.Background(),
+		&activeRoomRound{SessionKey: legacySessionKey},
 		slot,
 		"base prompt",
 	)
