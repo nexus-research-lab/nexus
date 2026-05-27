@@ -6,7 +6,6 @@
 - `make dev`：同时启动 Go 后端（8010）和前端（3000）
 - `make check`：运行 `go test ./...`、前端 lint、前端 typecheck
 - `make check-backend`：Go 后端校验，等价于 `make check-go`
-- `make db-init`：执行 Goose 数据库迁移
 - `make install`：执行 `go mod tidy` 并安装前端依赖
 - `go run ./cmd/nexusctl ...`：主智能体操作系统 CLI
 
@@ -18,7 +17,7 @@
 
 ## Architecture Flow
 - 服务入口：`cmd/nexus-server`
-- 迁移入口：`go run ./cmd/nexus-server migrate up`
+- 数据库迁移：`cmd/nexus-server` 启动时自动执行
 - 主 CLI：`cmd/nexusctl`
 - HTTP 服务装配与生命周期：`cmd/nexus-server/app`
 - HTTP / WebSocket 处理器：`internal/handler`

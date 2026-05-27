@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- 移除独立 `nexus-migrate` 二进制，手动迁移入口收口到 `nexus-server migrate`；前端协议类型生成改为 `go generate ./internal/protocol`。
+- 移除独立 `nexus-migrate` 二进制和手动迁移子命令，数据库迁移与 Docker owner bootstrap 统一收口到 `nexus-server` 启动流程；前端协议类型生成改为 `go generate ./internal/protocol`。
 
 ## [0.1.11] - 2026-05-27
 
