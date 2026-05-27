@@ -3,6 +3,7 @@
 import { Check, Copy, ExternalLink, Github, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
 import { poll_connector_device_auth_api } from "@/lib/api/connector-api";
 import {
   UiDialogBackdrop,
@@ -108,13 +109,12 @@ export function ConnectorDeviceAuthDialog({
     if (!session) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(session.user_code);
+    if (await write_text_to_clipboard(session.user_code)) {
       set_copied(true);
       setTimeout(() => set_copied(false), 1400);
-    } catch {
-      on_error_ref.current("复制授权码失败");
+      return;
     }
+    on_error_ref.current("复制授权码失败");
   }, [session]);
 
   if (!session || typeof document === "undefined") {
