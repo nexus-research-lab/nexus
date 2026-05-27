@@ -17,6 +17,7 @@ import (
 
 const (
 	maxGoalObjectiveRunes = 4000
+	goalUpdateMaxAttempts = 3
 
 	goalObjectiveEmptyMessage   = "goal objective must not be empty"
 	goalObjectiveTooLongMessage = "goal objective must be at most 4000 characters"

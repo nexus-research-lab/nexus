@@ -485,6 +485,42 @@ func TestServiceRuntimeContextAccountsWallClockUsage(t *testing.T) {
 	}
 }
 
+func TestServiceRuntimeContextRetriesWallClockVersionStale(t *testing.T) {
+	repo := &staleOnceVersionRepository{
+		memoryRepository: newMemoryRepository(),
+		mutate: func(item protocol.Goal) protocol.Goal {
+			item.Objective = "Concurrent objective update"
+			return item
+		},
+	}
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-stale",
+		Objective:  "Retry wall clock accounting",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.staleGoalID = created.ID
+
+	clock.Advance(5 * time.Second)
+	_, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.injected {
+		t.Fatal("stale version repository did not inject a version conflict")
+	}
+	if goal == nil || goal.TimeUsedSeconds != 5 || goal.Objective != "Concurrent objective update" {
+		t.Fatalf("RuntimeContext goal = %#v, want retried wall-clock update on reloaded goal", goal)
+	}
+}
+
 func TestServiceExternalMutationAccountsWallClockWithoutRunningRound(t *testing.T) {
 	repo := newMemoryRepository()
 	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
@@ -2198,6 +2234,27 @@ func (r *staleOnceUsageRepository) UpdateGoal(ctx context.Context, item protocol
 		current := r.goals[item.ID]
 		current.Usage = current.Usage.Add(r.concurrentUsage)
 		current.TimeUsedSeconds += r.concurrentUsage.RuntimeSeconds
+		current.Version++
+		r.goals[item.ID] = current
+		return nil, sql.ErrNoRows
+	}
+	return r.memoryRepository.UpdateGoal(ctx, item, expectedVersion)
+}
+
+type staleOnceVersionRepository struct {
+	*memoryRepository
+	staleGoalID string
+	injected    bool
+	mutate      func(protocol.Goal) protocol.Goal
+}
+
+func (r *staleOnceVersionRepository) UpdateGoal(ctx context.Context, item protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
+	if !r.injected && item.ID == r.staleGoalID {
+		r.injected = true
+		current := r.goals[item.ID]
+		if r.mutate != nil {
+			current = r.mutate(current)
+		}
 		current.Version++
 		r.goals[item.ID] = current
 		return nil, sql.ErrNoRows

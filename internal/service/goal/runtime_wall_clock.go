@@ -99,6 +99,25 @@ func (s *Service) accountActiveWallClockUsage(ctx context.Context, item protocol
 	if s == nil || s.repo == nil || s.wallClock == nil {
 		return &item, nil
 	}
+	current := item
+	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
+		updated, err := s.accountLoadedActiveWallClockUsage(ctx, current)
+		if !errors.Is(err, ErrGoalVersionStale) {
+			return updated, err
+		}
+		reloaded, reloadErr := s.repo.GetGoal(ctx, current.ID)
+		if reloadErr != nil {
+			return nil, reloadErr
+		}
+		if reloaded == nil {
+			return nil, ErrGoalNotFound
+		}
+		current = *reloaded
+	}
+	return nil, ErrGoalVersionStale
+}
+
+func (s *Service) accountLoadedActiveWallClockUsage(ctx context.Context, item protocol.Goal) (*protocol.Goal, error) {
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		s.clearWallClockGoal(item)
 		return &item, nil
