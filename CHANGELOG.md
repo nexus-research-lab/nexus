@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约、续跑上下文和 `/goal` 控制命令。
+- Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约和续跑上下文。
 - Goal 运行时新增 durable resume 后台恢复与 WebSocket 状态事件广播，服务重启后可继续推进 active Goal，前端 Goal 面板也能随状态事件刷新。
 - Goal 新增 Codex app-server 风格 `thread/goal/set|get|clear` 兼容 HTTP 入口，返回 camelCase `ThreadGoal` 投影。
 - Goal WebSocket 新增 Codex app-server 轻量 JSON-RPC 兼容入口，支持 `thread/goal/set|get|clear` 和 `thread/goal/updated|cleared` 通知。
@@ -37,10 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal `update_goal` 工具描述收口到 Codex 当前模型可见契约，blocked 判定保留在续跑上下文审计提示中。
 - Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
 - Goal 面板上下文状态文案从调试式 `goal_context` 改为用户可理解的运行状态表达。
-- Goal 面板未设置状态改为轻量入口，只有用户点击设置时才展开创建表单，更贴近 Codex `/goal` 的按需操作体验。
-- 聊天输入框新增 Goal 斜杠命令提示，输入 `/goal` 时可直接看到创建、查看、暂停、继续和清除入口。
-- Goal `/goal` 斜杠命令移除 Codex 未提供的 `complete/done` 子命令，完成 Goal 仍通过模型工具或面板按钮触发。
-- Goal `/goal` 斜杠命令继续收口到 Codex 操作面，保留 `/goal edit` 打开当前 Goal 编辑态，并移除 `start` 私有别名。
+- Goal 面板未设置状态改为轻量启动入口，只有用户点击启动时才展开创建表单；聊天输入框不再承载 `/goal` 专用提示和拦截逻辑。
 - Goal runtime context 移除要求模型记录 checkpoint 的私有提示，避免提示模型使用 Codex 三件套之外的不可见能力。
 - Goal 移除未暴露的 checkpoint 协议、事件、仓储和迁移表，当前持久化模型收口到 Codex 的 thread goal 状态与事件。
 - Goal budget limit steering 的目标段落改为 Codex 模板一致的 `<objective>`，目标内容仍会进行 XML 转义。
@@ -53,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 外部或用户操作把目标恢复为 active 时，会按当前运行中 round 的 usage 快照重置 Goal accounting 基线，后续用量继续归属该 Goal。
 - Goal 面板的上下文状态会跟随 Plan 模式与空进展暂停展示，不再误提示 Plan 模式下会注入 Goal 上下文。
 - Goal 面板耗时展示对齐 Codex，超过 24 小时时保留分钟，并将停止态上下文文案收口为不再注入。
-- Goal 面板移除用户侧手动完成按钮，完成 Goal 继续交由模型 `update_goal(status=complete)` 审计后触发，对齐 Codex `/goal` 操作面。
+- Goal 面板移除用户侧手动完成按钮，完成 Goal 继续交由模型 `update_goal(status=complete)` 审计后触发。
 - Goal native HTTP 与前端 API 移除用户侧完成/阻塞入口，完成和阻塞 Goal 只保留模型 `update_goal(status=...)` 审计路径。
 - Goal active turn 不再额外注入常驻 runtime context，只保留用量/耗时记账；`<goal_context>` 收口到隐藏续跑和运行中 steering。
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
@@ -63,7 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room group runtime 中的 Goal MCP 工具改为绑定房间 shared session，房间成员完成/阻塞 Goal 时会更新同一个房间 Goal。
 - Room Goal runtime 不再从房间 shared session 回落到成员私有 Goal，Web 面板也固定展示房间级 Goal 语义。
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
-- Goal `/goal pause|resume|clear` 在当前会话没有 Goal 时会展示明确反馈，不再静默刷新。
 
 ### Fixed
 - 修复复用中的 runtime session 从普通权限模式切到 `bypassPermissions` 时可能初始化失败，导致聊天消息发送不出去的问题。

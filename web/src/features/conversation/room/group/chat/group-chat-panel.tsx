@@ -22,10 +22,7 @@ import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-l
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
-import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
-import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
-import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
 import {
   build_conversation_activity_snapshot,
   get_latest_reply_timestamp,
@@ -104,15 +101,9 @@ export function GroupChatPanel({
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
-  const { goal_edit_request, request_goal_edit } = useGoalPanelEditRequest();
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
-  const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
-    on_edit: request_goal_edit,
-    session_key,
-    on_refresh: refresh_goal_panel,
-  });
   const handle_conversation_event = useCallback(
     (
       event_type: string,
@@ -356,7 +347,6 @@ export function GroupChatPanel({
       scroll_to_bottom,
       send_message,
       session_key,
-      try_handle_goal_command,
     });
   useRoomThreadPanelData({
     agent_avatar_map,
@@ -454,7 +444,6 @@ export function GroupChatPanel({
           <RoomGoalPanel
             activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
             can_control_session={can_control_session}
-            edit_request={goal_edit_request}
             is_loading={is_loading}
             is_mobile_layout={is_mobile_layout}
             room_host_agent_id={room_host_agent_id}
@@ -466,7 +455,6 @@ export function GroupChatPanel({
           <ComposerPanel
             allow_send_while_loading
             compact={is_mobile_layout}
-            command_hint_items={GOAL_COMMAND_HINT_ITEMS}
             control_status_text={session_control_text}
             default_delivery_policy={default_delivery_policy}
             input_queue_items={input_queue_items}
@@ -484,7 +472,6 @@ export function GroupChatPanel({
             tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
             disabled={!can_control_session}
           />
-          {goal_command_dialog}
         </>
       )}
     </div>

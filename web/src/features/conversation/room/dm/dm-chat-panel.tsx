@@ -26,12 +26,9 @@ import { ConversationErrorBubble } from "@/features/conversation/shared/conversa
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
 import { goal_continuation_hold_for_permission } from "@/features/conversation/shared/goal-continuation-hold";
-import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-command-handler";
-import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
 import {
   build_conversation_activity_snapshot,
   group_messages_by_round,
@@ -83,7 +80,6 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
-  const { goal_edit_request, request_goal_edit } = useGoalPanelEditRequest();
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -95,11 +91,6 @@ export function DmChatPanel({
       ),
     [current_agent_name, current_agent_permission_mode],
   );
-  const { try_handle_goal_command, goal_command_dialog } = useGoalCommandHandler({
-    on_edit: request_goal_edit,
-    session_key,
-    on_refresh: refresh_goal_panel,
-  });
   const handle_conversation_event = useCallback(
     (
       event_type: string,
@@ -300,9 +291,6 @@ export function DmChatPanel({
     attachments: PreparedComposerAttachment[] = [],
   ) => {
     if (!content.trim() && attachments.length === 0) return;
-    if (await try_handle_goal_command(content)) {
-      return;
-    }
     scroll_to_bottom("auto");
     await send_message(content, { delivery_policy, attachments });
   };
@@ -425,7 +413,6 @@ export function DmChatPanel({
         continuation_hold={goal_continuation_hold}
         disabled={!can_control_session}
         empty_state_variant="launcher"
-        edit_request={goal_edit_request}
         is_generating={is_loading}
         session_key={session_key}
         scope_label="会话 Goal"
@@ -434,7 +421,6 @@ export function DmChatPanel({
       <ComposerPanel
         allow_send_while_loading
         compact={is_mobile_layout}
-        command_hint_items={GOAL_COMMAND_HINT_ITEMS}
         control_status_text={session_control_text}
         default_delivery_policy={default_delivery_policy}
         input_queue_items={input_queue_items}
@@ -450,7 +436,6 @@ export function DmChatPanel({
         tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
         disabled={!can_control_session}
       />
-      {goal_command_dialog}
     </div>
   );
 }

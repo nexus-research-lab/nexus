@@ -24,7 +24,6 @@ interface UseRoomComposerHandlersOptions {
     options?: AgentConversationSendOptions,
   ) => Promise<void>;
   session_key: string | null;
-  try_handle_goal_command: (content: string) => Promise<boolean>;
 }
 
 export function useRoomComposerHandlers({
@@ -37,7 +36,6 @@ export function useRoomComposerHandlers({
   scroll_to_bottom,
   send_message,
   session_key,
-  try_handle_goal_command,
 }: UseRoomComposerHandlersOptions) {
   const consumed_initial_draft_ref = useRef<string | null>(null);
 
@@ -48,13 +46,10 @@ export function useRoomComposerHandlers({
       attachments: PreparedComposerAttachment[] = [],
     ) => {
       if (!content.trim() && attachments.length === 0) return;
-      if (await try_handle_goal_command(content)) {
-        return;
-      }
       scroll_to_bottom("auto");
       await send_message(content, { delivery_policy, attachments });
     },
-    [scroll_to_bottom, send_message, try_handle_goal_command],
+    [scroll_to_bottom, send_message],
   );
 
   const handle_prepare_attachments = useCallback(

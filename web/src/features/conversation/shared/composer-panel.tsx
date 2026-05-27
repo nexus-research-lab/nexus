@@ -47,11 +47,6 @@ import {
   PreparedComposerAttachment,
 } from "./composer-attachments";
 import { MentionTargetItem, MentionTargetPopover } from "./mention-popover";
-import {
-  ComposerCommandHintItem,
-  filter_composer_command_hints,
-} from "./composer-command-hint-model";
-import { ComposerCommandHintPopover } from "./composer-command-hints";
 
 interface AttachmentFile {
   id: string;
@@ -90,7 +85,6 @@ interface ComposerPanelProps {
   control_status_text?: string;
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
   tour_anchor?: string;
-  command_hint_items?: ComposerCommandHintItem[];
 }
 
 type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
@@ -225,7 +219,6 @@ const ComposerPanelView = memo(({
   control_status_text,
   on_prepare_attachments,
   tour_anchor,
-  command_hint_items = [],
 }: ComposerPanelProps) => {
   const { t } = useI18n();
   const resolved_placeholder = placeholder ?? t("composer.default_placeholder");
@@ -270,7 +263,6 @@ const ComposerPanelView = memo(({
   const is_dispatching = is_loading && runtime_phase === "sending";
   const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
-  const visible_command_hints = filter_composer_command_hints(input, command_hint_items);
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
@@ -366,19 +358,6 @@ const ComposerPanelView = memo(({
 
   const handle_mention_close = useCallback(() => {
     set_mention_active(false);
-  }, []);
-
-  const handle_command_hint_select = useCallback((item: ComposerCommandHintItem) => {
-    const next_input = item.insert_text ?? item.command;
-    setInput(next_input);
-    set_mention_active(false);
-    setAttachmentError(null);
-
-    requestAnimationFrame(() => {
-      const cursor = next_input.length;
-      textarea_ref.current?.setSelectionRange(cursor, cursor);
-      textarea_ref.current?.focus();
-    });
   }, []);
 
   useEffect(() => {
@@ -876,10 +855,6 @@ const ComposerPanelView = memo(({
           ) : null}
 
           <div className="relative min-w-0 flex-1">
-            <ComposerCommandHintPopover
-              items={visible_command_hints}
-              on_select={handle_command_hint_select}
-            />
             <textarea
               ref={textarea_ref}
               className={cn(
