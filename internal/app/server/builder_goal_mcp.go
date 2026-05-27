@@ -14,10 +14,11 @@ import (
 func newGoalMCPBuilder(
 	cfg config.Config,
 	svc goalmcpcontract.Service,
-) func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+) func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
 	return func(
 		agentID string,
 		sessionKey string,
+		roundID string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
@@ -26,7 +27,10 @@ func newGoalMCPBuilder(
 		if !cfg.GoalEnabled || svc == nil || goalSessionKey == "" {
 			return nil
 		}
-		sctx := goalmcpcontract.ServerContext{CurrentSessionKey: goalSessionKey}
+		sctx := goalmcpcontract.ServerContext{
+			CurrentSessionKey: goalSessionKey,
+			CurrentRoundID:    strings.TrimSpace(roundID),
+		}
 		return map[string]sdkmcp.SDKMCPServer{
 			goalmcpcontract.ServerName: goalmcp.NewServer(svc, sctx),
 		}

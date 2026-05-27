@@ -20,10 +20,11 @@ func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
 	agents *agent.Service,
 	defaultTimezone string,
-) func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+) func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
 	return func(
 		agentID string,
 		sessionKey string,
+		roundID string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,

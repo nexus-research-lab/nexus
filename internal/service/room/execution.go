@@ -186,6 +186,7 @@ func (s *RealtimeService) runSlot(
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
 			roundValue.SessionKey,
+			slot.AgentRoundID,
 			"room",
 			roundValue.RoomID,
 			roomSourceContextLabel(roundValue),

@@ -2387,15 +2387,17 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 	type builderCall struct {
 		agentID            string
 		sessionKey         string
+		roundID            string
 		sourceContextType  string
 		sourceContextID    string
 		sourceContextLabel string
 	}
 	calls := make(chan builderCall, 1)
-	service.SetMCPServerBuilder(func(agentID string, sessionKey string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.SDKMCPServer {
+	service.SetMCPServerBuilder(func(agentID string, sessionKey string, roundID string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.SDKMCPServer {
 		calls <- builderCall{
 			agentID:            agentID,
 			sessionKey:         sessionKey,
+			roundID:            roundID,
 			sourceContextType:  sourceContextType,
 			sourceContextID:    sourceContextID,
 			sourceContextLabel: sourceContextLabel,
@@ -2429,6 +2431,9 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 	}
 	if call.sessionKey != sharedSessionKey {
 		t.Fatalf("Room MCP 上下文应使用共享 session key，实际 %+v", call)
+	}
+	if call.roundID != "room-round-mcp-context" {
+		t.Fatalf("Room MCP 上下文 roundID 不正确: %+v", call)
 	}
 	if call.sourceContextType != "room" ||
 		call.sourceContextID != roomContext.Room.ID ||

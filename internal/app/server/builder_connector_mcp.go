@@ -15,10 +15,11 @@ import (
 func newConnectorMCPBuilder(
 	svc connectormcpcontract.Service,
 	agents *agent.Service,
-) func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+) func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
 	return func(
 		agentID string,
 		sessionKey string,
+		roundID string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
@@ -46,11 +47,12 @@ func newConnectorMCPBuilder(
 }
 
 func combinedMCPBuilder(
-	builders ...func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer,
-) func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+	builders ...func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer,
+) func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
 	return func(
 		agentID string,
 		sessionKey string,
+		roundID string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
@@ -60,7 +62,7 @@ func combinedMCPBuilder(
 			if builder == nil {
 				continue
 			}
-			for name, server := range builder(agentID, sessionKey, sourceContextType, sourceContextID, sourceContextLabel) {
+			for name, server := range builder(agentID, sessionKey, roundID, sourceContextType, sourceContextID, sourceContextLabel) {
 				merged[name] = server
 			}
 		}

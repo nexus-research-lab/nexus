@@ -69,7 +69,7 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 
 func TestUpdateGoalRejectsInvalidStatusBeforeLoadingCurrent(t *testing.T) {
 	svc := &fakeUpdateGoalService{}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-1"})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "paused"})
 	if err != nil {
@@ -97,7 +97,7 @@ func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
 			Status:     protocol.GoalStatusComplete,
 		},
 	}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-1"})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
 	if err != nil {
@@ -106,8 +106,8 @@ func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("result = %#v, want success", result)
 	}
-	if svc.currentCalls != 1 || svc.completeCalls != 1 || svc.completedGoalID != "goal-1" {
-		t.Fatalf("calls = current:%d complete:%d goal:%q", svc.currentCalls, svc.completeCalls, svc.completedGoalID)
+	if svc.currentCalls != 1 || svc.completeCalls != 1 || svc.completedGoalID != "goal-1" || svc.completedRoundID != "round-1" {
+		t.Fatalf("calls = current:%d complete:%d goal:%q round:%q", svc.currentCalls, svc.completeCalls, svc.completedGoalID, svc.completedRoundID)
 	}
 	goal, ok := result.StructuredContent["goal"].(map[string]any)
 	if !ok || goal["status"] != "complete" {
@@ -125,7 +125,7 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 			Status:     protocol.GoalStatusBlocked,
 		},
 	}
-	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-2"})
 
 	result, err := tool.Handler(context.Background(), map[string]any{"status": "blocked"})
 	if err != nil {
@@ -134,8 +134,8 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("result = %#v, want success", result)
 	}
-	if svc.currentCalls != 1 || svc.blockCalls != 1 || svc.blockedGoalID != "goal-1" {
-		t.Fatalf("calls = current:%d block:%d goal:%q", svc.currentCalls, svc.blockCalls, svc.blockedGoalID)
+	if svc.currentCalls != 1 || svc.blockCalls != 1 || svc.blockedGoalID != "goal-1" || svc.blockedRoundID != "round-2" {
+		t.Fatalf("calls = current:%d block:%d goal:%q round:%q", svc.currentCalls, svc.blockCalls, svc.blockedGoalID, svc.blockedRoundID)
 	}
 	goal, ok := result.StructuredContent["goal"].(map[string]any)
 	if !ok || goal["status"] != "blocked" {
@@ -186,6 +186,24 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	}
 }
 
+func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
+	svc := &fakeCreateGoalService{}
+	tool := createGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-create"})
+
+	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Ship parity"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("result = %#v, want success", result)
+	}
+	if svc.createInput.SessionKey != "agent:nexus:ws:dm:chat" ||
+		svc.createInput.CreatedBy != "model" ||
+		svc.createInput.RoundID != "round-create" {
+		t.Fatalf("create input = %#v, want current session and round", svc.createInput)
+	}
+}
+
 func TestGetGoalReturnsNullWhenNoGoalExists(t *testing.T) {
 	tool := getGoal(fakeGoalService{}, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	result, err := tool.Handler(context.Background(), map[string]any{})
@@ -233,15 +251,47 @@ func (fakeGoalService) BlockByModel(context.Context, string, protocol.BlockGoalR
 	return nil, nil
 }
 
+type fakeCreateGoalService struct {
+	createInput protocol.CreateGoalRequest
+}
+
+func (s *fakeCreateGoalService) Create(_ context.Context, request protocol.CreateGoalRequest) (*protocol.Goal, error) {
+	s.createInput = request
+	return &protocol.Goal{
+		ID:         "goal-1",
+		SessionKey: request.SessionKey,
+		Objective:  request.Objective,
+		Status:     protocol.GoalStatusActive,
+	}, nil
+}
+
+func (s *fakeCreateGoalService) Current(context.Context, string) (*protocol.Goal, error) {
+	return nil, errors.New("Current should not be called by create_goal")
+}
+
+func (s *fakeCreateGoalService) CurrentOptional(context.Context, string) (*protocol.Goal, error) {
+	return nil, errors.New("CurrentOptional should not be called by create_goal")
+}
+
+func (s *fakeCreateGoalService) CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error) {
+	return nil, errors.New("CompleteByModel should not be called by create_goal")
+}
+
+func (s *fakeCreateGoalService) BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error) {
+	return nil, errors.New("BlockByModel should not be called by create_goal")
+}
+
 type fakeUpdateGoalService struct {
-	current         *protocol.Goal
-	completed       *protocol.Goal
-	blocked         *protocol.Goal
-	currentCalls    int
-	completeCalls   int
-	blockCalls      int
-	completedGoalID string
-	blockedGoalID   string
+	current          *protocol.Goal
+	completed        *protocol.Goal
+	blocked          *protocol.Goal
+	currentCalls     int
+	completeCalls    int
+	blockCalls       int
+	completedGoalID  string
+	blockedGoalID    string
+	completedRoundID string
+	blockedRoundID   string
 }
 
 func (s *fakeUpdateGoalService) Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error) {
@@ -260,18 +310,20 @@ func (s *fakeUpdateGoalService) CurrentOptional(context.Context, string) (*proto
 	return s.current, nil
 }
 
-func (s *fakeUpdateGoalService) CompleteByModel(_ context.Context, goalID string, _ protocol.CompleteGoalRequest) (*protocol.Goal, error) {
+func (s *fakeUpdateGoalService) CompleteByModel(_ context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	s.completeCalls++
 	s.completedGoalID = goalID
+	s.completedRoundID = request.RoundID
 	if s.completed == nil {
 		return nil, errors.New("completed goal not configured")
 	}
 	return s.completed, nil
 }
 
-func (s *fakeUpdateGoalService) BlockByModel(_ context.Context, goalID string, _ protocol.BlockGoalRequest) (*protocol.Goal, error) {
+func (s *fakeUpdateGoalService) BlockByModel(_ context.Context, goalID string, request protocol.BlockGoalRequest) (*protocol.Goal, error) {
 	s.blockCalls++
 	s.blockedGoalID = goalID
+	s.blockedRoundID = request.RoundID
 	if s.blocked == nil {
 		return nil, errors.New("blocked goal not configured")
 	}

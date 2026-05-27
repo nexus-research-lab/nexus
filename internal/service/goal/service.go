@@ -81,7 +81,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		return nil, err
 	}
 	s.fillEmptyPreviewFromGoal(ctx, *created)
-	if err := s.appendEvent(ctx, *created, "created", createGoalEventSource(created.CreatedBy), "", map[string]any{"objective": created.Objective}); err != nil {
+	if err := s.appendEvent(ctx, *created, "created", createGoalEventSource(created.CreatedBy), strings.TrimSpace(request.RoundID), map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(created.CreatedBy) == "model" {

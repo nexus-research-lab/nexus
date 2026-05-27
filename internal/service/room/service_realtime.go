@@ -78,6 +78,7 @@ type InterruptRequest struct {
 type MCPServerBuilder func(
 	agentID string,
 	sessionKey string,
+	roundID string,
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,

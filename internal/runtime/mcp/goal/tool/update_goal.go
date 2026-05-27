@@ -48,7 +48,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			if err != nil {
 				return errorResult(err), nil
 			}
-			item, err := updateGoalStatus(ctx, svc, current.ID, status)
+			item, err := updateGoalStatus(ctx, svc, current.ID, status, sctx.CurrentRoundID)
 			if err != nil {
 				return errorResult(err), nil
 			}
@@ -60,12 +60,12 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	}
 }
 
-func updateGoalStatus(ctx context.Context, svc contract.Service, goalID string, status protocol.GoalStatus) (*protocol.Goal, error) {
+func updateGoalStatus(ctx context.Context, svc contract.Service, goalID string, status protocol.GoalStatus, roundID string) (*protocol.Goal, error) {
 	switch status {
 	case protocol.GoalStatusComplete:
-		return svc.CompleteByModel(ctx, goalID, protocol.CompleteGoalRequest{})
+		return svc.CompleteByModel(ctx, goalID, protocol.CompleteGoalRequest{RoundID: roundID})
 	case protocol.GoalStatusBlocked:
-		return svc.BlockByModel(ctx, goalID, protocol.BlockGoalRequest{})
+		return svc.BlockByModel(ctx, goalID, protocol.BlockGoalRequest{RoundID: roundID})
 	default:
 		return nil, fmt.Errorf("update_goal can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")
 	}

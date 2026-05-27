@@ -20,4 +20,5 @@ type Service interface {
 // ServerContext 绑定当前运行时会话。
 type ServerContext struct {
 	CurrentSessionKey string
+	CurrentRoundID    string
 }

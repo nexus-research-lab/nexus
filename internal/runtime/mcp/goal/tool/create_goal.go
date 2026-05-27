@@ -32,6 +32,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 				Objective:   parsed.Objective,
 				TokenBudget: parsed.TokenBudget,
 				CreatedBy:   "model",
+				RoundID:     sctx.CurrentRoundID,
 				Metadata: map[string]any{
 					"created_via": "goal_tool",
 				},
