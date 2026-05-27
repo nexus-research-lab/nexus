@@ -49,6 +49,36 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	}
 }
 
+func TestServiceCreateGoalEventSourceFollowsCreator(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		createdBy string
+		want      protocol.GoalUpdateSource
+	}{
+		{name: "user default", createdBy: "", want: protocol.GoalUpdateSourceUser},
+		{name: "model tool", createdBy: "model", want: protocol.GoalUpdateSourceModel},
+		{name: "app server", createdBy: "app_server", want: protocol.GoalUpdateSourceExternal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newMemoryRepository()
+			service := NewService(config.Config{GoalEnabled: true}, repo)
+			service.nowFn = fixedClock()
+			service.idFactory = sequentialID()
+
+			if _, err := service.Create(context.Background(), protocol.CreateGoalRequest{
+				SessionKey: "agent:nexus:ws:dm:" + strings.ReplaceAll(tc.name, " ", "-"),
+				Objective:  "Ship goal mode",
+				CreatedBy:  tc.createdBy,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if len(repo.events) != 1 || repo.events[0].Source != tc.want {
+				t.Fatalf("events = %#v, want source %q", repo.events, tc.want)
+			}
+		})
+	}
+}
+
 func TestServiceCreateFillsEmptyPreviewFromGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)

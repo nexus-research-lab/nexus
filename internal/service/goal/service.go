@@ -81,7 +81,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		return nil, err
 	}
 	s.fillEmptyPreviewFromGoal(ctx, *created)
-	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceUser, "", map[string]any{"objective": created.Objective}); err != nil {
+	if err := s.appendEvent(ctx, *created, "created", createGoalEventSource(created.CreatedBy), "", map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(created.CreatedBy) == "model" {
@@ -396,6 +396,19 @@ func validateCreateRequest(request protocol.CreateGoalRequest) (string, string, 
 		return "", "", err
 	}
 	return sessionKey, objective, nil
+}
+
+func createGoalEventSource(createdBy string) protocol.GoalUpdateSource {
+	switch strings.TrimSpace(createdBy) {
+	case "model":
+		return protocol.GoalUpdateSourceModel
+	case "system":
+		return protocol.GoalUpdateSourceSystem
+	case "external", "app_server":
+		return protocol.GoalUpdateSourceExternal
+	default:
+		return protocol.GoalUpdateSourceUser
+	}
 }
 
 func normalizeObjective(input string) (string, error) {
