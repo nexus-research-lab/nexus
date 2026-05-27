@@ -153,6 +153,10 @@ func TestGetGoalDescriptionMatchesCodexShape(t *testing.T) {
 			t.Fatalf("get_goal description missing %q: %s", want, tool.Description)
 		}
 	}
+	required, ok := tool.InputSchema["required"].([]string)
+	if !ok || len(required) != 0 {
+		t.Fatalf("required = %#v, want empty required list", tool.InputSchema["required"])
+	}
 }
 
 func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
