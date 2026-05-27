@@ -9,6 +9,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+const goalUsageRecordMaxAttempts = 3
+
 // CompleteByModel 允许模型工具把 active Goal 标记为完成。
 func (s *Service) CompleteByModel(ctx context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	payload := map[string]any{}
@@ -104,6 +106,25 @@ func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, u
 	if usage.TotalTokens == 0 && usage.RuntimeSeconds == 0 {
 		return item, nil
 	}
+	current := item
+	for attempt := 0; attempt < goalUsageRecordMaxAttempts; attempt++ {
+		updated, err := s.recordUsageForLoadedGoal(ctx, current, usage, roundID)
+		if !errors.Is(err, ErrGoalVersionStale) {
+			return updated, err
+		}
+		reloaded, reloadErr := s.repo.GetGoal(ctx, current.ID)
+		if reloadErr != nil {
+			return nil, reloadErr
+		}
+		if reloaded == nil {
+			return nil, ErrGoalNotFound
+		}
+		current = reloaded
+	}
+	return nil, ErrGoalVersionStale
+}
+
+func (s *Service) recordUsageForLoadedGoal(ctx context.Context, item *protocol.Goal, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
 	expectedVersion := item.Version
 	item.Usage = item.Usage.Add(usage)
 	item.TimeUsedSeconds += usage.RuntimeSeconds

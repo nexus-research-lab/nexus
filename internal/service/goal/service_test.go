@@ -918,6 +918,50 @@ func TestServiceRecordUsageForCompletedGoal(t *testing.T) {
 	}
 }
 
+func TestServiceRecordUsageRetriesVersionStale(t *testing.T) {
+	repo := &staleOnceUsageRepository{
+		memoryRepository: newMemoryRepository(),
+		concurrentUsage:  protocol.GoalUsage{TotalTokens: 3, RuntimeSeconds: 2},
+	}
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	budget := int64(7)
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey:  "room:group:usage-race",
+		Objective:   "Count parallel room agents",
+		TokenBudget: &budget,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.staleGoalID = created.ID
+
+	updated, err := service.RecordUsageForGoal(ctx, created.ID, protocol.GoalUsage{
+		TotalTokens:    5,
+		RuntimeSeconds: 4,
+	}, "round-agent-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.injected {
+		t.Fatal("stale usage repository did not inject a version conflict")
+	}
+	if updated.Usage.Total() != 8 || updated.TimeUsedSeconds != 6 {
+		t.Fatalf("updated usage = %#v time=%d, want concurrent + retried delta", updated.Usage, updated.TimeUsedSeconds)
+	}
+	if updated.Status != protocol.GoalStatusBudgetLimited {
+		t.Fatalf("updated status = %q, want budget_limited after retried delta", updated.Status)
+	}
+	if len(repo.events) != 3 ||
+		repo.events[1].EventType != "usage_recorded" ||
+		repo.events[2].EventType != "budget_limited" {
+		t.Fatalf("events = %#v, want usage_recorded and budget_limited after retry", repo.events)
+	}
+}
+
 func TestServiceRejectsOversizedObjective(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -2139,6 +2183,26 @@ func (r *memoryRepository) CreateCheckpoint(_ context.Context, checkpoint protoc
 	r.checkpoints = append(r.checkpoints, checkpoint)
 	clone := checkpoint
 	return &clone, nil
+}
+
+type staleOnceUsageRepository struct {
+	*memoryRepository
+	staleGoalID     string
+	concurrentUsage protocol.GoalUsage
+	injected        bool
+}
+
+func (r *staleOnceUsageRepository) UpdateGoal(ctx context.Context, item protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
+	if !r.injected && item.ID == r.staleGoalID {
+		r.injected = true
+		current := r.goals[item.ID]
+		current.Usage = current.Usage.Add(r.concurrentUsage)
+		current.TimeUsedSeconds += r.concurrentUsage.RuntimeSeconds
+		current.Version++
+		r.goals[item.ID] = current
+		return nil, sql.ErrNoRows
+	}
+	return r.memoryRepository.UpdateGoal(ctx, item, expectedVersion)
 }
 
 func cloneGoal(item protocol.Goal) *protocol.Goal {
