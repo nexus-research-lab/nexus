@@ -1084,12 +1084,12 @@ func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
 	if updated.Status != protocol.GoalStatusActive {
 		t.Fatalf("status = %q, want active", updated.Status)
 	}
-	if updated.Usage.TotalTokens != 30 || updated.Usage.Total() != 30 {
-		t.Fatalf("usage = %#v, want budget total 30", updated.Usage)
+	if updated.Usage.TotalTokens != 20 || updated.Usage.Total() != 20 {
+		t.Fatalf("usage = %#v, want budget total 20", updated.Usage)
 	}
 	remaining := updated.RemainingTokens()
-	if remaining == nil || *remaining != 20 {
-		t.Fatalf("RemainingTokens() = %#v, want 20", remaining)
+	if remaining == nil || *remaining != 30 {
+		t.Fatalf("RemainingTokens() = %#v, want 30", remaining)
 	}
 }
 

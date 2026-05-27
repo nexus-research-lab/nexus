@@ -171,23 +171,23 @@ func TestIsRuntimeAccountingGoalStatusAllowsActiveAndBudgetLimitedGoals(t *testi
 
 func TestGoalUsageBudgetTokensExcludeCachedAndReasoningTokens(t *testing.T) {
 	usage := GoalUsage{
-		InputTokens:              100,
-		OutputTokens:             20,
-		CacheCreationInputTokens: 30,
-		CacheReadInputTokens:     90,
-		ReasoningTokens:          50,
-		TotalTokens:              290,
+		InputTokens:              900,
+		OutputTokens:             80,
+		CacheCreationInputTokens: 300,
+		CacheReadInputTokens:     400,
+		ReasoningTokens:          20,
+		TotalTokens:              1_300,
 	}
 
-	if got := usage.BudgetTokens(); got != 120 {
-		t.Fatalf("BudgetTokens() = %d, want 120", got)
+	if got := usage.BudgetTokens(); got != 580 {
+		t.Fatalf("BudgetTokens() = %d, want 580", got)
 	}
-	if got := usage.Total(); got != 120 {
-		t.Fatalf("Total() = %d, want 120", got)
+	if got := usage.Total(); got != 580 {
+		t.Fatalf("Total() = %d, want 580", got)
 	}
 }
 
-func TestGoalUsageBudgetTokensDoNotSubtractCacheRead(t *testing.T) {
+func TestGoalUsageBudgetTokensSaturateWhenCacheReadExceedsInput(t *testing.T) {
 	usage := GoalUsage{
 		InputTokens:          20,
 		OutputTokens:         7,
@@ -195,8 +195,8 @@ func TestGoalUsageBudgetTokensDoNotSubtractCacheRead(t *testing.T) {
 		TotalTokens:          77,
 	}
 
-	if got := usage.BudgetTokens(); got != 27 {
-		t.Fatalf("BudgetTokens() = %d, want 27", got)
+	if got := usage.BudgetTokens(); got != 7 {
+		t.Fatalf("BudgetTokens() = %d, want 7", got)
 	}
 }
 
@@ -205,8 +205,8 @@ func TestGoalUsageAddAccumulatesBudgetTokens(t *testing.T) {
 	second := GoalUsage{InputTokens: 50, OutputTokens: 5, CacheReadInputTokens: 10, ReasoningTokens: 40, TotalTokens: 105}
 
 	got := first.Add(second)
-	if got.TotalTokens != 175 {
-		t.Fatalf("TotalTokens = %d, want 175", got.TotalTokens)
+	if got.TotalTokens != 75 {
+		t.Fatalf("TotalTokens = %d, want 75", got.TotalTokens)
 	}
 	if got.InputTokens != 150 || got.OutputTokens != 25 || got.CacheReadInputTokens != 100 || got.ReasoningTokens != 40 {
 		t.Fatalf("usage details = %#v, want accumulated details", got)

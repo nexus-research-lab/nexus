@@ -52,11 +52,19 @@ func (u GoalUsage) BudgetTokens() int64 {
 		if input < 0 {
 			input = 0
 		}
+		cachedInput := u.CacheReadInputTokens
+		if cachedInput < 0 {
+			cachedInput = 0
+		}
+		nonCachedInput := input - cachedInput
+		if nonCachedInput < 0 {
+			nonCachedInput = 0
+		}
 		output := u.OutputTokens
 		if output < 0 {
 			output = 0
 		}
-		return input + output
+		return nonCachedInput + output
 	}
 	if u.TotalTokens > 0 {
 		return u.TotalTokens
