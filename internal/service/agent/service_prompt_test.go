@@ -50,6 +50,7 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 	assertPromptContains(t, prompt, "长期约束：不要改路径。")
 	assertPromptContains(t, prompt, "Description: 补充说明")
 	assertPromptContains(t, prompt, "Vibe Tags: 严谨, 任务拆解")
+	assertPromptContains(t, prompt, "## Agent Identity\nIdentity: planner (agent-1)\nWORKING DIRECTORY: "+workspacePath+"\n\n---\n\n## Agent Profile\nDescription: 补充说明")
 	if strings.Contains(prompt, "规划助手") || strings.Contains(prompt, "擅长任务拆解") || strings.Contains(prompt, "偏好明确目标与验收标准") {
 		t.Fatalf("运行时 prompt 不应注入旧 profiles 表展示字段: %s", prompt)
 	}

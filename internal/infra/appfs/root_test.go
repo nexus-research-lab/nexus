@@ -34,6 +34,7 @@ func TestRootPrefersConfiguredBundleRoot(t *testing.T) {
 func TestConfigDirUsesNexusConfigDir(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus-custom")
 	t.Setenv(nexusConfigDirEnvName, configDir)
+	resetConfigDirCacheForTest()
 
 	if got := ConfigDir(); got != filepath.Clean(configDir) {
 		t.Fatalf("ConfigDir() 未使用 NEXUS_CONFIG_DIR: got=%q want=%q", got, filepath.Clean(configDir))
@@ -47,6 +48,7 @@ func TestConfigDirDefaultsToHomeNexus(t *testing.T) {
 	homeDir := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", homeDir)
 	t.Setenv(nexusConfigDirEnvName, "")
+	resetConfigDirCacheForTest()
 
 	if got := ConfigDir(); got != filepath.Join(homeDir, ".nexus") {
 		t.Fatalf("ConfigDir() 默认目录不正确: got=%q want=%q", got, filepath.Join(homeDir, ".nexus"))
@@ -56,4 +58,9 @@ func TestConfigDirDefaultsToHomeNexus(t *testing.T) {
 func resetRootCacheForTest() {
 	appRootOnce = sync.Once{}
 	appRootPath = ""
+}
+
+func resetConfigDirCacheForTest() {
+	configDirOnce = sync.Once{}
+	configDirPath = ""
 }

@@ -438,7 +438,8 @@ if ($signingEnabled) {
   $signTargets = @(
     $appExe,
     (Join-Path $AppBuildDir "$shellBinaryBaseName.dll"),
-    (Join-Path $AppBuildDir "Resources/nexus-server.exe")
+    (Join-Path $AppBuildDir "Resources/nexus-server.exe"),
+    (Join-Path $AppBuildDir "Resources/bin/nexusctl.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
 
   foreach ($signTarget in $signTargets) {

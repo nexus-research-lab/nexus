@@ -48,6 +48,16 @@ if (-not (Test-Path $appExe)) {
   throw "Missing Windows app executable: $appExe"
 }
 
+$nexusctlExe = Join-Path $AppDir "Resources/bin/nexusctl.exe"
+if (-not (Test-Path $nexusctlExe)) {
+  throw "Missing bundled nexusctl executable: $nexusctlExe"
+}
+
+& $nexusctlExe --help *> $null
+if ($LASTEXITCODE -ne 0) {
+  throw "Bundled nexusctl --help failed with exit code $LASTEXITCODE"
+}
+
 $logPath = Join-Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)) ".nexus/logs/shell.log"
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $logPath) | Out-Null
 $marker = "windows_smoke_$([Guid]::NewGuid().ToString('N'))"

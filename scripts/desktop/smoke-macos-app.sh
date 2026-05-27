@@ -81,6 +81,15 @@ if [[ ! -x "${APP_EXECUTABLE}" ]]; then
   "${ROOT_DIR}/scripts/desktop/build-macos-app.sh"
 fi
 
+NEXUSCTL_EXECUTABLE="${APP_BUNDLE}/Contents/Resources/bin/nexusctl"
+if [[ ! -x "${NEXUSCTL_EXECUTABLE}" ]]; then
+  fail "missing bundled nexusctl executable: ${NEXUSCTL_EXECUTABLE}"
+fi
+
+if ! "${NEXUSCTL_EXECUTABLE}" --help >/dev/null 2>&1; then
+  fail "bundled nexusctl --help failed"
+fi
+
 if pgrep -x "${EXECUTABLE_NAME}" >/dev/null 2>&1; then
   fail "${EXECUTABLE_NAME} is already running; quit it before smoke testing"
 fi

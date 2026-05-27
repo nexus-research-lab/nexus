@@ -14,7 +14,7 @@ func (s *Service) createAgentWorkspacePath(ownerUserID string) (string, string, 
 		workspacePath := ResolveWorkspacePath(s.config, ownerUserID, agentID)
 		if err := os.Mkdir(workspacePath, 0o755); err == nil {
 			return agentID, workspacePath, nil
-		} else if err != nil {
+		} else {
 			if errors.Is(err, os.ErrExist) {
 				continue
 			}

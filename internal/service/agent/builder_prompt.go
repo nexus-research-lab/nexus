@@ -49,7 +49,9 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 	sections := make([]string, 0, 8)
 	sections = appendPromptSection(sections, b.loadStaticPrompt(scope))
 	sections = appendPromptSection(sections, buildRuntimeScopeSection(ctx))
-	sections = appendPromptSection(sections, buildAgentProfileSection(agentValue, scope))
+	for _, section := range buildAgentProfileSections(agentValue, scope) {
+		sections = appendPromptSection(sections, section)
+	}
 
 	fileSections, err := loadWorkspacePromptSections(scope)
 	if err != nil {
@@ -140,9 +142,9 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 	return strings.Join(lines, "\n")
 }
 
-func buildAgentProfileSection(agentValue *protocol.Agent, scope promptBuildScope) string {
+func buildAgentProfileSections(agentValue *protocol.Agent, scope promptBuildScope) []string {
 	if agentValue == nil {
-		return ""
+		return nil
 	}
 	agentID := strings.TrimSpace(agentValue.AgentID)
 	identityName := strings.TrimSpace(agentValue.Name)
@@ -157,21 +159,22 @@ func buildAgentProfileSection(agentValue *protocol.Agent, scope promptBuildScope
 	if strings.TrimSpace(scope.workspacePath) != "" {
 		lines = append(lines, "WORKING DIRECTORY: "+strings.TrimSpace(scope.workspacePath))
 	}
+	sections := []string{strings.Join(lines, "\n")}
 
 	description := strings.TrimSpace(agentValue.Description)
 	vibeTags := compactStringValues(agentValue.VibeTags)
 	if description == "" && len(vibeTags) == 0 {
-		return strings.Join(lines, "\n")
+		return sections
 	}
 
-	lines = append(lines, "", "## Agent Profile")
+	lines = []string{"## Agent Profile"}
 	if description != "" {
 		lines = append(lines, "Description: "+description)
 	}
 	if len(vibeTags) > 0 {
 		lines = append(lines, "Vibe Tags: "+strings.Join(vibeTags, ", "))
 	}
-	return strings.Join(lines, "\n")
+	return append(sections, strings.Join(lines, "\n"))
 }
 
 func compactStringValues(values []string) []string {
@@ -264,6 +267,7 @@ func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionV
 	}
 	lines := []string{
 		"## Emotion State",
+		"Context ID: " + view.ContextID,
 		fmt.Sprintf("Base: %s (energy %d/10, valence %d/10) - %s", view.Base.Mood, view.Base.Energy, view.Base.Valence, view.Base.Description),
 	}
 	if view.Context != nil {

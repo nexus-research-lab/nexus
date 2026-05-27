@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- 修复群聊管理弹窗技能选择缺少标题、成员列表过高和底部空白过大的问题。
-
 ## [0.1.11] - 2026-05-27
 
 ### Added
@@ -23,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 收口 Agent 提示词运行时上下文和工作区模板，使内置运行约束、默认模型和工具使用说明更一致。
 
 ### Fixed
+- 修复群聊管理弹窗技能选择缺少标题、成员列表过高和底部空白过大的问题。
 - 修复群聊成员选择点击行为。
 
 ## [0.1.10] - 2026-05-26
