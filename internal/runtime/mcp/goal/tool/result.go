@@ -11,7 +11,7 @@ import (
 
 func structuredResult(_ string, content map[string]any) sdkmcp.ToolResult {
 	text := "{}"
-	if payload, err := json.MarshalIndent(content, "", "  "); err == nil {
+	if payload, err := json.MarshalIndent(goalToolTextPayloadFrom(content), "", "  "); err == nil {
 		text = string(payload)
 	}
 	return sdkmcp.ToolResult{
@@ -20,6 +20,48 @@ func structuredResult(_ string, content map[string]any) sdkmcp.ToolResult {
 			"text": text,
 		}},
 		StructuredContent: content,
+	}
+}
+
+type goalToolTextPayload struct {
+	Goal                   any `json:"goal"`
+	RemainingTokens        any `json:"remainingTokens"`
+	CompletionBudgetReport any `json:"completionBudgetReport"`
+}
+
+type goalTextValue struct {
+	ThreadID        any `json:"threadId"`
+	Objective       any `json:"objective"`
+	Status          any `json:"status"`
+	TokenBudget     any `json:"tokenBudget,omitempty"`
+	TokensUsed      any `json:"tokensUsed"`
+	TimeUsedSeconds any `json:"timeUsedSeconds"`
+	CreatedAt       any `json:"createdAt"`
+	UpdatedAt       any `json:"updatedAt"`
+}
+
+func goalToolTextPayloadFrom(content map[string]any) goalToolTextPayload {
+	return goalToolTextPayload{
+		Goal:                   goalTextValueFromAny(content["goal"]),
+		RemainingTokens:        content["remainingTokens"],
+		CompletionBudgetReport: content["completionBudgetReport"],
+	}
+}
+
+func goalTextValueFromAny(value any) any {
+	goal, ok := value.(map[string]any)
+	if !ok || goal == nil {
+		return nil
+	}
+	return goalTextValue{
+		ThreadID:        goal["threadId"],
+		Objective:       goal["objective"],
+		Status:          goal["status"],
+		TokenBudget:     goal["tokenBudget"],
+		TokensUsed:      goal["tokensUsed"],
+		TimeUsedSeconds: goal["timeUsedSeconds"],
+		CreatedAt:       goal["createdAt"],
+		UpdatedAt:       goal["updatedAt"],
 	}
 }
 
@@ -64,8 +106,8 @@ type goalPayloadOptions struct {
 	completionBudgetReport bool
 }
 
-const completionBudgetReportText = "Goal achieved.\n" +
-	"Report final usage from this tool result's structured goal fields. If `goal.tokenBudget` is present, include token usage from `goal.tokensUsed` and `goal.tokenBudget`.\n" +
+const completionBudgetReportText = "Goal achieved. " +
+	"Report final usage from this tool result's structured goal fields. If `goal.tokenBudget` is present, include token usage from `goal.tokensUsed` and `goal.tokenBudget`. " +
 	"If `goal.timeUsedSeconds` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
 
 func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map[string]any {

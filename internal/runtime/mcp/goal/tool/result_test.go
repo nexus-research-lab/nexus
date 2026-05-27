@@ -51,6 +51,42 @@ func TestGoalCompletionPayloadIncludesBudgetReportInstruction(t *testing.T) {
 	}
 }
 
+func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
+	budget := int64(100)
+	result := structuredResult("goal marked complete", goalCompletionPayload(&protocol.Goal{
+		Status:          protocol.GoalStatusComplete,
+		SessionKey:      "agent:nexus:ws:dm:chat",
+		Objective:       "Finish parity",
+		TokenBudget:     &budget,
+		Usage:           protocol.GoalUsage{TotalTokens: 42},
+		TimeUsedSeconds: 90,
+		CreatedAt:       time.Unix(10, 0).UTC(),
+		UpdatedAt:       time.Unix(20, 0).UTC(),
+	}))
+
+	text, ok := result.Content[0]["text"].(string)
+	if !ok {
+		t.Fatalf("text content = %#v, want string", result.Content)
+	}
+	want := `{
+  "goal": {
+    "threadId": "agent:nexus:ws:dm:chat",
+    "objective": "Finish parity",
+    "status": "complete",
+    "tokenBudget": 100,
+    "tokensUsed": 42,
+    "timeUsedSeconds": 90,
+    "createdAt": 10,
+    "updatedAt": 20
+  },
+  "remainingTokens": 58,
+  "completionBudgetReport": "Goal achieved. Report final usage from this tool result's structured goal fields. If ` + "`goal.tokenBudget`" + ` is present, include token usage from ` + "`goal.tokensUsed`" + ` and ` + "`goal.tokenBudget`" + `. If ` + "`goal.timeUsedSeconds`" + ` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
+}`
+	if text != want {
+		t.Fatalf("text content = %s, want %s", text, want)
+	}
+}
+
 func TestGoalPayloadOmitsCompletionBudgetReportOutsideCompletion(t *testing.T) {
 	budget := int64(100)
 	payload := goalPayload(&protocol.Goal{
