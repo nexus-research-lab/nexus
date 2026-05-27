@@ -142,27 +142,30 @@ func (s *Service) updateFromThreadGoalParams(
 	hasStatus bool,
 	request protocol.ThreadGoalSetParams,
 ) (*protocol.Goal, error) {
-	changed := false
+	hasUpdateFields := false
+	valueChanged := false
 	payload := map[string]any{}
 	if request.Objective != nil {
+		hasUpdateFields = true
 		objective, err := normalizeObjective(*request.Objective)
 		if err != nil {
 			return nil, err
 		}
 		if item.Objective != objective {
 			item.Objective = objective
-			changed = true
+			valueChanged = true
 			payload["objective_updated"] = true
 		}
 	}
 	if request.TokenBudget.Present {
+		hasUpdateFields = true
 		tokenBudget, err := normalizeThreadGoalBudget(request.TokenBudget)
 		if err != nil {
 			return nil, err
 		}
 		if !goalTokenBudgetEqual(item.TokenBudget, tokenBudget) {
 			item.TokenBudget = tokenBudget
-			changed = true
+			valueChanged = true
 			if tokenBudget != nil {
 				payload["token_budget"] = *tokenBudget
 			} else {
@@ -170,19 +173,21 @@ func (s *Service) updateFromThreadGoalParams(
 			}
 		}
 	}
-	nextStatus := protocol.NormalizeGoalStatus(item.Status)
+	currentStatus := protocol.NormalizeGoalStatus(item.Status)
+	nextStatus := currentStatus
 	if hasStatus {
+		hasUpdateFields = true
 		nextStatus = targetStatus
 	}
 	nextStatus = statusAfterThreadGoalBudget(item, nextStatus, hasStatus)
-	if !changed && nextStatus == protocol.NormalizeGoalStatus(item.Status) {
+	if !hasUpdateFields {
 		return &item, nil
 	}
 	eventType := "updated"
-	if hasStatus && !changed {
+	if hasStatus && !valueChanged && nextStatus != currentStatus {
 		eventType = threadGoalStatusEventType(nextStatus)
 	}
-	updated, err := s.persistTransition(ctx, item, nextStatus, protocol.GoalUpdateSourceExternal, eventType, "", payload)
+	updated, err := s.persistThreadGoalSetTransition(ctx, item, nextStatus, eventType, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -190,6 +195,25 @@ func (s *Service) updateFromThreadGoalParams(
 		s.fillEmptyPreviewFromGoal(ctx, *updated)
 	}
 	return updated, nil
+}
+
+func (s *Service) persistThreadGoalSetTransition(
+	ctx context.Context,
+	item protocol.Goal,
+	status protocol.GoalStatus,
+	eventType string,
+	payload map[string]any,
+) (*protocol.Goal, error) {
+	return s.persistTransitionWithOptions(
+		ctx,
+		item,
+		status,
+		protocol.GoalUpdateSourceExternal,
+		eventType,
+		"",
+		payload,
+		transitionOptions{persistBudgetLimitedStopRequest: true},
+	)
 }
 
 func validateThreadGoalSetRequest(request protocol.ThreadGoalSetParams) (string, protocol.GoalStatus, bool, error) {

@@ -270,13 +270,33 @@ func (s *Service) persistTransition(
 	roundID string,
 	payload map[string]any,
 ) (*protocol.Goal, error) {
+	return s.persistTransitionWithOptions(ctx, item, status, source, eventType, roundID, payload, transitionOptions{})
+}
+
+type transitionOptions struct {
+	persistBudgetLimitedStopRequest bool
+}
+
+func (s *Service) persistTransitionWithOptions(
+	ctx context.Context,
+	item protocol.Goal,
+	status protocol.GoalStatus,
+	source protocol.GoalUpdateSource,
+	eventType string,
+	roundID string,
+	payload map[string]any,
+	options transitionOptions,
+) (*protocol.Goal, error) {
 	status = protocol.NormalizeGoalStatus(status)
 	if shouldPreserveBudgetLimitedStopRequest(item.Status, status) {
-		s.clearWallClockGoal(item)
-		if shouldClearAccountingAfterMutation(source) {
-			s.clearExternalGoalAccounting(item)
+		if !options.persistBudgetLimitedStopRequest {
+			s.clearWallClockGoal(item)
+			if shouldClearAccountingAfterMutation(source) {
+				s.clearExternalGoalAccounting(item)
+			}
+			return &item, nil
 		}
-		return &item, nil
+		status = protocol.NormalizeGoalStatus(item.Status)
 	}
 	if !canTransition(source, item.Status, status) {
 		return nil, ErrGoalInvalidState

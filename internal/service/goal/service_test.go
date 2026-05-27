@@ -1942,14 +1942,17 @@ func TestServiceSetFromThreadGoalParamsSameObjectiveDoesNotQueueSteering(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.Version != created.Version {
-		t.Fatalf("updated version = %d, want unchanged %d", updated.Version, created.Version)
+	if updated.Version != created.Version+1 {
+		t.Fatalf("updated version = %d, want refreshed %d", updated.Version, created.Version+1)
 	}
 	if len(dispatcher.items) != 0 {
 		t.Fatalf("guidance = %#v, want no objective update steering", dispatcher.items)
 	}
-	if len(repo.events) != 1 {
-		t.Fatalf("events = %#v, want no update event for unchanged objective", repo.events)
+	if len(repo.events) != 2 || repo.events[1].EventType != "updated" {
+		t.Fatalf("events = %#v, want app-server update event for explicit unchanged objective", repo.events)
+	}
+	if eventPayloadBool(repo.events[1].Payload, "objective_updated") {
+		t.Fatalf("event payload = %#v, want no objective update marker for unchanged objective", repo.events[1].Payload)
 	}
 }
 
