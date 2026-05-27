@@ -123,7 +123,7 @@ func TestGoalPayloadUsesCodexStatusNames(t *testing.T) {
 	}
 }
 
-func TestGoalPayloadOmitsTokenBudgetWhenUnset(t *testing.T) {
+func TestGoalPayloadIncludesNullTokenBudgetWhenUnset(t *testing.T) {
 	payload := goalPayload(&protocol.Goal{
 		Status:     protocol.GoalStatusActive,
 		SessionKey: "agent:nexus:ws:dm:chat",
@@ -132,7 +132,40 @@ func TestGoalPayloadOmitsTokenBudgetWhenUnset(t *testing.T) {
 	if !ok {
 		t.Fatalf("goal = %#v, want map", payload["goal"])
 	}
-	if _, exists := goal["tokenBudget"]; exists {
-		t.Fatalf("goal = %#v, want omitted tokenBudget", goal)
+	value, exists := goal["tokenBudget"]
+	if !exists || value != nil {
+		t.Fatalf("goal = %#v, want null tokenBudget", goal)
+	}
+}
+
+func TestStructuredResultTextIncludesNullTokenBudget(t *testing.T) {
+	result := structuredResult("current goal loaded", goalPayload(&protocol.Goal{
+		Status:     protocol.GoalStatusActive,
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Unbudgeted work",
+		CreatedAt:  time.Unix(10, 0).UTC(),
+		UpdatedAt:  time.Unix(20, 0).UTC(),
+	}))
+
+	text, ok := result.Content[0]["text"].(string)
+	if !ok {
+		t.Fatalf("text content = %#v, want string", result.Content)
+	}
+	want := `{
+  "goal": {
+    "threadId": "agent:nexus:ws:dm:chat",
+    "objective": "Unbudgeted work",
+    "status": "active",
+    "tokenBudget": null,
+    "tokensUsed": 0,
+    "timeUsedSeconds": 0,
+    "createdAt": 10,
+    "updatedAt": 20
+  },
+  "remainingTokens": null,
+  "completionBudgetReport": null
+}`
+	if text != want {
+		t.Fatalf("text content = %s, want %s", text, want)
 	}
 }

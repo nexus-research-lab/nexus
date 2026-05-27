@@ -33,7 +33,7 @@ type goalTextValue struct {
 	ThreadID        any `json:"threadId"`
 	Objective       any `json:"objective"`
 	Status          any `json:"status"`
-	TokenBudget     any `json:"tokenBudget,omitempty"`
+	TokenBudget     any `json:"tokenBudget"`
 	TokensUsed      any `json:"tokensUsed"`
 	TimeUsedSeconds any `json:"timeUsedSeconds"`
 	CreatedAt       any `json:"createdAt"`
@@ -137,13 +137,11 @@ func toolGoalValue(item *protocol.Goal) any {
 		"threadId":        item.SessionKey,
 		"objective":       item.Objective,
 		"status":          toolGoalStatus(item.Status),
+		"tokenBudget":     int64PointerValue(item.TokenBudget),
 		"tokensUsed":      item.Usage.Total(),
 		"timeUsedSeconds": item.TimeUsedSeconds,
 		"createdAt":       item.CreatedAt.Unix(),
 		"updatedAt":       item.UpdatedAt.Unix(),
-	}
-	if item.TokenBudget != nil {
-		goal["tokenBudget"] = *item.TokenBudget
 	}
 	return goal
 }
