@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 // HandleThreadGoalSet 提供 Codex app-server 风格的 thread/goal/set 兼容入口。
@@ -13,7 +14,7 @@ func (h *Handlers) HandleThreadGoalSet(writer http.ResponseWriter, request *http
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
-	item, err := h.goals.SetFromThreadGoalParams(request.Context(), input)
+	item, err := h.goals.SetFromThreadGoalParams(goalsvc.WithActiveGoalContinuationSuppressed(request.Context()), input)
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
@@ -21,6 +22,7 @@ func (h *Handlers) HandleThreadGoalSet(writer http.ResponseWriter, request *http
 	h.writeCodexGoalJSON(writer, protocol.ThreadGoalSetResponse{
 		Goal: protocol.ThreadGoalFromGoal(*item),
 	})
+	h.goals.DispatchActiveGoalContinuation(request.Context(), *item)
 }
 
 // HandleThreadGoalGet 提供 Codex app-server 风格的 thread/goal/get 兼容入口。

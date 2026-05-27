@@ -1953,6 +1953,51 @@ func TestServiceSetFromThreadGoalParamsDispatchesActiveGoalImmediately(t *testin
 	}
 }
 
+func TestServiceSetFromThreadGoalParamsCanSuppressContinuationUntilResponse(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeContinuationDispatcher{}
+	service.SetContinuationDispatcher(dispatcher)
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Start after response ordering"
+
+	created, err := service.SetFromThreadGoalParams(WithActiveGoalContinuationSuppressed(ctx), protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 0 {
+		t.Fatalf("plans = %#v, want suppressed continuation before response", dispatcher.plans)
+	}
+	current, err := service.Current(ctx, threadID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 0 {
+		t.Fatalf("ContinuationCount = %d, want 0 before explicit dispatch", current.ContinuationCount)
+	}
+
+	service.DispatchActiveGoalContinuation(ctx, *created)
+	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != created.ID {
+		t.Fatalf("plans = %#v, want explicit continuation for active goal %q", dispatcher.plans, created.ID)
+	}
+	current, err = service.Current(ctx, threadID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 1 {
+		t.Fatalf("ContinuationCount = %d, want 1 after explicit dispatch", current.ContinuationCount)
+	}
+}
+
 func TestServiceSetFromThreadGoalParamsFillsEmptyPreview(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true, GoalAutoContinueEnabled: true}, repo)

@@ -60,7 +60,7 @@ func (h *Handler) handleThreadGoalSetRPC(
 		return
 	}
 	h.registerAppServerGoalRPCSender(params.ThreadID, sender)
-	item, err := h.goals.SetFromThreadGoalParams(ctx, params)
+	item, err := h.goals.SetFromThreadGoalParams(goalsvc.WithActiveGoalContinuationSuppressed(ctx), params)
 	if err != nil {
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
 		return
@@ -75,6 +75,7 @@ func (h *Handler) handleThreadGoalSetRPC(
 			Goal:     goal,
 		},
 	})
+	h.goals.DispatchActiveGoalContinuation(ctx, *item)
 }
 
 func (h *Handler) handleThreadGoalGetRPC(

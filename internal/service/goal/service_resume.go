@@ -11,10 +11,20 @@ import (
 
 const goalAutoResumeInterval = 10 * time.Second
 
+type activeGoalContinuationSuppressedKey struct{}
+
 // ContinuationDispatcher 把系统规划出的隐藏 Goal 续跑交给运行时执行。
 type ContinuationDispatcher interface {
 	ShouldDeferGoalContinuation(context.Context, string) bool
 	DispatchGoalContinuation(context.Context, protocol.GoalContinuation) error
+}
+
+// WithActiveGoalContinuationSuppressed 延后本次 Goal mutation 触发的隐藏续跑。
+func WithActiveGoalContinuationSuppressed(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, activeGoalContinuationSuppressedKey{}, true)
 }
 
 // SetContinuationDispatcher 注入 idle Goal 续跑投递器，用于 active Goal 立即续跑。
@@ -71,6 +81,14 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 }
 
 func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
+	if activeGoalContinuationSuppressed(ctx) {
+		return
+	}
+	s.DispatchActiveGoalContinuation(ctx, item)
+}
+
+// DispatchActiveGoalContinuation 显式触发 active Goal 的隐藏续跑。
+func (s *Service) DispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
 	if s == nil || s.continuations == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return
 	}
@@ -107,6 +125,14 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 		return nil
 	}
 	return dispatcher.DispatchGoalContinuation(ctx, *plan)
+}
+
+func activeGoalContinuationSuppressed(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	suppressed, _ := ctx.Value(activeGoalContinuationSuppressedKey{}).(bool)
+	return suppressed
 }
 
 func (s *Service) runAutoResumeLoop(ctx context.Context, dispatcher ContinuationDispatcher) {
