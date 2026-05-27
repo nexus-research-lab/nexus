@@ -114,6 +114,26 @@ func TestThreadGoalOmitsUnsetTokenBudget(t *testing.T) {
 	}
 }
 
+func TestThreadGoalUpdatedNotificationOmitsUnsetTurnID(t *testing.T) {
+	output, err := json.Marshal(ThreadGoalUpdatedNotification{
+		ThreadID: "agent:nexus:ws:dm:chat",
+		Goal: ThreadGoal{
+			ThreadID: "agent:nexus:ws:dm:chat",
+			Status:   ThreadGoalStatusActive,
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal thread goal notification: %v", err)
+	}
+	var projected map[string]any
+	if err := json.Unmarshal(output, &projected); err != nil {
+		t.Fatalf("unmarshal thread goal notification: %v", err)
+	}
+	if _, ok := projected["turnId"]; ok {
+		t.Fatalf("ThreadGoalUpdatedNotification JSON = %s, want omitted turnId", string(output))
+	}
+}
+
 func TestIsRuntimeGoalStatusOnlyAllowsActiveGoal(t *testing.T) {
 	if !IsRuntimeGoalStatus(GoalStatusActive) {
 		t.Fatal("active goal should provide runtime context")

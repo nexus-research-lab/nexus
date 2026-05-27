@@ -62,7 +62,7 @@ type ThreadGoalClearResponse struct {
 // ThreadGoalUpdatedNotification 对齐 Codex app-server 的 thread/goal/updated 通知参数。
 type ThreadGoalUpdatedNotification struct {
 	ThreadID string     `json:"threadId"`
-	TurnID   *string    `json:"turnId"`
+	TurnID   *string    `json:"turnId,omitempty"`
 	Goal     ThreadGoal `json:"goal"`
 }
 
