@@ -9,7 +9,6 @@ import {
   recover_scheduled_task_run_api,
   retry_scheduled_task_run_delivery_api,
   run_scheduled_task_api,
-  update_scheduled_task_status_api,
 } from "@/lib/api/scheduled-task-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -223,15 +222,21 @@ export function ScheduledTasksDirectory() {
   const handle_toggle_enabled = async (task: ScheduledTaskItem) => {
     set_toggle_pending_job_id(task.job_id);
     try {
-      await update_scheduled_task_status_api(task.job_id, { enabled: !task.enabled });
+      const updated_task = await automation.toggle_task(task);
+      set_history_task((current_task) => {
+        if (!current_task || current_task.job_id !== updated_task.job_id) {
+          return current_task;
+        }
+        return updated_task;
+      });
       await refresh_tasks_best_effort(
         automation,
-        automation.agent_id,
+        updated_task.agent_id,
         {
-          title: task.enabled ? "任务已暂停" : "任务已启用",
-          message: task.enabled
-            ? `${task.name} 不再参与后续调度`
-            : `${task.name} 已恢复自动调度`,
+          title: updated_task.enabled ? "任务已启用" : "任务已暂停",
+          message: updated_task.enabled
+            ? `${updated_task.name} 已恢复自动调度`
+            : `${updated_task.name} 不再参与后续调度`,
         },
         "任务列表刷新失败，状态稍后会同步",
         set_feedback,

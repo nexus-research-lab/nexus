@@ -111,7 +111,8 @@ func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("期望 dm runner 收到 1 次请求，实际 %d", len(requests))
 	}
-	if requests[0].Content != "整理今天的进展" {
+	if !strings.HasPrefix(requests[0].Content, "[cron:"+task.JobID+" 日报同步] ") ||
+		!strings.Contains(requests[0].Content, "整理今天的进展") {
 		t.Fatalf("下发指令不正确: %s", requests[0].Content)
 	}
 	if requests[0].PermissionHandler == nil {
@@ -856,7 +857,8 @@ func TestRunTaskNowForMainTargetEnqueuesCronTextPayload(t *testing.T) {
 	if err = json.Unmarshal([]byte(rawPayload), &payload); err != nil {
 		t.Fatalf("解析 cron.trigger payload 失败: %v", err)
 	}
-	if strings.TrimSpace(anyString(payload["text"])) != "follow up in main session" {
+	if !strings.HasPrefix(strings.TrimSpace(anyString(payload["text"])), "[cron:"+task.JobID+" Main payload] ") ||
+		!strings.Contains(strings.TrimSpace(anyString(payload["text"])), "follow up in main session") {
 		t.Fatalf("cron.trigger payload.text 不正确: %v", payload)
 	}
 	if _, exists := payload["instruction"]; exists {
