@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- 修复群聊管理弹窗技能选择缺少标题、成员列表过高和底部空白过大的问题。
+
 ## [0.1.11] - 2026-05-27
 
 ### Added
