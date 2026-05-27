@@ -7,6 +7,7 @@
 
 import { useMemo } from "react";
 
+import { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
 import { AssistantMessage, ContentBlock, Message, ResultSummary } from "@/types/conversation/message";
 
 interface UseAssistantContentMergeOptions {
@@ -45,7 +46,7 @@ export function useAssistantContentMerge({
 }: UseAssistantContentMergeOptions): UseAssistantContentMergeReturn {
   // 分离消息
   const { user_message, assistant_messages, result_summary } = useMemo(() => {
-    const user = messages.find((m) => m.role === "user");
+    const user = messages.find((m) => m.role === "user" && !is_automation_trigger_user_message(m));
     const assistant = messages.filter((m) => m.role === "assistant") as AssistantMessage[];
     const summary = get_latest_result_summary(assistant);
     return { user_message: user, assistant_messages: assistant, result_summary: summary };

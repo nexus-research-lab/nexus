@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - 修复 SQLite legacy 迁移启动失败、迁移编号冲突、server 单文件运行迁移引用和测试稳定性问题。
+- 定时任务触发消息新增 `[cron:...]` 内部标记，聊天时间线会隐藏这类自动化 user 触发气泡。
 - 修复定时任务 HTTP 新建/编辑未接收 `execution_kind`，导致页面创建脚本任务被后端当成 Agent 任务的问题。
 - 修复 Claude 临时调度工具可能承接用户提醒的问题，提醒和长期任务统一要求走 Nexus 持久化定时任务。
 - 修复 Office 文件预览布局、表格预览放大侧栏占位、XLSX 放大范围、PPTX 显示和 PPTX 文本样式还原问题。
