@@ -11,21 +11,15 @@ import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-
 import { build_room_shared_session_key } from "@/lib/conversation/session-key";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
-  AgentConversationDeliveryPolicy,
   AgentConversationIdentity,
   get_session_control_status_text,
 } from "@/types/agent/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
-import { PendingPermission } from "@/types/conversation/permission";
 import { TodoItem } from "@/types/conversation/todo";
 import { Agent } from "@/types/agent/agent";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
-import {
-  prepare_room_conversation_attachments,
-  type PreparedComposerAttachment,
-} from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { GOAL_COMMAND_HINT_ITEMS } from "@/features/conversation/shared/goal-command-hints";
@@ -34,23 +28,17 @@ import { useGoalCommandHandler } from "@/features/conversation/shared/use-goal-c
 import { useGoalPanelEditRequest } from "@/features/conversation/shared/use-goal-panel-edit-request";
 import {
   build_conversation_activity_snapshot,
-  get_room_agent_round_entry,
-  get_room_base_round_id,
-  get_room_thread_messages,
   get_latest_reply_timestamp,
   group_room_pending_permissions_by_round,
   group_room_pending_slots_by_round,
   group_room_messages_by_round,
-  is_agent_round_active,
   should_emit_conversation_activity,
   type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
 import { RoomGoalPanel } from "./room-goal-panel";
-import {
-  useGroupThread,
-  useSetGroupThreadPanelData,
-} from "../thread/group-thread-state";
+import { useRoomComposerHandlers } from "./use-room-composer-handlers";
+import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
@@ -83,35 +71,6 @@ export interface GroupChatPanelProps {
   ) => void;
 }
 
-function get_thread_pending_permissions(
-  round_id: string,
-  agent_id: string,
-  pending_permissions: PendingPermission[],
-): PendingPermission[] {
-  if (pending_permissions.length === 0) {
-    return [];
-  }
-
-  return pending_permissions.filter((permission) => {
-    if (permission.agent_id !== agent_id) {
-      return false;
-    }
-    if (!permission.caused_by) {
-      return false;
-    }
-    if (
-      get_room_base_round_id(permission.caused_by, permission.agent_id) !==
-      round_id
-    ) {
-      return false;
-    }
-    // Room 的权限请求在很多场景下绑定的是占位槽位 msg_id，
-    // 不是 assistant 真正的 message_id。Thread 已经按 round_id + agent_id 收口，
-    // 这里不能再按 message_id 二次过滤，否则问答/权限会被错误吞掉。
-    return true;
-  });
-}
-
 /**
  * GroupChatPanel — 必须在 GroupThreadContextProvider 内部使用。
  * Provider 由 RoomSurfaceLayout / RoomMobileSurface 提供。
@@ -137,11 +96,8 @@ export function GroupChatPanel({
   on_room_event,
 }: GroupChatPanelProps) {
   const is_mobile_layout = layout === "mobile";
-  const { active_thread, close_thread } = useGroupThread();
-  const { set_thread_panel_data } = useSetGroupThreadPanelData();
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
-  const consumed_initial_draft_ref = useRef<string | null>(null);
 
   const session_key = conversation_id
     ? build_room_shared_session_key(conversation_id)
@@ -278,11 +234,6 @@ export function GroupChatPanel({
     on_loading_change?.(is_loading);
   }, [is_loading, on_loading_change]);
 
-  // 切换对话时自动关闭 Thread 面板
-  useEffect(() => {
-    close_thread();
-  }, [conversation_id, close_thread]);
-
   useEffect(() => {
     if (!conversation_id || messages.length === 0) return;
     const last = messages[messages.length - 1];
@@ -390,156 +341,38 @@ export function GroupChatPanel({
     scroll_ref,
   ]);
 
-  const handle_send_message = async (
-    content: string,
-    delivery_policy: AgentConversationDeliveryPolicy,
-    attachments: PreparedComposerAttachment[] = [],
-  ) => {
-    if (!content.trim() && attachments.length === 0) return;
-    if (await try_handle_goal_command(content)) {
-      return;
-    }
-    scroll_to_bottom("auto");
-    await send_message(content, { delivery_policy, attachments });
-  };
-
   const handle_stop_message = useCallback(
     (msg_id: string) => stop_generation(msg_id),
     [stop_generation],
   );
-  const handle_prepare_attachments = useCallback(
-    async (files: File[]) => {
-      if (!room_id || !conversation_id) {
-        throw new Error("当前 Room 会话尚未就绪，暂时无法附加文件。");
-      }
-      return prepare_room_conversation_attachments(room_id, conversation_id, files);
-    },
-    [conversation_id, room_id],
-  );
-
-  useEffect(() => {
-    const normalized_draft = initial_draft?.trim() ?? "";
-    if (
-      !session_key ||
-      !normalized_draft ||
-      is_loading ||
-      !can_control_session
-    ) {
-      return;
-    }
-
-    const initial_draft_signature = `${session_key}:${normalized_draft}`;
-    if (consumed_initial_draft_ref.current === initial_draft_signature) {
-      return;
-    }
-
-    consumed_initial_draft_ref.current = initial_draft_signature;
-    scroll_to_bottom("auto");
-    void send_message(normalized_draft)
-      .then(() => {
-        on_initial_draft_consumed?.();
-      })
-      .catch((error) => {
-        consumed_initial_draft_ref.current = null;
-        console.error("Failed to auto send initial room prompt:", error);
-      });
-  }, [
+  const { handle_prepare_attachments, handle_send_message } =
+    useRoomComposerHandlers({
+      can_control_session,
+      conversation_id,
+      initial_draft,
+      is_loading,
+      on_initial_draft_consumed,
+      room_id,
+      scroll_to_bottom,
+      send_message,
+      session_key,
+      try_handle_goal_command,
+    });
+  useRoomThreadPanelData({
+    agent_avatar_map,
+    agent_name_map,
     can_control_session,
-    initial_draft,
-    is_loading,
-    on_initial_draft_consumed,
-    scroll_to_bottom,
-    send_message,
-    session_key,
-  ]);
-
-  // Thread 面板数据：推送到 Context，由 Layout 读取渲染 inspector
-  const thread_round_messages = useMemo(
-    () =>
-      active_thread ? (message_groups.get(active_thread.round_id) ?? []) : [],
-    [active_thread, message_groups],
-  );
-  const thread_messages = useMemo(() => {
-    if (!active_thread) {
-      return [];
-    }
-
-    return get_room_thread_messages(
-      thread_round_messages,
-      active_thread.agent_id,
-    );
-  }, [active_thread, thread_round_messages]);
-  const thread_entry = useMemo(
-    () =>
-      active_thread
-        ? get_room_agent_round_entry(
-            thread_round_messages,
-            active_thread.agent_id,
-            pending_slot_groups.get(active_thread.round_id) ?? [],
-          )
-        : null,
-    [active_thread, pending_slot_groups, thread_round_messages],
-  );
-  const thread_is_loading = useMemo(
-    () => Boolean(thread_entry && is_agent_round_active(thread_entry.status)),
-    [thread_entry],
-  );
-  const thread_agent_name =
-    active_thread && agent_name_map
-      ? (agent_name_map[active_thread.agent_id] ?? active_thread.agent_id)
-      : null;
-  const thread_agent_avatar =
-    active_thread && agent_avatar_map
-      ? (agent_avatar_map[active_thread.agent_id] ?? null)
-      : null;
-  const thread_pending_permissions = useMemo(
-    () =>
-      active_thread
-        ? get_thread_pending_permissions(
-            active_thread.round_id,
-            active_thread.agent_id,
-            pending_permission_groups.get(active_thread.round_id) ?? [],
-          )
-        : [],
-    [active_thread, pending_permission_groups],
-  );
-  const thread_panel_data = useMemo(() => {
-    if (!active_thread) {
-      return null;
-    }
-
-    return {
-      messages: thread_messages,
-      agent_name: thread_agent_name,
-      agent_avatar: thread_agent_avatar,
-      user_avatar: current_user_avatar,
-      is_loading: thread_is_loading,
-      pending_permissions: thread_pending_permissions,
-      on_permission_response: send_permission_response,
-      can_respond_to_permissions: can_control_session,
-      permission_read_only_reason: observer_read_only_reason,
-      on_stop_message: can_control_session ? handle_stop_message : undefined,
-      on_open_workspace_file,
-    };
-  }, [
-    active_thread,
-    can_control_session,
-    handle_stop_message,
-    on_open_workspace_file,
-    observer_read_only_reason,
-    thread_agent_avatar,
+    conversation_id,
     current_user_avatar,
+    is_loading,
+    message_groups,
+    observer_read_only_reason,
+    on_open_workspace_file,
+    on_stop_message: handle_stop_message,
+    pending_permission_groups,
+    pending_slot_groups,
     send_permission_response,
-    thread_agent_name,
-    thread_is_loading,
-    thread_messages,
-    thread_pending_permissions,
-  ]);
-
-  useEffect(() => {
-    set_thread_panel_data(thread_panel_data);
-  }, [set_thread_panel_data, thread_panel_data]);
-
+  });
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
 
