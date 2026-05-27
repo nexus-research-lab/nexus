@@ -33,6 +33,7 @@ type UiSelectMenuSurface = "surface" | "dialog";
 
 interface UiSelectMenuProps {
   aria_label: string;
+  allow_label_wrap?: boolean;
   button_class_name?: string;
   class_name?: string;
   disabled?: boolean;
@@ -40,6 +41,7 @@ interface UiSelectMenuProps {
   label?: ReactNode;
   leading?: ReactNode;
   menu_class_name?: string;
+  menu_min_width?: number;
   on_change: (value: string) => void;
   options: UiSelectMenuOption[];
   placement?: UiSelectMenuPlacement;
@@ -109,12 +111,14 @@ function resolve_select_menu_position({
   button,
   estimated_height,
   estimated_option_height,
+  menu_min_width,
   placement,
 }: {
   button: HTMLButtonElement;
   estimated_height: number;
   estimated_option_height: number;
   placement: UiSelectMenuPlacement;
+  menu_min_width?: number;
 }): UiSelectMenuPosition {
   const rect = button.getBoundingClientRect();
   const viewport_width = window.innerWidth;
@@ -129,7 +133,10 @@ function resolve_select_menu_position({
     estimated_height,
     Math.max(estimated_option_height + 8, available_space - SELECT_MENU_GAP),
   );
-  const width = Math.min(rect.width, viewport_width - SELECT_MENU_VIEWPORT_MARGIN * 2);
+  const width = Math.min(
+    Math.max(rect.width, menu_min_width ?? 0),
+    viewport_width - SELECT_MENU_VIEWPORT_MARGIN * 2,
+  );
   const left = Math.min(
     Math.max(SELECT_MENU_VIEWPORT_MARGIN, rect.left),
     Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewport_width - width - SELECT_MENU_VIEWPORT_MARGIN),
@@ -189,6 +196,7 @@ function get_select_menu_option_state_class_name(surface: UiSelectMenuSurface, i
 /** 共享自定义下拉菜单，避免业务侧重复实现原生 select 无法控制的弹层定位。 */
 export function UiSelectMenu({
   aria_label,
+  allow_label_wrap = false,
   button_class_name,
   class_name,
   disabled = false,
@@ -196,6 +204,7 @@ export function UiSelectMenu({
   label,
   leading,
   menu_class_name,
+  menu_min_width,
   on_change,
   options,
   placement = "auto",
@@ -228,13 +237,17 @@ export function UiSelectMenu({
     if (!button) {
       return;
     }
+    const resolved_option_height = allow_label_wrap
+      ? Math.max(estimated_option_height, 46)
+      : estimated_option_height;
     set_menu_position(resolve_select_menu_position({
       button,
-      estimated_height: estimate_select_menu_height(options.length, estimated_option_height),
-      estimated_option_height,
+      estimated_height: estimate_select_menu_height(options.length, resolved_option_height),
+      estimated_option_height: resolved_option_height,
+      menu_min_width,
       placement,
     }));
-  }, [estimated_option_height, options.length, placement]);
+  }, [allow_label_wrap, estimated_option_height, menu_min_width, options.length, placement]);
 
   useEffect(() => {
     if (!is_open || disabled) {
@@ -357,7 +370,8 @@ export function UiSelectMenu({
             key={option.value}
             aria-selected={is_active}
             className={cn(
-              "flex w-full items-center justify-between rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+              "flex w-full justify-between gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+              allow_label_wrap ? "items-start py-2" : "items-center",
               option_height_class_name,
               get_select_menu_option_state_class_name(surface, is_active),
             )}
@@ -367,8 +381,15 @@ export function UiSelectMenu({
             role="option"
             type="button"
           >
-            <span className="truncate">{option.label}</span>
-            {is_active ? <Check className="h-3.5 w-3.5 text-(--primary)" /> : null}
+            <span
+              className={cn(
+                "min-w-0 flex-1",
+                allow_label_wrap ? "whitespace-normal break-words leading-snug" : "truncate",
+              )}
+            >
+              {option.label}
+            </span>
+            {is_active ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--primary)" /> : null}
           </button>
         );
       })}
@@ -407,7 +428,7 @@ export function UiSelectMenu({
         onKeyDown={handle_key_down}
         type="button"
       >
-        <span className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-2">
           {leading ? <span className="shrink-0 text-(--icon-default)">{leading}</span> : null}
           {label ? (
             <>
@@ -417,7 +438,12 @@ export function UiSelectMenu({
               <span className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)" />
             </>
           ) : null}
-          <span className="truncate font-semibold text-(--text-strong)">
+          <span
+            className={cn(
+              "min-w-0 font-semibold text-(--text-strong)",
+              allow_label_wrap ? "whitespace-normal break-words text-left leading-snug" : "truncate",
+            )}
+          >
             {active_option?.label ?? placeholder}
           </span>
         </span>

@@ -128,14 +128,13 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 		if principal != nil && strings.TrimSpace(principal.Username) != "" {
 			lines = append(lines, "Current username: "+strings.TrimSpace(principal.Username))
 		}
-		lines = append(lines, "Boundary: Only read and operate on agents, rooms, sessions, and workspaces within the current user_id scope. Do not assume access to other users' data.")
+		lines = append(lines, "Scope: this user only.")
 	case hasState && state.AuthRequired:
-		lines = append(lines, "Mode: authenticated system scope", "Boundary: This request is not bound to a concrete user. Do not assume global user-data access.")
+		lines = append(lines, "Mode: authenticated system scope")
 	default:
 		lines = append(lines,
 			"Mode: single-user system scope",
 			"Current principal: "+authctx.SystemUserID,
-			"Boundary: This instance runs in single-user mode. Treat the current workspace as the default system scope.",
 		)
 	}
 	return strings.Join(lines, "\n")
@@ -233,7 +232,6 @@ func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *
 		"<nexus_runtime_context>",
 		strings.Join(sections, "\n\n"),
 		"</nexus_runtime_context>",
-		"Use this runtime context as additional context for the latest user message. Do not repeat these tags in the reply.",
 	}, "\n")
 }
 
@@ -266,18 +264,14 @@ func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionV
 	}
 	lines := []string{
 		"## Emotion State",
-		"Context ID: " + view.ContextID,
 		fmt.Sprintf("Base: %s (energy %d/10, valence %d/10) - %s", view.Base.Mood, view.Base.Energy, view.Base.Valence, view.Base.Description),
 	}
-	if view.Context == nil {
-		lines = append(lines, "Context: not set")
-	} else {
+	if view.Context != nil {
 		lines = append(lines, fmt.Sprintf("Context: %s (valence %d/10) - %s", view.Context.Mood, view.Context.Valence, view.Context.Trigger))
 	}
 	lines = append(lines,
 		fmt.Sprintf("Composite: %s (energy %d/10, valence %d/10) - %s", view.Composite.Mood, view.Composite.Energy, view.Composite.Valence, view.Composite.Description),
 		fmt.Sprintf("Fatigue: %s (%d/100)", view.Fatigue.Status, view.Fatigue.Level),
-		fmt.Sprintf("Use this as %s's current emotional state. Follow the Emotion System rules from the base prompt; do not restate this metadata.", name),
 	)
 	return strings.Join(lines, "\n")
 }

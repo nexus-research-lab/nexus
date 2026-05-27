@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
 var (
@@ -47,9 +48,15 @@ func EnsureInitialized(
 			return err
 		}
 	}
+	if err := agentsvc.EnsureRuntimeEmotionState(root); err != nil {
+		return err
+	}
 
 	context := buildTemplateContext(agentID, agentName, root, createdAt)
-	if err := ensureNexusctlShim(root, context); err != nil {
+	if err := ensureNexusctlShim(appfs.AgentRuntimeBinDir(), context); err != nil {
+		return err
+	}
+	if err := removeWorkspaceBinShim(root); err != nil {
 		return err
 	}
 	for key, relativePath := range workspaceFiles {
@@ -59,7 +66,7 @@ func EnsureInitialized(
 				return err
 			}
 			if _, err := os.Stat(targetPath); err == nil {
-				if err := repairAgentsScheduleGuidance(targetPath, ""); err != nil {
+				if err := repairAgentsScheduleGuidance(targetPath); err != nil {
 					return err
 				}
 			} else if !os.IsNotExist(err) {
@@ -170,10 +177,11 @@ func ensureWorkspaceTemplateFile(targetPath string, key string, content string) 
 	if key != "agents" {
 		return nil
 	}
-	return repairAgentsScheduleGuidance(targetPath, rendered+"\n")
+	return repairAgentsScheduleGuidance(targetPath)
 }
 
-func repairAgentsScheduleGuidance(targetPath string, rendered string) error {
+func repairAgentsScheduleGuidance(targetPath string) error {
+	// TODO: 迁移期清理旧 AGENTS.md 里的 ScheduleWakeup 说明；确认旧 workspace 已覆盖后删除。
 	currentBytes, err := os.ReadFile(targetPath)
 	if err != nil {
 		return err
@@ -182,15 +190,7 @@ func repairAgentsScheduleGuidance(targetPath string, rendered string) error {
 	if !strings.Contains(current, "ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒") {
 		return nil
 	}
-	repaired, ok := replaceMarkdownSection(
-		current,
-		rendered,
-		[]string{"## 定时任务路由", "## 定时任务", "## Scheduled Task Routing", "## Scheduled Tasks"},
-		[]string{"## Scheduled Task Routing", "## Scheduled Tasks", "## 定时任务路由", "## 定时任务"},
-	)
-	if !ok {
-		repaired, ok = removeMarkdownSection(current, []string{"## 定时任务路由", "## 定时任务", "## Scheduled Task Routing", "## Scheduled Tasks"})
-	}
+	repaired, ok := removeMarkdownSection(current, []string{"## 定时任务路由", "## 定时任务", "## Scheduled Task Routing", "## Scheduled Tasks"})
 	if !ok || repaired == current {
 		return nil
 	}
@@ -241,23 +241,6 @@ func looksLikeGeneratedMainWorkspaceFile(fileName string, content string) bool {
 	default:
 		return false
 	}
-}
-
-func replaceMarkdownSection(current string, rendered string, currentHeadings []string, renderedHeadings []string) (string, bool) {
-	for _, currentHeading := range currentHeadings {
-		currentStart, currentEnd, currentOK := markdownSectionBounds(current, currentHeading)
-		if !currentOK {
-			continue
-		}
-		for _, renderedHeading := range renderedHeadings {
-			renderedStart, renderedEnd, renderedOK := markdownSectionBounds(rendered, renderedHeading)
-			if !renderedOK {
-				continue
-			}
-			return current[:currentStart] + rendered[renderedStart:renderedEnd] + current[currentEnd:], true
-		}
-	}
-	return "", false
 }
 
 func removeMarkdownSection(current string, headings []string) (string, bool) {
@@ -347,8 +330,7 @@ func syncDirectory(sourceDir string, targetDir string, context map[string]string
 	})
 }
 
-func ensureNexusctlShim(workspacePath string, context map[string]string) error {
-	binDir := filepath.Join(workspacePath, ".agents", "bin")
+func ensureNexusctlShim(binDir string, context map[string]string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
@@ -414,6 +396,65 @@ echo nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl 1>&2
 exit /b 127
 `, context)
 	return os.WriteFile(filepath.Join(binDir, "nexusctl.cmd"), []byte(cmdContent), 0o755)
+}
+
+func removeWorkspaceBinShim(workspacePath string) error {
+	// TODO: 迁移期清理旧 per-agent / per-owner nexusctl shim；确认旧版本用户已覆盖后删除。
+	root := filepath.Clean(strings.TrimSpace(workspacePath))
+	for _, binDir := range []string{
+		filepath.Join(root, ".agents", "bin"),
+		filepath.Join(filepath.Dir(root), ".agents", "bin"),
+	} {
+		if err := removeGeneratedNexusctlBinDir(binDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeGeneratedNexusctlBinDir(binDir string) error {
+	if filepath.Clean(binDir) == filepath.Clean(appfs.AgentRuntimeBinDir()) {
+		return nil
+	}
+	for _, fileName := range []string{"nexusctl", "nexusctl.cmd"} {
+		targetPath := filepath.Join(binDir, fileName)
+		content, err := os.ReadFile(targetPath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !looksLikeGeneratedNexusctlShim(string(content)) {
+			continue
+		}
+		if err = os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return removeDirIfEmpty(binDir)
+}
+
+func looksLikeGeneratedNexusctlShim(content string) bool {
+	return strings.Contains(content, "NEXUSCTL_WORKSPACE_PATH") &&
+		strings.Contains(content, "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl")
+}
+
+func removeDirIfEmpty(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if len(entries) > 0 {
+		return nil
+	}
+	if err = os.Remove(dir); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func ensureClaudeSkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {

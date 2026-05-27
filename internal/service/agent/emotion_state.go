@@ -100,6 +100,30 @@ func LoadRuntimeEmotionView(workspacePath string, contextID string, now time.Tim
 	return buildRuntimeEmotionView(workspacePath, state, contextID, now)
 }
 
+// EnsureRuntimeEmotionState 保证 agent workspace 内存在情绪状态文件。
+func EnsureRuntimeEmotionState(workspacePath string) error {
+	path := runtimeEmotionStatePath(workspacePath)
+	if path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil
+		}
+		return err
+	}
+	return file.Close()
+}
+
 // SetRuntimeEmotionBase 更新基础情绪。
 func SetRuntimeEmotionBase(workspacePath string, update RuntimeEmotionBaseUpdate) (RuntimeEmotionView, error) {
 	now := update.Timestamp

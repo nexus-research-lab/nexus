@@ -46,6 +46,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].Options.Provider != "" {
 		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
 	}
+	assertRuntimeEmotionStateFile(t, items[0].WorkspacePath)
 
 	validation, err := service.ValidateName(ctx, "测试助手", "")
 	if err != nil {
@@ -68,6 +69,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if _, err = os.Stat(created.WorkspacePath); err != nil {
 		t.Fatalf("workspace 目录未创建: %v", err)
 	}
+	assertRuntimeEmotionStateFile(t, created.WorkspacePath)
 	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-a 失败: %v", err)
 	}
@@ -270,6 +272,21 @@ func agentTranscriptProjectDir(workspacePath string) string {
 		"projects",
 		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
 	)
+}
+
+func assertRuntimeEmotionStateFile(t *testing.T, workspacePath string) {
+	t.Helper()
+	statePath := filepath.Join(workspacePath, ".agents", "emotion.json")
+	info, err := os.Stat(statePath)
+	if err != nil {
+		t.Fatalf("emotion state 未初始化: %v", err)
+	}
+	if info.IsDir() {
+		t.Fatalf("emotion state 应为文件: %s", statePath)
+	}
+	if info.Size() != 0 {
+		t.Fatalf("emotion state 初始文件应为空: size=%d", info.Size())
+	}
 }
 
 func canonicalizeAgentTranscriptPath(path string) string {

@@ -139,12 +139,9 @@ func TestServiceBuildRuntimeUserMessageSuffixIncludesDateAndEmotion(t *testing.T
 	assertPromptContains(t, suffix, "UTC+08:00")
 	assertPromptContains(t, suffix, "today, yesterday, tomorrow, this year, latest, recent")
 	assertPromptContains(t, suffix, "## Emotion State")
-	assertPromptContains(t, suffix, "Context ID: default")
 	assertPromptContains(t, suffix, "Base: focused (energy 6/10, valence 6/10) - clear, proactive, concise")
-	assertPromptContains(t, suffix, "Context: not set")
 	assertPromptContains(t, suffix, "Composite: focused (energy 6/10, valence 6/10) - clear, proactive, concise")
 	assertPromptContains(t, suffix, "</nexus_runtime_context>")
-	assertPromptContains(t, suffix, "Use this runtime context as additional context for the latest user message")
 }
 
 func TestServiceBuildRuntimeUserMessageSuffixReadsAgentEmotionState(t *testing.T) {
@@ -188,7 +185,6 @@ func TestServiceBuildRuntimeUserMessageSuffixReadsAgentEmotionState(t *testing.T
 		WorkspacePath: workspacePath,
 	}, "dm:test")
 
-	assertPromptContains(t, suffix, "Context ID: dm:test")
 	assertPromptContains(t, suffix, "Base: playful (energy 8/10, valence 8/10) - curious and warm")
 	assertPromptContains(t, suffix, "Context: annoyed (valence 4/10) - user said the draft feels wrong")
 	assertPromptContains(t, suffix, "Composite: annoyed (energy 8/10, valence 6/10) - user said the draft feels wrong")
@@ -253,12 +249,11 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 
 	assertPromptContains(t, prompt, "the user's private workspace companion")
 	assertPromptContains(t, prompt, "You coordinate from the main chat, but you are not a Room member")
-	assertPromptContains(t, prompt, "For Nexus itself, durable context comes from `USER.md`, `MEMORY.md`, and `memory/`")
+	assertPromptContains(t, prompt, "Memory files: `USER.md`")
 	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, skill, memory, or scheduled task")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")
-	assertPromptContains(t, prompt, "Use `memory-manager` before answering questions about previous work")
-	assertPromptContains(t, prompt, "`USER.md`: durable user profile")
-	assertPromptContains(t, prompt, "Use `scheduled-task-manager` before creating, inspecting, repairing, retrying, enabling, disabling, or deleting scheduled tasks")
+	assertPromptContains(t, prompt, "Use `memory-manager` for context retrieval")
+	assertPromptContains(t, prompt, "Use `scheduled-task-manager` and `nexus_automation` tools")
 	assertPromptContains(t, prompt, "setup_status: configured")
 	assertPromptContains(t, prompt, "Prefer restoring existing Rooms before creating duplicates")
 	if strings.Contains(prompt, "main-agent") || strings.Contains(prompt, "This prompt is internal") || strings.Contains(prompt, "editable context") {
@@ -296,7 +291,7 @@ func TestServiceBuildRuntimePromptIncludesUserScopeContext(t *testing.T) {
 	assertPromptContains(t, prompt, "Mode: multi-user user scope")
 	assertPromptContains(t, prompt, "Current user_id: user-123")
 	assertPromptContains(t, prompt, "Current username: alice")
-	assertPromptContains(t, prompt, "Do not assume access to other users' data")
+	assertPromptContains(t, prompt, "Scope: this user only.")
 }
 
 func writePromptFile(t *testing.T, workspacePath string, fileName string, content string) {

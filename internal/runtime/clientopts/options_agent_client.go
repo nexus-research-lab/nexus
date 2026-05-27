@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -262,7 +261,7 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 	if trimmedWorkspacePath == "" {
 		return nil
 	}
-	binDir := filepath.Join(trimmedWorkspacePath, ".agents", "bin")
+	binDir := appfs.AgentRuntimeBinDir()
 	env := map[string]string{
 		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
 		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,

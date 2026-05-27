@@ -90,9 +90,10 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
 		t.Fatalf("系统托管 imagegen skill 未部署: %v", err)
 	}
-	nexusctlShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")
+	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), ".agents", "bin")
+	nexusctlShim := filepath.Join(sharedBinDir, "nexusctl")
 	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
-		t.Fatalf("nexusctl shim 未生成: %v", statErr)
+		t.Fatalf("共享 nexusctl shim 未生成: %v", statErr)
 	} else if info.Mode()&0o111 == 0 {
 		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
 	}
@@ -103,13 +104,16 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !strings.Contains(string(shimPayload), "NEXUSCTL_WORKSPACE_PATH") {
 		t.Fatalf("nexusctl shim 应保留调用方 workspace 路径: %s", shimPayload)
 	}
-	nexusctlCmdShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl.cmd")
+	nexusctlCmdShim := filepath.Join(sharedBinDir, "nexusctl.cmd")
 	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
 	if err != nil {
 		t.Fatalf("Windows nexusctl shim 未生成: %v", err)
 	}
 	if !strings.Contains(string(cmdPayload), "nexusctl.exe") {
 		t.Fatalf("Windows nexusctl shim 未查找 exe: %s", cmdPayload)
+	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")); !os.IsNotExist(err) {
+		t.Fatalf("agent workspace 不应生成独立 nexusctl shim: %v", err)
 	}
 	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
 	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {
@@ -616,6 +620,7 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 
 	root := t.TempDir()
 	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:                      "127.0.0.1",
 		Port:                      18011,

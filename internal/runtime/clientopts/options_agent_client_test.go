@@ -115,7 +115,9 @@ func TestBuildAgentClientOptionsDeniesClaudeSessionScheduleTools(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
-	workspacePath := "/tmp/workspace"
+	configDir := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: workspacePath,
 	})
@@ -123,8 +125,9 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
 	pathItems := strings.Split(options.Env["PATH"], string(os.PathListSeparator))
-	if len(pathItems) == 0 || pathItems[0] != filepath.Join(workspacePath, ".agents", "bin") {
-		t.Fatalf("运行时 PATH 未优先注入 workspace bin: %q", options.Env["PATH"])
+	expectedBinDir := filepath.Join(configDir, ".agents", "bin")
+	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
+		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
 	}
 	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
 		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)

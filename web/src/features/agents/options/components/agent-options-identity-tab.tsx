@@ -249,7 +249,7 @@ export function AgentOptionsIdentityTab({
             {validation_message}
           </div>
 
-          <div className="w-full space-y-4 pt-0.5 xl:w-[188px] xl:shrink-0">
+          <div className="w-full space-y-4 pt-0.5 xl:w-[340px] xl:shrink-0">
             <div className="space-y-2.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                 {t("agent_options.identity.vibe_tags")}
@@ -266,8 +266,12 @@ export function AgentOptionsIdentityTab({
                 {t("agent_options.identity.model")}
               </label>
               <UiSelectMenu
+                allow_label_wrap
                 aria_label={t("agent_options.identity.model")}
+                button_class_name="h-auto min-h-9 py-2"
+                class_name="h-auto min-h-9"
                 disabled={provider_options_loading && provider_options.length === 0}
+                menu_min_width={460}
                 on_change={handle_model_select_change}
                 options={model_select_options}
                 size="sm"
@@ -353,8 +357,12 @@ export function AgentOptionsIdentityTab({
               {t("agent_options.identity.model")}
             </label>
             <UiSelectMenu
+              allow_label_wrap
               aria_label={t("agent_options.identity.model")}
+              button_class_name="h-auto min-h-10 py-2"
+              class_name="h-auto min-h-10"
               disabled={provider_options_loading && provider_options.length === 0}
+              menu_min_width={460}
               on_change={handle_model_select_change}
               options={model_select_options}
               surface="dialog"
