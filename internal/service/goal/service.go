@@ -242,6 +242,9 @@ func (s *Service) changeStatus(
 	roundID string,
 	payload map[string]any,
 ) (*protocol.Goal, error) {
+	if source == protocol.GoalUpdateSourceModel {
+		ctx = withBudgetLimitSteeringSuppressed(ctx)
+	}
 	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {

@@ -265,7 +265,7 @@ func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 3))
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,
@@ -296,7 +296,7 @@ func TestRoundRunnerRecordsAbortGoalUsageFromAssistantSnapshot(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{}, goalAssistantUsageMessage(7, 3))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{}, goalAssistantUsageMessage(7, 3))
 
 	usages := goalProvider.recordedUsage()
 	if len(usages) != 2 {
@@ -317,7 +317,7 @@ func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
 	}
 
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  3,
 			OutputTokens: 2,
@@ -394,7 +394,7 @@ func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "update_goal", false, 10, 2))
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  20,
 			OutputTokens: 5,
@@ -422,7 +422,7 @@ func TestRoundRunnerClearGoalUsageStopsLaterAccounting(t *testing.T) {
 	}
 
 	runner.clearGoalUsage()
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  20,
 			OutputTokens: 5,
@@ -451,7 +451,7 @@ func TestRoundRunnerActivateGoalUsageRestartsFromCurrentSnapshot(t *testing.T) {
 	if err := runner.activateGoalUsage(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,
@@ -478,7 +478,7 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "create_goal", false, 5, 1))
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  8,
 			OutputTokens: 3,
@@ -508,7 +508,7 @@ func TestRoundRunnerIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
-	runner.recordGoalUsage(runtimectx.RoundExecutionResult{
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 2,

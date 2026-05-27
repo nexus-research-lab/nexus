@@ -12,7 +12,7 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
-func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult, finalAssistant protocol.Message) {
+func (r *roundRunner) recordGoalUsage(ctx context.Context, result runtimectx.RoundExecutionResult, finalAssistant protocol.Message) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
@@ -20,7 +20,7 @@ func (r *roundRunner) recordGoalUsage(result runtimectx.RoundExecutionResult, fi
 	if !ok {
 		return
 	}
-	r.recordGoalUsageSnapshot(snapshot)
+	r.recordGoalUsageSnapshot(ctx, snapshot)
 }
 
 func (r *roundRunner) recordGoalUsageLimit(result runtimectx.RoundExecutionResult) {
@@ -39,7 +39,7 @@ func (r *roundRunner) recordGoalUsageLimit(result runtimectx.RoundExecutionResul
 }
 
 func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
-	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	r.recordGoalUsage(ctx, runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	return nil
 }
 
@@ -115,7 +115,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		}
 		r.goalUsageMu.Unlock()
 	}
-	r.recordGoalUsageSnapshot(snapshot)
+	r.recordGoalUsageSnapshot(context.Background(), snapshot)
 	if hasSuccessfulUpdate {
 		r.clearGoalUsage()
 	}
@@ -180,7 +180,7 @@ func (r *roundRunner) assistantGoalUsageSnapshot(message protocol.Message) goals
 	}
 }
 
-func (r *roundRunner) recordGoalUsageSnapshot(snapshot goalsvc.RuntimeUsageSnapshot) {
+func (r *roundRunner) recordGoalUsageSnapshot(ctx context.Context, snapshot goalsvc.RuntimeUsageSnapshot) {
 	if r.service.goals == nil {
 		return
 	}
@@ -191,7 +191,7 @@ func (r *roundRunner) recordGoalUsageSnapshot(snapshot goalsvc.RuntimeUsageSnaps
 		if !ok {
 			return
 		}
-		r.recordGoalUsageDelta(usage)
+		r.recordGoalUsageDelta(ctx, usage)
 		return
 	}
 	r.goalUsageMu.Unlock()
@@ -200,18 +200,18 @@ func (r *roundRunner) recordGoalUsageSnapshot(snapshot goalsvc.RuntimeUsageSnaps
 	if isZeroGoalUsage(usage) {
 		return
 	}
-	r.recordGoalUsageDelta(usage)
+	r.recordGoalUsageDelta(ctx, usage)
 }
 
-func (r *roundRunner) recordGoalUsageDelta(usage protocol.GoalUsage) {
+func (r *roundRunner) recordGoalUsageDelta(ctx context.Context, usage protocol.GoalUsage) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() || isZeroGoalUsage(usage) {
 		return
 	}
 	var err error
 	if strings.TrimSpace(r.goalIDForUsage) != "" {
-		_, err = r.service.goals.RecordUsageForGoal(context.Background(), r.goalIDForUsage, usage, r.roundID)
+		_, err = r.service.goals.RecordUsageForGoal(ctx, r.goalIDForUsage, usage, r.roundID)
 	} else {
-		_, err = r.service.goals.RecordUsageForSession(context.Background(), r.sessionKey, usage, r.roundID)
+		_, err = r.service.goals.RecordUsageForSession(ctx, r.sessionKey, usage, r.roundID)
 	}
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
 		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",

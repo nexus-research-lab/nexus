@@ -23,9 +23,20 @@ type contextualGuidanceDispatcher interface {
 	QueueContextualGuidanceInput(context.Context, string, string, string, string) ([]string, error)
 }
 
+type budgetSteeringSuppressionKey struct{}
+
 // SetGuidanceDispatcher 注入运行时引导队列，用于把 Goal steering 送入正在执行的 round。
 func (s *Service) SetGuidanceDispatcher(dispatcher guidanceDispatcher) {
 	s.guidance = dispatcher
+}
+
+func withBudgetLimitSteeringSuppressed(ctx context.Context) context.Context {
+	return context.WithValue(ctx, budgetSteeringSuppressionKey{}, true)
+}
+
+func budgetLimitSteeringSuppressed(ctx context.Context) bool {
+	value, _ := ctx.Value(budgetSteeringSuppressionKey{}).(bool)
+	return value
 }
 
 func (s *Service) queueGoalSteering(ctx context.Context, item protocol.Goal, event protocol.GoalEvent) {
@@ -37,6 +48,9 @@ func (s *Service) queueGoalSteering(ctx context.Context, item protocol.Goal, eve
 	case event.EventType == "updated" && eventPayloadBool(event.Payload, "objective_updated") && protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusActive:
 		prompt = buildObjectiveUpdatedPrompt(item)
 	case event.EventType == "budget_limited":
+		if budgetLimitSteeringSuppressed(ctx) {
+			return
+		}
 		prompt = buildBudgetLimitPrompt(item)
 	}
 	if strings.TrimSpace(prompt) == "" {

@@ -97,7 +97,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"status", result.TerminalStatus,
 		"result_subtype", result.ResultSubtype,
 	)
-	r.recordGoalUsage(result, r.mapper.LastAssistantMessage())
+	r.recordGoalUsage(context.Background(), result, r.mapper.LastAssistantMessage())
 	r.recordGoalUsageLimit(result)
 	r.recordGoalContinuationProgress()
 	if result.CompletedByAssistant {
@@ -294,7 +294,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
-	r.recordGoalUsage(runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	r.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {

@@ -1233,6 +1233,8 @@ func TestServiceAllowsGoalCompletionAfterExternalFlushHitsBudget(t *testing.T) {
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
 	service.idFactory = sequentialID()
+	dispatcher := &fakeGuidanceDispatcher{}
+	service.SetGuidanceDispatcher(dispatcher)
 	ctx := context.Background()
 
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
@@ -1261,6 +1263,9 @@ func TestServiceAllowsGoalCompletionAfterExternalFlushHitsBudget(t *testing.T) {
 		repo.events[2].EventType != "budget_limited" ||
 		repo.events[3].EventType != "completed" {
 		t.Fatalf("events = %#v, want usage, budget_limited, completed", repo.events)
+	}
+	if len(dispatcher.items) != 0 {
+		t.Fatalf("guidance = %#v, want suppressed budget steering while update_goal completes", dispatcher.items)
 	}
 }
 
