@@ -43,21 +43,8 @@ CREATE TABLE goal_events (
 CREATE INDEX idx_goal_events_goal_id ON goal_events (goal_id, created_at);
 CREATE INDEX idx_goal_events_session_key ON goal_events (session_key, created_at);
 
-CREATE TABLE goal_checkpoints (
-    checkpoint_id VARCHAR(64) NOT NULL PRIMARY KEY,
-    goal_id VARCHAR(64) NOT NULL,
-    session_key VARCHAR(512) NOT NULL,
-    summary TEXT NOT NULL,
-    continuation_count INTEGER NOT NULL DEFAULT 0,
-    usage_json TEXT NOT NULL DEFAULT '{}',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY(goal_id) REFERENCES session_goals(goal_id) ON DELETE CASCADE
-);
-CREATE INDEX idx_goal_checkpoints_goal_id ON goal_checkpoints (goal_id, created_at);
-
 -- +goose Down
 
-DROP TABLE IF EXISTS goal_checkpoints;
 DROP TABLE IF EXISTS goal_events;
 DROP INDEX IF EXISTS uq_session_goals_current;
 DROP INDEX IF EXISTS idx_session_goals_status;

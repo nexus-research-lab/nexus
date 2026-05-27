@@ -301,7 +301,6 @@ function is_goal_event(event_type: string): boolean {
     event_type === "goal_status_changed" ||
     event_type === "goal_progress" ||
     event_type === "goal_continuation" ||
-    event_type === "goal_checkpoint" ||
     event_type === "goal_cleared"
   );
 }

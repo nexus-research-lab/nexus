@@ -97,7 +97,7 @@ func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 	}
 }
 
-func TestThreadGoalOmitsUnsetTokenBudget(t *testing.T) {
+func TestThreadGoalIncludesNullTokenBudget(t *testing.T) {
 	output, err := json.Marshal(ThreadGoal{
 		ThreadID: "agent:nexus:ws:dm:chat",
 		Status:   ThreadGoalStatusActive,
@@ -109,12 +109,13 @@ func TestThreadGoalOmitsUnsetTokenBudget(t *testing.T) {
 	if err := json.Unmarshal(output, &projected); err != nil {
 		t.Fatalf("unmarshal thread goal: %v", err)
 	}
-	if _, ok := projected["tokenBudget"]; ok {
-		t.Fatalf("ThreadGoal JSON = %s, want omitted tokenBudget", string(output))
+	value, ok := projected["tokenBudget"]
+	if !ok || value != nil {
+		t.Fatalf("ThreadGoal JSON = %s, want tokenBudget:null", string(output))
 	}
 }
 
-func TestThreadGoalUpdatedNotificationOmitsUnsetTurnID(t *testing.T) {
+func TestThreadGoalUpdatedNotificationIncludesNullTurnID(t *testing.T) {
 	output, err := json.Marshal(ThreadGoalUpdatedNotification{
 		ThreadID: "agent:nexus:ws:dm:chat",
 		Goal: ThreadGoal{
@@ -129,8 +130,9 @@ func TestThreadGoalUpdatedNotificationOmitsUnsetTurnID(t *testing.T) {
 	if err := json.Unmarshal(output, &projected); err != nil {
 		t.Fatalf("unmarshal thread goal notification: %v", err)
 	}
-	if _, ok := projected["turnId"]; ok {
-		t.Fatalf("ThreadGoalUpdatedNotification JSON = %s, want omitted turnId", string(output))
+	value, ok := projected["turnId"]
+	if !ok || value != nil {
+		t.Fatalf("ThreadGoalUpdatedNotification JSON = %s, want turnId:null", string(output))
 	}
 }
 

@@ -159,23 +159,6 @@ func (v *OptionalInt64) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// GoalCheckpoint 表示 Goal 长程执行 checkpoint。
-type GoalCheckpoint struct {
-	ID                string    `json:"id"`
-	GoalID            string    `json:"goal_id"`
-	SessionKey        string    `json:"session_key"`
-	Summary           string    `json:"summary"`
-	ContinuationCount int       `json:"continuation_count"`
-	Usage             GoalUsage `json:"usage"`
-	CreatedAt         time.Time `json:"created_at"`
-}
-
-// CreateGoalCheckpointRequest 表示模型记录 Goal checkpoint 的请求。
-type CreateGoalCheckpointRequest struct {
-	Summary string `json:"summary"`
-	RoundID string `json:"round_id,omitempty"`
-}
-
 // GoalContinuation 表示一次由系统触发的隐藏 Goal 续跑输入。
 type GoalContinuation struct {
 	Goal           Goal              `json:"goal"`

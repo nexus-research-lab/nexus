@@ -110,27 +110,6 @@ func scanGoalEvent(scanner interface{ Scan(...any) error }) (protocol.GoalEvent,
 	return item, nil
 }
 
-func scanGoalCheckpoint(scanner interface{ Scan(...any) error }) (protocol.GoalCheckpoint, error) {
-	var (
-		item      protocol.GoalCheckpoint
-		usageJSON string
-	)
-	err := scanner.Scan(
-		&item.ID,
-		&item.GoalID,
-		&item.SessionKey,
-		&item.Summary,
-		&item.ContinuationCount,
-		&usageJSON,
-		&item.CreatedAt,
-	)
-	if err != nil {
-		return protocol.GoalCheckpoint{}, err
-	}
-	item.Usage = parseUsage(usageJSON)
-	return item, nil
-}
-
 func nullInt64ToPointer(value sql.NullInt64) *int64 {
 	if !value.Valid {
 		return nil

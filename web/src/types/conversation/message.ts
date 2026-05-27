@@ -294,7 +294,6 @@ export interface EventMessage {
     | "goal_status_changed"
     | "goal_progress"
     | "goal_continuation"
-    | "goal_checkpoint"
     | "goal_cleared"
     | "session_status";
   session_key?: string | null;

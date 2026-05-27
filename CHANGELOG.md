@@ -30,10 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal runtime context 标记对齐 Codex `<goal_context>`，并在前端 Goal 面板直接展示剩余预算与续跑暂停状态。
 - Goal 续跑与 steering prompt 移除 Nexus 私有措辞和内部 round ID，进一步贴近 Codex thread goal 模板。
 - Goal runtime context 改为优先注入下一轮运行时上下文，bridge 暂不支持时降级为用户输入前缀；前端 Goal 面板新增运行上下文状态。
-- Goal runtime context 中的 objective 与 checkpoint 摘要按 Codex 方式转义 XML 分隔符，避免用户目标内容闭合隐藏上下文。
+- Goal runtime context 中的 objective 按 Codex 方式转义 XML 分隔符，避免用户目标内容闭合隐藏上下文。
 - Goal app-server `thread/goal/updated` 通知补齐 turnId，模型轮次内的 Goal 更新可按触发 round 归因。
 - Goal 运行中 objective/budget steering 改为注入 `<goal_context>` 命名上下文，不再包进通用 Nexus guidance。
-- Goal `update_goal` 工具描述与续跑 prompt 统一为三轮同一阻塞条件后才能标记 blocked。
+- Goal `update_goal` 工具描述收口到 Codex 当前模型可见契约，blocked 判定保留在续跑上下文审计提示中。
 - Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
 - Goal 面板上下文状态文案从调试式 `goal_context` 改为用户可理解的运行状态表达。
 - Goal 面板未设置状态改为轻量入口，只有用户点击设置时才展开创建表单，更贴近 Codex `/goal` 的按需操作体验。
@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal `/goal` 斜杠命令移除 Codex 未提供的 `complete/done` 子命令，完成 Goal 仍通过模型工具或面板按钮触发。
 - Goal `/goal` 斜杠命令继续收口到 Codex 操作面，保留 `/goal edit` 打开当前 Goal 编辑态，并移除 `start` 私有别名。
 - Goal runtime context 移除要求模型记录 checkpoint 的私有提示，避免提示模型使用 Codex 三件套之外的不可见能力。
+- Goal 移除未暴露的 checkpoint 协议、事件、仓储和迁移表，当前持久化模型收口到 Codex 的 thread goal 状态与事件。
 - Goal budget limit steering 的目标段落改为 Codex 模板一致的 `<objective>`，目标内容仍会进行 XML 转义。
 - Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
 - Goal 自动续跑对齐 Codex plan mode 语义，目标 Agent 处于 Plan 模式时不会启动隐藏续跑，并在 Goal 面板显式展示暂停原因。
@@ -57,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
 - Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 - Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。
-- Goal `update_goal` 工具描述补齐 Codex 当前 blocked 审计语义，包括 resumed 后重新审计和 usage-limit 由系统控制。
+- Goal app-server `ThreadGoal.tokenBudget` 与 `thread/goal/updated.turnId` 改为 Codex 一致的显式 nullable 字段，无值时返回 `null` 而不是省略。
 - Room group runtime 中的 Goal MCP 工具改为绑定房间 shared session，房间成员完成/阻塞 Goal 时会更新同一个房间 Goal。
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
 - Goal `/goal pause|resume|clear` 在当前会话没有 Goal 时会展示明确反馈，不再静默刷新。

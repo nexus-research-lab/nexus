@@ -25,7 +25,6 @@ const (
 	EventTypeGoalStatusChanged         EventType = "goal_status_changed"
 	EventTypeGoalProgress              EventType = "goal_progress"
 	EventTypeGoalContinuation          EventType = "goal_continuation"
-	EventTypeGoalCheckpoint            EventType = "goal_checkpoint"
 	EventTypeGoalCleared               EventType = "goal_cleared"
 	EventTypePermissionRequest         EventType = "permission_request"
 	EventTypePermissionRequestResolved EventType = "permission_request_resolved"

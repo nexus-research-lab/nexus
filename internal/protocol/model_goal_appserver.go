@@ -19,7 +19,7 @@ type ThreadGoal struct {
 	ThreadID        string           `json:"threadId"`
 	Objective       string           `json:"objective"`
 	Status          ThreadGoalStatus `json:"status"`
-	TokenBudget     *int64           `json:"tokenBudget,omitempty"`
+	TokenBudget     *int64           `json:"tokenBudget"`
 	TokensUsed      int64            `json:"tokensUsed"`
 	TimeUsedSeconds int64            `json:"timeUsedSeconds"`
 	CreatedAt       int64            `json:"createdAt"`
@@ -62,7 +62,7 @@ type ThreadGoalClearResponse struct {
 // ThreadGoalUpdatedNotification 对齐 Codex app-server 的 thread/goal/updated 通知参数。
 type ThreadGoalUpdatedNotification struct {
 	ThreadID string     `json:"threadId"`
-	TurnID   *string    `json:"turnId,omitempty"`
+	TurnID   *string    `json:"turnId"`
 	Goal     ThreadGoal `json:"goal"`
 }
 

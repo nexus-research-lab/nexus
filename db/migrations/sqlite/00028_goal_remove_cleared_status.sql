@@ -1,11 +1,6 @@
 -- +goose Up
 PRAGMA foreign_keys = OFF;
 
-DELETE FROM goal_checkpoints
-WHERE goal_id IN (
-    SELECT goal_id FROM session_goals WHERE status = 'cleared'
-);
-
 DELETE FROM goal_events
 WHERE goal_id IN (
     SELECT goal_id FROM session_goals WHERE status = 'cleared'

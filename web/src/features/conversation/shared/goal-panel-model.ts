@@ -23,7 +23,6 @@ export const GOAL_EVENT_LABEL: Record<string, string> = {
   usage_limited: "受限",
   continuation_scheduled: "续跑",
   continuation_suppressed: "续跑暂停",
-  checkpoint_created: "检查点",
 };
 
 const GOAL_SOURCE_LABEL: Record<GoalEvent["source"], string> = {

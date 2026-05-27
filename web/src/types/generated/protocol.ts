@@ -14,7 +14,6 @@ export type EventType =
   | 'goal_status_changed'
   | 'goal_progress'
   | 'goal_continuation'
-  | 'goal_checkpoint'
   | 'goal_cleared'
   | 'permission_request'
   | 'permission_request_resolved'
