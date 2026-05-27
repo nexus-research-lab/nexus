@@ -28,6 +28,10 @@ func errorResult(err error) sdkmcp.ToolResult {
 	if err != nil {
 		text = err.Error()
 	}
+	return errorResultText(text)
+}
+
+func errorResultText(text string) sdkmcp.ToolResult {
 	return sdkmcp.ToolResult{
 		Content: []map[string]any{{
 			"type": "text",

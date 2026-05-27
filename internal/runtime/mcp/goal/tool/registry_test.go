@@ -184,6 +184,9 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	if !strings.Contains(budgetDescription, "Optional positive token budget for the new active goal") {
 		t.Fatalf("token_budget.description = %q, want Codex budget semantics", budgetDescription)
 	}
+	if tool.Description != createGoalDescription {
+		t.Fatalf("tool description = %q, want Codex create_goal description", tool.Description)
+	}
 }
 
 func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
@@ -201,6 +204,23 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 		svc.createInput.CreatedBy != "model" ||
 		svc.createInput.RoundID != "round-create" {
 		t.Fatalf("create input = %#v, want current session and round", svc.createInput)
+	}
+}
+
+func TestCreateGoalConflictUsesCodexModelMessage(t *testing.T) {
+	svc := &fakeCreateGoalService{createErr: errors.New("current goal already exists")}
+	tool := createGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-create"})
+
+	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Ship parity"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Fatalf("result = %#v, want MCP error", result)
+	}
+	text, _ := result.Content[0]["text"].(string)
+	if text != createGoalConflictMessage {
+		t.Fatalf("error text = %q, want Codex create conflict message", text)
 	}
 }
 
@@ -253,10 +273,14 @@ func (fakeGoalService) BlockByModel(context.Context, string, protocol.BlockGoalR
 
 type fakeCreateGoalService struct {
 	createInput protocol.CreateGoalRequest
+	createErr   error
 }
 
 func (s *fakeCreateGoalService) Create(_ context.Context, request protocol.CreateGoalRequest) (*protocol.Goal, error) {
 	s.createInput = request
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
 	return &protocol.Goal{
 		ID:         "goal-1",
 		SessionKey: request.SessionKey,
