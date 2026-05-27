@@ -87,6 +87,27 @@ func TestUpdateGoalRejectsInvalidStatusBeforeLoadingCurrent(t *testing.T) {
 	}
 }
 
+func TestUpdateGoalNoCurrentGoalUsesCodexModelMessage(t *testing.T) {
+	svc := &fakeUpdateGoalService{currentErr: errors.New("goal not found")}
+	tool := updateGoal(svc, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat", CurrentRoundID: "round-1"})
+
+	result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError {
+		t.Fatalf("result = %#v, want MCP error", result)
+	}
+	text, _ := result.Content[0]["text"].(string)
+	want := "cannot update goal for thread agent:nexus:ws:dm:chat: no goal exists"
+	if text != want {
+		t.Fatalf("error text = %q, want %q", text, want)
+	}
+	if svc.completeCalls != 0 || svc.blockCalls != 0 {
+		t.Fatalf("calls = complete:%d block:%d, want no status updates", svc.completeCalls, svc.blockCalls)
+	}
+}
+
 func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
 	svc := &fakeUpdateGoalService{
 		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
@@ -307,6 +328,7 @@ func (s *fakeCreateGoalService) BlockByModel(context.Context, string, protocol.B
 
 type fakeUpdateGoalService struct {
 	current          *protocol.Goal
+	currentErr       error
 	completed        *protocol.Goal
 	blocked          *protocol.Goal
 	currentCalls     int
@@ -324,6 +346,9 @@ func (s *fakeUpdateGoalService) Create(context.Context, protocol.CreateGoalReque
 
 func (s *fakeUpdateGoalService) Current(context.Context, string) (*protocol.Goal, error) {
 	s.currentCalls++
+	if s.currentErr != nil {
+		return nil, s.currentErr
+	}
 	if s.current == nil {
 		return nil, errors.New("current goal not configured")
 	}

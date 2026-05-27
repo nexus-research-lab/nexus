@@ -46,7 +46,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			}
 			current, err := svc.Current(ctx, sctx.CurrentSessionKey)
 			if err != nil {
-				return errorResult(err), nil
+				return updateGoalCurrentErrorResult(err, sctx.CurrentSessionKey), nil
 			}
 			item, err := updateGoalStatus(ctx, svc, current.ID, status, sctx.CurrentRoundID)
 			if err != nil {
@@ -58,6 +58,24 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			return structuredResult("goal marked blocked", goalPayload(item)), nil
 		},
 	}
+}
+
+func updateGoalCurrentErrorResult(err error, sessionKey string) sdkmcp.ToolResult {
+	if isGoalNotFoundError(err) {
+		message := fmt.Sprintf(
+			"cannot update goal for thread %s: no goal exists",
+			strings.TrimSpace(sessionKey),
+		)
+		return errorResultText(message)
+	}
+	return errorResult(err)
+}
+
+func isGoalNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "goal not found")
 }
 
 func updateGoalStatus(ctx context.Context, svc contract.Service, goalID string, status protocol.GoalStatus, roundID string) (*protocol.Goal, error) {
