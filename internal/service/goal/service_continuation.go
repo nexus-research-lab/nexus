@@ -35,15 +35,41 @@ func (s *Service) PlanContinuationForSession(ctx context.Context, sessionKey str
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
+	return s.planContinuationForGoal(ctx, item, strings.TrimSpace(previousRoundID))
+}
+
+func (s *Service) planContinuationForGoal(ctx context.Context, item *protocol.Goal, previousRoundID string) (*protocol.GoalContinuation, error) {
+	current := item
+	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
+		plan, err := s.planContinuationForLoadedGoal(ctx, current, previousRoundID)
+		if !errors.Is(err, ErrGoalVersionStale) {
+			return plan, err
+		}
+		reloaded, reloadErr := s.repo.GetGoal(ctx, current.ID)
+		if reloadErr != nil {
+			return nil, reloadErr
+		}
+		if reloaded == nil {
+			return nil, ErrGoalNotFound
+		}
+		current = reloaded
+	}
+	return nil, ErrGoalVersionStale
+}
+
+func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *protocol.Goal, previousRoundID string) (*protocol.GoalContinuation, error) {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return nil, nil
+	}
 	if s.goalBudgetExhausted(*item) {
-		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", strings.TrimSpace(previousRoundID), "Goal token budget exhausted")
+		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
 		return nil, err
 	}
 	if item.EmptyProgressCount > 0 {
 		return nil, nil
 	}
 	if max := s.config.GoalMaxContinuationsPerRun; max > 0 && item.ContinuationCount >= max {
-		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", strings.TrimSpace(previousRoundID), "Goal auto-continuation limit reached")
+		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", previousRoundID, "Goal auto-continuation limit reached")
 		return nil, err
 	}
 

@@ -1619,6 +1619,56 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	}
 }
 
+func TestServicePlanContinuationRetriesVersionStale(t *testing.T) {
+	repo := &staleOnceVersionRepository{
+		memoryRepository: newMemoryRepository(),
+		mutate: func(item protocol.Goal) protocol.Goal {
+			item.Objective = "Concurrent room slot update"
+			return item
+		},
+	}
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "room:group:continuation-plan-race",
+		Objective:  "Plan continuation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.staleGoalID = created.ID
+
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "room-round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.injected {
+		t.Fatal("stale version repository did not inject a version conflict")
+	}
+	if plan == nil {
+		t.Fatal("plan = nil, want retried continuation")
+	}
+	if plan.Goal.Objective != "Concurrent room slot update" || !strings.Contains(plan.Prompt, "Concurrent room slot update") {
+		t.Fatalf("plan = %#v, want continuation from reloaded room goal", plan)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 1 || current.Objective != "Concurrent room slot update" {
+		t.Fatalf("current = %#v, want retried continuation update on reloaded goal", current)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_scheduled" || got.RoundID != plan.RoundID {
+		t.Fatalf("last event = %#v, want continuation_scheduled after retry", got)
+	}
+}
+
 func TestServiceGoalContinuationStillCurrentRejectsStaleGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
