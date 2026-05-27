@@ -6,7 +6,11 @@ import { MessageItem } from "@/features/conversation/shared/message";
 import { cn } from "@/lib/utils";
 import { AssistantMessage, Message, RoomPendingAgentSlotState, } from "@/types/conversation/message";
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
-import { build_room_agent_round_entries, is_agent_round_active, } from "@/features/conversation/shared/utils";
+import {
+  build_room_agent_round_entries,
+  is_agent_round_active,
+  is_automation_trigger_user_message,
+} from "@/features/conversation/shared/utils";
 import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { useGroupThread } from "./group-thread-state";
 
@@ -121,7 +125,7 @@ function GroupRoundCardGroupInner(
   const {active_thread, close_thread, open_thread} = useGroupThread();
 
   const user_message = useMemo(
-    () => messages.find((message) => message.role === "user"),
+    () => messages.find((message) => message.role === "user" && !is_automation_trigger_user_message(message)),
     [messages],
   );
 

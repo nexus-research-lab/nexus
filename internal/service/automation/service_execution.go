@@ -187,7 +187,9 @@ func (s *Service) startJobExecution(ctx context.Context, job protocol.CronJob, t
 	sink := automationdomain.NewExecutionSink("automation:" + runID)
 	cleanup := s.bindSink(sessionKey, sink)
 	roomObserver := roomEventObserverForSink(sink)
-	if err := s.dispatchJobToSession(ctx, job, sessionKey, roundID, roomObserver); err != nil {
+	dispatchJob := job
+	dispatchJob.Instruction = buildCronInstruction(job)
+	if err := s.dispatchJobToSession(ctx, dispatchJob, sessionKey, roundID, roomObserver); err != nil {
 		cleanup()
 		sink.Close()
 		finishedAt := s.nowFn()
@@ -416,6 +418,38 @@ func (s *Service) recordSkippedOverlap(
 	}, nil
 }
 
+func buildCronInstruction(job protocol.CronJob) string {
+	marker := buildCronMarker(job)
+	instruction := strings.TrimSpace(job.Instruction)
+	if instruction == "" {
+		return marker
+	}
+	return marker + " " + instruction
+}
+
+func buildCronMarker(job protocol.CronJob) string {
+	jobID := strings.TrimSpace(job.JobID)
+	if jobID == "" {
+		jobID = "unknown"
+	}
+	name := normalizeCronMarkerLabel(job.Name)
+	if name == "" {
+		return "[cron:" + jobID + "]"
+	}
+	return "[cron:" + jobID + " " + name + "]"
+}
+
+func normalizeCronMarkerLabel(value string) string {
+	cleaned := strings.NewReplacer(
+		"[", " ",
+		"]", " ",
+		"\r", " ",
+		"\n", " ",
+		"\t", " ",
+	).Replace(strings.TrimSpace(value))
+	return strings.Join(strings.Fields(cleaned), " ")
+}
+
 func (s *Service) bindSink(sessionKey string, sink *automationdomain.ExecutionSink) func() {
 	if s.permission == nil {
 		return func() {}
@@ -484,7 +518,7 @@ func (s *Service) enqueueMainSessionEvent(ctx context.Context, job protocol.Cron
 		map[string]any{
 			"agent_id":            job.AgentID,
 			"job_id":              job.JobID,
-			"text":                job.Instruction,
+			"text":                buildCronInstruction(job),
 			"trigger_kind":        triggerKind,
 			"session_target_kind": job.SessionTarget.Kind,
 		},

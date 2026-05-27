@@ -5,6 +5,8 @@ import {
   RoomPendingAgentSlotState,
 } from "@/types/conversation/message";
 import { PendingPermission } from "@/types/conversation/permission";
+import { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
+export { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
 
 /** 将消息按 round_id 分组 */
 export function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
@@ -317,7 +319,7 @@ export function group_room_pending_slots_by_round(
 /** 过滤出 Thread 需要展示的用户消息和目标 Agent 的执行链。 */
 export function get_room_thread_messages(messages: Message[], agent_id: string): Message[] {
   return messages.filter((message) => (
-    message.role === "user" ||
+    (message.role === "user" && !is_automation_trigger_user_message(message)) ||
     (
       message.role === "system" &&
       message.agent_id === agent_id &&
