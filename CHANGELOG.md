@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-05-27
+
 ### Added
-- 常规设置新增默认对话模型、默认生图模型和后台任务模型三个模型角色，Provider 列表对已配置启用项显示轻量状态标识，标题生成等基础任务优先使用后台任务模型。
-- Custom Provider 放开 Chat Completions、Responses 和 Anthropic Messages 三种协议配置、同步与测试，并开放 OpenAI 预置配置；默认对话模型仍只允许选择当前 Agent runtime 支持的 Provider 模型。
-- 标题生成改为后端轻量 LLM client，支持 Anthropic Messages、Chat Completions 和 Responses 三种协议，后台任务模型可选择任意启用的 LLM Provider 模型。
-- `nexusctl imagegen` 支持显式传入 `--provider` 和 `--model` 覆盖默认生图模型，skill 默认仍优先读取 Settings 的默认生图模型。
-- 内置 Provider 的 Base URL 和 Models Path 改为固定使用内置 catalog，设置页展示所有预置 API Format 的 Base URL，Custom Provider 继续允许自定义 endpoint。
+- 常规设置新增默认对话模型、默认生图模型和后台任务模型三个模型角色，标题生成等后台任务优先使用后台任务模型。
+- Custom Provider 支持 Chat Completions、Responses 和 Anthropic Messages 三种协议配置、同步与测试，并开放 OpenAI 预置配置。
+- `nexusctl imagegen` 支持通过 `--provider` 和 `--model` 显式覆盖默认生图模型。
+
+### Changed
+- 重构 Provider 默认模型与轻量 LLM 调用链路，默认对话模型仍限定在当前 Agent runtime 支持的 Provider 模型范围内。
+- 内置 Provider 的 Base URL 和 Models Path 固定使用内置 catalog，设置页展示所有预置 API Format 的 Base URL，Custom Provider 继续允许自定义 endpoint。
+- 收口 Agent 提示词运行时上下文和工作区模板，使内置运行约束、默认模型和工具使用说明更一致。
+
+### Fixed
+- 修复群聊成员选择点击行为。
 
 ## [0.1.10] - 2026-05-26
 
