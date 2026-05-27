@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -25,10 +24,8 @@ func TestGoalCompletionPayloadIncludesBudgetReportInstruction(t *testing.T) {
 	if !ok || report == "" {
 		t.Fatalf("completionBudgetReport = %#v, want instruction", payload["completionBudgetReport"])
 	}
-	for _, want := range []string{"goal.tokensUsed", "goal.tokenBudget", "goal.timeUsedSeconds"} {
-		if !strings.Contains(report, want) {
-			t.Fatalf("completionBudgetReport missing %q: %s", want, report)
-		}
+	if report != completionBudgetReportText {
+		t.Fatalf("completionBudgetReport = %q, want %q", report, completionBudgetReportText)
 	}
 	if payload["remainingTokens"] != int64(58) {
 		t.Fatalf("remainingTokens = %#v, want 58", payload["remainingTokens"])
