@@ -922,12 +922,17 @@ func TestServiceRejectsOversizedObjective(t *testing.T) {
 	ctx := context.Background()
 	oversized := strings.Repeat("x", maxGoalObjectiveRunes+1)
 
-	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
+	_, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "   ",
+	})
+	assertGoalInvalidInputMessage(t, err, goalObjectiveEmptyMessage)
+
+	_, err = service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
 		Objective:  oversized,
-	}); !errors.Is(err, ErrGoalInvalidInput) {
-		t.Fatalf("Create oversized objective error = %v, want ErrGoalInvalidInput", err)
-	}
+	})
+	assertGoalInvalidInputMessage(t, err, goalObjectiveTooLongMessage)
 
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
@@ -938,8 +943,10 @@ func TestServiceRejectsOversizedObjective(t *testing.T) {
 	}
 	if _, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{
 		Objective: &oversized,
-	}); !errors.Is(err, ErrGoalInvalidInput) {
-		t.Fatalf("Update oversized objective error = %v, want ErrGoalInvalidInput", err)
+	}); err != nil {
+		assertGoalInvalidInputMessage(t, err, goalObjectiveTooLongMessage)
+	} else {
+		t.Fatal("Update oversized objective error = nil, want ErrGoalInvalidInput")
 	}
 }
 
@@ -952,13 +959,12 @@ func TestServiceRejectsNonPositiveBudget(t *testing.T) {
 	zero := int64(0)
 	negative := int64(-1)
 
-	if _, err := service.Create(ctx, protocol.CreateGoalRequest{
+	_, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey:  "agent:nexus:ws:dm:chat",
 		Objective:   "Invalid budget",
 		TokenBudget: &zero,
-	}); !errors.Is(err, ErrGoalInvalidInput) {
-		t.Fatalf("Create zero budget error = %v, want ErrGoalInvalidInput", err)
-	}
+	})
+	assertGoalInvalidInputMessage(t, err, goalBudgetPositiveMessage)
 
 	created, err := service.Create(ctx, protocol.CreateGoalRequest{
 		SessionKey: "agent:nexus:ws:dm:chat",
@@ -969,8 +975,10 @@ func TestServiceRejectsNonPositiveBudget(t *testing.T) {
 	}
 	if _, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{
 		TokenBudget: optionalBudget(negative),
-	}); !errors.Is(err, ErrGoalInvalidInput) {
-		t.Fatalf("Update negative budget error = %v, want ErrGoalInvalidInput", err)
+	}); err != nil {
+		assertGoalInvalidInputMessage(t, err, goalBudgetPositiveMessage)
+	} else {
+		t.Fatal("Update negative budget error = nil, want ErrGoalInvalidInput")
 	}
 }
 
@@ -2166,6 +2174,16 @@ func optionalBudget(value int64) protocol.OptionalInt64 {
 
 func clearBudget() protocol.OptionalInt64 {
 	return protocol.OptionalInt64{Present: true}
+}
+
+func assertGoalInvalidInputMessage(t *testing.T, err error, want string) {
+	t.Helper()
+	if !errors.Is(err, ErrGoalInvalidInput) {
+		t.Fatalf("error = %v, want ErrGoalInvalidInput", err)
+	}
+	if err.Error() != want {
+		t.Fatalf("error text = %q, want %q", err.Error(), want)
+	}
 }
 
 type fakeGoalBroadcaster struct {

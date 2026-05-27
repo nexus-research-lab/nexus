@@ -15,7 +15,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-const maxGoalObjectiveRunes = 4000
+const (
+	maxGoalObjectiveRunes = 4000
+
+	goalObjectiveEmptyMessage   = "goal objective must not be empty"
+	goalObjectiveTooLongMessage = "goal objective must be at most 4000 characters"
+	goalBudgetPositiveMessage   = "goal budgets must be positive when provided"
+)
 
 // Service 负责 Goal 状态机、审计事件和后续运行时决策。
 type Service struct {
@@ -433,8 +439,11 @@ func createGoalEventSource(createdBy string) protocol.GoalUpdateSource {
 
 func normalizeObjective(input string) (string, error) {
 	objective := strings.TrimSpace(input)
-	if objective == "" || utf8.RuneCountInString(objective) > maxGoalObjectiveRunes {
-		return "", ErrGoalInvalidInput
+	if objective == "" {
+		return "", newGoalInvalidInputError(goalObjectiveEmptyMessage)
+	}
+	if utf8.RuneCountInString(objective) > maxGoalObjectiveRunes {
+		return "", newGoalInvalidInputError(goalObjectiveTooLongMessage)
 	}
 	return objective, nil
 }
@@ -444,7 +453,7 @@ func normalizeCreateBudget(input *int64) (*int64, error) {
 		return nil, nil
 	}
 	if *input <= 0 {
-		return nil, ErrGoalInvalidInput
+		return nil, newGoalInvalidInputError(goalBudgetPositiveMessage)
 	}
 	value := *input
 	return &value, nil
@@ -455,7 +464,7 @@ func normalizeUpdateBudget(input *int64) (*int64, error) {
 		return nil, nil
 	}
 	if *input <= 0 {
-		return nil, ErrGoalInvalidInput
+		return nil, newGoalInvalidInputError(goalBudgetPositiveMessage)
 	}
 	value := *input
 	return &value, nil
