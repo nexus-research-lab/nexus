@@ -1780,6 +1780,46 @@ func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
 	}
 }
 
+func TestServiceRecordContinuationProgressRetriesVersionStale(t *testing.T) {
+	repo := &staleOnceVersionRepository{
+		memoryRepository: newMemoryRepository(),
+		mutate: func(item protocol.Goal) protocol.Goal {
+			item.Objective = "Concurrent room slot update"
+			return item
+		},
+	}
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "room:group:continuation-race",
+		Objective:  "Retry continuation progress",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.staleGoalID = created.ID
+
+	updated, err := service.RecordContinuationProgress(ctx, created.ID, "goal_continuation_1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repo.injected {
+		t.Fatal("stale version repository did not inject a version conflict")
+	}
+	if updated.EmptyProgressCount != 1 || updated.Objective != "Concurrent room slot update" {
+		t.Fatalf("updated = %#v, want retried empty-progress update on reloaded goal", updated)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.RoundID != "goal_continuation_1" {
+		t.Fatalf("last event = %#v, want continuation_suppressed after retry", got)
+	}
+}
+
 func TestServiceContinuationProgressResetAllowsNextContinuation(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

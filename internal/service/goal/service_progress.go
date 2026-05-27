@@ -21,13 +21,36 @@ func (s *Service) RecordContinuationProgress(ctx context.Context, goalID string,
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
+	return s.recordContinuationProgressForGoal(ctx, item, strings.TrimSpace(roundID), progressed)
+}
+
+func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool) (*protocol.Goal, error) {
+	current := item
+	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
+		updated, err := s.recordContinuationProgressForLoadedGoal(ctx, current, roundID, progressed)
+		if !errors.Is(err, ErrGoalVersionStale) {
+			return updated, err
+		}
+		reloaded, reloadErr := s.repo.GetGoal(ctx, current.ID)
+		if reloadErr != nil {
+			return nil, reloadErr
+		}
+		if reloaded == nil {
+			return nil, ErrGoalNotFound
+		}
+		current = reloaded
+	}
+	return nil, ErrGoalVersionStale
+}
+
+func (s *Service) recordContinuationProgressForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool) (*protocol.Goal, error) {
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return item, nil
 	}
 	if progressed {
 		return s.resetContinuationProgress(ctx, item)
 	}
-	return s.noteEmptyContinuationProgress(ctx, item, strings.TrimSpace(roundID))
+	return s.noteEmptyContinuationProgress(ctx, item, roundID)
 }
 
 func (s *Service) resetContinuationProgress(ctx context.Context, item *protocol.Goal) (*protocol.Goal, error) {
