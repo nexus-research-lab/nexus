@@ -49,6 +49,7 @@ export function RoomGoalPanel({
       compact={is_mobile_layout}
       continuation_hold={continuation_hold}
       disabled={!can_control_session}
+      empty_state_variant="launcher"
       edit_request={edit_request}
       is_generating={is_loading}
       session_key={session_key}

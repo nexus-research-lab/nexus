@@ -10,9 +10,9 @@ import type {
 
 const AGENT_API_BASE_URL = get_agent_api_base_url();
 
-export async function get_current_goal_api(session_key: string): Promise<Goal> {
+export async function get_current_goal_api(session_key: string): Promise<Goal | null> {
   const query = new URLSearchParams({ session_key });
-  return request_api<Goal>(
+  return request_api<Goal | null>(
     `${AGENT_API_BASE_URL}/goals/current?${query.toString()}`,
     {
       method: "GET",

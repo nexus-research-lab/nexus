@@ -22,8 +22,15 @@ import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
-import { GoalDraftForm, GoalEmptyStrip, GoalStatusStrip } from "./goal-panel-view";
+import {
+  GoalDraftForm,
+  GoalEmptyStrip,
+  GoalStartLauncher,
+  GoalStatusStrip,
+} from "./goal-panel-view";
 import type { GoalPanelEditRequest } from "./use-goal-panel-edit-request";
+
+type GoalPanelEmptyStateVariant = "hidden" | "launcher" | "strip";
 
 interface GoalPanelProps {
   session_key: string | null;
@@ -32,9 +39,9 @@ interface GoalPanelProps {
   activity_key?: string | number | null;
   continuation_hold?: GoalContinuationHold | null;
   edit_request?: GoalPanelEditRequest | null;
+  empty_state_variant?: GoalPanelEmptyStateVariant;
   is_generating?: boolean;
   scope_label?: string;
-  show_empty_state?: boolean;
 }
 
 function is_goal_unavailable(error: unknown) {
@@ -76,9 +83,9 @@ export function GoalPanel({
   disabled = false,
   activity_key = null,
   edit_request = null,
+  empty_state_variant = "hidden",
   is_generating = false,
   scope_label = "会话 Goal",
-  show_empty_state = false,
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
   const [events, set_events] = useState<GoalEvent[]>([]);
@@ -130,6 +137,14 @@ export function GoalPanel({
     set_is_loading(true);
     try {
       const current = await get_current_goal_api(session_key);
+      if (!current) {
+        set_goal(null);
+        set_events([]);
+        set_resume_prompt_goal(null);
+        set_is_available(true);
+        set_error(null);
+        return;
+      }
       set_goal(current);
       set_is_creating(false);
       maybe_prompt_resume_goal(current);
@@ -292,8 +307,19 @@ export function GoalPanel({
   }
 
   if (!goal && !is_creating) {
-    if (!show_empty_state) {
+    if (empty_state_variant === "hidden") {
       return null;
+    }
+    if (empty_state_variant === "launcher") {
+      return (
+        <GoalStartLauncher
+          compact={compact}
+          disabled={disabled}
+          is_loading={is_loading}
+          scope_label={scope_label}
+          on_create={start_creating_goal}
+        />
+      );
     }
     return (
       <GoalEmptyStrip

@@ -126,7 +126,8 @@ async function clear_current_goal_if_present(session_key: string) {
 
 export async function current_goal_or_null(session_key: string): Promise<Goal | null> {
   try {
-    return await get_current_goal_api(session_key);
+    const current = await get_current_goal_api(session_key);
+    return current ?? null;
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 404) {
       return null;

@@ -424,6 +424,7 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         continuation_hold={goal_continuation_hold}
         disabled={!can_control_session}
+        empty_state_variant="launcher"
         edit_request={goal_edit_request}
         is_generating={is_loading}
         session_key={session_key}

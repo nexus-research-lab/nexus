@@ -23,7 +23,7 @@ func New(api *handlershared.API, goals *goalsvc.Service) *Handlers {
 
 // HandleGetCurrentGoal 返回 session 当前 Goal。
 func (h *Handlers) HandleGetCurrentGoal(writer http.ResponseWriter, request *http.Request) {
-	goal, err := h.goals.Current(request.Context(), request.URL.Query().Get("session_key"))
+	goal, err := h.goals.CurrentOptional(request.Context(), request.URL.Query().Get("session_key"))
 	if err != nil {
 		h.writeGoalError(writer, err)
 		return
