@@ -259,14 +259,17 @@ export async function update_room_conversation(
 export async function delete_room_conversation(
   room_id: string,
   conversation_id: string,
-): Promise<RoomContextAggregate> {
-  const context = await request_api<ApiRoomContextAggregate>(
+): Promise<RoomContextAggregate | null> {
+  const context = await request_api<ApiRoomContextAggregate | null>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
     {
       method: "DELETE",
     },
   );
   notify_room_directory_updated();
+  if (context === null) {
+    return null;
+  }
   return transform_room_context(context);
 }
 

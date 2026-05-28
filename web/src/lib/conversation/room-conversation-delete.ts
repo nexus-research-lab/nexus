@@ -8,7 +8,6 @@ export interface ConversationDeleteState {
 
 export function resolve_room_conversation_delete_state(
   conversation: RoomConversationView,
-  conversation_count: number,
   can_manage_conversations: boolean,
   t: I18nContextValue["t"],
 ): ConversationDeleteState {
@@ -18,10 +17,6 @@ export function resolve_room_conversation_delete_state(
 
   if (conversation.conversation_type !== "topic") {
     return { enabled: false, reason: t("room.delete_main_locked") };
-  }
-
-  if (conversation_count <= 1) {
-    return { enabled: false, reason: t("room.delete_keep_one") };
   }
 
   return { enabled: true, reason: null };

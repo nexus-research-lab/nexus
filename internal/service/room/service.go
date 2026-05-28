@@ -90,7 +90,7 @@ func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protoco
 	if err != nil {
 		return nil, err
 	}
-	if len(contexts) == 0 {
+	if contexts == nil {
 		return nil, ErrRoomNotFound
 	}
 	return contexts, nil
@@ -458,14 +458,11 @@ func (s *Service) UpdateConversationTitle(
 	return s.UpdateConversation(ctx, roomID, conversationID, protocol.UpdateConversationRequest{Title: title})
 }
 
-// DeleteConversation 删除 room 话题并返回回退上下文。
+// DeleteConversation 删除 room 话题并返回回退上下文；没有可回退对话时返回 nil。
 func (s *Service) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return nil, err
-	}
-	if len(contexts) <= 1 {
-		return nil, errors.New("Room 至少保留一个对话")
 	}
 	target, ok := roomdomain.FindConversation(contexts, conversationID)
 	if !ok {
@@ -486,9 +483,6 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	)
 	if err != nil {
 		return nil, err
-	}
-	if contextValue == nil {
-		return nil, ErrConversationNotFound
 	}
 	if err = s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil); err != nil {
 		return nil, err
