@@ -8,19 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Skill 社区发现支持 `skills.sh`、配置化索引 JSON、Git 仓库和直链 `SKILL.md`/zip 多来源，并记录导入来源以支持后续更新。
-- Skill 社区发现新增内置 `claude-plugins.dev`、`skills.sh`、`clawhub.ai`、`browse.sh` 和可选 Hermes Skills Index 注册表来源，支持按来源类型搜索和导入。
-- Skill 社区来源和已导入 Skill 元数据写入数据库，前端新增来源管理入口，支持按用户维护可用来源。
-- Skill 导入入口合并为统一弹窗，支持本地 zip 与 Git 导入，并展示 `SKILL.md` 规范、Room Skill `scope: room` 说明和 Git branch/path 输入。
+- Skill community discovery now supports `skills.sh`, configurable JSON indexes, Git repositories, and direct `SKILL.md`/zip URLs, with import metadata recorded for future updates.
+- Skill community discovery now includes built-in `claude-plugins.dev`, `skills.sh`, `clawhub.ai`, `browse.sh`, and optional Hermes Skills Index sources with source-based search and import.
+- Skill sources and imported Skill metadata are stored in the database, and the frontend now has a source management entry so each user can control enabled sources.
+- The Skill import flow is consolidated into one dialog with local zip and Git import support, `SKILL.md` guidance, Room Skill `scope: room` guidance, and Git branch/path fields.
+- `nexusctl skill` now supports external source search, Git import, one-shot external import/install, and imported Skill updates while keeping Agent install state file-based in the workspace.
 
 ### Changed
-- 移除独立 `nexus-migrate` 二进制和手动迁移子命令，数据库迁移与 Docker owner bootstrap 统一收口到 `nexus-server` 启动流程；前端协议类型生成改为 `go generate ./internal/protocol`。
+- Removed the standalone `nexus-migrate` binary and manual migration subcommands; database migration and Docker owner bootstrap now run through `nexus-server`, and frontend protocol generation uses `go generate ./internal/protocol`.
+- `skills.sh` community imports now clone the backing GitHub repository and import the selected skill directory directly instead of depending on `pnpm dlx skills add`.
+- Agent runtime identity prompts now enforce the injected person identity more explicitly and reject AI/tool framing.
 
 ### Fixed
-- 修复 Provider 配置未区分多用户的问题，现有 Provider 统一迁为公共配置，用户私有 Provider 按 owner 隔离，公共 Provider 仅允许 owner/admin 维护。
-- 修复能力页 Connector 连接态、外部 Skill 注册表和汇总计数未按当前用户隔离的问题，旧全局 Skill 会迁移到实际部署使用该 Skill 的用户。
-- 修复桌面端新配置 Provider 后未自动落默认模型导致 Agent 提示未配置模型的问题，并降低成功静态资源和只读请求日志噪音。
-- 修复 skills.sh 导入时 `pnpm dlx` 不兼容 `--store-dir` 参数导致线上导入失败的问题。
+- Fixed Provider configuration scoping for multi-user deployments: existing Providers migrate to public configuration, private Providers are owner-scoped, and public Providers can only be maintained by the owner/admin.
+- Fixed capability page Connector status, external Skill registry data, and summary counts so they are scoped to the current user; legacy global Skills migrate to users that actually deploy them.
+- Removed the old Room topic deletion constraint that required keeping one conversation, allowing deletion of the last deletable topic with an empty fallback context.
+- Fixed desktop mode so newly configured Providers populate the default model automatically instead of leaving Agents without a model, and reduced successful static asset/read-only request log noise.
+- Agent skill management now dynamically discovers workspace-created Skills under `.agents/skills`, `.agents`, and `.claude/skills`, and the Agent options Skill tab refreshes while visible so newly created Skills can be managed.
+- Updated the GLM Coding Plan Anthropic model discovery endpoint so model selectors can load the complete model list.
 
 ## [0.1.11] - 2026-05-27
 
