@@ -145,15 +145,35 @@ func AccessLogMiddleware() func(http.Handler) http.Handler {
 				fields = append(fields, "query", sanitizeQueryForLog(rawQuery))
 			}
 
-			switch {
-			case recorder.status >= http.StatusInternalServerError:
+			switch accessLogLevel(request, recorder.status, duration) {
+			case slog.LevelError:
 				requestLogger.Error("HTTP 请求完成", fields...)
-			case recorder.status >= http.StatusBadRequest:
+			case slog.LevelWarn:
 				requestLogger.Warn("HTTP 请求完成", fields...)
-			default:
+			case slog.LevelInfo:
 				requestLogger.Info("HTTP 请求完成", fields...)
+			default:
+				requestLogger.Debug("HTTP 请求完成", fields...)
 			}
 		})
+	}
+}
+
+func accessLogLevel(request *http.Request, status int, duration time.Duration) slog.Level {
+	if status >= http.StatusInternalServerError {
+		return slog.LevelError
+	}
+	if status >= http.StatusBadRequest {
+		return slog.LevelWarn
+	}
+	if status == http.StatusSwitchingProtocols || duration >= time.Second {
+		return slog.LevelInfo
+	}
+	switch request.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return slog.LevelDebug
+	default:
+		return slog.LevelInfo
 	}
 }
 

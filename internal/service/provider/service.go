@@ -384,6 +384,12 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string, mod
 		if target == nil {
 			return nil, fmt.Errorf("provider 不存在: %s", targetProvider)
 		}
+		if targetModel == "" {
+			targetModel, err = s.resolveMissingExplicitModel(ctx, target.ID)
+			if err != nil {
+				return nil, err
+			}
+		}
 	} else {
 		if targetModel != "" {
 			return nil, errors.New("指定 model 时必须同时指定 provider")
@@ -422,6 +428,12 @@ func (s *Service) ResolveLLMConfig(ctx context.Context, provider string, model s
 		}
 		if target == nil {
 			return nil, fmt.Errorf("provider 不存在: %s", targetProvider)
+		}
+		if targetModel == "" {
+			targetModel, err = s.resolveMissingExplicitModel(ctx, target.ID)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		if targetModel != "" {
@@ -779,6 +791,17 @@ func (s *Service) defaultOrFirstEnabledModel(
 		}
 	}
 	return nil, nil
+}
+
+func (s *Service) resolveMissingExplicitModel(ctx context.Context, providerID string) (string, error) {
+	model, err := s.defaultOrFirstEnabledModel(ctx, providerID)
+	if err != nil {
+		return "", err
+	}
+	if model == nil {
+		return "", nil
+	}
+	return strings.TrimSpace(model.ModelID), nil
 }
 
 func normalizeCreateInput(input CreateInput) (CreateInput, error) {

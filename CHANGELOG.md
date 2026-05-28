@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 修复 Provider 配置未区分多用户的问题，现有 Provider 统一迁为公共配置，用户私有 Provider 按 owner 隔离，公共 Provider 仅允许 owner/admin 维护。
 - 修复能力页 Connector 连接态、外部 Skill 注册表和汇总计数未按当前用户隔离的问题，旧全局 Skill 会迁移到实际部署使用该 Skill 的用户。
+- 修复桌面端新配置 Provider 后未自动落默认模型导致 Agent 提示未配置模型的问题，并降低成功静态资源和只读请求日志噪音。
 - 修复 skills.sh 导入时 `pnpm dlx` 不兼容 `--store-dir` 参数导致线上导入失败的问题。
 
 ## [0.1.11] - 2026-05-27

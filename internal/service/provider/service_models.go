@@ -84,6 +84,9 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err = s.repository.UpsertModels(ctx, entities); err != nil {
 		return nil, err
 	}
+	if err = s.autoDefaultDiscoveredModel(ctx, *item, models); err != nil {
+		return nil, err
+	}
 	saved, err := s.modelsForRecord(ctx, item.ID)
 	if err != nil {
 		return nil, err
@@ -239,6 +242,11 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 		return s.persistTestResult(ctx, *item, "", errors.New("未找到可测试模型"))
 	}
 	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
+	if testErr == nil {
+		if readyErr := s.ensureTestedModelReady(ctx, *item, modelID); readyErr != nil {
+			return nil, readyErr
+		}
+	}
 	return s.persistTestResult(ctx, *item, modelID, testErr)
 }
 
@@ -256,6 +264,11 @@ func (s *Service) TestModel(ctx context.Context, provider string, modelID string
 		return nil, errors.New("model_id 不能为空")
 	}
 	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
+	if testErr == nil {
+		if readyErr := s.ensureTestedModelReady(ctx, *item, modelID); readyErr != nil {
+			return nil, readyErr
+		}
+	}
 	return s.persistTestResult(ctx, *item, modelID, testErr)
 }
 
@@ -358,10 +371,112 @@ func (s *Service) fetchRemoteModels(ctx context.Context, item providerstore.Enti
 		"endpoint", endpoint,
 		"status", response.StatusCode,
 		"model_count", len(models),
-		"model_ids", previewRemoteModelIDs(models, 40),
-		"body_preview", sanitizedBodyPreview(body, item.AuthToken),
+		"model_ids", previewRemoteModelIDs(models, 10),
 	)
 	return models, nil
+}
+
+func (s *Service) autoDefaultDiscoveredModel(
+	ctx context.Context,
+	item providerstore.Entity,
+	remoteModels []remoteModel,
+) error {
+	if !item.Enabled {
+		return nil
+	}
+	switch item.ProviderKind {
+	case ProviderKindLLM:
+		if !isAgentRuntimeProvider(item) {
+			return nil
+		}
+		target, err := s.defaultRuntimeSelection(ctx)
+		if err != nil {
+			return err
+		}
+		if target != nil {
+			return nil
+		}
+	case ProviderKindImageGeneration:
+		target, err := s.defaultImageSelection(ctx)
+		if err != nil {
+			return err
+		}
+		if target != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+
+	modelID := ""
+	model, err := s.defaultOrFirstEnabledModel(ctx, item.ID)
+	if err != nil {
+		return err
+	}
+	if model != nil {
+		modelID = strings.TrimSpace(model.ModelID)
+	}
+	if modelID == "" {
+		modelID = firstRemoteModelID(remoteModels)
+	}
+	if modelID == "" {
+		return nil
+	}
+	if err := s.repository.UpdateDefaultModel(ctx, item.ID, modelID, s.now()); err != nil {
+		return err
+	}
+	s.loggerFor(ctx).Info(
+		"自动设置 Provider 默认模型",
+		"provider", item.Provider,
+		"model", modelID,
+	)
+	return nil
+}
+
+func (s *Service) ensureTestedModelReady(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+) error {
+	modelID = strings.TrimSpace(modelID)
+	if modelID == "" {
+		return nil
+	}
+	model, err := s.repository.GetModel(ctx, item.ID, modelID)
+	if err != nil {
+		return err
+	}
+	if model == nil {
+		capabilities, category, contextWindow, maxOutput := defaultModelCard()
+		now := s.now()
+		model = &providerstore.ModelEntity{
+			ID:                       s.idFactory("provider_model"),
+			ProviderID:               item.ID,
+			ModelID:                  modelID,
+			DisplayName:              modelID,
+			Category:                 category,
+			Enabled:                  true,
+			IsDefault:                false,
+			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+			CapabilitiesOverrideJSON: "{}",
+			ContextWindow:            contextWindow,
+			MaxOutputTokens:          maxOutput,
+			ProviderOptionsJSON:      "{}",
+			LastSeenAt:               now,
+			CreatedAt:                now,
+			UpdatedAt:                now,
+		}
+		if err = s.repository.UpsertModels(ctx, []providerstore.ModelEntity{*model}); err != nil {
+			return err
+		}
+	} else if !model.Enabled {
+		model.Enabled = true
+		model.UpdatedAt = s.now()
+		if err = s.repository.UpdateModel(ctx, *model); err != nil {
+			return err
+		}
+	}
+	return s.autoDefaultDiscoveredModel(ctx, item, []remoteModel{{ID: modelID}})
 }
 
 func (s *Service) sendMinimalModelRequest(ctx context.Context, item providerstore.Entity, modelID string) error {
@@ -863,6 +978,16 @@ func sanitizeHTTPBody(body []byte, secrets ...string) string {
 
 func sanitizedBodyPreview(body []byte, secrets ...string) string {
 	return logx.PreviewText(sanitizeErrorMessage(string(body), secrets...), 2000)
+}
+
+func firstRemoteModelID(models []remoteModel) string {
+	for _, model := range models {
+		modelID := strings.TrimSpace(model.ID)
+		if modelID != "" {
+			return modelID
+		}
+	}
+	return ""
 }
 
 func previewRemoteModelIDs(models []remoteModel, limit int) []string {

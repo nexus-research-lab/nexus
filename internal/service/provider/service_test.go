@@ -657,6 +657,187 @@ func TestFetchModelsMergesCardsAndPreservesOverride(t *testing.T) {
 	}
 }
 
+func TestFetchModelsAutoSelectsDefaultRuntimeModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/models" {
+			t.Fatalf("模型列表路径不正确: %s", request.URL.Path)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"model-b"},{"id":"model-a"}]}`))
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:    "runtime-default",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "runtime-key",
+		BaseURL:     server.URL,
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Runtime Default",
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	if _, err = service.FetchModels(ctx, record.Provider); err != nil {
+		t.Fatalf("FetchModels 失败: %v", err)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultProvider == nil || *options.DefaultProvider != record.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "model-b" {
+		t.Fatalf("未自动选择默认模型: %+v", options)
+	}
+	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, record.Provider, "")
+	if err != nil {
+		t.Fatalf("显式 provider 缺省 model 应回落到默认模型: %v", err)
+	}
+	if runtimeConfig.Provider != record.Provider || runtimeConfig.Model != "model-b" {
+		t.Fatalf("runtime config 默认模型不正确: %+v", runtimeConfig)
+	}
+}
+
+func TestFetchModelsKeepsExistingDefaultRuntimeModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	first, err := service.Create(ctx, CreateInput{
+		Provider:  "first-default",
+		PresetKey: presetCustom,
+		APIFormat: APIFormatAnthropicMessages,
+		AuthToken: "first-key",
+		BaseURL:   "https://first.example.com",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("创建首个 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, first.Provider, "first-model", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置首个默认模型失败: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"second-model"}]}`))
+	}))
+	defer server.Close()
+	second, err := service.Create(ctx, CreateInput{
+		Provider:   "second-default",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatAnthropicMessages,
+		AuthToken:  "second-key",
+		BaseURL:    server.URL,
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建第二个 provider 失败: %v", err)
+	}
+	if _, err = service.FetchModels(ctx, second.Provider); err != nil {
+		t.Fatalf("FetchModels 失败: %v", err)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultProvider == nil || *options.DefaultProvider != first.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "first-model" {
+		t.Fatalf("已有默认模型不应被覆盖: %+v", options)
+	}
+}
+
+func TestTestProviderAutoSelectsTestedModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/models":
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"data":[{"id":"model-b"},{"id":"model-a"}]}`))
+		case "/v1/messages":
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{}`))
+		default:
+			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:   "test-provider-default",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatAnthropicMessages,
+		AuthToken:  "test-key",
+		BaseURL:    server.URL,
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	result, err := service.TestProvider(ctx, record.Provider)
+	if err != nil {
+		t.Fatalf("测试 provider 失败: %v", err)
+	}
+	if !result.Success || result.Model != "model-b" {
+		t.Fatalf("测试结果不正确: %+v", result)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultProvider == nil || *options.DefaultProvider != record.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "model-b" {
+		t.Fatalf("provider 测试成功后未自动设置默认模型: %+v", options)
+	}
+}
+
+func TestTestModelAutoSelectsTestedModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/messages" {
+			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
+		}
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:  "test-model-default",
+		PresetKey: presetCustom,
+		APIFormat: APIFormatAnthropicMessages,
+		AuthToken: "model-key",
+		BaseURL:   server.URL,
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	result, err := service.TestModel(ctx, record.Provider, "manual-model")
+	if err != nil {
+		t.Fatalf("测试模型失败: %v", err)
+	}
+	if !result.Success || result.Model != "manual-model" {
+		t.Fatalf("模型测试结果不正确: %+v", result)
+	}
+	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, record.Provider, "")
+	if err != nil {
+		t.Fatalf("测试模型成功后应可解析 runtime config: %v", err)
+	}
+	if runtimeConfig.Model != "manual-model" {
+		t.Fatalf("测试模型未成为默认模型: %+v", runtimeConfig)
+	}
+}
+
 func TestFetchModelsDoesNotInferModelCardsFromNames(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
@@ -763,12 +944,8 @@ func TestFetchModelsLogsModelsResponseData(t *testing.T) {
 	if success.attrs["provider"] != "log-fetch" {
 		t.Fatalf("日志 provider 不正确: %+v", success.attrs)
 	}
-	bodyPreview, _ := success.attrs["body_preview"].(string)
-	if !strings.Contains(bodyPreview, "model-a") {
-		t.Fatalf("日志 body_preview 未包含模型数据: %s", bodyPreview)
-	}
-	if strings.Contains(bodyPreview, "secret-log-key") {
-		t.Fatalf("日志 body_preview 泄漏密钥: %s", bodyPreview)
+	if _, ok := success.attrs["body_preview"]; ok {
+		t.Fatalf("成功日志不应记录完整响应预览: %+v", success.attrs)
 	}
 	modelIDs, _ := success.attrs["model_ids"].([]string)
 	if len(modelIDs) != 1 || modelIDs[0] != "model-a" {
