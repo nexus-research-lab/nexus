@@ -186,11 +186,6 @@ func (s *Service) ImportUploadedArchive(ctx context.Context, filename string, pa
 	})
 }
 
-// ImportGit 从 Git 仓库导入技能。
-func (s *Service) ImportGit(ctx context.Context, repositoryURL string, branch string) (*Detail, error) {
-	return s.importGit(ctx, repositoryURL, branch, "", externalManifest{})
-}
-
 // ImportGitPath 从 Git 仓库的指定子目录导入技能。
 func (s *Service) ImportGitPath(ctx context.Context, repositoryURL string, branch string, skillPath string) (*Detail, error) {
 	return s.importGit(ctx, repositoryURL, branch, skillPath, externalManifest{})

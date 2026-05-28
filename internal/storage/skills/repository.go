@@ -145,16 +145,6 @@ ON CONFLICT(owner_user_id, source_id) DO UPDATE SET
 	return err
 }
 
-func (r *Repository) DeleteSource(ctx context.Context, ownerUserID string, sourceID string) error {
-	_, err := r.db.ExecContext(
-		ctx,
-		"DELETE FROM skill_sources WHERE owner_user_id = "+r.bind(1)+" AND source_id = "+r.bind(2),
-		strings.TrimSpace(ownerUserID),
-		strings.TrimSpace(sourceID),
-	)
-	return err
-}
-
 func (r *Repository) RecordSourceCheck(ctx context.Context, ownerUserID string, sourceID string, checkedAt time.Time, lastError string) error {
 	if r.isPostgres {
 		_, err := r.db.ExecContext(
