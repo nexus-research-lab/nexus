@@ -51,11 +51,17 @@ var defaultScheduledTaskApprovedTools = map[string]struct{}{
 	"update_scheduled_task":           {},
 }
 
-var defaultScheduledTaskSupportTools = map[string]struct{}{
+var defaultGoalApprovedTools = map[string]struct{}{
+	"create_goal": {},
+	"get_goal":    {},
+	"update_goal": {},
+}
+
+var defaultManagedSupportTools = map[string]struct{}{
 	"Skill": {},
 }
 
-var defaultExternalApprovedTools = toolpolicy.MergeSets(defaultReadOnlyApprovedTools, defaultScheduledTaskApprovedTools)
+var defaultExternalApprovedTools = toolpolicy.MergeSets(defaultReadOnlyApprovedTools, defaultScheduledTaskApprovedTools, defaultGoalApprovedTools)
 
 // DMHandler 定义统一 DM 入口能力。
 type DMHandler interface {
@@ -460,7 +466,7 @@ func (s *IngressService) buildPermissionHandler(
 			return sdkpermission.Allow(permissionRequest.Input, nil), nil
 		}
 		if len(allowedByAgent) > 0 {
-			if !toolpolicy.Contains(allowedByAgent, toolName) && !isManagedScheduledTaskIngressTool(toolName) {
+			if !toolpolicy.Contains(allowedByAgent, toolName) && !isManagedIngressTool(toolName) {
 				return sdkpermission.Deny("当前 agent 未授权该工具", false), nil
 			}
 		}
@@ -478,8 +484,12 @@ func isManagedScheduledTaskTool(toolName string) bool {
 	return toolpolicy.Contains(defaultScheduledTaskApprovedTools, toolName)
 }
 
-func isManagedScheduledTaskIngressTool(toolName string) bool {
-	return isManagedScheduledTaskTool(toolName) || toolpolicy.Contains(defaultScheduledTaskSupportTools, toolName)
+func isManagedGoalTool(toolName string) bool {
+	return toolpolicy.Contains(defaultGoalApprovedTools, toolName)
+}
+
+func isManagedIngressTool(toolName string) bool {
+	return isManagedScheduledTaskTool(toolName) || isManagedGoalTool(toolName) || toolpolicy.Contains(defaultManagedSupportTools, toolName)
 }
 
 func splitDiscordRoute(ref string) (string, string) {

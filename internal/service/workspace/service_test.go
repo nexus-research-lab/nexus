@@ -140,6 +140,25 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			t.Fatalf("scheduled-task-manager skill 的 Claude 镜像目录缺少 SKILL.md: %v", err)
 		}
 	}
+	goalSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "goal-manager", "SKILL.md")
+	if _, err = os.Stat(goalSkillPath); err != nil {
+		t.Fatalf("系统托管 goal-manager skill 未部署: %v", err)
+	}
+	goalSkill, err := os.ReadFile(goalSkillPath)
+	if err != nil {
+		t.Fatalf("读取 goal-manager skill 失败: %v", err)
+	}
+	for _, expected := range []string{
+		"nexus_goal",
+		"create_goal",
+		"get_goal",
+		"update_goal",
+		"不要用 /goal 文本命令",
+	} {
+		if !strings.Contains(string(goalSkill), expected) {
+			t.Fatalf("goal-manager skill 缺少 %q", expected)
+		}
+	}
 
 	updated, err := workspaceService.UpdateFile(ctx, agentValue.AgentID, "notes/todo.md", "hello workspace")
 	if err != nil {

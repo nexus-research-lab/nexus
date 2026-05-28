@@ -53,6 +53,9 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	if !containsSkill(items, "scheduled-task-manager") {
 		t.Fatalf("定时任务系统 skill 未暴露: %+v", items)
 	}
+	if !containsSkill(items, "goal-manager") {
+		t.Fatalf("Goal 系统 skill 未暴露: %+v", items)
+	}
 	if containsSkill(items, "room-playbook") {
 		t.Fatalf("room scope skill 不应暴露为 agent 技能: %+v", items)
 	}
@@ -82,6 +85,9 @@ func TestServiceImportsAndInstallsSkill(t *testing.T) {
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "scheduled-task-manager"); err == nil {
 		t.Fatal("系统托管 scheduled-task-manager skill 不应允许手动安装")
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "goal-manager"); err == nil {
+		t.Fatal("系统托管 goal-manager skill 不应允许手动安装")
 	}
 
 	agentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "agent-only-skill")

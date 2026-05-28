@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 新增系统托管 `goal-manager` Skill，引导模型通过 `nexus_goal` 工具启动、读取、完成或阻塞当前会话 Goal，不再依赖 `/goal` 文本命令。
 - Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约和续跑上下文。
 - Goal 运行时新增 durable resume 后台恢复与 WebSocket 状态事件广播，服务重启后可继续推进 active Goal，前端 Goal 面板也能随状态事件刷新。
 - Goal 新增 Codex app-server 风格 `thread/goal/set|get|clear` 兼容 HTTP 入口，返回 camelCase `ThreadGoal` 投影。

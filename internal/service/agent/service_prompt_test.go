@@ -92,6 +92,39 @@ func TestServiceBuildRuntimePromptDirectsScheduledTaskSkill(t *testing.T) {
 	assertPromptContains(t, prompt, "run_scheduled_task")
 }
 
+func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
+	workspacePath := t.TempDir()
+	skillPath := filepath.Join(workspacePath, ".agents", "skills", "goal-manager")
+	if err := os.MkdirAll(skillPath, 0o755); err != nil {
+		t.Fatalf("创建 goal-manager 目录失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: goal-manager\ndescription: test\n---\n"), 0o644); err != nil {
+		t.Fatalf("写入 goal-manager 失败: %v", err)
+	}
+
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID:   "nexus",
+		BaseSystemPrompt: "BASE CUSTOM PROMPT",
+	}, nil)
+
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
+		AgentID:       "agent-1",
+		Name:          "planner",
+		WorkspacePath: workspacePath,
+	})
+	if err != nil {
+		t.Fatalf("构建运行时提示词失败: %v", err)
+	}
+
+	assertPromptContains(t, prompt, "Goal Skill 使用要求")
+	assertPromptContains(t, prompt, "goal-manager")
+	assertPromptContains(t, prompt, "nexus_goal")
+	assertPromptContains(t, prompt, "不要使用 /goal 文本命令")
+	assertPromptContains(t, prompt, "普通一次性请求、提醒和定时任务不要自动创建 Goal")
+	assertPromptContains(t, prompt, "token_budget")
+	assertPromptContains(t, prompt, "blocked")
+}
+
 func TestServiceBuildRuntimePromptUsesMainAgentPromptOverride(t *testing.T) {
 	workspacePath := t.TempDir()
 	writePromptFile(t, workspacePath, "AGENTS.md", "# AGENTS.md\n\n主智能体规则。")

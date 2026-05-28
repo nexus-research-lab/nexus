@@ -213,19 +213,38 @@ func buildManagedSkillUsageSection(workspacePath string) string {
 	if trimmedWorkspacePath == "" {
 		return ""
 	}
-	skillPath := filepath.Join(trimmedWorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")
-	if _, err := os.Stat(skillPath); err != nil {
+	sections := []string{}
+	if hasManagedSkill(trimmedWorkspacePath, "scheduled-task-manager") {
+		sections = append(sections, strings.Join([]string{
+			"## 托管 Skill 使用要求",
+			"- 涉及定时任务、提醒、每天/每周/每隔一段时间自动执行时，必须先使用 Skill 工具加载 scheduled-task-manager，再调用 nexus_automation。",
+			"- 创建定时任务时按 scheduled-task-manager 的模板生成参数；短提醒不要猜 execution_mode / reply_mode，复杂任务先向用户确认。",
+			"- 用户可见的提醒、延迟提醒、定时任务必须创建 Nexus 持久化定时任务；不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺用户提醒。",
+			"- 检查发送情况、恢复卡住任务、补发投递失败、修改投递目标、停止任务或重新启用已暂停任务时，也必须按 scheduled-task-manager 的工具顺序执行。",
+			"- 投递失败先查日报/状态并修正投递目标或通道配置，再 retry_scheduled_task_delivery；用户要停止正在跑的这次时，disable_scheduled_task 必须传 cancel_active_run=true。",
+			"- 执行失败且错误包含未授权工具或 AskUserQuestion 时，不要补投递旧 run；先让用户授权目标 Agent 工具或修改任务，再按需 run_scheduled_task 重新执行。",
+		}, "\n"))
+	}
+	if hasManagedSkill(trimmedWorkspacePath, "goal-manager") {
+		sections = append(sections, strings.Join([]string{
+			"## Goal Skill 使用要求",
+			"- 用户明确要求启动、设定或继续当前会话 Goal 时，必须先使用 Skill 工具加载 goal-manager，再调用 nexus_goal。",
+			"- 不要使用 /goal 文本命令；Goal 的模型入口是 goal-manager + nexus_goal，用户入口是界面的启动 Goal 按钮。",
+			"- 只有用户或系统/开发者明确要求 Goal 时才创建；普通一次性请求、提醒和定时任务不要自动创建 Goal。",
+			"- token_budget 只有用户明确给出预算时才传；暂停、恢复、清理、预算限制和用量限制由用户或系统控制。",
+			"- 完成目标前必须确认没有剩余必要工作；同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
+		}, "\n"))
+	}
+	if len(sections) == 0 {
 		return ""
 	}
-	return strings.Join([]string{
-		"## 托管 Skill 使用要求",
-		"- 涉及定时任务、提醒、每天/每周/每隔一段时间自动执行时，必须先使用 Skill 工具加载 scheduled-task-manager，再调用 nexus_automation。",
-		"- 创建定时任务时按 scheduled-task-manager 的模板生成参数；短提醒不要猜 execution_mode / reply_mode，复杂任务先向用户确认。",
-		"- 用户可见的提醒、延迟提醒、定时任务必须创建 Nexus 持久化定时任务；不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺用户提醒。",
-		"- 检查发送情况、恢复卡住任务、补发投递失败、修改投递目标、停止任务或重新启用已暂停任务时，也必须按 scheduled-task-manager 的工具顺序执行。",
-		"- 投递失败先查日报/状态并修正投递目标或通道配置，再 retry_scheduled_task_delivery；用户要停止正在跑的这次时，disable_scheduled_task 必须传 cancel_active_run=true。",
-		"- 执行失败且错误包含未授权工具或 AskUserQuestion 时，不要补投递旧 run；先让用户授权目标 Agent 工具或修改任务，再按需 run_scheduled_task 重新执行。",
-	}, "\n")
+	return strings.Join(sections, "\n\n")
+}
+
+func hasManagedSkill(workspacePath string, skillName string) bool {
+	skillPath := filepath.Join(workspacePath, ".agents", "skills", skillName, "SKILL.md")
+	_, err := os.Stat(skillPath)
+	return err == nil
 }
 
 func compactPromptSections(items []string) []string {

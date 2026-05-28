@@ -169,6 +169,27 @@ func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t
 	if reportDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("限制 allowlist 时仍应允许托管定时任务工具: %+v", reportDecision)
 	}
+	goalSkillDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Skill",
+		Input:    map[string]any{"name": "goal-manager"},
+	})
+	if err != nil {
+		t.Fatalf("Goal Skill 权限处理失败: %v", err)
+	}
+	if goalSkillDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("限制 allowlist 时仍应允许加载托管 Goal skill: %+v", goalSkillDecision)
+	}
+
+	goalDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_goal__create_goal",
+		Input:    map[string]any{"objective": "完成发送问题排查"},
+	})
+	if err != nil {
+		t.Fatalf("Goal 工具权限处理失败: %v", err)
+	}
+	if goalDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("限制 allowlist 时仍应允许托管 Goal 工具: %+v", goalDecision)
+	}
 
 	readDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "Read",

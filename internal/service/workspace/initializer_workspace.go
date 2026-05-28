@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	baseSkillNames        = []string{"imagegen", "memory-manager", "scheduled-task-manager"}
+	baseSkillNames        = []string{"imagegen", "memory-manager", "scheduled-task-manager", "goal-manager"}
 	retiredBaseSkillNames = []string{"room-collaboration"}
 	mainAgentSkillNames   = []string{"nexus-manager"}
 	createSymlink         = os.Symlink
@@ -428,6 +428,10 @@ var defaultWorkspaceTemplates = map[string]string{
 
 不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺/交付用户提醒；这些即使在运行环境里出现，也只属于运行时自我续跑机制，不会进入任务管理，不可查询、不可停止、不可补发，丢失后用户目标会失败。
 不要向用户解释工具差异；用户只需描述需求，你负责把它落成可管理的任务。
+
+## Goal
+
+用户明确要求「启动 Goal」「设定目标」「持续完成某个目标」「直到完成为止」时，必须先加载 goal-manager，再调用 nexus_goal。不要使用 /goal 文本命令；普通一次性请求、提醒和定时任务不要自动创建 Goal。
 `,
 	"user": `# USER.md
 
@@ -500,6 +504,10 @@ var mainAgentWorkspaceTemplates = map[string]string{
 
 不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺/交付用户提醒；这些即使在运行环境里出现，也只属于运行时自我续跑机制，不会进入任务管理，不可查询、不可停止、不可补发，丢失后用户目标会失败。
 不要向用户解释工具差异；用户只需描述需求，你负责把它落成可管理的任务。
+
+## Goal 路由
+
+用户明确要求「启动 Goal」「设定目标」「持续完成某个目标」「直到完成为止」时，必须先加载 goal-manager，再调用 nexus_goal。不要使用 /goal 文本命令；普通一次性请求、提醒和定时任务不要自动创建 Goal。
 `,
 	"user": defaultWorkspaceTemplates["user"],
 	"memory": `# MEMORY.md
