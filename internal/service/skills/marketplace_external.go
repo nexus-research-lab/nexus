@@ -29,6 +29,7 @@ const (
 	maxExternalPreviewBytes       = 2 * 1024 * 1024
 	maxExternalImportBytes        = 32 * 1024 * 1024
 	maxExternalPreviewConcurrency = 4
+	gitCloneMaxAttempts           = 3
 
 	externalSourceKindClaudePlugins = "claude_plugins"
 	externalSourceKindSkillsSh      = "skills_sh"
@@ -51,6 +52,12 @@ const (
 	defaultHermesIndexURL         = "https://hermes-agent.nousresearch.com/docs/api/skills-index.json"
 	defaultBrowseShURL            = "https://browse.sh/api/skills"
 )
+
+type gitCloneOptions struct {
+	Branch      string
+	Sparse      bool
+	SparsePaths []string
+}
 
 var (
 	externalSkillsHTTPClient = &http.Client{Timeout: 20 * time.Second}
@@ -210,12 +217,9 @@ func (s *Service) importGit(ctx context.Context, repositoryURL string, branch st
 	}
 	defer os.RemoveAll(tempDir)
 
-	command := []string{"git", "clone", "--depth", "1"}
-	if strings.TrimSpace(branch) != "" {
-		command = append(command, "--branch", strings.TrimSpace(branch))
-	}
-	command = append(command, repositoryURL, tempDir)
-	if output, runErr := s.runCommand(ctx, "", command...); runErr != nil {
+	if output, runErr := s.cloneGitRepository(ctx, repositoryURL, tempDir, gitCloneOptions{
+		Branch: strings.TrimSpace(branch),
+	}); runErr != nil {
 		return nil, fmt.Errorf("Git 导入失败: %s", output)
 	}
 	sourceRoot := tempDir
@@ -420,7 +424,10 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 	}
 	defer os.RemoveAll(tempDir)
 
-	if output, runErr := s.runCommand(ctx, "", "git", "clone", "--depth", "1", target.RepositoryURL, tempDir); runErr != nil {
+	if output, runErr := s.cloneGitRepository(ctx, target.RepositoryURL, tempDir, gitCloneOptions{
+		Sparse:      true,
+		SparsePaths: skillsShSparseCheckoutPaths(target.SkillPath, target.SkillSlug),
+	}); runErr != nil {
 		return nil, fmt.Errorf("skills.sh Git 导入失败: %s", output)
 	}
 	sourceDir, err := findSkillsShSourceDir(tempDir, target.SkillPath, target.SkillSlug)
@@ -728,22 +735,107 @@ func (s *Service) readManifest(skillDir string) (externalManifest, error) {
 }
 
 func (s *Service) runCommand(ctx context.Context, workDir string, command ...string) (string, error) {
+	return s.runCommandWithEnv(ctx, workDir, nil, command...)
+}
+
+func (s *Service) runCommandWithEnv(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error) {
 	if len(command) == 0 {
 		return "", errors.New("命令不能为空")
 	}
 	if s.commandRunner != nil {
-		return s.commandRunner(ctx, workDir, command...)
+		return s.commandRunner(ctx, workDir, extraEnv, command...)
 	}
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	if strings.TrimSpace(workDir) != "" {
 		cmd.Dir = workDir
 	}
 	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, extraEnv...)
 	if strings.TrimSpace(s.config.SkillsAPIURL) != "" {
 		cmd.Env = append(cmd.Env, "SKILLS_API_URL="+strings.TrimSpace(s.config.SkillsAPIURL))
 	}
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
+}
+
+func (s *Service) cloneGitRepository(ctx context.Context, repositoryURL string, destination string, options gitCloneOptions) (string, error) {
+	attemptOutputs := make([]string, 0, gitCloneMaxAttempts)
+	var lastErr error
+	for attempt := 1; attempt <= gitCloneMaxAttempts; attempt++ {
+		output, runErr := s.runGitCloneAttempt(ctx, repositoryURL, destination, options)
+		if runErr == nil {
+			return output, nil
+		}
+		lastErr = runErr
+		attemptOutputs = append(attemptOutputs, formatGitAttemptOutput(attempt, output, runErr))
+		if ctx.Err() != nil || attempt == gitCloneMaxAttempts || !isTransientGitCloneError(output, runErr) {
+			break
+		}
+		_ = os.RemoveAll(destination)
+		delay := time.NewTimer(time.Duration(attempt) * 300 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			delay.Stop()
+			return strings.Join(attemptOutputs, "\n"), ctx.Err()
+		case <-delay.C:
+		}
+	}
+	return strings.Join(attemptOutputs, "\n"), lastErr
+}
+
+func (s *Service) runGitCloneAttempt(ctx context.Context, repositoryURL string, destination string, options gitCloneOptions) (string, error) {
+	command := []string{"git", "-c", "http.version=HTTP/1.1", "clone", "--depth", "1", "--single-branch"}
+	if options.Sparse {
+		command = append(command, "--filter=blob:none", "--sparse")
+	}
+	if strings.TrimSpace(options.Branch) != "" {
+		command = append(command, "--branch", strings.TrimSpace(options.Branch))
+	}
+	command = append(command, repositoryURL, destination)
+	output, runErr := s.runCommandWithEnv(ctx, "", []string{"GIT_TERMINAL_PROMPT=0"}, command...)
+	if runErr != nil || !options.Sparse || len(options.SparsePaths) == 0 {
+		return output, runErr
+	}
+	sparseOutput, sparseErr := s.runCommandWithEnv(ctx, destination, []string{"GIT_TERMINAL_PROMPT=0"}, append([]string{"git", "sparse-checkout", "set", "--no-cone"}, options.SparsePaths...)...)
+	if sparseErr != nil {
+		if strings.TrimSpace(output) == "" {
+			return sparseOutput, sparseErr
+		}
+		return strings.TrimSpace(output + "\n" + sparseOutput), sparseErr
+	}
+	return output, nil
+}
+
+func formatGitAttemptOutput(attempt int, output string, err error) string {
+	message := strings.TrimSpace(output)
+	if message == "" && err != nil {
+		message = err.Error()
+	}
+	return fmt.Sprintf("attempt %d/%d: %s", attempt, gitCloneMaxAttempts, message)
+}
+
+func isTransientGitCloneError(output string, err error) bool {
+	text := strings.ToLower(output + " " + fmt.Sprint(err))
+	transientMarkers := []string{
+		"early eof",
+		"eof",
+		"rpc failed",
+		"remote end hung up unexpectedly",
+		"http/2 stream",
+		"connection reset",
+		"connection refused",
+		"connection timed out",
+		"operation timed out",
+		"tls handshake timeout",
+		"temporary failure",
+		"temporarily unavailable",
+	}
+	for _, marker := range transientMarkers {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func unzipArchive(payload []byte, targetDir string) error {
@@ -909,6 +1001,30 @@ func parseSkillsShImportTarget(packageSpec string, skillSlug string) (skillsShIm
 		SkillPath:     filepath.ToSlash(cleanSkillPath),
 		SkillSlug:     strings.TrimSpace(slug),
 	}, nil
+}
+
+func skillsShSparseCheckoutPaths(skillPath string, skillSlug string) []string {
+	seen := map[string]struct{}{}
+	paths := make([]string, 0, 4)
+	addPath := func(value string) {
+		cleaned, err := cleanSkillSubdirPath(value)
+		if err != nil || cleaned == "" {
+			return
+		}
+		slashPath := filepath.ToSlash(cleaned)
+		if _, exists := seen[slashPath]; exists {
+			return
+		}
+		seen[slashPath] = struct{}{}
+		paths = append(paths, slashPath)
+	}
+	addPath(skillPath)
+	slug := strings.Trim(strings.TrimSpace(skillSlug), "/")
+	if slug != "" {
+		addPath(slug)
+		addPath(filepath.ToSlash(filepath.Join("skills", slug)))
+	}
+	return paths
 }
 
 func isSafeGitHubRepoSegment(value string) bool {

@@ -438,12 +438,21 @@ func TestImportSkillsShClonesRepositoryAndSelectsRequestedSkill(t *testing.T) {
 	repoRoot := filepath.Join(t.TempDir(), "repo")
 	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "alpha"), "alpha", "Alpha Skill", false)
 	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "pdfco"), "pdfco", "PDF Skill", false)
-	service.commandRunner = func(_ context.Context, workDir string, command ...string) (string, error) {
-		if len(command) >= 2 && command[0] == "git" && command[1] == "clone" {
+	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
 			if got, want := command[len(command)-2], "https://github.com/membranedev/application-skills"; got != want {
 				t.Fatalf("skills.sh Git 仓库不正确: got=%q want=%q", got, want)
 			}
+			if !stringSliceContains(command, "--sparse") || !stringSliceContains(command, "--filter=blob:none") {
+				t.Fatalf("skills.sh Git 导入应使用稀疏浅克隆: %+v", command)
+			}
 			return "", copyDirectory(repoRoot, command[len(command)-1])
+		}
+		if len(command) >= 2 && command[0] == "git" && command[1] == "sparse-checkout" {
+			if !stringSliceContains(command, "skills/pdfco") {
+				t.Fatalf("skills.sh 稀疏 checkout 未包含目标目录: %+v", command)
+			}
+			return "", nil
 		}
 		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
 			return "commit-skills-sh", nil
@@ -467,6 +476,49 @@ func TestImportSkillsShClonesRepositoryAndSelectsRequestedSkill(t *testing.T) {
 	}
 	if record == nil || record.GitURL != "https://github.com/membranedev/application-skills" || record.GitPath != "skills/pdfco" || record.SourceRef != "membranedev/application-skills/pdfco" {
 		t.Fatalf("skills.sh 导入 DB 记录不正确: %+v", record)
+	}
+}
+
+func TestImportSkillsShRetriesTransientGitCloneEOF(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	service := NewServiceWithDB(cfg, db, nil, nil)
+	ctx := context.Background()
+
+	repoRoot := filepath.Join(t.TempDir(), "repo")
+	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "pdfco"), "pdfco", "PDF Skill", false)
+	cloneAttempts := 0
+	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
+			cloneAttempts++
+			if cloneAttempts == 1 {
+				return "fatal: early EOF", errors.New("exit status 128")
+			}
+			return "", copyDirectory(repoRoot, command[len(command)-1])
+		}
+		if len(command) >= 2 && command[0] == "git" && command[1] == "sparse-checkout" {
+			return "", nil
+		}
+		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
+			return "commit-skills-sh", nil
+		}
+		return "", errors.New("unexpected command")
+	}
+
+	detail, err := service.ImportSkillsSh(ctx, "membranedev/application-skills/pdfco", "pdfco")
+	if err != nil {
+		t.Fatalf("skills.sh Git 导入重试后仍失败: %v", err)
+	}
+	if cloneAttempts != 2 {
+		t.Fatalf("skills.sh Git 导入未按 transient EOF 重试: %d", cloneAttempts)
+	}
+	if detail.Name != "pdfco" || detail.Version != "commit-skills-sh" {
+		t.Fatalf("skills.sh 重试后导入结果不正确: %+v", detail.Info)
 	}
 }
 
@@ -565,8 +617,8 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	writeTestSkillDir(t, filepath.Join(repoV2, "skills", "git-skill"), "git-skill", "Git Skill v2", false)
 	activeRepo := repoV1
 	activeCommit := "commit-v1"
-	service.commandRunner = func(_ context.Context, workDir string, command ...string) (string, error) {
-		if len(command) >= 2 && command[0] == "git" && command[1] == "clone" {
+	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
 			return "", copyDirectory(activeRepo, command[len(command)-1])
 		}
 		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {

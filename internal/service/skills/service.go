@@ -135,7 +135,7 @@ type catalogRecord struct {
 	SourcePath string
 }
 
-type commandRunnerFunc func(ctx context.Context, workDir string, command ...string) (string, error)
+type commandRunnerFunc func(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error)
 
 // Service 提供技能目录、安装与卸载能力。
 type Service struct {
