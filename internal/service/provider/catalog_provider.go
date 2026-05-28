@@ -114,7 +114,7 @@ var providerPresets = []Preset{
 			{
 				APIFormat:  APIFormatAnthropicMessages,
 				BaseURL:    "https://open.bigmodel.cn/api/anthropic",
-				ModelsPath: "https://open.bigmodel.cn/api/anthropic/models",
+				ModelsPath: "https://open.bigmodel.cn/api/coding/paas/v4/models",
 			},
 			{
 				APIFormat:  APIFormatChatCompletions,
