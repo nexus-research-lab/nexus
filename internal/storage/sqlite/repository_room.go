@@ -695,7 +695,7 @@ WHERE id = ?`,
 	return err
 }
 
-// DeleteConversation 删除话题并返回回退上下文；没有可回退对话时返回 nil。
+// DeleteConversation 删除话题并返回回退上下文。
 func (r *RoomRepository) DeleteConversation(ctx context.Context, ownerUserID string, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -710,6 +710,9 @@ func (r *RoomRepository) DeleteConversation(ctx context.Context, ownerUserID str
 	conversations, err := r.listConversations(ctx, tx, roomID)
 	if err != nil {
 		return nil, err
+	}
+	if len(conversations) <= 1 {
+		return nil, errors.New("room 至少保留一个对话")
 	}
 
 	var (

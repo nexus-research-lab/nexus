@@ -382,10 +382,6 @@ func buildPublicMentionSlot(
 		TimestampMS:       time.Now().UnixMilli(),
 		Trigger:           trigger,
 		ReplyTarget:       wake.ReplyTarget,
-		ReplySourceAction: strings.TrimSpace(wake.MessageID),
-		ReplySourceAgent:  strings.TrimSpace(wake.SourceAgentID),
-		ReplyRequestID:    strings.TrimSpace(wake.RequestID),
-		ReplyAudience:     append([]string(nil), wake.ReplyAudience...),
 		Done:              make(chan struct{}),
 	}
 }

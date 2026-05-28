@@ -317,7 +317,7 @@ export function useRoomPageController({
     }
     const fallback_context = await delete_room_conversation(room_id, conversation_id);
     await refresh_room_contexts(room_id);
-    return fallback_context?.conversation.id ?? null;
+    return fallback_context.conversation.id;
   }, [refresh_room_contexts, room_id]);
 
   const handle_update_conversation_title = useCallback(async (conversation_id: string, title: string) => {

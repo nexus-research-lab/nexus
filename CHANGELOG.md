@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed Provider configuration scoping for multi-user deployments: existing Providers migrate to public configuration, private Providers are owner-scoped, and public Providers can only be maintained by the owner/admin.
 - Fixed capability page Connector status, external Skill registry data, and summary counts so they are scoped to the current user; legacy global Skills migrate to users that actually deploy them.
-- Removed the old Room topic deletion constraint that required keeping one conversation, allowing deletion of the last deletable topic with an empty fallback context.
 - Fixed desktop mode so newly configured Providers populate the default model automatically instead of leaving Agents without a model, and reduced successful static asset/read-only request log noise.
 - Agent skill management now dynamically discovers workspace-created Skills under `.agents/skills`, `.agents`, and `.claude/skills`, and the Agent options Skill tab refreshes while visible so newly created Skills can be managed.
 - Updated the GLM Coding Plan Anthropic model discovery endpoint so model selectors can load the complete model list.

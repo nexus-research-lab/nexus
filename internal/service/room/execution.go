@@ -363,10 +363,6 @@ func (s *RealtimeService) runSlot(
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
 	if !slot.shouldSuppressOutput() {
-		if err := s.recordRoomActionReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
-			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-			return
-		}
 		if roomSlotPublishesPublicOutput(slot) {
 			if err := s.collectPublicMentionWakes(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 				s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)

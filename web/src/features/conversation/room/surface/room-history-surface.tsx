@@ -114,6 +114,7 @@ export function RoomHistorySurface({
           {ordered_conversations.map((conversation) => {
             const delete_state = resolve_room_conversation_delete_state(
               conversation,
+              ordered_conversations.length,
               can_manage_conversations,
               t,
             );

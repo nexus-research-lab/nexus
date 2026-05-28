@@ -34,10 +34,6 @@ type activeRoomSlot struct {
 	ActionCursorID     string
 	ActionCursorTS     int64
 	ReplyTarget        protocol.RoomReplyTarget
-	ReplySourceAction  string
-	ReplySourceAgent   string
-	ReplyRequestID     string
-	ReplyAudience      []string
 	InterruptReason    string
 	QueuedInputs       []roomQueuedInput
 	GuidedInputs       []roomQueuedInput
