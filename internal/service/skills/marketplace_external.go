@@ -462,7 +462,7 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 func (s *Service) ImportExternalSkill(ctx context.Context, item ExternalSkillSearchItem) (*Detail, error) {
 	mode := normalizeImportMode(firstNonEmpty(item.ImportMode, inferExternalImportMode(item)))
 	manifest := externalManifest{
-		Name:           strings.TrimSpace(item.SkillSlug),
+		Name:           externalItemSkillName(item),
 		Title:          strings.TrimSpace(item.Title),
 		Description:    strings.TrimSpace(item.Description),
 		Tags:           normalizeStringSlice(item.Tags),
@@ -493,6 +493,41 @@ func (s *Service) ImportExternalSkill(ctx context.Context, item ExternalSkillSea
 	default:
 		return nil, errors.New("不支持的外部 skill 来源")
 	}
+}
+
+func externalItemSkillName(item ExternalSkillSearchItem) string {
+	for _, candidate := range []string{
+		item.SkillSlug,
+		item.Name,
+		skillNameFromSourceURL(firstNonEmpty(item.RawURL, item.PackageSpec, item.DetailURL, item.GitURL)),
+	} {
+		if name := normalizeSkillNameFallback(candidate); name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
+func normalizeSkillNameFallback(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
+		trimmed = skillNameFromSourceURL(trimmed)
+	}
+	trimmed = strings.Trim(strings.ReplaceAll(trimmed, "\\", "/"), "/")
+	if trimmed == "" {
+		return ""
+	}
+	name := filepath.Base(filepath.FromSlash(trimmed))
+	name = strings.TrimSuffix(name, ".git")
+	name = strings.TrimSuffix(name, ".zip")
+	name = strings.TrimSuffix(name, ".md")
+	if name == "." || name == string(os.PathSeparator) || strings.EqualFold(name, "SKILL") {
+		return ""
+	}
+	return strings.TrimSpace(name)
 }
 
 // ImportSkillURL 从可信外部 URL 导入 SKILL.md 或 zip 归档。
@@ -544,6 +579,7 @@ func (s *Service) ImportSkillURL(ctx context.Context, sourceURL string, manifest
 	manifest.SourceKind = firstNonEmpty(manifest.SourceKind, externalSourceKindURL)
 	manifest.SourceKey = firstNonEmpty(manifest.SourceKey, targetURL)
 	manifest.SourceName = firstNonEmpty(manifest.SourceName, "URL")
+	manifest.Name = firstNonEmpty(normalizeSkillNameFallback(manifest.Name), skillNameFromSourceURL(targetURL))
 	manifest.SourceTrust = firstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity)
 	manifest.ImportMode = externalSourceKindURL
 	manifest.RawURL = targetURL
@@ -688,7 +724,7 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 	if err != nil {
 		return nil, err
 	}
-	parsed := parseSkillFrontmatter(content, skillName)
+	parsed := parseSkillFrontmatter(content, firstNonEmpty(manifest.Name, skillName))
 	if parsed.Name == "" {
 		return nil, errors.New("SKILL.md 缺少 name")
 	}
@@ -1927,8 +1963,9 @@ func skillNameFromSourceURL(sourceURL string) string {
 	if strings.EqualFold(name, "SKILL") || name == "." || name == "/" || name == "" {
 		segments := strings.Split(strings.Trim(parsed.Path, "/"), "/")
 		for i := len(segments) - 1; i >= 0; i-- {
-			if strings.TrimSpace(segments[i]) != "" && !strings.EqualFold(segments[i], "skills") {
-				return strings.TrimSpace(segments[i])
+			segment := normalizeSkillNameFallback(segments[i])
+			if segment != "" && !strings.EqualFold(segment, "skill") && !strings.EqualFold(segment, "skills") {
+				return segment
 			}
 		}
 		return parsed.Host

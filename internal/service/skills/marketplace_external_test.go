@@ -339,6 +339,75 @@ tags: [url]
 	}
 }
 
+func TestImportSkillURLUsesManifestNameWhenFrontmatterOmitsName(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	mux.HandleFunc("/metadata-name/SKILL.md", func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = writer.Write([]byte(`---
+title: Metadata Named Skill
+description: no name in frontmatter
+---
+
+# Metadata Named Skill
+`))
+	})
+
+	cfg := newSkillsTestConfig(t)
+	cfg.SkillsAPIURL = ""
+	cfg.SkillsSourceURLs = "URL Test|" + server.URL + "/metadata-name/SKILL.md"
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	service := NewServiceWithDB(cfg, db, nil, nil)
+
+	detail, err := service.ImportSkillURL(context.Background(), server.URL+"/metadata-name/SKILL.md", externalManifest{
+		Name:       "registry-demo",
+		SourceKind: externalSourceKindURL,
+		SourceName: "URL Test",
+	})
+	if err != nil {
+		t.Fatalf("URL 导入失败: %v", err)
+	}
+	if detail.Name != "registry-demo" || strings.HasPrefix(detail.Name, "nexus-skill-url-") {
+		t.Fatalf("URL 导入不应使用临时目录名: %+v", detail)
+	}
+}
+
+func TestImportSkillURLInfersNameFromSkillMDParent(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	mux.HandleFunc("/skills/example.com/demo-task/SKILL.md", func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = writer.Write([]byte(`# Demo Task
+`))
+	})
+
+	cfg := newSkillsTestConfig(t)
+	cfg.SkillsAPIURL = ""
+	cfg.SkillsSourceURLs = "URL Test|" + server.URL + "/skills/example.com/demo-task/SKILL.md"
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	service := NewServiceWithDB(cfg, db, nil, nil)
+
+	detail, err := service.ImportSkillURL(context.Background(), server.URL+"/skills/example.com/demo-task/SKILL.md", externalManifest{})
+	if err != nil {
+		t.Fatalf("URL 导入失败: %v", err)
+	}
+	if detail.Name != "demo-task" {
+		t.Fatalf("URL 导入未从 SKILL.md 父目录推断名字: %+v", detail)
+	}
+}
+
 func TestPreviewAndImportSkillURLSupportZipPayloadWithoutZipSuffix(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)

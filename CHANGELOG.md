@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed desktop mode so newly configured Providers populate the default model automatically instead of leaving Agents without a model, and reduced successful static asset/read-only request log noise.
 - Agent skill management now dynamically discovers workspace-created Skills under `.agents/skills`, `.agents`, and `.claude/skills`, and the Agent options Skill tab refreshes while visible so newly created Skills can be managed.
 - Hardened `skills.sh` imports with sparse shallow Git clones and retry handling for transient transport errors such as early EOF.
+- Fixed URL Skill imports without a frontmatter `name` so they use source metadata or the `SKILL.md` parent directory instead of a temporary directory name.
 - Updated the GLM Coding Plan Anthropic model discovery endpoint so model selectors can load the complete model list.
 
 ## [0.1.11] - 2026-05-27
