@@ -49,6 +49,8 @@ export function ExternalSkillPreviewDialog({
   const preview_markdown = preview_loading && !item.readme_markdown
     ? "正在加载预览内容..."
     : (item.readme_markdown || item.description || "暂无预览内容");
+  const source_label = item.source_name || item.source_kind || "社区";
+  const source_ref = item.package_spec || item.git_url || item.raw_url || item.source;
 
   return (
     <UiDialogPortal>
@@ -57,12 +59,12 @@ export function ExternalSkillPreviewDialog({
           <UiDialogHeader
             icon={<Puzzle className="h-4 w-4" />}
             on_close={on_close}
-            subtitle={`${item.package_spec} · ${format_installs(item.installs)} 次安装`}
+            subtitle={`${source_ref} · ${format_installs(item.installs)} 次安装`}
             title={item.title || item.skill_slug}
           />
           <UiDialogBody scrollable>
             <div className="mb-5 flex flex-wrap gap-2">
-              <UiBadge size="xs">社区技能</UiBadge>
+              <UiBadge size="xs">{source_label}</UiBadge>
               {already_imported ? (
                 <UiBadge size="xs" tone="success">已导入</UiBadge>
               ) : name_conflict ? (
@@ -77,15 +79,17 @@ export function ExternalSkillPreviewDialog({
           </UiDialogBody>
 
           <UiDialogFooter class_name="flex-wrap justify-between gap-3">
-            <a
-              className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
-              href={item.detail_url}
-              rel="noreferrer"
-              target="_blank"
-            >
-              <ExternalLink className="h-4 w-4" />
-              打开原始页面
-            </a>
+            {item.detail_url ? (
+              <a
+                className={get_ui_button_class_name({ size: "sm", variant: "text" }, "w-fit")}
+                href={item.detail_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <ExternalLink className="h-4 w-4" />
+                打开原始页面
+              </a>
+            ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
               <UiButton
                 disabled={busy || already_imported || name_conflict}

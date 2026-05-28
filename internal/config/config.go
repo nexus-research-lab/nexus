@@ -36,6 +36,8 @@ type Config struct {
 	DesktopSessionToken            string
 	PnpmRegistry                   string
 	SkillsAPIURL                   string
+	SkillsSourceURLs               string
+	SkillsDefaultSourcesEnabled    bool
 	SkillsAPISearchLimit           int
 	DatabaseDriver                 string
 	DatabaseURL                    string
@@ -129,6 +131,8 @@ func Load() Config {
 		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		PnpmRegistry:                   getEnv("PNPM_REGISTRY", ""),
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
+		SkillsSourceURLs:               getEnv("SKILLS_SOURCE_URLS", ""),
+		SkillsDefaultSourcesEnabled:    mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
 		SkillsAPISearchLimit:           mustInt(getEnv("SKILLS_API_SEARCH_LIMIT", "20")),
 		DatabaseDriver:                 getEnv("DATABASE_DRIVER", "sqlite"),
 		DatabaseURL:                    getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),

@@ -131,6 +131,8 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/skills/search/external"), s.handlers.skill.HandleSearchExternalSkills)
 	s.router.Get(s.prefixPath("/skills/external/preview"), s.handlers.skill.HandlePreviewExternalSkill)
 	s.router.Post(s.prefixPath("/skills/import/skills-sh"), s.handlers.skill.HandleImportSkillsShSkill)
+	s.router.Get(s.prefixPath("/skills/sources"), s.handlers.skill.HandleListExternalSkillSources)
+	s.router.Patch(s.prefixPath("/skills/sources/{source_id}"), s.handlers.skill.HandleUpdateExternalSkillSource)
 	s.router.Post(s.prefixPath("/skills/update-imported"), s.handlers.skill.HandleUpdateImportedSkills)
 	s.router.Post(s.prefixPath("/skills/{skill_name}/update"), s.handlers.skill.HandleUpdateSingleSkill)
 	s.router.Delete(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleDeleteSkill)

@@ -41,6 +41,9 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err != nil {
 		return nil, err
 	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
 	models, err := s.fetchRemoteModels(ctx, *item)
 	if err != nil {
 		return nil, err
@@ -96,6 +99,9 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 func (s *Service) UpdateModel(ctx context.Context, provider string, modelID string, input UpdateModelInput) (*ModelRecord, error) {
 	item, err := s.requireProvider(ctx, provider)
 	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
 	modelID = strings.TrimSpace(modelID)
@@ -180,6 +186,9 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if err != nil {
 		return nil, err
 	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
 	modelID = strings.TrimSpace(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
@@ -218,6 +227,9 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 	if err != nil {
 		return nil, err
 	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
 	models, modelsErr := s.fetchRemoteModels(ctx, *item)
 	if modelsErr != nil {
 		return s.persistTestResult(ctx, *item, "", modelsErr)
@@ -234,6 +246,9 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 func (s *Service) TestModel(ctx context.Context, provider string, modelID string) (*TestResult, error) {
 	item, err := s.requireProvider(ctx, provider)
 	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
 	modelID = strings.TrimSpace(modelID)
@@ -261,7 +276,7 @@ func (s *Service) requireProvider(ctx context.Context, provider string) (*provid
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.repository.GetByProvider(ctx, normalizedProvider)
+	item, err := s.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), normalizedProvider)
 	if err != nil {
 		return nil, err
 	}

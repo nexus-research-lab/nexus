@@ -39,6 +39,8 @@ export interface ProviderModelRecord {
 
 export interface ProviderConfigRecord {
   id: string;
+  owner_user_id?: string;
+  visibility: "public" | "private";
   provider_kind: "llm" | "image_generation";
   provider: string;
   preset_key: string;
@@ -53,6 +55,7 @@ export interface ProviderConfigRecord {
   last_test_status: string;
   last_test_error: string;
   last_test_at?: string | null;
+  can_manage: boolean;
   agent_runtime_supported: boolean;
   models: ProviderModelRecord[];
   created_at?: string | null;
@@ -116,6 +119,7 @@ export interface ProviderOptionsResponse {
 export interface ProviderConfigPayload {
   provider_kind: "llm" | "image_generation";
   provider: string;
+  visibility?: "public" | "private";
   preset_key?: string;
   api_format?: ProviderApiFormat;
   display_name: string;

@@ -511,12 +511,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   const is_editing = mode === "edit" && !!selected_record;
   const is_creating = mode === "create";
   const is_empty_mode = mode === "empty";
+  const selected_can_manage = !is_editing || selected_record?.can_manage !== false;
   const can_save = useMemo(() => {
-    if (is_empty_mode) {
+    if (is_empty_mode || !selected_can_manage) {
       return false;
     }
     return get_provider_draft_error(draft, current_preset, is_creating, t) === null;
-  }, [current_preset, draft, is_creating, is_empty_mode, t]);
+  }, [current_preset, draft, is_creating, is_empty_mode, selected_can_manage, t]);
 
   const refresh_all = useCallback(async (preferred_provider?: string | null) => {
     try {
@@ -612,6 +613,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (is_empty_mode) {
       return null;
     }
+    if (is_editing && selected_record?.can_manage === false) {
+      return selected_record;
+    }
     if (save_promise_ref.current) {
       return save_promise_ref.current;
     }
@@ -697,6 +701,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [can_save, current_preset, draft, handle_save, is_editing, pending_action, selected_record, submitting]);
 
   const handle_enabled_change = useCallback((checked: boolean) => {
+    if (!selected_can_manage) {
+      return;
+    }
     set_draft((current) => ({ ...current, enabled: checked }));
     void (async () => {
       const result = await handle_save({
@@ -708,7 +715,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         set_draft((current) => ({ ...current, enabled: !checked }));
       }
     })();
-  }, [handle_save]);
+  }, [handle_save, selected_can_manage]);
 
   const handle_request_delete_provider = useCallback((item: ProviderConfigRecord) => {
     if (!is_custom_provider_record(item)) {
@@ -765,7 +772,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [delete_target_record, refresh_all, submitting, t]);
 
   const handle_fetch_models = useCallback(async () => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -790,16 +797,19 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record, t]);
+  }, [handle_save, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_open_add_model = useCallback(() => {
+    if (!selected_can_manage) {
+      return;
+    }
     set_manual_model_id("");
     set_manual_model_enabled(true);
     set_add_model_open(true);
-  }, []);
+  }, [selected_can_manage]);
 
   const handle_add_model = useCallback(async () => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     const model_id = manual_model_id.trim();
@@ -838,10 +848,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [manual_model_enabled, manual_model_id, pending_action, refresh_all, selected_record, t]);
+  }, [manual_model_enabled, manual_model_id, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_test_provider = useCallback(async () => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -870,10 +880,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record, t]);
+  }, [handle_save, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_test_model = useCallback(async (model_id: string) => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     const normalized_model_id = model_id.trim();
@@ -906,7 +916,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record, t]);
+  }, [handle_save, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_test_selection = useCallback((value: string) => {
     if (value === AUTO_TEST_MODEL_VALUE) {
@@ -917,7 +927,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [handle_test_model, handle_test_provider]);
 
   const handle_toggle_model = useCallback(async (model: ProviderModelRecord, enabled: boolean) => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -937,10 +947,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [pending_action, refresh_all, selected_record, t]);
+  }, [pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_save_model_options = useCallback(async () => {
-    if (!selected_record || !model_options || pending_action) {
+    if (!selected_record || !model_options || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -968,7 +978,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [model_options, pending_action, refresh_all, selected_record, t]);
+  }, [model_options, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const configured_by_preset = useMemo(() => {
     const result = new Map<string, ProviderConfigRecord>();
@@ -1088,7 +1098,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
                 {custom_providers.map((item) => {
                   const is_active = item.provider === selected_provider && is_editing;
-                  const can_show_delete = is_custom_provider_record(item);
+                  const can_show_delete = is_custom_provider_record(item) && item.can_manage;
                   return (
                     <div
                       className={cn(
@@ -1175,7 +1185,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       aria_label={t("settings.providers.test_provider")}
                       button_class_name="px-2"
                       class_name="w-auto min-w-18"
-                      disabled={pending_action !== null || submitting || !is_api_format_configurable}
+                      disabled={pending_action !== null || submitting || !is_api_format_configurable || !selected_can_manage}
                       leading={pending_action?.startsWith("test") ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
@@ -1191,7 +1201,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   ) : null}
                   <GlassSwitch
                     checked={draft.enabled}
-                    disabled={pending_action !== null || submitting || !is_api_format_configurable}
+                    disabled={pending_action !== null || submitting || !is_api_format_configurable || !selected_can_manage}
                     size="sm"
                     on_change={handle_enabled_change}
                   />
@@ -1207,6 +1217,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         autoCapitalize="off"
                         autoCorrect="off"
                         control_size="lg"
+                        disabled={!selected_can_manage}
                         onChange={(event) => {
                           const next_name = event.target.value;
                           set_draft((current) => ({
@@ -1238,6 +1249,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <UiSelectMenu
                         aria_label={t("settings.providers.api_format")}
                         class_name="h-11"
+                        disabled={!selected_can_manage}
                         on_change={handle_api_format_change}
                         options={format_options}
                         size="sm"
@@ -1256,6 +1268,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     control_size="md"
                     data-form-type="other"
                     data-lpignore="true"
+                    disabled={!selected_can_manage}
                     name="provider-auth-token"
                     onChange={(event) => set_draft((current) => ({ ...current, auth_token: event.target.value }))}
                     onBlur={handle_provider_field_blur}
@@ -1308,6 +1321,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       autoCapitalize="off"
                       autoCorrect="off"
                       control_size="md"
+                      disabled={!selected_can_manage}
                       onChange={(event) => set_draft((current) => ({ ...current, base_url: event.target.value }))}
                       onBlur={handle_provider_field_blur}
                       placeholder={current_format?.base_url || "https://api.example.com/v1"}
@@ -1334,7 +1348,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       {is_editing && selected_record ? (
                         <>
                           <UiButton
-                            disabled={pending_action !== null || !is_api_format_configurable}
+                            disabled={pending_action !== null || !is_api_format_configurable || !selected_can_manage}
                             onClick={handle_open_add_model}
                             size="xs"
                             type="button"
@@ -1344,7 +1358,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             {t("settings.providers.add_model")}
                           </UiButton>
                           <UiButton
-                            disabled={pending_action !== null || !is_api_format_configurable}
+                            disabled={pending_action !== null || !is_api_format_configurable || !selected_can_manage}
                             onClick={() => void handle_fetch_models()}
                             size="xs"
                             type="button"
@@ -1417,7 +1431,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                               ) : (
                                 <GlassSwitch
                                   checked={model.enabled}
-                                  disabled={pending_action !== null}
+                                  disabled={pending_action !== null || !selected_can_manage}
                                   size="xs"
                                   on_change={(checked) => void handle_toggle_model(model, checked)}
                                 />
@@ -1644,7 +1658,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   {t("common.cancel")}
                 </UiButton>
                 <UiButton
-                  disabled={!manual_model_id.trim() || pending_action?.startsWith("add-model:")}
+                  disabled={!manual_model_id.trim() || pending_action?.startsWith("add-model:") || !selected_can_manage}
                   onClick={() => void handle_add_model()}
                   tone="primary"
                   type="button"
@@ -1793,7 +1807,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   {t("common.cancel")}
                 </UiButton>
                 <UiButton
-                  disabled={pending_action?.startsWith("options:")}
+                  disabled={pending_action?.startsWith("options:") || !selected_can_manage}
                   onClick={() => void handle_save_model_options()}
                   size="sm"
                   tone="primary"

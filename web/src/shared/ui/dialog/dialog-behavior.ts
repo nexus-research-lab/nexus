@@ -1,6 +1,6 @@
 "use client";
 
-import { type RefObject, useEffect } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -92,6 +92,12 @@ export function useDialogModalBehavior<T extends HTMLElement>({
   on_close,
   root_ref,
 }: DialogModalBehaviorOptions<T>) {
+  const on_close_ref = useRef(on_close);
+
+  useEffect(() => {
+    on_close_ref.current = on_close;
+  }, [on_close]);
+
   useEffect(() => {
     if (!enabled || typeof document === "undefined") {
       return;
@@ -133,7 +139,7 @@ export function useDialogModalBehavior<T extends HTMLElement>({
           return;
         }
         event.preventDefault();
-        on_close?.();
+        on_close_ref.current?.();
         return;
       }
 
@@ -180,5 +186,5 @@ export function useDialogModalBehavior<T extends HTMLElement>({
         focus_element(previous_focus);
       }
     };
-  }, [enabled, initial_focus_ref, on_close, root_ref]);
+  }, [enabled, initial_focus_ref, root_ref]);
 }

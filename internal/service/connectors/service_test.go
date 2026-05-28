@@ -67,12 +67,147 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入连接状态失败: %v", err)
 	}
-	count, err := service.GetConnectedCount(ctx)
+	count, err := service.GetConnectedCount(ctx, auth.SystemUserID)
 	if err != nil {
 		t.Fatalf("读取已连接数量失败: %v", err)
 	}
 	if count != 1 {
 		t.Fatalf("已连接数量不正确: got=%d want=1", count)
+	}
+}
+
+func TestServiceScopesConnectionStateByOwner(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	if err = service.upsertConnection(ctx, connectionRecord{
+		OwnerUserID: "owner-a",
+		ConnectorID: "github",
+		State:       "connected",
+		Credentials: `{"access_token":"owner-a-token"}`,
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入 owner-a 连接状态失败: %v", err)
+	}
+	if err = service.upsertConnection(ctx, connectionRecord{
+		OwnerUserID: "owner-b",
+		ConnectorID: "github",
+		State:       "disconnected",
+		Credentials: "",
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入 owner-b 连接状态失败: %v", err)
+	}
+
+	countA, err := service.GetConnectedCount(ctx, "owner-a")
+	if err != nil {
+		t.Fatalf("读取 owner-a 已连接数量失败: %v", err)
+	}
+	countB, err := service.GetConnectedCount(ctx, "owner-b")
+	if err != nil {
+		t.Fatalf("读取 owner-b 已连接数量失败: %v", err)
+	}
+	if countA != 1 || countB != 0 {
+		t.Fatalf("连接数量应按 owner 隔离: owner-a=%d owner-b=%d", countA, countB)
+	}
+
+	itemsA, err := service.ListConnectors(ctx, "owner-a", "github", "", "")
+	if err != nil {
+		t.Fatalf("列出 owner-a connector 失败: %v", err)
+	}
+	itemsB, err := service.ListConnectors(ctx, "owner-b", "github", "", "")
+	if err != nil {
+		t.Fatalf("列出 owner-b connector 失败: %v", err)
+	}
+	if len(itemsA) != 1 || itemsA[0].ConnectionState != "connected" {
+		t.Fatalf("owner-a 应看到 connected: %+v", itemsA)
+	}
+	if len(itemsB) != 1 || itemsB[0].ConnectionState != "disconnected" {
+		t.Fatalf("owner-b 应看到 disconnected: %+v", itemsB)
+	}
+
+	snapshotA, err := service.LoadActiveConnection(ctx, "owner-a", "github")
+	if err != nil {
+		t.Fatalf("读取 owner-a active connector 失败: %v", err)
+	}
+	snapshotB, err := service.LoadActiveConnection(ctx, "owner-b", "github")
+	if err != nil {
+		t.Fatalf("读取 owner-b active connector 失败: %v", err)
+	}
+	if snapshotA == nil || snapshotA.AccessToken != "owner-a-token" {
+		t.Fatalf("owner-a active connector 不正确: %+v", snapshotA)
+	}
+	if snapshotB != nil {
+		t.Fatalf("owner-b 不应读到 owner-a token: %+v", snapshotB)
+	}
+
+	activeA, err := service.ListActiveConnections(ctx, "owner-a")
+	if err != nil {
+		t.Fatalf("列出 owner-a active connectors 失败: %v", err)
+	}
+	activeB, err := service.ListActiveConnections(ctx, "owner-b")
+	if err != nil {
+		t.Fatalf("列出 owner-b active connectors 失败: %v", err)
+	}
+	if len(activeA) != 1 || activeA[0].ConnectorID != "github" || len(activeB) != 0 {
+		t.Fatalf("active connector 列表未按 owner 隔离: owner-a=%+v owner-b=%+v", activeA, activeB)
+	}
+}
+
+func TestServiceScopesOAuthStateByOwner(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	authA, err := service.GetAuthURL(ctx, "owner-a", "github", "", nil)
+	if err != nil {
+		t.Fatalf("生成 owner-a 授权地址失败: %v", err)
+	}
+	authB, err := service.GetAuthURL(ctx, "owner-b", "github", "", nil)
+	if err != nil {
+		t.Fatalf("生成 owner-b 授权地址失败: %v", err)
+	}
+	if authA.State == authB.State {
+		t.Fatalf("两次 state 不应相同: %q", authA.State)
+	}
+
+	var ownerAStateCount int
+	//goland:noinspection SqlResolve
+	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE owner_user_id = ? AND state = ?", "owner-a", authA.State).Scan(&ownerAStateCount); err != nil {
+		t.Fatalf("查询 owner-a OAuth state 失败: %v", err)
+	}
+	if ownerAStateCount != 1 {
+		t.Fatalf("owner-a OAuth state 应按 owner 落库: got=%d want=1", ownerAStateCount)
+	}
+
+	_, err = service.CompleteOAuthCallback(ctx, "owner-b", OAuthCallbackRequest{
+		Code:  "wrong-owner-code",
+		State: authA.State,
+	})
+	if err == nil || !strings.Contains(err.Error(), "OAuth state 无效") {
+		t.Fatalf("owner-b 不应消费 owner-a OAuth state: %v", err)
+	}
+	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE owner_user_id = ? AND state = ?", "owner-a", authA.State).Scan(&ownerAStateCount); err != nil {
+		t.Fatalf("再次查询 owner-a OAuth state 失败: %v", err)
+	}
+	if ownerAStateCount != 1 {
+		t.Fatalf("跨 owner callback 不应删除 owner-a OAuth state: got=%d want=1", ownerAStateCount)
 	}
 }
 

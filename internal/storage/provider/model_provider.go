@@ -5,6 +5,8 @@ import "time"
 // Entity 表示 provider 表的一行持久化记录。
 type Entity struct {
 	ID             string
+	OwnerUserID    string
+	Visibility     string
 	ProviderKind   string
 	Provider       string
 	PresetKey      string

@@ -7,8 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Skill 社区发现支持 `skills.sh`、配置化索引 JSON、Git 仓库和直链 `SKILL.md`/zip 多来源，并记录导入来源以支持后续更新。
+- Skill 社区发现新增内置 `claude-plugins.dev`、`skills.sh`、`clawhub.ai`、`browse.sh` 和可选 Hermes Skills Index 注册表来源，支持按来源类型搜索和导入。
+- Skill 社区来源和已导入 Skill 元数据写入数据库，前端新增来源管理入口，支持按用户维护可用来源。
+- Skill 导入入口合并为统一弹窗，支持本地 zip 与 Git 导入，并展示 `SKILL.md` 规范、Room Skill `scope: room` 说明和 Git branch/path 输入。
+
 ### Changed
 - 移除独立 `nexus-migrate` 二进制和手动迁移子命令，数据库迁移与 Docker owner bootstrap 统一收口到 `nexus-server` 启动流程；前端协议类型生成改为 `go generate ./internal/protocol`。
+
+### Fixed
+- 修复 Provider 配置未区分多用户的问题，现有 Provider 统一迁为公共配置，用户私有 Provider 按 owner 隔离，公共 Provider 仅允许 owner/admin 维护。
+- 修复能力页 Connector 连接态、外部 Skill 注册表和汇总计数未按当前用户隔离的问题，旧全局 Skill 会迁移到实际部署使用该 Skill 的用户。
+- 修复 skills.sh 导入时 `pnpm dlx` 不兼容 `--store-dir` 参数导致线上导入失败的问题。
 
 ## [0.1.11] - 2026-05-27
 

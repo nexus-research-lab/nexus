@@ -175,7 +175,7 @@ func newSkillCommand(services *cliServiceProvider) *cobra.Command {
 					return err
 				}
 				service := appServices.Skills
-				item, err := service.ImportLocalPath(path)
+				item, err := service.ImportLocalPath(commandContext(cmd), path)
 				if err != nil {
 					return err
 				}

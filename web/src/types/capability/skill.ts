@@ -24,6 +24,11 @@ export interface SkillInfo {
     locked: boolean;
     has_update: boolean;
     deletable: boolean;
+    source_kind?: string;
+    source_name?: string;
+    source_trust?: string;
+    import_mode?: string;
+    last_error?: string;
 }
 
 export interface SkillDetail extends SkillInfo {
@@ -59,11 +64,48 @@ export interface ExternalSkillSearchItem {
     installs: number;
     detail_url: string;
     readme_markdown: string;
+    source_kind: string;
+    source_key: string;
+    source_name: string;
+    source_trust: string;
+    import_mode: string;
+    git_url: string;
+    git_branch: string;
+    git_path: string;
+    raw_url: string;
+    tags: string[];
+    version: string;
+}
+
+export interface ExternalSkillSourceStatus {
+    key: string;
+    name: string;
+    kind: string;
+    url: string;
+    status: string;
+    error?: string;
+}
+
+export interface ExternalSkillSourceInfo {
+    source_id: string;
+    name: string;
+    kind: string;
+    url: string;
+    trust: string;
+    enabled: boolean;
+    sort_order: number;
+    last_checked_at?: string;
+    last_error?: string;
+}
+
+export interface ExternalSkillSourceRequest {
+    enabled?: boolean;
 }
 
 export interface SearchExternalSkillsResponse {
     query: string;
     results: ExternalSkillSearchItem[];
+    sources: ExternalSkillSourceStatus[];
 }
 
 export interface ExternalSkillPreviewResponse {

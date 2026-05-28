@@ -5,7 +5,6 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
 import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -14,6 +13,8 @@ import { useSkillMarketplace } from "@/hooks/capability/use-skill-marketplace";
 
 import { ExternalSkillPreviewDialog } from "./external-skill-preview-dialog";
 import { SkillDetailView } from "./skill-detail-view";
+import { SkillImportDialog } from "./skill-import-dialog";
+import { SkillSourceManagerDialog } from "./skill-source-manager-dialog";
 import { SkillsCatalogGrid } from "./skills-catalog-grid";
 import { SkillsExternalResults } from "./skills-external-results";
 import { SkillsHeader } from "./skills-header";
@@ -123,15 +124,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
 
       <FeedbackBannerStack items={feedback_items} />
 
-      <PromptDialog
-        default_value=""
-        is_open={ctrl.git_prompt_open}
-        message="输入包含 SKILL.md 的 Git 仓库地址"
-        on_cancel={() => ctrl.set_git_prompt_open(false)}
-        on_confirm={(value) => void ctrl.handle_git_import(value)}
-        placeholder="https://github.com/owner/repo.git"
-        title="通过 Git 导入"
-      />
+      <SkillImportDialog ctrl={ctrl} />
 
       <ExternalSkillPreviewDialog
         already_imported={
@@ -149,7 +142,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
         }
         busy={
           !!ctrl.preview_external_item &&
-          ctrl.busy_external_key === `${ctrl.preview_external_item.package_spec}@@${ctrl.preview_external_item.skill_slug}`
+          ctrl.busy_external_key === `${ctrl.preview_external_item.source_key || ctrl.preview_external_item.package_spec}@@${ctrl.preview_external_item.skill_slug}`
         }
         is_open={!!ctrl.preview_external_item}
         item={ctrl.preview_external_item}
@@ -159,6 +152,8 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
           if (ctrl.preview_external_item) void ctrl.handle_import_external(ctrl.preview_external_item);
         }}
       />
+
+      <SkillSourceManagerDialog ctrl={ctrl} />
     </>
   );
 }

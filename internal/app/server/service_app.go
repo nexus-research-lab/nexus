@@ -72,7 +72,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	imagegenService := imagegensvc.NewService(providerService)
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
-	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
+	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
 	core.Room.SetSkillCatalog(skillService)
 	connectorService := connectorsvc.NewService(cfg, db)
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)

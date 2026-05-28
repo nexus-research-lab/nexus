@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
 func newTestService(t *testing.T) (*Service, *sql.DB) {
@@ -241,7 +243,7 @@ func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 		t.Fatalf("内置 provider update 应忽略自定义 endpoint: %+v", updated)
 	}
 
-	entity, err := service.repository.GetByProvider(ctx, "openai")
+	entity, err := service.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), "openai")
 	if err != nil || entity == nil {
 		t.Fatalf("读取 OpenAI provider 失败: entity=%+v err=%v", entity, err)
 	}
@@ -362,6 +364,148 @@ func TestProviderImageOptionsIncludeDefaultModel(t *testing.T) {
 	if options.DefaultImageProvider == nil || *options.DefaultImageProvider != imageProvider.Provider ||
 		len(options.ImageItems) != 1 {
 		t.Fatalf("生图默认模型未暴露到 options: %+v", options)
+	}
+}
+
+func TestProviderVisibilityScopesProvidersByOwner(t *testing.T) {
+	service, _ := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
+	ownerACtx := providerTestContext("owner-a", authctx.RoleMember)
+	ownerBCtx := providerTestContext("owner-b", authctx.RoleMember)
+
+	publicProvider, err := service.Create(adminCtx, CreateInput{
+		Provider:    "shared",
+		Visibility:  providerstore.VisibilityPublic,
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "public-key",
+		BaseURL:     "https://public.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Public Shared",
+	})
+	if err != nil {
+		t.Fatalf("创建公共 provider 失败: %v", err)
+	}
+	if publicProvider.Visibility != providerstore.VisibilityPublic || publicProvider.OwnerUserID != "" {
+		t.Fatalf("公共 provider scope 不正确: %+v", publicProvider)
+	}
+	if _, err = service.UpdateModel(adminCtx, publicProvider.Provider, "public-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置公共模型失败: %v", err)
+	}
+
+	privateProvider, err := service.Create(ownerBCtx, CreateInput{
+		Provider:    "shared",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "private-key",
+		BaseURL:     "https://private.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Private Shared",
+	})
+	if err != nil {
+		t.Fatalf("创建私有 provider 失败: %v", err)
+	}
+	if privateProvider.Visibility != providerstore.VisibilityPrivate || privateProvider.OwnerUserID != "owner-b" {
+		t.Fatalf("私有 provider scope 不正确: %+v", privateProvider)
+	}
+	if _, err = service.UpdateModel(ownerBCtx, privateProvider.Provider, "private-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置私有模型失败: %v", err)
+	}
+
+	ownerAConfig, err := service.ResolveLLMConfig(ownerACtx, "shared", "public-model")
+	if err != nil {
+		t.Fatalf("owner A 应能使用公共 provider: %v", err)
+	}
+	if ownerAConfig.AuthToken != "public-key" || ownerAConfig.BaseURL != "https://public.example.com" {
+		t.Fatalf("owner A provider 解析不正确: %+v", ownerAConfig)
+	}
+	ownerBConfig, err := service.ResolveLLMConfig(ownerBCtx, "shared", "private-model")
+	if err != nil {
+		t.Fatalf("owner B 应优先使用私有 provider: %v", err)
+	}
+	if ownerBConfig.AuthToken != "private-key" || ownerBConfig.BaseURL != "https://private.example.com" {
+		t.Fatalf("owner B provider 解析不正确: %+v", ownerBConfig)
+	}
+
+	ownerARecords, err := service.List(ownerACtx)
+	if err != nil {
+		t.Fatalf("读取 owner A provider 列表失败: %v", err)
+	}
+	if len(ownerARecords) != 1 || ownerARecords[0].Visibility != providerstore.VisibilityPublic {
+		t.Fatalf("owner A 应只看到公共 provider: %+v", ownerARecords)
+	}
+	ownerBRecords, err := service.List(ownerBCtx)
+	if err != nil {
+		t.Fatalf("读取 owner B provider 列表失败: %v", err)
+	}
+	if len(ownerBRecords) != 1 || ownerBRecords[0].Visibility != providerstore.VisibilityPrivate ||
+		ownerBRecords[0].DisplayName != "Private Shared" {
+		t.Fatalf("owner B 应看到私有 provider 覆盖公共同名项: %+v", ownerBRecords)
+	}
+}
+
+func TestProviderPublicCreateRequiresAdmin(t *testing.T) {
+	service, _ := newTestService(t)
+	memberCtx := providerTestContext("member-user", authctx.RoleMember)
+
+	if _, err := service.Create(memberCtx, CreateInput{
+		Provider:   "member-public",
+		Visibility: providerstore.VisibilityPublic,
+		AuthToken:  "member-key",
+		BaseURL:    "https://member.example.com",
+	}); err == nil || !strings.Contains(err.Error(), "只有管理员") {
+		t.Fatalf("普通成员不应能创建公共 provider: %v", err)
+	}
+
+	privateProvider, err := service.Create(memberCtx, CreateInput{
+		Provider:  "member-private",
+		AuthToken: "member-key",
+		BaseURL:   "https://member.example.com",
+	})
+	if err != nil {
+		t.Fatalf("普通成员应能创建私有 provider: %v", err)
+	}
+	if privateProvider.Visibility != providerstore.VisibilityPrivate || privateProvider.OwnerUserID != "member-user" {
+		t.Fatalf("普通成员默认应创建私有 provider: %+v", privateProvider)
+	}
+}
+
+func TestProviderPublicMutationRequiresAdminAndDeleteProtectsGlobalUsage(t *testing.T) {
+	service, db := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
+	memberCtx := providerTestContext("member-user", authctx.RoleMember)
+	record, err := service.Create(adminCtx, CreateInput{
+		Provider:    "public-guard",
+		Visibility:  providerstore.VisibilityPublic,
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "public-key",
+		BaseURL:     "https://public.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Public Guard",
+	})
+	if err != nil {
+		t.Fatalf("创建公共 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(adminCtx, record.Provider, "public-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置公共模型失败: %v", err)
+	}
+	if _, err = service.Update(memberCtx, record.Provider, UpdateInput{
+		DisplayName: "Member Edit",
+		AuthToken:   stringPointer("member-key"),
+		BaseURL:     "https://member.example.com",
+		Enabled:     true,
+	}); err == nil || !strings.Contains(err.Error(), "只有管理员") {
+		t.Fatalf("普通成员不应能维护公共 provider: %v", err)
+	}
+
+	insertProviderUsageAgentForOwner(t, db, "owner-a", "agent-public-a", "public-a", "Public A", "", false, record.Provider, "active")
+	insertProviderUsageAgentForOwner(t, db, "owner-b", "agent-public-b", "public-b", "Public B", "", false, record.Provider, "active")
+	if _, err = service.Delete(adminCtx, record.Provider, DeleteInput{}); err == nil || !strings.Contains(err.Error(), "2 个 Agent") {
+		t.Fatalf("公共 provider 删除应按全局使用保护: %v", err)
 	}
 }
 
@@ -644,15 +788,32 @@ func insertProviderUsageAgent(
 	status string,
 ) {
 	t.Helper()
+	insertProviderUsageAgentForOwner(t, db, authctx.SystemUserID, agentID, slug, name, displayName, isMain, provider, status)
+}
+
+func insertProviderUsageAgentForOwner(
+	t *testing.T,
+	db *sql.DB,
+	ownerUserID string,
+	agentID string,
+	slug string,
+	name string,
+	displayName string,
+	isMain bool,
+	provider string,
+	status string,
+) {
+	t.Helper()
 	_, err := db.Exec(`
 INSERT INTO agents (
     id, slug, name, description, definition, status, workspace_path, owner_user_id, is_main
-) VALUES (?, ?, ?, '', '', ?, ?, 'owner-1', ?)`,
+) VALUES (?, ?, ?, '', '', ?, ?, ?, ?)`,
 		agentID,
 		slug,
 		name,
 		status,
 		"/tmp/"+slug,
+		ownerUserID,
 		isMain,
 	)
 	if err != nil {
@@ -681,6 +842,19 @@ INSERT INTO runtimes (
 	if err != nil {
 		t.Fatalf("插入 runtime 失败: %v", err)
 	}
+}
+
+func providerTestContext(userID string, role string) context.Context {
+	return authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     userID,
+		Username:   userID,
+		Role:       role,
+		AuthMethod: authctx.AuthMethodPassword,
+	})
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 type runtimeSelection struct {

@@ -23,6 +23,8 @@ const (
 // Record 表示对外暴露的 Provider 配置。
 type Record struct {
 	ID                    string        `json:"id"`
+	OwnerUserID           string        `json:"owner_user_id,omitempty"`
+	Visibility            string        `json:"visibility"`
 	ProviderKind          string        `json:"provider_kind"`
 	Provider              string        `json:"provider"`
 	PresetKey             string        `json:"preset_key"`
@@ -37,6 +39,7 @@ type Record struct {
 	LastTestStatus        string        `json:"last_test_status"`
 	LastTestError         string        `json:"last_test_error"`
 	LastTestAt            *time.Time    `json:"last_test_at,omitempty"`
+	CanManage             bool          `json:"can_manage"`
 	AgentRuntimeSupported bool          `json:"agent_runtime_supported"`
 	Models                []ModelRecord `json:"models"`
 	CreatedAt             *time.Time    `json:"created_at,omitempty"`
@@ -91,6 +94,7 @@ type OptionsResponse struct {
 type CreateInput struct {
 	ProviderKind string `json:"provider_kind"`
 	Provider     string `json:"provider"`
+	Visibility   string `json:"visibility,omitempty"`
 	PresetKey    string `json:"preset_key"`
 	APIFormat    string `json:"api_format"`
 	DisplayName  string `json:"display_name"`

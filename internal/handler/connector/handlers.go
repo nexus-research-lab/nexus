@@ -50,7 +50,7 @@ func (h *Handlers) HandleConnectorCategories(writer http.ResponseWriter, request
 }
 
 func (h *Handlers) HandleConnectorCount(writer http.ResponseWriter, request *http.Request) {
-	count, err := h.connectors.GetConnectedCount(request.Context())
+	count, err := h.connectors.GetConnectedCount(request.Context(), currentOwnerUserID(request))
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
@@ -177,7 +177,7 @@ func (h *Handlers) HandleConnectConnector(writer http.ResponseWriter, request *h
 	if !h.api.BindJSONAllowEmpty(writer, request, &payload) {
 		return
 	}
-	item, err := h.connectors.Connect(request.Context(), chi.URLParam(request, "connector_id"), payload)
+	item, err := h.connectors.Connect(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"), payload)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")

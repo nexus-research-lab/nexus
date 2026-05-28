@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
@@ -182,7 +183,7 @@ skill body
 		t.Fatalf("写入本地 skill 失败: %v", err)
 	}
 
-	imported, err := service.ImportLocalPath(localSkillRoot)
+	imported, err := service.ImportLocalPath(ctx, localSkillRoot)
 	if err != nil {
 		t.Fatalf("导入本地 skill 失败: %v", err)
 	}
@@ -209,6 +210,208 @@ skill body
 		if item.Name == "demo-skill" && item.Installed {
 			t.Fatalf("卸载后仍显示 installed: %+v", item)
 		}
+	}
+}
+
+func TestRunPnpmCommandUsesConfigEnv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fake pnpm is unix-only")
+	}
+
+	binDir := t.TempDir()
+	captureDir := t.TempDir()
+	argsPath := filepath.Join(captureDir, "args.txt")
+	storePath := filepath.Join(captureDir, "store.txt")
+	registryPath := filepath.Join(captureDir, "registry.txt")
+	fakePnpmPath := filepath.Join(binDir, "pnpm")
+	if err := os.WriteFile(fakePnpmPath, []byte(`#!/bin/sh
+printf '%s\n' "$@" > "$NEXUS_TEST_PNPM_ARGS"
+printf '%s\n' "$npm_config_store_dir" > "$NEXUS_TEST_PNPM_STORE"
+printf '%s\n' "$npm_config_registry" > "$NEXUS_TEST_PNPM_REGISTRY"
+`), 0o755); err != nil {
+		t.Fatalf("写入 fake pnpm 失败: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("NEXUS_TEST_PNPM_ARGS", argsPath)
+	t.Setenv("NEXUS_TEST_PNPM_STORE", storePath)
+	t.Setenv("NEXUS_TEST_PNPM_REGISTRY", registryPath)
+
+	cfg := newSkillsTestConfig(t)
+	cfg.PnpmRegistry = "https://registry.example.test"
+	service := NewService(cfg, nil, nil)
+	if output, err := service.runPnpmCommand(context.Background(), t.TempDir(), "dlx", "skills", "add", "@scope/demo", "-y"); err != nil {
+		t.Fatalf("执行 pnpm 命令失败: output=%q err=%v", output, err)
+	}
+
+	argsPayload, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatalf("读取 pnpm 参数失败: %v", err)
+	}
+	argsText := string(argsPayload)
+	if strings.Contains(argsText, "--store-dir") || strings.Contains(argsText, "--registry") {
+		t.Fatalf("pnpm dlx 参数不应包含配置项: %q", argsText)
+	}
+	if got, want := strings.TrimSpace(argsText), "dlx\nskills\nadd\n@scope/demo\n-y"; got != want {
+		t.Fatalf("pnpm 参数不正确: got=%q want=%q", got, want)
+	}
+
+	storePayload, err := os.ReadFile(storePath)
+	if err != nil {
+		t.Fatalf("读取 pnpm store 配置失败: %v", err)
+	}
+	wantStoreDir := filepath.Join(cfg.CacheFileDir, "pnpm-store")
+	if got := strings.TrimSpace(string(storePayload)); got != wantStoreDir {
+		t.Fatalf("pnpm store 配置不正确: got=%q want=%q", got, wantStoreDir)
+	}
+	if _, err = os.Stat(wantStoreDir); err != nil {
+		t.Fatalf("pnpm store 目录未创建: %v", err)
+	}
+
+	registryPayload, err := os.ReadFile(registryPath)
+	if err != nil {
+		t.Fatalf("读取 pnpm registry 配置失败: %v", err)
+	}
+	if got := strings.TrimSpace(string(registryPayload)); got != cfg.PnpmRegistry {
+		t.Fatalf("pnpm registry 配置不正确: got=%q want=%q", got, cfg.PnpmRegistry)
+	}
+}
+
+func TestServiceMigratesLegacyExternalSkillsToUsersThatUseThem(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewService(cfg, agentService, workspaceService)
+	ctxA := ownerTestContext("owner-a")
+	ctxB := ownerTestContext("owner-b")
+
+	agentA, err := agentService.CreateAgent(ctxA, protocol.CreateRequest{Name: "Owner A Agent"})
+	if err != nil {
+		t.Fatalf("创建 owner-a agent 失败: %v", err)
+	}
+	agentB, err := agentService.CreateAgent(ctxB, protocol.CreateRequest{Name: "Owner B Agent"})
+	if err != nil {
+		t.Fatalf("创建 owner-b agent 失败: %v", err)
+	}
+
+	legacyRoot := filepath.Join(cfg.CacheFileDir, "skills", "registry")
+	writeTestSkillDir(t, filepath.Join(legacyRoot, "demo-skill"), "demo-skill", "Demo Skill", true)
+	writeTestSkillDir(t, filepath.Join(legacyRoot, "shared-skill"), "shared-skill", "Shared Skill", true)
+	writeTestSkillDir(t, filepath.Join(legacyRoot, "unused-skill"), "unused-skill", "Unused Skill", true)
+	if err = os.MkdirAll(filepath.Join(agentB.WorkspacePath, ".agents", "skills", "demo-skill"), 0o755); err != nil {
+		t.Fatalf("标记 owner-b 使用 demo-skill 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(agentA.WorkspacePath, ".agents", "skills", "shared-skill"), 0o755); err != nil {
+		t.Fatalf("标记 owner-a 使用 shared-skill 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(agentB.WorkspacePath, ".agents", "skills", "shared-skill"), 0o755); err != nil {
+		t.Fatalf("标记 owner-b 使用 shared-skill 失败: %v", err)
+	}
+
+	itemsA, err := service.ListSkills(ctxA, Query{})
+	if err != nil {
+		t.Fatalf("迁移后读取 owner-a skills 失败: %v", err)
+	}
+	itemsB, err := service.ListSkills(ctxB, Query{})
+	if err != nil {
+		t.Fatalf("迁移后读取 owner-b skills 失败: %v", err)
+	}
+	if _, ok := findSkill(itemsA, "demo-skill"); ok {
+		t.Fatalf("owner-a 不应看到只被 owner-b 使用的 demo-skill: %+v", itemsA)
+	}
+	if _, ok := findSkill(itemsB, "demo-skill"); !ok {
+		t.Fatalf("owner-b 应看到 demo-skill: %+v", itemsB)
+	}
+	if _, ok := findSkill(itemsA, "shared-skill"); !ok {
+		t.Fatalf("owner-a 应看到 shared-skill: %+v", itemsA)
+	}
+	if _, ok := findSkill(itemsB, "shared-skill"); !ok {
+		t.Fatalf("owner-b 应看到 shared-skill: %+v", itemsB)
+	}
+	if _, ok := findSkill(itemsA, "unused-skill"); ok {
+		t.Fatalf("owner-a 不应看到未使用 legacy skill: %+v", itemsA)
+	}
+	if _, ok := findSkill(itemsB, "unused-skill"); ok {
+		t.Fatalf("owner-b 不应看到未使用 legacy skill: %+v", itemsB)
+	}
+	if _, err = os.Stat(filepath.Join(legacyRoot, "users", "owner-b", "demo-skill", "SKILL.md")); err != nil {
+		t.Fatalf("demo-skill 应迁移到 owner-b 私有 registry: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(legacyRoot, "users", "owner-a", "shared-skill", "SKILL.md")); err != nil {
+		t.Fatalf("shared-skill 应迁移到 owner-a 私有 registry: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(legacyRoot, "legacy-unassigned", "unused-skill", "SKILL.md")); err != nil {
+		t.Fatalf("unused-skill 应归档到 legacy-unassigned: %v", err)
+	}
+}
+
+func TestServiceExternalSkillRegistryIsPrivatePerOwner(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewService(cfg, agentService, workspaceService)
+	ctxA := ownerTestContext("owner-a")
+	ctxB := ownerTestContext("owner-b")
+
+	sourceA := filepath.Join(t.TempDir(), "private-skill-a")
+	sourceB := filepath.Join(t.TempDir(), "private-skill-b")
+	writeTestSkillDir(t, sourceA, "private-skill", "Owner A Skill", false)
+	writeTestSkillDir(t, sourceB, "private-skill", "Owner B Skill", false)
+	if _, err = service.ImportLocalPath(ctxA, sourceA); err != nil {
+		t.Fatalf("owner-a 导入 skill 失败: %v", err)
+	}
+	if _, err = service.ImportLocalPath(ctxB, sourceB); err != nil {
+		t.Fatalf("owner-b 导入 skill 失败: %v", err)
+	}
+
+	itemsA, err := service.ListSkills(ctxA, Query{SourceType: sourceTypeExternal})
+	if err != nil {
+		t.Fatalf("读取 owner-a external skills 失败: %v", err)
+	}
+	itemsB, err := service.ListSkills(ctxB, Query{SourceType: sourceTypeExternal})
+	if err != nil {
+		t.Fatalf("读取 owner-b external skills 失败: %v", err)
+	}
+	skillA, ok := findSkill(itemsA, "private-skill")
+	if !ok || skillA.Title != "Owner A Skill" {
+		t.Fatalf("owner-a 应看到自己的 skill 版本: %+v", itemsA)
+	}
+	skillB, ok := findSkill(itemsB, "private-skill")
+	if !ok || skillB.Title != "Owner B Skill" {
+		t.Fatalf("owner-b 应看到自己的 skill 版本: %+v", itemsB)
+	}
+
+	if err = service.DeleteSkill(ctxA, "private-skill"); err != nil {
+		t.Fatalf("owner-a 删除 skill 失败: %v", err)
+	}
+	itemsA, err = service.ListSkills(ctxA, Query{SourceType: sourceTypeExternal})
+	if err != nil {
+		t.Fatalf("删除后读取 owner-a external skills 失败: %v", err)
+	}
+	itemsB, err = service.ListSkills(ctxB, Query{SourceType: sourceTypeExternal})
+	if err != nil {
+		t.Fatalf("删除后读取 owner-b external skills 失败: %v", err)
+	}
+	if _, ok = findSkill(itemsA, "private-skill"); ok {
+		t.Fatalf("owner-a 删除后不应继续看到 private-skill: %+v", itemsA)
+	}
+	if skillB, ok = findSkill(itemsB, "private-skill"); !ok || skillB.Title != "Owner B Skill" {
+		t.Fatalf("owner-a 删除不应影响 owner-b: %+v", itemsB)
 	}
 }
 
@@ -291,6 +494,57 @@ func findSkill(items []Info, target string) (Info, bool) {
 		}
 	}
 	return Info{}, false
+}
+
+func ownerTestContext(ownerUserID string) context.Context {
+	return authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodPassword,
+	})
+}
+
+func writeTestSkillDir(t *testing.T, root string, name string, title string, withManifest bool) {
+	t.Helper()
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("创建测试 skill 目录失败: %v", err)
+	}
+	content := `---
+name: ` + name + `
+title: ` + title + `
+description: 测试技能
+tags: [test]
+---
+
+# ` + name + `
+`
+	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("写入测试 SKILL.md 失败: %v", err)
+	}
+	if !withManifest {
+		return
+	}
+	manifest := externalManifest{
+		Name:           name,
+		Title:          title,
+		Description:    "测试技能",
+		Scope:          scopeAny,
+		CategoryKey:    "custom-imports",
+		CategoryName:   "自定义导入",
+		Version:        "legacy",
+		SourceType:     sourceTypeExternal,
+		SourceRef:      root,
+		ImportMode:     "local_path",
+		Recommendation: "legacy test skill",
+	}
+	payload, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		t.Fatalf("序列化测试 skill manifest 失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(root, ".nexus-skill.json"), payload, 0o644); err != nil {
+		t.Fatalf("写入测试 skill manifest 失败: %v", err)
+	}
 }
 
 func newSkillsTestConfig(t *testing.T) config.Config {
