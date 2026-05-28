@@ -21,6 +21,7 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -1333,6 +1334,39 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 	if !options.IncludePartialMessages {
 		t.Fatalf("runtime 未开启 partial messages: %+v", options)
+	}
+	approvedTools := toolpolicy.NormalizeSet(options.Tools.Allow)
+	for _, toolName := range []string{
+		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_goal__create_goal",
+		"mcp__nexus_goal__update_goal",
+	} {
+		if !toolpolicy.Contains(approvedTools, toolName) {
+			t.Fatalf("runtime 未预授权托管 Goal 工具 %q: %+v", toolName, options.Tools.Allow)
+		}
+	}
+	if options.Callbacks.PermissionHandler == nil {
+		t.Fatal("runtime 权限处理器为空")
+	}
+	goalSkillDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Skill",
+		Input:    map[string]any{"name": "goal-manager"},
+	})
+	if err != nil {
+		t.Fatalf("Goal Skill 权限处理失败: %v", err)
+	}
+	if goalSkillDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Goal Skill 应自动放行: %+v", goalSkillDecision)
+	}
+	goalToolDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_goal__update_goal",
+		Input:    map[string]any{"status": "complete"},
+	})
+	if err != nil {
+		t.Fatalf("Goal 工具权限处理失败: %v", err)
+	}
+	if goalToolDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Goal 工具应自动放行: %+v", goalToolDecision)
 	}
 }
 

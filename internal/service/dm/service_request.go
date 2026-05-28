@@ -16,6 +16,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -428,6 +429,7 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
+	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
 	if err := workspacepkg.EnsureInitialized(
 		agentValue.AgentID,
 		agentValue.Name,
@@ -455,7 +457,7 @@ func (s *Service) ensureClient(
 		Model:              agentValue.Options.Model,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
-		AllowedTools:       agentValue.Options.AllowedTools,
+		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
 		DisallowedTools:    agentValue.Options.DisallowedTools,
 		SettingSources:     agentValue.Options.SettingSources,
 		AppendSystemPrompt: appendSystemPrompt,

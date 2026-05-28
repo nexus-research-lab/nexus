@@ -61,8 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room group runtime 中的 Goal MCP 工具改为绑定房间 shared session，房间成员完成/阻塞 Goal 时会更新同一个房间 Goal。
 - Room Goal runtime 不再从房间 shared session 回落到成员私有 Goal，Web 面板也固定展示房间级 Goal 语义。
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
+- Goal 面板移除上下文注入模式和事件来源调试标签，不再展示 `仅记账不注入`、`用户 · 创建` 等内部状态。
 
 ### Fixed
+- 修复 UI 启动 Goal 或隐藏续跑时托管 `goal-manager` / `nexus_goal` 权限确认可能卡住，导致前端长期只有“回复中”但没有智能体输出的问题。
 - 修复复用中的 runtime session 从普通权限模式切到 `bypassPermissions` 时可能初始化失败，导致聊天消息发送不出去的问题。
 - 修复未设置 Goal 时聊天底部仍显示空 Goal 面板并遮挡输入区域的问题。
 - 修复 Goal 空态轮询使用 404 表达未设置状态，导致正常空态在服务日志中持续刷 WARN 的问题。

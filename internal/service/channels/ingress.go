@@ -485,7 +485,7 @@ func isManagedScheduledTaskTool(toolName string) bool {
 }
 
 func isManagedGoalTool(toolName string) bool {
-	return toolpolicy.Contains(defaultGoalApprovedTools, toolName)
+	return toolpolicy.IsManagedGoalTool(toolName)
 }
 
 func isManagedIngressTool(toolName string) bool {

@@ -5,7 +5,6 @@ import {
   CircleSlash,
   Clock3,
   GaugeCircle,
-  Layers3,
   Pause,
   Pencil,
   Play,
@@ -15,14 +14,12 @@ import {
 } from "lucide-react";
 
 import { cn, format_tokens } from "@/lib/utils";
-import type { Goal, GoalEvent } from "@/types/conversation/goal";
+import type { Goal } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   GOAL_STATUS_LABEL,
   goal_budget_percent,
-  goal_context_label,
   goal_elapsed_label,
-  goal_event_label,
   goal_runtime_label,
   goal_status_tone,
   goal_usage_total,
@@ -40,7 +37,6 @@ interface GoalStatusStripProps {
   goal: Goal;
   is_generating: boolean;
   is_loading: boolean;
-  recent_events: GoalEvent[];
   scope_label: string;
   on_clear_request: () => void;
   on_edit: () => void;
@@ -107,7 +103,6 @@ export function GoalStatusStrip({
   goal,
   is_generating,
   is_loading,
-  recent_events,
   scope_label,
   on_clear_request,
   on_edit,
@@ -122,14 +117,8 @@ export function GoalStatusStrip({
   const usage_percent = goal_budget_percent(goal);
   const tone = goal_status_tone(goal.status);
   const runtime_label = goal_runtime_label(goal, is_generating);
-  const latest_event = recent_events[0] ?? null;
   const active_continuation_hold =
     goal.status === "active" ? continuation_hold : null;
-  const context_label = goal_context_label(
-    goal,
-    is_generating,
-    active_continuation_hold,
-  );
   const continuation_suppressed =
     goal.status === "active" &&
     (active_continuation_hold !== null || (goal.empty_progress_count ?? 0) > 0);
@@ -217,17 +206,8 @@ export function GoalStatusStrip({
               continuation_hold={active_continuation_hold}
               goal={goal}
               is_generating={is_generating}
-              latest_event={latest_event}
             />
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              {context_label ? (
-                <GoalMetricPill
-                  icon={<Layers3 className="h-3.5 w-3.5 shrink-0" />}
-                  title="Goal 上下文携带状态"
-                >
-                  {context_label}
-                </GoalMetricPill>
-              ) : null}
               <GoalMetricPill
                 icon={<GaugeCircle className="h-3.5 w-3.5 shrink-0" />}
                 title="已用 token"
@@ -278,18 +258,6 @@ export function GoalStatusStrip({
                   className={cn("h-full", tone.meter)}
                   style={{ width: `${usage_percent}%` }}
                 />
-              </div>
-            ) : null}
-            {recent_events.length > 1 ? (
-              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                {recent_events.slice(1).map((event) => (
-                  <span
-                    key={event.id}
-                    className="rounded border border-border/60 px-1.5 py-0.5"
-                  >
-                    {goal_event_label(event)}
-                  </span>
-                ))}
               </div>
             ) : null}
             {error ? <div className="mt-1 text-[11px] text-destructive">{error}</div> : null}

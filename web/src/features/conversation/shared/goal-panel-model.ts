@@ -1,4 +1,4 @@
-import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
+import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
@@ -8,28 +8,6 @@ export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   blocked: "已阻塞",
   budget_limited: "预算耗尽",
   usage_limited: "续跑受限",
-};
-
-export const GOAL_EVENT_LABEL: Record<string, string> = {
-  created: "创建",
-  updated: "更新",
-  resumed: "继续",
-  paused: "暂停",
-  completed: "完成",
-  blocked: "阻塞",
-  cleared: "清除",
-  usage_recorded: "用量",
-  budget_limited: "预算",
-  usage_limited: "受限",
-  continuation_scheduled: "续跑",
-  continuation_suppressed: "续跑暂停",
-};
-
-const GOAL_SOURCE_LABEL: Record<GoalEvent["source"], string> = {
-  user: "用户",
-  model: "模型",
-  system: "系统",
-  external: "外部",
 };
 
 export function goal_usage_total(goal: Goal | null): number {
@@ -76,31 +54,6 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
   }
 }
 
-export function goal_context_label(
-  goal: Goal,
-  is_generating: boolean,
-  continuation_hold: GoalContinuationHold | null = null,
-): string | null {
-  switch (goal.status) {
-    case "active":
-      if (continuation_hold) return continuation_hold.label;
-      if ((goal.empty_progress_count ?? 0) > 0) {
-        return "续跑暂停";
-      }
-      return is_generating ? "仅记账不注入" : "续跑时携带";
-    case "paused":
-      return "暂停注入上下文";
-    case "blocked":
-      return "阻塞后不注入";
-    case "budget_limited":
-      return "预算耗尽不注入";
-    case "usage_limited":
-      return "受限后不注入";
-    default:
-      return null;
-  }
-}
-
 export type GoalRunTone = "active" | "waiting" | "stopped" | "done";
 
 export interface GoalRunState {
@@ -132,7 +85,7 @@ export function goal_run_state(
       }
       return is_generating
         ? {
-            detail: "当前轮次正在计入 Goal 用量与时间",
+            detail: "正在执行 Goal，完成后会显示回复",
             label: "当前轮次",
             tone: "active",
           }
@@ -178,42 +131,6 @@ export function goal_run_state(
         tone: "waiting",
       };
   }
-}
-
-export function goal_event_label(event: GoalEvent): string {
-  const label = GOAL_EVENT_LABEL[event.event_type] ?? event.event_type;
-  const source = GOAL_SOURCE_LABEL[event.source] ?? event.source;
-  const detail = goal_event_detail(event);
-  return detail ? `${source} · ${label}: ${detail}` : `${source} · ${label}`;
-}
-
-function goal_event_detail(event: GoalEvent): string {
-  const payload = event.payload ?? {};
-  switch (event.event_type) {
-    case "blocked":
-    case "budget_limited":
-    case "usage_limited":
-    case "continuation_suppressed":
-      return string_payload(payload, "reason");
-    case "continuation_scheduled": {
-      const count = number_payload(payload, "continuation_count");
-      return count !== null ? `${count}` : "";
-    }
-    case "updated":
-      return payload.objective_updated === true ? "目标已更新" : "";
-    default:
-      return "";
-  }
-}
-
-function string_payload(payload: Record<string, unknown>, key: string): string {
-  const value = payload[key];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function number_payload(payload: Record<string, unknown>, key: string): number | null {
-  const value = payload[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export function goal_status_tone(status: GoalStatus): {

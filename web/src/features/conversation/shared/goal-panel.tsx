@@ -13,14 +13,13 @@ import {
   clear_goal_api,
   create_goal_api,
   get_current_goal_api,
-  list_goal_events_api,
   pause_goal_api,
   resume_goal_api,
   update_goal_api,
 } from "@/lib/api/goal-api";
 import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
-import type { Goal, GoalEvent, GoalStatus } from "@/types/conversation/goal";
+import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   GoalDraftForm,
@@ -85,7 +84,6 @@ export function GoalPanel({
   scope_label = "会话 Goal",
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
-  const [events, set_events] = useState<GoalEvent[]>([]);
   const [is_available, set_is_available] = useState(true);
   const [is_loading, set_is_loading] = useState(false);
   const [is_creating, set_is_creating] = useState(false);
@@ -96,15 +94,6 @@ export function GoalPanel({
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
   const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
   const resume_prompt_key_ref = useRef<string | null>(null);
-
-  const refresh_goal_events = useCallback(async (goal_id: string) => {
-    try {
-      const loaded = await list_goal_events_api(goal_id);
-      set_events(loaded.slice(0, 5));
-    } catch {
-      set_events([]);
-    }
-  }, []);
 
   const maybe_prompt_resume_goal = useCallback(
     (current: Goal) => {
@@ -125,7 +114,6 @@ export function GoalPanel({
   const refresh_goal = useCallback(async () => {
     if (!session_key) {
       set_goal(null);
-      set_events([]);
       set_is_creating(false);
       set_is_editing(false);
       return;
@@ -135,7 +123,6 @@ export function GoalPanel({
       const current = await get_current_goal_api(session_key);
       if (!current) {
         set_goal(null);
-        set_events([]);
         set_resume_prompt_goal(null);
         set_is_available(true);
         set_error(null);
@@ -144,14 +131,12 @@ export function GoalPanel({
       set_goal(current);
       set_is_creating(false);
       maybe_prompt_resume_goal(current);
-      await refresh_goal_events(current.id);
       set_is_available(true);
       set_error(null);
     } catch (err) {
       if (is_goal_unavailable(err)) {
         set_is_available(false);
         set_goal(null);
-        set_events([]);
         set_is_creating(false);
         set_is_editing(false);
         set_resume_prompt_goal(null);
@@ -159,7 +144,6 @@ export function GoalPanel({
       }
       if (is_goal_missing(err)) {
         set_goal(null);
-        set_events([]);
         set_resume_prompt_goal(null);
         set_error(null);
         return;
@@ -168,7 +152,7 @@ export function GoalPanel({
     } finally {
       set_is_loading(false);
     }
-  }, [maybe_prompt_resume_goal, refresh_goal_events, session_key]);
+  }, [maybe_prompt_resume_goal, session_key]);
 
   useEffect(() => {
     void refresh_goal();
@@ -200,7 +184,6 @@ export function GoalPanel({
               token_budget: token_budget ?? null,
             });
       set_goal(updated);
-      await refresh_goal_events(updated.id);
       set_objective("");
       set_budget("");
       set_is_creating(false);
@@ -219,7 +202,6 @@ export function GoalPanel({
     try {
       const updated = await action(goal.id);
       set_goal(updated);
-      await refresh_goal_events(updated.id);
       set_error(null);
     } catch (err) {
       set_error(err instanceof Error ? err.message : "Goal 操作失败");
@@ -235,7 +217,6 @@ export function GoalPanel({
       const result = await clear_goal_api(goal.id);
       if (result.cleared) {
         set_goal(null);
-        set_events([]);
         set_is_creating(false);
         set_is_editing(false);
       }
@@ -280,7 +261,6 @@ export function GoalPanel({
     set_is_editing(false);
   };
 
-  const recent_events = events.slice(0, 3);
   const can_resume_current_goal = useMemo(
     () => (goal ? can_resume_goal(goal.status) : false),
     [goal],
@@ -353,7 +333,6 @@ export function GoalPanel({
         goal={goal}
         is_generating={is_generating}
         is_loading={is_loading}
-        recent_events={recent_events}
         scope_label={scope_label}
         on_clear_request={() => set_is_clear_confirm_open(true)}
         on_edit={start_editing_goal}

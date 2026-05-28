@@ -1,9 +1,21 @@
 package toolpolicy
 
 import (
+	"context"
 	"strings"
 	"unicode"
+
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
+
+const managedGoalSkillName = "goal-manager"
+
+var managedGoalTools = []string{
+	"nexus_goal",
+	"get_goal",
+	"create_goal",
+	"update_goal",
+}
 
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
 func NormalizeSet(items []string) map[string]struct{} {
@@ -88,6 +100,52 @@ func matchesKnownAlias(toolName string, approved string) bool {
 	}
 }
 
+// IsManagedGoalTool 判断请求是否命中 Nexus 托管的 Goal MCP 工具。
+func IsManagedGoalTool(toolName string) bool {
+	for _, item := range managedGoalTools {
+		if MatchesItem(toolName, item) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsManagedGoalSkillRequest 判断 Skill 调用是否只是在加载内置 goal-manager。
+func IsManagedGoalSkillRequest(toolName string, input map[string]any) bool {
+	if !MatchesItem(toolName, "Skill") {
+		return false
+	}
+	for _, key := range []string{"name", "skill", "skill_name", "skillName"} {
+		if canonicalToolName(stringInput(input, key)) == canonicalToolName(managedGoalSkillName) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsManagedGoalPermission 判断权限请求是否属于产品托管 Goal 能力。
+func IsManagedGoalPermission(toolName string, input map[string]any) bool {
+	return IsManagedGoalTool(toolName) || IsManagedGoalSkillRequest(toolName, input)
+}
+
+// WithManagedGoalAutoApproval 让隐藏续跑和模型自启动 Goal 时不被内置 Goal 工具确认卡住。
+func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if IsManagedGoalPermission(request.ToolName, request.Input) {
+			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+// WithManagedGoalAllowedTools 预授权 Goal MCP 工具，保留用户原有工具设置。
+func WithManagedGoalAllowedTools(tools []string) []string {
+	return appendDistinctTools(tools, managedGoalTools...)
+}
+
 func toolNameLeaf(toolName string) string {
 	result := strings.TrimSpace(toolName)
 	for _, separator := range []string{"__", ".", "/"} {
@@ -106,6 +164,50 @@ func canonicalToolName(value string) string {
 		}
 	}
 	return builder.String()
+}
+
+func stringInput(input map[string]any, key string) string {
+	if len(input) == 0 {
+		return ""
+	}
+	value, ok := input[key]
+	if !ok {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return ""
+	}
+}
+
+func cloneInput(input map[string]any) map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	result := make(map[string]any, len(input))
+	for key, value := range input {
+		result[key] = value
+	}
+	return result
+}
+
+func appendDistinctTools(base []string, extra ...string) []string {
+	result := make([]string, 0, len(base)+len(extra))
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	for _, tool := range append(append([]string(nil), base...), extra...) {
+		normalized := strings.TrimSpace(tool)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 // MergeSets 合并多个工具集合。

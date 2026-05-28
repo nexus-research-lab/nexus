@@ -3,13 +3,9 @@
 import { Activity, AlertTriangle, CheckCircle2, PauseCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { Goal, GoalEvent } from "@/types/conversation/goal";
+import type { Goal } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
-import {
-  goal_event_label,
-  goal_run_state,
-  type GoalRunTone,
-} from "./goal-panel-model";
+import { goal_run_state, type GoalRunTone } from "./goal-panel-model";
 
 const GOAL_RUN_TONE_CLASS: Record<
   GoalRunTone,
@@ -45,7 +41,6 @@ interface GoalRunStateLineProps {
   continuation_hold?: GoalContinuationHold | null;
   goal: Goal;
   is_generating: boolean;
-  latest_event: GoalEvent | null;
 }
 
 function GoalRunIcon({ tone }: { tone: GoalRunTone }) {
@@ -60,11 +55,9 @@ export function GoalRunStateLine({
   continuation_hold = null,
   goal,
   is_generating,
-  latest_event,
 }: GoalRunStateLineProps) {
   const state = goal_run_state(goal, is_generating, continuation_hold);
   const tone = GOAL_RUN_TONE_CLASS[state.tone];
-  const latest_event_label = latest_event ? goal_event_label(latest_event) : null;
 
   return (
     <div
@@ -83,14 +76,6 @@ export function GoalRunStateLine({
       >
         {state.detail}
       </span>
-      {latest_event_label ? (
-        <span
-          className="max-w-full truncate rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-muted-foreground"
-          title={latest_event_label}
-        >
-          {latest_event_label}
-        </span>
-      ) : null}
     </div>
   );
 }

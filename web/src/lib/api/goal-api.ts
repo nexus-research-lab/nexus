@@ -4,7 +4,6 @@ import type {
   ClearGoalResult,
   CreateGoalInput,
   Goal,
-  GoalEvent,
   UpdateGoalInput,
 } from "@/types/conversation/goal";
 
@@ -44,15 +43,6 @@ export async function update_goal_api(
         token_budget: input.token_budget,
         metadata: input.metadata,
       },
-    },
-  );
-}
-
-export async function list_goal_events_api(goal_id: string): Promise<GoalEvent[]> {
-  return request_api<GoalEvent[]>(
-    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goal_id)}/events`,
-    {
-      method: "GET",
     },
   );
 }

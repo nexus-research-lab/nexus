@@ -20,6 +20,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -1215,6 +1216,20 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	options := factory.LastOptions()
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room 请求级权限处理器未透传: %+v", options)
+	}
+	approvedTools := toolpolicy.NormalizeSet(options.Tools.Allow)
+	if !toolpolicy.Contains(approvedTools, "mcp__nexus_goal__update_goal") {
+		t.Fatalf("room runtime 未预授权托管 Goal 工具: %+v", options.Tools.Allow)
+	}
+	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_goal__update_goal",
+		Input:    map[string]any{"status": "complete"},
+	})
+	if err != nil {
+		t.Fatalf("执行 room Goal 权限处理器失败: %v", err)
+	}
+	if goalDecision.Behavior != sdkpermission.BehaviorAllow || len(handledTools) != 0 {
+		t.Fatalf("room Goal 权限应自动放行且不进入请求级 handler: decision=%+v tools=%+v", goalDecision, handledTools)
 	}
 	decision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "Write"})
 	if err != nil {
