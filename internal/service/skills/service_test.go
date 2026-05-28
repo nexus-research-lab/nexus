@@ -165,6 +165,38 @@ description: 兼容直接位于 .agents 下的技能目录
 		t.Fatalf("agent 直属本地 skill 移除后目录仍存在: %v", err)
 	}
 
+	claudeLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
+	if err = os.MkdirAll(claudeLocalSkillRoot, 0o755); err != nil {
+		t.Fatalf("创建 agent Claude 本地 skill 目录失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(claudeLocalSkillRoot, "SKILL.md"), []byte(`---
+name: claude-agent-skill
+title: Claude Agent Skill
+description: 兼容 Agent 在 .claude/skills 下创建的技能目录
+---
+
+# claude-agent-skill
+`), 0o644); err != nil {
+		t.Fatalf("写入 agent Claude 本地 skill 失败: %v", err)
+	}
+	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取含 agent Claude 本地 skill 的列表失败: %v", err)
+	}
+	claudeAgentSkill, ok := findSkill(items, "claude-agent-skill")
+	if !ok {
+		t.Fatalf("agent Claude 本地 skill 未暴露: %+v", items)
+	}
+	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.Installed || claudeAgentSkill.Locked {
+		t.Fatalf("agent Claude 本地 skill 状态不正确: %+v", claudeAgentSkill)
+	}
+	if err = service.UninstallSkill(ctx, agentValue.AgentID, "claude-agent-skill"); err != nil {
+		t.Fatalf("agent Claude 本地 skill 应允许从当前智能体移除: %v", err)
+	}
+	if _, err = os.Stat(claudeLocalSkillRoot); !os.IsNotExist(err) {
+		t.Fatalf("agent Claude 本地 skill 移除后目录仍存在: %v", err)
+	}
+
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")
 	if err = os.MkdirAll(localSkillRoot, 0o755); err != nil {
 		t.Fatalf("创建本地 skill 目录失败: %v", err)
@@ -210,69 +242,6 @@ skill body
 		if item.Name == "demo-skill" && item.Installed {
 			t.Fatalf("卸载后仍显示 installed: %+v", item)
 		}
-	}
-}
-
-func TestRunPnpmCommandUsesConfigEnv(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell fake pnpm is unix-only")
-	}
-
-	binDir := t.TempDir()
-	captureDir := t.TempDir()
-	argsPath := filepath.Join(captureDir, "args.txt")
-	storePath := filepath.Join(captureDir, "store.txt")
-	registryPath := filepath.Join(captureDir, "registry.txt")
-	fakePnpmPath := filepath.Join(binDir, "pnpm")
-	if err := os.WriteFile(fakePnpmPath, []byte(`#!/bin/sh
-printf '%s\n' "$@" > "$NEXUS_TEST_PNPM_ARGS"
-printf '%s\n' "$npm_config_store_dir" > "$NEXUS_TEST_PNPM_STORE"
-printf '%s\n' "$npm_config_registry" > "$NEXUS_TEST_PNPM_REGISTRY"
-`), 0o755); err != nil {
-		t.Fatalf("写入 fake pnpm 失败: %v", err)
-	}
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("NEXUS_TEST_PNPM_ARGS", argsPath)
-	t.Setenv("NEXUS_TEST_PNPM_STORE", storePath)
-	t.Setenv("NEXUS_TEST_PNPM_REGISTRY", registryPath)
-
-	cfg := newSkillsTestConfig(t)
-	cfg.PnpmRegistry = "https://registry.example.test"
-	service := NewService(cfg, nil, nil)
-	if output, err := service.runPnpmCommand(context.Background(), t.TempDir(), "dlx", "skills", "add", "@scope/demo", "-y"); err != nil {
-		t.Fatalf("执行 pnpm 命令失败: output=%q err=%v", output, err)
-	}
-
-	argsPayload, err := os.ReadFile(argsPath)
-	if err != nil {
-		t.Fatalf("读取 pnpm 参数失败: %v", err)
-	}
-	argsText := string(argsPayload)
-	if strings.Contains(argsText, "--store-dir") || strings.Contains(argsText, "--registry") {
-		t.Fatalf("pnpm dlx 参数不应包含配置项: %q", argsText)
-	}
-	if got, want := strings.TrimSpace(argsText), "dlx\nskills\nadd\n@scope/demo\n-y"; got != want {
-		t.Fatalf("pnpm 参数不正确: got=%q want=%q", got, want)
-	}
-
-	storePayload, err := os.ReadFile(storePath)
-	if err != nil {
-		t.Fatalf("读取 pnpm store 配置失败: %v", err)
-	}
-	wantStoreDir := filepath.Join(cfg.CacheFileDir, "pnpm-store")
-	if got := strings.TrimSpace(string(storePayload)); got != wantStoreDir {
-		t.Fatalf("pnpm store 配置不正确: got=%q want=%q", got, wantStoreDir)
-	}
-	if _, err = os.Stat(wantStoreDir); err != nil {
-		t.Fatalf("pnpm store 目录未创建: %v", err)
-	}
-
-	registryPayload, err := os.ReadFile(registryPath)
-	if err != nil {
-		t.Fatalf("读取 pnpm registry 配置失败: %v", err)
-	}
-	if got := strings.TrimSpace(string(registryPayload)); got != cfg.PnpmRegistry {
-		t.Fatalf("pnpm registry 配置不正确: got=%q want=%q", got, cfg.PnpmRegistry)
 	}
 }
 

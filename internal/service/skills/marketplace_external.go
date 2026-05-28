@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
@@ -334,6 +335,12 @@ func (s *Service) GetExternalSkillPreview(ctx context.Context, detailURL string)
 	if err != nil {
 		return nil, err
 	}
+	if isSkillsShPreviewURL(targetURL) {
+		return &ExternalSkillPreviewResponse{
+			DetailURL:      targetURL,
+			ReadmeMarkdown: "",
+		}, nil
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
 		return nil, err
@@ -353,6 +360,16 @@ func (s *Service) GetExternalSkillPreview(ctx context.Context, detailURL string)
 	if len(body) > maxExternalPreviewBytes {
 		body = body[:maxExternalPreviewBytes]
 	}
+	if isZipPayload(targetURL, response.Header.Get("Content-Type"), body) {
+		markdown, extractErr := extractSkillMarkdownFromZip(body)
+		if extractErr != nil {
+			return nil, extractErr
+		}
+		return &ExternalSkillPreviewResponse{
+			DetailURL:      targetURL,
+			ReadmeMarkdown: markdown,
+		}, nil
+	}
 	return &ExternalSkillPreviewResponse{
 		DetailURL:      targetURL,
 		ReadmeMarkdown: extractPreviewMarkdown(string(body)),
@@ -367,6 +384,12 @@ func (s *Service) attachExternalReadmes(ctx context.Context, items []ExternalSki
 	var wg sync.WaitGroup
 	for index := range items {
 		index := index
+		if items[index].SourceKind == externalSourceKindSkillsSh || items[index].ImportMode == externalSourceKindSkillsSh {
+			continue
+		}
+		if strings.TrimSpace(items[index].DetailURL) == "" {
+			continue
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -387,13 +410,9 @@ func (s *Service) attachExternalReadmes(ctx context.Context, items []ExternalSki
 
 // ImportSkillsSh 从 skills.sh 搜索结果导入技能。
 func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillSlug string) (*Detail, error) {
-	packageSpec = strings.TrimSpace(packageSpec)
-	skillSlug = strings.TrimSpace(skillSlug)
-	if packageSpec == "" {
-		return nil, errors.New("package_spec 不能为空")
-	}
-	if skillSlug == "" {
-		return nil, errors.New("skill_slug 不能为空")
+	target, err := parseSkillsShImportTarget(packageSpec, skillSlug)
+	if err != nil {
+		return nil, err
 	}
 	tempDir, err := os.MkdirTemp("", "nexus-skills-sh-*")
 	if err != nil {
@@ -401,32 +420,34 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 	}
 	defer os.RemoveAll(tempDir)
 
-	packageJSONPath := filepath.Join(tempDir, "package.json")
-	if err = os.WriteFile(packageJSONPath, []byte("{\"private\":true}\n"), 0o644); err != nil {
-		return nil, err
+	if output, runErr := s.runCommand(ctx, "", "git", "clone", "--depth", "1", target.RepositoryURL, tempDir); runErr != nil {
+		return nil, fmt.Errorf("skills.sh Git 导入失败: %s", output)
 	}
-	if strings.Contains(packageSpec, "@") {
-		if output, runErr := s.runPnpmCommand(ctx, tempDir, "dlx", "skills", "add", packageSpec, "-y", "--copy"); runErr != nil {
-			return nil, fmt.Errorf("skills.sh 导入失败: %s", output)
-		}
-	} else {
-		if output, runErr := s.runPnpmCommand(ctx, tempDir, "dlx", "skills", "add", packageSpec, "--skill", skillSlug, "-y", "--copy"); runErr != nil {
-			return nil, fmt.Errorf("skills.sh 导入失败: %s", output)
-		}
-	}
-	sourceDir, err := findSkillSourceDir(tempDir)
+	sourceDir, err := findSkillsShSourceDir(tempDir, target.SkillPath, target.SkillSlug)
 	if err != nil {
 		return nil, err
 	}
+	relativeSourceDir, relErr := filepath.Rel(tempDir, sourceDir)
+	if relErr == nil && relativeSourceDir != "." {
+		target.SkillPath = filepath.ToSlash(relativeSourceDir)
+	}
+	commitOutput, revErr := s.runCommand(ctx, tempDir, "git", "rev-parse", "HEAD")
+	if revErr != nil {
+		slog.WarnContext(ctx, "skills.sh git rev-parse HEAD 失败", "repository_url", target.RepositoryURL, "err", revErr)
+	}
 	return s.importSourceDir(ctx, sourceDir, externalManifest{
 		SourceType:  sourceTypeExternal,
-		SourceRef:   packageSpec,
+		SourceRef:   target.Identifier,
 		SourceKind:  externalSourceKindSkillsSh,
 		SourceKey:   firstNonEmpty(strings.TrimSpace(s.config.SkillsAPIURL), "https://skills.sh"),
 		SourceName:  "skills.sh",
 		SourceTrust: externalSourceTrustCommunity,
 		ImportMode:  "skills_sh",
-		Version:     packageSpec,
+		GitURL:      target.RepositoryURL,
+		GitPath:     filepath.ToSlash(target.SkillPath),
+		GitCommit:   strings.TrimSpace(commitOutput),
+		DetailURL:   skillsShDetailURL(firstNonEmpty(strings.TrimSpace(s.config.SkillsAPIURL), defaultSkillsShURL), target.SourceRef, target.SkillSlug),
+		Version:     firstNonEmpty(strings.TrimSpace(commitOutput), target.Identifier),
 	})
 }
 
@@ -498,7 +519,7 @@ func (s *Service) ImportSkillURL(ctx context.Context, sourceURL string, manifest
 	}
 	defer os.RemoveAll(tempDir)
 
-	if strings.HasSuffix(strings.ToLower(targetURL), ".zip") {
+	if isZipPayload(targetURL, response.Header.Get("Content-Type"), body) {
 		if err = unzipArchive(body, tempDir); err != nil {
 			return nil, err
 		}
@@ -707,42 +728,22 @@ func (s *Service) readManifest(skillDir string) (externalManifest, error) {
 }
 
 func (s *Service) runCommand(ctx context.Context, workDir string, command ...string) (string, error) {
-	return s.runCommandWithEnv(ctx, workDir, nil, command...)
-}
-
-func (s *Service) runCommandWithEnv(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error) {
 	if len(command) == 0 {
 		return "", errors.New("命令不能为空")
 	}
 	if s.commandRunner != nil {
-		return s.commandRunner(ctx, workDir, extraEnv, command...)
+		return s.commandRunner(ctx, workDir, command...)
 	}
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	if strings.TrimSpace(workDir) != "" {
 		cmd.Dir = workDir
 	}
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, extraEnv...)
 	if strings.TrimSpace(s.config.SkillsAPIURL) != "" {
 		cmd.Env = append(cmd.Env, "SKILLS_API_URL="+strings.TrimSpace(s.config.SkillsAPIURL))
 	}
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
-}
-
-func (s *Service) runPnpmCommand(ctx context.Context, workDir string, args ...string) (string, error) {
-	command := []string{"pnpm"}
-	extraEnv := make([]string, 0, 2)
-	if registry := strings.TrimSpace(s.config.PnpmRegistry); registry != "" {
-		extraEnv = append(extraEnv, "npm_config_registry="+registry)
-	}
-	if cacheRoot := strings.TrimSpace(s.config.CacheFileDir); cacheRoot != "" {
-		storeDir := filepath.Join(cacheRoot, "pnpm-store")
-		_ = os.MkdirAll(storeDir, 0o755)
-		extraEnv = append(extraEnv, "npm_config_store_dir="+storeDir)
-	}
-	command = append(command, args...)
-	return s.runCommandWithEnv(ctx, workDir, extraEnv, command...)
 }
 
 func unzipArchive(payload []byte, targetDir string) error {
@@ -790,6 +791,50 @@ func unzipArchive(payload []byte, targetDir string) error {
 	return nil
 }
 
+func isZipPayload(targetURL string, contentType string, payload []byte) bool {
+	if strings.HasSuffix(strings.ToLower(strings.TrimSpace(targetURL)), ".zip") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(contentType), "zip") {
+		return true
+	}
+	return len(payload) >= 4 && bytes.Equal(payload[:4], []byte{'P', 'K', 0x03, 0x04})
+}
+
+func extractSkillMarkdownFromZip(payload []byte) (string, error) {
+	reader, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		return "", errors.New("skill 预览内容不是合法 zip 包")
+	}
+	bestPath := ""
+	var bestFile *zip.File
+	for _, file := range reader.File {
+		if file.FileInfo().IsDir() || filepath.Base(file.Name) != "SKILL.md" {
+			continue
+		}
+		if bestFile == nil || len(file.Name) < len(bestPath) {
+			bestPath = file.Name
+			bestFile = file
+		}
+	}
+	if bestFile == nil {
+		return "", errors.New("skill 预览 zip 中未找到 SKILL.md")
+	}
+	handle, err := bestFile.Open()
+	if err != nil {
+		return "", err
+	}
+	defer handle.Close()
+	body, err := io.ReadAll(io.LimitReader(handle, maxExternalPreviewBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(body) > maxExternalPreviewBytes {
+		body = body[:maxExternalPreviewBytes]
+	}
+	return string(body), nil
+}
+
 func findSkillSourceDir(root string) (string, error) {
 	bestMatch := ""
 	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
@@ -817,6 +862,166 @@ func findSkillSourceDir(root string) (string, error) {
 	return bestMatch, nil
 }
 
+type skillsShImportTarget struct {
+	RepositoryURL string
+	SourceRef     string
+	Identifier    string
+	SkillPath     string
+	SkillSlug     string
+}
+
+func parseSkillsShImportTarget(packageSpec string, skillSlug string) (skillsShImportTarget, error) {
+	rawSpec := strings.TrimSpace(packageSpec)
+	rawSlug := strings.TrimSpace(skillSlug)
+	if rawSpec == "" {
+		return skillsShImportTarget{}, errors.New("package_spec 不能为空")
+	}
+	rawSpec = strings.TrimPrefix(rawSpec, "skills.sh:")
+	sourceRef, sourcePath := splitSkillsShPackageSpec(rawSpec)
+	if sourceRef == "" {
+		return skillsShImportTarget{}, errors.New("skills.sh 来源缺少 GitHub 仓库")
+	}
+	sourceParts := splitSkillsShID(sourceRef)
+	if len(sourceParts) != 2 || !isSafeGitHubRepoSegment(sourceParts[0]) || !isSafeGitHubRepoSegment(sourceParts[1]) {
+		return skillsShImportTarget{}, errors.New("skills.sh 来源 GitHub 仓库不合法")
+	}
+	sourceRef = strings.Join(sourceParts, "/")
+	cleanSkillPath := firstNonEmpty(sourcePath, rawSlug)
+	cleanSkillPath, err := cleanSkillSubdirPath(cleanSkillPath)
+	if err != nil {
+		return skillsShImportTarget{}, err
+	}
+	slug := firstNonEmpty(filepath.Base(filepath.FromSlash(cleanSkillPath)), rawSlug)
+	if slug == "." || slug == string(os.PathSeparator) {
+		slug = rawSlug
+	}
+	if strings.TrimSpace(slug) == "" {
+		return skillsShImportTarget{}, errors.New("skill_slug 不能为空")
+	}
+	identifier := sourceRef
+	if cleanSkillPath != "" {
+		identifier += "/" + filepath.ToSlash(cleanSkillPath)
+	}
+	return skillsShImportTarget{
+		RepositoryURL: "https://github.com/" + sourceRef,
+		SourceRef:     sourceRef,
+		Identifier:    identifier,
+		SkillPath:     filepath.ToSlash(cleanSkillPath),
+		SkillSlug:     strings.TrimSpace(slug),
+	}, nil
+}
+
+func isSafeGitHubRepoSegment(value string) bool {
+	if value == "" || value == "." || value == ".." {
+		return false
+	}
+	return !strings.ContainsAny(value, `/\`)
+}
+
+func splitSkillsShPackageSpec(rawSpec string) (string, string) {
+	if parsed, err := url.Parse(rawSpec); err == nil && parsed.Host != "" {
+		host := strings.ToLower(parsed.Host)
+		parts := splitSkillsShID(parsed.Path)
+		switch host {
+		case "github.com", "www.github.com":
+			if len(parts) < 2 {
+				return "", ""
+			}
+			if len(parts) >= 5 && parts[2] == "tree" {
+				return strings.Join(parts[:2], "/"), strings.Join(parts[4:], "/")
+			}
+			return strings.Join(parts[:2], "/"), strings.Join(parts[2:], "/")
+		case "skills.sh", "www.skills.sh":
+			if len(parts) < 2 {
+				return "", ""
+			}
+			return strings.Join(parts[:2], "/"), strings.Join(parts[2:], "/")
+		}
+	}
+	if atIndex := strings.LastIndex(rawSpec, "@"); atIndex > 0 {
+		return strings.Trim(strings.TrimSpace(rawSpec[:atIndex]), "/"), strings.Trim(strings.TrimSpace(rawSpec[atIndex+1:]), "/")
+	}
+	parts := splitSkillsShID(rawSpec)
+	if len(parts) < 2 {
+		return "", strings.Join(parts, "/")
+	}
+	return strings.Join(parts[:2], "/"), strings.Join(parts[2:], "/")
+}
+
+func findSkillsShSourceDir(root string, skillPath string, skillSlug string) (string, error) {
+	cleanSkillPath, err := cleanSkillSubdirPath(skillPath)
+	if err != nil {
+		return "", err
+	}
+	if cleanSkillPath != "" {
+		sourceDir := filepath.Join(root, cleanSkillPath)
+		if _, statErr := os.Stat(filepath.Join(sourceDir, "SKILL.md")); statErr == nil {
+			return sourceDir, nil
+		}
+	}
+	type candidate struct {
+		path  string
+		score int
+	}
+	candidates := make([]candidate, 0)
+	allSkillDirs := make([]string, 0)
+	normalizedSlug := strings.ToLower(strings.TrimSpace(skillSlug))
+	normalizedPath := strings.ToLower(filepath.ToSlash(cleanSkillPath))
+	err = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() || info.Name() != "SKILL.md" {
+			return nil
+		}
+		sourceDir := filepath.Dir(path)
+		allSkillDirs = append(allSkillDirs, sourceDir)
+		relativeDir, relErr := filepath.Rel(root, sourceDir)
+		if relErr != nil {
+			return relErr
+		}
+		relativeSlash := strings.ToLower(filepath.ToSlash(relativeDir))
+		baseName := strings.ToLower(filepath.Base(sourceDir))
+		score := 100
+		if normalizedPath != "" && relativeSlash == normalizedPath {
+			score = 0
+		} else if normalizedPath != "" && (strings.HasSuffix(relativeSlash, "/"+normalizedPath) || relativeSlash == "skills/"+normalizedPath) {
+			score = 1
+		} else if normalizedSlug != "" && baseName == normalizedSlug {
+			score = 2
+		} else if normalizedSlug != "" {
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			parsed := parseSkillFrontmatter(string(content), filepath.Base(sourceDir))
+			if strings.EqualFold(parsed.Name, skillSlug) || strings.EqualFold(parsed.Title, skillSlug) {
+				score = 3
+			}
+		}
+		if score < 100 {
+			candidates = append(candidates, candidate{path: sourceDir, score: score})
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(candidates) == 0 && len(allSkillDirs) == 1 {
+		return allSkillDirs[0], nil
+	}
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("未找到 skills.sh skill 目录: %s", firstNonEmpty(skillPath, skillSlug))
+	}
+	sort.Slice(candidates, func(i int, j int) bool {
+		if candidates[i].score != candidates[j].score {
+			return candidates[i].score < candidates[j].score
+		}
+		return len(candidates[i].path) < len(candidates[j].path)
+	})
+	return candidates[0].path, nil
+}
+
 func buildSkillsPackageSpec(source string, slug string, name string) string {
 	base := firstNonEmpty(strings.TrimSpace(source), strings.TrimSpace(slug))
 	if base == "" {
@@ -825,7 +1030,12 @@ func buildSkillsPackageSpec(source string, slug string, name string) string {
 	if strings.Contains(base, "@") {
 		return base
 	}
-	return base + "@" + name
+	cleanBase := strings.Trim(base, "/")
+	cleanSlug := firstNonEmpty(strings.Trim(strings.TrimSpace(slug), "/"), strings.Trim(strings.TrimSpace(name), "/"))
+	if cleanSlug == "" || strings.HasSuffix(cleanBase, "/"+cleanSlug) {
+		return cleanBase
+	}
+	return cleanBase + "/" + cleanSlug
 }
 
 func (s *Service) defaultExternalSkillSources() []externalSkillSource {
@@ -1185,7 +1395,7 @@ func (s *Service) searchClaudePluginsSource(ctx context.Context, source external
 		items = append(items, ExternalSkillSearchItem{
 			Name:           name,
 			Title:          firstNonEmpty(anyString(row["title"]), name),
-			Description:    firstNonEmpty(anyString(row["description"]), "来自 claude-plugins.dev 的搜索结果"),
+			Description:    firstNonEmpty(repairClaudePluginsText(anyString(row["description"])), "来自 claude-plugins.dev 的搜索结果"),
 			Source:         firstNonEmpty(anyString(row["namespace"]), gitURL, source.URL),
 			PackageSpec:    packageSpec,
 			SkillSlug:      name,
@@ -1241,21 +1451,23 @@ func (s *Service) searchSkillsShSource(ctx context.Context, source externalSkill
 	}
 	items := make([]ExternalSkillSearchItem, 0, len(rows))
 	for _, row := range rows {
-		name := anyString(row["name"])
-		slug := firstNonEmpty(anyString(row["id"]), anyString(row["slug"]), name)
-		if name == "" || slug == "" {
+		id := anyString(row["id"])
+		sourceRef := firstNonEmpty(anyString(row["source"]), skillsShSourceFromID(id))
+		skillSlug := firstNonEmpty(anyString(row["skillId"]), anyString(row["skill_id"]), anyString(row["slug"]), skillsShSkillFromID(id), anyString(row["name"]))
+		name := firstNonEmpty(anyString(row["name"]), skillSlug)
+		if name == "" || skillSlug == "" {
 			continue
 		}
-		sourceRef := anyString(row["source"])
+		packageSpec := buildSkillsPackageSpec(firstNonEmpty(id, sourceRef), skillSlug, name)
 		item := ExternalSkillSearchItem{
 			Name:           name,
 			Title:          firstNonEmpty(anyString(row["title"]), name),
 			Description:    firstNonEmpty(anyString(row["description"]), "来自 skills.sh 的搜索结果"),
 			Source:         sourceRef,
-			PackageSpec:    buildSkillsPackageSpec(sourceRef, slug, name),
-			SkillSlug:      name,
+			PackageSpec:    packageSpec,
+			SkillSlug:      skillSlug,
 			Installs:       anyInt(row["installs"]),
-			DetailURL:      apiURL + "/" + slug,
+			DetailURL:      skillsShDetailURL(apiURL, sourceRef, skillSlug),
 			ReadmeMarkdown: "",
 			SourceKind:     externalSourceKindSkillsSh,
 			SourceKey:      source.Key,
@@ -1263,7 +1475,7 @@ func (s *Service) searchSkillsShSource(ctx context.Context, source externalSkill
 			SourceTrust:    source.Trust,
 			ImportMode:     externalSourceKindSkillsSh,
 			Tags:           anyStringSlice(row["tags"]),
-			Version:        firstNonEmpty(anyString(row["version"]), buildSkillsPackageSpec(sourceRef, slug, name)),
+			Version:        firstNonEmpty(anyString(row["version"]), packageSpec),
 		}
 		items = append(items, item)
 	}
@@ -1623,6 +1835,44 @@ func externalItemMatchesQuery(item ExternalSkillSearchItem, needle string) bool 
 	return false
 }
 
+func repairClaudePluginsText(text string) string {
+	if !looksLikeMojibake(text) {
+		return text
+	}
+	bytes := make([]byte, 0, len(text))
+	for _, character := range text {
+		if character > 255 {
+			return text
+		}
+		bytes = append(bytes, byte(character))
+	}
+	if !utf8.Valid(bytes) {
+		return text
+	}
+	repaired := string(bytes)
+	if strings.ContainsRune(repaired, '\uFFFD') || mojibakeScore(repaired) >= mojibakeScore(text) {
+		return text
+	}
+	return repaired
+}
+
+func looksLikeMojibake(text string) bool {
+	return mojibakeScore(text) >= 2
+}
+
+func mojibakeScore(text string) int {
+	score := 0
+	for _, character := range text {
+		switch {
+		case character >= 0x80 && character <= 0x9f:
+			score += 2
+		case strings.ContainsRune("ÂÃâÄäÅåÆæÇçÉéÊêËëÎîÏïÐðÑñÒòÓóÔôÕõÖöØøÙùÚúÛûÜüÝýÞþ", character):
+			score++
+		}
+	}
+	return score
+}
+
 func externalSearchURL(sourceURL string, defaultPath string, queryValues map[string]string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -1732,6 +1982,52 @@ func clawhubDetailURL(sourceURL string, owner string, slug string) string {
 	return parsed.String()
 }
 
+func skillsShSourceFromID(id string) string {
+	parts := splitSkillsShID(id)
+	if len(parts) < 3 {
+		return ""
+	}
+	return strings.Join(parts[:len(parts)-1], "/")
+}
+
+func skillsShSkillFromID(id string) string {
+	parts := splitSkillsShID(id)
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+func splitSkillsShID(id string) []string {
+	rawParts := strings.Split(strings.Trim(strings.TrimSpace(id), "/"), "/")
+	parts := make([]string, 0, len(rawParts))
+	for _, part := range rawParts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
+}
+
+func skillsShDetailURL(apiURL string, sourceRef string, skillSlug string) string {
+	sourceRef = strings.Trim(strings.TrimSpace(sourceRef), "/")
+	skillSlug = strings.Trim(strings.TrimSpace(skillSlug), "/")
+	if sourceRef == "" || skillSlug == "" {
+		return strings.TrimRight(strings.TrimSpace(apiURL), "/") + "/" + skillSlug
+	}
+	parsed, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil || parsed.Host == "" {
+		return "https://www.skills.sh/" + sourceRef + "/" + skillSlug
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	if strings.EqualFold(parsed.Host, "skills.sh") {
+		parsed.Host = "www.skills.sh"
+	}
+	parsed.Path = "/" + sourceRef + "/" + skillSlug
+	return parsed.String()
+}
+
 func inferExternalImportMode(item ExternalSkillSearchItem) string {
 	if strings.TrimSpace(item.GitURL) != "" {
 		return externalSourceKindGit
@@ -1782,9 +2078,11 @@ func (s *Service) validateExternalURL(ctx context.Context, rawURL string) (strin
 	if parsed.Host == "" {
 		return "", errors.New("skills 外部链接域名为空")
 	}
+	canonicalizeSkillsShExternalURL(parsed)
 	allowedHosts := map[string]struct{}{
 		"claude-plugins.dev":        {},
 		"skills.sh":                 {},
+		"www.skills.sh":             {},
 		"clawhub.ai":                {},
 		"github.com":                {},
 		"raw.githubusercontent.com": {},
@@ -1801,29 +2099,87 @@ func (s *Service) validateExternalURL(ctx context.Context, rawURL string) (strin
 	return parsed.String(), nil
 }
 
+func canonicalizeSkillsShExternalURL(parsed *url.URL) {
+	if parsed == nil || !strings.EqualFold(parsed.Host, "skills.sh") {
+		return
+	}
+	path := strings.Trim(strings.ToLower(parsed.Path), "/")
+	if path == "" || strings.HasPrefix(path, "api/") {
+		return
+	}
+	parsed.Host = "www.skills.sh"
+}
+
+func isSkillsShPreviewURL(rawURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Host)
+	return host == "skills.sh" || host == "www.skills.sh"
+}
+
 func extractPreviewMarkdown(html string) string {
 	trimmed := strings.TrimSpace(html)
+	if isPlainMarkdownPreview(trimmed) {
+		return trimmed
+	}
 	marker := `"dangerouslySetInnerHTML":{"__html":"`
 	if !strings.Contains(html, marker) {
-		if strings.HasPrefix(trimmed, "---") || strings.HasPrefix(trimmed, "# ") || strings.Contains(trimmed, "\n# ") {
-			return trimmed
-		}
-		if !strings.Contains(strings.ToLower(trimmed), "<html") && strings.Contains(trimmed, "\n") {
-			return trimmed
-		}
 		return ""
 	}
-	_, fragment, _ := strings.Cut(html, marker)
-	fragment, _, _ = strings.Cut(fragment, `"}}`)
-	decoded := strings.ReplaceAll(fragment, `\n`, "\n")
-	decoded = strings.ReplaceAll(decoded, `\"`, `"`)
-	result := decoded
+	best := ""
+	bestScore := 0
+	remaining := html
+	for {
+		_, fragment, ok := strings.Cut(remaining, marker)
+		if !ok {
+			break
+		}
+		fragment, rest, _ := strings.Cut(fragment, `"}}`)
+		candidate := normalizePreviewHTMLFragment(fragment)
+		if score := previewMarkdownScore(candidate); score > bestScore {
+			best = candidate
+			bestScore = score
+		}
+		remaining = rest
+	}
+	return strings.TrimSpace(best)
+}
+
+func normalizePreviewHTMLFragment(fragment string) string {
+	result := strings.ReplaceAll(fragment, `\n`, "\n")
+	result = strings.ReplaceAll(result, `\"`, `"`)
+	result = strings.ReplaceAll(result, `\u003c`, "<")
+	result = strings.ReplaceAll(result, `\u003C`, "<")
+	result = strings.ReplaceAll(result, `\u003e`, ">")
+	result = strings.ReplaceAll(result, `\u003E`, ">")
+	result = strings.ReplaceAll(result, `\u0026`, "&")
 	for _, item := range previewMarkdownRules {
 		result = item.pattern.ReplaceAllString(result, item.replace)
 	}
 	result = strings.ReplaceAll(result, "&#x3C;", "<")
 	result = strings.ReplaceAll(result, "&quot;", `"`)
 	return strings.TrimSpace(result)
+}
+
+func previewMarkdownScore(markdown string) int {
+	trimmed := strings.TrimSpace(markdown)
+	if trimmed == "" || strings.HasPrefix(trimmed, "{") || strings.Contains(trimmed, `"@context"`) {
+		return 0
+	}
+	score := len(trimmed)
+	if strings.Contains(trimmed, "# ") || strings.Contains(trimmed, "## ") {
+		score += 200
+	}
+	return score
+}
+
+func isPlainMarkdownPreview(trimmed string) bool {
+	if strings.HasPrefix(trimmed, "---") || strings.HasPrefix(trimmed, "# ") || strings.Contains(trimmed, "\n# ") {
+		return true
+	}
+	return !strings.Contains(strings.ToLower(trimmed), "<html") && strings.Contains(trimmed, "\n")
 }
 
 func dedupeExternalItems(items []ExternalSkillSearchItem) []ExternalSkillSearchItem {

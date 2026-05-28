@@ -34,7 +34,6 @@ type Config struct {
 	WebDistDir                     string
 	AppMode                        string
 	DesktopSessionToken            string
-	PnpmRegistry                   string
 	SkillsAPIURL                   string
 	SkillsSourceURLs               string
 	SkillsDefaultSourcesEnabled    bool
@@ -129,7 +128,6 @@ func Load() Config {
 		WebDistDir:                     getEnv("WEB_DIST_DIR", ""),
 		AppMode:                        getEnv("NEXUS_APP_MODE", ""),
 		DesktopSessionToken:            getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
-		PnpmRegistry:                   getEnv("PNPM_REGISTRY", ""),
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsSourceURLs:               getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled:    mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),

@@ -135,7 +135,7 @@ type catalogRecord struct {
 	SourcePath string
 }
 
-type commandRunnerFunc func(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error)
+type commandRunnerFunc func(ctx context.Context, workDir string, command ...string) (string, error)
 
 // Service 提供技能目录、安装与卸载能力。
 type Service struct {
@@ -434,9 +434,6 @@ func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
 			return
 		}
 		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
 			skillDir := filepath.Join(parent, entry.Name())
 			if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
 				continue
@@ -448,6 +445,7 @@ func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
 	}
 	addSkillDirs(filepath.Join(root, ".agents", "skills"))
 	addSkillDirs(filepath.Join(root, ".agents"))
+	addSkillDirs(filepath.Join(root, ".claude", "skills"))
 	return result
 }
 
@@ -611,11 +609,13 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 		return errors.New("workspace skill path is empty")
 	}
 	agentsRoot := filepath.Join(workspaceRoot, ".agents")
-	relativePath, err := filepath.Rel(agentsRoot, sourcePath)
-	if err != nil || relativePath == "." || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
-		return errors.New("workspace skill path is outside .agents")
+	claudeSkillsRoot := filepath.Join(workspaceRoot, ".claude", "skills")
+	sourceUnderAgents := pathIsChildOf(sourcePath, agentsRoot)
+	sourceUnderClaudeSkills := pathIsChildOf(sourcePath, claudeSkillsRoot)
+	if !sourceUnderAgents && !sourceUnderClaudeSkills {
+		return errors.New("workspace skill path is outside supported skill directories")
 	}
-	if err = os.RemoveAll(sourcePath); err != nil {
+	if err := os.RemoveAll(sourcePath); err != nil {
 		return err
 	}
 	skillNames := []string{record.Detail.Name, filepath.Base(sourcePath)}
@@ -629,12 +629,22 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 			continue
 		}
 		seen[trimmedName] = struct{}{}
-		linkPath := filepath.Join(workspaceRoot, ".claude", "skills", trimmedName)
-		if err = os.Remove(linkPath); err != nil && !os.IsNotExist(err) {
-			return err
+		if sourceUnderAgents {
+			linkPath := filepath.Join(claudeSkillsRoot, trimmedName)
+			if err := os.RemoveAll(linkPath); err != nil && !os.IsNotExist(err) {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func pathIsChildOf(path string, root string) bool {
+	relativePath, err := filepath.Rel(root, path)
+	return err == nil &&
+		relativePath != "." &&
+		relativePath != ".." &&
+		!strings.HasPrefix(relativePath, ".."+string(os.PathSeparator))
 }
 
 func (s *Service) loadExternalRecords(ctx context.Context) (map[string]catalogRecord, error) {

@@ -39,7 +39,7 @@ const SOURCE_KIND_DESCRIPTIONS: Record<string, string> = {
   claude_plugins: "Claude Plugins 注册表，后端按 GitHub 仓库和子目录导入。",
   clawhub: "ClawHub 注册表，后端按 slug 下载 zip 包导入。",
   hermes_index: "Hermes 聚合索引，覆盖 GitHub taps、skills.sh、ClawHub、LobeHub 和 browse.sh 等来源；默认关闭以避免重复结果。",
-  skills_sh: "skills.sh 注册表，后端通过官方 CLI 导入。",
+  skills_sh: "skills.sh 注册表，后端解析条目并从 GitHub 仓库导入指定技能目录。",
   well_known: "后端内置的 well-known 索引适配器。",
 };
 

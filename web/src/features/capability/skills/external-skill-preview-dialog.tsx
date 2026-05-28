@@ -46,9 +46,12 @@ export function ExternalSkillPreviewDialog({
   on_import_only,
 }: ExternalSkillPreviewDialogProps) {
   if (!is_open || !item) return null;
+  const is_skills_sh = item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
   const preview_markdown = preview_loading && !item.readme_markdown
     ? "正在加载预览内容..."
-    : (item.readme_markdown || item.description || "暂无预览内容");
+    : is_skills_sh
+      ? "skills.sh 暂不提供内置预览，请打开原始页面查看。"
+      : (item.readme_markdown || item.description || "暂无预览内容");
   const source_label = item.source_name || item.source_kind || "社区";
   const source_ref = item.package_spec || item.git_url || item.raw_url || item.source;
 

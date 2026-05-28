@@ -1,6 +1,7 @@
 import { Download, Loader2, Puzzle } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiListActionButton } from "@/shared/ui/list-action";
@@ -21,7 +22,8 @@ interface SkillsExternalResultsProps {
 
 export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
   const { t } = useI18n();
-  const grouped_results = useMemo(
+  const [active_source_key, set_active_source_key] = useState<string | null>(null);
+  const source_groups = useMemo(
     () => {
       if (!ctrl.external_query.trim() && !ctrl.external_results.length) {
         return [];
@@ -34,6 +36,18 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     },
     [ctrl.external_query, ctrl.external_results, ctrl.external_source_statuses, ctrl.external_sources],
   );
+  const selected_source_key = source_groups.some((group) => group.key === active_source_key)
+    ? active_source_key
+    : null;
+  const selected_source = selected_source_key
+    ? source_groups.find((group) => group.key === selected_source_key)
+    : null;
+  const visible_results = useMemo(
+    () => [...ctrl.external_results]
+      .filter((item) => !selected_source_key || external_item_source_key(item) === selected_source_key)
+      .sort(compare_external_items),
+    [ctrl.external_results, selected_source_key],
+  );
 
   if (ctrl.external_loading) {
     return (
@@ -44,7 +58,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     );
   }
 
-  if (ctrl.external_query && !ctrl.external_results.length && !grouped_results.length) {
+  if (ctrl.external_query && !ctrl.external_results.length && !source_groups.length) {
     return (
       <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         {t("capability.skills_external_empty")}
@@ -52,7 +66,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     );
   }
 
-  if (!ctrl.external_results.length && !grouped_results.length) return null;
+  if (!ctrl.external_results.length && !source_groups.length) return null;
 
   return (
     <section>
@@ -61,45 +75,61 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
           {t("capability.search_results")}
         </h2>
         <span className="text-[12px] font-medium text-(--text-soft)">
-          {t("capability.result_count", { count: ctrl.external_results.length })}
+          {t("capability.result_count", { count: visible_results.length })}
         </span>
       </div>
-      <div className="space-y-6">
-        {grouped_results.map((group) => (
-          <section key={group.key}>
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-[13px] font-semibold text-(--text-strong)">
-                  {group.label}
-                </span>
-                {group.kind ? <UiBadge size="xs">{group.kind}</UiBadge> : null}
-                <SourceStatusBadge group={group} />
-              </div>
-              <span className="text-[11px] font-medium text-(--text-soft)">
-                {t("capability.result_count", { count: group.items.length })}
-              </span>
-            </div>
-            {group.items.length ? (
-              <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
-                {group.items.map((item: ExternalSkillSearchItem) => (
-                  <ExternalResultRow
-                    key={`${item.source_key || item.package_spec}@${item.skill_slug}`}
-                    busy_external_key={ctrl.busy_external_key}
-                    imported_external_sources={ctrl.imported_external_sources}
-                    item={item}
-                    on_import={() => void ctrl.handle_import_external(item)}
-                    on_preview={() => ctrl.handle_preview_external(item)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-[12px] text-(--text-soft)">
-                {source_group_empty_message(group)}
-              </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          className={cn(
+            "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border px-2.5 py-1 text-left text-[11px] transition",
+            !selected_source_key
+              ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
+              : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] text-(--text-muted) hover:border-(--primary)",
+          )}
+          onClick={() => set_active_source_key(null)}
+          type="button"
+        >
+          <span className="truncate font-medium text-(--text-strong)">全部来源</span>
+          <span className="shrink-0">{ctrl.external_results.length} 个</span>
+        </button>
+        {source_groups.map((group) => (
+          <button
+            key={group.key}
+            className={cn(
+              "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border px-2.5 py-1 text-left text-[11px] transition",
+              selected_source_key === group.key
+                ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
+                : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] text-(--text-muted) hover:border-(--primary)",
             )}
-          </section>
+            onClick={() => set_active_source_key((current) => current === group.key ? null : group.key)}
+            title={group.error || group.label}
+            type="button"
+          >
+            <span className="truncate font-medium text-(--text-strong)">
+              {group.label}
+            </span>
+            <span className="shrink-0">{source_group_summary_label(group)}</span>
+          </button>
         ))}
       </div>
+      {visible_results.length ? (
+        <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+          {visible_results.map((item: ExternalSkillSearchItem) => (
+            <ExternalResultRow
+              key={`${item.source_key || item.package_spec}@${item.skill_slug}`}
+              busy_external_key={ctrl.busy_external_key}
+              imported_external_sources={ctrl.imported_external_sources}
+              item={item}
+              on_import={() => void ctrl.handle_import_external(item)}
+              on_preview={() => ctrl.handle_preview_external(item)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-[12px] text-(--text-soft)">
+          {selected_source ? source_group_empty_message(selected_source) : t("capability.skills_external_empty")}
+        </div>
+      )}
     </section>
   );
 }
@@ -175,19 +205,6 @@ function group_external_results_by_source(
   );
 }
 
-function SourceStatusBadge({ group }: { group: ExternalResultGroup }) {
-  if (group.status === "disabled") {
-    return <UiBadge size="xs" tone="idle">已停用</UiBadge>;
-  }
-  if (group.status === "error") {
-    return <UiBadge size="xs" tone="danger">失败</UiBadge>;
-  }
-  if (!group.items.length) {
-    return <UiBadge size="xs" tone="idle">无匹配</UiBadge>;
-  }
-  return null;
-}
-
 function source_group_empty_message(group: ExternalResultGroup): string {
   if (group.status === "disabled") {
     return "该来源已停用，可在来源面板启用后参与搜索。";
@@ -196,6 +213,31 @@ function source_group_empty_message(group: ExternalResultGroup): string {
     return group.error ? `搜索失败：${group.error}` : "该来源搜索失败。";
   }
   return "该来源没有匹配结果。";
+}
+
+function source_group_summary_label(group: ExternalResultGroup): string {
+  if (group.status === "disabled") {
+    return "已停用";
+  }
+  if (group.status === "error") {
+    return "失败";
+  }
+  return `${group.items.length} 个`;
+}
+
+function external_item_source_key(item: ExternalSkillSearchItem): string {
+  return item.source_key || item.source_name || item.source_kind || "community";
+}
+
+function compare_external_items(a: ExternalSkillSearchItem, b: ExternalSkillSearchItem): number {
+  if (a.installs !== b.installs) {
+    return b.installs - a.installs;
+  }
+  const source_compare = (a.source_name || "").localeCompare(b.source_name || "");
+  if (source_compare !== 0) {
+    return source_compare;
+  }
+  return (a.title || a.name).localeCompare(b.title || b.name);
 }
 
 /* ── 外部结果行 ─────────────────────────────── */

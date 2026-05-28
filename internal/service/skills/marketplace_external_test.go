@@ -1,12 +1,15 @@
 package skills
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -22,9 +25,10 @@ func TestSearchExternalSkillsAggregatesSources(t *testing.T) {
 		_, _ = writer.Write([]byte(`{
 			"skills": [
 				{
-					"id": "skills-sh-demo",
+					"id": "demo/community/skills-sh-demo",
+					"skillId": "skills-sh-demo",
 					"name": "skills-sh-demo",
-					"source": "@demo/community",
+					"source": "demo/community",
 					"description": "from skills.sh source",
 					"installs": 12,
 					"tags": ["demo"]
@@ -96,6 +100,9 @@ func TestSearchExternalSkillsAggregatesSources(t *testing.T) {
 	skillsShItem := findExternalSearchItem(result.Results, "skills-sh-demo")
 	if skillsShItem == nil || skillsShItem.ImportMode != externalSourceKindSkillsSh || skillsShItem.SourceName != "skills.sh" {
 		t.Fatalf("skills.sh 来源结果不正确: %+v", skillsShItem)
+	}
+	if skillsShItem.DetailURL != server.URL+"/demo/community/skills-sh-demo" || skillsShItem.PackageSpec != "demo/community/skills-sh-demo" {
+		t.Fatalf("skills.sh 详情链接不正确: %+v", skillsShItem)
 	}
 }
 
@@ -332,6 +339,186 @@ tags: [url]
 	}
 }
 
+func TestPreviewAndImportSkillURLSupportZipPayloadWithoutZipSuffix(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	archive := buildTestSkillZip(t, "claw-zip-demo", "Claw Zip Demo")
+	mux.HandleFunc("/api/v1/download", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/zip")
+		_, _ = writer.Write(archive)
+	})
+
+	cfg := newSkillsTestConfig(t)
+	cfg.SkillsDefaultSourcesEnabled = false
+	cfg.SkillsSourceURLs = "Claw Test|" + server.URL + "/api/v1/search"
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	service := NewServiceWithDB(cfg, db, nil, nil)
+	downloadURL := server.URL + "/api/v1/download?slug=claw-zip-demo"
+
+	preview, err := service.GetExternalSkillPreview(context.Background(), downloadURL)
+	if err != nil {
+		t.Fatalf("zip 预览失败: %v", err)
+	}
+	if !strings.Contains(preview.ReadmeMarkdown, "# Claw Zip Demo") || strings.Contains(preview.ReadmeMarkdown, "<html") {
+		t.Fatalf("zip 预览内容不正确: %+v", preview)
+	}
+
+	detail, err := service.ImportSkillURL(context.Background(), downloadURL, externalManifest{
+		SourceKind:  externalSourceKindClawhub,
+		SourceName:  "clawhub.ai",
+		SourceTrust: externalSourceTrustCommunity,
+	})
+	if err != nil {
+		t.Fatalf("zip URL 导入失败: %v", err)
+	}
+	if detail.Name != "claw-zip-demo" || detail.Title != "Claw Zip Demo" {
+		t.Fatalf("zip URL 导入详情不正确: %+v", detail.Info)
+	}
+}
+
+func TestSkillsShSearchBuildsPreviewURLFromSourceAndSkillID(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	mux.HandleFunc("/api/search", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"skills": [
+				{
+					"id": "membranedev/application-skills/pdfco",
+					"skillId": "pdfco",
+					"name": "pdfco",
+					"installs": 101,
+					"source": "membranedev/application-skills"
+				}
+			]
+		}`))
+	})
+
+	service := NewService(newSkillsTestConfig(t), nil, nil)
+	items, err := service.searchSkillsShSource(context.Background(), externalSkillSource{
+		Name:    "skills.sh",
+		Kind:    externalSourceKindSkillsSh,
+		URL:     server.URL,
+		Enabled: true,
+	}, "pdf")
+	if err != nil {
+		t.Fatalf("skills.sh 搜索失败: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("skills.sh 搜索结果数量不正确: %+v", items)
+	}
+	if items[0].DetailURL != server.URL+"/membranedev/application-skills/pdfco" {
+		t.Fatalf("skills.sh 预览 URL 不正确: %+v", items[0])
+	}
+	if items[0].PackageSpec != "membranedev/application-skills/pdfco" || items[0].SkillSlug != "pdfco" {
+		t.Fatalf("skills.sh 导入元数据不正确: %+v", items[0])
+	}
+}
+
+func TestImportSkillsShClonesRepositoryAndSelectsRequestedSkill(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	service := NewServiceWithDB(cfg, db, nil, nil)
+	ctx := context.Background()
+
+	repoRoot := filepath.Join(t.TempDir(), "repo")
+	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "alpha"), "alpha", "Alpha Skill", false)
+	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "pdfco"), "pdfco", "PDF Skill", false)
+	service.commandRunner = func(_ context.Context, workDir string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && command[1] == "clone" {
+			if got, want := command[len(command)-2], "https://github.com/membranedev/application-skills"; got != want {
+				t.Fatalf("skills.sh Git 仓库不正确: got=%q want=%q", got, want)
+			}
+			return "", copyDirectory(repoRoot, command[len(command)-1])
+		}
+		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
+			return "commit-skills-sh", nil
+		}
+		return "", errors.New("unexpected command")
+	}
+
+	detail, err := service.ImportSkillsSh(ctx, "membranedev/application-skills/pdfco", "pdfco")
+	if err != nil {
+		t.Fatalf("skills.sh Git 导入失败: %v", err)
+	}
+	if detail.Name != "pdfco" || detail.Title != "PDF Skill" {
+		t.Fatalf("skills.sh 导入未选中指定 skill: %+v", detail.Info)
+	}
+	if detail.SourceKind != externalSourceKindSkillsSh || detail.ImportMode != externalSourceKindSkillsSh || detail.Version != "commit-skills-sh" {
+		t.Fatalf("skills.sh 导入元数据不正确: %+v", detail.Info)
+	}
+	record, err := service.skillStore.GetImportedSkill(ctx, authctx.OwnerUserID(ctx), "pdfco")
+	if err != nil {
+		t.Fatalf("读取 skills.sh 导入记录失败: %v", err)
+	}
+	if record == nil || record.GitURL != "https://github.com/membranedev/application-skills" || record.GitPath != "skills/pdfco" || record.SourceRef != "membranedev/application-skills/pdfco" {
+		t.Fatalf("skills.sh 导入 DB 记录不正确: %+v", record)
+	}
+}
+
+func TestRepairClaudePluginsTextFixesMojibake(t *testing.T) {
+	chinese := repairClaudePluginsText("\u00e9\u009b\u0086\u00e6\u0088\u0090\u00e9\u00a3\u009e\u00e4\u00b9\u00a6/Feishu \u00e6\u009c\u008d\u00e5\u008a\u00a1")
+	if chinese != "集成飞书/Feishu 服务" {
+		t.Fatalf("中文乱码修复不正确: %q", chinese)
+	}
+	dash := repairClaudePluginsText("ready-marker contract \u00e2\u0080\u0094 designed for AI agents")
+	if dash != "ready-marker contract — designed for AI agents" {
+		t.Fatalf("符号乱码修复不正确: %q", dash)
+	}
+	normal := repairClaudePluginsText("Lark/Feishu API integration")
+	if normal != "Lark/Feishu API integration" {
+		t.Fatalf("正常描述不应被改写: %q", normal)
+	}
+}
+
+func TestExtractPreviewMarkdownChoosesReadableHTMLFragment(t *testing.T) {
+	body := `<html><script>{"dangerouslySetInnerHTML":{"__html":"{\"@context\":\"https://schema.org\"}"}}</script>` +
+		`<script>{"dangerouslySetInnerHTML":{"__html":"\u003ch1\u003ePDF Skill\u003c/h1\u003e\u003cp\u003eRead PDFs.\u003c/p\u003e"}}</script></html>`
+
+	markdown := extractPreviewMarkdown(body)
+	if !strings.Contains(markdown, "# PDF Skill") || !strings.Contains(markdown, "Read PDFs.") || strings.Contains(markdown, "@context") {
+		t.Fatalf("预览内容提取不正确: %q", markdown)
+	}
+}
+
+func TestGetExternalSkillPreviewSkipsSkillsShBodyFetch(t *testing.T) {
+	service := NewService(newSkillsTestConfig(t), nil, nil)
+
+	preview, err := service.GetExternalSkillPreview(context.Background(), "https://skills.sh/zc277584121/marketing-skills/md-to-feishu")
+	if err != nil {
+		t.Fatalf("skills.sh 预览跳过失败: %v", err)
+	}
+	if preview.DetailURL != "https://www.skills.sh/zc277584121/marketing-skills/md-to-feishu" || preview.ReadmeMarkdown != "" {
+		t.Fatalf("skills.sh 预览不应拉取正文: %+v", preview)
+	}
+}
+
+func TestValidateExternalURLCanonicalizesSkillsShDetailHost(t *testing.T) {
+	service := NewService(newSkillsTestConfig(t), nil, nil)
+
+	targetURL, err := service.validateExternalURL(context.Background(), "https://skills.sh/zc277584121/marketing-skills/md-to-feishu")
+	if err != nil {
+		t.Fatalf("校验 skills.sh 详情链接失败: %v", err)
+	}
+	if targetURL != "https://www.skills.sh/zc277584121/marketing-skills/md-to-feishu" {
+		t.Fatalf("skills.sh 详情链接未规范化: %s", targetURL)
+	}
+}
+
 func TestImportLocalPathPersistsPrivateSourceMetadata(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
@@ -378,7 +565,7 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	writeTestSkillDir(t, filepath.Join(repoV2, "skills", "git-skill"), "git-skill", "Git Skill v2", false)
 	activeRepo := repoV1
 	activeCommit := "commit-v1"
-	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+	service.commandRunner = func(_ context.Context, workDir string, command ...string) (string, error) {
 		if len(command) >= 2 && command[0] == "git" && command[1] == "clone" {
 			return "", copyDirectory(activeRepo, command[len(command)-1])
 		}
@@ -446,4 +633,30 @@ func stringSliceContains(items []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func buildTestSkillZip(t *testing.T, name string, title string) []byte {
+	t.Helper()
+
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	file, err := writer.Create("skills/" + name + "/SKILL.md")
+	if err != nil {
+		t.Fatalf("创建测试 zip 条目失败: %v", err)
+	}
+	content := `---
+name: ` + name + `
+title: ` + title + `
+description: Zip skill demo
+---
+
+# ` + title + `
+`
+	if _, err = file.Write([]byte(content)); err != nil {
+		t.Fatalf("写入测试 zip 条目失败: %v", err)
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatalf("关闭测试 zip 失败: %v", err)
+	}
+	return buffer.Bytes()
 }

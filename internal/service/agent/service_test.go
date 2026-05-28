@@ -73,8 +73,14 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-a 失败: %v", err)
 	}
-	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-b"), 0o755); err != nil {
+	if err = os.WriteFile(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a", "SKILL.md"), []byte("# skill-a\n"), 0o644); err != nil {
+		t.Fatalf("写入测试 skill-a 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".claude", "skills", "skill-b"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-b 失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(created.WorkspacePath, ".claude", "skills", "skill-b", "SKILL.md"), []byte("# skill-b\n"), 0o644); err != nil {
+		t.Fatalf("写入测试 skill-b 失败: %v", err)
 	}
 
 	loaded, err := service.GetAgent(ctx, created.AgentID)

@@ -273,12 +273,16 @@ export function useSkillMarketplace(): SkillMarketplaceController {
 
   const handle_preview_external = useCallback(async (item: ExternalSkillSearchItem) => {
     set_preview_external_item(item);
-    if (item.readme_markdown || !item.detail_url) {
+    if (item.source_kind === "skills_sh" || item.import_mode === "skills_sh") {
+      return;
+    }
+    const preview_url = item.raw_url || item.detail_url;
+    if (item.readme_markdown || !preview_url) {
       return;
     }
     try {
       set_external_preview_loading(true);
-      const result = await get_external_skill_preview_api(item.detail_url);
+      const result = await get_external_skill_preview_api(preview_url);
       set_preview_external_item((prev) => {
         if (!prev || prev.detail_url !== item.detail_url) return prev;
         return { ...prev, readme_markdown: result.readme_markdown };
