@@ -28,4 +28,4 @@
 - 协议与执行内核：`internal/protocol`、`internal/runtime`、`internal/message`、`internal/permission`
 
 ## Commit Style
-提交信息保持 emoji 前缀 + 中文摘要，例如 `:sparkles: 切换 Go 默认运行链路`。用户可见变更同步更新 `CHANGELOG.md`。
+Use English commit messages with an emoji prefix, for example `:sparkles: Switch to the Go default runtime path`. Keep user-visible changes reflected in `CHANGELOG.md`.
