@@ -122,7 +122,7 @@ func (r *roundRunner) executeRound(
 	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
 		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
-		InputOptions:     r.inputOptions,
+		InputOptions:     runtimectx.VisibleInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
 		InterruptReason: func() string {

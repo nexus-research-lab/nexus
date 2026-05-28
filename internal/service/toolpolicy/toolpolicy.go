@@ -17,6 +17,14 @@ var managedGoalTools = []string{
 	"update_goal",
 }
 
+var managedGoalAllowedTools = []string{
+	"nexus_goal",
+	"get_goal",
+	"create_goal",
+	"update_goal",
+	"Skill",
+}
+
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
 func NormalizeSet(items []string) map[string]struct{} {
 	if len(items) == 0 {
@@ -143,7 +151,10 @@ func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Ha
 
 // WithManagedGoalAllowedTools 预授权 Goal MCP 工具，保留用户原有工具设置。
 func WithManagedGoalAllowedTools(tools []string) []string {
-	return appendDistinctTools(tools, managedGoalTools...)
+	if len(NormalizeSet(tools)) == 0 {
+		return tools
+	}
+	return appendDistinctTools(tools, managedGoalAllowedTools...)
 }
 
 func toolNameLeaf(toolName string) string {

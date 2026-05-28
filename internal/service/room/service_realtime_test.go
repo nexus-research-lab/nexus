@@ -20,7 +20,6 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
-	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -1217,9 +1216,8 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("room 请求级权限处理器未透传: %+v", options)
 	}
-	approvedTools := toolpolicy.NormalizeSet(options.Tools.Allow)
-	if !toolpolicy.Contains(approvedTools, "mcp__nexus_goal__update_goal") {
-		t.Fatalf("room runtime 未预授权托管 Goal 工具: %+v", options.Tools.Allow)
+	if len(options.Tools.Allow) != 0 {
+		t.Fatalf("room runtime 不应在无显式白名单时收窄 allowed tools: %+v", options.Tools.Allow)
 	}
 	goalDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: "mcp__nexus_goal__update_goal",

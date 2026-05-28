@@ -822,6 +822,19 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 			resultID := "result-first"
 			if strings.Contains(prompt, "hidden continuation prompt") {
 				resultID = "result-goal-continuation"
+				client.messages <- sdkprotocol.ReceivedMessage{
+					Type:      sdkprotocol.MessageTypeAssistant,
+					SessionID: client.sessionID,
+					Assistant: &sdkprotocol.AssistantMessage{
+						Message: sdkprotocol.ConversationEnvelope{
+							ID:    "assistant-goal-continuation",
+							Model: "sonnet",
+							Content: []sdkprotocol.ContentBlock{
+								sdkprotocol.TextBlock{Text: "继续推进 Goal"},
+							},
+						},
+					},
+				}
 			}
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
@@ -887,17 +900,24 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	queryOptions := append([]sdkprotocol.OutboundMessageOptions(nil), client.queryOptions...)
 	client.mu.Unlock()
 	if len(queryOptions) < 2 ||
-		!queryOptions[1].HiddenFromUser ||
-		!queryOptions[1].Synthetic ||
-		queryOptions[1].Purpose != "goal_continuation" {
-		t.Fatalf("Goal continuation 未带隐藏 synthetic runtime options: %+v", queryOptions)
+		queryOptions[1].HiddenFromUser ||
+		queryOptions[1].Synthetic ||
+		queryOptions[1].Purpose != "" {
+		t.Fatalf("Goal continuation 发给 runtime 时不应带 hidden/synthetic options: %+v", queryOptions)
 	}
 
 	rows := readDMSessionHistory(t, cfg, service, sessionKey)
+	assistantVisible := false
 	for _, row := range rows {
 		if row["role"] == "user" && row["round_id"] == "goal_continuation_1" {
 			t.Fatalf("隐藏 Goal continuation 不应成为可见用户历史: %+v", rows)
 		}
+		if row["role"] == "assistant" && row["round_id"] == "goal_continuation_1" {
+			assistantVisible = true
+		}
+	}
+	if !assistantVisible {
+		t.Fatalf("Goal continuation 的 assistant 输出应进入可见历史: %+v", rows)
 	}
 }
 
@@ -1336,13 +1356,9 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 		t.Fatalf("runtime 未开启 partial messages: %+v", options)
 	}
 	approvedTools := toolpolicy.NormalizeSet(options.Tools.Allow)
-	for _, toolName := range []string{
-		"mcp__nexus_goal__get_goal",
-		"mcp__nexus_goal__create_goal",
-		"mcp__nexus_goal__update_goal",
-	} {
+	for _, toolName := range []string{"Read", "Write", "Skill", "mcp__nexus_goal__update_goal"} {
 		if !toolpolicy.Contains(approvedTools, toolName) {
-			t.Fatalf("runtime 未预授权托管 Goal 工具 %q: %+v", toolName, options.Tools.Allow)
+			t.Fatalf("runtime 不应为了 Goal 收窄原有 allowed tools，缺少 %q: %+v", toolName, options.Tools.Allow)
 		}
 	}
 	if options.Callbacks.PermissionHandler == nil {

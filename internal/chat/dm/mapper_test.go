@@ -379,3 +379,37 @@ func TestMessageMapperProjectsResultOntoAssistant(t *testing.T) {
 		t.Fatalf("重复正文不应继续出现在 result_summary.result: %+v", summary)
 	}
 }
+
+func TestMessageMapperProjectsAssistantAPIErrorAsErrorMessage(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-error")
+
+	events, durableMessages, terminalStatus, resultSubtype, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Error:      "authentication_failed",
+			IsAPIError: true,
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:         "assistant-api-error",
+				StopReason: "stop_sequence",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: "Failed to authenticate. API Error: 401 invalid key"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("API error assistant 映射失败: %v", err)
+	}
+	if terminalStatus != "error" || resultSubtype != "error" {
+		t.Fatalf("API error 终态不正确: status=%s subtype=%s", terminalStatus, resultSubtype)
+	}
+	if len(durableMessages) != 1 || durableMessages[0]["role"] != "result" || durableMessages[0]["is_error"] != true {
+		t.Fatalf("API error durable 消息不正确: %+v", durableMessages)
+	}
+	if len(events) != 1 || events[0].Data["role"] != "assistant" {
+		t.Fatalf("API error 应投影成可见 assistant 事件: %+v", events)
+	}
+	if events[0].Data["stop_reason"] != "error" {
+		t.Fatalf("API error assistant stop_reason 不正确: %+v", events[0].Data)
+	}
+}

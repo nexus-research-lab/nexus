@@ -3,6 +3,8 @@ package room
 import (
 	"testing"
 
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -22,6 +24,20 @@ func TestRoomRoundInputOptionsMarksInternalContinuationHidden(t *testing.T) {
 	}
 	if options.Purpose != "goal_continuation" || options.Metadata["goal_id"] != "goal-room" {
 		t.Fatalf("options = %#v, want continuation metadata preserved", options)
+	}
+}
+
+func TestRoomRuntimeVisibleInputOptionsClearsGoalContinuationRuntimeFlags(t *testing.T) {
+	options := runtimectx.VisibleInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+		Priority:       "internal",
+		Metadata:       map[string]string{"goal_id": "goal-room"},
+	}, "goal_continuation")
+
+	if options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || len(options.Metadata) > 0 {
+		t.Fatalf("runtime options = %#v, want visible normal runtime input", options)
 	}
 }
 

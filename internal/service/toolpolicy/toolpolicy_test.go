@@ -103,9 +103,18 @@ func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)
-	for _, toolName := range []string{"Read", "create_goal", "get_goal", "update_goal"} {
+	for _, toolName := range []string{"Read", "create_goal", "get_goal", "update_goal", "Skill"} {
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
 		}
+	}
+}
+
+func TestWithManagedGoalAllowedToolsPreservesEmptyPolicy(t *testing.T) {
+	if tools := WithManagedGoalAllowedTools(nil); tools != nil {
+		t.Fatalf("nil allow policy should stay nil, got %+v", tools)
+	}
+	if tools := WithManagedGoalAllowedTools([]string{}); len(tools) != 0 {
+		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
 	}
 }
