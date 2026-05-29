@@ -291,16 +291,7 @@ func (h *Handler) handleBindSession(
 	if parsed.Kind == protocol.SessionKeyKindUnknown {
 		return
 	}
-	requestControl, exists := handlershared.BoolValue(inbound["request_control"])
-	if !exists {
-		requestControl = true
-	}
-	h.permission.BindSession(
-		sessionKey,
-		sender,
-		handlershared.StringValue(inbound["client_id"]),
-		requestControl,
-	)
+	h.permission.BindSession(sessionKey, sender)
 	if h.channels != nil {
 		_ = h.channels.RememberWebSocketRoute(ctx, sessionKey)
 	}
@@ -377,9 +368,6 @@ func (h *Handler) handleControlMessage(
 		return
 	}
 	if h.ensureSessionBinding(ctx, sender, inbound, sessionKey) {
-		return
-	}
-	if h.rejectControlMessageFromObserver(ctx, sender, inbound, sessionKey) {
 		return
 	}
 
@@ -502,44 +490,9 @@ func (h *Handler) ensureSessionBinding(
 	if h.permission.IsBound(sessionKey, sender) {
 		return false
 	}
-	if h.permission.HasBindings(sessionKey) {
-		return false
-	}
-	h.permission.BindSession(
-		sessionKey,
-		sender,
-		handlershared.StringValue(inbound["client_id"]),
-		true,
-	)
+	h.permission.BindSession(sessionKey, sender)
 	h.broadcastSessionStatus(ctx, sessionKey)
 	return false
-}
-
-func (h *Handler) rejectControlMessageFromObserver(
-	ctx context.Context,
-	sender *handlershared.WebSocketSender,
-	inbound map[string]any,
-	sessionKey string,
-) bool {
-	if h.permission.IsSessionController(sessionKey, sender) {
-		return false
-	}
-	actionLabel := map[string]string{
-		"chat":                "发送消息",
-		"input_queue":         "更新待发送队列",
-		"interrupt":           "停止生成",
-		"permission_response": "确认权限",
-	}[handlershared.StringValue(inbound["type"])]
-	if actionLabel == "" {
-		actionLabel = "执行操作"
-	}
-	_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(
-		sessionKey,
-		"session_control_denied",
-		"当前窗口不是该会话的控制端，无法"+actionLabel,
-		map[string]any{"type": handlershared.StringValue(inbound["type"])},
-	))
-	return true
 }
 
 func (h *Handler) validateSessionKey(
@@ -587,8 +540,6 @@ func (h *Handler) errorEventDetail(errorType string, err error) string {
 		return "session_key 不合法"
 	case "permission_request_not_found":
 		return "未找到待确认的权限请求"
-	case "session_control_denied":
-		return message
 	case "chat_error":
 		return chatErrorDetail(err)
 	default:

@@ -13,7 +13,6 @@ import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationDeliveryPolicy,
   AgentConversationIdentity,
-  get_session_control_status_text,
 } from "@/types/agent/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
 import { PendingPermission } from "@/types/conversation/permission";
@@ -178,8 +177,6 @@ export function GroupChatPanel({
     is_history_loading,
     has_more_history,
     history_prepend_token,
-    session_control_state,
-    session_observer_count,
     pending_agent_slots,
     pending_permissions,
     send_message,
@@ -230,16 +227,6 @@ export function GroupChatPanel({
   });
   const last_snapshot_key_ref = useRef<string | null>(null);
   const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
-  const can_control_session = session_control_state !== "observer";
-  const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
-  const session_control_text = useMemo(
-    () =>
-      get_session_control_status_text(
-        session_control_state,
-        session_observer_count,
-      ),
-    [session_control_state, session_observer_count],
-  );
 
   useEffect(() => {
     on_todos_change?.(todos);
@@ -389,8 +376,7 @@ export function GroupChatPanel({
     if (
       !session_key ||
       !normalized_draft ||
-      is_loading ||
-      !can_control_session
+      is_loading
     ) {
       return;
     }
@@ -411,7 +397,6 @@ export function GroupChatPanel({
         console.error("Failed to auto send initial room prompt:", error);
       });
   }, [
-    can_control_session,
     initial_draft,
     is_loading,
     on_initial_draft_consumed,
@@ -483,17 +468,13 @@ export function GroupChatPanel({
       is_loading: thread_is_loading,
       pending_permissions: thread_pending_permissions,
       on_permission_response: send_permission_response,
-      can_respond_to_permissions: can_control_session,
-      permission_read_only_reason: observer_read_only_reason,
-      on_stop_message: can_control_session ? handle_stop_message : undefined,
+      on_stop_message: handle_stop_message,
       on_open_workspace_file,
     };
   }, [
     active_thread,
-    can_control_session,
     handle_stop_message,
     on_open_workspace_file,
-    observer_read_only_reason,
     thread_agent_avatar,
     current_user_avatar,
     send_permission_response,
@@ -556,11 +537,7 @@ export function GroupChatPanel({
               on_open_agent_contact={on_open_agent_contact}
               on_open_workspace_file={on_open_workspace_file}
               on_permission_response={send_permission_response}
-              can_respond_to_permissions={can_control_session}
-              permission_read_only_reason={observer_read_only_reason}
-              on_stop_message={
-                can_control_session ? handle_stop_message : undefined
-              }
+              on_stop_message={handle_stop_message}
               round_ids={round_ids}
             />
             {system_error ? (
@@ -588,7 +565,6 @@ export function GroupChatPanel({
           <ComposerPanel
             allow_send_while_loading
             compact={is_mobile_layout}
-            control_status_text={session_control_text}
             default_delivery_policy={default_delivery_policy}
             input_queue_items={input_queue_items}
             is_loading={is_loading}
@@ -600,10 +576,9 @@ export function GroupChatPanel({
             on_prepare_attachments={handle_prepare_attachments}
             on_reorder_queue_messages={reorder_input_queue_messages}
             on_send_message={handle_send_message}
-            on_stop={can_control_session ? () => stop_generation() : undefined}
+            on_stop={() => stop_generation()}
             room_members={room_members}
             tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
-            disabled={!can_control_session}
           />
         </>
       )}

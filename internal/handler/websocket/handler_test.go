@@ -16,7 +16,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-func TestWebSocketSessionBindingAndControl(t *testing.T) {
+func TestWebSocketSessionBinding(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
@@ -47,10 +47,8 @@ func TestWebSocketSessionBindingAndControl(t *testing.T) {
 	sessionKey := "agent:nexus:ws:dm:test-session"
 
 	if err = wsjson.Write(ctx, conn1, map[string]any{
-		"type":            "bind_session",
-		"session_key":     sessionKey,
-		"client_id":       "client-1",
-		"request_control": true,
+		"type":        "bind_session",
+		"session_key": sessionKey,
 	}); err != nil {
 		t.Fatalf("ws1 bind_session 失败: %v", err)
 	}

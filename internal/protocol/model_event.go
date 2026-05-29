@@ -61,7 +61,6 @@ type EventMessage struct {
 type InboundWebSocketMessage struct {
 	Type       string `json:"type"`
 	SessionKey string `json:"session_key,omitempty"`
-	ClientID   string `json:"client_id,omitempty"`
 }
 
 // RoundStatusData 表示 round 生命周期事件。
@@ -74,11 +73,8 @@ type RoundStatusData struct {
 
 // SessionStatusData 表示 session 生命周期事件。
 type SessionStatusData struct {
-	IsGenerating     bool     `json:"is_generating"`
-	RunningRoundIDs  []string `json:"running_round_ids,omitempty"`
-	ControllerClient string   `json:"controller_client_id,omitempty"`
-	ObserverCount    int      `json:"observer_count,omitempty"`
-	BoundClientCount int      `json:"bound_client_count,omitempty"`
+	IsGenerating    bool     `json:"is_generating"`
+	RunningRoundIDs []string `json:"running_round_ids,omitempty"`
 }
 
 // NewEvent 构造通用事件。

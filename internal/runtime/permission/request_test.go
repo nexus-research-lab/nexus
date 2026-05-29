@@ -40,10 +40,10 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 	ctx := NewContext()
 	sessionKey := "agent:nexus:ws:dm:test-permission"
 
-	controllerA := newPermissionTestSender("sender-a")
-	controllerB := newPermissionTestSender("sender-b")
+	senderA := newPermissionTestSender("sender-a")
+	senderB := newPermissionTestSender("sender-b")
 
-	ctx.BindSession(sessionKey, controllerA, "client-a", true)
+	ctx.BindSession(sessionKey, senderA)
 
 	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
@@ -56,7 +56,7 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 		resultCh <- decision
 	}()
 
-	firstEvent := readPermissionEventByType(t, controllerA.events, protocol.EventTypePermissionRequest)
+	firstEvent := readPermissionEventByType(t, senderA.events, protocol.EventTypePermissionRequest)
 	if firstEvent.EventType != protocol.EventTypePermissionRequest {
 		t.Fatalf("期望 permission_request，实际: %+v", firstEvent)
 	}
@@ -64,10 +64,10 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 		t.Fatalf("tool_name 不正确: %+v", firstEvent.Data)
 	}
 
-	ctx.UnbindSession(sessionKey, controllerA)
-	ctx.BindSession(sessionKey, controllerB, "client-b", true)
+	ctx.UnbindSession(sessionKey, senderA)
+	ctx.BindSession(sessionKey, senderB)
 
-	replayed := readPermissionEventByType(t, controllerB.events, protocol.EventTypePermissionRequest)
+	replayed := readPermissionEventByType(t, senderB.events, protocol.EventTypePermissionRequest)
 	if replayed.EventType != protocol.EventTypePermissionRequest {
 		t.Fatalf("期望重放 permission_request，实际: %+v", replayed)
 	}
@@ -92,7 +92,7 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 		t.Fatal("等待权限结果超时")
 	}
 
-	resolved := readPermissionEventByType(t, controllerB.events, protocol.EventTypePermissionRequestResolved)
+	resolved := readPermissionEventByType(t, senderB.events, protocol.EventTypePermissionRequestResolved)
 	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
 		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
 	}
@@ -108,8 +108,8 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 	ctx := NewContext()
 	ctx.requestTimeout = 20 * time.Millisecond
 	sessionKey := "agent:nexus:ws:dm:test-timeout"
-	controller := newPermissionTestSender("sender-timeout")
-	ctx.BindSession(sessionKey, controller, "client-timeout", true)
+	sender := newPermissionTestSender("sender-timeout")
+	ctx.BindSession(sessionKey, sender)
 
 	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
@@ -122,11 +122,11 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 		resultCh <- decision
 	}()
 
-	requestEvent := readPermissionEventByType(t, controller.events, protocol.EventTypePermissionRequest)
+	requestEvent := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
 	if requestEvent.EventType != protocol.EventTypePermissionRequest {
 		t.Fatalf("期望 permission_request，实际: %+v", requestEvent)
 	}
-	resolved := readPermissionEventByType(t, controller.events, protocol.EventTypePermissionRequestResolved)
+	resolved := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequestResolved)
 	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
 		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
 	}
@@ -147,8 +147,8 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
 	ctx := NewContext()
 	sessionKey := "agent:nexus:ws:dm:test-cancel"
-	controller := newPermissionTestSender("sender-cancel")
-	ctx.BindSession(sessionKey, controller, "client-cancel", true)
+	sender := newPermissionTestSender("sender-cancel")
+	ctx.BindSession(sessionKey, sender)
 
 	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
@@ -161,7 +161,7 @@ func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
 		resultCh <- decision
 	}()
 
-	requestEvent := readPermissionEventByType(t, controller.events, protocol.EventTypePermissionRequest)
+	requestEvent := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
 	if requestEvent.EventType != protocol.EventTypePermissionRequest {
 		t.Fatalf("期望 permission_request，实际: %+v", requestEvent)
 	}
@@ -170,7 +170,7 @@ func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
 		t.Fatalf("期望取消 1 个请求，实际: %d", cancelled)
 	}
 
-	resolved := readPermissionEventByType(t, controller.events, protocol.EventTypePermissionRequestResolved)
+	resolved := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequestResolved)
 	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
 		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
 	}

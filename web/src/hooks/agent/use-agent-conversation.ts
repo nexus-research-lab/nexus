@@ -15,7 +15,6 @@ import {
 import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
 import { get_room_conversation_messages } from "@/lib/api/room-api";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
-import { get_browser_client_id } from "@/lib/uuid";
 import { useWebSocket } from "@/lib/websocket";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -39,7 +38,6 @@ import {
   AgentConversationDeliveryPolicy,
   AgentConversationLifecycleContext,
   AgentConversationSendOptions,
-  AgentConversationSessionControlState,
   InputQueueItem,
   RoomEventPayload,
   UseAgentConversationOptions,
@@ -506,11 +504,6 @@ export function useAgentConversation(
   const [pending_permissions, set_pending_permissions_state] = useState<
     UseAgentConversationReturn["pending_permissions"]
   >([]);
-  const [session_control_state, set_session_control_state] =
-    useState<AgentConversationSessionControlState>("unknown");
-  const [session_controller_client_id, set_session_controller_client_id] =
-    useState<string | null>(null);
-  const [session_observer_count, set_session_observer_count] = useState(0);
 
   const active_session_key_ref = useRef<string | null>(
     identity?.session_key ?? null,
@@ -518,7 +511,6 @@ export function useAgentConversation(
   const active_identity_key_ref = useRef<string | null>(
     get_agent_conversation_identity_key(identity),
   );
-  const browser_client_id_ref = useRef<string>(get_browser_client_id());
   const load_request_id_ref = useRef(0);
   const session_seq_cursor_ref = useRef(0);
   const room_seq_cursor_ref = useRef(0);
@@ -558,7 +550,6 @@ export function useAgentConversation(
   const is_loading = runtime_snapshot.is_loading;
   const runtime_phase = runtime_snapshot.phase;
   const live_round_ids = runtime_snapshot.live_round_ids;
-  const is_session_controller = session_control_state === "controller";
 
   const set_messages = useCallback((next_state: SetStateAction<Message[]>) => {
     set_messages_state((current_messages) => {
@@ -776,12 +767,6 @@ export function useAgentConversation(
       set_pending_permissions,
     ],
   );
-
-  const reset_session_control = useCallback(() => {
-    set_session_control_state("unknown");
-    set_session_controller_client_id(null);
-    set_session_observer_count(0);
-  }, []);
 
   const reset_runtime_machine = useCallback(() => {
     apply_runtime_transition((machine) => {
@@ -1128,36 +1113,6 @@ export function useAgentConversation(
 
   const sync_session_status = useCallback(
     (payload: SessionStatusEventPayload) => {
-      const next_controller_client_id =
-        typeof payload.controller_client_id === "string" &&
-        payload.controller_client_id
-          ? payload.controller_client_id
-          : null;
-      const next_observer_count =
-        typeof payload.observer_count === "number" &&
-        payload.observer_count >= 0
-          ? payload.observer_count
-          : 0;
-      set_session_controller_client_id((current_controller_client_id) =>
-        current_controller_client_id === next_controller_client_id
-          ? current_controller_client_id
-          : next_controller_client_id,
-      );
-      set_session_observer_count((current_observer_count) =>
-        current_observer_count === next_observer_count
-          ? current_observer_count
-          : next_observer_count,
-      );
-      set_session_control_state((current_state) => {
-        const next_state: AgentConversationSessionControlState =
-          !next_controller_client_id
-            ? "unknown"
-            : next_controller_client_id === browser_client_id_ref.current
-              ? "controller"
-              : "observer";
-        return current_state === next_state ? current_state : next_state;
-      });
-
       const running_round_ids = Array.isArray(payload.running_round_ids)
         ? payload.running_round_ids.filter(
             (round_id): round_id is string => typeof round_id === "string",
@@ -1324,10 +1279,6 @@ export function useAgentConversation(
     (target_session_key: string): WebSocketMessage => ({
       type: "bind_session",
       session_key: target_session_key,
-      client_id: browser_client_id_ref.current,
-      // 自动重绑只恢复观察关系，不主动抢占控制权。
-      // 这样多窗口之间不会因为聚焦或重连把主理人被动抢走。
-      request_control: false,
       ...(session_seq_cursor_ref.current > 0
         ? { last_seen_session_seq: session_seq_cursor_ref.current }
         : {}),
@@ -1486,7 +1437,6 @@ export function useAgentConversation(
     session_seq_cursor_ref.current = 0;
     room_seq_cursor_ref.current = 0;
     reset_runtime_machine();
-    reset_session_control();
     reset_history_state();
     set_history_prepend_token(0);
     set_pending_agent_slots((current_slots) =>
@@ -1503,7 +1453,6 @@ export function useAgentConversation(
     identity,
     reset_history_state,
     reset_runtime_machine,
-    reset_session_control,
     set_pending_agent_slots,
     set_input_queue_items,
     set_pending_permissions,
@@ -1612,9 +1561,8 @@ export function useAgentConversation(
     if (!session_key || ws_state !== "connected") {
       return;
     }
-    const client_id = browser_client_id_ref.current;
 
-    // WebSocket 重连后，后端需要重新知道“当前这个连接服务哪个 session”，
+    // WebSocket 重连后，后端需要重新知道当前连接服务哪个 session，
     // 否则挂起中的权限请求无法重投到新连接。
     ws_send(build_session_bind_message(session_key));
 
@@ -1624,7 +1572,6 @@ export function useAgentConversation(
       ws_send({
         type: "unbind_session",
         session_key,
-        client_id,
       });
     };
   }, [build_session_bind_message, session_key, ws_send, ws_state]);
@@ -1663,7 +1610,6 @@ export function useAgentConversation(
       identity,
       session_key,
       ws_state,
-      session_control_state,
       ws_send,
       active_session_key_ref,
       pending_permissions,
@@ -1680,7 +1626,6 @@ export function useAgentConversation(
       identity,
       session_key,
       ws_state,
-      session_control_state,
       ws_send,
       pending_permissions,
       pending_agent_slots,
@@ -1831,7 +1776,6 @@ export function useAgentConversation(
       if (!normalized_key) {
         set_is_session_loading(false);
         reset_runtime_machine();
-        reset_session_control();
         set_pending_agent_slots((current_slots) =>
           current_slots.length ? [] : current_slots,
         );
@@ -1847,7 +1791,6 @@ export function useAgentConversation(
       cancel_pending_chat_acks,
       reset_history_state,
       reset_runtime_machine,
-      reset_session_control,
       set_is_session_loading,
       set_pending_agent_slots,
       set_input_queue_items,
@@ -1880,10 +1823,6 @@ export function useAgentConversation(
     has_more_history,
     history_prepend_token,
     runtime_phase,
-    session_control_state,
-    is_session_controller,
-    session_controller_client_id,
-    session_observer_count,
     pending_agent_slots,
     input_queue_items,
     pending_permissions,

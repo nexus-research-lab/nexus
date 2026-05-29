@@ -260,7 +260,7 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 		permission,
 	)
 	sender := &stubPermissionSender{key: "sender-1"}
-	permission.BindSession(sessionKey, sender, "client-1", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := router.RememberWebSocketRoute(context.Background(), sessionKey); err != nil {
 		t.Fatalf("RememberWebSocketRoute 失败: %v", err)
@@ -332,7 +332,7 @@ func TestRouterDeliverTextPersistsSharedRoomDelivery(t *testing.T) {
 
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
 	sender := &stubPermissionSender{key: "room-sender-1"}
-	permission.BindSession(sessionKey, sender, "client-1", true)
+	permission.BindSession(sessionKey, sender)
 
 	target, err := router.DeliverText(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
 		Mode:    DeliveryModeExplicit,

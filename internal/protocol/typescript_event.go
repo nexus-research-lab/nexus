@@ -58,9 +58,6 @@ export interface RoundStatusData {
 export interface SessionStatusData {
   is_generating: boolean;
   running_round_ids?: string[];
-  controller_client_id?: string;
-  observer_count?: number;
-  bound_client_count?: number;
 }
 `
 	return definitions

@@ -12,7 +12,6 @@ import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
   AgentConversationDeliveryPolicy,
-  get_session_control_status_text,
 } from "@/types/agent/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
@@ -83,8 +82,6 @@ export function DmChatPanel({
     is_history_loading,
     has_more_history,
     history_prepend_token,
-    session_control_state,
-    session_observer_count,
     pending_permissions,
     send_message,
     stop_generation,
@@ -134,16 +131,6 @@ export function DmChatPanel({
   const last_snapshot_key_ref = useRef<string | null>(null);
   const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
   const consumed_initial_draft_ref = useRef<string | null>(null);
-  const can_control_session = session_control_state !== "observer";
-  const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
-  const session_control_text = useMemo(
-    () =>
-      get_session_control_status_text(
-        session_control_state,
-        session_observer_count,
-      ),
-    [session_control_state, session_observer_count],
-  );
 
   useEffect(() => {
     on_todos_change?.(todos);
@@ -282,8 +269,7 @@ export function DmChatPanel({
     if (
       !session_key ||
       !normalized_draft ||
-      is_loading ||
-      !can_control_session
+      is_loading
     ) {
       return;
     }
@@ -304,7 +290,6 @@ export function DmChatPanel({
         console.error("Failed to auto send initial DM prompt:", error);
       });
   }, [
-    can_control_session,
     initial_draft,
     is_loading,
     on_initial_draft_consumed,
@@ -353,8 +338,6 @@ export function DmChatPanel({
           on_open_agent_contact={on_open_agent_contact}
           on_open_workspace_file={on_open_workspace_file}
           on_permission_response={send_permission_response}
-          can_respond_to_permissions={can_control_session}
-          permission_read_only_reason={observer_read_only_reason}
           round_ids={round_ids}
         />
         {system_error ? (
@@ -382,7 +365,6 @@ export function DmChatPanel({
       <ComposerPanel
         allow_send_while_loading
         compact={is_mobile_layout}
-        control_status_text={session_control_text}
         default_delivery_policy={default_delivery_policy}
         input_queue_items={input_queue_items}
         is_loading={is_loading}
@@ -395,7 +377,6 @@ export function DmChatPanel({
         on_send_message={handle_send_message}
         on_stop={handle_stop}
         tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
-        disabled={!can_control_session}
       />
     </div>
   );

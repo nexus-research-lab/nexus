@@ -256,7 +256,7 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 		key:  "slow-sender",
 		done: make(chan struct{}),
 	}
-	permission.BindSession("session-1", sender, "client-1", true)
+	permission.BindSession("session-1", sender)
 	service := &Service{permission: permission}
 
 	startedAt := time.Now()
@@ -362,7 +362,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-chat"
-	permission.BindSession(sessionKey, sender, "client-1", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -616,7 +616,7 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-think-stream")
 	sessionKey := "agent:nexus:ws:dm:think-stream"
-	permission.BindSession(sessionKey, sender, "client-think-stream", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -744,7 +744,7 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	service.SetTitleGenerator(titleScheduler)
 	sender := newDMTestSender("sender-no-model")
 	sessionKey := "agent:nexus:ws:dm:no-model"
-	permission.BindSession(sessionKey, sender, "client-no-model", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -844,7 +844,7 @@ func TestServiceHandleChatUsesPreferenceDefaultModelForIncompleteAgentSelection(
 	}})
 	sender := newDMTestSender("sender-preference-default")
 	sessionKey := "agent:nexus:ws:dm:preference-default"
-	permission.BindSession(sessionKey, sender, "client-preference-default", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -908,7 +908,7 @@ func TestServiceHandleChatBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-bypass")
 	sessionKey := "agent:nexus:ws:dm:bypass"
-	permission.BindSession(sessionKey, sender, "client-bypass", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -987,7 +987,7 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 	service.SetProviderResolver(providerService)
 	sessionKey := "agent:" + created.AgentID + ":ws:dm:explicit-provider"
 	sender := newDMTestSender("sender-explicit-provider")
-	permission.BindSession(sessionKey, sender, "client-explicit-provider", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1043,7 +1043,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-resume")
 	sessionKey := "agent:nexus:ws:dm:resume-chat"
-	permission.BindSession(sessionKey, sender, "client-resume", true)
+	permission.BindSession(sessionKey, sender)
 
 	resumeID := "sdk-resume-chat-1"
 	now := time.Now().UTC()
@@ -1122,7 +1122,7 @@ func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissi
 	service.SetProviderResolver(providerService)
 	sender := newDMTestSender("sender-legacy-resume")
 	sessionKey := "agent:nexus:ws:dm:legacy-resume-chat"
-	permission.BindSession(sessionKey, sender, "client-legacy-resume", true)
+	permission.BindSession(sessionKey, sender)
 
 	now := time.Now().UTC()
 	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
@@ -1211,7 +1211,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	service.SetProviderResolver(providerService)
 	sender := newDMTestSender("sender-stale-model")
 	sessionKey := "agent:nexus:ws:dm:stale-model"
-	permission.BindSession(sessionKey, sender, "client-stale-model", true)
+	permission.BindSession(sessionKey, sender)
 
 	staleResumeID := "sdk-old-model"
 	now := time.Now().UTC()
@@ -1290,7 +1290,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt"
-	permission.BindSession(sessionKey, sender, "client-1", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1360,7 +1360,7 @@ func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *tes
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-interrupt-stale")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-stale"
-	permission.BindSession(sessionKey, sender, "client-interrupt-stale", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1415,7 +1415,7 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-queue")
 	sessionKey := "agent:nexus:ws:dm:test-queue"
-	permission.BindSession(sessionKey, sender, "client-queue", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1488,7 +1488,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-guide")
 	sessionKey := "agent:nexus:ws:dm:test-guide"
-	permission.BindSession(sessionKey, sender, "client-guide", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1572,7 +1572,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-guide-input-queue")
 	sessionKey := "agent:nexus:ws:dm:test-guide-input-queue"
-	permission.BindSession(sessionKey, sender, "client-guide-input-queue", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1699,7 +1699,7 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-interrupt-policy")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-policy"
-	permission.BindSession(sessionKey, sender, "client-interrupt-policy", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1771,7 +1771,7 @@ func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-interrupt-error")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-error"
-	permission.BindSession(sessionKey, sender, "client-interrupt-error", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1871,7 +1871,7 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-reconnect")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-reconnect"
-	permission.BindSession(sessionKey, sender, "client-reconnect", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1956,7 +1956,7 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-structured")
 	sessionKey := "agent:nexus:tg:group:-100123456:topic:12"
-	permission.BindSession(sessionKey, sender, "client-structured", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -2042,7 +2042,7 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-premature")
 	sessionKey := "agent:nexus:ws:dm:premature-close"
-	permission.BindSession(sessionKey, sender, "client-premature", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,

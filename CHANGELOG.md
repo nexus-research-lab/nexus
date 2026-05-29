@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
+- Removed window controller/observer session-control behavior from chat sessions; bound clients now receive permission and session-status events without a primary-window role, and composer attachment hints are shorter.
 
 ### Fixed
 - Fixed built-in Provider settings so preset API format and Provider kind are derived internally instead of exposed as selectable controls.

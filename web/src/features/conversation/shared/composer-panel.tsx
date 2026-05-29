@@ -82,7 +82,6 @@ interface ComposerPanelProps {
   max_length?: number;
   room_members?: Agent[];
   mention_unavailable_agent_ids?: string[];
-  control_status_text?: string;
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
   tour_anchor?: string;
 }
@@ -216,7 +215,6 @@ const ComposerPanelView = memo(({
   max_length = 10000,
   room_members = [],
   mention_unavailable_agent_ids = [],
-  control_status_text,
   on_prepare_attachments,
   tour_anchor,
 }: ComposerPanelProps) => {
@@ -916,9 +914,7 @@ const ComposerPanelView = memo(({
 
         <div className={COMPOSER_FOOTER_CLASS_NAME}>
           <div className="flex items-center gap-3 text-[10px] text-(--text-soft)">
-            {disabled && control_status_text ? (
-              <span className="text-(--text-default)">{control_status_text}</span>
-            ) : is_dispatching ? (
+            {is_dispatching ? (
               <span className="flex items-center gap-2 text-emerald-900/90">
                 <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
                 <span className="animate-pulse">{t("status.sending")}</span>
@@ -948,14 +944,8 @@ const ComposerPanelView = memo(({
                   <kbd>Enter</kbd>
                   <span>{t("composer.shift_enter_newline")}</span>
                 </span>
-                <span className="hidden sm:inline text-(--text-soft)">
-                  {t("composer.text_attachment_only")}
-                </span>
               </>
             )}
-            {!disabled && control_status_text ? (
-              <span className="text-(--text-default)">{control_status_text}</span>
-            ) : null}
           </div>
 
           <div className="flex items-center gap-3 text-[10px] tabular-nums">
