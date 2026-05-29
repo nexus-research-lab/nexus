@@ -779,7 +779,7 @@ func TestRealtimeServiceProjectsPrivateActionReplyToSender(t *testing.T) {
 	}
 	amyWakeClient.onQuery = func(ctx context.Context, prompt string) error {
 		amyWakeOwner.Store(authsvc.OwnerUserID(ctx))
-		amySawReply.Store(strings.Contains(prompt, "收到一条 Room private_message") &&
+		amySawReply.Store(strings.Contains(prompt, "A Room private_message was delivered to you") &&
 			strings.Contains(prompt, "这是给 Amy 的私下回复"))
 		sendFakeAssistantResult(amyWakeClient, "amy-private-reply-wake", "<nexus_room_no_reply/>")
 		return nil
@@ -963,7 +963,7 @@ func TestRealtimeServiceCreatesImmediateRequestReplyAction(t *testing.T) {
 	client := newFakeRoomClient()
 	client.onQuery = func(_ context.Context, prompt string) error {
 		for _, expected := range []string{
-			"收到一条 Room request_reply",
+			"A Room request_reply was delivered to you",
 			"[request_reply request_id=",
 			"需要公开回复的请求",
 			"reply_target=public_feed",
@@ -1326,7 +1326,7 @@ func TestRealtimeServiceQueuesPrivateActionWakeWhenTargetBusy(t *testing.T) {
 	devinPrivateClient.onQuery = func(_ context.Context, prompt string) error {
 		seenPrivateAction.Store(strings.Contains(prompt, "<room_actions>") &&
 			strings.Contains(prompt, "排队后的私信") &&
-			strings.Contains(prompt, "收到一条 Room private_message"))
+			strings.Contains(prompt, "A Room private_message was delivered to you"))
 		sendFakeAssistantResult(devinPrivateClient, "devin-private-after-busy", "私信已处理")
 		return nil
 	}

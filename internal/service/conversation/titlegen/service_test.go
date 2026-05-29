@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 var errTestNotFound = errors.New("not found")
@@ -342,7 +343,7 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 		&fakeEventBroadcaster{},
 	)
 	service.runAsync = func(job func()) { job() }
-	service.client.Timeout = 800 * time.Millisecond
+	service.llmClient.HTTPClient.Timeout = 800 * time.Millisecond
 
 	service.Schedule(context.Background(), Request{
 		SessionKey:          "agent:a:ws:dm:conv_1",
@@ -358,15 +359,175 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 	}
 }
 
-type fakeProviderResolver struct {
-	config *clientopts.RuntimeConfig
+func TestResolveRuntimeConfigUsesBackgroundPreference(t *testing.T) {
+	providerResolver := &fakeProviderResolver{
+		config: &clientopts.RuntimeConfig{
+			Provider: "background-provider",
+			Model:    "background-model",
+		},
+	}
+	service := NewService(
+		providerResolver,
+		nil,
+		nil,
+		nil,
+		fakePreferencesService{prefs: preferencessvc.Preferences{
+			DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
+				Provider: "background-provider",
+				Model:    "background-model",
+			},
+		}},
+	)
+	config, err := service.resolveLLMConfig(context.Background(), Request{
+		OwnerUserID: "user-1",
+		Provider:    "agent-provider",
+		Model:       "agent-model",
+	})
+	if err != nil {
+		t.Fatalf("解析标题模型失败: %v", err)
+	}
+	if config.Provider != "background-provider" || config.Model != "background-model" {
+		t.Fatalf("未使用后台任务模型: %+v", config)
+	}
+	if providerResolver.provider != "background-provider" || providerResolver.model != "background-model" {
+		t.Fatalf("provider resolver 参数不正确: provider=%s model=%s", providerResolver.provider, providerResolver.model)
+	}
 }
 
-func (f *fakeProviderResolver) ResolveRuntimeConfig(
+func TestGenerateTitleSupportsChatCompletions(t *testing.T) {
+	t.Parallel()
+
+	var receivedPath string
+	var receivedAuth string
+	var receivedSystem string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedPath = request.URL.Path
+		receivedAuth = request.Header.Get("Authorization")
+		defer request.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析请求失败: %v", err)
+		}
+		messages, _ := payload["messages"].([]any)
+		if len(messages) > 0 {
+			if firstMessage, ok := messages[0].(map[string]any); ok {
+				receivedSystem = stringValue(firstMessage["content"])
+			}
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]any{
+						"content": "项目排期",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	service := NewService(&fakeProviderResolver{
+		config: &clientopts.RuntimeConfig{
+			Provider:  "openai",
+			AuthToken: "openai-key",
+			BaseURL:   server.URL + "/v1",
+			Model:     "gpt-4.1-mini",
+			APIFormat: "chat_completions",
+		},
+	}, nil, nil, nil)
+
+	title, err := service.generateTitle(context.Background(), Request{
+		Provider: "openai",
+		Model:    "gpt-4.1-mini",
+	}, "帮我安排一下项目排期")
+	if err != nil {
+		t.Fatalf("生成标题失败: %v", err)
+	}
+	if title != "项目排期" {
+		t.Fatalf("标题不正确: %s", title)
+	}
+	if receivedPath != "/v1/chat/completions" {
+		t.Fatalf("Chat Completions 请求路径不正确: %s", receivedPath)
+	}
+	if receivedAuth != "Bearer openai-key" {
+		t.Fatalf("Chat Completions 鉴权头不正确: %s", receivedAuth)
+	}
+	if receivedSystem == "" {
+		t.Fatal("Chat Completions 缺少 system prompt")
+	}
+}
+
+func TestGenerateTitleSupportsResponses(t *testing.T) {
+	t.Parallel()
+
+	var receivedPath string
+	var receivedInputCount int
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedPath = request.URL.Path
+		defer request.Body.Close()
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析请求失败: %v", err)
+		}
+		input, _ := payload["input"].([]any)
+		receivedInputCount = len(input)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"output_text": "需求总结",
+		})
+	}))
+	defer server.Close()
+
+	service := NewService(&fakeProviderResolver{
+		config: &clientopts.RuntimeConfig{
+			Provider:  "openai",
+			AuthToken: "openai-key",
+			BaseURL:   server.URL + "/v1",
+			Model:     "gpt-4.1-mini",
+			APIFormat: "responses",
+		},
+	}, nil, nil, nil)
+
+	title, err := service.generateTitle(context.Background(), Request{
+		Provider: "openai",
+		Model:    "gpt-4.1-mini",
+	}, "整理一下用户需求")
+	if err != nil {
+		t.Fatalf("生成标题失败: %v", err)
+	}
+	if title != "需求总结" {
+		t.Fatalf("标题不正确: %s", title)
+	}
+	if receivedPath != "/v1/responses" {
+		t.Fatalf("Responses 请求路径不正确: %s", receivedPath)
+	}
+	if receivedInputCount != 2 {
+		t.Fatalf("Responses input 不正确: %d", receivedInputCount)
+	}
+}
+
+type fakePreferencesService struct {
+	prefs preferencessvc.Preferences
+}
+
+func (f fakePreferencesService) Get(_ context.Context, _ string) (preferencessvc.Preferences, error) {
+	return f.prefs, nil
+}
+
+type fakeProviderResolver struct {
+	config   *clientopts.RuntimeConfig
+	provider string
+	model    string
+}
+
+func (f *fakeProviderResolver) ResolveLLMConfig(
 	_ context.Context,
-	_ string,
-	_ string,
+	provider string,
+	model string,
 ) (*clientopts.RuntimeConfig, error) {
+	f.provider = provider
+	f.model = model
 	return f.config, nil
 }
 

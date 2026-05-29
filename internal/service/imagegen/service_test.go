@@ -12,11 +12,14 @@ import (
 	"testing"
 	"time"
 
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
 type fakeProviderResolver struct {
-	config *providercfg.ImageConfig
+	config   *providercfg.ImageConfig
+	provider string
+	model    string
 }
 
 func TestGenerateImageSupportsAzureDeploymentURL(t *testing.T) {
@@ -131,6 +134,61 @@ func TestEditImageSupportsAzureMultipartAPI(t *testing.T) {
 
 func (f fakeProviderResolver) ResolveImageConfig(_ context.Context, _ string) (*providercfg.ImageConfig, error) {
 	return f.config, nil
+}
+
+func (f *fakeProviderResolver) ResolveImageModelConfig(_ context.Context, provider string, model string) (*providercfg.ImageConfig, error) {
+	f.provider = provider
+	f.model = model
+	return f.config, nil
+}
+
+type fakePreferencesService struct {
+	prefs preferencessvc.Preferences
+}
+
+func (f fakePreferencesService) Get(_ context.Context, _ string) (preferencessvc.Preferences, error) {
+	return f.prefs, nil
+}
+
+func TestResolveImageConfigUsesPreferenceDefaultModel(t *testing.T) {
+	resolver := &fakeProviderResolver{config: &providercfg.ImageConfig{
+		Provider:  "image-provider",
+		AuthToken: "token",
+		BaseURL:   "https://image.example.com/v1/images",
+		Model:     "image-model",
+	}}
+	service := NewService(resolver)
+	service.SetPreferences(fakePreferencesService{prefs: preferencessvc.Preferences{
+		DefaultImageModelSelection: preferencessvc.ModelSelection{
+			Provider: "image-provider",
+			Model:    "image-model",
+		},
+	}})
+	config, err := service.resolveImageConfig(context.Background(), "", "")
+	if err != nil {
+		t.Fatalf("解析图片默认模型失败: %v", err)
+	}
+	if config.Model != "image-model" || resolver.provider != "image-provider" || resolver.model != "image-model" {
+		t.Fatalf("未使用默认生图模型: config=%+v provider=%s model=%s", config, resolver.provider, resolver.model)
+	}
+}
+
+func TestResolveImageConfigUsesExplicitProviderModel(t *testing.T) {
+	resolver := &fakeProviderResolver{config: &providercfg.ImageConfig{
+		Provider:  "image-provider",
+		AuthToken: "token",
+		BaseURL:   "https://image.example.com/v1/images",
+		Model:     "image-model",
+	}}
+	service := NewService(resolver)
+
+	config, err := service.resolveImageConfig(context.Background(), "image-provider", "image-model")
+	if err != nil {
+		t.Fatalf("解析显式图片模型失败: %v", err)
+	}
+	if config.Model != "image-model" || resolver.provider != "image-provider" || resolver.model != "image-model" {
+		t.Fatalf("未使用显式图片模型: config=%+v provider=%s model=%s", config, resolver.provider, resolver.model)
+	}
 }
 
 func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {

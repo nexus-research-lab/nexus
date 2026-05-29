@@ -170,8 +170,10 @@ if ([string]::IsNullOrWhiteSpace($OutputDir)) {
 
 $intermediateDir = Join-Path $windowsDir ".build/intermediates"
 $sidecarPath = Join-Path $intermediateDir "nexus-server.exe"
+$nexusctlPath = Join-Path $intermediateDir "nexusctl.exe"
 $publishDir = Join-Path $intermediateDir "publish"
 $resourcesDir = Join-Path $OutputDir "Resources"
+$resourcesBinDir = Join-Path $resourcesDir "bin"
 
 Write-Host "==> Building web/dist"
 Push-Location (Join-Path $rootDir "web")
@@ -197,6 +199,9 @@ try {
   $versionPackage = "github.com/nexus-research-lab/nexus/internal/version"
   $ldflags = "-s -w -X $versionPackage.AppVersion=$appVersion -X $versionPackage.GitCommit=$gitCommit -X $versionPackage.BuildDate=$buildDate"
   go build -trimpath -ldflags $ldflags -o $sidecarPath ./cmd/nexus-server
+
+  Write-Host "==> Building nexusctl"
+  go build -trimpath -ldflags $ldflags -o $nexusctlPath ./cmd/nexusctl
 } finally {
   if ($null -eq $previousCgoEnabled) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $previousCgoEnabled }
   if ($null -eq $previousGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $previousGoos }
@@ -220,9 +225,11 @@ Stop-OutputDirProcesses $OutputDir
 Remove-Item -Recurse -Force $OutputDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
+New-Item -ItemType Directory -Force -Path $resourcesBinDir | Out-Null
 
 Copy-Item -Recurse -Force (Join-Path $publishDir "*") $OutputDir
 Copy-Item -Force $sidecarPath (Join-Path $resourcesDir "nexus-server.exe")
+Copy-Item -Force $nexusctlPath (Join-Path $resourcesBinDir "nexusctl.exe")
 Copy-Item -Recurse -Force (Join-Path $rootDir "web/dist") (Join-Path $resourcesDir "Web")
 New-Item -ItemType Directory -Force -Path (Join-Path $resourcesDir "db") | Out-Null
 Copy-Item -Recurse -Force (Join-Path $rootDir "db/migrations") (Join-Path $resourcesDir "db/migrations")

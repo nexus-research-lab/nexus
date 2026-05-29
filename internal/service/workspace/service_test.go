@@ -46,12 +46,17 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !containsWorkspacePath(files, "AGENTS.md") {
 		t.Fatalf("初始化模板未生成 AGENTS.md: %+v", files)
 	}
-	agentsContent, err := os.ReadFile(filepath.Join(agentValue.WorkspacePath, "AGENTS.md"))
-	if err != nil {
-		t.Fatalf("读取 AGENTS.md 失败: %v", err)
+	for _, expectedPath := range []string{"USER.md", "MEMORY.md", "SOUL.md", "TOOLS.md"} {
+		if !containsWorkspacePath(files, expectedPath) {
+			t.Fatalf("初始化模板未生成 %s: %+v", expectedPath, files)
+		}
 	}
-	assertAgentsScheduleGuidance(t, string(agentsContent))
-	attachmentPath := filepath.Join(agentValue.WorkspacePath, ".nexus", "attachments", "demo", "input.md")
+	for _, unexpectedPath := range []string{"RUNBOOK.md"} {
+		if containsWorkspacePath(files, unexpectedPath) {
+			t.Fatalf("普通 agent 不应默认生成 %s: %+v", unexpectedPath, files)
+		}
+	}
+	attachmentPath := filepath.Join(agentValue.WorkspacePath, "tmp", "attachments", "demo", "input.md")
 	if err = os.MkdirAll(filepath.Dir(attachmentPath), 0o755); err != nil {
 		t.Fatalf("创建附件目录失败: %v", err)
 	}
@@ -62,22 +67,33 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("列出带附件 workspace 文件失败: %v", err)
 	}
-	if containsWorkspacePath(files, ".nexus") || containsWorkspacePath(files, ".nexus/attachments/demo/input.md") {
-		t.Fatalf("文件树不应展示内部附件目录: %+v", files)
+	if !containsWorkspacePath(files, "tmp/attachments/demo/input.md") {
+		t.Fatalf("文件树应展示临时附件目录: %+v", files)
 	}
-	attachmentContent, err := workspaceService.GetFile(ctx, agentValue.AgentID, ".nexus/attachments/demo/input.md")
+	attachmentContent, err := workspaceService.GetFile(ctx, agentValue.AgentID, "tmp/attachments/demo/input.md")
 	if err != nil {
 		t.Fatalf("附件路径应允许消息预览读取: %v", err)
 	}
 	if attachmentContent.Content != "# 附件" {
 		t.Fatalf("附件内容读取不正确: %+v", attachmentContent)
 	}
+	uploadedAttachment, err := workspaceService.UploadFile(ctx, agentValue.AgentID, "upload.txt", "tmp/attachments/upload-batch/", strings.NewReader("upload attachment"))
+	if err != nil {
+		t.Fatalf("上传附件到 tmp/attachments 失败: %v", err)
+	}
+	if uploadedAttachment.Path != "tmp/attachments/upload-batch/upload.txt" {
+		t.Fatalf("附件上传路径不正确: %+v", uploadedAttachment)
+	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, "tmp", "attachments", "upload-batch", "upload.txt")); err != nil {
+		t.Fatalf("附件未落盘到 tmp/attachments: %v", err)
+	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "SKILL.md")); err != nil {
 		t.Fatalf("系统托管 imagegen skill 未部署: %v", err)
 	}
-	nexusctlShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")
+	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), ".agents", "bin")
+	nexusctlShim := filepath.Join(sharedBinDir, "nexusctl")
 	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
-		t.Fatalf("nexusctl shim 未生成: %v", statErr)
+		t.Fatalf("共享 nexusctl shim 未生成: %v", statErr)
 	} else if info.Mode()&0o111 == 0 {
 		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
 	}
@@ -88,13 +104,16 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !strings.Contains(string(shimPayload), "NEXUSCTL_WORKSPACE_PATH") {
 		t.Fatalf("nexusctl shim 应保留调用方 workspace 路径: %s", shimPayload)
 	}
-	nexusctlCmdShim := filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl.cmd")
+	nexusctlCmdShim := filepath.Join(sharedBinDir, "nexusctl.cmd")
 	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
 	if err != nil {
 		t.Fatalf("Windows nexusctl shim 未生成: %v", err)
 	}
 	if !strings.Contains(string(cmdPayload), "nexusctl.exe") {
 		t.Fatalf("Windows nexusctl shim 未查找 exe: %s", cmdPayload)
+	}
+	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")); !os.IsNotExist(err) {
+		t.Fatalf("agent workspace 不应生成独立 nexusctl shim: %v", err)
 	}
 	staleImagegenScript := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "imagegen", "scripts", "image_gen.py")
 	if err = os.MkdirAll(filepath.Dir(staleImagegenScript), 0o755); err != nil {
@@ -225,10 +244,69 @@ func TestWorkspaceHiddenEntryMatchesNestedHeavyDirs(t *testing.T) {
 		"repo/internal/service/workspace/service.go",
 		"repo/web/src/main.tsx",
 		"repo/docs/spec.md",
+		"tmp/attachments/demo/input.md",
 	}
 	for _, testCase := range visibleCases {
 		if shouldHideWorkspaceEntry(testCase) {
 			t.Fatalf("不应隐藏普通 workspace 文件: %s", testCase)
+		}
+	}
+}
+
+func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
+	root := t.TempDir()
+	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
+		t.Fatalf("初始化普通 agent workspace 失败: %v", err)
+	}
+	for fileName, expected := range map[string]string{
+		"AGENTS.md": "Follow the injected Agent Identity, Agent Profile",
+		"USER.md":   "replace this entire file with a configured profile",
+		"MEMORY.md": "Long-Term Memory",
+		"SOUL.md":   "## Emotion",
+		"TOOLS.md":  "## Tool Notes",
+	} {
+		assertWorkspaceFileContains(t, root, fileName, expected)
+	}
+	for _, fileName := range []string{"RUNBOOK.md"} {
+		if _, err := os.Stat(filepath.Join(root, fileName)); !os.IsNotExist(err) {
+			t.Fatalf("普通 agent 不应默认生成 %s: %v", fileName, err)
+		}
+	}
+	defaultAgentsContent, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("读取普通 agent AGENTS.md 失败: %v", err)
+	}
+	if strings.Contains(string(defaultAgentsContent), "You are Nexus, a personal workspace agent") {
+		t.Fatalf("普通 agent 模板不应把身份写死成 Nexus: %s", defaultAgentsContent)
+	}
+	for _, unexpected := range []string{
+		"main Nexus agent organizes collaboration",
+		"nexus_automation",
+		"scheduled-task-manager",
+		"nexusctl memory",
+		"Room titles must be specific",
+	} {
+		if strings.Contains(string(defaultAgentsContent), unexpected) {
+			t.Fatalf("普通 agent 模板不应包含 main/tool 固定职责 %q: %s", unexpected, defaultAgentsContent)
+		}
+	}
+	if strings.Contains(string(defaultAgentsContent), "Identity:") || strings.Contains(string(defaultAgentsContent), "WORKING DIRECTORY:") {
+		t.Fatalf("普通 agent 模板不应暴露系统身份字段: %s", defaultAgentsContent)
+	}
+
+	mainRoot := t.TempDir()
+	if err := EnsureInitialized("nexus", "Nexus", mainRoot, true, time.Now()); err != nil {
+		t.Fatalf("初始化 main agent workspace 失败: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(mainRoot, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("main agent 不应默认生成 AGENTS.md 暴露内部提示词: %v", err)
+	}
+	assertWorkspaceFileContains(t, mainRoot, "USER.md", "setup_status: unconfigured")
+	assertWorkspaceFileContains(t, mainRoot, "USER.md", "Replace this template instead of appending below it")
+	assertWorkspaceFileContains(t, mainRoot, "MEMORY.md", "Long-Term Memory")
+	for _, fileName := range []string{"SOUL.md", "TOOLS.md", "RUNBOOK.md"} {
+		if _, err := os.Stat(filepath.Join(mainRoot, fileName)); !os.IsNotExist(err) {
+			t.Fatalf("main agent 不应默认生成 %s: %v", fileName, err)
 		}
 	}
 }
@@ -264,7 +342,7 @@ func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
 				t.Fatalf("读取修复后 AGENTS.md 失败: %v", err)
 			}
 			got := string(repaired)
-			assertAgentsScheduleGuidance(t, got)
+			assertNoStaleScheduleWakeupGuidance(t, got)
 			if !strings.Contains(got, "用户自定义内容") || !strings.Contains(got, "## Custom\n\n保留我") {
 				t.Fatalf("修复不应覆盖用户自定义内容: %s", got)
 			}
@@ -303,17 +381,19 @@ func TestUploadFileToRootReusesIdenticalTargetByMD5(t *testing.T) {
 	}
 }
 
-func assertAgentsScheduleGuidance(t *testing.T, content string) {
+func assertWorkspaceFileContains(t *testing.T, root string, fileName string, expected string) {
 	t.Helper()
-	for _, expected := range []string{
-		"唯一用户可见定时任务入口",
-		"短文本提醒类任务也走 create_scheduled_task",
-		"不要用 ScheduleWakeup",
-	} {
-		if !strings.Contains(content, expected) {
-			t.Fatalf("AGENTS.md 缺少定时任务规则 %q: %s", expected, content)
-		}
+	content, err := os.ReadFile(filepath.Join(root, fileName))
+	if err != nil {
+		t.Fatalf("读取 %s 失败: %v", fileName, err)
 	}
+	if !strings.Contains(string(content), expected) {
+		t.Fatalf("%s 缺少 %q: %s", fileName, expected, content)
+	}
+}
+
+func assertNoStaleScheduleWakeupGuidance(t *testing.T, content string) {
+	t.Helper()
 	for _, stale := range []string{
 		"ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒",
 		"仅在**全部**满足时使用",
@@ -559,6 +639,7 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 
 	root := t.TempDir()
 	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:                      "127.0.0.1",
 		Port:                      18011,

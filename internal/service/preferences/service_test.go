@@ -18,7 +18,17 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		ChatDefaultDeliveryPolicy: policyPointer(protocol.ChatDeliveryPolicyQueue),
 		DefaultAgentOptions: &protocol.Options{
 			PermissionMode: "default",
+			Provider:       "glm-coding-plan",
+			Model:          "glm-5.1",
 			AllowedTools:   []string{"Read", "Read", "Write"},
+		},
+		DefaultImageModelSelection: &ModelSelection{
+			Provider: "image-provider",
+			Model:    "image-model",
+		},
+		DefaultBackgroundModelSelection: &ModelSelection{
+			Provider: "background-provider",
+			Model:    "background-model",
 		},
 	})
 	if err != nil {
@@ -33,6 +43,15 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if len(prefs.DefaultAgentOptions.AllowedTools) != 2 {
 		t.Fatalf("工具列表应去重: %+v", prefs.DefaultAgentOptions.AllowedTools)
 	}
+	if prefs.DefaultAgentOptions.Provider != "glm-coding-plan" || prefs.DefaultAgentOptions.Model != "glm-5.1" {
+		t.Fatalf("默认 Agent 模型未持久化: %+v", prefs.DefaultAgentOptions)
+	}
+	if prefs.DefaultImageModelSelection.Provider != "image-provider" || prefs.DefaultImageModelSelection.Model != "image-model" {
+		t.Fatalf("默认生图模型未持久化: %+v", prefs.DefaultImageModelSelection)
+	}
+	if prefs.DefaultBackgroundModelSelection.Provider != "background-provider" || prefs.DefaultBackgroundModelSelection.Model != "background-model" {
+		t.Fatalf("后台任务模型未持久化: %+v", prefs.DefaultBackgroundModelSelection)
+	}
 
 	loaded, err := service.Get(context.Background(), "user/1")
 	if err != nil {
@@ -40,6 +59,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	}
 	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue || loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
+	}
+	if loaded.DefaultImageModelSelection.Model != "image-model" || loaded.DefaultBackgroundModelSelection.Model != "background-model" {
+		t.Fatalf("读取默认模型选择不正确: %+v", loaded)
 	}
 	if _, statErr := os.Stat(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")); statErr != nil {
 		t.Fatalf("偏好文件未写入安全路径: %v", statErr)

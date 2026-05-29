@@ -121,29 +121,28 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	systemPrompt := BuildSystemPrompt()
 
 	for _, expected := range []string{
-		"# Nexus Room 公区协作规则",
-		"你正在 Nexus 的多人协作 Room 中参与公开协作",
-		"@ 是执行触发",
-		"候选邀请不要多 @",
+		"# Nexus Room",
+		"You are a member in a multi-member Nexus Room",
+		"@ is an execution trigger",
+		"Never @ multiple candidates",
 		"<nexus_room_no_reply/>",
-		"目标轮数、当前轮次、下一位成员、停止条件",
-		"直接创建 Room action",
+		"target turns, current turn, next member, and stop condition",
+		"create a Room action",
 		`nexusctl --json room action`,
-		`room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
-		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
-		`--wake-policy delayed --delay-seconds <seconds>`,
-		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
-		`延迟唤醒后要把最终回复发布到公区`,
-		`request-reply 指向自己并设置 --reply-target public_feed`,
-		"latest_trigger 标注“群主默认接管”",
-		"收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求",
-		"不要为了回答这个请求再调用 room action 或 CLI",
-		"不要公开复述 private_message、request_reply、private_note 中的正文",
+		`room action private-message --target-agent-id <id> --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"`,
+		`room action private-message --audience-agent-id <id> [--audience-agent-id <id>] --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"`,
+		`room action request-reply --target-agent-id <id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"`,
+		`To publish a delayed reply to public_feed yourself`,
+		`request-reply --target-agent-id <self_id> --reply-target public_feed`,
+		`latest_trigger says "room host default takeover"`,
+		"When you receive request_reply, answer in this turn's final reply",
+		"Do not create a Room action just to answer",
+		"Never restate private_message, request_reply, or private_note content",
 		`room action private-note --content "<text>"`,
 		`room action marker --visibility public|private --content "<text>"`,
-		"不要调用 Skill 工具",
-		"暗号、密码、密钥",
-		"最终总结不要 @ 任何成员",
+		"Do not call Skill tools",
+		"secrets, codes",
+		"Final summaries must not @ anyone",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
 			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
@@ -162,7 +161,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 
 	memberDirectoryPrompt := BuildMemberDirectoryPrompt(input.AgentNameByID)
 	for _, expected := range []string{
-		"# Nexus Room 成员目录",
+		"# Nexus Room Member Directory",
 		"<room_member_directory>",
 		"- name=Devin agent_id=agent-devin",
 	} {
@@ -182,10 +181,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		}
 	}
 	for _, unexpected := range []string{
-		"# Nexus Room 公区协作规则",
+		"# Nexus Room Public Collaboration Rules",
 		"<current_room_member>",
 		"<room_member_directory>",
-		"@ 是执行触发",
+		"@ is an execution trigger",
 		"<nexus_room_no_reply/>",
 		"User: @Devin @sam 谁先来？",
 		"trigger_type",
@@ -215,7 +214,7 @@ func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
 	contextValue := BuildVisibleContext(VisibleContextInput{
 		LatestTrigger: Trigger{
 			TriggerType:           "room_action",
-			Content:               "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。",
+			Content:               "A Room private_message was delivered to you. Read the content projected in <room_actions>.",
 			SourceAgentID:         "agent-amy",
 			TargetAgentID:         "agent-devin",
 			ReplyTarget:           protocol.RoomReplyTargetAudience,
@@ -240,7 +239,7 @@ func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
 
 	for _, expected := range []string{
 		"<latest_trigger>",
-		"Amy: 收到一条 Room private_message",
+		"Amy: A Room private_message was delivered to you",
 		"reply_target=audience audience=Sam(agent-sam)",
 		"<room_actions>",
 		"[private_message] Amy -> Devin: 只给 Devin 的上下文",

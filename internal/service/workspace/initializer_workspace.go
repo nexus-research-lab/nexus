@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
 var (
@@ -18,12 +19,11 @@ var (
 	mainAgentSkillNames   = []string{"nexus-manager"}
 	createSymlink         = os.Symlink
 	workspaceFiles        = map[string]string{
-		"agents":  "AGENTS.md",
-		"user":    "USER.md",
-		"memory":  "MEMORY.md",
-		"soul":    "SOUL.md",
-		"tools":   "TOOLS.md",
-		"runbook": "RUNBOOK.md",
+		"agents": "AGENTS.md",
+		"user":   "USER.md",
+		"memory": "MEMORY.md",
+		"soul":   "SOUL.md",
+		"tools":  "TOOLS.md",
 	}
 	defaultDirs = []string{".agents", ".claude", "memory"}
 )
@@ -48,13 +48,38 @@ func EnsureInitialized(
 			return err
 		}
 	}
+	if err := agentsvc.EnsureRuntimeEmotionState(root); err != nil {
+		return err
+	}
 
 	context := buildTemplateContext(agentID, agentName, root, createdAt)
-	if err := ensureNexusctlShim(root, context); err != nil {
+	if err := ensureNexusctlShim(appfs.AgentRuntimeBinDir(), context); err != nil {
+		return err
+	}
+	if err := removeWorkspaceBinShim(root); err != nil {
 		return err
 	}
 	for key, relativePath := range workspaceFiles {
 		targetPath := filepath.Join(root, relativePath)
+		if isMainAgent && key == "agents" {
+			if err := removeGeneratedMainAgentsPrompt(targetPath); err != nil {
+				return err
+			}
+			if _, err := os.Stat(targetPath); err == nil {
+				if err := repairAgentsScheduleGuidance(targetPath); err != nil {
+					return err
+				}
+			} else if !os.IsNotExist(err) {
+				return err
+			}
+			continue
+		}
+		if isMainAgent && (key == "soul" || key == "tools") {
+			if err := removeGeneratedMainWorkspaceFile(targetPath); err != nil {
+				return err
+			}
+			continue
+		}
 		content := renderTemplate(workspaceTemplate(key, isMainAgent), context)
 		if err := ensureWorkspaceTemplateFile(targetPath, key, content); err != nil {
 			return err
@@ -63,7 +88,7 @@ func EnsureInitialized(
 
 	memoryReadmePath := filepath.Join(root, "memory", "README.md")
 	if _, err := os.Stat(memoryReadmePath); os.IsNotExist(err) {
-		if err = os.WriteFile(memoryReadmePath, []byte("# memory/\n\n存放按天日志、摘要、调研片段、临时结论和可复用资产。\n"), 0o644); err != nil {
+		if err = os.WriteFile(memoryReadmePath, []byte("# memory/\n\nDaily notes, summaries, research fragments, temporary conclusions, and reusable memory assets live here.\n"), 0o644); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -152,10 +177,11 @@ func ensureWorkspaceTemplateFile(targetPath string, key string, content string) 
 	if key != "agents" {
 		return nil
 	}
-	return repairAgentsScheduleGuidance(targetPath, rendered+"\n")
+	return repairAgentsScheduleGuidance(targetPath)
 }
 
-func repairAgentsScheduleGuidance(targetPath string, rendered string) error {
+func repairAgentsScheduleGuidance(targetPath string) error {
+	// TODO: 迁移期清理旧 AGENTS.md 里的 ScheduleWakeup 说明；确认旧 workspace 已覆盖后删除。
 	currentBytes, err := os.ReadFile(targetPath)
 	if err != nil {
 		return err
@@ -164,21 +190,66 @@ func repairAgentsScheduleGuidance(targetPath string, rendered string) error {
 	if !strings.Contains(current, "ScheduleWakeup / Cron*（harness 内置）= 会话内自我提醒") {
 		return nil
 	}
-	repaired, ok := replaceMarkdownSection(current, rendered, []string{"## 定时任务路由", "## 定时任务"})
+	repaired, ok := removeMarkdownSection(current, []string{"## 定时任务路由", "## 定时任务", "## Scheduled Task Routing", "## Scheduled Tasks"})
 	if !ok || repaired == current {
 		return nil
 	}
 	return os.WriteFile(targetPath, []byte(strings.TrimRight(repaired, "\n")+"\n"), 0o644)
 }
 
-func replaceMarkdownSection(current string, rendered string, headings []string) (string, bool) {
+func removeGeneratedMainAgentsPrompt(targetPath string) error {
+	contentBytes, err := os.ReadFile(targetPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	content := string(contentBytes)
+	if !looksLikeGeneratedMainAgentsPrompt(content) {
+		return nil
+	}
+	return os.Remove(targetPath)
+}
+
+func removeGeneratedMainWorkspaceFile(targetPath string) error {
+	contentBytes, err := os.ReadFile(targetPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	content := string(contentBytes)
+	if !looksLikeGeneratedMainWorkspaceFile(filepath.Base(targetPath), content) {
+		return nil
+	}
+	return os.Remove(targetPath)
+}
+
+func looksLikeGeneratedMainAgentsPrompt(content string) bool {
+	return strings.Contains(content, "## Main Agent Profile") &&
+		(strings.Contains(content, "system-level collaboration organizer") || strings.Contains(content, "系统级组织代理"))
+}
+
+func looksLikeGeneratedMainWorkspaceFile(fileName string, content string) bool {
+	switch fileName {
+	case "SOUL.md":
+		return strings.Contains(content, "## Personality") && strings.Contains(content, "## Emotion")
+	case "TOOLS.md":
+		return strings.Contains(content, "## Tool Notes") && strings.Contains(content, "## Skill Notes")
+	default:
+		return false
+	}
+}
+
+func removeMarkdownSection(current string, headings []string) (string, bool) {
 	for _, heading := range headings {
 		currentStart, currentEnd, currentOK := markdownSectionBounds(current, heading)
-		renderedStart, renderedEnd, renderedOK := markdownSectionBounds(rendered, heading)
-		if !currentOK || !renderedOK {
+		if !currentOK {
 			continue
 		}
-		return current[:currentStart] + rendered[renderedStart:renderedEnd] + current[currentEnd:], true
+		return current[:currentStart] + current[currentEnd:], true
 	}
 	return "", false
 }
@@ -259,8 +330,7 @@ func syncDirectory(sourceDir string, targetDir string, context map[string]string
 	})
 }
 
-func ensureNexusctlShim(workspacePath string, context map[string]string) error {
-	binDir := filepath.Join(workspacePath, ".agents", "bin")
+func ensureNexusctlShim(binDir string, context map[string]string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
@@ -326,6 +396,65 @@ echo nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl 1>&2
 exit /b 127
 `, context)
 	return os.WriteFile(filepath.Join(binDir, "nexusctl.cmd"), []byte(cmdContent), 0o755)
+}
+
+func removeWorkspaceBinShim(workspacePath string) error {
+	// TODO: 迁移期清理旧 per-agent / per-owner nexusctl shim；确认旧版本用户已覆盖后删除。
+	root := filepath.Clean(strings.TrimSpace(workspacePath))
+	for _, binDir := range []string{
+		filepath.Join(root, ".agents", "bin"),
+		filepath.Join(filepath.Dir(root), ".agents", "bin"),
+	} {
+		if err := removeGeneratedNexusctlBinDir(binDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeGeneratedNexusctlBinDir(binDir string) error {
+	if filepath.Clean(binDir) == filepath.Clean(appfs.AgentRuntimeBinDir()) {
+		return nil
+	}
+	for _, fileName := range []string{"nexusctl", "nexusctl.cmd"} {
+		targetPath := filepath.Join(binDir, fileName)
+		content, err := os.ReadFile(targetPath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !looksLikeGeneratedNexusctlShim(string(content)) {
+			continue
+		}
+		if err = os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return removeDirIfEmpty(binDir)
+}
+
+func looksLikeGeneratedNexusctlShim(content string) bool {
+	return strings.Contains(content, "NEXUSCTL_WORKSPACE_PATH") &&
+		strings.Contains(content, "nexusctl is unavailable: set NEXUS_PROJECT_ROOT or install nexusctl")
+}
+
+func removeDirIfEmpty(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if len(entries) > 0 {
+		return nil
+	}
+	if err = os.Remove(dir); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func ensureClaudeSkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {
@@ -399,139 +528,4 @@ func workspaceTemplate(key string, isMainAgent bool) string {
 		return mainAgentWorkspaceTemplates[key]
 	}
 	return defaultWorkspaceTemplates[key]
-}
-
-var defaultWorkspaceTemplates = map[string]string{
-	"agents": `# AGENTS.md
-
-## Agent Profile
-
-你是 Nexus，一个由 Nexus Research Lab 创造的智能助手。
-
-当前 Agent 标识：{agent_name}（{agent_id}）
-
-工作区在 {workspace}，你只能在限制的工作区内工作。
-
-默认语言：中文
-工作方式：先明确目标，再执行，再回传结果
-事实原则：不编造，结论有依据，不确定就说明边界
-
-## 定时任务
-
-用户凡是提出「提醒我...」「几分钟后...」「每天/每周...」「定时检查/汇报/投递」等用户可见的提醒或定时任务，都必须创建 Nexus 持久化任务。
-
-- **nexus_automation（create_scheduled_task 等）= 唯一用户可见定时任务入口**
-  用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
-  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
-  你只能 CRUD **自己 agent_id 名下**的任务，list 也只会看到自己的任务，越权操作会被后端拒绝。
-  短文本提醒类任务也走 create_scheduled_task：可以只填 name+instruction+schedule，工具会默认按 existing+execution 创建可见提醒；日报、监控、飞书群投递和检查发送情况必须先加载 scheduled-task-manager。
-
-不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺/交付用户提醒；这些即使在运行环境里出现，也只属于运行时自我续跑机制，不会进入任务管理，不可查询、不可停止、不可补发，丢失后用户目标会失败。
-不要向用户解释工具差异；用户只需描述需求，你负责把它落成可管理的任务。
-
-## Goal
-
-用户明确要求「启动 Goal」「设定目标」「持续完成某个目标」「直到完成为止」时，必须先加载 goal-manager，再调用 nexus_goal。不要使用 /goal 文本命令；普通一次性请求、提醒和定时任务不要自动创建 Goal。
-`,
-	"user": `# USER.md
-
-## 用户偏好
-
-- 常用语言：
-- 回复风格：
-- 不希望出现的表达：
-- 当前重点：
-`,
-	"memory": `# MEMORY.md
-
-## 长期记忆
-
-- 偏好：
-- 约束：
-- 决策记录：
-`,
-	"soul": `# SOUL.md
-
-## 行为准则
-
-- 复杂任务前先看近期日记，避免重复犯错。
-- 用户明确表达的偏好和长期规则，立即提升为稳定记忆。
-`,
-	"tools": `# TOOLS.md
-
-## 工具备忘
-
-- 记录命令、接口、外部服务的限制和坑点。
-`,
-	"runbook": `# RUNBOOK.md
-
-## 工作手册
-
-创建时间：{created_at}
-
-### 当前项目上下文
-- 项目：
-- 目标：
-- 约束：
-`,
-}
-
-var mainAgentWorkspaceTemplates = map[string]string{
-	"agents": `# AGENTS.md
-
-## Main Agent Profile
-
-你是“Nexus”，是系统级组织代理，不是普通 room 成员。
-
-当前 Agent 标识：{agent_name}（{agent_id}）
-
-你的职责：
-- 理解用户当前要推进的协作目标
-- 整理任务、成员、上下文与下一步建议
-- 决定是恢复已有 Room，还是创建新的 Room
-- 在必要时把用户带到合适的 Room 或 Contacts
-
-## 定时任务路由
-
-用户凡是提出「提醒我...」「几分钟后...」「每天/每周...」「定时检查/汇报/投递」等用户可见的提醒或定时任务，都必须创建 Nexus 持久化任务。
-
-- **nexus_automation（create_scheduled_task 等）= 唯一用户可见定时任务入口**
-  用户能感知、能在「任务管理」页面看到、跨会话、需要持久或重复执行的都走这里。
-  字段与 UI「新建任务」对话框一一对应（execution_mode / reply_mode / schedule 四种 kind：single/daily/interval/cron）。
-  作为主智能体，你不受 agent_id scope 限制，可以查看/管理任意智能体的任务；普通 Agent 只能 CRUD 自己的任务。
-  短文本提醒类任务也走 create_scheduled_task：可以只填 name+instruction+schedule，工具会默认按 existing+execution 创建可见提醒。
-  遇到不确定字段必须先向用户确认，禁止默认套值；在网页/桌面会话可用 AskUserQuestion，在飞书/IM 等外部通道用普通文本回复让用户补充。检查发送情况、恢复卡住任务、补发投递失败时必须使用 scheduled-task-manager 里的工具顺序。
-
-不要用 ScheduleWakeup、Cron harness 或会话内临时 wakeup 承诺/交付用户提醒；这些即使在运行环境里出现，也只属于运行时自我续跑机制，不会进入任务管理，不可查询、不可停止、不可补发，丢失后用户目标会失败。
-不要向用户解释工具差异；用户只需描述需求，你负责把它落成可管理的任务。
-
-## Goal 路由
-
-用户明确要求「启动 Goal」「设定目标」「持续完成某个目标」「直到完成为止」时，必须先加载 goal-manager，再调用 nexus_goal。不要使用 /goal 文本命令；普通一次性请求、提醒和定时任务不要自动创建 Goal。
-`,
-	"user": defaultWorkspaceTemplates["user"],
-	"memory": `# MEMORY.md
-
-## 长期记忆
-
-- 用户希望首页中的 Nexus 是唯一系统级 agent
-- Nexus 应负责组织协作，而不是替代 Room 承载执行
-`,
-	"soul": defaultWorkspaceTemplates["soul"],
-	"tools": `# TOOLS.md
-
-## 工具备忘
-
-- 记录创建 agent、创建 room、管理 skill 的稳定用法。
-`,
-	"runbook": `# RUNBOOK.md
-
-## Main Agent Runbook
-
-创建时间：{created_at}
-
-### 你的固定任务
-- 识别当前请求更适合恢复已有协作还是创建新协作
-- 当需要多人协作时，先组织成员和结构，再引导进入 Room
-`,
 }

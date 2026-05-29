@@ -105,7 +105,12 @@ export interface ProviderOptionsResponse {
   default_provider: string | null;
   default_model: string | null;
   default_selection: ProviderModelSelection | null;
+  default_image_provider: string | null;
+  default_image_model: string | null;
+  default_image_selection: ProviderModelSelection | null;
   items: ProviderOption[];
+  background_items: ProviderOption[];
+  image_items: ProviderOption[];
 }
 
 export interface ProviderConfigPayload {

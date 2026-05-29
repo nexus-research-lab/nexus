@@ -19,6 +19,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -44,6 +45,7 @@ type fakeDMClient struct {
 	disconnectErrs  []error
 	connectErrors   []error
 	queryErrors     []error
+	queryPrompts    []string
 	sentContents    []string
 	queryOptions    []sdkprotocol.OutboundMessageOptions
 	reconfigureOps  []agentclient.Options
@@ -79,6 +81,7 @@ func (c *fakeDMClient) QueryWithOptions(ctx context.Context, prompt string, opti
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.queryPrompts = append(c.queryPrompts, prompt)
 	c.queryOptions = append(c.queryOptions, options)
 	if len(c.queryErrors) > 0 {
 		err := c.queryErrors[0]
@@ -608,6 +611,26 @@ func (s *dmTestSender) SendEvent(_ context.Context, event protocol.EventMessage)
 	return nil
 }
 
+type fakeDMTitleScheduler struct {
+	mu       sync.Mutex
+	requests []titlegen.Request
+}
+
+func (s *fakeDMTitleScheduler) Schedule(_ context.Context, request titlegen.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, request)
+}
+
+func (s *fakeDMTitleScheduler) LastRequest() titlegen.Request {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.requests) == 0 {
+		return titlegen.Request{}
+	}
+	return s.requests[len(s.requests)-1]
+}
+
 type blockingDMTestSender struct {
 	key  string
 	done chan struct{}
@@ -764,6 +787,24 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		protocol.EventTypeMessage,
 		protocol.EventTypeRoundStatus,
 	})
+	client.mu.Lock()
+	queryPrompts := append([]string(nil), client.queryPrompts...)
+	client.mu.Unlock()
+	if len(queryPrompts) != 1 {
+		t.Fatalf("期望发送 1 条 runtime query，实际 %d", len(queryPrompts))
+	}
+	for _, expected := range []string{
+		"你好",
+		"<nexus_runtime_context>",
+		"## Date Awareness",
+		"## Emotion State",
+		"Context ID: dm:" + sessionKey,
+		"Base: focused",
+	} {
+		if !strings.Contains(queryPrompts[0], expected) {
+			t.Fatalf("runtime query 缺少动态上下文 %q:\n%s", expected, queryPrompts[0])
+		}
+	}
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
 	transcriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
@@ -926,7 +967,11 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
-	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "提示词助手"})
+	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
+		Name:        "提示词助手",
+		Description: "负责执行工作区规则",
+		VibeTags:    []string{"规则优先", "稳健"},
+	})
 	if err != nil {
 		t.Fatalf("创建测试 agent 失败: %v", err)
 	}
@@ -936,21 +981,6 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		0o644,
 	); err != nil {
 		t.Fatalf("写入 AGENTS.md 失败: %v", err)
-	}
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() {
-		_ = db.Close()
-	}()
-	if _, err = db.Exec(`UPDATE profiles SET headline = ?, profile_markdown = ? WHERE agent_id = ?`,
-		"擅长规则执行",
-		"## 详细档案\n- 运行前先汇总 workspace 规则。",
-		created.AgentID,
-	); err != nil {
-		t.Fatalf("更新 profile 失败: %v", err)
 	}
 
 	agentValue, err := agentService.GetAgent(context.Background(), created.AgentID)
@@ -981,11 +1011,11 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
 		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
 	}
-	if !strings.Contains(appendSystemPrompt, "擅长规则执行") {
-		t.Fatalf("runtime prompt 未注入 Agent headline: %s", appendSystemPrompt)
+	if !strings.Contains(appendSystemPrompt, "Description: 负责执行工作区规则") {
+		t.Fatalf("runtime prompt 未注入 Agent description: %s", appendSystemPrompt)
 	}
-	if !strings.Contains(appendSystemPrompt, "运行前先汇总 workspace 规则") {
-		t.Fatalf("runtime prompt 未注入 Agent profile_markdown: %s", appendSystemPrompt)
+	if !strings.Contains(appendSystemPrompt, "Vibe Tags: 规则优先, 稳健") {
+		t.Fatalf("runtime prompt 未注入 Agent vibe_tags: %s", appendSystemPrompt)
 	}
 }
 
@@ -1313,6 +1343,8 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	service.SetProviderResolver(providerService)
+	titleScheduler := &fakeDMTitleScheduler{}
+	service.SetTitleGenerator(titleScheduler)
 	sender := newDMTestSender("sender-no-model")
 	sessionKey := "agent:nexus:ws:dm:no-model"
 	permission.BindSession(sessionKey, sender, "client-no-model", true)
@@ -1383,6 +1415,10 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 	if goalToolDecision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("Goal 工具应自动放行: %+v", goalToolDecision)
+	}
+	titleRequest := titleScheduler.LastRequest()
+	if titleRequest.Provider != "glm" || titleRequest.Model != "glm-5.1" {
+		t.Fatalf("标题生成未复用本轮 runtime provider/model: %+v", titleRequest)
 	}
 }
 
@@ -1964,7 +2000,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	if interruptCalls != 0 {
 		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
 	}
-	if len(sentContents) != 1 || sentContents[0] != "这是补充要求" {
+	if len(sentContents) != 1 ||
+		!strings.Contains(sentContents[0], "这是补充要求") ||
+		!strings.Contains(sentContents[0], "<nexus_runtime_context>") {
 		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
 	}
 	if len(factory.options) != 1 {

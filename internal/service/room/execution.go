@@ -276,6 +276,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	dispatchRuntimeContent = s.appendRuntimeUserContext(slotCtx, roundValue.ConversationID, agentValue, dispatchRuntimeContent)
 	slot.beginNoReplyCandidate()
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
 		Content:          dispatchRuntimeContent.Payload(),

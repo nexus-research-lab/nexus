@@ -76,6 +76,29 @@ func (c RuntimeContent) PrependText(prefix string) RuntimeContent {
 	return c
 }
 
+// AppendText 将运行时动态上下文追加到本轮用户输入尾部。
+func (c RuntimeContent) AppendText(suffix string) RuntimeContent {
+	suffix = strings.TrimSpace(suffix)
+	if suffix == "" {
+		return c
+	}
+	text := strings.TrimSpace(c.text)
+	if text == "" {
+		c.text = suffix
+	} else {
+		c.text = text + "\n\n" + suffix
+	}
+	if len(c.blocks) > 0 {
+		blocks := cloneRuntimeBlocks(c.blocks)
+		blocks = append(blocks, map[string]any{
+			"type": "text",
+			"text": suffix,
+		})
+		c.blocks = blocks
+	}
+	return c
+}
+
 // RenderRuntimeContentWithAttachments 将结构化附件渲染成 Claude Code 运行时可消费的输入。
 func RenderRuntimeContentWithAttachments(
 	ctx context.Context,
@@ -124,7 +147,7 @@ func RenderRuntimeContentWithAttachments(
 	trimmedContent := strings.TrimSpace(content)
 	plainText := refText
 	if trimmedContent == "" {
-		plainText = "请查看这些附件： " + refText
+		plainText = "Please review these attachments: " + refText
 	} else {
 		plainText = refText + " " + trimmedContent
 	}
@@ -238,11 +261,11 @@ func runtimeImageBlockMIMEType(attachment protocol.ChatAttachment, absolutePath 
 func runtimeTextBlockForAttachments(content string, textRefs []string, imageRefs []string) string {
 	parts := make([]string, 0, 4)
 	if len(imageRefs) > 0 {
-		parts = append(parts, "请先阅读这些图片附件，再根据用户问题处理。")
-		parts = append(parts, "图片源文件："+strings.Join(imageRefs, " "))
+		parts = append(parts, "Review these image attachments first, then respond to the user's request.")
+		parts = append(parts, "Image source files: "+strings.Join(imageRefs, " "))
 	}
 	if len(textRefs) > 0 {
-		parts = append(parts, "请同时查看这些文件附件："+strings.Join(textRefs, " "))
+		parts = append(parts, "Also review these file attachments: "+strings.Join(textRefs, " "))
 	}
 	if strings.TrimSpace(content) != "" {
 		parts = append(parts, strings.TrimSpace(content))

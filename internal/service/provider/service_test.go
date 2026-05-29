@@ -68,6 +68,18 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if _, err = service.ResolveRuntimeConfig(ctx, "openai", "gpt-4o"); err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
 		t.Fatalf("OpenAI chat_completions 应被 Agent runtime 拒绝: %v", err)
 	}
+	if _, err = service.UpdateModel(ctx, "openai", "gpt-4o", UpdateModelInput{
+		Enabled: true,
+	}); err != nil {
+		t.Fatalf("启用 OpenAI 模型失败: %v", err)
+	}
+	llmConfig, err := service.ResolveLLMConfig(ctx, "openai", "gpt-4o")
+	if err != nil {
+		t.Fatalf("OpenAI chat_completions 应可用于后端 LLM 任务: %v", err)
+	}
+	if llmConfig.APIFormat != APIFormatChatCompletions || llmConfig.Model != "gpt-4o" {
+		t.Fatalf("OpenAI LLM config 不正确: %+v", llmConfig)
+	}
 
 	deepseek, err := service.Create(ctx, CreateInput{
 		Provider:  "deepseek",
@@ -84,6 +96,50 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 	if !deepseek.AgentRuntimeSupported {
 		t.Fatalf("DeepSeek Anthropic format 应可用于 Agent runtime: %+v", deepseek)
+	}
+
+	qwenTokenPlan, err := service.Create(ctx, CreateInput{
+		Provider:  "qwen-token-plan",
+		PresetKey: presetQwenTokenPlan,
+		AuthToken: "qwen-token-plan-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 Qwen Token Plan provider 失败: %v", err)
+	}
+	if qwenTokenPlan.APIFormat != APIFormatAnthropicMessages ||
+		qwenTokenPlan.BaseURL != "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic" ||
+		qwenTokenPlan.ModelsPath != "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/models" {
+		t.Fatalf("Qwen Token Plan 默认配置不正确: %+v", qwenTokenPlan)
+	}
+	if !qwenTokenPlan.AgentRuntimeSupported {
+		t.Fatalf("Qwen Token Plan Anthropic format 应可用于 Agent runtime: %+v", qwenTokenPlan)
+	}
+	qwenPreset := resolvePreset(presetQwenTokenPlan)
+	if format := qwenPreset.Format(APIFormatChatCompletions); format.BaseURL != "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Qwen Token Plan OpenAI 兼容 endpoint 不正确: %+v", format)
+	}
+
+	miniMaxTokenPlan, err := service.Create(ctx, CreateInput{
+		Provider:  "minimax-token-plan",
+		PresetKey: presetMiniMaxToken,
+		AuthToken: "minimax-token-plan-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 MiniMax Token Plan provider 失败: %v", err)
+	}
+	if miniMaxTokenPlan.APIFormat != APIFormatAnthropicMessages ||
+		miniMaxTokenPlan.BaseURL != "https://api.minimaxi.com/anthropic" ||
+		miniMaxTokenPlan.ModelsPath != "https://api.minimaxi.com/v1/models" {
+		t.Fatalf("MiniMax Token Plan 默认配置不正确: %+v", miniMaxTokenPlan)
+	}
+	if !miniMaxTokenPlan.AgentRuntimeSupported {
+		t.Fatalf("MiniMax Token Plan Anthropic format 应可用于 Agent runtime: %+v", miniMaxTokenPlan)
+	}
+	miniMaxPreset := resolvePreset(presetMiniMaxToken)
+	if format := miniMaxPreset.Format(APIFormatChatCompletions); format.BaseURL != "https://api.minimaxi.com/v1" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("MiniMax Token Plan OpenAI 兼容 endpoint 不正确: %+v", format)
 	}
 
 	kimi, err := service.Create(ctx, CreateInput{
@@ -116,6 +172,112 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 	if runtimeConfig.APIFormat != APIFormatAnthropicMessages {
 		t.Fatalf("runtime api_format 未透传: %+v", runtimeConfig)
+	}
+
+	volcengine, err := service.Create(ctx, CreateInput{
+		Provider:  "volcengine-coding-plan",
+		PresetKey: presetVolcengine,
+		AuthToken: "volcengine-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 Volcengine Coding Plan provider 失败: %v", err)
+	}
+	if volcengine.APIFormat != APIFormatAnthropicMessages ||
+		volcengine.BaseURL != "https://ark.cn-beijing.volces.com/api/coding" ||
+		volcengine.ModelsPath != "https://ark.cn-beijing.volces.com/api/coding/v3/models" {
+		t.Fatalf("Volcengine Coding Plan 默认配置不正确: %+v", volcengine)
+	}
+	if !volcengine.AgentRuntimeSupported {
+		t.Fatalf("Volcengine Coding Plan Anthropic format 应可用于 Agent runtime: %+v", volcengine)
+	}
+	volcenginePreset := resolvePreset(presetVolcengine)
+	if format := volcenginePreset.Format(APIFormatChatCompletions); format.BaseURL != "https://ark.cn-beijing.volces.com/api/coding/v3" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Volcengine Coding Plan OpenAI 兼容 endpoint 不正确: %+v", format)
+	}
+
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if hasOptionProvider(options.Items, "openai") {
+		t.Fatalf("OpenAI 不应出现在默认对话模型选项: %+v", options.Items)
+	}
+	if !hasOptionProvider(options.BackgroundItems, "openai") {
+		t.Fatalf("OpenAI 应出现在后台任务模型选项: %+v", options.BackgroundItems)
+	}
+}
+
+func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	openai, err := service.Create(ctx, CreateInput{
+		Provider:   "openai",
+		PresetKey:  presetOpenAI,
+		APIFormat:  APIFormatResponses,
+		AuthToken:  "openai-key",
+		BaseURL:    "https://proxy.example.com/v1",
+		ModelsPath: "/proxy-models",
+	})
+	if err != nil {
+		t.Fatalf("创建 OpenAI provider 失败: %v", err)
+	}
+	if openai.BaseURL != "https://api.openai.com/v1" || openai.ModelsPath != "/models" {
+		t.Fatalf("内置 provider create 应忽略自定义 endpoint: %+v", openai)
+	}
+
+	updated, err := service.Update(ctx, "openai", UpdateInput{
+		PresetKey:  presetOpenAI,
+		APIFormat:  APIFormatResponses,
+		BaseURL:    "https://another-proxy.example.com/v1",
+		ModelsPath: "/another-models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("更新 OpenAI provider 失败: %v", err)
+	}
+	if updated.BaseURL != "https://api.openai.com/v1" || updated.ModelsPath != "/models" {
+		t.Fatalf("内置 provider update 应忽略自定义 endpoint: %+v", updated)
+	}
+
+	entity, err := service.repository.GetByProvider(ctx, "openai")
+	if err != nil || entity == nil {
+		t.Fatalf("读取 OpenAI provider 失败: entity=%+v err=%v", entity, err)
+	}
+	entity.BaseURL = "https://dirty.example.com/v1"
+	entity.ModelsPath = "/dirty-models"
+	if err = service.repository.Update(ctx, *entity); err != nil {
+		t.Fatalf("写入脏 endpoint 失败: %v", err)
+	}
+	records, err := service.List(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider 列表失败: %v", err)
+	}
+	var listed *Record
+	for index := range records {
+		if records[index].Provider == "openai" {
+			listed = &records[index]
+			break
+		}
+	}
+	if listed == nil || listed.BaseURL != "https://api.openai.com/v1" || listed.ModelsPath != "/models" {
+		t.Fatalf("内置 provider list 应按 catalog 展示 endpoint: %+v", listed)
+	}
+
+	custom, err := service.Create(ctx, CreateInput{
+		Provider:   "custom-openai",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatChatCompletions,
+		AuthToken:  "custom-key",
+		BaseURL:    "https://proxy.example.com/v1",
+		ModelsPath: "/proxy-models",
+	})
+	if err != nil {
+		t.Fatalf("创建 custom provider 失败: %v", err)
+	}
+	if custom.BaseURL != "https://proxy.example.com/v1" || custom.ModelsPath != "/proxy-models" {
+		t.Fatalf("custom provider 应保留自定义 endpoint: %+v", custom)
 	}
 }
 
@@ -163,6 +325,43 @@ func TestProviderListIncludesUsageAgents(t *testing.T) {
 	}
 	if target.UsedByAgents[1].AgentID != "agent-worker" || target.UsedByAgents[1].DisplayName != "worker" {
 		t.Fatalf("普通 Agent 摘要不正确: %+v", target.UsedByAgents[1])
+	}
+}
+
+func TestProviderImageOptionsIncludeDefaultModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	imageProvider, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "image-default",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatChatCompletions,
+		AuthToken:    "image-key",
+		BaseURL:      "https://image.example.com/v1/images",
+		ModelsPath:   "/models",
+		Enabled:      true,
+		DisplayName:  "Image Default",
+	})
+	if err != nil {
+		t.Fatalf("创建生图 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, imageProvider.Provider, "image-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置生图默认模型失败: %v", err)
+	}
+	imageConfig, err := service.ResolveImageConfig(ctx, "")
+	if err != nil {
+		t.Fatalf("解析生图默认模型失败: %v", err)
+	}
+	if imageConfig.Provider != imageProvider.Provider || imageConfig.Model != "image-model" {
+		t.Fatalf("生图默认模型不正确: %+v", imageConfig)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultImageProvider == nil || *options.DefaultImageProvider != imageProvider.Provider ||
+		len(options.ImageItems) != 1 {
+		t.Fatalf("生图默认模型未暴露到 options: %+v", options)
 	}
 }
 
@@ -749,4 +948,13 @@ func (h *captureSlogHandler) messages() []string {
 		result = append(result, record.message)
 	}
 	return result
+}
+
+func hasOptionProvider(items []Option, provider string) bool {
+	for _, item := range items {
+		if item.Provider == provider {
+			return true
+		}
+	}
+	return false
 }

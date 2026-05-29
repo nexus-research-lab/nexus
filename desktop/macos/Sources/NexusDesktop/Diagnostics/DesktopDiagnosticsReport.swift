@@ -148,6 +148,7 @@ enum DesktopDiagnosticsReport {
       ),
       "bundled_web_index_exists": bundledResourceExists(relativePath: "Web/index.html"),
       "bundled_sidecar_exists": bundledExecutableExists(name: "nexus-server"),
+      "bundled_nexusctl_exists": bundledResourceExecutableExists(relativePath: "bin/nexusctl"),
       "nexus_url_scheme_declared": declaredURLSchemes(bundle: Bundle.main).contains("nexus"),
     ]
   }
@@ -164,6 +165,15 @@ enum DesktopDiagnosticsReport {
       return false
     }
     return FileManager.default.isExecutableFile(atPath: executableDir.appendingPathComponent(name).path)
+  }
+
+  private static func bundledResourceExecutableExists(relativePath: String) -> Bool {
+    guard let resourceURL = Bundle.main.resourceURL else {
+      return false
+    }
+    return FileManager.default.isExecutableFile(
+      atPath: resourceURL.appendingPathComponent(relativePath).path
+    )
   }
 
   private static func timestampString() -> String {

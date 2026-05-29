@@ -477,7 +477,7 @@ func normalizeRoomInterruptReason(reason string) string {
 	if reason != "" {
 		return reason
 	}
-	return "请求已停止"
+	return "Request stopped"
 }
 
 func markRoomSlotInterrupted(slot *activeRoomSlot, reason string) {

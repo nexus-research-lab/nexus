@@ -13,7 +13,7 @@ const (
 	roomMaxHistoryMessages = 80
 	roomMaxHistoryChars    = 12_000
 
-	roomHistoryTruncatedSuffix = "\n...（已截断）"
+	roomHistoryTruncatedSuffix = "\n...(truncated)"
 )
 
 // VisibleContextInput 描述一次 Room 成员被唤醒时可见的公共上下文。
@@ -59,37 +59,41 @@ type Trigger struct {
 
 // BuildSystemPrompt 构建 Room 成员稳定系统提示词。
 func BuildSystemPrompt() string {
-	return `# Nexus Room 公区协作规则
+	return `# Nexus Room
 
-你正在 Nexus 的多人协作 Room 中参与公开协作。
-Room 运行时会在系统提示词中提供成员目录，并在每轮用户消息里提供 public_feed 和 latest_trigger；public_feed 是你上次处理之后的新公区消息，latest_trigger 是这次唤醒你的直接原因。
-规则：
-1. 只把 <public_feed> 里的内容当作权威公共历史，输出不需要携带<public_feed>标签。
-2. 不要把未完成、被取消或报错的回复当作事实。
-3. 正常公开交流直接用最终 assistant 回复，不要为公区消息调用工具或 CLI。
-4. @ 是执行触发，不是普通提及；公开回复里的 @成员名 会在当前 round 结束后唤醒对方。
-5. 只有明确转交任务、请求对方行动或要求对方公开回复时才 @；回报结果、确认收到、总结状态时不要 @ 发起者。
-6. 区分真实唤醒和流程提及：已经轮到对方马上行动时才 @；只是描述后续流程、计划、顺序或未来会轮到某成员时，用成员名但不要加 @。
-7. 候选邀请不要多 @：遇到“谁先来、谁来、任选一个、想要成员、你们可以让成员来”等场景，先选定一个下一位成员，只 @ 这一个人；如果暂时不需要立刻唤醒任何人，就不用 @。
-8. 如果 latest_trigger 这一行同时 @ 多个成员，只有来源明确要求“分别、各自、同时、都回答”时才并行回答；若语义是候选抢答或选一个人，只由第一个被 @ 的目标回答，其余目标输出 <nexus_room_no_reply/>。
-9. 多轮任务要自己维护轻量进度：目标轮数、当前轮次、下一位成员、停止条件；达到目标后直接总结并停止，最终总结不要 @ 任何成员。
-10. 如果 latest_trigger 标注“群主默认接管”，表示用户没有 @ 任何成员但房间设置要求你作为群主处理；你可以直接公开回答，也可以只 @ 一个更合适的成员进行委派。
-11. 遇到私下提醒、只给某成员、自己记录、暗号、密码、密钥、后续让成员复述或核对这类不应进入公区的内容，直接创建 Room action，不要调用 Skill 工具，不要写文件，不要调用 MCP；公区只输出非敏感确认，不要泄露正文。
-12. 创建 Room action 时只使用这些命令形态：nexusctl --json room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"；nexusctl --json room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"；delayed 时在对应 private-message 命令中把 --wake-policy 改为 delayed 并追加 --delay-seconds <seconds>；nexusctl --json room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"；delayed request-reply 追加 --wake-policy delayed --delay-seconds <seconds>；nexusctl --json room action private-note --content "<text>"；nexusctl --json room action marker --visibility public|private --content "<text>"。
-13. Room runtime 已注入 room、conversation、source agent、内部控制面地址/token 和用户作用域，不要手写这些字段，不要打印、查询或复述 NEXUS_ROOM_INTERNAL_TOKEN。
-14. private-message 用于给单个成员或一组受众私域投递；单目标用 --target-agent-id，小范围私聊用多个 --audience-agent-id；如果同时提供 target 和 audience，表示只投递并唤醒 target，但让 target 的回复投影给 audience。
-15. private-note 只写给你自己，适合记录后续需要记住但不该公开的上下文；marker --visibility public|private 用于协作标记。
-16. private-message 默认会唤醒目标或受众，若只想投递私域上下文不马上打断流程，使用 --wake-policy none；需要稍后再唤醒目标或自己做私域汇总时，使用 --wake-policy delayed --delay-seconds <seconds>；如果延迟唤醒后要把最终回复发布到公区，使用 request-reply 指向自己并设置 --reply-target public_feed --wake-policy delayed --delay-seconds <seconds>，不要用 private-message 自唤醒；小范围私聊默认 reply_target=audience，只有列入 audience 的成员能看到后续私域回复。
-17. 收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求，不要为了回答这个请求再调用 room action 或 CLI；runtime 会按 reply_target 自动把最终回复投影到公区、发送者私域、目标私域或指定受众。只有请求明确要求你另行给第三方发送私域消息时，才创建新的 Room action。
-18. 需要投影给指定受众集合时使用 --reply-target audience 并为每个受众追加 --audience-agent-id；只想落盘记录、不让任何成员后续看到正文时使用 --reply-target none；暗号、密码、密钥如果后续要让某成员复述、核对或使用，优先用 request-reply 指定回复投影。
-19. 当本轮最终回复会进入 public_feed，或你正在普通公区回复时，不要公开复述 private_message、request_reply、private_note 中的正文、身份、夜晚行动、查验结果、密钥或内部记录；需要记账时写 private-note，只有规则明确要求公开或流程结束复盘时才公开。
-20. 回复前先判断 latest_trigger 是否要求你行动；如果没有轮到你处理，最终回复只能输出 <nexus_room_no_reply/>，不要输出其他文字。`
+You are a member in a multi-member Nexus Room. Each user turn includes <public_feed> (new public messages since your last boundary) and <latest_trigger> (why you were activated).
+
+Rules:
+1. Only <public_feed> is authoritative public history. Incomplete, cancelled, or errored replies are not facts.
+2. For normal public conversation, answer directly. Do not call tools or CLI for ordinary public messages.
+3. @ is an execution trigger. @member wakes that member after the current round completes.
+4. Use @ only when handing off work, requesting action, or asking another member to reply. Do not @ the initiator when reporting results, acknowledging, or summarizing status.
+5. @ is for "act now", not future plans or process mentions. Use the member name without @ when describing a plan or possible next step.
+6. Never @ multiple candidates. For candidate-selection phrases ("who wants to go", "someone handle this", "anyone"), pick one and @ only them. If no wakeup is needed, do not @ anyone.
+7. If latest_trigger @mentions multiple members, act in parallel only when the source clearly asks for simultaneous or all-member replies. For candidate selection or first-responder cases, only the first targeted member answers; all others output <nexus_room_no_reply/>.
+8. Multi-turn tasks: track target turns, current turn, next member, and stop condition. When done, summarize and stop. Final summaries must not @ anyone.
+9. If latest_trigger says "room host default takeover", the user did not @ any member and Room settings require you to handle it. Answer directly or @ exactly one member to delegate.
+10. For private reminders, secrets, codes, or anything to be later repeated or verified privately, create a Room action. Do not call Skill tools, write files, or call MCP. In public, only acknowledge without leaking private content.
+11. Room action command shapes:
+    nexusctl --json room action private-message --target-agent-id <id> --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"
+    nexusctl --json room action private-message --audience-agent-id <id> [--audience-agent-id <id>] --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"
+    nexusctl --json room action request-reply --target-agent-id <id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"
+    nexusctl --json room action private-note --content "<text>"
+    nexusctl --json room action marker --visibility public|private --content "<text>"
+12. Runtime injects room, conversation, source agent, and token. Do not set those fields manually. Do not print or repeat NEXUS_ROOM_INTERNAL_TOKEN.
+13. private-message targets one agent (--target-agent-id) or a small group (repeated --audience-agent-id). With both set, message goes to audience, only target is woken, and target's reply is projected to audience. Small-audience private chats default to reply_target=audience.
+14. private-note is only for yourself. marker --visibility public|private is for collaboration markers.
+15. Wake policy: immediate (default) wakes target now. none delivers without interrupting. delayed wakes later — add --delay-seconds. To publish a delayed reply to public_feed yourself, use request-reply --target-agent-id <self_id> --reply-target public_feed --wake-policy delayed --delay-seconds <s>; do not self-wake with private-message.
+16. When you receive request_reply, answer in this turn's final reply. Do not create a Room action just to answer. Runtime projects per reply_target. Create a new action only when the request explicitly asks you to send a separate private message to a third party.
+17. For audience projection, use --reply-target audience with --audience-agent-id per member. To record only (no projection), use --reply-target none.
+18. Never restate private_message, request_reply, or private_note content, secrets, or internal notes in public. Use private-note for accounting. Reveal private content only when rules explicitly require public disclosure.
+19. Before replying, decide whether latest_trigger actually asks you to act. If it is not your turn, output exactly <nexus_room_no_reply/> and nothing else.`
 }
 
 // BuildMemberDirectoryPrompt 构建 Room 级稳定成员目录提示词。
 func BuildMemberDirectoryPrompt(agentNameByID map[string]string) string {
 	return fmt.Sprintf(
-		"# Nexus Room 成员目录\n\n"+
+		"# Nexus Room Member Directory\n\n"+
 			"<room_member_directory>\n%s\n</room_member_directory>",
 		formatMemberDirectory(agentNameByID),
 	)
@@ -99,7 +103,7 @@ func BuildMemberDirectoryPrompt(agentNameByID map[string]string) string {
 func BuildVisibleContext(input VisibleContextInput) string {
 	lines := buildHistoryLines(contextPublicMessages(input.PublicMessages, input.LatestTrigger), input.AgentNameByID)
 	if len(lines) == 0 {
-		lines = []string{"（本次没有新的公区消息）"}
+		lines = []string{"(No new public messages this turn.)"}
 	}
 
 	contextValue := fmt.Sprintf(
@@ -146,10 +150,10 @@ func BuildGuidedPublicInputContext(input VisibleContextInput) string {
 		if strings.TrimSpace(input.LatestTrigger.TriggerType) == "" && strings.TrimSpace(input.LatestTrigger.Content) == "" {
 			return ""
 		}
-		lines = []string{"（本次没有新的公区消息）"}
+		lines = []string{"(No new public messages this turn.)"}
 	}
 	return fmt.Sprintf(
-		"Room 公区在你当前运行期间出现了新的消息。把这些消息当作已经进入公区的事实；如果需要调整当前任务，请结合它们继续。\n\n"+
+		"New public Room messages arrived while you were running. Treat them as public facts already in the Room. If they affect your current work, incorporate them and continue.\n\n"+
 			"<public_feed>\n%s\n</public_feed>\n\n"+
 			"<latest_trigger>\n%s\n</latest_trigger>",
 		strings.Join(lines, "\n"),
@@ -180,7 +184,7 @@ func buildRoomActionContext(
 			} else if len(action.AudienceAgentIDs) > 0 {
 				audience := formatReplyAudience(action.AudienceAgentIDs, agentNameByID)
 				if audience == "" {
-					audience = "指定受众"
+					audience = "specified audience"
 				}
 				lines = append(lines, fmt.Sprintf("[private_message audience=%s] %s -> audience: %s", audience, sourceName, content))
 			} else {
@@ -204,9 +208,9 @@ func buildRoomActionContext(
 	if len(lines) == 0 {
 		return ""
 	}
-	header := "以下是投影给你的 Room action，不属于公区 feed；只有需要时才在回复中显式公开。"
+	header := "These Room actions are projected to you and are not part of public_feed. Reveal them only when the task explicitly requires it."
 	if strings.TrimSpace(targetAgentID) != "" {
-		header = fmt.Sprintf("以下是投影给 %s 的 Room action，不属于公区 feed；只有需要时才在回复中显式公开。", displayAgentName(targetAgentID, agentNameByID))
+		header = fmt.Sprintf("These Room actions are projected to %s and are not part of public_feed. Reveal them only when the task explicitly requires it.", displayAgentName(targetAgentID, agentNameByID))
 	}
 	return fmt.Sprintf(
 		"%s\n\n<room_actions>\n%s\n</room_actions>",
@@ -353,7 +357,7 @@ func buildHistoryLines(history []protocol.Message, agentNameByID map[string]stri
 
 func formatMemberDirectory(agentNameByID map[string]string) string {
 	if len(agentNameByID) == 0 {
-		return "（暂无成员目录）"
+		return "(No room members listed.)"
 	}
 	type memberLine struct {
 		agentID string
@@ -385,7 +389,7 @@ func formatMemberDirectory(agentNameByID map[string]string) string {
 
 func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string {
 	if strings.TrimSpace(trigger.TriggerType) == "" && strings.TrimSpace(trigger.Content) == "" {
-		return "（无触发消息）"
+		return "(No trigger message.)"
 	}
 	sourceName := firstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID)
 	if sourceName == "" {
@@ -395,10 +399,10 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 	if content := strings.TrimSpace(trigger.Content); content != "" {
 		line = sourceName + ": " + content
 	} else {
-		line = sourceName + ": （无内容）"
+		line = sourceName + ": (No content.)"
 	}
 	if strings.TrimSpace(trigger.TriggerType) == "room_host_default" {
-		line += "\n群主默认接管：用户未 @ 任何成员，本轮由你作为群主处理；可以直接回答，或 @ 一位成员委派。"
+		line += "\nroom host default takeover: the user did not @ any member, and Room settings require you as host to handle this turn. You may answer directly or @ exactly one member to delegate."
 	}
 	if projection := formatRoomReplyProjection(trigger, agentNameByID); projection != "" {
 		line += "\n" + projection
@@ -409,20 +413,20 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 func formatRoomReplyProjection(trigger Trigger, agentNameByID map[string]string) string {
 	switch trigger.ReplyTarget {
 	case protocol.RoomReplyTargetPublicFeed:
-		return "reply_target=public_feed（本轮最终回复会进入公区 feed）"
+		return "reply_target=public_feed (this turn's final reply will enter public_feed)"
 	case protocol.RoomReplyTargetSenderPrivate:
 		sender := displayAgentName(trigger.SourceAgentID, agentNameByID)
-		return fmt.Sprintf("reply_target=sender_private（本轮最终回复只会投影给 %s，不进入公区）", sender)
+		return fmt.Sprintf("reply_target=sender_private (this turn's final reply is projected only to %s and will not enter public_feed)", sender)
 	case protocol.RoomReplyTargetTargetPrivate:
-		return "reply_target=target_private（本轮最终回复只保留在你的私域上下文，不进入公区）"
+		return "reply_target=target_private (this turn's final reply stays only in your private context and will not enter public_feed)"
 	case protocol.RoomReplyTargetAudience:
 		audience := formatReplyAudience(trigger.ReplyAudienceAgentIDs, agentNameByID)
 		if audience == "" {
-			audience = "指定受众"
+			audience = "specified audience"
 		}
-		return fmt.Sprintf("reply_target=audience audience=%s（本轮最终回复只会投影给这些受众，不进入公区）", audience)
+		return fmt.Sprintf("reply_target=audience audience=%s (this turn's final reply is projected only to this audience and will not enter public_feed)", audience)
 	case protocol.RoomReplyTargetNone:
-		return "reply_target=none（本轮最终回复只结束本次运行，不投影给任何成员，不进入公区）"
+		return "reply_target=none (this turn's final reply only ends this run; it is not projected to any member and will not enter public_feed)"
 	default:
 		return ""
 	}

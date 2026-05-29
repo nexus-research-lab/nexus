@@ -267,7 +267,7 @@ export function CreateRoomDialog({
         on_close={on_cancel}
       >
         <UiDialogShell
-          class_name="h-[min(80vh,720px)] pointer-events-auto"
+          class_name="max-h-[min(80vh,720px)] pointer-events-auto"
           size="lg"
         >
           <UiDialogHeader>
@@ -291,8 +291,8 @@ export function CreateRoomDialog({
           </UiDialogHeader>
 
           {/* 内容区：成员管理 + 底部 Room Skill 标签行 */}
-          <div className="dialog-body flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-            <div className="flex min-h-0 flex-1 gap-5 overflow-hidden">
+          <div className="dialog-body flex min-h-0 flex-col gap-4 overflow-y-auto">
+            <div className="flex min-h-0 gap-5">
               {/* 左栏：房间信息 */}
               <div className="flex min-h-0 w-60 shrink-0 flex-col gap-3">
                 <p className="dialog-label">
@@ -394,20 +394,29 @@ export function CreateRoomDialog({
                   {t("room.all_agents", { count: filtered_agents.length })}
                 </p>
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
-                  <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+                <div className="flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden rounded-[16px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
+                  <div
+                    className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+                    data-room-member-selection-list="true"
+                  >
                     {filtered_agents.map((agent) => {
                       const is_selected = selected_id_set.has(agent.agent_id);
+                      const action_label = is_selected
+                        ? t("room.agent_select_remove", { name: agent.name })
+                        : t("room.agent_select_add", { name: agent.name });
                       return (
                         <button
+                          aria-label={action_label}
+                          aria-pressed={is_selected}
                           key={agent.agent_id}
                           className={cn(
-                            "flex w-full items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
+                            "flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
                             is_selected
                               ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
                               : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
                           )}
                           onClick={() => toggle_agent(agent.agent_id)}
+                          title={action_label}
                           type="button"
                         >
                           <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />
@@ -420,7 +429,7 @@ export function CreateRoomDialog({
 
                           <div
                             className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
+                              "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
                               is_selected
                                 ? "bg-primary text-white"
                                 : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
@@ -440,24 +449,28 @@ export function CreateRoomDialog({
               </div>
             </div>
 
-            <UiMultiSelectMenu
-              aria_label={t("room.skills_label")}
-              class_name="shrink-0"
-              disabled={is_creating}
-              empty_text={t("room.skills_empty")}
-              error_text={room_skill_error}
-              is_loading={is_loading_room_skills}
-              loading_text={t("room.skills_loading")}
-              on_change={set_selected_room_skill_names}
-              on_query_change={set_room_skill_query}
-              options={room_skill_options}
-              placement="top"
-              placeholder={t("room.skills_none")}
-              query={room_skill_query}
-              search_placeholder={t("agent_options.skills.search_placeholder")}
-              surface="dialog"
-              value={selected_room_skill_names}
-            />
+            <div className="shrink-0 space-y-2">
+              <p className="dialog-label">
+                {t("room.skills_label")}
+              </p>
+              <UiMultiSelectMenu
+                aria_label={t("room.skills_label")}
+                disabled={is_creating}
+                empty_text={t("room.skills_empty")}
+                error_text={room_skill_error}
+                is_loading={is_loading_room_skills}
+                loading_text={t("room.skills_loading")}
+                on_change={set_selected_room_skill_names}
+                on_query_change={set_room_skill_query}
+                options={room_skill_options}
+                placement="top"
+                placeholder={t("room.skills_none")}
+                query={room_skill_query}
+                search_placeholder={t("agent_options.skills.search_placeholder")}
+                surface="dialog"
+                value={selected_room_skill_names}
+              />
+            </div>
           </div>
 
           {/* 底部栏 — 与 AgentOptions footer 一致 */}

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
@@ -37,9 +39,18 @@ type ProviderResolver interface {
 	ResolveImageConfig(ctx context.Context, provider string) (*providercfg.ImageConfig, error)
 }
 
+type providerModelResolver interface {
+	ResolveImageModelConfig(ctx context.Context, provider string, model string) (*providercfg.ImageConfig, error)
+}
+
+type preferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
 // Service 提供 Provider 驱动的图片生成能力。
 type Service struct {
 	providers ProviderResolver
+	prefs     preferencesService
 	now       func() time.Time
 	client    *http.Client
 }
@@ -53,6 +64,11 @@ func NewService(providers ProviderResolver) *Service {
 	}
 }
 
+// SetPreferences 注入用户偏好服务，用于解析默认生图模型。
+func (s *Service) SetPreferences(prefs preferencesService) {
+	s.prefs = prefs
+}
+
 // GenerateImage 调用图片生成 Provider 并保存图片。
 func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Result, []byte, error) {
 	if s == nil || s.providers == nil {
@@ -62,7 +78,7 @@ func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Resu
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := s.providers.ResolveImageConfig(ctx, normalized.Provider)
+	config, err := s.resolveImageConfig(ctx, normalized.Provider, normalized.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,7 +120,7 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := s.providers.ResolveImageConfig(ctx, normalized.Provider)
+	config, err := s.resolveImageConfig(ctx, normalized.Provider, normalized.Model)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -141,6 +157,30 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 		Markdown:      fmt.Sprintf("![edited image](%s)", relativePath),
 	}
 	return result, payload, nil
+}
+
+func (s *Service) resolveImageConfig(ctx context.Context, provider string, model string) (*providercfg.ImageConfig, error) {
+	if strings.TrimSpace(provider) != "" || strings.TrimSpace(model) != "" || s.prefs == nil {
+		if strings.TrimSpace(model) != "" {
+			if resolver, ok := s.providers.(providerModelResolver); ok {
+				return resolver.ResolveImageModelConfig(ctx, provider, model)
+			}
+			return nil, errors.New("图片生成 Provider 不支持显式 model 选择")
+		}
+		return s.providers.ResolveImageConfig(ctx, provider)
+	}
+	prefs, err := s.prefs.Get(ctx, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	selection := prefs.DefaultImageModelSelection
+	if strings.TrimSpace(selection.Provider) == "" || strings.TrimSpace(selection.Model) == "" {
+		return s.providers.ResolveImageConfig(ctx, "")
+	}
+	if resolver, ok := s.providers.(providerModelResolver); ok {
+		return resolver.ResolveImageModelConfig(ctx, selection.Provider, selection.Model)
+	}
+	return s.providers.ResolveImageConfig(ctx, selection.Provider)
 }
 
 func (s *Service) callGenerateProvider(
@@ -481,6 +521,7 @@ func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType strin
 
 func normalizeInput(input GenerateInput) (GenerateInput, error) {
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.WorkspacePath = strings.TrimSpace(input.WorkspacePath)
 	input.Size = strings.TrimSpace(input.Size)
@@ -518,6 +559,7 @@ func normalizeInput(input GenerateInput) (GenerateInput, error) {
 
 func normalizeEditInput(input EditInput) (EditInput, error) {
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.WorkspacePath = strings.TrimSpace(input.WorkspacePath)
 	input.ImagePath = strings.TrimSpace(input.ImagePath)

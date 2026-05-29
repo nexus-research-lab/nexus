@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -30,6 +29,9 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	if err != nil {
 		return nil, err
 	}
+	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
+		return nil, err
+	}
 	if includeSkillsCount {
 		err = enrichAgentsWithSkillsCount(agents)
 	}
@@ -52,6 +54,9 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+		return nil, err
+	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
@@ -66,6 +71,9 @@ func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]prot
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	agents, err := s.repository.ListAgentsByIDs(ctx, ownerUserID, agentIDs)
 	if err != nil {
+		return nil, err
+	}
+	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
 		return nil, err
 	}
 	return agents, nil
@@ -84,10 +92,22 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+		return nil, err
+	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
+}
+
+func ensureAgentRuntimeEmotionStates(agents []protocol.Agent) error {
+	for _, agentValue := range agents {
+		if err := EnsureRuntimeEmotionState(agentValue.WorkspacePath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ValidateName 校验名称是否可用。
@@ -147,6 +167,10 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 
 	agentID, workspacePath, err := s.createAgentWorkspacePath(ownerUserID)
 	if err != nil {
+		return nil, err
+	}
+	if err = EnsureRuntimeEmotionState(workspacePath); err != nil {
+		_ = os.RemoveAll(workspacePath)
 		return nil, err
 	}
 	record := BuildCreateRecord(
@@ -222,11 +246,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		vibeTags = append([]string(nil), request.VibeTags...)
 	}
 
-	identitySynced, err := syncWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, existing.Name, normalizedName)
-	if err != nil {
-		return nil, err
-	}
-
 	updated, err := s.repository.UpdateAgent(ctx, agentrepo.UpdateRecord{
 		AgentID:             existing.AgentID,
 		OwnerUserID:         updateOwnerUserID,
@@ -247,11 +266,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources, "[]"),
 	})
 	if err != nil {
-		if identitySynced {
-			if rollbackErr := rollbackWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, normalizedName, existing.Name); rollbackErr != nil {
-				return nil, errors.Join(err, fmt.Errorf("回滚 AGENTS.md 身份标识失败: %w", rollbackErr))
-			}
-		}
 		return nil, err
 	}
 	if updated == nil {

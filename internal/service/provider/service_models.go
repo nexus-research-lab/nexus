@@ -187,6 +187,9 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if item.ProviderKind == ProviderKindLLM && (!item.Enabled || !isAgentRuntimeProvider(*item)) {
 		return nil, fmt.Errorf("provider=%s 暂不可设为 Agent 默认模型", item.Provider)
 	}
+	if item.ProviderKind != ProviderKindLLM && item.ProviderKind != ProviderKindImageGeneration {
+		return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
+	}
 	model, err := s.repository.GetModel(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
@@ -194,7 +197,8 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if model == nil {
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
-	if err = s.repository.UpdateDefaultModel(ctx, item.ID, model.ModelID, s.now()); err != nil {
+	now := s.now()
+	if err = s.repository.UpdateDefaultModel(ctx, item.ID, model.ModelID, now); err != nil {
 		return nil, err
 	}
 	updated, err := s.repository.GetModel(ctx, item.ID, modelID)

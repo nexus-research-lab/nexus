@@ -74,11 +74,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal app-server `thread/goal/set` 响应和状态通知发送完成后再触发隐藏续跑，避免续跑先于客户端状态同步启动。
 - Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
 - Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
+## [0.1.11] - 2026-05-27
+
+### Added
+- 常规设置新增默认对话模型、默认生图模型和后台任务模型三个模型角色，标题生成等后台任务优先使用后台任务模型。
+- Custom Provider 支持 Chat Completions、Responses 和 Anthropic Messages 三种协议配置、同步与测试，并开放 OpenAI 预置配置。
+- `nexusctl imagegen` 支持通过 `--provider` 和 `--model` 显式覆盖默认生图模型。
+
+### Changed
+- 重构 Provider 默认模型与轻量 LLM 调用链路，默认对话模型仍限定在当前 Agent runtime 支持的 Provider 模型范围内。
+- 内置 Provider 的 Base URL 和 Models Path 固定使用内置 catalog，设置页展示所有预置 API Format 的 Base URL，Custom Provider 继续允许自定义 endpoint。
+- 收口 Agent 提示词运行时上下文和工作区模板，使内置运行约束、默认模型和工具使用说明更一致。
+
+### Fixed
+- 修复群聊管理弹窗技能选择缺少标题、成员列表过高和底部空白过大的问题。
+- 修复群聊成员选择点击行为。
 
 ## [0.1.10] - 2026-05-26
 
 ### Changed
-- 重构 Provider 配置与默认模型选择：默认模型改为 Provider + Model 显式选择，Provider 页面补齐国际化，运行时不再依赖 `is_default` 和 `model` 旧列。
+- 重构 Provider 配置与默认模型选择：默认模型改为 Provider + Model 显式选择，Provider 页面补齐国际化，内置 Provider 新增 Qwen Token Plan、MiniMax Token Plan 与 Volcengine Coding Plan，运行时不再依赖 `is_default` 和 `model` 旧列。
 - 完善长程定时任务体系：支持脚本执行、显式成员执行、运行产物、卡住恢复、每日发送报告、单任务状态、管理事件、历史搜索、CLI 运维命令和运行超时看门狗。
 - 收口定时任务结果投递：支持 DM/Room/Agent 收件箱/飞书等 IM 群回投，新增投递 ledger、自动重试、死信、手动补投递和任务删除后的历史追溯。
 - 飞书与外部 IM 入站可直接创建、检查、修改、停用、删除和补投递定时任务，并通过幂等 ledger、签名校验、owner 上下文和托管 skill 保证后台处理可观测、可恢复。

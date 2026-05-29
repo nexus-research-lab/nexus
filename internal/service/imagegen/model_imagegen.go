@@ -3,6 +3,7 @@ package imagegen
 // GenerateInput 表示图片生成请求。
 type GenerateInput struct {
 	Provider          string
+	Model             string
 	Prompt            string
 	WorkspacePath     string
 	Size              string
@@ -16,6 +17,7 @@ type GenerateInput struct {
 // EditInput 表示图片编辑请求。
 type EditInput struct {
 	Provider          string
+	Model             string
 	Prompt            string
 	WorkspacePath     string
 	ImagePath         string

@@ -5,7 +5,10 @@ const PROVIDER_ICON_SRC: Record<string, string> = {
   deepseek: "/icon/provider/deepseek.svg",
   "glm-coding-plan": "/icon/provider/zai.svg",
   "kimi-code": "/icon/provider/moonshot.svg",
+  "minimax-token-plan": "/icon/provider/minimax.svg",
   openai: "/icon/provider/openai.svg",
+  "qwen-token-plan": "/icon/provider/qwen.svg",
+  "volcengine-coding-plan": "/icon/provider/volcengine.svg",
   azure: "/icon/provider/azureai.svg",
 };
 
@@ -27,10 +30,12 @@ function get_custom_provider_initials(name: string): string {
 }
 
 export function ProviderIcon({
+  active = false,
   name,
   preset_key,
   size = "sm",
 }: {
+  active?: boolean;
   name: string;
   preset_key?: string | null;
   size?: "sm" | "md";
@@ -42,6 +47,7 @@ export function ProviderIcon({
         aria-hidden="true"
         className={cn(
           "inline-flex shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_82%,white)] font-semibold tracking-tight text-(--text-strong)",
+          active && "border-[color:color-mix(in_srgb,var(--success)_42%,var(--divider-subtle-color))]",
           size === "md" ? "h-10 w-10 text-[13px]" : "h-7 w-7 text-[9.5px]",
         )}
       >
@@ -56,6 +62,7 @@ export function ProviderIcon({
       aria-hidden="true"
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_82%,white)]",
+        active && "border-[color:color-mix(in_srgb,var(--success)_42%,var(--divider-subtle-color))]",
         size === "md" ? "h-10 w-10" : "h-7 w-7",
       )}
     >

@@ -46,6 +46,12 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions
 	}
+	if request.DefaultImageModelSelection != nil {
+		current.DefaultImageModelSelection = *request.DefaultImageModelSelection
+	}
+	if request.DefaultBackgroundModelSelection != nil {
+		current.DefaultBackgroundModelSelection = *request.DefaultBackgroundModelSelection
+	}
 	current.UpdatedAt = nowRFC3339()
 	current = normalizePreferences(current)
 	if err = s.write(ownerUserID, current); err != nil {

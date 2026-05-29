@@ -106,36 +106,48 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 		return nil, err
 	}
 	result := &OptionsResponse{
-		Items: make([]Option, 0, len(items)),
+		Items:           make([]Option, 0, len(items)),
+		BackgroundItems: make([]Option, 0, len(items)),
+		ImageItems:      make([]Option, 0, len(items)),
 	}
 	for _, item := range items {
-		if !item.Enabled || !isAgentRuntimeProvider(item) {
+		if !item.Enabled {
 			continue
 		}
 		models, err := s.enabledModelOptions(ctx, item)
 		if err != nil {
 			return nil, err
 		}
-		result.Items = append(result.Items, Option{
+		option := Option{
 			Provider:    item.Provider,
 			DisplayName: item.DisplayName,
 			Models:      models,
-		})
-		for _, model := range models {
-			if !model.IsDefault {
-				continue
-			}
-			providerValue := item.Provider
-			modelValue := model.ModelID
-			result.DefaultProvider = &providerValue
-			result.DefaultModel = &modelValue
-			result.DefaultSelection = &ModelSelection{
-				Provider:            item.Provider,
-				ProviderDisplayName: item.DisplayName,
-				Model:               model.ModelID,
-				ModelDisplayName:    model.DisplayName,
-			}
 		}
+		switch {
+		case item.ProviderKind == ProviderKindLLM:
+			result.BackgroundItems = append(result.BackgroundItems, option)
+			if isAgentRuntimeProvider(item) {
+				result.Items = append(result.Items, option)
+			}
+		case item.ProviderKind == ProviderKindImageGeneration:
+			result.ImageItems = append(result.ImageItems, option)
+		}
+	}
+	if target, err := s.defaultRuntimeSelection(ctx); err != nil {
+		return nil, err
+	} else if target != nil {
+		selection := modelSelectionFromTarget(*target)
+		result.DefaultProvider = &selection.Provider
+		result.DefaultModel = &selection.Model
+		result.DefaultSelection = &selection
+	}
+	if target, err := s.defaultImageSelection(ctx); err != nil {
+		return nil, err
+	} else if target != nil {
+		selection := modelSelectionFromTarget(*target)
+		result.DefaultImageProvider = &selection.Provider
+		result.DefaultImageModel = &selection.Model
+		result.DefaultImageSelection = &selection
 	}
 	return result, nil
 }
@@ -375,54 +387,11 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string, mod
 			targetModel = defaultTarget.model.ModelID
 		}
 	}
-	if target == nil {
-		return nil, errors.New("未配置默认模型，请先到 Settings 选择默认模型")
-	}
-	if !target.Enabled {
-		return nil, fmt.Errorf("provider=%s 已禁用", target.Provider)
-	}
-	if target.ProviderKind != ProviderKindLLM {
-		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
-	}
-	if !isAgentRuntimeProvider(*target) {
-		return nil, fmt.Errorf("provider=%s 的 api_format=%s 暂不可用于 Agent runtime", target.Provider, target.APIFormat)
-	}
-	if targetModel == "" {
-		return nil, fmt.Errorf("provider=%s 缺少 model，请先选择该 Provider 下的模型", target.Provider)
-	}
-	modelRecord, err := s.repository.GetModel(ctx, target.ID, targetModel)
-	if err != nil {
-		return nil, err
-	}
-	if modelRecord == nil {
-		return nil, fmt.Errorf("provider=%s 模型不存在: %s", target.Provider, targetModel)
-	}
-	if !modelRecord.Enabled {
-		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, targetModel)
-	}
-
-	missing := make([]string, 0, 3)
-	if target.AuthToken == "" {
-		missing = append(missing, "auth_token")
-	}
-	if target.BaseURL == "" {
-		missing = append(missing, "base_url")
-	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
-	}
-	return &clientopts.RuntimeConfig{
-		Provider:    target.Provider,
-		DisplayName: target.DisplayName,
-		AuthToken:   target.AuthToken,
-		BaseURL:     target.BaseURL,
-		Model:       modelRecord.ModelID,
-		APIFormat:   target.APIFormat,
-	}, nil
+	return s.runtimeConfigFromTarget(ctx, target, targetModel)
 }
 
-// ResolveImageConfig 解析图片生成最终要使用的 OpenAI 兼容 Provider 配置。
-func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*ImageConfig, error) {
+// ResolveLLMConfig 解析后端轻量 LLM 任务要使用的 Provider 配置，不受 Agent runtime 协议限制。
+func (s *Service) ResolveLLMConfig(ctx context.Context, provider string, model string) (*clientopts.RuntimeConfig, error) {
 	items, err := s.listAndNormalize(ctx)
 	if err != nil {
 		return nil, err
@@ -431,10 +400,72 @@ func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*Ima
 	if err != nil {
 		return nil, err
 	}
+	targetModel := strings.TrimSpace(model)
 
-	target, err := s.selectImageProvider(ctx, items, targetProvider)
+	var target *providerstore.Entity
+	if targetProvider != "" {
+		for index := range items {
+			if items[index].Provider == targetProvider && items[index].ProviderKind == ProviderKindLLM {
+				target = &items[index]
+				break
+			}
+		}
+		if target == nil {
+			return nil, fmt.Errorf("provider 不存在: %s", targetProvider)
+		}
+	} else {
+		if targetModel != "" {
+			return nil, errors.New("指定 model 时必须同时指定 provider")
+		}
+		defaultTarget, defaultErr := s.defaultRuntimeSelection(ctx)
+		if defaultErr != nil {
+			return nil, defaultErr
+		}
+		if defaultTarget != nil {
+			target = &defaultTarget.provider
+			targetModel = defaultTarget.model.ModelID
+		}
+	}
+	return s.llmConfigFromTarget(ctx, target, targetModel)
+}
+
+// ResolveImageConfig 解析图片生成最终要使用的 OpenAI 兼容 Provider 配置。
+func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*ImageConfig, error) {
+	return s.ResolveImageModelConfig(ctx, provider, "")
+}
+
+// ResolveImageModelConfig 按显式 Provider/Model 解析图片生成配置。
+func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, model string) (*ImageConfig, error) {
+	items, err := s.listAndNormalize(ctx)
 	if err != nil {
 		return nil, err
+	}
+	targetProvider, err := NormalizeProvider(provider, true)
+	if err != nil {
+		return nil, err
+	}
+	targetModel := strings.TrimSpace(model)
+
+	var target *providerstore.Entity
+	if targetProvider == "" {
+		if targetModel != "" {
+			return nil, errors.New("指定图片 model 时必须同时指定 provider")
+		}
+		defaultTarget, defaultErr := s.defaultImageSelection(ctx)
+		if defaultErr != nil {
+			return nil, defaultErr
+		}
+		if defaultTarget != nil {
+			target = &defaultTarget.provider
+			targetModel = defaultTarget.model.ModelID
+		}
+	}
+	if target == nil {
+		var selectErr error
+		target, selectErr = s.selectImageProvider(ctx, items, targetProvider)
+		if selectErr != nil {
+			return nil, selectErr
+		}
 	}
 	if target == nil {
 		return nil, errors.New("未配置可用的图片生成 Provider，请先到 Settings 添加 image_generation Provider")
@@ -453,7 +484,12 @@ func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*Ima
 	if target.BaseURL == "" {
 		missing = append(missing, "base_url")
 	}
-	modelRecord, err := s.defaultOrFirstEnabledModel(ctx, target.ID)
+	var modelRecord *providerstore.ModelEntity
+	if targetModel != "" {
+		modelRecord, err = s.repository.GetModel(ctx, target.ID, targetModel)
+	} else {
+		modelRecord, err = s.defaultOrFirstEnabledModel(ctx, target.ID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -462,6 +498,9 @@ func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*Ima
 	}
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("provider=%s 图片生成配置不完整: %s", target.Provider, strings.Join(missing, ", "))
+	}
+	if !modelRecord.Enabled {
+		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, modelRecord.ModelID)
 	}
 	return &ImageConfig{
 		Provider:    target.Provider,
@@ -500,7 +539,32 @@ func normalizeProviderKind(providerKind string) string {
 }
 
 func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
-	return s.repository.List(ctx)
+	items, err := s.repository.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		normalizeBuiltinEndpoint(&items[index])
+	}
+	return items, nil
+}
+
+func normalizeBuiltinEndpoint(item *providerstore.Entity) {
+	if item == nil || strings.TrimSpace(item.PresetKey) == "" || item.PresetKey == presetCustom {
+		return
+	}
+	preset := resolvePreset(item.PresetKey)
+	if preset.PresetKey == presetCustom {
+		return
+	}
+	apiFormat := normalizeAPIFormat(item.APIFormat)
+	if apiFormat == "" {
+		apiFormat = preset.DefaultFormat
+	}
+	format := preset.Format(apiFormat)
+	item.APIFormat = apiFormat
+	item.BaseURL = format.BaseURL
+	item.ModelsPath = format.ModelsPath
 }
 
 func (s *Service) defaultRuntimeSelection(ctx context.Context) (*providerModelTarget, error) {
@@ -523,6 +587,105 @@ func (s *Service) defaultRuntimeSelection(ctx context.Context) (*providerModelTa
 		}
 	}
 	return nil, nil
+}
+
+func (s *Service) defaultImageSelection(ctx context.Context) (*providerModelTarget, error) {
+	items, err := s.listAndNormalize(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		if !item.Enabled || item.ProviderKind != ProviderKindImageGeneration {
+			continue
+		}
+		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
+		if modelErr != nil {
+			return nil, modelErr
+		}
+		for _, model := range models {
+			if model.Enabled && model.IsDefault {
+				return &providerModelTarget{provider: item, model: model}, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
+func (s *Service) runtimeConfigFromTarget(
+	ctx context.Context,
+	target *providerstore.Entity,
+	targetModel string,
+) (*clientopts.RuntimeConfig, error) {
+	if target == nil {
+		return nil, errors.New("未配置默认模型，请先到 Settings 选择默认模型")
+	}
+	if !target.Enabled {
+		return nil, fmt.Errorf("provider=%s 已禁用", target.Provider)
+	}
+	if target.ProviderKind != ProviderKindLLM {
+		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
+	}
+	if !isAgentRuntimeProvider(*target) {
+		return nil, fmt.Errorf("provider=%s 的 api_format=%s 暂不可用于 Agent runtime", target.Provider, target.APIFormat)
+	}
+	return s.llmConfigFromTarget(ctx, target, targetModel)
+}
+
+func (s *Service) llmConfigFromTarget(
+	ctx context.Context,
+	target *providerstore.Entity,
+	targetModel string,
+) (*clientopts.RuntimeConfig, error) {
+	if target == nil {
+		return nil, errors.New("未配置默认模型，请先到 Settings 选择默认模型")
+	}
+	if !target.Enabled {
+		return nil, fmt.Errorf("provider=%s 已禁用", target.Provider)
+	}
+	if target.ProviderKind != ProviderKindLLM {
+		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
+	}
+	if strings.TrimSpace(targetModel) == "" {
+		return nil, fmt.Errorf("provider=%s 缺少 model，请先选择该 Provider 下的模型", target.Provider)
+	}
+	modelRecord, err := s.repository.GetModel(ctx, target.ID, targetModel)
+	if err != nil {
+		return nil, err
+	}
+	if modelRecord == nil {
+		return nil, fmt.Errorf("provider=%s 模型不存在: %s", target.Provider, targetModel)
+	}
+	if !modelRecord.Enabled {
+		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, targetModel)
+	}
+
+	missing := make([]string, 0, 3)
+	if target.AuthToken == "" {
+		missing = append(missing, "auth_token")
+	}
+	if target.BaseURL == "" {
+		missing = append(missing, "base_url")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
+	}
+	return &clientopts.RuntimeConfig{
+		Provider:    target.Provider,
+		DisplayName: target.DisplayName,
+		AuthToken:   target.AuthToken,
+		BaseURL:     target.BaseURL,
+		Model:       modelRecord.ModelID,
+		APIFormat:   target.APIFormat,
+	}, nil
+}
+
+func modelSelectionFromTarget(target providerModelTarget) ModelSelection {
+	return ModelSelection{
+		Provider:            target.provider.Provider,
+		ProviderDisplayName: target.provider.DisplayName,
+		Model:               target.model.ModelID,
+		ModelDisplayName:    target.model.DisplayName,
+	}
 }
 
 func (s *Service) enabledModelOptions(ctx context.Context, item providerstore.Entity) ([]ModelOption, error) {
@@ -581,11 +744,15 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 	}
 	format := preset.Format(apiFormat)
 	baseURL := strings.TrimSpace(input.BaseURL)
-	if baseURL == "" {
+	if preset.PresetKey != presetCustom {
+		baseURL = format.BaseURL
+	} else if baseURL == "" {
 		baseURL = format.BaseURL
 	}
 	modelsPath := strings.TrimSpace(input.ModelsPath)
-	if modelsPath == "" {
+	if preset.PresetKey != presetCustom {
+		modelsPath = format.ModelsPath
+	} else if modelsPath == "" {
 		modelsPath = format.ModelsPath
 	}
 	result := CreateInput{
@@ -629,14 +796,18 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 		displayName = current.Provider
 	}
 	baseURL := strings.TrimSpace(input.BaseURL)
-	if baseURL == "" {
+	if preset.PresetKey != presetCustom {
+		baseURL = format.BaseURL
+	} else if baseURL == "" {
 		baseURL = format.BaseURL
 	}
 	if baseURL == "" {
 		return providerstore.Entity{}, errors.New("base_url 不能为空")
 	}
 	modelsPath := strings.TrimSpace(input.ModelsPath)
-	if modelsPath == "" {
+	if preset.PresetKey != presetCustom {
+		modelsPath = format.ModelsPath
+	} else if modelsPath == "" {
 		modelsPath = format.ModelsPath
 	}
 	authToken := current.AuthToken
