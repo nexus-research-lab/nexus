@@ -26,6 +26,9 @@ import type {
   SkillMarketplaceController,
 } from "@/features/capability/skills/skills-view-model";
 
+const EXTERNAL_SEARCH_DEBOUNCE_MS = 650;
+const MIN_EXTERNAL_SEARCH_LENGTH = 2;
+
 export function useSkillMarketplace(): SkillMarketplaceController {
   const [skills, set_skills] = useState<SkillInfo[]>([]);
   const [search_query, set_search_query] = useState("");
@@ -50,6 +53,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const [error_message, set_error_message] = useState<string | null>(null);
   const file_input_ref = useRef<HTMLInputElement | null>(null);
   const external_search_request_ref = useRef(0);
+  const external_search_abort_ref = useRef<AbortController | null>(null);
 
   /* ── 数据加载 ───────────────────────────────── */
 
@@ -113,7 +117,9 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     const query = external_query.trim();
     const request_id = ++external_search_request_ref.current;
 
-    if (!query) {
+    if (!query || query.length < MIN_EXTERNAL_SEARCH_LENGTH) {
+      external_search_abort_ref.current?.abort();
+      external_search_abort_ref.current = null;
       set_external_loading(false);
       set_external_results([]);
       set_external_source_statuses([]);
@@ -122,28 +128,36 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     }
 
     const timer = window.setTimeout(() => {
+      external_search_abort_ref.current?.abort();
+      const abort_controller = new AbortController();
+      external_search_abort_ref.current = abort_controller;
       void (async () => {
         try {
           set_external_loading(true);
           set_error_message(null);
-          const response = await search_external_skills_api(query, false);
+          const response = await search_external_skills_api(query, false, abort_controller.signal);
           if (request_id !== external_search_request_ref.current) return;
           set_external_results(response.results);
           set_external_source_statuses(response.sources);
         } catch (err) {
+          if (abort_controller.signal.aborted) return;
           if (request_id !== external_search_request_ref.current) return;
           set_external_source_statuses([]);
           set_error_message(err instanceof Error ? err.message : "搜索失败");
         } finally {
+          if (external_search_abort_ref.current === abort_controller) {
+            external_search_abort_ref.current = null;
+          }
           if (request_id === external_search_request_ref.current) {
             set_external_loading(false);
           }
         }
       })();
-    }, 280);
+    }, EXTERNAL_SEARCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timer);
+      external_search_abort_ref.current?.abort();
     };
   }, [discovery_mode, external_query, source_revision]);
 

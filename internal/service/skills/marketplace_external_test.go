@@ -507,21 +507,30 @@ func TestImportSkillsShClonesRepositoryAndSelectsRequestedSkill(t *testing.T) {
 	repoRoot := filepath.Join(t.TempDir(), "repo")
 	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "alpha"), "alpha", "Alpha Skill", false)
 	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "pdfco"), "pdfco", "PDF Skill", false)
-	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+	service.commandRunner = func(_ context.Context, workDir string, extraEnv []string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "ls-remote") {
+			if !stringSliceContainsPrefix(extraEnv, "GIT_CONFIG_GLOBAL=") {
+				t.Fatalf("skills.sh Git 分支探测应隔离全局 Git 配置: %+v", extraEnv)
+			}
+			return "ref: refs/heads/main\tHEAD\n", nil
+		}
 		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
+			if !stringSliceContainsPrefix(extraEnv, "GIT_CONFIG_GLOBAL=") {
+				t.Fatalf("skills.sh Git 导入应隔离全局 Git 配置: %+v", extraEnv)
+			}
 			if got, want := command[len(command)-2], "https://github.com/membranedev/application-skills"; got != want {
 				t.Fatalf("skills.sh Git 仓库不正确: got=%q want=%q", got, want)
 			}
-			if !stringSliceContains(command, "--sparse") || !stringSliceContains(command, "--filter=blob:none") {
-				t.Fatalf("skills.sh Git 导入应使用稀疏浅克隆: %+v", command)
+			if stringSliceContains(command, "--sparse") || stringSliceContains(command, "--filter=blob:none") {
+				t.Fatalf("skills.sh Git 导入不应使用 partial/sparse clone: %+v", command)
+			}
+			if !stringSliceContains(command, "--branch") || !stringSliceContains(command, "main") {
+				t.Fatalf("skills.sh Git 导入应解析并使用默认分支: %+v", command)
+			}
+			if !stringSliceContains(command, "--") {
+				t.Fatalf("skills.sh Git 导入应使用 -- 分隔仓库参数: %+v", command)
 			}
 			return "", copyDirectory(repoRoot, command[len(command)-1])
-		}
-		if len(command) >= 2 && command[0] == "git" && command[1] == "sparse-checkout" {
-			if !stringSliceContains(command, "skills/pdfco") {
-				t.Fatalf("skills.sh 稀疏 checkout 未包含目标目录: %+v", command)
-			}
-			return "", nil
 		}
 		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
 			return "commit-skills-sh", nil
@@ -562,16 +571,22 @@ func TestImportSkillsShRetriesTransientGitCloneEOF(t *testing.T) {
 	repoRoot := filepath.Join(t.TempDir(), "repo")
 	writeTestSkillDir(t, filepath.Join(repoRoot, "skills", "pdfco"), "pdfco", "PDF Skill", false)
 	cloneAttempts := 0
-	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+	service.commandRunner = func(_ context.Context, workDir string, extraEnv []string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "ls-remote") {
+			if !stringSliceContainsPrefix(extraEnv, "GIT_CONFIG_GLOBAL=") {
+				t.Fatalf("skills.sh Git 分支探测应隔离全局 Git 配置: %+v", extraEnv)
+			}
+			return "ref: refs/heads/main\tHEAD\n", nil
+		}
 		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
+			if !stringSliceContainsPrefix(extraEnv, "GIT_CONFIG_GLOBAL=") {
+				t.Fatalf("skills.sh Git 导入应隔离全局 Git 配置: %+v", extraEnv)
+			}
 			cloneAttempts++
 			if cloneAttempts == 1 {
 				return "fatal: early EOF", errors.New("exit status 128")
 			}
 			return "", copyDirectory(repoRoot, command[len(command)-1])
-		}
-		if len(command) >= 2 && command[0] == "git" && command[1] == "sparse-checkout" {
-			return "", nil
 		}
 		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
 			return "commit-skills-sh", nil
@@ -588,6 +603,33 @@ func TestImportSkillsShRetriesTransientGitCloneEOF(t *testing.T) {
 	}
 	if detail.Name != "pdfco" || detail.Version != "commit-skills-sh" {
 		t.Fatalf("skills.sh 重试后导入结果不正确: %+v", detail.Info)
+	}
+}
+
+func TestGitCloneTransientErrorDetectionCoversSSLDrops(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		err    error
+	}{
+		{
+			name:   "libressl syscall",
+			output: "fatal: unable to access 'https://github.com/github/awesome-copilot/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443",
+			err:    errors.New("exit status 128"),
+		},
+		{
+			name:   "gnutls handshake",
+			output: "fatal: unable to access 'https://github.com/example/repo/': GnuTLS recv error (-110): The TLS connection was non-properly terminated.",
+			err:    errors.New("exit status 128"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !isTransientGitCloneError(tc.output, tc.err) {
+				t.Fatalf("Git clone SSL 断线应判定为可重试: %s", tc.output)
+			}
+		})
 	}
 }
 
@@ -750,6 +792,15 @@ func findExternalSearchItem(items []ExternalSkillSearchItem, name string) *Exter
 func stringSliceContains(items []string, target string) bool {
 	for _, item := range items {
 		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+func stringSliceContainsPrefix(items []string, prefix string) bool {
+	for _, item := range items {
+		if strings.HasPrefix(item, prefix) {
 			return true
 		}
 	}

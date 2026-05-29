@@ -7,7 +7,7 @@
  */
 
 import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { request_api, type RequestApiOptions } from "@/lib/api/http";
 import type {
   AgentSkillEntry,
   ExternalSkillSourceInfo,
@@ -21,6 +21,7 @@ import type {
 } from "@/types/capability/skill";
 
 const AGENT_API_BASE_URL = get_agent_api_base_url();
+const SKILL_GIT_OPERATION_TIMEOUT_MS = 360_000;
 
 interface SkillQueryParams {
   agent_id?: string;
@@ -65,7 +66,7 @@ function normalize_skill_query(
 
 async function request_skill_api<T>(
   path: string,
-  init?: RequestInit,
+  init?: RequestApiOptions,
 ): Promise<T> {
   try {
     return await request_api<T>(`${AGENT_API_BASE_URL}${path}`, init);
@@ -129,6 +130,7 @@ export const import_git_skill_api = async (
 ): Promise<SkillDetail> => {
   return request_skill_api<SkillDetail>("/skills/import/git", {
     method: "POST",
+    timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
     body: JSON.stringify({ url, branch, path }),
   });
 };
@@ -137,6 +139,7 @@ export const import_git_skill_api = async (
 export const search_external_skills_api = async (
   q: string,
   include_readme: boolean = false,
+  signal?: AbortSignal,
 ): Promise<SearchExternalSkillsResponse> => {
   const query = build_query({
     q,
@@ -146,6 +149,7 @@ export const search_external_skills_api = async (
     `/skills/search/external${query}`,
     {
       method: "GET",
+      signal,
     },
   );
 };
@@ -169,6 +173,7 @@ export const import_external_skill_api = async (
 ): Promise<SkillDetail> => {
   return request_skill_api<SkillDetail>("/skills/import/skills-sh", {
     method: "POST",
+    timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
     body: JSON.stringify(item),
   });
 };
@@ -202,6 +207,7 @@ export const update_imported_skills_api =
       "/skills/update-imported",
       {
         method: "POST",
+        timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
       },
     );
   };
@@ -214,6 +220,7 @@ export const update_single_skill_api = async (
     `/skills/${encodeURIComponent(skill_name)}/update`,
     {
       method: "POST",
+      timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
     },
   );
 };
