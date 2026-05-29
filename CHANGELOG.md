@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Provider settings now include DashScope and ModelScope platform presets with dedicated image-generation API formats; DashScope also exposes Anthropic Messages, Responses, and Chat Completions branches, while ModelScope exposes Chat Completions.
 - Skill community discovery now supports `skills.sh`, configurable JSON indexes, Git repositories, and direct `SKILL.md`/zip URLs, with import metadata recorded for future updates.
 - Skill community discovery now includes built-in `claude-plugins.dev`, `skills.sh`, `clawhub.ai`, `browse.sh`, and optional Hermes Skills Index sources with source-based search and import.
 - Skill sources and imported Skill metadata are stored in the database, and the frontend now has a source management entry so each user can control enabled sources.

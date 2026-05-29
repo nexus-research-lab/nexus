@@ -339,6 +339,7 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 	if item == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
+	normalizeBuiltinEndpoint(item)
 	usageCount := 0
 	usageAgents := []providerstore.UsageAgentEntity(nil)
 	if item.ProviderKind == ProviderKindLLM {
@@ -451,7 +452,7 @@ func (s *Service) ResolveLLMConfig(ctx context.Context, provider string, model s
 	return s.llmConfigFromTarget(ctx, target, targetModel)
 }
 
-// ResolveImageConfig 解析图片生成最终要使用的 OpenAI 兼容 Provider 配置。
+// ResolveImageConfig 解析图片生成最终要使用的 Provider 配置。
 func (s *Service) ResolveImageConfig(ctx context.Context, provider string) (*ImageConfig, error) {
 	return s.ResolveImageModelConfig(ctx, provider, "")
 }
@@ -525,11 +526,13 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, modelRecord.ModelID)
 	}
 	return &ImageConfig{
-		Provider:    target.Provider,
-		DisplayName: target.DisplayName,
-		AuthToken:   target.AuthToken,
-		BaseURL:     target.BaseURL,
-		Model:       modelRecord.ModelID,
+		Provider:        target.Provider,
+		DisplayName:     target.DisplayName,
+		APIFormat:       target.APIFormat,
+		AuthToken:       target.AuthToken,
+		BaseURL:         target.BaseURL,
+		Model:           modelRecord.ModelID,
+		ProviderOptions: decodeProviderOptions(modelRecord.ProviderOptionsJSON),
 	}, nil
 }
 
@@ -819,6 +822,18 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 		}
 	}
 	format := preset.Format(apiFormat)
+	providerKind := normalizeProviderKind(input.ProviderKind)
+	if strings.TrimSpace(input.ProviderKind) == "" {
+		switch {
+		case strings.TrimSpace(format.ProviderKind) != "":
+			providerKind = normalizeProviderKind(format.ProviderKind)
+		case strings.TrimSpace(preset.ProviderKind) != "":
+			providerKind = normalizeProviderKind(preset.ProviderKind)
+		}
+	}
+	if err := validatePresetFormatKind(preset, format, providerKind); err != nil {
+		return CreateInput{}, err
+	}
 	baseURL := strings.TrimSpace(input.BaseURL)
 	if preset.PresetKey != presetCustom {
 		baseURL = format.BaseURL
@@ -832,7 +847,7 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 		modelsPath = format.ModelsPath
 	}
 	result := CreateInput{
-		ProviderKind: normalizeProviderKind(input.ProviderKind),
+		ProviderKind: providerKind,
 		Provider:     provider,
 		Visibility:   strings.TrimSpace(input.Visibility),
 		PresetKey:    preset.PresetKey,
@@ -865,6 +880,18 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 		apiFormat = preset.DefaultFormat
 	}
 	format := preset.Format(apiFormat)
+	providerKind := normalizeProviderKind(firstNonEmpty(input.ProviderKind, current.ProviderKind))
+	if strings.TrimSpace(input.ProviderKind) == "" && current.PresetKey != preset.PresetKey {
+		switch {
+		case strings.TrimSpace(format.ProviderKind) != "":
+			providerKind = normalizeProviderKind(format.ProviderKind)
+		case strings.TrimSpace(preset.ProviderKind) != "":
+			providerKind = normalizeProviderKind(preset.ProviderKind)
+		}
+	}
+	if err := validatePresetFormatKind(preset, format, providerKind); err != nil {
+		return providerstore.Entity{}, err
+	}
 	displayName := strings.TrimSpace(input.DisplayName)
 	if displayName == "" {
 		displayName = preset.DisplayName
@@ -901,7 +928,19 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	current.Enabled = input.Enabled
 	current.PresetKey = preset.PresetKey
 	current.APIFormat = apiFormat
+	current.ProviderKind = providerKind
 	return current, nil
+}
+
+func validatePresetFormatKind(preset Preset, format PresetFormat, providerKind string) error {
+	if preset.PresetKey == presetCustom || strings.TrimSpace(format.ProviderKind) == "" {
+		return nil
+	}
+	expected := normalizeProviderKind(format.ProviderKind)
+	if normalizeProviderKind(providerKind) != expected {
+		return fmt.Errorf("api_format=%s 不支持 provider_kind=%s", format.APIFormat, providerKind)
+	}
+	return nil
 }
 
 func (s *Service) selectImageProvider(

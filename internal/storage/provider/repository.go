@@ -22,6 +22,10 @@ const (
 	VisibilityPublic = "public"
 	// VisibilityPrivate 表示用户私有 Provider。
 	VisibilityPrivate = "private"
+	// apiFormatDashScopeImageGeneration 表示无模型列表端点的 DashScope 生图分支协议。
+	apiFormatDashScopeImageGeneration = "dashscope_image_generation"
+	// apiFormatModelScopeImageGeneration 表示无模型列表端点的 ModelScope 生图分支协议。
+	apiFormatModelScopeImageGeneration = "modelscope_image_generation"
 )
 
 // NewRepository 创建 provider SQL 仓储。
@@ -694,7 +698,9 @@ func scanEntity(scanner interface {
 	item.AuthToken = strings.TrimSpace(item.AuthToken)
 	item.BaseURL = strings.TrimSpace(item.BaseURL)
 	item.ModelsPath = strings.TrimSpace(item.ModelsPath)
-	if item.ModelsPath == "" {
+	if item.ModelsPath == "" &&
+		item.APIFormat != apiFormatDashScopeImageGeneration &&
+		item.APIFormat != apiFormatModelScopeImageGeneration {
 		item.ModelsPath = "/v1/models"
 	}
 	item.LastTestStatus = strings.TrimSpace(lastTestStatus.String)

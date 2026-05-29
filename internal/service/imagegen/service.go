@@ -188,6 +188,14 @@ func (s *Service) callGenerateProvider(
 	config *providercfg.ImageConfig,
 	input GenerateInput,
 ) ([]byte, string, string, error) {
+	if config != nil {
+		switch strings.TrimSpace(config.APIFormat) {
+		case providercfg.APIFormatDashScopeImageGeneration:
+			return s.callDashScopeGenerateProvider(ctx, config, input)
+		case providercfg.APIFormatModelScopeImageGeneration:
+			return s.callModelScopeGenerateProvider(ctx, config, input)
+		}
+	}
 	endpoint, err := endpointURL(config.BaseURL, "generations")
 	if err != nil {
 		return nil, "", "", err
@@ -227,6 +235,14 @@ func (s *Service) callEditProvider(
 	config *providercfg.ImageConfig,
 	input EditInput,
 ) ([]byte, string, string, error) {
+	if config != nil {
+		switch strings.TrimSpace(config.APIFormat) {
+		case providercfg.APIFormatDashScopeImageGeneration:
+			return s.callDashScopeEditProvider(ctx, config, input)
+		case providercfg.APIFormatModelScopeImageGeneration:
+			return nil, "", "", errors.New("ModelScope 图片生成分支暂不支持 edit 操作")
+		}
+	}
 	endpoint, err := endpointURL(config.BaseURL, "edits")
 	if err != nil {
 		return nil, "", "", err

@@ -233,9 +233,12 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
-	models, modelsErr := s.fetchRemoteModels(ctx, *item)
-	if modelsErr != nil {
-		return s.persistTestResult(ctx, *item, "", modelsErr)
+	var models []remoteModel
+	if strings.TrimSpace(item.ModelsPath) != "" {
+		models, err = s.fetchRemoteModels(ctx, *item)
+		if err != nil {
+			return s.persistTestResult(ctx, *item, "", err)
+		}
 	}
 	modelID := s.pickTestModel(ctx, *item, models)
 	if modelID == "" {
@@ -296,6 +299,7 @@ func (s *Service) requireProvider(ctx context.Context, provider string) (*provid
 	if item == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
+	normalizeBuiltinEndpoint(item)
 	if strings.TrimSpace(item.AuthToken) == "" {
 		return nil, fmt.Errorf("provider=%s 缺少 auth_token", item.Provider)
 	}
@@ -481,7 +485,7 @@ func (s *Service) ensureTestedModelReady(
 
 func (s *Service) sendMinimalModelRequest(ctx context.Context, item providerstore.Entity, modelID string) error {
 	endpoint := endpointURL(item, item.APIFormat)
-	payload, err := minimalPayload(item.APIFormat, modelID)
+	payload, err := minimalPayload(item, modelID)
 	if err != nil {
 		return err
 	}
@@ -571,9 +575,19 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 }
 
 func endpointURL(item providerstore.Entity, endpointKey string) string {
-	switch endpointKey {
-	case providerEndpointModels:
+	if endpointKey == providerEndpointModels {
 		return joinEndpointURL(item.BaseURL, item.ModelsPath)
+	}
+	if item.ProviderKind == ProviderKindImageGeneration {
+		switch normalizeAPIFormat(item.APIFormat) {
+		case APIFormatDashScopeImageGeneration:
+			return dashScopeEndpointURL(item.BaseURL)
+		case APIFormatModelScopeImageGeneration:
+			return modelScopeEndpointURL(item.BaseURL)
+		}
+		return joinEndpointURL(item.BaseURL, "/images/generations")
+	}
+	switch endpointKey {
 	case providerEndpointResponses:
 		return joinEndpointURL(item.BaseURL, "/responses")
 	case providerEndpointAnthropicMessages:
@@ -595,6 +609,36 @@ func joinEndpointURL(baseURL string, endpointPath string) string {
 	return base + "/" + strings.TrimLeft(path, "/")
 }
 
+func dashScopeEndpointURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return trimmed
+	}
+	if strings.HasSuffix(parsed.Path, "/generation") {
+		return parsed.String()
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/api/v1/services/aigc/multimodal-generation/generation"
+	return parsed.String()
+}
+
+func modelScopeEndpointURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return trimmed
+	}
+	if strings.HasSuffix(parsed.Path, "/images/generations") {
+		return parsed.String()
+	}
+	if strings.Trim(parsed.Path, "/") == "" {
+		parsed.Path = "/v1/images/generations"
+		return parsed.String()
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/images/generations"
+	return parsed.String()
+}
+
 func applyProviderHeaders(request *http.Request, item providerstore.Entity) {
 	token := strings.TrimSpace(item.AuthToken)
 	if token != "" {
@@ -606,14 +650,52 @@ func applyProviderHeaders(request *http.Request, item providerstore.Entity) {
 		}
 		request.Header.Set("anthropic-version", "2023-06-01")
 	}
+	if request.Method == http.MethodPost && normalizeAPIFormat(item.APIFormat) == APIFormatModelScopeImageGeneration {
+		request.Header.Set("X-ModelScope-Async-Mode", "true")
+	}
 }
 
-func minimalPayload(apiFormat string, modelID string) ([]byte, error) {
+func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 	modelID = strings.TrimSpace(modelID)
 	if modelID == "" {
 		return nil, errors.New("model 不能为空")
 	}
-	switch normalizeAPIFormat(apiFormat) {
+	if item.ProviderKind == ProviderKindImageGeneration {
+		switch normalizeAPIFormat(item.APIFormat) {
+		case APIFormatDashScopeImageGeneration:
+			return json.Marshal(map[string]any{
+				"model": modelID,
+				"input": map[string]any{
+					"messages": []map[string]any{
+						{
+							"role": "user",
+							"content": []map[string]string{
+								{"text": "ping"},
+							},
+						},
+					},
+				},
+				"parameters": map[string]any{
+					"n":         1,
+					"size":      "1K",
+					"watermark": false,
+				},
+			})
+		case APIFormatModelScopeImageGeneration:
+			return json.Marshal(map[string]any{
+				"model":  modelID,
+				"prompt": "ping",
+			})
+		default:
+			return json.Marshal(map[string]any{
+				"model":  modelID,
+				"prompt": "ping",
+				"n":      1,
+				"size":   "1024x1024",
+			})
+		}
+	}
+	switch normalizeAPIFormat(item.APIFormat) {
 	case APIFormatResponses:
 		return json.Marshal(map[string]any{
 			"model":             modelID,

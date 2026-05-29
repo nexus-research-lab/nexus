@@ -198,6 +198,62 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		t.Fatalf("Volcengine Coding Plan OpenAI 兼容 endpoint 不正确: %+v", format)
 	}
 
+	dashscope, err := service.Create(ctx, CreateInput{
+		Provider:  "dashscope",
+		PresetKey: presetDashScope,
+		AuthToken: "dashscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 DashScope provider 失败: %v", err)
+	}
+	if dashscope.ProviderKind != ProviderKindLLM ||
+		dashscope.APIFormat != APIFormatAnthropicMessages ||
+		dashscope.BaseURL != "https://dashscope.aliyuncs.com/apps/anthropic" ||
+		dashscope.DisplayName != "DashScope" ||
+		dashscope.ModelsPath != "" {
+		t.Fatalf("DashScope 默认配置不正确: %+v", dashscope)
+	}
+	if !dashscope.AgentRuntimeSupported {
+		t.Fatalf("DashScope Anthropic 分支应可成为 Agent runtime provider: %+v", dashscope)
+	}
+	dashscopePreset := resolvePreset(presetDashScope)
+	if format := dashscopePreset.Format(APIFormatDashScopeImageGeneration); format.ProviderKind != ProviderKindImageGeneration ||
+		format.BaseURL != "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation" {
+		t.Fatalf("DashScope 生图分支配置不正确: %+v", format)
+	}
+	if format := dashscopePreset.Format(APIFormatResponses); format.ProviderKind != ProviderKindLLM ||
+		format.BaseURL != "https://dashscope.aliyuncs.com/compatible-mode/v1" {
+		t.Fatalf("DashScope Responses 分支配置不正确: %+v", format)
+	}
+	if format := dashscopePreset.Format(APIFormatChatCompletions); format.ProviderKind != ProviderKindLLM ||
+		format.BaseURL != "https://dashscope.aliyuncs.com/compatible-mode/v1" {
+		t.Fatalf("DashScope Chat Completions 分支配置不正确: %+v", format)
+	}
+
+	modelscope, err := service.Create(ctx, CreateInput{
+		Provider:  "modelscope",
+		PresetKey: presetModelScope,
+		AuthToken: "modelscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope provider 失败: %v", err)
+	}
+	if modelscope.ProviderKind != ProviderKindLLM ||
+		modelscope.APIFormat != APIFormatChatCompletions ||
+		modelscope.BaseURL != "https://api-inference.modelscope.cn/v1" ||
+		modelscope.DisplayName != "ModelScope" ||
+		modelscope.ModelsPath != "" {
+		t.Fatalf("ModelScope 默认配置不正确: %+v", modelscope)
+	}
+	if modelscope.AgentRuntimeSupported {
+		t.Fatalf("ModelScope Chat Completions 分支不应成为 Agent runtime provider: %+v", modelscope)
+	}
+	modelscopePreset := resolvePreset(presetModelScope)
+	if format := modelscopePreset.Format(APIFormatModelScopeImageGeneration); format.ProviderKind != ProviderKindImageGeneration ||
+		format.BaseURL != "https://api-inference.modelscope.cn/v1" {
+		t.Fatalf("ModelScope 生图分支配置不正确: %+v", format)
+	}
+
 	options, err := service.ListOptions(ctx)
 	if err != nil {
 		t.Fatalf("读取 provider options 失败: %v", err)
@@ -283,6 +339,53 @@ func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 	}
 }
 
+func TestBuiltinMultiBranchProviderFormatKindSelection(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	dashscopeImage, err := service.Create(ctx, CreateInput{
+		Provider:     "dashscope-image-branch",
+		PresetKey:    presetDashScope,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatDashScopeImageGeneration,
+		AuthToken:    "dashscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 DashScope 生图分支失败: %v", err)
+	}
+	if dashscopeImage.ProviderKind != ProviderKindImageGeneration ||
+		dashscopeImage.APIFormat != APIFormatDashScopeImageGeneration ||
+		dashscopeImage.BaseURL != "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation" {
+		t.Fatalf("DashScope 生图分支未按 format 解析: %+v", dashscopeImage)
+	}
+
+	modelscopeImage, err := service.Create(ctx, CreateInput{
+		Provider:     "modelscope-image-branch",
+		PresetKey:    presetModelScope,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatModelScopeImageGeneration,
+		AuthToken:    "modelscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope 生图分支失败: %v", err)
+	}
+	if modelscopeImage.ProviderKind != ProviderKindImageGeneration ||
+		modelscopeImage.APIFormat != APIFormatModelScopeImageGeneration ||
+		modelscopeImage.BaseURL != "https://api-inference.modelscope.cn/v1" {
+		t.Fatalf("ModelScope 生图分支未按 format 解析: %+v", modelscopeImage)
+	}
+
+	if _, err = service.Create(ctx, CreateInput{
+		Provider:     "bad-dashscope",
+		PresetKey:    presetDashScope,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatAnthropicMessages,
+		AuthToken:    "dashscope-key",
+	}); err == nil || !strings.Contains(err.Error(), "不支持 provider_kind") {
+		t.Fatalf("DashScope LLM format 不应允许配置为 image_generation: %v", err)
+	}
+}
+
 func TestProviderListIncludesUsageAgents(t *testing.T) {
 	ctx := context.Background()
 	service, db := newTestService(t)
@@ -364,6 +467,120 @@ func TestProviderImageOptionsIncludeDefaultModel(t *testing.T) {
 	if options.DefaultImageProvider == nil || *options.DefaultImageProvider != imageProvider.Provider ||
 		len(options.ImageItems) != 1 {
 		t.Fatalf("生图默认模型未暴露到 options: %+v", options)
+	}
+}
+
+func TestDashScopeImageProviderTestUsesMultimodalPayload(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/services/aigc/multimodal-generation/generation" {
+			t.Fatalf("DashScope 测试路径不正确: %s", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer image-key" {
+			t.Fatalf("DashScope 测试鉴权头不正确: %q", request.Header.Get("Authorization"))
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("解析 DashScope 测试请求失败: %v", err)
+		}
+		if body["model"] != "wan2.7-image-pro" {
+			t.Fatalf("DashScope 测试模型不正确: %+v", body)
+		}
+		parameters := body["parameters"].(map[string]any)
+		if parameters["n"].(float64) != 1 || parameters["size"] != "1K" || parameters["watermark"] != false {
+			t.Fatalf("DashScope 测试参数不正确: %+v", parameters)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"output": map[string]any{
+				"finished": true,
+				"choices":  []map[string]any{},
+			},
+		})
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "dashscope-image",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatDashScopeImageGeneration,
+		AuthToken:    "image-key",
+		BaseURL:      server.URL,
+		ModelsPath:   "",
+		Enabled:      true,
+		DisplayName:  "DashScope",
+	})
+	if err != nil {
+		t.Fatalf("创建 DashScope 生图 provider 失败: %v", err)
+	}
+	result, err := service.TestModel(ctx, record.Provider, "wan2.7-image-pro")
+	if err != nil {
+		t.Fatalf("DashScope 模型测试失败: %v", err)
+	}
+	if !result.Success || result.Model != "wan2.7-image-pro" {
+		t.Fatalf("DashScope 模型测试结果不正确: %+v", result)
+	}
+	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, "wan2.7-image-pro")
+	if err != nil {
+		t.Fatalf("DashScope 测试成功后应可解析生图配置: %v", err)
+	}
+	if imageConfig.APIFormat != APIFormatDashScopeImageGeneration {
+		t.Fatalf("DashScope 生图配置未透传 api_format: %+v", imageConfig)
+	}
+}
+
+func TestModelScopeImageProviderTestUsesAsyncPayload(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/images/generations" {
+			t.Fatalf("ModelScope 测试路径不正确: %s", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer image-key" {
+			t.Fatalf("ModelScope 测试鉴权头不正确: %q", request.Header.Get("Authorization"))
+		}
+		if request.Header.Get("X-ModelScope-Async-Mode") != "true" {
+			t.Fatalf("ModelScope 测试缺少异步请求头: %q", request.Header.Get("X-ModelScope-Async-Mode"))
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("解析 ModelScope 测试请求失败: %v", err)
+		}
+		if body["model"] != "Tongyi-MAI/Z-Image-Turbo" || body["prompt"] != "ping" {
+			t.Fatalf("ModelScope 测试请求体不正确: %+v", body)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"task_id": "task-test"})
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "modelscope-image",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatModelScopeImageGeneration,
+		AuthToken:    "image-key",
+		BaseURL:      server.URL + "/v1",
+		ModelsPath:   "",
+		Enabled:      true,
+		DisplayName:  "ModelScope",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope 生图 provider 失败: %v", err)
+	}
+	result, err := service.TestModel(ctx, record.Provider, "Tongyi-MAI/Z-Image-Turbo")
+	if err != nil {
+		t.Fatalf("ModelScope 模型测试失败: %v", err)
+	}
+	if !result.Success || result.Model != "Tongyi-MAI/Z-Image-Turbo" {
+		t.Fatalf("ModelScope 模型测试结果不正确: %+v", result)
+	}
+	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, "Tongyi-MAI/Z-Image-Turbo")
+	if err != nil {
+		t.Fatalf("ModelScope 测试成功后应可解析生图配置: %v", err)
+	}
+	if imageConfig.APIFormat != APIFormatModelScopeImageGeneration {
+		t.Fatalf("ModelScope 生图配置未透传 api_format: %+v", imageConfig)
 	}
 }
 
