@@ -12,6 +12,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { get_initial_agent_options } from "@/config/options";
+import { build_agent_options_save_payload } from "@/features/agents/options/agent-options-constants";
 import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
 import { Agent, AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
 
@@ -74,11 +75,13 @@ export function useRoomPageAgentDialog({
 
     return {
       provider: editing_agent.options.provider,
+      model: editing_agent.options.model,
       permission_mode: editing_agent.options.permission_mode,
       allowed_tools: editing_agent.options.allowed_tools,
       disallowed_tools: editing_agent.options.disallowed_tools,
       max_turns: editing_agent.options.max_turns,
       max_thinking_tokens: editing_agent.options.max_thinking_tokens,
+      mcp_servers: editing_agent.options.mcp_servers,
       setting_sources: editing_agent.options.setting_sources,
     };
   }, [dialog_mode, editing_agent]);
@@ -100,13 +103,7 @@ export function useRoomPageAgentDialog({
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => {
-    const next_options = {
-      provider: options.provider,
-      permission_mode: options.permission_mode,
-      allowed_tools: options.allowed_tools,
-      disallowed_tools: options.disallowed_tools,
-      setting_sources: options.setting_sources,
-    };
+    const next_options = build_agent_options_save_payload(options);
 
     if (dialog_mode === "create") {
       await create_agent({
@@ -136,13 +133,7 @@ export function useRoomPageAgentDialog({
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => {
-    const next_options = {
-      provider: options.provider,
-      permission_mode: options.permission_mode,
-      allowed_tools: options.allowed_tools,
-      disallowed_tools: options.disallowed_tools,
-      setting_sources: options.setting_sources,
-    };
+    const next_options = build_agent_options_save_payload(options);
 
     await update_agent(agent_id, {
       name: title,

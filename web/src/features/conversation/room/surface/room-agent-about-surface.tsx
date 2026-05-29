@@ -79,13 +79,21 @@ export function RoomAgentAboutSurface({
 
   const initial_options = useMemo(() => ({
     provider: selected_agent.options.provider,
+    model: selected_agent.options.model,
     permission_mode: selected_agent.options.permission_mode,
     allowed_tools: selected_agent.options.allowed_tools,
     disallowed_tools: selected_agent.options.disallowed_tools,
+    max_turns: selected_agent.options.max_turns,
+    max_thinking_tokens: selected_agent.options.max_thinking_tokens,
+    mcp_servers: selected_agent.options.mcp_servers,
     setting_sources: selected_agent.options.setting_sources,
   }), [
     selected_agent.options.allowed_tools,
     selected_agent.options.disallowed_tools,
+    selected_agent.options.max_thinking_tokens,
+    selected_agent.options.max_turns,
+    selected_agent.options.mcp_servers,
+    selected_agent.options.model,
     selected_agent.options.permission_mode,
     selected_agent.options.provider,
     selected_agent.options.setting_sources,

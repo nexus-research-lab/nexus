@@ -322,6 +322,9 @@ export function AgentOptionsEditor({
       permission_mode: permissionMode,
       allowed_tools: allowedTools,
       disallowed_tools: disallowedTools,
+      max_turns: sourceOptions.max_turns,
+      max_thinking_tokens: sourceOptions.max_thinking_tokens,
+      mcp_servers: sourceOptions.mcp_servers,
       setting_sources: ["project"],
     };
     setIsSaving(true);
