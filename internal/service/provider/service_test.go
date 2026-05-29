@@ -204,6 +204,20 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		format.ModelsPath != "/models" {
 		t.Fatalf("Volcengine Coding Plan OpenAI 兼容 endpoint 不正确: %+v", format)
 	}
+	volcengineCompletions, err := service.Create(ctx, CreateInput{
+		Provider:     "volcengine-completions",
+		PresetKey:    presetVolcengine,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatChatCompletions,
+		AuthToken:    "volcengine-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 Volcengine Completions 分支失败: %v", err)
+	}
+	if volcengineCompletions.ProviderKind != ProviderKindLLM ||
+		volcengineCompletions.BaseURL != "https://ark.cn-beijing.volces.com/api/coding/v3" {
+		t.Fatalf("Volcengine 内置 format 应忽略错误 provider_kind: %+v", volcengineCompletions)
+	}
 
 	dashscope, err := service.Create(ctx, CreateInput{
 		Provider:  "dashscope",
@@ -346,7 +360,7 @@ func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 	}
 }
 
-func TestBuiltinMultiBranchProviderFormatKindSelection(t *testing.T) {
+func TestBuiltinMultiBranchProviderKindDerivedFromFormat(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
 
@@ -382,14 +396,20 @@ func TestBuiltinMultiBranchProviderFormatKindSelection(t *testing.T) {
 		t.Fatalf("ModelScope 生图分支未按 format 解析: %+v", modelscopeImage)
 	}
 
-	if _, err = service.Create(ctx, CreateInput{
-		Provider:     "bad-dashscope",
+	dashscopeLLM, err := service.Create(ctx, CreateInput{
+		Provider:     "dashscope-llm-branch",
 		PresetKey:    presetDashScope,
 		ProviderKind: ProviderKindImageGeneration,
 		APIFormat:    APIFormatAnthropicMessages,
 		AuthToken:    "dashscope-key",
-	}); err == nil || !strings.Contains(err.Error(), "不支持 provider_kind") {
-		t.Fatalf("DashScope LLM format 不应允许配置为 image_generation: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("DashScope LLM format 应按 format 推导 provider_kind: %v", err)
+	}
+	if dashscopeLLM.ProviderKind != ProviderKindLLM ||
+		dashscopeLLM.APIFormat != APIFormatAnthropicMessages ||
+		dashscopeLLM.BaseURL != "https://dashscope.aliyuncs.com/apps/anthropic" {
+		t.Fatalf("DashScope LLM format 未按 format 推导 provider_kind: %+v", dashscopeLLM)
 	}
 }
 

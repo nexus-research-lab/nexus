@@ -1105,8 +1105,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     : false;
   const is_api_format_configurable = current_format_supports_kind || can_select_non_runtime_format;
   const show_runtime_format_badge = draft.provider_kind === "llm" && draft.api_format !== SUPPORTED_AGENT_API_FORMAT;
-  const can_configure_builtin_branch = !is_custom_provider && is_creating && provider_kind_options.length > 1;
-  const show_provider_shape_controls = is_custom_provider || can_configure_builtin_branch;
+  const show_provider_shape_controls = is_custom_provider;
   const has_models_endpoint = !!get_effective_models_path(draft, current_preset).trim();
   const displayed_models = sort_models_enabled_first(filtered_models);
   const test_model_options = useMemo(() => {

@@ -831,18 +831,7 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 		}
 	}
 	format := preset.Format(apiFormat)
-	providerKind := normalizeProviderKind(input.ProviderKind)
-	if strings.TrimSpace(input.ProviderKind) == "" {
-		switch {
-		case strings.TrimSpace(format.ProviderKind) != "":
-			providerKind = normalizeProviderKind(format.ProviderKind)
-		case strings.TrimSpace(preset.ProviderKind) != "":
-			providerKind = normalizeProviderKind(preset.ProviderKind)
-		}
-	}
-	if err := validatePresetFormatKind(preset, format, providerKind); err != nil {
-		return CreateInput{}, err
-	}
+	providerKind := providerKindForFormat(preset, format, input.ProviderKind)
 	baseURL := strings.TrimSpace(input.BaseURL)
 	if preset.PresetKey != presetCustom {
 		baseURL = format.BaseURL
@@ -889,18 +878,7 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 		apiFormat = preset.DefaultFormat
 	}
 	format := preset.Format(apiFormat)
-	providerKind := normalizeProviderKind(firstNonEmpty(input.ProviderKind, current.ProviderKind))
-	if strings.TrimSpace(input.ProviderKind) == "" && current.PresetKey != preset.PresetKey {
-		switch {
-		case strings.TrimSpace(format.ProviderKind) != "":
-			providerKind = normalizeProviderKind(format.ProviderKind)
-		case strings.TrimSpace(preset.ProviderKind) != "":
-			providerKind = normalizeProviderKind(preset.ProviderKind)
-		}
-	}
-	if err := validatePresetFormatKind(preset, format, providerKind); err != nil {
-		return providerstore.Entity{}, err
-	}
+	providerKind := providerKindForFormat(preset, format, firstNonEmpty(input.ProviderKind, current.ProviderKind))
 	displayName := strings.TrimSpace(input.DisplayName)
 	if displayName == "" {
 		displayName = preset.DisplayName
@@ -941,15 +919,26 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	return current, nil
 }
 
-func validatePresetFormatKind(preset Preset, format PresetFormat, providerKind string) error {
-	if preset.PresetKey == presetCustom || strings.TrimSpace(format.ProviderKind) == "" {
-		return nil
+func providerKindForFormat(preset Preset, format PresetFormat, fallback string) string {
+	if strings.TrimSpace(format.ProviderKind) != "" {
+		return normalizeProviderKind(format.ProviderKind)
 	}
-	expected := normalizeProviderKind(format.ProviderKind)
-	if normalizeProviderKind(providerKind) != expected {
-		return fmt.Errorf("api_format=%s 不支持 provider_kind=%s", format.APIFormat, providerKind)
+	if preset.PresetKey != presetCustom && strings.TrimSpace(preset.ProviderKind) != "" {
+		return normalizeProviderKind(preset.ProviderKind)
 	}
-	return nil
+	if isImageGenerationAPIFormat(format.APIFormat) {
+		return ProviderKindImageGeneration
+	}
+	return normalizeProviderKind(fallback)
+}
+
+func isImageGenerationAPIFormat(apiFormat string) bool {
+	switch normalizeAPIFormat(apiFormat) {
+	case APIFormatDashScopeImageGeneration, APIFormatModelScopeImageGeneration:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) selectImageProvider(
