@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
@@ -23,13 +23,13 @@ const updateDescription = "按 job_id 或 query 局部更新定时任务字段�
 	"只改投递目标时不需要同时传 execution_mode；传 reply_channel/reply_to/reply_session_key 会默认按 reply_mode=channel 处理，当前会话是结构化外部 IM 群且 reply_channel 与当前通道一致时可省略 reply_to；" +
 	"当前内部 DM/Room 会话里传 reply_mode=selected 可省略 selected_reply_session_key；外部 IM 群改发当前群请用 reply_mode=channel；传 reply_agent_id 会默认按 reply_mode=agent 处理；reply_mode=agent 且不传 reply_agent_id 时默认投递到该任务所属 Agent 的定时任务收件箱。"
 
-func update(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func update(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "update_scheduled_task",
 		Description: updateDescription,
 		SearchHint:  searchHintUpdateScheduledTask,
 		InputSchema: updateSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if args == nil {
 				args = map[string]any{}
 			}

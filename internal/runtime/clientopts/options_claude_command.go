@@ -6,16 +6,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
 
-func processBackendOptions() agentclient.ProcessOptions {
-	return agentclient.ProcessOptions{
-		CommandPath: resolveClaudeCommandPath(),
-	}
+func processCLIPath() string {
+	return resolveClaudeCommandPath()
 }
 
 func resolveClaudeCommandPath() string {
@@ -43,7 +39,7 @@ func resolveClaudeCommandPathWith(
 		return ""
 	}
 
-	// Windows 的 npm 全局安装通常只提供 claude.cmd/claude.ps1，SDK v0.1.0 默认查 claude.exe 会漏掉它。
+	// Windows 的 npm 全局安装通常只提供 claude.cmd/claude.ps1，默认查 claude.exe 会漏掉它。
 	for _, name := range []string{"claude.exe", "claude.cmd", "claude.ps1", "claude"} {
 		if path, err := lookPath(name); err == nil && strings.TrimSpace(path) != "" {
 			return path

@@ -59,7 +59,7 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 				"task_id":        strings.TrimSpace(message.TaskProgress.TaskID),
 				"tool_use_id":    strings.TrimSpace(message.TaskProgress.ToolUseID),
 				"last_tool_name": strings.TrimSpace(message.TaskProgress.LastToolName),
-				"usage":          summarizeTaskProgressUsage(message.TaskProgress.Usage),
+				"usage":          summarizeTaskUsage(message.TaskProgress.Usage),
 			}),
 		}, true
 	case "task_notification":
@@ -80,7 +80,7 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 				"tool_use_id": strings.TrimSpace(message.TaskNotification.ToolUseID),
 				"status":      strings.TrimSpace(message.TaskNotification.Status),
 				"output_file": strings.TrimSpace(message.TaskNotification.OutputFile),
-				"usage":       summarizeTaskProgressUsage(message.TaskNotification.Usage),
+				"usage":       summarizeTaskUsage(message.TaskNotification.Usage),
 			}),
 		}, true
 	case "status":
@@ -121,7 +121,7 @@ func formatTaskNotificationContent(status string) string {
 	return "任务状态：" + normalized
 }
 
-func summarizeTaskProgressUsage(usage sdkprotocol.TaskProgressUsage) map[string]any {
+func summarizeTaskUsage(usage sdkprotocol.TaskUsage) map[string]any {
 	return compactMetadata(map[string]any{
 		"total_tokens": usage.TotalTokens,
 		"tool_uses":    usage.ToolUses,

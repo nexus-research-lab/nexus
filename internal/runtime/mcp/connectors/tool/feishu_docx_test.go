@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
@@ -312,7 +312,7 @@ func TestFeishuDocxDriveListFiltersFileType(t *testing.T) {
 	}
 }
 
-func callNamedTool(t *testing.T, name string, svc contract.Service, args map[string]any) sdkmcp.ToolResult {
+func callNamedTool(t *testing.T, name string, svc contract.Service, args map[string]any) sdktool.ToolResult {
 	t.Helper()
 	for _, item := range BuildAll(svc, contract.ServerContext{OwnerUserID: "user-1"}) {
 		if item.Name == name {
@@ -324,5 +324,5 @@ func callNamedTool(t *testing.T, name string, svc contract.Service, args map[str
 		}
 	}
 	t.Fatalf("%s tool not found", name)
-	return sdkmcp.ToolResult{}
+	return sdktool.ToolResult{}
 }

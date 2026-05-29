@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
@@ -12,8 +12,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/render"
 )
 
-func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func list(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "list_scheduled_tasks",
 		Description: "列出定时任务。普通 agent 只能看到自己 agent_id 名下的任务；主智能体可传 agent_id 过滤或不传以列全部。当前会话是飞书/IM 群且未指定 agent_id/query 时，默认只列当前群相关任务。用户按名称、任务内容、投递通道/目标、执行会话、来源或状态描述任务时，可传 query 找候选；DM/Room/IM 群里的 query 会优先匹配当前会话相关任务，显式写“这里/当前会话/这个群/当前频道”会强制限定到当前会话；enabled 可筛选启用或停用任务。",
 		SearchHint:  searchHintListScheduledTasks,
@@ -25,8 +25,8 @@ func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 				"enabled":  map[string]any{"type": "boolean", "description": "可选。true 只看启用任务，false 只看停用任务。"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			filterAgentID, err := resolveListAgentID(sctx, argx.String(args, "agent_id"))
 			if err != nil {
 				return render.Error(err), nil

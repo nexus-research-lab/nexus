@@ -101,8 +101,8 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 		output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
 		output.ResultSubtype = subtype
 		output.TerminalStatus = statusFromResultSubtype(subtype)
-	case sdkprotocol.MessageTypeToolProgress:
-		if messageValue := p.processToolProgressMessage(message); messageValue != nil {
+	case sdkprotocol.MessageTypeTaskProgress:
+		if messageValue := p.processTaskProgressMessage(message); messageValue != nil {
 			output.DurableMessages = append(output.DurableMessages, *messageValue)
 		}
 	case sdkprotocol.MessageTypeUser:
@@ -290,7 +290,7 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([
 			),
 			firstNonNilMap(
 				mapValue(message.System.Data["usage"]),
-				firstTaskProgressUsage(message.System),
+				firstTaskUsage(message.System),
 			),
 		)
 		if progressMessage == nil {
@@ -308,15 +308,15 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([
 	return nil, nil
 }
 
-func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.ToolProgress == nil {
+func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.TaskProgress == nil {
 		return nil
 	}
 	return p.buildTaskProgressMessage(
-		firstNonEmpty(strings.TrimSpace(message.ToolProgress.TaskID), strings.TrimSpace(message.ToolProgress.ToolUseID)),
-		firstNonEmpty(strings.TrimSpace(message.ToolProgress.ToolName)+" 正在执行", "后台任务正在执行"),
-		strings.TrimSpace(message.ToolProgress.ToolUseID),
-		strings.TrimSpace(message.ToolProgress.ToolName),
+		firstNonEmpty(strings.TrimSpace(message.TaskProgress.TaskID), strings.TrimSpace(message.TaskProgress.ToolUseID)),
+		firstNonEmpty(strings.TrimSpace(message.TaskProgress.LastToolName)+" 正在执行", "后台任务正在执行"),
+		strings.TrimSpace(message.TaskProgress.ToolUseID),
+		strings.TrimSpace(message.TaskProgress.LastToolName),
 		nil,
 	)
 }
@@ -719,7 +719,7 @@ func firstTaskProgressToolName(message *sdkprotocol.SystemMessage) string {
 	return strings.TrimSpace(message.TaskProgress.LastToolName)
 }
 
-func firstTaskProgressUsage(message *sdkprotocol.SystemMessage) map[string]any {
+func firstTaskUsage(message *sdkprotocol.SystemMessage) map[string]any {
 	if message == nil || message.TaskProgress == nil {
 		return nil
 	}

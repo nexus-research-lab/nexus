@@ -7,25 +7,25 @@ import (
 	"strings"
 	"time"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/argx"
 )
 
 // JSON 把任意结构体序列化为 MCP text 内容。
-func JSON(payload any) sdkmcp.ToolResult {
+func JSON(payload any) sdktool.ToolResult {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return Error(err)
 	}
-	return sdkmcp.ToolResult{
+	return sdktool.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": string(data)}},
 	}
 }
 
 // Error 把错误转成 MCP 错误内容（IsError=true）。
-func Error(err error) sdkmcp.ToolResult {
-	return sdkmcp.ToolResult{
+func Error(err error) sdktool.ToolResult {
+	return sdktool.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": err.Error()}},
 		IsError: true,
 	}

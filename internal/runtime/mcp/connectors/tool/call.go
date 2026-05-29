@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
 )
@@ -22,14 +22,14 @@ const maxResponseBytes = 256 * 1024
 
 var connectorCallHTTPClient = &http.Client{Timeout: 20 * time.Second}
 
-func call(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func call(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "connector_call",
 		Description: "使用已连接 connector 的 access token 调用 provider REST API。",
 		SearchHint:  searchHintConnectorCall,
 		InputSchema: connectorCallSchema(),
-		Annotations: &sdkmcp.ToolAnnotations{OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			input, err := parseCallInput(args)
 			if err != nil {
 				return errorResult(err), nil

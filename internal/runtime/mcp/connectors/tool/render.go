@@ -3,21 +3,21 @@ package tool
 import (
 	"encoding/json"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 )
 
-func jsonResult(payload any) sdkmcp.ToolResult {
+func jsonResult(payload any) sdktool.ToolResult {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return errorResult(err)
 	}
-	return sdkmcp.ToolResult{
+	return sdktool.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": string(data)}},
 	}
 }
 
-func errorResult(err error) sdkmcp.ToolResult {
-	return sdkmcp.ToolResult{
+func errorResult(err error) sdktool.ToolResult {
+	return sdktool.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": err.Error()}},
 		IsError: true,
 	}

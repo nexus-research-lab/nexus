@@ -55,14 +55,7 @@ type sdkClientAdapter struct {
 }
 
 func WrapSDKClient(options agentclient.Options) Client {
-	return &sdkClientAdapter{options: ensureBridgeBackend(options)}
-}
-
-func ensureBridgeBackend(options agentclient.Options) agentclient.Options {
-	if options.Backend == nil {
-		options.Backend = agentclient.ProcessBackend(agentclient.ProcessOptions{})
-	}
-	return options
+	return &sdkClientAdapter{options: options}
 }
 
 func (c *sdkClientAdapter) Connect(ctx context.Context) error {
@@ -71,7 +64,7 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 		c.mu.Unlock()
 		return nil
 	}
-	options := ensureBridgeBackend(c.options)
+	options := c.options
 	c.options = options
 	c.mu.Unlock()
 
@@ -148,7 +141,6 @@ func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
 }
 
 func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.Options) error {
-	options = ensureBridgeBackend(options)
 	c.mu.Lock()
 	currentOptions := c.options
 	session := c.session

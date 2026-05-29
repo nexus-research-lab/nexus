@@ -456,19 +456,21 @@ func TestBuildSDKMessageLogFieldsKeepsToolNameOnly(t *testing.T) {
 
 func TestBuildSDKMessageLogFieldsIncludesToolProgress(t *testing.T) {
 	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeToolProgress,
-		ToolProgress: &sdkprotocol.ToolProgressMessage{
-			ToolUseID:          "toolu_123",
-			ToolName:           "Read",
-			TaskID:             "task_456",
-			ElapsedTimeSeconds: 1.25,
+		Type: sdkprotocol.MessageTypeTaskProgress,
+		TaskProgress: &sdkprotocol.TaskProgressMessage{
+			ToolUseID:    "toolu_123",
+			LastToolName: "Read",
+			TaskID:       "task_456",
+			Usage: sdkprotocol.TaskUsage{
+				DurationMS: 1250,
+			},
 		},
 	})
 
 	if !hasLogField(fields, "tool", "Read") {
 		t.Fatalf("缺少 tool progress 名称: %+v", fields)
 	}
-	if !hasLogField(fields, "elapsed_sec", 1.25) {
+	if !hasLogField(fields, "duration_ms", 1250) {
 		t.Fatalf("缺少 tool progress 耗时: %+v", fields)
 	}
 	if hasLogFieldKey(fields, "tool_use_id") || hasLogFieldKey(fields, "task_id") {
