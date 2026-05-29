@@ -87,6 +87,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService := dmsvc.NewService(cfg, core.Agent, runtimeManager, permission)
 	dmService.SetLogger(logger.With("component", "dm"))
 	dmService.SetProviderResolver(providerService)
+	dmService.SetPreferences(preferencesService)
 	dmService.SetUsageRecorder(usageService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetTitleGenerator(titleService)
@@ -97,6 +98,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime := roomsvc.NewRealtimeService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
 	roomRealtime.SetProviderResolver(providerService)
+	roomRealtime.SetPreferences(preferencesService)
 	roomRealtime.SetUsageRecorder(usageService)
 	roomRealtime.SetTitleGenerator(titleService)
 	automationService := automationsvc.NewService(

@@ -15,6 +15,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -86,6 +87,7 @@ type RealtimeService struct {
 	runtime          *runtimectx.Manager
 	permission       *permissionctx.Context
 	providers        clientopts.RuntimeConfigResolver
+	prefs            roomRuntimePreferencesService
 	history          *workspacestore.AgentHistoryStore
 	roomHistory      *workspacestore.RoomHistoryStore
 	directedMessages *workspacestore.RoomDirectedMessageStore
@@ -109,6 +111,10 @@ type roomInternalAPI struct {
 
 type roomTitleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
+}
+
+type roomRuntimePreferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
 type usageRecorder interface {
@@ -171,6 +177,11 @@ func (s *RealtimeService) SetLogger(logger *slog.Logger) {
 // SetProviderResolver 注入 Provider 运行时解析器。
 func (s *RealtimeService) SetProviderResolver(resolver clientopts.RuntimeConfigResolver) {
 	s.providers = resolver
+}
+
+// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
+func (s *RealtimeService) SetPreferences(prefs roomRuntimePreferencesService) {
+	s.prefs = prefs
 }
 
 // SetUsageRecorder 注入 token usage 持久化 ledger。

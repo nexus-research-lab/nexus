@@ -429,10 +429,14 @@ func (s *Service) ensureClient(
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
 	}
+	runtimeProvider, runtimeModel, err := s.resolveAgentRuntimeSelection(ctx, agentValue)
+	if err != nil {
+		return nil, "", "", err
+	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
-		Provider:           agentValue.Options.Provider,
-		Model:              agentValue.Options.Model,
+		Provider:           runtimeProvider,
+		Model:              runtimeModel,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
 		AllowedTools:       agentValue.Options.AllowedTools,
@@ -453,13 +457,61 @@ func (s *Service) ensureClient(
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
 	}, sessionItem)
-	runtimeProvider := resolvedRuntimeProvider(agentValue.Options.Provider, options)
+	runtimeProvider = resolvedRuntimeProvider(runtimeProvider, options)
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
 		return nil, "", "", err
 	}
 	return client, runtimeProvider, strings.TrimSpace(options.Model), nil
+}
+
+func (s *Service) resolveAgentRuntimeSelection(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+) (string, string, error) {
+	if agentValue == nil {
+		return "", "", nil
+	}
+	provider := strings.TrimSpace(agentValue.Options.Provider)
+	model := strings.TrimSpace(agentValue.Options.Model)
+	if provider != "" && model != "" {
+		return provider, model, nil
+	}
+	defaultProvider, defaultModel, err := s.preferenceRuntimeSelection(ctx, agentValue)
+	if err != nil || defaultProvider != "" || defaultModel != "" {
+		return defaultProvider, defaultModel, err
+	}
+	return provider, model, nil
+}
+
+func (s *Service) preferenceRuntimeSelection(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+) (string, string, error) {
+	if s.prefs == nil {
+		return "", "", nil
+	}
+	ownerUserID := ""
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok {
+		ownerUserID = currentUserID
+	}
+	if ownerUserID == "" && agentValue != nil {
+		ownerUserID = strings.TrimSpace(agentValue.OwnerUserID)
+	}
+	if ownerUserID == "" {
+		return "", "", nil
+	}
+	prefs, err := s.prefs.Get(ctx, ownerUserID)
+	if err != nil {
+		return "", "", err
+	}
+	provider := strings.TrimSpace(prefs.DefaultAgentOptions.Provider)
+	model := strings.TrimSpace(prefs.DefaultAgentOptions.Model)
+	if provider == "" || model == "" {
+		return "", "", nil
+	}
+	return provider, model, nil
 }
 
 func resolvedRuntimeProvider(provider string, options agentclient.Options) string {

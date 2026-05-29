@@ -13,6 +13,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -63,6 +64,7 @@ type Service struct {
 	permission *permissionctx.Context
 	roomStore  roomSessionStore
 	providers  clientopts.RuntimeConfigResolver
+	prefs      runtimePreferencesService
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 	inputQueue *workspacestore.InputQueueStore
@@ -79,6 +81,10 @@ type roomSessionStore interface {
 
 type titleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
+}
+
+type runtimePreferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
 type usageRecorder interface {
@@ -122,6 +128,11 @@ func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 // SetProviderResolver 注入 Provider 运行时解析器。
 func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver) {
 	s.providers = resolver
+}
+
+// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
+func (s *Service) SetPreferences(prefs runtimePreferencesService) {
+	s.prefs = prefs
 }
 
 // SetUsageRecorder 注入 token usage 持久化 ledger。
