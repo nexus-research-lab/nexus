@@ -9,6 +9,7 @@ import { UiBadge } from "@/shared/ui/badge";
 import { UiIconButton } from "@/shared/ui/button";
 import { ConnectorInfo } from "@/types/capability/connector";
 
+import { is_direct_credential_auth } from "./connector-auth";
 import { ConnectorIcon } from "./connector-icon";
 import { get_connector_category_label } from "./connectors-categories";
 
@@ -39,7 +40,7 @@ export function ConnectorCard({
   } = connector;
   const is_connected = connection_state === "connected";
   const is_coming_soon = status === "coming_soon";
-  const requires_direct_credential = connector.auth_type === "api_key" || connector.auth_type === "token";
+  const requires_direct_credential = is_direct_credential_auth(connector.auth_type);
   const should_configure = !is_configured && oauth_client_config_required;
   const can_connect = !busy && !is_connected && !is_coming_soon && is_configured;
 

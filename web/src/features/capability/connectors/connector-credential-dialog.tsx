@@ -15,84 +15,65 @@ import { UiInput } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
-interface ConnectorAPIKeyDialogProps {
+import { get_direct_credential_label } from "./connector-auth";
+
+interface ConnectorCredentialDialogProps {
   detail: ConnectorDetail | null;
   busy: boolean;
   on_close: () => void;
   on_save: (connector_id: string, credential: string) => void;
 }
 
-function get_api_key_description(detail: ConnectorDetail): string {
-  if (detail.connector_id === "amap") {
-    return "在高德开放平台创建 Web 服务 Key 后粘贴保存，Agent 运行时会直接挂载官方高德 MCP Server。";
-  }
-  if (detail.connector_id === "didi") {
-    return "在滴滴 MCP 服务页面获取 MCP Key 后粘贴保存，Agent 运行时会直接挂载官方 DiDi MCP Server。";
-  }
-  if (detail.connector_id === "dingtalk-ai-table") {
-    return "在钉钉 AI 表格 MCP 广场获取 Streamable HTTP URL 后粘贴保存，Agent 运行时会直接挂载这个远程 MCP Server。";
-  }
-  if (detail.connector_id === "tencent-docs") {
-    return "在腾讯文档 MCP 授权页获取个人 Token 后粘贴保存，Agent 运行时会通过 Authorization header 挂载官方腾讯文档 MCP。";
-  }
-  if (detail.connector_id === "yuque") {
-    return "在语雀个人设置中获取 Personal Token 后粘贴保存，Agent 运行时会启动官方 yuque-mcp 并注入该 Token。";
-  }
-  if (detail.auth_type === "token") {
-    return "填写此连接器的 Token 后保存，Agent 运行时会按需挂载对应 MCP Server。";
-  }
-  return "填写此连接器的 API Key 后保存，Agent 运行时会按需挂载对应 MCP Server。";
+type CredentialCopy = {
+  description: string;
+  label: string;
+  placeholder: string;
+  title: string;
+};
+
+const CONNECTOR_CREDENTIAL_COPY: Record<string, Partial<CredentialCopy>> = {
+  amap: {
+    description: "在高德开放平台创建 Web 服务 Key 后粘贴保存，Agent 运行时会直接挂载官方高德 MCP Server。",
+    placeholder: "高德 Web 服务 Key",
+  },
+  didi: {
+    description: "在滴滴 MCP 服务页面获取 MCP Key 后粘贴保存，Agent 运行时会直接挂载官方 DiDi MCP Server。",
+    placeholder: "滴滴 MCP Key",
+  },
+  "dingtalk-ai-table": {
+    description: "在钉钉 AI 表格 MCP 广场获取 Streamable HTTP URL 后粘贴保存，Agent 运行时会直接挂载这个远程 MCP Server。",
+    label: "MCP Server URL",
+    placeholder: "钉钉 AI 表格 Streamable HTTP URL",
+    title: "连接 MCP Server URL",
+  },
+  "tencent-docs": {
+    description: "在腾讯文档 MCP 授权页获取个人 Token 后粘贴保存，Agent 运行时会通过 Authorization header 挂载官方腾讯文档 MCP。",
+    placeholder: "腾讯文档个人 Token",
+  },
+  yuque: {
+    description: "在语雀个人设置中获取 Personal Token 后粘贴保存，Agent 运行时会启动官方 yuque-mcp 并注入该 Token。",
+    placeholder: "语雀 Personal Token",
+  },
+};
+
+function get_credential_copy(detail: ConnectorDetail): CredentialCopy {
+  const label = get_direct_credential_label(detail.auth_type);
+  return {
+    description: `填写此连接器的 ${label} 后保存，Agent 运行时会按需挂载对应 MCP Server。`,
+    label,
+    placeholder: `${detail.title} ${label}`,
+    title: `连接 ${label}`,
+    ...CONNECTOR_CREDENTIAL_COPY[detail.connector_id],
+  };
 }
 
-function get_credential_dialog_title(detail: ConnectorDetail): string {
-  if (detail.connector_id === "dingtalk-ai-table") {
-    return "连接 MCP Server URL";
-  }
-  if (detail.auth_type === "token") {
-    return "连接 Token";
-  }
-  return "连接 API Key";
-}
-
-function get_credential_label(detail: ConnectorDetail): string {
-  if (detail.connector_id === "dingtalk-ai-table") {
-    return "MCP Server URL";
-  }
-  if (detail.auth_type === "token") {
-    return "Token";
-  }
-  return "API Key";
-}
-
-function get_api_key_placeholder(detail: ConnectorDetail): string {
-  if (detail.connector_id === "amap") {
-    return "高德 Web 服务 Key";
-  }
-  if (detail.connector_id === "didi") {
-    return "滴滴 MCP Key";
-  }
-  if (detail.connector_id === "dingtalk-ai-table") {
-    return "钉钉 AI 表格 Streamable HTTP URL";
-  }
-  if (detail.connector_id === "tencent-docs") {
-    return "腾讯文档个人 Token";
-  }
-  if (detail.connector_id === "yuque") {
-    return "语雀 Personal Token";
-  }
-  if (detail.auth_type === "token") {
-    return `${detail.title} Token`;
-  }
-  return `${detail.title} API Key`;
-}
-
-/** API Key 连接器凭证弹窗。 */
-export function ConnectorAPIKeyDialog({
+/** 直接凭证连接器弹窗。 */
+export function ConnectorCredentialDialog({
   detail,
   busy,
   on_close,
   on_save,
-}: ConnectorAPIKeyDialogProps) {
+}: ConnectorCredentialDialogProps) {
   const [credential, set_credential] = useState("");
 
   useEffect(() => {
@@ -110,7 +91,7 @@ export function ConnectorAPIKeyDialog({
 
   if (!detail) return null;
 
-  const credential_label = get_credential_label(detail);
+  const copy = get_credential_copy(detail);
   const can_save = credential.trim() !== "";
 
   return (
@@ -121,12 +102,12 @@ export function ConnectorAPIKeyDialog({
           icon_class_name="h-9 w-9 rounded-[14px]"
           on_close={on_close}
           subtitle={detail.title}
-          title={get_credential_dialog_title(detail)}
+          title={copy.title}
         />
 
         <UiDialogBody class_name="space-y-3" scrollable>
           <UiPanel class_name="text-[12px] leading-relaxed" padding="sm" variant="inset">
-            {get_api_key_description(detail)}
+            {copy.description}
           </UiPanel>
 
           {detail.docs_url ? (
@@ -144,7 +125,7 @@ export function ConnectorAPIKeyDialog({
           ) : null}
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
-            <span>{credential_label}</span>
+            <span>{copy.label}</span>
             <UiInput
               autoCapitalize="off"
               autoComplete="off"
@@ -154,7 +135,7 @@ export function ConnectorAPIKeyDialog({
               data-lpignore="true"
               name={`${detail.connector_id}-credential`}
               onChange={(event) => set_credential(event.target.value)}
-              placeholder={get_api_key_placeholder(detail)}
+              placeholder={copy.placeholder}
               spellCheck={false}
               type="password"
               value={credential}

@@ -7,6 +7,7 @@ import (
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
+	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	connectormcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors"
 	connectormcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -97,11 +98,8 @@ func appendYuqueMCPServer(
 	svc connectormcpcontract.Service,
 	ownerUserID string,
 ) {
-	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
-		return
-	}
-	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, "yuque")
-	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, "yuque")
+	if snapshot == nil {
 		return
 	}
 	servers["yuque"] = sdkmcp.StdioServerConfig{
@@ -122,11 +120,8 @@ func appendAPIKeyMCPServer(
 	serverName string,
 	baseURL string,
 ) {
-	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
-		return
-	}
-	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
-	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, connectorID)
+	if snapshot == nil {
 		return
 	}
 	servers[serverName] = sdkmcp.HTTPServerConfig{
@@ -142,11 +137,8 @@ func appendUserURLMCPServer(
 	connectorID string,
 	serverName string,
 ) {
-	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
-		return
-	}
-	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
-	if err != nil || snapshot == nil {
+	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, connectorID)
+	if snapshot == nil {
 		return
 	}
 	serverURL := strings.TrimSpace(snapshot.AccessToken)
@@ -167,11 +159,8 @@ func appendHeaderTokenMCPServer(
 	serverURL string,
 	headerName string,
 ) {
-	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
-		return
-	}
-	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
-	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+	snapshot := loadConnectorMCPSnapshot(ctx, servers, svc, ownerUserID, connectorID)
+	if snapshot == nil {
 		return
 	}
 	servers[serverName] = sdkmcp.HTTPServerConfig{
@@ -180,6 +169,23 @@ func appendHeaderTokenMCPServer(
 			headerName: strings.TrimSpace(snapshot.AccessToken),
 		},
 	}
+}
+
+func loadConnectorMCPSnapshot(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+	connectorID string,
+) *connectordomain.ConnectionSnapshot {
+	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
+		return nil
+	}
+	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
+	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+		return nil
+	}
+	return snapshot
 }
 
 func combinedMCPBuilder(

@@ -17,6 +17,11 @@ import {
   start_connector_device_auth_api,
 } from "@/lib/api/connector-api";
 import { get_connector_oauth_redirect_uri, is_desktop_runtime } from "@/config/desktop-runtime";
+import {
+  build_direct_credential_payload,
+  get_direct_credential_label,
+  is_direct_credential_auth,
+} from "@/features/capability/connectors/connector-auth";
 import { open_shop_prompt } from "@/features/capability/connectors/shop-domain-prompt";
 import { ConnectorDetail, ConnectorDeviceAuthStart, ConnectorInfo } from "@/types/capability/connector";
 import type { ConnectorDirectoryController } from "@/features/capability/connectors/connectors-view-model";
@@ -98,7 +103,7 @@ export function useConnectorController(): ConnectorDirectoryController {
     set_device_auth_session(null);
   }, []);
 
-  // 连接 —— OAuth 类型打开授权窗口，API Key 类型由专用弹窗保存凭证
+  // 连接 —— OAuth 类型打开授权窗口，直接凭证类型由专用弹窗保存。
   const handle_connect = useCallback(
     async (connector_id: string) => {
       set_busy_id(connector_id);
@@ -141,8 +146,8 @@ export function useConnectorController(): ConnectorDirectoryController {
             throw new Error("授权窗口被浏览器拦截，请允许弹窗后重试");
           }
           set_status_message("已打开授权页面，请在新窗口完成授权");
-        } else if (target?.auth_type === "api_key" || target?.auth_type === "token") {
-          set_error_message(target.auth_type === "token" ? "请填写 Token 后连接" : "请填写 API Key 后连接");
+        } else if (is_direct_credential_auth(target?.auth_type)) {
+          set_error_message(`请填写 ${get_direct_credential_label(target?.auth_type)} 后连接`);
         } else {
           await connect_connector_api(connector_id);
           set_status_message("连接成功");
@@ -161,13 +166,15 @@ export function useConnectorController(): ConnectorDirectoryController {
     [load, selected_detail, all_connectors],
   );
 
-  const handle_connect_with_api_key = useCallback(
-    async (connector_id: string, api_key: string) => {
+  const handle_connect_with_credential = useCallback(
+    async (connector_id: string, credential: string) => {
       set_busy_id(connector_id);
       try {
         const target = all_connectors.find((c) => c.connector_id === connector_id);
-        const body = target?.auth_type === "token" ? { token: api_key } : { api_key };
-        await connect_connector_api(connector_id, body);
+        if (!target || !is_direct_credential_auth(target.auth_type)) {
+          throw new Error("当前连接器不支持直接凭证连接");
+        }
+        await connect_connector_api(connector_id, build_direct_credential_payload(target.auth_type, credential));
         set_status_message("连接成功");
         await load();
         if (selected_detail?.connector_id === connector_id) {
@@ -261,7 +268,7 @@ export function useConnectorController(): ConnectorDirectoryController {
     device_auth_session,
     close_device_auth_session,
     handle_connect,
-    handle_connect_with_api_key,
+    handle_connect_with_credential,
     handle_disconnect,
     handle_save_oauth_client,
     handle_delete_oauth_client,

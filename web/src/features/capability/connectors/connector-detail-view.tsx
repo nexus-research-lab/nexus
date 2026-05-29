@@ -29,6 +29,7 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import type { ConnectorDetail, ConnectorFeatureDetail } from "@/types/capability/connector";
 
+import { is_direct_credential_auth } from "./connector-auth";
 import { ConnectorIcon } from "./connector-icon";
 import { get_connector_category_label } from "./connectors-categories";
 
@@ -39,7 +40,7 @@ interface ConnectorDetailViewProps {
   on_back: () => void;
   on_connect: (connector_id: string) => void;
   on_disconnect: (connector_id: string) => void;
-  on_configure_api_key: (detail: ConnectorDetail) => void;
+  on_configure_credential: (detail: ConnectorDetail) => void;
   on_configure_oauth_client: (detail: ConnectorDetail) => void;
 }
 
@@ -70,7 +71,7 @@ export function ConnectorDetailView({
   on_back,
   on_connect,
   on_disconnect,
-  on_configure_api_key,
+  on_configure_credential,
   on_configure_oauth_client,
 }: ConnectorDetailViewProps) {
   const { t } = useI18n();
@@ -81,7 +82,7 @@ export function ConnectorDetailView({
   const requires_oauth_client_config = detail?.oauth_client_config_required ?? false;
   const oauth_client_configured = detail?.oauth_client_configured ?? false;
   const can_connect = detail && !is_connected && !is_coming_soon && is_configured;
-  const requires_direct_credential = detail?.auth_type === "api_key" || detail?.auth_type === "token";
+  const requires_direct_credential = is_direct_credential_auth(detail?.auth_type);
   const feature_details = detail ? get_connector_feature_details(detail) : [];
   const selected_feature_detail = feature_details.find((feature) => feature.name === selected_feature);
 
@@ -163,7 +164,7 @@ export function ConnectorDetailView({
                   disabled={busy}
                   onClick={() => {
                     if (requires_direct_credential) {
-                      on_configure_api_key(detail);
+                      on_configure_credential(detail);
                       return;
                     }
                     on_connect(detail.connector_id);
