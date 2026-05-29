@@ -31,9 +31,11 @@ type activeRoomSlot struct {
 	TriggerAttachments []protocol.ChatAttachment
 	PublicCursorID     string
 	PublicCursorTS     int64
-	ActionCursorID     string
-	ActionCursorTS     int64
-	ReplyTarget        protocol.RoomReplyTarget
+	MessageCursorID    string
+	MessageCursorTS    int64
+	ReplyRoute         protocol.RoomReplyRoute
+	ReplySourceMessage string
+	ReplySourceAgent   string
 	InterruptReason    string
 	QueuedInputs       []roomQueuedInput
 	GuidedInputs       []roomQueuedInput
@@ -75,9 +77,7 @@ type publicMentionWake struct {
 	TargetAgentID string
 	Content       string
 	MessageID     string
-	RequestID     string
-	ReplyTarget   protocol.RoomReplyTarget
-	ReplyAudience []string
+	ReplyRoute    protocol.RoomReplyRoute
 }
 
 type roomQueuedInput struct {

@@ -16,33 +16,31 @@ type InputQueueSource string
 const (
 	InputQueueSourceUser               InputQueueSource = "user"
 	InputQueueSourceAgentPublicMention InputQueueSource = "agent_public_mention"
-	InputQueueSourceAgentRoomAction    InputQueueSource = "agent_room_action"
+	InputQueueSourceAgentRoomMessage   InputQueueSource = "agent_room_directed_message"
 )
 
 // InputQueueItem 表示后端同步的待发送队列项。
 type InputQueueItem struct {
-	ID               string             `json:"id"`
-	Scope            InputQueueScope    `json:"scope"`
-	SessionKey       string             `json:"session_key"`
-	RoomID           string             `json:"room_id,omitempty"`
-	ConversationID   string             `json:"conversation_id,omitempty"`
-	AgentID          string             `json:"agent_id,omitempty"`
-	SourceAgentID    string             `json:"source_agent_id,omitempty"`
-	SourceMessageID  string             `json:"source_message_id,omitempty"`
-	TargetAgentIDs   []string           `json:"target_agent_ids,omitempty"`
-	AudienceAgentIDs []string           `json:"audience_agent_ids,omitempty"`
-	RequestID        string             `json:"request_id,omitempty"`
-	Source           InputQueueSource   `json:"source"`
-	Content          string             `json:"content"`
-	Attachments      []ChatAttachment   `json:"attachments,omitempty"`
-	DeliveryPolicy   ChatDeliveryPolicy `json:"delivery_policy"`
-	ReplyTarget      RoomReplyTarget    `json:"reply_target,omitempty"`
-	OwnerUserID      string             `json:"owner_user_id,omitempty"`
-	RootRoundID      string             `json:"root_round_id,omitempty"`
-	HopIndex         int                `json:"hop_index,omitempty"`
-	QueueOrder       int64              `json:"queue_order,omitempty"`
-	CreatedAt        int64              `json:"created_at"`
-	UpdatedAt        int64              `json:"updated_at"`
+	ID              string             `json:"id"`
+	Scope           InputQueueScope    `json:"scope"`
+	SessionKey      string             `json:"session_key"`
+	RoomID          string             `json:"room_id,omitempty"`
+	ConversationID  string             `json:"conversation_id,omitempty"`
+	AgentID         string             `json:"agent_id,omitempty"`
+	SourceAgentID   string             `json:"source_agent_id,omitempty"`
+	SourceMessageID string             `json:"source_message_id,omitempty"`
+	TargetAgentIDs  []string           `json:"target_agent_ids,omitempty"`
+	Source          InputQueueSource   `json:"source"`
+	Content         string             `json:"content"`
+	Attachments     []ChatAttachment   `json:"attachments,omitempty"`
+	DeliveryPolicy  ChatDeliveryPolicy `json:"delivery_policy"`
+	ReplyRoute      RoomReplyRoute     `json:"reply_route,omitempty"`
+	OwnerUserID     string             `json:"owner_user_id,omitempty"`
+	RootRoundID     string             `json:"root_round_id,omitempty"`
+	HopIndex        int                `json:"hop_index,omitempty"`
+	QueueOrder      int64              `json:"queue_order,omitempty"`
+	CreatedAt       int64              `json:"created_at"`
+	UpdatedAt       int64              `json:"updated_at"`
 }
 
 // NormalizeInputQueueScope 归一化队列作用域。
@@ -59,7 +57,7 @@ func NormalizeInputQueueScope(value string) InputQueueScope {
 func NormalizeInputQueueSource(value string) InputQueueSource {
 	normalized := InputQueueSource(strings.ToLower(strings.TrimSpace(value)))
 	switch normalized {
-	case InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomAction:
+	case InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomMessage:
 		return normalized
 	default:
 		return InputQueueSourceUser

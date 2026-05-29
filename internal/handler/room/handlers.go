@@ -221,8 +221,8 @@ func findPrimaryConversationSession(sessions []protocol.SessionRecord) *protocol
 	return &sessions[0]
 }
 
-// HandleCreateAction 处理 server 进程内资源依赖的 Room 内部 action。
-func (h *Handlers) HandleCreateAction(writer http.ResponseWriter, request *http.Request) {
+// HandleCreateDirectedMessage 处理 server 进程内资源依赖的 Room directed message。
+func (h *Handlers) HandleCreateDirectedMessage(writer http.ResponseWriter, request *http.Request) {
 	if !h.validInternalToken(request) {
 		h.api.WriteFailure(writer, http.StatusUnauthorized, "内部控制面 token 无效")
 		return
@@ -238,7 +238,7 @@ func (h *Handlers) HandleCreateAction(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	var payload protocol.CreateRoomActionRequest
+	var payload protocol.CreateRoomDirectedMessageRequest
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
@@ -249,7 +249,58 @@ func (h *Handlers) HandleCreateAction(writer http.ResponseWriter, request *http.
 		Role:       authsvc.RoleOwner,
 		AuthMethod: "nexusctl_internal",
 	})
-	item, err := h.roomRealtime.HandleAction(
+	item, err := h.roomRealtime.HandleDirectedMessage(
+		ctx,
+		chi.URLParam(request, "room_id"),
+		chi.URLParam(request, "conversation_id"),
+		payload,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, roompkg.ErrRoomNotFound),
+			errors.Is(err, roompkg.ErrConversationNotFound):
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		case errors.Is(err, roompkg.ErrRoomMemberNotFound):
+			h.api.WriteFailure(writer, http.StatusForbidden, "Room 成员校验失败")
+		case handlershared.IsClientMessageError(err):
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		default:
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleCreatePublicMessage 处理 server 进程内资源依赖的 Room 公区消息发布。
+func (h *Handlers) HandleCreatePublicMessage(writer http.ResponseWriter, request *http.Request) {
+	if !h.validInternalToken(request) {
+		h.api.WriteFailure(writer, http.StatusUnauthorized, "内部控制面 token 无效")
+		return
+	}
+	scopeUserID := strings.TrimSpace(request.Header.Get(internalScopeUserIDHeader))
+	if scopeUserID == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少 user scope")
+		return
+	}
+	sourceAgentID := strings.TrimSpace(request.Header.Get(internalRoomAgentIDHeader))
+	if sourceAgentID == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "缺少 room agent scope")
+		return
+	}
+
+	var payload protocol.CreateRoomPublicMessageRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	payload.SourceAgentID = sourceAgentID
+	ctx := authsvc.WithPrincipal(request.Context(), &authsvc.Principal{
+		UserID:     scopeUserID,
+		Username:   scopeUserID,
+		Role:       authsvc.RoleOwner,
+		AuthMethod: "nexusctl_internal",
+	})
+	item, err := h.roomRealtime.HandlePublicMessage(
 		ctx,
 		chi.URLParam(request, "room_id"),
 		chi.URLParam(request, "conversation_id"),

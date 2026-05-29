@@ -19,10 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nexusctl skill` now supports external source search, Git import, one-shot external import/install, and imported Skill updates while keeping Agent install state file-based in the workspace.
 
 ### Changed
+- Room collaboration now uses a minimal directed-message kernel: public Room flow advances only through normal public `@` mentions, while private/small-group work uses `room message send` with explicit `recipients`, `wake_policy`, and `reply_route`.
 - Removed the standalone `nexus-migrate` binary and manual migration subcommands; database migration and Docker owner bootstrap now run through `nexus-server`, and frontend protocol generation uses `go generate ./internal/protocol`.
 - `skills.sh` community imports now clone the backing GitHub repository and import the selected skill directory directly instead of depending on `pnpm dlx skills add`.
 
 ### Fixed
+- Fixed Room private handbacks so a directed-message reply can wake a coordinator with a public `next_reply_route`, allowing the coordinator's natural final reply to enter the public feed without using `room message publish`.
 - Fixed Provider configuration scoping for multi-user deployments: existing Providers migrate to public configuration, private Providers are owner-scoped, and public Providers can only be maintained by the owner/admin.
 - Fixed capability page Connector status, external Skill registry data, and summary counts so they are scoped to the current user; legacy global Skills migrate to users that actually deploy them.
 - Fixed desktop mode so newly configured Providers populate the default model automatically instead of leaving Agents without a model, and reduced successful static asset/read-only request log noise.

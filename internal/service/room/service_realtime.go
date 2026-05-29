@@ -80,23 +80,23 @@ type MCPServerBuilder func(
 ) map[string]sdkmcp.ServerConfig
 
 type RealtimeService struct {
-	config      config.Config
-	rooms       *Service
-	agents      *agentsvc.Service
-	runtime     *runtimectx.Manager
-	permission  *permissionctx.Context
-	providers   clientopts.RuntimeConfigResolver
-	history     *workspacestore.AgentHistoryStore
-	roomHistory *workspacestore.RoomHistoryStore
-	actions     *workspacestore.RoomActionStore
-	inputQueue  *workspacestore.InputQueueStore
-	usage       usageRecorder
-	factory     roomClientFactory
-	broadcaster RoomBroadcaster
-	logger      *slog.Logger
-	mcpServers  MCPServerBuilder
-	titles      roomTitleScheduler
-	internalAPI roomInternalAPI
+	config           config.Config
+	rooms            *Service
+	agents           *agentsvc.Service
+	runtime          *runtimectx.Manager
+	permission       *permissionctx.Context
+	providers        clientopts.RuntimeConfigResolver
+	history          *workspacestore.AgentHistoryStore
+	roomHistory      *workspacestore.RoomHistoryStore
+	directedMessages *workspacestore.RoomDirectedMessageStore
+	inputQueue       *workspacestore.InputQueueStore
+	usage            usageRecorder
+	factory          roomClientFactory
+	broadcaster      RoomBroadcaster
+	logger           *slog.Logger
+	mcpServers       MCPServerBuilder
+	titles           roomTitleScheduler
+	internalAPI      roomInternalAPI
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
@@ -139,18 +139,18 @@ func NewRealtimeServiceWithFactory(
 		factory = defaultRoomClientFactory{}
 	}
 	return &RealtimeService{
-		config:       cfg,
-		rooms:        roomService,
-		agents:       agentService,
-		runtime:      runtimeManager,
-		permission:   permission,
-		history:      workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		roomHistory:  workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
-		actions:      workspacestore.NewRoomActionStore(cfg.WorkspacePath),
-		inputQueue:   workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		factory:      factory,
-		logger:       logx.NewDiscardLogger(),
-		activeRounds: make(map[string]*activeRoomRound),
+		config:           cfg,
+		rooms:            roomService,
+		agents:           agentService,
+		runtime:          runtimeManager,
+		permission:       permission,
+		history:          workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
+		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
+		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		factory:          factory,
+		logger:           logx.NewDiscardLogger(),
+		activeRounds:     make(map[string]*activeRoomRound),
 	}
 }
 

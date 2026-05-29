@@ -363,6 +363,10 @@ func (s *RealtimeService) runSlot(
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
 	if !slot.shouldSuppressOutput() {
+		if err := s.recordRoomDirectedMessageReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
+			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+			return
+		}
 		if roomSlotPublishesPublicOutput(slot) {
 			if err := s.collectPublicMentionWakes(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 				s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -375,17 +379,17 @@ func (s *RealtimeService) runSlot(
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		actionCursor, actionCursorRecorded, err := s.recordRoomActionCursor(slot, roundValue)
+		messageCursor, messageCursorRecorded, err := s.recordRoomDirectedMessageCursor(slot, roundValue)
 		if err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		if actionCursorRecorded {
+		if messageCursorRecorded {
 			s.broadcastSharedEventWithTimeout(
 				slotCtx,
 				roundValue.SessionKey,
 				roundValue.RoomID,
-				newRoomActionConsumedEvent(actionCursor),
+				newRoomDirectedMessageConsumedEvent(messageCursor),
 			)
 		}
 	}

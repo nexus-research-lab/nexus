@@ -1,3 +1,5 @@
+import type { RoomReplyRoute, RoomWakePolicy } from "./agent-conversation";
+
 export type AgentPrivateScope = "direct" | "audience" | "self" | string;
 export type AgentPrivateDirection = "incoming" | "outgoing" | "self" | string;
 
@@ -19,27 +21,23 @@ export interface AgentPrivateThread {
   room_type?: string | null;
   conversation_id?: string | null;
   conversation_title?: string | null;
-  last_action_id?: string | null;
-  last_action_type?: string | null;
+  last_message_id?: string | null;
   last_content_preview?: string | null;
   last_timestamp?: number | null;
-  action_count: number;
+  message_count: number;
 }
 
 export interface AgentPrivateEvent {
-  action_id: string;
+  message_id: string;
   thread_id: string;
   direction: AgentPrivateDirection;
-  action_type: string;
-  request_id?: string | null;
   source_agent_id: string;
-  target_agent_id?: string | null;
-  audience_agent_ids?: string[] | null;
+  recipients: string[];
   content?: string | null;
-  visibility: string;
-  reply_target: string;
-  wake_policy?: string | null;
+  reply_route: RoomReplyRoute;
+  wake_policy?: RoomWakePolicy | null;
   delay_seconds?: number | null;
+  correlation_id?: string | null;
   room_id?: string | null;
   room_name?: string | null;
   room_type?: string | null;

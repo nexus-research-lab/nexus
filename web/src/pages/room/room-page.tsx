@@ -135,33 +135,33 @@ export function RoomPage() {
       return;
     }
 
-    if (event_type === "room_action") {
-      console.debug("[Room] room_action", {
-        action_id: data.action_id,
+    if (event_type === "room_directed_message") {
+      console.debug("[Room] room_directed_message", {
+        message_id: data.message_id,
         event_kind: data.event_kind,
-        action_type: data.action_type,
         room_id: data.room_id,
         conversation_id: data.conversation_id,
         source_agent_id: data.source_agent_id,
+        recipients: data.recipients,
         target_agent_id: data.target_agent_id,
-        visibility: data.visibility,
-        reply_target: data.reply_target,
+        reply_route: data.reply_route,
         wake_policy: data.wake_policy,
         delay_seconds: data.delay_seconds,
+        correlation_id: data.correlation_id,
         content_chars: data.content_chars,
         has_content: typeof data.content === "string" && data.content.length > 0,
       });
       return;
     }
 
-    if (event_type === "room_action_consumed") {
-      console.debug("[Room] room_action_consumed", {
+    if (event_type === "room_directed_message_consumed") {
+      console.debug("[Room] room_directed_message_consumed", {
         room_id: data.room_id,
         conversation_id: data.conversation_id,
         agent_id: data.agent_id,
         round_id: data.round_id,
-        last_action_id: data.last_action_id,
-        last_action_timestamp: data.last_action_timestamp,
+        last_message_id: data.last_message_id,
+        last_message_timestamp: data.last_message_timestamp,
       });
       return;
     }

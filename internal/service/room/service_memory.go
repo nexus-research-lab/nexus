@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
@@ -108,8 +109,11 @@ func (s *RealtimeService) commitRoomMemoryTurn(roundValue *activeRoomRound, slot
 	if roundValue == nil || slot == nil {
 		return
 	}
-	assistantText := memorysvc.ExtractMessageText(assistant)
+	assistantText := roomdomain.ExtractAssistantResultText(assistant)
 	if strings.TrimSpace(assistantText) == "" || strings.TrimSpace(roomSlotInterruptReason(slot)) != "" {
+		return
+	}
+	if strings.Contains(assistantText, roomdomain.NoReplyMarker) {
 		return
 	}
 	userText := strings.TrimSpace(slot.Trigger.Content)

@@ -345,7 +345,7 @@ function PrivateThreadList({
                     "mt-1 text-(--text-muted) [&_*]:leading-4",
                     compact ? "line-clamp-1 text-[11.5px] leading-4" : "line-clamp-2 text-[12px] leading-4",
                   )}
-                  content={thread.last_content_preview || action_type_label(thread.last_action_type)}
+                  content={thread.last_content_preview || "联络消息"}
                   mermaid_show_header={false}
                   variant="summary"
                   workspace_agent_id={thread.participant_agent_ids[0] ?? agent_id}
@@ -353,7 +353,7 @@ function PrivateThreadList({
                 <div className={cn("flex items-center gap-1.5 font-semibold text-(--text-soft)", compact ? "mt-1 text-[10px]" : "mt-1.5 text-[10.5px]")}>
                   <span className="truncate">{thread.room_name || "房间"}</span>
                   <span>·</span>
-                  <span>{thread.action_count}</span>
+                  <span>{thread.message_count}</span>
                   {thread.last_timestamp ? (
                     <>
                       <span>·</span>
@@ -435,7 +435,7 @@ function PrivateEventTimeline({
               agent_id={agent_id}
               compact={compact}
               event={event}
-              key={event.action_id}
+              key={event.message_id}
             />
           ))}
         </div>
@@ -477,7 +477,7 @@ function PrivateEventBubble({
             {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
           </span>
           <span className="rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
-            {action_type_label(event.action_type)}
+            私信
           </span>
           <span className="ml-auto shrink-0 text-[10.5px] font-semibold text-(--text-soft)">
             {format_relative_time(event.timestamp)}
@@ -563,21 +563,6 @@ function private_thread_title(thread: AgentPrivateThread, agent_id: string) {
   return peers.map((participant) => participant.name || participant.agent_id).join("、");
 }
 
-function action_type_label(action_type?: string | null) {
-  switch (action_type) {
-    case "private_message":
-      return "私信";
-    case "request_reply":
-      return "请求";
-    case "private_note":
-      return "备注";
-    case "marker":
-      return "标记";
-    default:
-      return "联络";
-  }
-}
-
 function scope_label(scope: string) {
   switch (scope) {
     case "direct":
@@ -592,15 +577,27 @@ function scope_label(scope: string) {
 }
 
 function event_route_label(event: AgentPrivateEvent, agent_id: string) {
-  if (event.action_type === "private_note") {
-    return "仅自己";
+  const recipients = event.recipients
+    .map((recipient_id) => {
+      const participant = event.participants.find((item) => item.agent_id === recipient_id);
+      return recipient_id === agent_id ? "我" : participant?.name || recipient_id;
+    })
+    .filter(Boolean);
+  if (recipients.length > 0) {
+    return `给 ${recipients.join("、")}`;
   }
-  if (event.target_agent_id) {
-    const target = event.participants.find((participant) => participant.agent_id === event.target_agent_id);
-    return `给 ${target?.agent_id === agent_id ? "我" : target?.name || event.target_agent_id}`;
+  if (event.reply_route?.mode === "private") {
+    const reply_recipients = (event.reply_route.recipients ?? []).map((recipient_id) => {
+      const participant = event.participants.find((item) => item.agent_id === recipient_id);
+      return recipient_id === agent_id ? "我" : participant?.name || recipient_id;
+    });
+    return reply_recipients.length ? `回复到 ${reply_recipients.join("、")}` : "私密回复";
   }
-  const audience = event.participants
-    .filter((participant) => participant.agent_id !== event.source_agent_id)
-    .map((participant) => participant.agent_id === agent_id ? "我" : participant.name || participant.agent_id);
-  return audience.length ? `给 ${audience.join("、")}` : scope_label(event.reply_target);
+  if (event.reply_route?.mode === "public") {
+    return "回复到公区";
+  }
+  if (event.reply_route?.mode === "none") {
+    return "不要求回复";
+  }
+  return scope_label(event.direction);
 }

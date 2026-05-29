@@ -28,13 +28,13 @@ func (s *RealtimeService) buildSlotVisibleContext(
 	}
 	slot.PublicCursorID = batch.LastMessageID
 	slot.PublicCursorTS = batch.LastTimestamp
-	actions, err := s.roomActionsForSlot(roundValue, slot)
+	privateMessages, err := s.roomDirectedMessagesForSlot(roundValue, slot)
 	if err != nil {
 		return "", err
 	}
 	base := roomdomain.BuildVisibleContext(roomdomain.VisibleContextInput{
 		PublicMessages: runtimeMessages,
-		RoomActions:    actions,
+		RoomMessages:   privateMessages,
 		LatestTrigger:  slot.Trigger,
 		AgentNameByID:  agentNameByID,
 		TargetAgentID:  slot.AgentID,
@@ -130,65 +130,65 @@ func (s *RealtimeService) recordRoomPublicCursor(slot *activeRoomSlot, roundValu
 	})
 }
 
-func (s *RealtimeService) recordRoomActionCursor(
+func (s *RealtimeService) recordRoomDirectedMessageCursor(
 	slot *activeRoomSlot,
 	roundValue *activeRoomRound,
-) (workspacestore.RoomActionCursor, bool, error) {
-	if s.actions == nil || slot == nil || roundValue == nil {
-		return workspacestore.RoomActionCursor{}, false, nil
+) (workspacestore.RoomDirectedMessageCursor, bool, error) {
+	if s.directedMessages == nil || slot == nil || roundValue == nil {
+		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
-	actionID := strings.TrimSpace(slot.ActionCursorID)
-	if actionID == "" && slot.ActionCursorTS == 0 {
-		return workspacestore.RoomActionCursor{}, false, nil
+	messageID := strings.TrimSpace(slot.MessageCursorID)
+	if messageID == "" && slot.MessageCursorTS == 0 {
+		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
-	cursor := workspacestore.RoomActionCursor{
-		RoomID:              roundValue.RoomID,
-		ConversationID:      roundValue.ConversationID,
-		AgentID:             slot.AgentID,
-		RoundID:             slot.AgentRoundID,
-		LastActionID:        actionID,
-		LastActionTimestamp: slot.ActionCursorTS,
-		Timestamp:           time.Now().UnixMilli(),
+	cursor := workspacestore.RoomDirectedMessageCursor{
+		RoomID:               roundValue.RoomID,
+		ConversationID:       roundValue.ConversationID,
+		AgentID:              slot.AgentID,
+		RoundID:              slot.AgentRoundID,
+		LastMessageID:        messageID,
+		LastMessageTimestamp: slot.MessageCursorTS,
+		Timestamp:            time.Now().UnixMilli(),
 	}
-	if err := s.actions.AppendActionCursor(cursor); err != nil {
-		return workspacestore.RoomActionCursor{}, false, err
+	if err := s.directedMessages.AppendMessageCursor(cursor); err != nil {
+		return workspacestore.RoomDirectedMessageCursor{}, false, err
 	}
 	return cursor, true, nil
 }
 
-func (s *RealtimeService) roomActionsForSlot(
+func (s *RealtimeService) roomDirectedMessagesForSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
-) ([]protocol.RoomActionRecord, error) {
-	if s.actions == nil || roundValue == nil || slot == nil {
+) ([]protocol.RoomDirectedMessageRecord, error) {
+	if s.directedMessages == nil || roundValue == nil || slot == nil {
 		return nil, nil
 	}
-	cursor, _, err := s.actions.ReadActionCursor(roundValue.ConversationID, slot.AgentID)
+	cursor, _, err := s.directedMessages.ReadMessageCursor(roundValue.ConversationID, slot.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	actions, err := s.actions.ReadContextActionsAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)
+	messages, err := s.directedMessages.ReadContextMessagesAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)
 	if err != nil {
 		return nil, err
 	}
-	if len(actions) > 0 {
-		lastAction := actions[len(actions)-1]
-		slot.ActionCursorID = lastAction.ActionID
-		slot.ActionCursorTS = lastAction.Timestamp
+	if len(messages) > 0 {
+		lastMessage := messages[len(messages)-1]
+		slot.MessageCursorID = lastMessage.MessageID
+		slot.MessageCursorTS = lastMessage.Timestamp
 	}
-	return actions, nil
+	return messages, nil
 }
 
-func newRoomActionConsumedEvent(cursor workspacestore.RoomActionCursor) protocol.EventMessage {
+func newRoomDirectedMessageConsumedEvent(cursor workspacestore.RoomDirectedMessageCursor) protocol.EventMessage {
 	data := map[string]any{
-		"room_id":               cursor.RoomID,
-		"conversation_id":       cursor.ConversationID,
-		"agent_id":              cursor.AgentID,
-		"round_id":              cursor.RoundID,
-		"last_action_id":        cursor.LastActionID,
-		"last_action_timestamp": cursor.LastActionTimestamp,
+		"room_id":                cursor.RoomID,
+		"conversation_id":        cursor.ConversationID,
+		"agent_id":               cursor.AgentID,
+		"round_id":               cursor.RoundID,
+		"last_message_id":        cursor.LastMessageID,
+		"last_message_timestamp": cursor.LastMessageTimestamp,
 	}
-	event := protocol.NewEvent(protocol.EventTypeRoomActionConsumed, data)
+	event := protocol.NewEvent(protocol.EventTypeRoomDirectedMessageConsumed, data)
 	event.SessionKey = protocol.BuildRoomSharedSessionKey(cursor.ConversationID)
 	event.RoomID = cursor.RoomID
 	event.ConversationID = cursor.ConversationID

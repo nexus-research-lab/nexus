@@ -115,17 +115,16 @@ nexusctl room add-member abc123 --agent-id translator
 nexusctl room remove-member abc123 --agent-id translator
 ```
 
-#### 创建 Room 内部协作动作
+#### 创建 Room directed message
 
 Room runtime 内会自动注入当前 `room_id`、`conversation_id`、`source_agent_id`、内部控制面地址/token 和用户作用域；Agent 正常调用时不要额外传这些字段。
-运行时 PATH 已注入 `nexusctl`；`--target-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
+运行时 PATH 已注入 `nexusctl`；`--recipient-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
 
 ```bash
-nexusctl --json room action private-message --target-agent-id 0ed5434a8c13 --content "私下提醒"
-nexusctl --json room action private-note --content "只写给自己的上下文"
-nexusctl --json room action marker --visibility public --content "公开协作标记"
-nexusctl --json room action marker --reply-target audience --audience-agent-id 0ed5434a8c13 --content "只给指定受众的标记"
-nexusctl --json room action marker --reply-target none --content "只落盘不投影"
+nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy none --reply-route none --content "私下提醒"
+nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy immediate --reply-route private --reply-recipient-agent-id <host-agent-id> --reply-wake-policy immediate --content "请处理后私下回给主持人"
+nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy immediate --reply-route private --reply-recipient-agent-id <host-agent-id> --reply-wake-policy immediate --reply-next-route public --content "请私下回答主持人，主持人随后公开推进"
+nexusctl --json room message send --recipient-agent-id <self-agent-id> --wake-policy none --reply-route none --content "只写给自己的上下文"
 ```
 
 #### 删除 Room
