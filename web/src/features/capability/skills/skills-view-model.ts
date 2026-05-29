@@ -24,6 +24,7 @@ export interface SkillMarketplaceController {
   discovery_mode: DiscoveryMode;
   active_category: string;
   external_query: string;
+  external_submitted_query: string;
   external_results: ExternalSkillSearchItem[];
   external_source_statuses: ExternalSkillSourceStatus[];
   external_sources: ExternalSkillSourceInfo[];
@@ -54,6 +55,7 @@ export interface SkillMarketplaceController {
   set_status_message: (value: string | null) => void;
   set_error_message: (value: string | null) => void;
   refresh_marketplace: () => Promise<void>;
+  submit_external_search: () => void;
   handle_update_single: (skill_name: string) => Promise<void>;
   handle_delete_skill: (skill: SkillInfo) => Promise<void>;
   handle_update_installed: () => Promise<void>;

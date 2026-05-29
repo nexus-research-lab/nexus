@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent skill management now dynamically discovers workspace-created Skills under `.agents/skills`, `.agents`, and `.claude/skills`, and the Agent options Skill tab refreshes while visible so newly created Skills can be managed.
 - Hardened `skills.sh` imports with sparse shallow Git clones and retry handling for transient transport errors such as early EOF.
 - Extended Git-backed Skill import timeouts and transient SSL error detection so slow `skills.sh` GitHub clones can complete retries instead of failing around the 30-second request boundary.
+- External Skill search now waits for Enter or the search button, avoiding requests from intermediate typing and IME composition states.
 - Fixed URL Skill imports without a frontmatter `name` so they use source metadata or the `SKILL.md` parent directory instead of a temporary directory name.
 
 ## [0.1.11] - 2026-05-27

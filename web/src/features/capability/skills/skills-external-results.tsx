@@ -25,7 +25,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
   const [active_source_key, set_active_source_key] = useState<string | null>(null);
   const source_groups = useMemo(
     () => {
-      if (!ctrl.external_query.trim() && !ctrl.external_results.length) {
+      if (!ctrl.external_submitted_query.trim() && !ctrl.external_results.length) {
         return [];
       }
       return group_external_results_by_source(
@@ -34,7 +34,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
         ctrl.external_sources,
       );
     },
-    [ctrl.external_query, ctrl.external_results, ctrl.external_source_statuses, ctrl.external_sources],
+    [ctrl.external_submitted_query, ctrl.external_results, ctrl.external_source_statuses, ctrl.external_sources],
   );
   const selected_source_key = source_groups.some((group) => group.key === active_source_key)
     ? active_source_key
@@ -58,7 +58,7 @@ export function SkillsExternalResults({ ctrl }: SkillsExternalResultsProps) {
     );
   }
 
-  if (ctrl.external_query && !ctrl.external_results.length && !source_groups.length) {
+  if (ctrl.external_submitted_query && !ctrl.external_results.length && !source_groups.length) {
     return (
       <div className="rounded-[12px] border border-dashed border-(--divider-subtle-color) px-5 py-8 text-center text-sm text-(--text-soft)">
         {t("capability.skills_external_empty")}
