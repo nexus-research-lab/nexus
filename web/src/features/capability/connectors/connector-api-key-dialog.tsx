@@ -22,6 +22,26 @@ interface ConnectorAPIKeyDialogProps {
   on_save: (connector_id: string, api_key: string) => void;
 }
 
+function get_api_key_description(detail: ConnectorDetail): string {
+  if (detail.connector_id === "amap") {
+    return "在高德开放平台创建 Web 服务 Key 后粘贴保存，Agent 运行时会直接挂载官方高德 MCP Server。";
+  }
+  if (detail.connector_id === "didi") {
+    return "在滴滴 MCP 服务页面获取 MCP Key 后粘贴保存，Agent 运行时会直接挂载官方 DiDi MCP Server。";
+  }
+  return "填写此连接器的 API Key 后保存，Agent 运行时会按需挂载对应 MCP Server。";
+}
+
+function get_api_key_placeholder(detail: ConnectorDetail): string {
+  if (detail.connector_id === "amap") {
+    return "高德 Web 服务 Key";
+  }
+  if (detail.connector_id === "didi") {
+    return "滴滴 MCP Key";
+  }
+  return `${detail.title} API Key`;
+}
+
 /** API Key 连接器凭证弹窗。 */
 export function ConnectorAPIKeyDialog({
   detail,
@@ -61,7 +81,7 @@ export function ConnectorAPIKeyDialog({
 
         <UiDialogBody class_name="space-y-3" scrollable>
           <UiPanel class_name="text-[12px] leading-relaxed" padding="sm" variant="inset">
-            在高德开放平台创建 Web 服务 Key 后粘贴保存，Agent 运行时会直接挂载官方高德 MCP Server。
+            {get_api_key_description(detail)}
           </UiPanel>
 
           {detail.docs_url ? (
@@ -89,7 +109,7 @@ export function ConnectorAPIKeyDialog({
               data-lpignore="true"
               name={`${detail.connector_id}-api-key`}
               onChange={(event) => set_api_key(event.target.value)}
-              placeholder="高德 Web 服务 Key"
+              placeholder={get_api_key_placeholder(detail)}
               spellCheck={false}
               type="password"
               value={api_key}

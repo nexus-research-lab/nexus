@@ -47,6 +47,7 @@ func newConnectorMCPBuilder(
 			},
 		}
 		appendAmapMCPServer(context.Background(), servers, svc, record.OwnerUserID)
+		appendDidiMCPServer(context.Background(), servers, svc, record.OwnerUserID)
 		return servers
 	}
 }
@@ -57,15 +58,36 @@ func appendAmapMCPServer(
 	svc connectormcpcontract.Service,
 	ownerUserID string,
 ) {
+	appendAPIKeyMCPServer(ctx, servers, svc, ownerUserID, "amap", "amap_maps", "https://mcp.amap.com/mcp")
+}
+
+func appendDidiMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+) {
+	appendAPIKeyMCPServer(ctx, servers, svc, ownerUserID, "didi", "didi_ride", "https://mcp.didichuxing.com/mcp-servers")
+}
+
+func appendAPIKeyMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+	connectorID string,
+	serverName string,
+	baseURL string,
+) {
 	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
 		return
 	}
-	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, "amap")
+	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
 	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
 		return
 	}
-	servers["amap_maps"] = sdkmcp.HTTPServerConfig{
-		URL: "https://mcp.amap.com/mcp?key=" + url.QueryEscape(snapshot.AccessToken),
+	servers[serverName] = sdkmcp.HTTPServerConfig{
+		URL: strings.TrimSpace(baseURL) + "?key=" + url.QueryEscape(snapshot.AccessToken),
 	}
 }
 

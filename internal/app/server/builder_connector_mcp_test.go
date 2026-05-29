@@ -17,9 +17,11 @@ func TestAppendAmapMCPServerUsesOfficialHTTPConfig(t *testing.T) {
 		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
 	}
 	svc := &stubConnectorMCPService{
-		snapshot: &connectordomain.ConnectionSnapshot{
-			ConnectorID: "amap",
-			AccessToken: "amap key/with+symbols",
+		snapshots: map[string]*connectordomain.ConnectionSnapshot{
+			"amap": {
+				ConnectorID: "amap",
+				AccessToken: "amap key/with+symbols",
+			},
 		},
 	}
 
@@ -34,6 +36,33 @@ func TestAppendAmapMCPServerUsesOfficialHTTPConfig(t *testing.T) {
 	}
 	if !strings.Contains(config.URL, url.QueryEscape("amap key/with+symbols")) {
 		t.Fatalf("高德 API Key 未安全编码: %s", config.URL)
+	}
+}
+
+func TestAppendDidiMCPServerUsesOfficialHTTPConfig(t *testing.T) {
+	servers := map[string]sdkmcp.ServerConfig{
+		"nexus_connectors": sdkmcp.HTTPServerConfig{URL: "http://localhost/internal"},
+	}
+	svc := &stubConnectorMCPService{
+		snapshots: map[string]*connectordomain.ConnectionSnapshot{
+			"didi": {
+				ConnectorID: "didi",
+				AccessToken: "didi key/with+symbols",
+			},
+		},
+	}
+
+	appendDidiMCPServer(context.Background(), servers, svc, "owner-1")
+
+	config, ok := servers["didi_ride"].(sdkmcp.HTTPServerConfig)
+	if !ok {
+		t.Fatalf("滴滴 MCP server 未注入 HTTP 配置: %+v", servers["didi_ride"])
+	}
+	if !strings.HasPrefix(config.URL, "https://mcp.didichuxing.com/mcp-servers?key=") {
+		t.Fatalf("滴滴 MCP server 地址不正确: %s", config.URL)
+	}
+	if !strings.Contains(config.URL, url.QueryEscape("didi key/with+symbols")) {
+		t.Fatalf("滴滴 MCP Key 未安全编码: %s", config.URL)
 	}
 }
 
@@ -53,8 +82,8 @@ func TestAppendAmapMCPServerSkipsMissingConnection(t *testing.T) {
 }
 
 type stubConnectorMCPService struct {
-	snapshot *connectordomain.ConnectionSnapshot
-	err      error
+	snapshots map[string]*connectordomain.ConnectionSnapshot
+	err       error
 }
 
 func (s *stubConnectorMCPService) ListActiveConnections(
@@ -72,8 +101,8 @@ func (s *stubConnectorMCPService) LoadActiveConnection(
 	if s.err != nil {
 		return nil, s.err
 	}
-	if ownerUserID != "owner-1" || connectorID != "amap" {
+	if ownerUserID != "owner-1" {
 		return nil, nil
 	}
-	return s.snapshot, nil
+	return s.snapshots[connectorID], nil
 }
