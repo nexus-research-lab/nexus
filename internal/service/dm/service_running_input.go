@@ -29,6 +29,7 @@ func (s *Service) queueRunningInput(
 	if err != nil {
 		return false, err
 	}
+	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
 		return false, err
 	}
@@ -50,7 +51,8 @@ func (s *Service) queueRunningInput(
 		)
 		return false, err
 	}
-	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
+	runtimeProvider, runtimeModel := runtimeSelectionFromSession(sessionItem)
+	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount, runtimeProvider, runtimeModel)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
 	if request.BroadcastUserMessage {
 		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments)

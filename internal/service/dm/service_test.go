@@ -2261,7 +2261,7 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	}
 	select {
 	case prompt := <-sentPrompt:
-		if prompt != "用户排队输入应先执行" {
+		if !strings.Contains(prompt, "用户排队输入应先执行") {
 			t.Fatalf("prompt = %q, want queued user input", prompt)
 		}
 	case <-time.After(2 * time.Second):

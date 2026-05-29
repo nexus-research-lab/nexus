@@ -116,12 +116,12 @@ func buildManagedSkillUsageSection(workspacePath string) string {
 	}
 	if hasManagedSkill(trimmedWorkspacePath, "goal-manager") {
 		sections = append(sections, strings.Join([]string{
-			"## Goal Skill Usage",
-			"- When the user explicitly asks to start, set, continue, or work until completion on a session Goal, load goal-manager first and then call nexus_goal.",
-			"- Do not use /goal text commands; Goal model access is goal-manager plus nexus_goal, and the user entry point is the UI Goal control.",
-			"- Create Goals only when the user or system/developer instructions explicitly request one; do not create Goals for ordinary one-shot requests, reminders, or scheduled tasks.",
-			"- Pass token_budget only when the user explicitly provides a budget; pause, resume, clear, budget limit, and usage limit states are controlled by the user or system.",
-			"- Mark complete only after confirming no required work remains; mark blocked only after the same blocking condition repeats and no meaningful progress is possible.",
+			"## Goal Skill 使用要求",
+			"- 用户明确要求启动、设定或继续当前会话 Goal 时，必须先使用 Skill 工具加载 goal-manager，再调用 nexus_goal。",
+			"- 不要使用 /goal 文本命令；Goal 的模型入口是 goal-manager + nexus_goal，用户入口是界面的启动 Goal 按钮。",
+			"- 只有用户或系统/开发者明确要求 Goal 时才创建；普通一次性请求、提醒和定时任务不要自动创建 Goal。",
+			"- token_budget 只有用户明确给出预算时才传；暂停、恢复、清理、预算限制和用量限制由用户或系统控制。",
+			"- 完成目标前必须确认没有剩余必要工作；同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
 		}, "\n"))
 	}
 	if len(sections) == 0 {
