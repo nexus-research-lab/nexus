@@ -770,6 +770,92 @@ func TestServiceConnectsDidiWithMCPKey(t *testing.T) {
 	}
 }
 
+func TestServiceConnectsOfficeMCPTokenConnectors(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	tests := []struct {
+		connectorID string
+		query       string
+		token       string
+		apiBaseURL  string
+		mcpURL      string
+	}{
+		{
+			connectorID: "dingtalk-ai-table",
+			query:       "钉钉 AI 表格",
+			token:       "https://mcp.dingtalk.com/sse?token=dingtalk-secret",
+			apiBaseURL:  "https://mcp.dingtalk.com",
+			mcpURL:      "https://mcp.dingtalk.com/#/detail?mcpId=9555&detailType=marketMcpDetail",
+		},
+		{
+			connectorID: "tencent-docs",
+			query:       "腾讯文档",
+			token:       "tencent-docs-token",
+			apiBaseURL:  "https://docs.qq.com",
+			mcpURL:      "https://docs.qq.com/openapi/mcp",
+		},
+		{
+			connectorID: "yuque",
+			query:       "语雀",
+			token:       "yuque-token",
+			apiBaseURL:  "https://www.yuque.com/api/v2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.connectorID, func(t *testing.T) {
+			items, err := service.ListConnectors(ctx, auth.SystemUserID, tt.query, "", "")
+			if err != nil {
+				t.Fatalf("列出连接器失败: %v", err)
+			}
+			if len(items) != 1 || items[0].ConnectorID != tt.connectorID || items[0].AuthType != "token" || !items[0].IsConfigured {
+				t.Fatalf("连接器目录不正确: %+v", items)
+			}
+
+			if _, err = service.Connect(ctx, auth.SystemUserID, tt.connectorID, map[string]string{}); err == nil || !strings.Contains(err.Error(), "Token") {
+				t.Fatalf("缺少 Token 应报错，实际: %v", err)
+			}
+
+			info, err := service.Connect(ctx, auth.SystemUserID, tt.connectorID, map[string]string{"token": tt.token})
+			if err != nil {
+				t.Fatalf("连接失败: %v", err)
+			}
+			if info.ConnectionState != "connected" {
+				t.Fatalf("连接状态不正确: %+v", info)
+			}
+
+			snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, tt.connectorID)
+			if err != nil {
+				t.Fatalf("读取连接快照失败: %v", err)
+			}
+			if snapshot == nil || snapshot.AccessToken != tt.token || snapshot.APIBaseURL != tt.apiBaseURL {
+				t.Fatalf("连接快照不正确: %+v", snapshot)
+			}
+
+			detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, tt.connectorID)
+			if err != nil {
+				t.Fatalf("读取详情失败: %v", err)
+			}
+			if detail.MCPServerURL != tt.mcpURL {
+				t.Fatalf("MCP server 地址不正确: got=%q want=%q", detail.MCPServerURL, tt.mcpURL)
+			}
+			if len(detail.FeatureDetails) != len(detail.Features) {
+				t.Fatalf("能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+			}
+		})
+	}
+}
+
 func TestServiceScopesAmapAPIKeyByOwner(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)

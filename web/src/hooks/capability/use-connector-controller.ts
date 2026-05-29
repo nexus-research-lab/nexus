@@ -141,8 +141,8 @@ export function useConnectorController(): ConnectorDirectoryController {
             throw new Error("授权窗口被浏览器拦截，请允许弹窗后重试");
           }
           set_status_message("已打开授权页面，请在新窗口完成授权");
-        } else if (target?.auth_type === "api_key") {
-          set_error_message("请填写 API Key 后连接");
+        } else if (target?.auth_type === "api_key" || target?.auth_type === "token") {
+          set_error_message(target.auth_type === "token" ? "请填写 Token 后连接" : "请填写 API Key 后连接");
         } else {
           await connect_connector_api(connector_id);
           set_status_message("连接成功");
@@ -165,7 +165,9 @@ export function useConnectorController(): ConnectorDirectoryController {
     async (connector_id: string, api_key: string) => {
       set_busy_id(connector_id);
       try {
-        await connect_connector_api(connector_id, { api_key });
+        const target = all_connectors.find((c) => c.connector_id === connector_id);
+        const body = target?.auth_type === "token" ? { token: api_key } : { api_key };
+        await connect_connector_api(connector_id, body);
         set_status_message("连接成功");
         await load();
         if (selected_detail?.connector_id === connector_id) {
@@ -180,7 +182,7 @@ export function useConnectorController(): ConnectorDirectoryController {
         set_busy_id(null);
       }
     },
-    [load, selected_detail],
+    [all_connectors, load, selected_detail],
   );
 
   // 断开

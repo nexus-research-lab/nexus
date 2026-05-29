@@ -19,7 +19,7 @@ interface ConnectorAPIKeyDialogProps {
   detail: ConnectorDetail | null;
   busy: boolean;
   on_close: () => void;
-  on_save: (connector_id: string, api_key: string) => void;
+  on_save: (connector_id: string, credential: string) => void;
 }
 
 function get_api_key_description(detail: ConnectorDetail): string {
@@ -29,7 +29,39 @@ function get_api_key_description(detail: ConnectorDetail): string {
   if (detail.connector_id === "didi") {
     return "在滴滴 MCP 服务页面获取 MCP Key 后粘贴保存，Agent 运行时会直接挂载官方 DiDi MCP Server。";
   }
+  if (detail.connector_id === "dingtalk-ai-table") {
+    return "在钉钉 AI 表格 MCP 广场获取 Streamable HTTP URL 后粘贴保存，Agent 运行时会直接挂载这个远程 MCP Server。";
+  }
+  if (detail.connector_id === "tencent-docs") {
+    return "在腾讯文档 MCP 授权页获取个人 Token 后粘贴保存，Agent 运行时会通过 Authorization header 挂载官方腾讯文档 MCP。";
+  }
+  if (detail.connector_id === "yuque") {
+    return "在语雀个人设置中获取 Personal Token 后粘贴保存，Agent 运行时会启动官方 yuque-mcp 并注入该 Token。";
+  }
+  if (detail.auth_type === "token") {
+    return "填写此连接器的 Token 后保存，Agent 运行时会按需挂载对应 MCP Server。";
+  }
   return "填写此连接器的 API Key 后保存，Agent 运行时会按需挂载对应 MCP Server。";
+}
+
+function get_credential_dialog_title(detail: ConnectorDetail): string {
+  if (detail.connector_id === "dingtalk-ai-table") {
+    return "连接 MCP Server URL";
+  }
+  if (detail.auth_type === "token") {
+    return "连接 Token";
+  }
+  return "连接 API Key";
+}
+
+function get_credential_label(detail: ConnectorDetail): string {
+  if (detail.connector_id === "dingtalk-ai-table") {
+    return "MCP Server URL";
+  }
+  if (detail.auth_type === "token") {
+    return "Token";
+  }
+  return "API Key";
 }
 
 function get_api_key_placeholder(detail: ConnectorDetail): string {
@@ -38,6 +70,18 @@ function get_api_key_placeholder(detail: ConnectorDetail): string {
   }
   if (detail.connector_id === "didi") {
     return "滴滴 MCP Key";
+  }
+  if (detail.connector_id === "dingtalk-ai-table") {
+    return "钉钉 AI 表格 Streamable HTTP URL";
+  }
+  if (detail.connector_id === "tencent-docs") {
+    return "腾讯文档个人 Token";
+  }
+  if (detail.connector_id === "yuque") {
+    return "语雀 Personal Token";
+  }
+  if (detail.auth_type === "token") {
+    return `${detail.title} Token`;
   }
   return `${detail.title} API Key`;
 }
@@ -49,24 +93,25 @@ export function ConnectorAPIKeyDialog({
   on_close,
   on_save,
 }: ConnectorAPIKeyDialogProps) {
-  const [api_key, set_api_key] = useState("");
+  const [credential, set_credential] = useState("");
 
   useEffect(() => {
-    set_api_key("");
+    set_credential("");
   }, [detail?.connector_id]);
 
   const handle_submit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!detail) return;
-      on_save(detail.connector_id, api_key);
+      on_save(detail.connector_id, credential);
     },
-    [api_key, detail, on_save],
+    [credential, detail, on_save],
   );
 
   if (!detail) return null;
 
-  const can_save = api_key.trim() !== "";
+  const credential_label = get_credential_label(detail);
+  const can_save = credential.trim() !== "";
 
   return (
     <UiDialogBackdrop on_close={on_close}>
@@ -76,7 +121,7 @@ export function ConnectorAPIKeyDialog({
           icon_class_name="h-9 w-9 rounded-[14px]"
           on_close={on_close}
           subtitle={detail.title}
-          title="连接 API Key"
+          title={get_credential_dialog_title(detail)}
         />
 
         <UiDialogBody class_name="space-y-3" scrollable>
@@ -99,7 +144,7 @@ export function ConnectorAPIKeyDialog({
           ) : null}
 
           <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
-            <span>API Key</span>
+            <span>{credential_label}</span>
             <UiInput
               autoCapitalize="off"
               autoComplete="off"
@@ -107,12 +152,12 @@ export function ConnectorAPIKeyDialog({
               control_size="sm"
               data-form-type="other"
               data-lpignore="true"
-              name={`${detail.connector_id}-api-key`}
-              onChange={(event) => set_api_key(event.target.value)}
+              name={`${detail.connector_id}-credential`}
+              onChange={(event) => set_credential(event.target.value)}
               placeholder={get_api_key_placeholder(detail)}
               spellCheck={false}
               type="password"
-              value={api_key}
+              value={credential}
             />
           </label>
         </UiDialogBody>

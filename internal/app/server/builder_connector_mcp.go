@@ -48,6 +48,9 @@ func newConnectorMCPBuilder(
 		}
 		appendAmapMCPServer(context.Background(), servers, svc, record.OwnerUserID)
 		appendDidiMCPServer(context.Background(), servers, svc, record.OwnerUserID)
+		appendDingTalkAITableMCPServer(context.Background(), servers, svc, record.OwnerUserID)
+		appendTencentDocsMCPServer(context.Background(), servers, svc, record.OwnerUserID)
+		appendYuqueMCPServer(context.Background(), servers, svc, record.OwnerUserID)
 		return servers
 	}
 }
@@ -70,6 +73,46 @@ func appendDidiMCPServer(
 	appendAPIKeyMCPServer(ctx, servers, svc, ownerUserID, "didi", "didi_ride", "https://mcp.didichuxing.com/mcp-servers")
 }
 
+func appendDingTalkAITableMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+) {
+	appendUserURLMCPServer(ctx, servers, svc, ownerUserID, "dingtalk-ai-table", "dingtalk_ai_table")
+}
+
+func appendTencentDocsMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+) {
+	appendHeaderTokenMCPServer(ctx, servers, svc, ownerUserID, "tencent-docs", "tencent_docs", "https://docs.qq.com/openapi/mcp", "Authorization")
+}
+
+func appendYuqueMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+) {
+	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
+		return
+	}
+	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, "yuque")
+	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+		return
+	}
+	servers["yuque"] = sdkmcp.StdioServerConfig{
+		Command: "npx",
+		Args:    []string{"-y", "yuque-mcp"},
+		Env: map[string]string{
+			"YUQUE_PERSONAL_TOKEN": strings.TrimSpace(snapshot.AccessToken),
+		},
+	}
+}
+
 func appendAPIKeyMCPServer(
 	ctx context.Context,
 	servers map[string]sdkmcp.ServerConfig,
@@ -88,6 +131,54 @@ func appendAPIKeyMCPServer(
 	}
 	servers[serverName] = sdkmcp.HTTPServerConfig{
 		URL: strings.TrimSpace(baseURL) + "?key=" + url.QueryEscape(snapshot.AccessToken),
+	}
+}
+
+func appendUserURLMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+	connectorID string,
+	serverName string,
+) {
+	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
+		return
+	}
+	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
+	if err != nil || snapshot == nil {
+		return
+	}
+	serverURL := strings.TrimSpace(snapshot.AccessToken)
+	parsedURL, err := url.Parse(serverURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") {
+		return
+	}
+	servers[serverName] = sdkmcp.HTTPServerConfig{URL: serverURL}
+}
+
+func appendHeaderTokenMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+	connectorID string,
+	serverName string,
+	serverURL string,
+	headerName string,
+) {
+	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
+		return
+	}
+	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, connectorID)
+	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+		return
+	}
+	servers[serverName] = sdkmcp.HTTPServerConfig{
+		URL: strings.TrimSpace(serverURL),
+		Headers: map[string]string{
+			headerName: strings.TrimSpace(snapshot.AccessToken),
+		},
 	}
 }
 

@@ -81,6 +81,7 @@ export function ConnectorDetailView({
   const requires_oauth_client_config = detail?.oauth_client_config_required ?? false;
   const oauth_client_configured = detail?.oauth_client_configured ?? false;
   const can_connect = detail && !is_connected && !is_coming_soon && is_configured;
+  const requires_direct_credential = detail?.auth_type === "api_key" || detail?.auth_type === "token";
   const feature_details = detail ? get_connector_feature_details(detail) : [];
   const selected_feature_detail = feature_details.find((feature) => feature.name === selected_feature);
 
@@ -161,7 +162,7 @@ export function ConnectorDetailView({
                 <UiButton
                   disabled={busy}
                   onClick={() => {
-                    if (detail.auth_type === "api_key") {
+                    if (requires_direct_credential) {
                       on_configure_api_key(detail);
                       return;
                     }
@@ -172,12 +173,12 @@ export function ConnectorDetailView({
                   type="button"
                   variant="solid"
                 >
-                  {detail.auth_type === "api_key" ? (
+                  {requires_direct_credential ? (
                     <KeyRound className="h-3.5 w-3.5" />
                   ) : (
                     <Link2 className="h-3.5 w-3.5" />
                   )}
-                  {detail.auth_type === "api_key" ? "配置 Key" : "添加到 Nexus"}
+                  {requires_direct_credential ? "配置凭证" : "添加到 Nexus"}
                 </UiButton>
               ) : is_coming_soon ? (
                 <UiButton disabled size="sm" type="button">

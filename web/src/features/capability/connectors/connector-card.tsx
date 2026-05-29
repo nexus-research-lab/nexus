@@ -39,13 +39,13 @@ export function ConnectorCard({
   } = connector;
   const is_connected = connection_state === "connected";
   const is_coming_soon = status === "coming_soon";
-  const requires_api_key = connector.auth_type === "api_key";
+  const requires_direct_credential = connector.auth_type === "api_key" || connector.auth_type === "token";
   const should_configure = !is_configured && oauth_client_config_required;
   const can_connect = !busy && !is_connected && !is_coming_soon && is_configured;
 
   const handle_action_click = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (can_connect && !requires_api_key) {
+    if (can_connect && !requires_direct_credential) {
       on_connect?.();
       return;
     }
@@ -109,14 +109,14 @@ export function ConnectorCard({
           <Clock3 className="h-4 w-4 text-(--icon-muted)" />
         ) : (
           <UiIconButton
-            aria-label={should_configure || requires_api_key ? `配置 ${title}` : `连接 ${title}`}
+            aria-label={should_configure || requires_direct_credential ? `配置 ${title}` : `连接 ${title}`}
             onClick={handle_action_click}
             size="md"
             type="button"
           >
             {should_configure ? (
               <Settings2 className="h-4 w-4" />
-            ) : requires_api_key ? (
+            ) : requires_direct_credential ? (
               <KeyRound className="h-4 w-4" />
             ) : (
               <Plus className="h-4 w-4" />
