@@ -98,7 +98,7 @@ export function useConnectorController(): ConnectorDirectoryController {
     set_device_auth_session(null);
   }, []);
 
-  // 连接 —— OAuth 类型打开授权窗口，其他直接连接
+  // 连接 —— OAuth 类型打开授权窗口，API Key 类型由专用弹窗保存凭证
   const handle_connect = useCallback(
     async (connector_id: string) => {
       set_busy_id(connector_id);
@@ -141,8 +141,9 @@ export function useConnectorController(): ConnectorDirectoryController {
             throw new Error("授权窗口被浏览器拦截，请允许弹窗后重试");
           }
           set_status_message("已打开授权页面，请在新窗口完成授权");
+        } else if (target?.auth_type === "api_key") {
+          set_error_message("请填写 API Key 后连接");
         } else {
-          // API Key / Token 等方式直接连接
           await connect_connector_api(connector_id);
           set_status_message("连接成功");
           await load();
@@ -158,6 +159,28 @@ export function useConnectorController(): ConnectorDirectoryController {
       }
     },
     [load, selected_detail, all_connectors],
+  );
+
+  const handle_connect_with_api_key = useCallback(
+    async (connector_id: string, api_key: string) => {
+      set_busy_id(connector_id);
+      try {
+        await connect_connector_api(connector_id, { api_key });
+        set_status_message("连接成功");
+        await load();
+        if (selected_detail?.connector_id === connector_id) {
+          const detail = await get_connector_detail_api(connector_id);
+          set_selected_detail(detail);
+        }
+        return true;
+      } catch (e) {
+        set_error_message(e instanceof Error ? e.message : "连接失败");
+        return false;
+      } finally {
+        set_busy_id(null);
+      }
+    },
+    [load, selected_detail],
   );
 
   // 断开
@@ -236,6 +259,7 @@ export function useConnectorController(): ConnectorDirectoryController {
     device_auth_session,
     close_device_auth_session,
     handle_connect,
+    handle_connect_with_api_key,
     handle_disconnect,
     handle_save_oauth_client,
     handle_delete_oauth_client,

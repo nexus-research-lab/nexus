@@ -358,13 +358,14 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 	if err != nil {
 		return nil, err
 	}
-	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"])
+	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"], parsed["api_key"])
 	if token == "" {
 		return nil, errors.New("connector 未获取到 access token")
 	}
 	delete(parsed, "access_token")
 	delete(parsed, "token")
 	delete(parsed, "bearer_token")
+	delete(parsed, "api_key")
 	shop := connectorFirstNonEmpty(parsed["shop"], parsed["shop_domain"])
 	return &connectordomain.ConnectionSnapshot{
 		ConnectorID: record.ConnectorID,
@@ -723,7 +724,11 @@ func (s *Service) Connect(ctx context.Context, ownerUserID string, connectorID s
 	if entry.AuthType == "oauth2" {
 		return nil, errors.New("OAuth2 连接器请先调用 auth-url 完成授权")
 	}
-	payload, err := json.Marshal(credentials)
+	normalizedCredentials, err := normalizeDirectCredentials(entry, credentials)
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(normalizedCredentials)
 	if err != nil {
 		return nil, err
 	}
@@ -738,6 +743,35 @@ func (s *Service) Connect(ctx context.Context, ownerUserID string, connectorID s
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "connected")
 	return &info, nil
+}
+
+func normalizeDirectCredentials(entry CatalogEntry, raw map[string]string) (map[string]string, error) {
+	normalized := make(map[string]string, len(raw))
+	for key, value := range raw {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key != "" && value != "" {
+			normalized[key] = value
+		}
+	}
+	switch entry.AuthType {
+	case "api_key":
+		apiKey := connectorFirstNonEmpty(normalized["api_key"], normalized["key"])
+		if apiKey == "" {
+			return nil, fmt.Errorf("%s API Key 不能为空", entry.Title)
+		}
+		return map[string]string{"api_key": apiKey}, nil
+	case "token":
+		token := connectorFirstNonEmpty(normalized["token"], normalized["access_token"], normalized["bearer_token"])
+		if token == "" {
+			return nil, fmt.Errorf("%s Token 不能为空", entry.Title)
+		}
+		return map[string]string{"token": token}, nil
+	case "none":
+		return map[string]string{}, nil
+	default:
+		return normalized, nil
+	}
 }
 
 // Disconnect 断开连接器。

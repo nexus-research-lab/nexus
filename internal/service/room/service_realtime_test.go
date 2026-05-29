@@ -2355,7 +2355,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		sourceContextLabel string
 	}
 	calls := make(chan builderCall, 1)
-	service.SetMCPServerBuilder(func(agentID string, sessionKey string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.SDKMCPServer {
+	service.SetMCPServerBuilder(func(agentID string, sessionKey string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.ServerConfig {
 		calls <- builderCall{
 			agentID:            agentID,
 			sessionKey:         sessionKey,

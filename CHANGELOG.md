@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added 高德地图连接器，支持保存高德 Web 服务 API Key，并在 Agent 运行时直接挂载官方高德 MCP Server，覆盖地点搜索、地理编码、逆地理编码、天气、路线规划和距离测量等能力。
 - Provider settings now include DashScope and ModelScope platform presets with dedicated image-generation API formats; DashScope also exposes Anthropic Messages, Responses, and Chat Completions branches, while ModelScope exposes Chat Completions.
 - Skill community discovery now supports `skills.sh`, configurable JSON indexes, Git repositories, and direct `SKILL.md`/zip URLs, with import metadata recorded for future updates.
 - Skill community discovery now includes built-in `claude-plugins.dev`, `skills.sh`, `clawhub.ai`, `browse.sh`, and optional Hermes Skills Index sources with source-based search and import.

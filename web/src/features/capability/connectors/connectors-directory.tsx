@@ -16,6 +16,7 @@ import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-d
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { ConnectorDetailView } from "./connector-detail-view";
+import { ConnectorAPIKeyDialog } from "./connector-api-key-dialog";
 import { ConnectorDeviceAuthDialog } from "./connector-device-auth-dialog";
 import { ConnectorOAuthClientDialog } from "./connector-oauth-client-dialog";
 import { ConnectorsGrid } from "./connectors-grid";
@@ -30,6 +31,7 @@ export function ConnectorsDirectory() {
   const ctrl = useConnectorController();
   const navigate = useNavigate();
   const { connector_id } = useParams<{ connector_id?: string }>();
+  const [api_key_detail, set_api_key_detail] = useState<ConnectorDetail | null>(null);
   const [oauth_client_detail, set_oauth_client_detail] = useState<ConnectorDetail | null>(null);
   const {
     close_detail,
@@ -73,6 +75,20 @@ export function ConnectorsDirectory() {
   const close_oauth_client_dialog = useCallback(() => {
     set_oauth_client_detail(null);
   }, []);
+
+  const close_api_key_dialog = useCallback(() => {
+    set_api_key_detail(null);
+  }, []);
+
+  const handle_save_api_key = useCallback(
+    async (connector_id: string, api_key: string) => {
+      const saved = await ctrl.handle_connect_with_api_key(connector_id, api_key);
+      if (saved) {
+        set_api_key_detail(null);
+      }
+    },
+    [ctrl],
+  );
 
   const handle_save_oauth_client = useCallback(
     async (connector_id: string, client_id: string, client_secret: string) => {
@@ -139,6 +155,7 @@ export function ConnectorsDirectory() {
             loading={ctrl.detail_loading}
             on_back={back_to_connectors}
             on_connect={(id) => void ctrl.handle_connect(id)}
+            on_configure_api_key={set_api_key_detail}
             on_configure_oauth_client={set_oauth_client_detail}
             on_disconnect={(id) => void ctrl.handle_disconnect(id)}
           />
@@ -164,6 +181,13 @@ export function ConnectorsDirectory() {
         on_close={close_oauth_client_dialog}
         on_delete={(id) => void handle_delete_oauth_client(id)}
         on_save={(id, client_id, client_secret) => void handle_save_oauth_client(id, client_id, client_secret)}
+      />
+
+      <ConnectorAPIKeyDialog
+        busy={ctrl.busy_id !== null}
+        detail={api_key_detail}
+        on_close={close_api_key_dialog}
+        on_save={(id, api_key) => void handle_save_api_key(id, api_key)}
       />
 
       <ConnectorDeviceAuthDialog

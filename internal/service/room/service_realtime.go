@@ -69,7 +69,7 @@ type InterruptRequest struct {
 	MsgID      string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
+// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
 // 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(
 	agentID string,
@@ -77,7 +77,7 @@ type MCPServerBuilder func(
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
-) map[string]sdkmcp.SDKMCPServer
+) map[string]sdkmcp.ServerConfig
 
 type RealtimeService struct {
 	config      config.Config
@@ -178,7 +178,7 @@ func (s *RealtimeService) SetUsageRecorder(recorder usageRecorder) {
 	s.usage = recorder
 }
 
-// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 func (s *RealtimeService) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
 }

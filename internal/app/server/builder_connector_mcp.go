@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -15,14 +16,14 @@ import (
 func newConnectorMCPBuilder(
 	svc connectormcpcontract.Service,
 	agents *agent.Service,
-) func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+) func(string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
-	) map[string]sdkmcp.SDKMCPServer {
+	) map[string]sdkmcp.ServerConfig {
 		if svc == nil || agents == nil || strings.TrimSpace(agentID) == "" {
 			return nil
 		}
@@ -39,23 +40,46 @@ func newConnectorMCPBuilder(
 			SourceContextLabel: sourceContextLabel,
 			IsMainAgent:        record.IsMain,
 		}
-		return map[string]sdkmcp.SDKMCPServer{
-			connectormcpcontract.ServerName: connectormcp.NewServer(svc, sctx),
+		servers := map[string]sdkmcp.ServerConfig{
+			connectormcpcontract.ServerName: sdkmcp.SDKServerConfig{
+				Name:     connectormcpcontract.ServerName,
+				Instance: connectormcp.NewServer(svc, sctx),
+			},
 		}
+		appendAmapMCPServer(context.Background(), servers, svc, record.OwnerUserID)
+		return servers
+	}
+}
+
+func appendAmapMCPServer(
+	ctx context.Context,
+	servers map[string]sdkmcp.ServerConfig,
+	svc connectormcpcontract.Service,
+	ownerUserID string,
+) {
+	if len(servers) == 0 || svc == nil || strings.TrimSpace(ownerUserID) == "" {
+		return
+	}
+	snapshot, err := svc.LoadActiveConnection(ctx, ownerUserID, "amap")
+	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.AccessToken) == "" {
+		return
+	}
+	servers["amap_maps"] = sdkmcp.HTTPServerConfig{
+		URL: "https://mcp.amap.com/mcp?key=" + url.QueryEscape(snapshot.AccessToken),
 	}
 }
 
 func combinedMCPBuilder(
-	builders ...func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer,
-) func(string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+	builders ...func(string, string, string, string, string) map[string]sdkmcp.ServerConfig,
+) func(string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
-	) map[string]sdkmcp.SDKMCPServer {
-		merged := map[string]sdkmcp.SDKMCPServer{}
+	) map[string]sdkmcp.ServerConfig {
+		merged := map[string]sdkmcp.ServerConfig{}
 		for _, builder := range builders {
 			if builder == nil {
 				continue

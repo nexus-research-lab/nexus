@@ -425,7 +425,7 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", err
 	}
-	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
+	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
 	}

@@ -664,6 +664,109 @@ func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
 	}
 }
 
+func TestServiceConnectsAmapWithAPIKey(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	items, err := service.ListConnectors(ctx, auth.SystemUserID, "高德", "", "")
+	if err != nil {
+		t.Fatalf("列出高德连接器失败: %v", err)
+	}
+	if len(items) != 1 || items[0].ConnectorID != "amap" || items[0].AuthType != "api_key" || !items[0].IsConfigured {
+		t.Fatalf("高德连接器目录不正确: %+v", items)
+	}
+
+	if _, err = service.Connect(ctx, auth.SystemUserID, "amap", map[string]string{}); err == nil || !strings.Contains(err.Error(), "API Key") {
+		t.Fatalf("缺少高德 API Key 应报错，实际: %v", err)
+	}
+
+	info, err := service.Connect(ctx, auth.SystemUserID, "amap", map[string]string{"api_key": "amap-key"})
+	if err != nil {
+		t.Fatalf("连接高德失败: %v", err)
+	}
+	if info.ConnectionState != "connected" {
+		t.Fatalf("高德连接状态不正确: %+v", info)
+	}
+
+	snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "amap")
+	if err != nil {
+		t.Fatalf("读取高德连接快照失败: %v", err)
+	}
+	if snapshot == nil || snapshot.AccessToken != "amap-key" || snapshot.APIBaseURL != "https://restapi.amap.com" {
+		t.Fatalf("高德连接快照不正确: %+v", snapshot)
+	}
+
+	detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, "amap")
+	if err != nil {
+		t.Fatalf("读取高德详情失败: %v", err)
+	}
+	if detail.MCPServerURL != "https://mcp.amap.com/mcp" {
+		t.Fatalf("高德 MCP server 地址不正确: %s", detail.MCPServerURL)
+	}
+	if len(detail.FeatureDetails) != len(detail.Features) {
+		t.Fatalf("高德能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+	}
+}
+
+func TestServiceScopesAmapAPIKeyByOwner(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	if _, err = service.Connect(ctx, "owner-a", "amap", map[string]string{"api_key": "amap-owner-a"}); err != nil {
+		t.Fatalf("连接 owner-a 高德失败: %v", err)
+	}
+	if _, err = service.Connect(ctx, "owner-b", "amap", map[string]string{"api_key": "amap-owner-b"}); err != nil {
+		t.Fatalf("连接 owner-b 高德失败: %v", err)
+	}
+
+	snapshotA, err := service.LoadActiveConnection(ctx, "owner-a", "amap")
+	if err != nil {
+		t.Fatalf("读取 owner-a 高德连接失败: %v", err)
+	}
+	snapshotB, err := service.LoadActiveConnection(ctx, "owner-b", "amap")
+	if err != nil {
+		t.Fatalf("读取 owner-b 高德连接失败: %v", err)
+	}
+	if snapshotA == nil || snapshotA.AccessToken != "amap-owner-a" {
+		t.Fatalf("owner-a 不应读到其他用户高德 Key: %+v", snapshotA)
+	}
+	if snapshotB == nil || snapshotB.AccessToken != "amap-owner-b" {
+		t.Fatalf("owner-b 不应读到其他用户高德 Key: %+v", snapshotB)
+	}
+
+	if _, err = service.Disconnect(ctx, "owner-b", "amap"); err != nil {
+		t.Fatalf("断开 owner-b 高德失败: %v", err)
+	}
+	snapshotA, err = service.LoadActiveConnection(ctx, "owner-a", "amap")
+	if err != nil {
+		t.Fatalf("再次读取 owner-a 高德连接失败: %v", err)
+	}
+	snapshotB, err = service.LoadActiveConnection(ctx, "owner-b", "amap")
+	if err != nil {
+		t.Fatalf("再次读取 owner-b 高德连接失败: %v", err)
+	}
+	if snapshotA == nil || snapshotA.AccessToken != "amap-owner-a" || snapshotB != nil {
+		t.Fatalf("断开 owner-b 不应影响 owner-a: owner-a=%+v owner-b=%+v", snapshotA, snapshotB)
+	}
+}
+
 func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)

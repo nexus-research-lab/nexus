@@ -45,7 +45,7 @@ type InterruptRequest struct {
 	RoundID    string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
+// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
 // 用 string 形参避免 dm 包反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(
 	agentID string,
@@ -53,7 +53,7 @@ type MCPServerBuilder func(
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
-) map[string]sdkmcp.SDKMCPServer
+) map[string]sdkmcp.ServerConfig
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
@@ -113,7 +113,7 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 	s.logger = logger
 }
 
-// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 // 由 server app 在构造定时任务服务后注入，避免 dm 包反向依赖 automation 子包。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder

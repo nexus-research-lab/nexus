@@ -39,6 +39,7 @@ interface ConnectorDetailViewProps {
   on_back: () => void;
   on_connect: (connector_id: string) => void;
   on_disconnect: (connector_id: string) => void;
+  on_configure_api_key: (detail: ConnectorDetail) => void;
   on_configure_oauth_client: (detail: ConnectorDetail) => void;
 }
 
@@ -69,6 +70,7 @@ export function ConnectorDetailView({
   on_back,
   on_connect,
   on_disconnect,
+  on_configure_api_key,
   on_configure_oauth_client,
 }: ConnectorDetailViewProps) {
   const { t } = useI18n();
@@ -158,14 +160,24 @@ export function ConnectorDetailView({
               ) : can_connect ? (
                 <UiButton
                   disabled={busy}
-                  onClick={() => on_connect(detail.connector_id)}
+                  onClick={() => {
+                    if (detail.auth_type === "api_key") {
+                      on_configure_api_key(detail);
+                      return;
+                    }
+                    on_connect(detail.connector_id);
+                  }}
                   size="sm"
                   tone="primary"
                   type="button"
                   variant="solid"
                 >
-                  <Link2 className="h-3.5 w-3.5" />
-                  添加到 Nexus
+                  {detail.auth_type === "api_key" ? (
+                    <KeyRound className="h-3.5 w-3.5" />
+                  ) : (
+                    <Link2 className="h-3.5 w-3.5" />
+                  )}
+                  {detail.auth_type === "api_key" ? "配置 Key" : "添加到 Nexus"}
                 </UiButton>
               ) : is_coming_soon ? (
                 <UiButton disabled size="sm" type="button">

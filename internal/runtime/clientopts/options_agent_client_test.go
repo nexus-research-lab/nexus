@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
@@ -134,6 +135,24 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	}
 	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
 		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsMCPServerConfigs(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		MCPServers: map[string]sdkmcp.ServerConfig{
+			"amap_maps": sdkmcp.HTTPServerConfig{URL: "https://mcp.amap.com/mcp?key=test-key"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if len(options.MCP.Servers) != 1 {
+		t.Fatalf("MCP server config 未注入: %+v", options.MCP)
+	}
+	if _, ok := options.MCP.Servers["amap_maps"].(sdkmcp.HTTPServerConfig); !ok {
+		t.Fatalf("MCP server 类型不正确: %+v", options.MCP.Servers["amap_maps"])
 	}
 }
 
