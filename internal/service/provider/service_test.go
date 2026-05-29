@@ -470,6 +470,94 @@ func TestProviderImageOptionsIncludeDefaultModel(t *testing.T) {
 	}
 }
 
+func TestUpdateModelNormalizesEscapedSlashModelID(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	record, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "modelscope-escaped",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatModelScopeImageGeneration,
+		AuthToken:    "image-key",
+		BaseURL:      "https://api-inference.modelscope.cn/v1",
+		ModelsPath:   "",
+		Enabled:      true,
+		DisplayName:  "ModelScope",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope provider 失败: %v", err)
+	}
+
+	const decodedModelID = "Tongyi-MAI/Z-Image-Turbo"
+	const escapedModelID = "Tongyi-MAI%2FZ-Image-Turbo"
+	now := service.now()
+	err = service.repository.UpsertModels(ctx, []providerstore.ModelEntity{
+		{
+			ID:                       service.idFactory("provider_model"),
+			ProviderID:               record.ID,
+			ModelID:                  escapedModelID,
+			DisplayName:              escapedModelID,
+			Category:                 "image",
+			CapabilitiesAutoJSON:     "{}",
+			CapabilitiesOverrideJSON: "{}",
+			ProviderOptionsJSON:      "{}",
+			LastSeenAt:               now,
+			CreatedAt:                now,
+			UpdatedAt:                now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("写入旧转义模型失败: %v", err)
+	}
+
+	renamed, err := service.UpdateModel(ctx, record.Provider, escapedModelID, UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	})
+	if err != nil {
+		t.Fatalf("写入转义模型失败: %v", err)
+	}
+	if renamed.ModelID != decodedModelID || renamed.DisplayName != decodedModelID {
+		t.Fatalf("模型 ID 未归一化: %+v", renamed)
+	}
+
+	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, escapedModelID)
+	if err != nil {
+		t.Fatalf("解析转义模型失败: %v", err)
+	}
+	if imageConfig.Model != decodedModelID {
+		t.Fatalf("生图配置模型 ID 未归一化: %+v", imageConfig)
+	}
+
+	updated, err := service.UpdateModel(ctx, record.Provider, decodedModelID, UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	})
+	if err != nil {
+		t.Fatalf("用真实模型 ID 更新失败: %v", err)
+	}
+	if updated.ModelID != decodedModelID {
+		t.Fatalf("真实模型 ID 更新后不正确: %+v", updated)
+	}
+
+	listed, err := service.Get(ctx, record.Provider)
+	if err != nil {
+		t.Fatalf("读取 provider 失败: %v", err)
+	}
+	count := 0
+	for _, model := range listed.Models {
+		if model.ModelID == escapedModelID {
+			t.Fatalf("模型列表不应返回转义 ID: %+v", listed.Models)
+		}
+		if model.ModelID == decodedModelID {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("模型列表应只保留一个真实 ID: count=%d models=%+v", count, listed.Models)
+	}
+}
+
 func TestDashScopeImageProviderTestUsesMultimodalPayload(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)

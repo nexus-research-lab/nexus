@@ -372,7 +372,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string, mod
 	if err != nil {
 		return nil, err
 	}
-	targetModel := strings.TrimSpace(model)
+	targetModel := normalizeModelID(model)
 
 	var target *providerstore.Entity
 	if targetProvider != "" {
@@ -417,7 +417,7 @@ func (s *Service) ResolveLLMConfig(ctx context.Context, provider string, model s
 	if err != nil {
 		return nil, err
 	}
-	targetModel := strings.TrimSpace(model)
+	targetModel := normalizeModelID(model)
 
 	var target *providerstore.Entity
 	if targetProvider != "" {
@@ -467,7 +467,7 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 	if err != nil {
 		return nil, err
 	}
-	targetModel := strings.TrimSpace(model)
+	targetModel := normalizeModelID(model)
 
 	var target *providerstore.Entity
 	if targetProvider == "" {
@@ -509,7 +509,7 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 	}
 	var modelRecord *providerstore.ModelEntity
 	if targetModel != "" {
-		modelRecord, err = s.repository.GetModel(ctx, target.ID, targetModel)
+		modelRecord, err = s.getModelByID(ctx, target.ID, targetModel)
 	} else {
 		modelRecord, err = s.defaultOrFirstEnabledModel(ctx, target.ID)
 	}
@@ -531,7 +531,7 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 		APIFormat:       target.APIFormat,
 		AuthToken:       target.AuthToken,
 		BaseURL:         target.BaseURL,
-		Model:           modelRecord.ModelID,
+		Model:           normalizeModelID(modelRecord.ModelID),
 		ProviderOptions: decodeProviderOptions(modelRecord.ProviderOptionsJSON),
 	}, nil
 }
@@ -716,7 +716,7 @@ func (s *Service) llmConfigFromTarget(
 	if strings.TrimSpace(targetModel) == "" {
 		return nil, fmt.Errorf("provider=%s 缺少 model，请先选择该 Provider 下的模型", target.Provider)
 	}
-	modelRecord, err := s.repository.GetModel(ctx, target.ID, targetModel)
+	modelRecord, err := s.getModelByID(ctx, target.ID, targetModel)
 	if err != nil {
 		return nil, err
 	}
@@ -742,17 +742,18 @@ func (s *Service) llmConfigFromTarget(
 		DisplayName: target.DisplayName,
 		AuthToken:   target.AuthToken,
 		BaseURL:     target.BaseURL,
-		Model:       modelRecord.ModelID,
+		Model:       normalizeModelID(modelRecord.ModelID),
 		APIFormat:   target.APIFormat,
 	}, nil
 }
 
 func modelSelectionFromTarget(target providerModelTarget) ModelSelection {
+	modelID := normalizeModelID(target.model.ModelID)
 	return ModelSelection{
 		Provider:            target.provider.Provider,
 		ProviderDisplayName: target.provider.DisplayName,
-		Model:               target.model.ModelID,
-		ModelDisplayName:    target.model.DisplayName,
+		Model:               modelID,
+		ModelDisplayName:    modelDisplayName(target.model.ModelID, target.model.DisplayName),
 	}
 }
 
@@ -766,9 +767,10 @@ func (s *Service) enabledModelOptions(ctx context.Context, item providerstore.En
 		if !model.Enabled || strings.TrimSpace(model.ModelID) == "" {
 			continue
 		}
+		modelID := normalizeModelID(model.ModelID)
 		result = append(result, ModelOption{
-			ModelID:     model.ModelID,
-			DisplayName: model.DisplayName,
+			ModelID:     modelID,
+			DisplayName: modelDisplayName(model.ModelID, model.DisplayName),
 			IsDefault:   model.IsDefault,
 		})
 	}
@@ -804,7 +806,7 @@ func (s *Service) resolveMissingExplicitModel(ctx context.Context, providerID st
 	if model == nil {
 		return "", nil
 	}
-	return strings.TrimSpace(model.ModelID), nil
+	return normalizeModelID(model.ModelID), nil
 }
 
 func normalizeCreateInput(input CreateInput) (CreateInput, error) {

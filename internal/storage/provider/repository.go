@@ -557,14 +557,18 @@ func (r *Repository) upsertModel(ctx context.Context, item ModelEntity) error {
 func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
 	_, err := r.db.ExecContext(ctx, `
 	UPDATE provider_models
-	SET enabled = `+r.bind(1)+`,
-	    is_default = `+r.bind(2)+`,
-	    capabilities_override_json = `+r.bind(3)+`,
-	    context_window = `+r.bind(4)+`,
-	    max_output_tokens = `+r.bind(5)+`,
-	    provider_options_json = `+r.bind(6)+`,
-	    updated_at = `+r.bind(7)+`
-	WHERE provider_id = `+r.bind(8)+` AND model_id = `+r.bind(9),
+	SET model_id = `+r.bind(1)+`,
+	    display_name = `+r.bind(2)+`,
+	    enabled = `+r.bind(3)+`,
+	    is_default = `+r.bind(4)+`,
+	    capabilities_override_json = `+r.bind(5)+`,
+	    context_window = `+r.bind(6)+`,
+	    max_output_tokens = `+r.bind(7)+`,
+	    provider_options_json = `+r.bind(8)+`,
+	    updated_at = `+r.bind(9)+`
+	WHERE id = `+r.bind(10),
+		item.ModelID,
+		item.DisplayName,
 		item.Enabled,
 		item.IsDefault,
 		item.CapabilitiesOverrideJSON,
@@ -572,8 +576,7 @@ func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
 		item.MaxOutputTokens,
 		item.ProviderOptionsJSON,
 		item.UpdatedAt.UTC(),
-		item.ProviderID,
-		item.ModelID,
+		item.ID,
 	)
 	return err
 }

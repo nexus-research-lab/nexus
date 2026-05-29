@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed Room private handbacks so a directed-message reply can wake a coordinator with a public `next_reply_route`, allowing the coordinator's natural final reply to enter the public feed without using `room message publish`.
+- Fixed DM and Room runtime startup so Agents without a complete explicit model selection honor the user default chat model from General settings.
+- Fixed Provider model IDs containing escaped slashes so entries such as `Tongyi-MAI/Z-Image-Turbo` display and execute with the real slash instead of `%2F`.
 - Fixed Provider configuration scoping for multi-user deployments: existing Providers migrate to public configuration, private Providers are owner-scoped, and public Providers can only be maintained by the owner/admin.
 - Fixed capability page Connector status, external Skill registry data, and summary counts so they are scoped to the current user; legacy global Skills migrate to users that actually deploy them.
 - Fixed desktop mode so newly configured Providers populate the default model automatically instead of leaving Agents without a model, and reduced successful static asset/read-only request log noise.
