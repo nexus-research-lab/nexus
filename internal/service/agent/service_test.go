@@ -113,6 +113,68 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 }
 
+func TestServicePersistsAgentRuntimeProviderModel(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	maxTurns := 6
+	maxThinkingTokens := 2048
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "runtime-agent",
+		Options: &protocol.Options{
+			Provider:          "glm",
+			Model:             "glm-5.1",
+			PermissionMode:    "default",
+			AllowedTools:      []string{"Read"},
+			DisallowedTools:   []string{"Write"},
+			MaxTurns:          &maxTurns,
+			MaxThinkingTokens: &maxThinkingTokens,
+			MCPServers:        map[string]any{"local": map[string]any{"command": "nexus-mcp"}},
+			SettingSources:    []string{"project"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if created.Options.Provider != "glm" || created.Options.Model != "glm-5.1" {
+		t.Fatalf("runtime provider/model 未持久化: %+v", created.Options)
+	}
+
+	nextName := "runtime-agent"
+	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{
+		Name: &nextName,
+		Options: &protocol.Options{
+			Provider:        "kimi-code",
+			Model:           "kimi-for-coding",
+			PermissionMode:  "bypassPermissions",
+			AllowedTools:    []string{"Read", "Edit"},
+			DisallowedTools: []string{},
+			SettingSources:  []string{"project"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("更新 agent runtime 失败: %v", err)
+	}
+	if updated.Options.Provider != "kimi-code" || updated.Options.Model != "kimi-for-coding" {
+		t.Fatalf("runtime provider/model 更新后未持久化: %+v", updated.Options)
+	}
+	if updated.Options.MaxTurns == nil || *updated.Options.MaxTurns != maxTurns {
+		t.Fatalf("未提交 max_turns 时应保留原值: %+v", updated.Options)
+	}
+	if updated.Options.MaxThinkingTokens == nil || *updated.Options.MaxThinkingTokens != maxThinkingTokens {
+		t.Fatalf("未提交 max_thinking_tokens 时应保留原值: %+v", updated.Options)
+	}
+	if _, ok := updated.Options.MCPServers["local"]; !ok {
+		t.Fatalf("未提交 mcp_servers 时应保留原值: %+v", updated.Options.MCPServers)
+	}
+}
+
 func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)

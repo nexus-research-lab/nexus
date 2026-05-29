@@ -713,18 +713,25 @@ func (s *Service) llmConfigFromTarget(
 	if target.ProviderKind != ProviderKindLLM {
 		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
 	}
-	if strings.TrimSpace(targetModel) == "" {
-		return nil, fmt.Errorf("provider=%s 缺少 model，请先选择该 Provider 下的模型", target.Provider)
+	targetModel = strings.TrimSpace(targetModel)
+	var modelRecord *providerstore.ModelEntity
+	var err error
+	if targetModel == "" {
+		modelRecord, err = s.defaultOrFirstEnabledModel(ctx, target.ID)
+	} else {
+		modelRecord, err = s.getModelByID(ctx, target.ID, targetModel)
 	}
-	modelRecord, err := s.getModelByID(ctx, target.ID, targetModel)
 	if err != nil {
 		return nil, err
 	}
 	if modelRecord == nil {
+		if targetModel == "" {
+			return nil, fmt.Errorf("provider=%s 缺少 model，请先选择该 Provider 下的模型", target.Provider)
+		}
 		return nil, fmt.Errorf("provider=%s 模型不存在: %s", target.Provider, targetModel)
 	}
 	if !modelRecord.Enabled {
-		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, targetModel)
+		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, modelRecord.ModelID)
 	}
 
 	missing := make([]string, 0, 3)

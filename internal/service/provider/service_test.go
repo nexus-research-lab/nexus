@@ -175,6 +175,13 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if runtimeConfig.APIFormat != APIFormatAnthropicMessages {
 		t.Fatalf("runtime api_format 未透传: %+v", runtimeConfig)
 	}
+	runtimeConfig, err = service.ResolveRuntimeConfig(ctx, "kimi-code", "")
+	if err != nil {
+		t.Fatalf("Kimi Code 显式 provider 应回退到默认模型: %v", err)
+	}
+	if runtimeConfig.Model != "kimi-for-coding" {
+		t.Fatalf("runtime model 未回退到 provider 默认模型: %+v", runtimeConfig)
+	}
 
 	volcengine, err := service.Create(ctx, CreateInput{
 		Provider:  "volcengine-coding-plan",
