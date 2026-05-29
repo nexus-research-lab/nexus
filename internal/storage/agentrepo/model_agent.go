@@ -33,7 +33,6 @@ type CreateRecord struct {
 type UpdateRecord struct {
 	AgentID             string
 	OwnerUserID         string
-	Slug                string
 	Name                string
 	WorkspacePath       string
 	Avatar              string

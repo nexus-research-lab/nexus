@@ -31,7 +31,7 @@ func BuildCreateRecord(
 	return agentrepo.CreateRecord{
 		AgentID:             agentID,
 		OwnerUserID:         ownerUserID,
-		Slug:                BuildWorkspaceDirName(normalizedName),
+		Slug:                BuildWorkspaceDirName(agentID),
 		Name:                normalizedName,
 		WorkspacePath:       workspacePath,
 		Status:              status,

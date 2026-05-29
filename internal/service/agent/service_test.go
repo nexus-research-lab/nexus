@@ -108,8 +108,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("重复名称校验失败: %v", err)
 	}
-	if validation.IsAvailable {
-		t.Fatalf("重复名称不应可用: %+v", validation)
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("重复名称应只作为展示名并允许复用: %+v", validation)
 	}
 }
 
@@ -205,6 +205,97 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	}
 	if updated.Name != "Sam" {
 		t.Fatalf("大小写改名未生效: %+v", updated)
+	}
+}
+
+func TestServiceAllowsDuplicateAndSlugCollidingAgentNames(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	first, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
+	if err != nil {
+		t.Fatalf("创建基准 agent 失败: %v", err)
+	}
+
+	validation, err := service.ValidateName(ctx, "a_b", "")
+	if err != nil {
+		t.Fatalf("校验 slug 冲突名称失败: %v", err)
+	}
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("名称派生 slug 冲突不应阻断创建: %+v", validation)
+	}
+
+	second, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a_b"})
+	if err != nil {
+		t.Fatalf("创建名称派生 slug 冲突 agent 不应失败: %v", err)
+	}
+	third, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
+	if err != nil {
+		t.Fatalf("重复展示名不应阻断创建: %v", err)
+	}
+	if first.AgentID == second.AgentID || first.AgentID == third.AgentID || second.AgentID == third.AgentID {
+		t.Fatalf("重复展示名应创建独立 agent_id: first=%s second=%s third=%s", first.AgentID, second.AgentID, third.AgentID)
+	}
+	if slug := agentSlug(t, db, first.AgentID); slug != first.AgentID {
+		t.Fatalf("新建 agent slug 应绑定 agent_id: got=%s want=%s", slug, first.AgentID)
+	}
+	if slug := agentSlug(t, db, second.AgentID); slug != second.AgentID {
+		t.Fatalf("新建 agent slug 应绑定 agent_id: got=%s want=%s", slug, second.AgentID)
+	}
+
+	nextName := "a_b"
+	updated, err := service.UpdateAgent(ctx, first.AgentID, protocol.UpdateRequest{Name: &nextName})
+	if err != nil {
+		t.Fatalf("改成其他 agent 的展示名不应失败: %v", err)
+	}
+	if updated.Name != "a_b" {
+		t.Fatalf("展示名改名未生效: %+v", updated)
+	}
+	if slug := agentSlug(t, db, first.AgentID); slug != first.AgentID {
+		t.Fatalf("改名不应改变 agent slug: got=%s want=%s", slug, first.AgentID)
+	}
+}
+
+func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
+		t.Fatalf("删除 agent 失败: %v", err)
+	}
+
+	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
+	assertNoRowsForAgent(t, db, "profiles", "agent_id", created.AgentID)
+	assertNoRowsForAgent(t, db, "runtimes", "agent_id", created.AgentID)
+
+	if _, err = service.GetAgent(ctx, created.AgentID); !errors.Is(err, agentpkg.ErrAgentNotFound) {
+		t.Fatalf("硬删除后读取 agent 应返回不存在: %v", err)
+	}
+
+	recreated, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
+	if err != nil {
+		t.Fatalf("删除后应允许复用名称: %v", err)
+	}
+	if recreated.AgentID == created.AgentID {
+		t.Fatalf("复用名称应创建新的 agent_id: old=%s new=%s", created.AgentID, recreated.AgentID)
 	}
 }
 
@@ -355,6 +446,29 @@ func assertRuntimeEmotionStateFile(t *testing.T, workspacePath string) {
 	if info.Size() != 0 {
 		t.Fatalf("emotion state 初始文件应为空: size=%d", info.Size())
 	}
+}
+
+func assertNoRowsForAgent(t *testing.T, db *sql.DB, table string, column string, value string) {
+	t.Helper()
+
+	var count int
+	query := "SELECT COUNT(1) FROM " + table + " WHERE " + column + " = ?"
+	if err := db.QueryRow(query, value).Scan(&count); err != nil {
+		t.Fatalf("查询 %s.%s 失败: %v", table, column, err)
+	}
+	if count != 0 {
+		t.Fatalf("删除 agent 后 %s 仍有残留: %d", table, count)
+	}
+}
+
+func agentSlug(t *testing.T, db *sql.DB, agentID string) string {
+	t.Helper()
+
+	var slug string
+	if err := db.QueryRow(`SELECT slug FROM agents WHERE id = ?`, agentID).Scan(&slug); err != nil {
+		t.Fatalf("查询 agent slug 失败: %v", err)
+	}
+	return slug
 }
 
 func canonicalizeAgentTranscriptPath(path string) string {

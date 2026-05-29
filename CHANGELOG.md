@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
+
 ### Fixed
 - Fixed built-in Provider settings so preset API format and Provider kind are derived internally instead of exposed as selectable controls.
+- Fixed Agent deletion so removed Agents are hard-deleted with dependent database rows, preventing stale archived records from blocking name reuse.
 
 ## [0.1.12] - 2026-05-29
 

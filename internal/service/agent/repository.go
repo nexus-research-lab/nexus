@@ -15,6 +15,5 @@ type Repository interface {
 	GetMainAgent(context.Context, string) (*protocol.Agent, error)
 	CreateAgent(context.Context, agentrepo.CreateRecord) (*protocol.Agent, error)
 	UpdateAgent(context.Context, agentrepo.UpdateRecord) (*protocol.Agent, error)
-	ArchiveAgent(context.Context, string, string) error
-	ExistsActiveAgentName(context.Context, string, string, string) (bool, error)
+	DeleteAgent(context.Context, string, string) error
 }

@@ -300,9 +300,8 @@ func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentrepo.Upda
 
 	if _, err = tx.ExecContext(ctx, `
 UPDATE agents
-SET slug = ?, name = ?, workspace_path = ?, avatar = ?, description = ?, vibe_tags = json(?), updated_at = CURRENT_TIMESTAMP
+SET name = ?, workspace_path = ?, avatar = ?, description = ?, vibe_tags = json(?), updated_at = CURRENT_TIMESTAMP
 WHERE id = ? AND owner_user_id = ?`,
-		record.Slug,
 		record.Name,
 		record.WorkspacePath,
 		nullIfEmpty(record.Avatar),
@@ -349,35 +348,75 @@ WHERE agent_id = ?`,
 	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
 }
 
-// ArchiveAgent 软删除 Agent。
-func (r *AgentRepository) ArchiveAgent(ctx context.Context, agentID string, ownerUserID string) error {
-	query := `
-UPDATE agents
-SET status = 'archived', updated_at = CURRENT_TIMESTAMP
-WHERE id = ?`
+// DeleteAgent 删除 Agent 及其数据库依赖记录。
+func (r *AgentRepository) DeleteAgent(ctx context.Context, agentID string, ownerUserID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err = deleteAgentDependents(ctx, tx, agentID); err != nil {
+		return err
+	}
+
+	query := `DELETE FROM agents WHERE id = ?`
 	args := []any{agentID}
 	if ownerUserID != "" {
 		query += ` AND owner_user_id = ?`
 		args = append(args, ownerUserID)
 	}
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// ExistsActiveAgentName 检查活跃名称是否已占用。
-func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, ownerUserID string, name string, excludeAgentID string) (bool, error) {
-	query := `SELECT COUNT(1) FROM agents WHERE status = 'active' AND owner_user_id = ? AND LOWER(name) = LOWER(?)`
-	args := []any{ownerUserID, name}
-	if excludeAgentID != "" {
-		query += ` AND id <> ?`
-		args = append(args, excludeAgentID)
+func deleteAgentDependents(ctx context.Context, tx *sql.Tx, agentID string) error {
+	statements := []struct {
+		query string
+		args  []any
+	}{
+		{query: `
+DELETE FROM automation_task_events
+WHERE agent_id = ?
+   OR job_id IN (SELECT job_id FROM automation_cron_jobs WHERE agent_id = ?)`, args: []any{agentID, agentID}},
+		{query: `UPDATE automation_task_events SET actor_agent_id = NULL WHERE actor_agent_id = ?`, args: []any{agentID}},
+		{query: `
+DELETE FROM automation_cron_runs
+WHERE job_id IN (SELECT job_id FROM automation_cron_jobs WHERE agent_id = ?)`, args: []any{agentID}},
+		{query: `UPDATE automation_cron_jobs SET source_creator_agent_id = NULL WHERE source_creator_agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM automation_cron_jobs WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM automation_delivery_routes WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM automation_heartbeat_states WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM im_ingress_messages WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM im_pairings WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM im_channel_configs WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM contacts WHERE owner_agent_id = ? OR contact_agent_id = ?`, args: []any{agentID, agentID}},
+		{query: `DELETE FROM members WHERE member_type = 'agent' AND member_agent_id = ?`, args: []any{agentID}},
+		{query: `
+UPDATE rooms
+SET host_agent_id = NULL,
+    host_auto_reply_enabled = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE host_agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM rounds WHERE session_id IN (SELECT id FROM sessions WHERE agent_id = ?)`, args: []any{agentID}},
+		{query: `
+UPDATE messages
+SET session_id = NULL
+WHERE session_id IN (SELECT id FROM sessions WHERE agent_id = ?)`, args: []any{agentID}},
+		{query: `UPDATE messages SET sender_agent_id = NULL WHERE sender_agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM sessions WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM profiles WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM runtimes WHERE agent_id = ?`, args: []any{agentID}},
 	}
 
-	var count int
-	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
-		return false, err
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement.query, statement.args...); err != nil {
+			return err
+		}
 	}
-	return count > 0, nil
+	return nil
 }
 
 func nullIfEmpty(value string) any {

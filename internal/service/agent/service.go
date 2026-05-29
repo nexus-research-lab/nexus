@@ -11,6 +11,8 @@ import (
 var (
 	// ErrAgentNotFound 表示 Agent 不存在。
 	ErrAgentNotFound = errors.New("agent not found")
+	// ErrAgentNameInvalid 表示 Agent 名称格式不合法。
+	ErrAgentNameInvalid = errors.New("agent name invalid")
 )
 
 // Service 提供 Agent 业务能力。
