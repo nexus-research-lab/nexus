@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI skill path.
+
 ### Changed
 - Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
 - Removed window controller/observer session-control behavior from chat sessions; bound clients now receive permission and session-status events without a primary-window role, and composer attachment hints are shorter.
@@ -16,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed built-in Provider settings so preset API format and Provider kind are derived internally instead of exposed as selectable controls.
+- Fixed image-generation workspace artifacts so built-in `nexus_imagegen` MCP results produce image artifact cards, not only legacy CLI/Bash output.
 - Fixed Agent deletion so removed Agents are hard-deleted with dependent database rows, preventing stale archived records from blocking name reuse.
 - Fixed DM runtime startup so stale SDK resume IDs are cleared and retried once instead of leaving the client disconnected.
 - Fixed group Thread opening while history, workspace, or about panels are active.

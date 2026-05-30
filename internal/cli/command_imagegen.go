@@ -16,7 +16,7 @@ func newImagegenCommand(services *cliServiceProvider) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "imagegen",
 		Short: "图片生成 CLI",
-		Long:  "通过 Settings 中的图片生成 Provider 调用系统 imagegen skill，输出 workspace 相对路径与元数据。",
+		Long:  "通过 Settings 中的图片生成 Provider 调用图片生成服务，输出 workspace 相对路径与元数据。",
 	}
 	command.AddCommand(newImagegenGenerateCommand(services))
 	command.AddCommand(newImagegenEditCommand(services))

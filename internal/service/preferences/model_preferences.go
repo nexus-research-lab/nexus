@@ -51,6 +51,7 @@ func DefaultAllowedTools() []string {
 		"AskUserQuestion",
 		"Skill",
 		"EnterPlanMode",
+		"nexus_imagegen",
 	}
 }
 

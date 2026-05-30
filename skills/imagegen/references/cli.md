@@ -1,6 +1,6 @@
 # CLI Reference
 
-本文件只描述 `nexusctl imagegen` 的 Agent 调用方式。Provider 配置、鉴权、接口兼容和响应解析都由 Nexus Go 服务处理，不属于 skill 的判断职责。
+本文件只描述 `nexusctl imagegen` 的兜底调用方式。普通生成/编辑应优先使用内置 `nexus_imagegen` 工具；只有用户明确要求 CLI、Provider/模型覆盖，或排查工具链问题时才使用这里的命令。Provider 配置、鉴权、接口兼容和响应解析都由 Nexus Go 服务处理，不属于 skill 的判断职责。
 
 ## 命令
 

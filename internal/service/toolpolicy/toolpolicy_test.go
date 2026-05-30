@@ -47,6 +47,20 @@ func TestContainsMatchesNexusRoomServerTools(t *testing.T) {
 	}
 }
 
+func TestContainsMatchesNexusImagegenServerTools(t *testing.T) {
+	approved := NormalizeSet([]string{"nexus_imagegen"})
+
+	for _, toolName := range []string{
+		"mcp__nexus_imagegen__generate_image",
+		"nexus_imagegen__edit_image",
+		"nexus_imagegen.generate_image",
+	} {
+		if !Contains(approved, toolName) {
+			t.Fatalf("expected nexus_imagegen approval to match %q", toolName)
+		}
+	}
+}
+
 func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
 	approved := NormalizeSet([]string{"WebSearch"})
 

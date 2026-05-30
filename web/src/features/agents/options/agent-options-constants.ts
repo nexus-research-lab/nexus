@@ -58,6 +58,7 @@ export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
   { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
   { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
   { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
+  { name: "nexus_imagegen", description_key: "agent_options.advanced.tool.nexus_imagegen" },
 ] as const;
 
 export const DEFAULT_AGENT_ALLOWED_TOOLS = AVAILABLE_AGENT_TOOLS.map((tool) => tool.name);
