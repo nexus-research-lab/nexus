@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -144,7 +145,7 @@ func ExecuteRound(
 	}
 
 	if err := QueryClientContent(ctx, request.Client, roundQueryContent(request)); err != nil {
-		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+		if isRoundAbortError(ctx, err) {
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		}
 		return RoundExecutionResult{}, err
@@ -313,6 +314,12 @@ func normalizeRoundIdleTimeout(timeout time.Duration) time.Duration {
 		return defaultRoundIdleTimeout
 	}
 	return timeout
+}
+
+func isRoundAbortError(ctx context.Context, err error) bool {
+	return ctx.Err() != nil ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, agentclient.ErrAborted)
 }
 
 func resetRoundIdleTimer(timer *time.Timer, timeout time.Duration) {

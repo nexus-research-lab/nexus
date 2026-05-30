@@ -236,7 +236,7 @@ func (c *sdkClientAdapter) pumpMessages(
 	for {
 		message, err := session.Recv(ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, io.EOF) {
+			if errors.Is(err, context.Canceled) || errors.Is(err, agentclient.ErrAborted) || errors.Is(err, io.EOF) {
 				return
 			}
 			readErr = err
