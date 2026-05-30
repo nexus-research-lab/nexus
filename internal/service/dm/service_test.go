@@ -38,6 +38,7 @@ type fakeDMClient struct {
 	mu              sync.Mutex
 	sessionID       string
 	messages        chan sdkprotocol.ReceivedMessage
+	connectCalls    int
 	interruptCalls  int
 	disconnectCalls int
 	interruptErrors []error
@@ -61,6 +62,7 @@ func newFakeDMClient() *fakeDMClient {
 func (c *fakeDMClient) Connect(context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.connectCalls++
 	if len(c.connectErrors) == 0 {
 		return nil
 	}
@@ -179,6 +181,44 @@ func (f *fakeDMFactory) OptionAt(index int) agentclient.Options {
 		return agentclient.Options{}
 	}
 	return f.options[index]
+}
+
+type fakeDMRoomSessionStore struct {
+	mu      sync.Mutex
+	updates []fakeDMRoomSessionUpdate
+}
+
+type fakeDMRoomSessionUpdate struct {
+	roomSessionID string
+	sdkSessionID  string
+}
+
+func (s *fakeDMRoomSessionStore) GetRoomSessionByKey(
+	context.Context,
+	string,
+	protocol.SessionKey,
+) (*protocol.Session, error) {
+	return nil, nil
+}
+
+func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionID(
+	_ context.Context,
+	roomSessionID string,
+	sdkSessionID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updates = append(s.updates, fakeDMRoomSessionUpdate{
+		roomSessionID: strings.TrimSpace(roomSessionID),
+		sdkSessionID:  strings.TrimSpace(sdkSessionID),
+	})
+	return nil
+}
+
+func (s *fakeDMRoomSessionStore) Updates() []fakeDMRoomSessionUpdate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]fakeDMRoomSessionUpdate(nil), s.updates...)
 }
 
 type dmTestSender struct {
@@ -1080,6 +1120,121 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	options := factory.LastOptions()
 	if options.Session.ResumeID != resumeID {
 		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
+	}
+}
+
+func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Enabled:     true,
+	}, "glm-5.1", true)
+
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = "sdk-fresh-after-stale"
+	client.connectErrors = []error{agentclient.ErrNotConnected}
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-stale-resume-retry",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	roomStore := &fakeDMRoomSessionStore{}
+	service.SetRoomSessionStore(roomStore)
+	sender := newDMTestSender("sender-stale-resume-retry")
+	sessionKey := "agent:nexus:ws:dm:stale-resume-retry"
+	permission.BindSession(sessionKey, sender)
+
+	staleResumeID := "sdk-stale-resume-1"
+	roomSessionID := "room-session-stale-resume-1"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+		SessionKey:    sessionKey,
+		AgentID:       cfg.DefaultAgentID,
+		SessionID:     &staleResumeID,
+		RoomSessionID: &roomSessionID,
+		ChannelType:   "websocket",
+		ChatType:      "dm",
+		Status:        "active",
+		CreatedAt:     now,
+		LastActivity:  now,
+		Title:         "Stale Resume Retry",
+		Options: map[string]any{
+			protocol.OptionRuntimeProvider: "glm",
+			protocol.OptionRuntimeModel:    "glm-5.1",
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入 stale resume 会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 stale resume 自动恢复",
+		RoundID:    "round-stale-resume-retry",
+		ReqID:      "round-stale-resume-retry",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	firstOptions := factory.OptionAt(0)
+	if firstOptions.Session.ResumeID != staleResumeID {
+		t.Fatalf("首次 runtime connect 应携带持久化 resume: %+v", firstOptions)
+	}
+	retryOptions := factory.OptionAt(1)
+	if retryOptions.Session.ResumeID != "" {
+		t.Fatalf("stale resume 连接失败后重试不应继续携带 resume: %+v", retryOptions)
+	}
+
+	client.mu.Lock()
+	connectCalls := client.connectCalls
+	disconnectCalls := client.disconnectCalls
+	client.mu.Unlock()
+	if connectCalls != 2 {
+		t.Fatalf("stale resume 应触发一次无 resume 重试，connectCalls=%d", connectCalls)
+	}
+	if disconnectCalls == 0 {
+		t.Fatal("重试前应清理 runtime manager 中的旧 client")
+	}
+
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != client.sessionID {
+		t.Fatalf("新 sdk session_id 未回写: %+v", sessionValue)
+	}
+	updates := roomStore.Updates()
+	if len(updates) != 2 {
+		t.Fatalf("room sdk_session_id 应先清空再回写新值: %+v", updates)
+	}
+	if updates[0].roomSessionID != roomSessionID || updates[0].sdkSessionID != "" {
+		t.Fatalf("首次 room sdk_session_id 更新应清空 stale 值: %+v", updates)
+	}
+	if updates[1].roomSessionID != roomSessionID || updates[1].sdkSessionID != client.sessionID {
+		t.Fatalf("第二次 room sdk_session_id 更新应写入新值: %+v", updates)
 	}
 }
 

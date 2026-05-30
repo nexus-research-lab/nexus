@@ -461,9 +461,32 @@ func (s *Service) ensureClient(
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
-		return nil, "", "", err
+		if !shouldRetryDMClientWithoutResume(options.Session.ResumeID, err) {
+			return nil, "", "", err
+		}
+		s.loggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"sdk_session_id", options.Session.ResumeID,
+			"err", err,
+		)
+		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			return nil, "", "", closeErr
+		}
+		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
+			return nil, "", "", clearErr
+		}
+		options.Session.ResumeID = ""
+		client, err = s.acquireRuntimeClient(ctx, sessionKey, options)
+		if err != nil {
+			return nil, "", "", err
+		}
 	}
 	return client, runtimeProvider, strings.TrimSpace(options.Model), nil
+}
+
+func shouldRetryDMClientWithoutResume(resumeID string, err error) bool {
+	return strings.TrimSpace(resumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err)
 }
 
 func (s *Service) resolveAgentRuntimeSelection(
@@ -585,6 +608,15 @@ func (s *Service) persistSDKSessionFingerprint(
 			"session_key", sessionItem.SessionKey,
 			"err", err,
 		)
+		return
+	}
+	if clearSessionID {
+		if err := s.clearRoomSDKSessionID(ctx, sessionItem); err != nil {
+			s.loggerFor(ctx).Error("DM room session SDK session_id 清理失败",
+				"session_key", sessionItem.SessionKey,
+				"err", err,
+			)
+		}
 	}
 }
 

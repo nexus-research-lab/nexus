@@ -226,3 +226,34 @@ func (s *Service) syncSDKSessionID(
 	}
 	return *updated, nil
 }
+
+func (s *Service) clearReusableSDKSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+) (protocol.Session, error) {
+	current.SessionID = nil
+	current = closePersistedSessionMeta(current)
+	updated, err := s.files.UpsertSession(workspacePath, current)
+	if err != nil {
+		return protocol.Session{}, err
+	}
+	if updated != nil {
+		current = *updated
+	}
+	if err := s.clearRoomSDKSessionID(ctx, current); err != nil {
+		return protocol.Session{}, err
+	}
+	return current, nil
+}
+
+func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Session) error {
+	if s.roomStore == nil || current.RoomSessionID == nil {
+		return nil
+	}
+	roomSessionID := strings.TrimSpace(*current.RoomSessionID)
+	if roomSessionID == "" {
+		return nil
+	}
+	return s.roomStore.UpdateRoomSessionSDKSessionID(ctx, roomSessionID, "")
+}
