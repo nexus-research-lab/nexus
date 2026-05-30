@@ -67,6 +67,11 @@ func MatchesItem(toolName string, approved string) bool {
 			strings.HasPrefix(toolName, "nexus_automation__") ||
 			strings.HasPrefix(toolName, "nexus_automation.")
 	}
+	if approved == "nexus_room" {
+		return strings.HasPrefix(toolName, "mcp__nexus_room__") ||
+			strings.HasPrefix(toolName, "nexus_room__") ||
+			strings.HasPrefix(toolName, "nexus_room.")
+	}
 	return false
 }
 

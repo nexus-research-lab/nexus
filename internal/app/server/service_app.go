@@ -114,10 +114,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	automationService.SetRuntimeSessionCloser(runtimeManager)
 	automationService.SetLogger(logger.With("component", "automation"))
 
-	// 把内置自动化与连接器 MCP server 注入 DM/Room runtime。
+	// 把内置自动化、连接器和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
-	mcpBuilder := combinedMCPBuilder(automationBuilder, connectorBuilder)
+	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent)
+	mcpBuilder := combinedMCPBuilder(automationBuilder, connectorBuilder, roomBuilder)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
 

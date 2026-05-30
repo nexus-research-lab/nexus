@@ -33,6 +33,20 @@ func TestContainsMatchesCommonWebFetchAliases(t *testing.T) {
 	}
 }
 
+func TestContainsMatchesNexusRoomServerTools(t *testing.T) {
+	approved := NormalizeSet([]string{"nexus_room"})
+
+	for _, toolName := range []string{
+		"mcp__nexus_room__send_directed_message",
+		"nexus_room__publish_public_message",
+		"nexus_room.send_directed_message",
+	} {
+		if !Contains(approved, toolName) {
+			t.Fatalf("expected nexus_room approval to match %q", toolName)
+		}
+	}
+}
+
 func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
 	approved := NormalizeSet([]string{"WebSearch"})
 

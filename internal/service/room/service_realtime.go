@@ -3,7 +3,6 @@ package room
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -98,15 +97,9 @@ type RealtimeService struct {
 	logger           *slog.Logger
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
-	internalAPI      roomInternalAPI
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
-}
-
-type roomInternalAPI struct {
-	BaseURL string
-	Token   string
 }
 
 type roomTitleScheduler interface {
@@ -197,14 +190,6 @@ func (s *RealtimeService) SetMCPServerBuilder(builder MCPServerBuilder) {
 // SetTitleGenerator 注入会话标题生成器。
 func (s *RealtimeService) SetTitleGenerator(generator roomTitleScheduler) {
 	s.titles = generator
-}
-
-// SetInternalAPI 注入 Room runtime 触发 nexusctl 时访问常驻 server 的内部控制面配置。
-func (s *RealtimeService) SetInternalAPI(baseURL string, token string) {
-	s.internalAPI = roomInternalAPI{
-		BaseURL: strings.TrimSpace(baseURL),
-		Token:   strings.TrimSpace(token),
-	}
 }
 
 func (s *RealtimeService) loggerFor(ctx context.Context) *slog.Logger {

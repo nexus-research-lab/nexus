@@ -8,46 +8,57 @@ tags: [room, game, werewolf]
 
 # Six-Player Werewolf
 
-This skill layers werewolf game rules on top of the Room communication kernel. The Room system prompt already documents public `@<member>` wake semantics, `nexusctl --json room message publish`, and `nexusctl --json room message send`; this skill only defines the game contract.
+This skill layers werewolf game rules on top of the Room communication kernel. The Room system prompt already documents public `@<member>` wake semantics and the built-in `nexus_room` communication tools; this skill only defines the game contract.
 
 ## Wake Plumbing
 
 The game has two execution channels:
 
-- **Public feed:** a normal public reply or `room message publish` containing a non-code `@<member>` wakes that member. Public phase control is public text with exactly one naked `@`.
-- **Directed message:** use `room message send` for hidden information, hidden collection, and private state. A directed message can be record-only or can wake recipients.
+- **Public feed:** a normal public reply containing a non-code `@<member>` wakes that member. Public phase control is public text with exactly one naked `@`.
+- **Directed message:** use the built-in tool `nexus_room.send_directed_message` for hidden information, hidden collection, and private state. A directed message can be record-only or can wake recipients.
 
 For ordered public chains, the current handoff is the only naked `@`. Future recipients, examples, and format instructions use names without `@`, or code spans such as `` `@NextPlayer` ``. Do not write "please @Sam next" in the host announcement if Sam is not supposed to act now.
 
-When a hidden handback should wake the host and the host's next natural final reply must be public, add `--reply-next-route public` to the original directed message. The handback stays private; the host's following final reply enters the public feed and any non-code `@` in that reply wakes normally.
+When a hidden handback should wake the host and the host's next natural final reply must be public, set `reply_route.next_reply_route.mode = "public"` on the original directed message. The handback stays private; the host's following final reply enters the public feed and any non-code `@` in that reply wakes normally.
 
-Only use `room message publish` for an explicit proactive public broadcast. The normal night-to-day transition should use `--reply-next-route public` and a natural host final reply, not publish plus `<nexus_room_no_reply/>`.
+Only use `nexus_room.publish_public_message` for an explicit proactive public broadcast from a private/tool-driven turn. The normal night-to-day transition should use `next_reply_route={mode:"public"}` and a natural host final reply, not publish plus `<nexus_room_no_reply/>`.
 
 Hidden collection must always name the handback route:
 
-```bash
-nexusctl --json room message send \
-  --recipient-agent-id <player> \
-  --wake-policy immediate \
-  --reply-route private \
-  --reply-recipient-agent-id <host> \
-  --reply-wake-policy immediate \
-  --content "<question>"
+```json
+{
+  "tool": "nexus_room.send_directed_message",
+  "arguments": {
+    "recipients": ["<player>"],
+    "wake_policy": "immediate",
+    "reply_route": {
+      "mode": "private",
+      "recipients": ["<host>"],
+      "wake_policy": "immediate"
+    },
+    "content": "<question>"
+  }
+}
 ```
 
-The player answers in plain text. Runtime projects that answer back to the host privately and wakes the host immediately. If the host's next final reply should be public, include `--reply-next-route public` on the original message; otherwise omit it and the host can continue with private tool calls plus `<nexus_room_no_reply/>`.
+The player answers in plain text. Runtime projects that answer back to the host privately and wakes the host immediately. If the host's next final reply should be public, include `"next_reply_route": {"mode": "public"}` on the original message; otherwise omit it and the host can continue with private tool calls plus `<nexus_room_no_reply/>`.
 
 For small-group discussion, send one directed message to all group members, but still assign one member as the final collector:
 
-```bash
-nexusctl --json room message send \
-  --recipient-agent-id <wolfA> \
-  --recipient-agent-id <wolfB> \
-  --wake-policy immediate \
-  --reply-route private \
-  --reply-recipient-agent-id <host> \
-  --reply-wake-policy immediate \
-  --content "你们是狼人。由 <wolfA> 汇总，最终只回复今晚击杀目标。"
+```json
+{
+  "tool": "nexus_room.send_directed_message",
+  "arguments": {
+    "recipients": ["<wolfA>", "<wolfB>"],
+    "wake_policy": "immediate",
+    "reply_route": {
+      "mode": "private",
+      "recipients": ["<host>"],
+      "wake_policy": "immediate"
+    },
+    "content": "你们是狼人。由 <wolfA> 汇总，最终只回复今晚击杀目标。"
+  }
+}
 ```
 
 Every recipient inherits the same `reply_route`, so the content must name one collector and instruct the others to output `<nexus_room_no_reply/>`. If two recipients both reply, the route fires twice and the host is woken twice.
@@ -56,19 +67,23 @@ Never "open a discussion and wait." The platform will not infer that a small gro
 
 Host private state is also a directed message:
 
-```bash
-nexusctl --json room message send \
-  --recipient-agent-id <host> \
-  --wake-policy none \
-  --reply-route none \
-  --content "<round / alive / dead / roles / potion state>"
+```json
+{
+  "tool": "nexus_room.send_directed_message",
+  "arguments": {
+    "recipients": ["<host>"],
+    "wake_policy": "none",
+    "reply_route": {"mode": "none"},
+    "content": "<round / alive / dead / roles / potion state>"
+  }
+}
 ```
 
 ## Players And Roles
 
 - 1 host: assigns roles, collects night actions, announces daybreak, organizes speeches, runs voting.
 - 6 players: 2 werewolves, 1 seer, 1 witch, 2 villagers.
-- Host randomizes roles and delivers each role by record-only directed message: `--recipient-agent-id <player> --wake-policy none --reply-route none`.
+- Host randomizes roles and delivers each role by record-only directed message: `recipients=["<player>"], wake_policy="none", reply_route={"mode":"none"}`.
 - Host keeps minimal private state by sending record-only directed messages to itself.
 
 ## Win Conditions
@@ -79,7 +94,7 @@ nexusctl --json room message send \
 
 ## Night Flow
 
-Close these steps in order. Every hidden decision uses a directed message with `--wake-policy immediate --reply-route private --reply-recipient-agent-id <host> --reply-wake-policy immediate`. Only the witch handback that leads directly to daybreak adds `--reply-next-route public`. The host always has exactly one expected private handback at a time, except the wolf step where the message may include both wolves but names one collector.
+Close these steps in order. Every hidden decision uses a directed message with `wake_policy="immediate"` and `reply_route={mode:"private", recipients:["<host>"], wake_policy:"immediate"}`. Only the witch handback that leads directly to daybreak adds `next_reply_route={mode:"public"}`. The host always has exactly one expected private handback at a time, except the wolf step where the message may include both wolves but names one collector.
 
 ### 1. Werewolves
 
@@ -95,7 +110,7 @@ Close these steps in order. Every hidden decision uses a directed message with `
 
 ### 3. Witch
 
-Host sends a directed message to the witch. Content states tonight's killed player and remaining potions, then asks: "是否用解药救？是否用毒药毒谁？格式：救:<名字>|不救；毒:<名字>|不毒。" The reply route wakes the host and includes `--reply-next-route public`, because the host's next natural final reply is the daybreak announcement.
+Host sends a directed message to the witch. Content states tonight's killed player and remaining potions, then asks: "是否用解药救？是否用毒药毒谁？格式：救:<名字>|不救；毒:<名字>|不毒。" The reply route wakes the host and includes `next_reply_route={mode:"public"}`, because the host's next natural final reply is the daybreak announcement.
 
 ### 4. Daybreak
 

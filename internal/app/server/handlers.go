@@ -38,7 +38,6 @@ func newHandlerSet(
 	api *handlershared.API,
 	services *AppServices,
 	websocketHandler *handlerwebsocket.Handler,
-	internalControlToken string,
 	cfg config.Config,
 ) handlerSet {
 	return handlerSet{
@@ -65,7 +64,6 @@ func newHandlerSet(
 			websocketHandler.BroadcastRoomEvent,
 			websocketHandler.BroadcastRoomResyncRequired,
 			websocketHandler.RemoveRoom,
-			internalControlToken,
 		),
 		capability: capabilityhandler.New(api, services.Skills, services.Connectors, services.Automation, services.ChannelControl),
 		skill:      skillhandler.New(api, services.Skills),
