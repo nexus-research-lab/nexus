@@ -11,10 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
 - Removed window controller/observer session-control behavior from chat sessions; bound clients now receive permission and session-status events without a primary-window role, and composer attachment hints are shorter.
 - Changed Room communication to use built-in `nexus_room` runtime tools instead of `nexusctl` Bash calls, removing the old Room message send/publish CLI control path.
+- Tightened chat message typography and spacing for narrow workspace columns.
+- Added a collapsible left sidebar that auto-collapses on narrow screens while right-side panels are open.
 
 ### Fixed
 - Fixed built-in Provider settings so preset API format and Provider kind are derived internally instead of exposed as selectable controls.
 - Fixed Agent deletion so removed Agents are hard-deleted with dependent database rows, preventing stale archived records from blocking name reuse.
+- Fixed group Thread opening while history, workspace, or about panels are active.
 
 ## [0.1.12] - 2026-05-29
 

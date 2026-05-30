@@ -1,11 +1,13 @@
 "use client";
 
-import { Fragment, RefObject, useCallback, useState } from "react";
+import { Fragment, RefObject, useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
+import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { cn } from "@/lib/utils";
+import { useSidebarStore } from "@/store/sidebar";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
@@ -30,6 +32,7 @@ import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 type RoomAgentAboutRequestedTab = "identity" | "private_domain";
 
 const ChatBoundary = import.meta.env.DEV ? GroupChatErrorBoundary : Fragment;
+const RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY = "(max-width: 1440px)";
 
 interface RoomSurfaceLayoutProps {
   current_agent: Agent;
@@ -83,15 +86,37 @@ interface RoomSurfaceLayoutProps {
  */
 export function RoomSurfaceLayout(props: RoomSurfaceLayoutProps) {
   if (props.current_room_type === "dm") {
-    return <RoomSurfaceLayoutInner {...props} />;
+    return <RoomSurfaceLayoutInner {...props} is_thread_panel_open={false} />;
   }
 
   return (
-    <GroupThreadContextProvider>
-      <RoomSurfaceLayoutInner {...props} />
+    <GroupThreadContextProvider on_open_thread={() => props.on_change_surface_tab("chat")}>
+      <RoomSurfaceLayoutWithThreadState {...props} />
     </GroupThreadContextProvider>
   );
 }
+
+function RoomSurfaceLayoutWithThreadState(props: RoomSurfaceLayoutProps) {
+  const {active_thread, close_thread} = useGroupThread();
+  const {thread_panel_data} = useGroupThreadPanelData();
+
+  useEffect(() => {
+    if (props.active_surface_tab !== "chat" && active_thread) {
+      close_thread();
+    }
+  }, [active_thread, close_thread, props.active_surface_tab]);
+
+  return (
+    <RoomSurfaceLayoutInner
+      {...props}
+      is_thread_panel_open={Boolean(active_thread && thread_panel_data)}
+    />
+  );
+}
+
+type RoomSurfaceLayoutInnerProps = RoomSurfaceLayoutProps & {
+  is_thread_panel_open: boolean;
+};
 
 function RoomSurfaceLayoutInner({
   current_agent,
@@ -134,9 +159,11 @@ function RoomSurfaceLayoutInner({
   on_todos_change,
   on_conversation_snapshot_change,
   on_room_event,
-}: RoomSurfaceLayoutProps) {
+  is_thread_panel_open,
+}: RoomSurfaceLayoutInnerProps) {
   const is_dm = current_room_type === "dm";
   const is_auxiliary_panel_open = active_surface_tab !== "chat";
+  const is_right_panel_open = is_auxiliary_panel_open || is_thread_panel_open;
   const is_wide_auxiliary_panel =
     active_surface_tab === "history" ||
     active_surface_tab === "workspace" ||
@@ -150,6 +177,8 @@ function RoomSurfaceLayoutInner({
     tab: "private_domain",
     key: 0,
   });
+
+  useWidePanelAutoCollapseForRightPanel(is_right_panel_open);
 
   const handle_open_workspace_file = useCallback((path: string | null) => {
     on_open_workspace_file(path);
@@ -353,6 +382,31 @@ function RoomSurfaceLayoutInner({
       </div>
     </section>
   );
+}
+
+function useWidePanelAutoCollapseForRightPanel(is_panel_open: boolean) {
+  const should_auto_collapse_sidebar = useMediaQuery(RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY);
+  const collapse_wide_panel_for_right_panel = useSidebarStore((s) => s.collapse_wide_panel_for_right_panel);
+  const expand_wide_panel_after_right_panel = useSidebarStore((s) => s.expand_wide_panel_after_right_panel);
+
+  useEffect(() => {
+    if (is_panel_open && should_auto_collapse_sidebar) {
+      collapse_wide_panel_for_right_panel();
+      return;
+    }
+    expand_wide_panel_after_right_panel();
+  }, [
+    collapse_wide_panel_for_right_panel,
+    expand_wide_panel_after_right_panel,
+    is_panel_open,
+    should_auto_collapse_sidebar,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      expand_wide_panel_after_right_panel();
+    };
+  }, [expand_wide_panel_after_right_panel]);
 }
 
 function GroupThreadInlinePanel({

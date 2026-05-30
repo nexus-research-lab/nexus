@@ -15,7 +15,13 @@ import {
 
 // ── Provider ─────────────────────────────────────────────────────────────────
 
-export function GroupThreadContextProvider({children}: { children: ReactNode }) {
+export function GroupThreadContextProvider({
+  children,
+  on_open_thread,
+}: {
+  children: ReactNode;
+  on_open_thread?: () => void;
+}) {
   // 控制状态
   const [active_thread, set_active_thread] = useState<ThreadTarget | null>(null);
 
@@ -51,11 +57,12 @@ export function GroupThreadContextProvider({children}: { children: ReactNode }) 
   );
 
   const open_thread = useCallback((round_id: string, agent_id: string) => {
+    on_open_thread?.();
     set_active_thread({
       round_id,
       agent_id,
     });
-  }, []);
+  }, [on_open_thread]);
 
   const close_thread = useCallback(() => {
     set_active_thread(null);

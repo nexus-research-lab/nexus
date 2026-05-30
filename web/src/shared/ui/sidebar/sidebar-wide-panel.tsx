@@ -13,6 +13,8 @@ import {
   LogOut,
   MessageCircle,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Puzzle,
   Rocket,
   Settings,
@@ -106,6 +108,9 @@ export function SidebarWidePanel() {
   const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
   const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
   const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
+  const wide_panel_collapsed = useSidebarStore((s) => s.wide_panel_collapsed);
+  const set_wide_panel_collapsed = useSidebarStore((s) => s.set_wide_panel_collapsed);
+  const toggle_wide_panel_collapsed = useSidebarStore((s) => s.toggle_wide_panel_collapsed);
   const root_ref = useRef<HTMLDivElement | null>(null);
   const [is_resize_hotzone_active, set_is_resize_hotzone_active] = useState(false);
   const [is_guide_center_open, set_is_guide_center_open] = useState(false);
@@ -487,6 +492,137 @@ export function SidebarWidePanel() {
     { key: "capabilities", label: t("sidebar.tab_capabilities"), icon: Puzzle, anchor: SIDEBAR_TOUR_ANCHORS.capabilities_tab },
   ];
 
+  if (wide_panel_collapsed) {
+    return (
+      <aside
+        className={cn(
+          "desktop-rail relative flex h-full w-[56px] shrink-0 flex-col items-center",
+          HOME_SIDEBAR_PADDING_CLASS,
+        )}
+        data-sidebar-collapsed="true"
+      >
+        <div className={cn("flex w-full items-center justify-center border-b divider-subtle", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
+          <button
+            aria-label={t("sidebar.expand_panel")}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+            onClick={toggle_wide_panel_collapsed}
+            title={t("sidebar.expand_panel")}
+            type="button"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col items-center gap-2 py-3">
+          <button
+            aria-label="Nexus"
+            className={cn(
+              "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[10px] font-semibold uppercase text-(--text-subtle) shadow-(--surface-avatar-shadow) transition-(transform,border-color,box-shadow) duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border)",
+              is_nexus_active && "border-(--surface-interactive-active-border) shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
+            )}
+            onClick={handle_open_nexus}
+            title="Nexus"
+            type="button"
+          >
+            {nexus_avatar_src ? (
+              <img
+                alt=""
+                className="h-full w-full object-cover"
+                src={nexus_avatar_src}
+              />
+            ) : "NX"}
+          </button>
+
+          <div className="mt-1 flex flex-col items-center gap-1.5">
+            {primary_tabs.map((tab) => {
+              const Icon = tab.icon;
+              const is_active = active_primary_tab === tab.key;
+              return (
+                <button
+                  aria-label={tab.label}
+                  aria-current={is_active ? "page" : undefined}
+                  className={cn(
+                    "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-(background,color,transform) duration-(--motion-duration-fast) hover:-translate-y-px hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                    is_active && "bg-(--surface-interactive-active-background) text-(--primary)",
+                  )}
+                  key={tab.key}
+                  onClick={() => handle_select_primary_tab(tab.key)}
+                  title={tab.label}
+                  type="button"
+                >
+                  <Icon
+                    className={cn(
+                      "h-4 w-4",
+                      is_active && "fill-(--primary) stroke-(--primary)",
+                    )}
+                  />
+                  <UiCounterBadge
+                    class_name="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] shadow-[0_2px_6px_rgba(255,76,84,0.28)]"
+                    count={tab.badge_count ?? 0}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-1.5 border-t divider-subtle py-3">
+          <Link
+            aria-label={t("sidebar.settings")}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+              is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+            )}
+            title={t("sidebar.settings")}
+            to={AppRouteBuilders.settings()}
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
+
+          <button
+            aria-label={t("common.guide_center")}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+              is_guide_center_open && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+            )}
+            onClick={() => set_is_guide_center_open(true)}
+            title={t("common.guide_center")}
+            type="button"
+          >
+            <Compass className="h-4 w-4" />
+          </button>
+
+          <button
+            aria-label={t("sidebar.logout")}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+            onClick={() => {
+              void logout();
+            }}
+            title={t("sidebar.logout")}
+            type="button"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+
+        <OnboardingGuideCenter
+          close_label={t("common.close")}
+          description={t("onboarding.guide_center_description")}
+          is_open={is_guide_center_open}
+          items={guide_center_items}
+          on_close={() => set_is_guide_center_open(false)}
+          on_reset={() => {
+            reset_all_tours();
+            set_is_guide_center_open(false);
+          }}
+          reset_label={t("common.reset_guides")}
+          reviewed_label={t("common.reviewed")}
+          title={t("common.guide_center")}
+        />
+      </aside>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -502,9 +638,12 @@ export function SidebarWidePanel() {
       style={{ width: wide_panel_width }}
     >
       {/* 面板头部 */}
-      <div className={cn("flex items-center gap-3 border-b divider-subtle px-4", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
+      <div className={cn(
+        "grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2 border-b divider-subtle px-2",
+        COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS,
+      )}>
         <button
-          className="group/nexus relative flex h-12 w-[68px] shrink-0 items-center justify-center"
+          className="group/nexus relative flex h-12 w-[58px] shrink-0 items-center justify-center"
           data-tour-anchor={SIDEBAR_TOUR_ANCHORS.nexus_agent}
           onClick={handle_open_nexus}
           title="Nexus"
@@ -574,13 +713,13 @@ export function SidebarWidePanel() {
         </button>
         <div className="min-w-0">
           <Link
-            className="block transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
+            className="block min-w-0 transition-transform duration-(--motion-duration-normal) hover:translate-y-[-0.5px]"
             data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
             title={t("sidebar.back_to_launcher")}
             to={AppRouteBuilders.launcher()}
           >
             <p
-              className="text-[24px] uppercase tracking-[0.14em]"
+              className="whitespace-nowrap text-[21px] uppercase tracking-[0.08em]"
               style={{
                 fontFamily: "\"Panchang\", var(--font-sans)",
                 fontWeight: 200,
@@ -678,16 +817,29 @@ export function SidebarWidePanel() {
 
           <div className="min-w-0 flex-1" />
 
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={() => {
-              void logout();
-            }}
-            title={t("sidebar.logout")}
-            type="button"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              aria-label={t("sidebar.logout")}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => {
+                void logout();
+              }}
+              title={t("sidebar.logout")}
+              type="button"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+
+            <button
+              aria-label={t("sidebar.collapse_panel")}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => set_wide_panel_collapsed(true)}
+              title={t("sidebar.collapse_panel")}
+              type="button"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </div>
       </div>
 
       <OnboardingGuideCenter

@@ -176,7 +176,7 @@ export function MessageUserSection({
     user_message.role === "user" && user_message.delivery_policy === "guide";
 
   return (
-    <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
+    <div className={cn("nexus-chat-message-section w-full", compact ? "px-0" : "px-2 sm:px-3")}>
       <div className="w-full">
         <div
           className={cn(
@@ -187,7 +187,7 @@ export function MessageUserSection({
           <div className="relative ml-auto w-fit max-w-[min(100%,720px)]">
             <div
               className={cn(
-                "flex items-center justify-end gap-2",
+                "nexus-chat-message-header flex items-center justify-end gap-2",
                 compact ? "h-6" : "h-7",
               )}
             >
@@ -214,7 +214,7 @@ export function MessageUserSection({
                 </MessageActionButton>
               </div>
 
-              <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
+              <span className="nexus-chat-meta hidden shrink-0 text-xs text-(--text-muted) sm:inline">
                 {format_message_time(user_message.timestamp)}
               </span>
               {is_guided_user_message ? (
@@ -223,11 +223,11 @@ export function MessageUserSection({
                   已引导对话
                 </span>
               ) : null}
-              <span className="shrink-0 text-sm font-bold text-(--text-strong)">
+              <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
                 你
               </span>
               <MessageAvatar
-                class_name="shrink-0"
+                class_name="nexus-chat-avatar shrink-0"
                 size={compact ? "compact" : "full"}
                 avatar_url={current_user_avatar}
               >
@@ -237,14 +237,14 @@ export function MessageUserSection({
               </MessageAvatar>
             </div>
 
-            <div className="ml-auto flex w-fit max-w-full flex-col items-end rounded-2xl px-4 py-3">
+            <div className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end rounded-2xl px-4 py-3">
               {user_content.trim() ? (
                 <ContentRenderer
                   content={user_content}
                   on_open_workspace_file={on_open_workspace_file}
                   workspace_agent_id={workspace_agent_id}
                   class_name={cn(
-                    "w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
+                    "nexus-chat-user-content w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
                     compact
                       ? "text-[15px] leading-6 [&_.katex-display]:my-2"
                       : "text-[16px] leading-7 [&_.katex-display]:my-3",
@@ -421,19 +421,20 @@ export function MessageAssistantSection({
   );
 
   return (
-    <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
+    <div className={cn("nexus-chat-message-section w-full", compact ? "px-0" : "px-2 sm:px-3")}>
       <div className={cn("w-full", compact ? "max-w-full" : "max-w-[980px]")}>
         <div
           className={cn(
-            "group grid min-w-0",
+            "nexus-chat-assistant-grid group grid min-w-0",
             compact
               ? "grid-cols-[minmax(0,1fr)]"
-              : "grid-cols-[40px_minmax(0,1fr)] gap-3",
+              : "nexus-chat-assistant-grid-expanded grid-cols-[40px_minmax(0,1fr)] gap-3",
           )}
         >
           {!compact ? (
             <MessageAvatar
               aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
+              class_name="nexus-chat-avatar"
               avatar_url={current_agent_avatar}
               on_click={
                 avatar_agent_id && on_open_agent_contact
@@ -449,14 +450,14 @@ export function MessageAssistantSection({
           <div className="relative min-w-0">
             <div
               className={cn(
-                "flex min-w-0 items-center gap-2",
+                "nexus-chat-message-header flex min-w-0 items-center gap-2",
                 compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
               )}
             >
               {compact ? (
                 <MessageAvatar
                   aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
-                  class_name="shrink-0"
+                  class_name="nexus-chat-avatar shrink-0"
                   size="compact"
                   avatar_url={current_agent_avatar}
                   on_click={
@@ -469,16 +470,16 @@ export function MessageAssistantSection({
                   {!current_agent_avatar && <Bot className="h-3 w-3" />}
                 </MessageAvatar>
               ) : null}
-              <span className="shrink-0 text-sm font-bold text-(--text-strong)">
+              <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
                 {current_agent_name || "协作成员"}
               </span>
 
-              <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
+              <span className="nexus-chat-meta hidden shrink-0 text-xs text-(--text-muted) sm:inline">
                 {format_message_time(state.timestamp)}
               </span>
 
               {state.model ? (
-                <span className="min-w-0 truncate text-xs text-(--text-soft)">
+                <span className="nexus-chat-meta min-w-0 truncate text-xs text-(--text-soft)">
                   {state.model}
                 </span>
               ) : null}
@@ -506,7 +507,7 @@ export function MessageAssistantSection({
             <div
               ref={state.content_area_ref}
               className={cn(
-                "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
+                "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
                 compact ? "text-[15px] leading-6" : "text-[16px] leading-7",
               )}
               style={state.content_area_style}
