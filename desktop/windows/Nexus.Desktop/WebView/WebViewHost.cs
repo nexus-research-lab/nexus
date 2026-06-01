@@ -17,6 +17,7 @@ internal sealed class WebViewHost : IDisposable
     private readonly DesktopStartupTimeline startupTimeline;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
+    private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
 
     public WebViewHost(
         WebView2 webView,
@@ -61,11 +62,12 @@ internal sealed class WebViewHost : IDisposable
         core.NewWindowRequested += HandleNewWindowRequested;
         core.ProcessFailed += (_, args) =>
         {
-            startupTimeline.Mark("webview.process_failed", new Dictionary<string, string>
+            Dictionary<string, string> metadata = new()
             {
                 ["kind"] = args.ProcessFailedKind.ToString(),
-            });
-            DesktopDiagnosticsReport.WriteRuntimeIssue(
+                ["path"] = lastRoute.Path,
+            };
+            string? diagnosticsPath = DesktopDiagnosticsReport.WriteRuntimeIssue(
                 prefix: "webview-process-failed",
                 reason: args.ProcessFailedKind.ToString(),
                 runtime: runtime,
@@ -73,7 +75,14 @@ internal sealed class WebViewHost : IDisposable
                 details: new Dictionary<string, object?>
                 {
                     ["process_failed_kind"] = args.ProcessFailedKind.ToString(),
+                    ["route_path"] = lastRoute.Path,
                 });
+            if (!string.IsNullOrWhiteSpace(diagnosticsPath))
+            {
+                metadata["diagnostics_path"] = diagnosticsPath;
+            }
+            startupTimeline.Mark("webview.process_failed", metadata);
+            _ = ReloadAfterProcessFailureAsync();
         };
         startupTimeline.Mark("webview.initialize_ready");
     }
@@ -82,6 +91,7 @@ internal sealed class WebViewHost : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         Uri url = route.ToUri(runtime);
+        lastRoute = route;
         startupTimeline.Mark("main_window.route_load", new Dictionary<string, string>
         {
             ["path"] = route.Path,
@@ -165,8 +175,49 @@ internal sealed class WebViewHost : IDisposable
 
     private Task OpenRouteAsync(string route)
     {
-        webView.Source = DesktopWebRoute.FromPath(route).ToUri(runtime);
+        DesktopWebRoute nextRoute = DesktopWebRoute.FromPath(route);
+        lastRoute = nextRoute;
+        webView.Source = nextRoute.ToUri(runtime);
         return Task.CompletedTask;
+    }
+
+    private async Task ReloadAfterProcessFailureAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(300);
+            if (disposed)
+            {
+                return;
+            }
+
+            await webView.Dispatcher.InvokeAsync(() =>
+            {
+                if (disposed)
+                {
+                    return;
+                }
+
+                startupTimeline.Mark("webview.process_failed_reload", new Dictionary<string, string>
+                {
+                    ["path"] = lastRoute.Path,
+                });
+                webView.Source = lastRoute.ToUri(runtime);
+            });
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            startupTimeline.Mark("webview.process_failed_reload_skipped", new Dictionary<string, string>
+            {
+                ["error"] = exception.Message,
+                ["path"] = lastRoute.Path,
+            });
+        }
     }
 
     private void InstallDesktopSessionCookie(CoreWebView2 core)

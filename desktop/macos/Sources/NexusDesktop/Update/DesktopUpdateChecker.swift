@@ -91,12 +91,11 @@ final class DesktopUpdateChecker {
       "current_build": currentVersion.buildNumber,
     ])
 
-    if reason == .startup {
-      defaults.set(Date(), forKey: DefaultsKey.lastAutomaticCheckAt)
-    }
-
     do {
       let latest = try await fetchLatestRelease()
+      if reason == .startup {
+        defaults.set(Date(), forKey: DefaultsKey.lastAutomaticCheckAt)
+      }
       defaults.set(latest.version, forKey: DefaultsKey.lastLatestVersion)
       if let buildNumber = latest.buildNumber {
         defaults.set(buildNumber, forKey: DefaultsKey.lastLatestBuildNumber)
