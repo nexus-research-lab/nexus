@@ -178,6 +178,44 @@ func TestRepositoryEvents(t *testing.T) {
 	}
 }
 
+func TestRepositoryGoalCompatMigrationCreatesCurrentSchema(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	applyGoalMigrationFiles(t, db, "../../../db/migrations/sqlite/00037_session_goals_compat.sql")
+
+	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
+	now := time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC)
+	created, err := repository.CreateGoal(context.Background(), protocol.Goal{
+		ID:              "goal-compat",
+		SessionKey:      "agent:nexus:ws:dm:compat",
+		Objective:       "continue",
+		Status:          protocol.GoalStatusActive,
+		TimeUsedSeconds: 3,
+		Version:         1,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.TimeUsedSeconds != 3 {
+		t.Fatalf("compat migration goal = %#v, want time_used_seconds persisted", created)
+	}
+	if err := repository.AppendEvent(context.Background(), protocol.GoalEvent{
+		ID:         "event-compat",
+		GoalID:     created.ID,
+		SessionKey: created.SessionKey,
+		EventType:  "created",
+		Source:     protocol.GoalUpdateSourceSystem,
+		CreatedAt:  now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func newTestRepository(t *testing.T) *Repository {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
@@ -191,12 +229,18 @@ func newTestRepository(t *testing.T) *Repository {
 
 func applyGoalMigration(t *testing.T, db *sql.DB) {
 	t.Helper()
-	for _, path := range []string{
+	applyGoalMigrationFiles(t, db,
 		"../../../db/migrations/sqlite/00025_session_goals.sql",
 		"../../../db/migrations/sqlite/00026_goal_codex_statuses.sql",
 		"../../../db/migrations/sqlite/00027_goal_budget_token_total.sql",
 		"../../../db/migrations/sqlite/00028_goal_remove_cleared_status.sql",
-	} {
+		"../../../db/migrations/sqlite/00037_session_goals_compat.sql",
+	)
+}
+
+func applyGoalMigrationFiles(t *testing.T, db *sql.DB, paths ...string) {
+	t.Helper()
+	for _, path := range paths {
 		body, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
