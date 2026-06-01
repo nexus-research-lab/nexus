@@ -473,9 +473,11 @@ export function MessageAssistantSection({
                 {current_agent_name || "协作成员"}
               </span>
 
-              <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-                {format_message_time(state.timestamp)}
-              </span>
+              {state.timestamp ? (
+                <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
+                  {format_message_time(state.timestamp)}
+                </span>
+              ) : null}
 
               {state.model ? (
                 <span className="min-w-0 truncate text-xs text-(--text-soft)">

@@ -29,6 +29,7 @@ import { goal_continuation_hold_for_permission } from "@/features/conversation/s
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import {
   build_conversation_activity_snapshot,
   group_messages_by_round,
@@ -232,7 +233,10 @@ export function DmChatPanel({
     () => group_messages_by_round(messages),
     [messages],
   );
-  const round_ids = Array.from(message_groups.keys());
+  const round_ids = useMemo(
+    () => build_timeline_round_ids(message_groups, live_round_ids),
+    [live_round_ids, message_groups],
+  );
 
   const maybe_load_older_messages = useCallback(async () => {
     const container = scroll_ref.current;

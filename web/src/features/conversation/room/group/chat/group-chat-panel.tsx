@@ -23,6 +23,7 @@ import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
+import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import {
   build_conversation_activity_snapshot,
   get_latest_reply_timestamp,
@@ -280,7 +281,19 @@ export function GroupChatPanel({
     () => group_room_pending_permissions_by_round(pending_permissions),
     [pending_permissions],
   );
-  const round_ids = Array.from(message_groups.keys());
+  const round_ids = useMemo(
+    () =>
+      build_timeline_round_ids(message_groups, live_round_ids, [
+        ...pending_slot_groups.keys(),
+        ...pending_permission_groups.keys(),
+      ]),
+    [
+      live_round_ids,
+      message_groups,
+      pending_permission_groups,
+      pending_slot_groups,
+    ],
+  );
   const maybe_load_older_messages = useCallback(async () => {
     const container = scroll_ref.current;
     if (
