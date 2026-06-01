@@ -76,6 +76,7 @@ type activeRoomRound struct {
 	PermissionMode    sdkpermission.Mode
 	PermissionHandler sdkpermission.Handler
 	EventObserver     RoomEventObserver
+	GoalContext       string
 	Slots             map[string]*activeRoomSlot
 	PublicMentions    []publicMentionWake
 	Done              chan struct{}

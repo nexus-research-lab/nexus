@@ -1,8 +1,10 @@
 package room
 
 import (
+	"context"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -57,5 +59,103 @@ func TestRoomRoundMarkerOptionsMarksInternalContinuationHidden(t *testing.T) {
 	}
 	if options.Purpose != "goal_continuation" || options.Metadata["goal_id"] != "goal-room" {
 		t.Fatalf("options = %#v, want continuation metadata preserved", options)
+	}
+}
+
+func TestInitialRoomTriggerTypeUsesGoalContinuationForInternalContinuation(t *testing.T) {
+	triggerType := initialRoomTriggerType(ChatRequest{
+		Internal: true,
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}, "room_host_default")
+
+	if triggerType != "goal_continuation" {
+		t.Fatalf("triggerType = %q, want goal_continuation", triggerType)
+	}
+}
+
+func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{
+		goals: goalProvider,
+	}
+	roundValue := &activeRoomRound{
+		SessionKey:     "room:group:conversation-1",
+		ConversationID: "conversation-1",
+		RoundID:        "round-1",
+	}
+
+	service.dispatchPostRoundWork(context.Background(), roundValue)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.planCalls != 1 {
+		t.Fatalf("planCalls = %d, want post-round room goal continuation planning", goalProvider.planCalls)
+	}
+}
+
+func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *testing.T) {
+	runtimeManager := runtimectx.NewManager()
+	goalProvider := &fakeRoomGoalContextProvider{
+		stillCurrent: true,
+		plan: &protocol.GoalContinuation{
+			Goal: protocol.Goal{
+				ID:         "goal-room",
+				SessionKey: "room:group:conversation-1",
+				Status:     protocol.GoalStatusActive,
+			},
+			RoundID: "goal_continuation_1",
+		},
+	}
+	goalProvider.onPlan = func() {
+		runtimeManager.StartRound("room:group:conversation-1", "queued-user-round", nil)
+	}
+	service := &RealtimeService{
+		goals:   goalProvider,
+		runtime: runtimeManager,
+	}
+	roundValue := &activeRoomRound{
+		SessionKey:     "room:group:conversation-1",
+		ConversationID: "conversation-1",
+		RoundID:        "round-1",
+	}
+
+	service.dispatchPostRoundWork(context.Background(), roundValue)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.planCalls != 1 || goalProvider.releaseCalls != 1 {
+		t.Fatalf("planCalls=%d releaseCalls=%d, want released deferred room continuation", goalProvider.planCalls, goalProvider.releaseCalls)
+	}
+}
+
+func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchFails(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{
+		stillCurrent: true,
+		plan: &protocol.GoalContinuation{
+			Goal: protocol.Goal{
+				ID:         "goal-room",
+				SessionKey: "agent:nexus:ws:dm:not-room",
+				Status:     protocol.GoalStatusActive,
+			},
+			RoundID: "goal_continuation_1",
+		},
+	}
+	service := &RealtimeService{
+		goals: goalProvider,
+	}
+	roundValue := &activeRoomRound{
+		SessionKey:     "room:group:conversation-1",
+		ConversationID: "conversation-1",
+		RoundID:        "round-1",
+	}
+
+	service.dispatchPostRoundWork(context.Background(), roundValue)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if goalProvider.planCalls != 1 || goalProvider.releaseCalls != 1 {
+		t.Fatalf("planCalls=%d releaseCalls=%d, want released failed room continuation", goalProvider.planCalls, goalProvider.releaseCalls)
 	}
 }

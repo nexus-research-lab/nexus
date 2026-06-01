@@ -99,7 +99,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	)
 	r.recordGoalUsage(context.Background(), result, r.mapper.LastAssistantMessage())
 	r.recordGoalUsageLimit(result)
-	r.recordGoalContinuationProgress()
+	r.recordGoalContinuationProgress(result)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 		go r.commitMemoryTurn()
@@ -194,6 +194,10 @@ func (r *roundRunner) failRound(err error) {
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
+	r.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{
+		TerminalStatus: "error",
+		ErrorMessage:   err.Error(),
+	})
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {

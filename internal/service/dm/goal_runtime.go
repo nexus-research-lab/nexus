@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -96,7 +97,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		if observation.IsError {
 			continue
 		}
-		switch strings.TrimSpace(observation.ToolName) {
+		switch messageutil.CanonicalToolName(observation.ToolName) {
 		case "create_goal":
 			hasSuccessfulCreate = true
 		case "update_goal":
@@ -121,11 +122,44 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 }
 
-func (r *roundRunner) recordGoalContinuationProgress() {
+func (r *roundRunner) recordGoalContinuationProgress(result runtimectx.RoundExecutionResult) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.goalIDForUsage) == "" {
 		return
 	}
-	progressed := strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" || r.hasGoalToolProgress()
+	if strings.TrimSpace(r.inputOptions.Purpose) == "goal_continuation" && result.TerminalStatus == "error" {
+		assistantText := ""
+		if r.mapper != nil {
+			assistantText = messageutil.ExtractAssistantDisplayText(r.mapper.LastAssistantMessage())
+		}
+		reason := dmdomain.FirstNonEmpty(
+			strings.TrimSpace(result.ErrorMessage),
+			assistantText,
+			"Goal continuation runtime failed",
+		)
+		_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.goalIDForUsage, r.roundID, reason)
+		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			r.service.loggerFor(context.Background()).Warn("记录 Goal 续跑失败原因失败",
+				"session_key", r.sessionKey,
+				"goal_id", r.goalIDForUsage,
+				"round_id", r.roundID,
+				"err", err,
+			)
+		}
+		return
+	}
+	if strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" {
+		_, err := r.service.goals.RecordGoalActivity(context.Background(), r.goalIDForUsage, r.roundID)
+		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			r.service.loggerFor(context.Background()).Warn("记录 Goal 显式活动失败",
+				"session_key", r.sessionKey,
+				"goal_id", r.goalIDForUsage,
+				"round_id", r.roundID,
+				"err", err,
+			)
+		}
+		return
+	}
+	progressed := r.hasGoalToolProgress()
 	_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
 		r.service.loggerFor(context.Background()).Warn("记录 Goal 续跑进展失败",

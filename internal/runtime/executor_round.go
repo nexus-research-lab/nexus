@@ -130,6 +130,7 @@ type RoundExecutionRequest struct {
 type RoundExecutionResult struct {
 	TerminalStatus       string
 	ResultSubtype        string
+	ErrorMessage         string
 	TerminalCategory     sdkprotocol.TerminalCategory
 	Usage                sdkprotocol.TokenUsage
 	ElapsedTimeSeconds   int64
@@ -269,6 +270,7 @@ func terminalRoundResult(
 	result := RoundExecutionResult{
 		TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
 		ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
+		ErrorMessage:     terminalErrorMessage(mapResult),
 		TerminalCategory: sdkprotocol.TerminalCategoryUnknown,
 	}
 	if resultMessage != nil {
@@ -309,6 +311,27 @@ func hasSuccessfulResultMessage(mapResult RoundMapResult) bool {
 		return true
 	}
 	return false
+}
+
+func terminalErrorMessage(mapResult RoundMapResult) string {
+	for _, messageValue := range mapResult.DurableMessages {
+		if messageValue == nil || protocol.MessageRole(messageValue) != "result" {
+			continue
+		}
+		if messageString(messageValue["subtype"]) != "error" && messageValue["is_error"] != true {
+			continue
+		}
+		if resultText := strings.TrimSpace(messageString(messageValue["result"])); resultText != "" {
+			return resultText
+		}
+		if terminalReason := strings.TrimSpace(messageString(messageValue["terminal_reason"])); terminalReason != "" {
+			return terminalReason
+		}
+	}
+	if mapResult.ResultSubtype == "error" || mapResult.TerminalStatus == "error" {
+		return "Runtime request failed"
+	}
+	return ""
 }
 
 func roundQueryContent(request RoundExecutionRequest) any {

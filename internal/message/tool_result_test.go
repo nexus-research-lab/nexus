@@ -53,15 +53,17 @@ func TestAssistantHasCountedToolProgress(t *testing.T) {
 }
 
 func TestAssistantHasCountedToolProgressIgnoresUpdateGoal(t *testing.T) {
-	message := protocol.Message{
-		"role": "assistant",
-		"content": []map[string]any{
-			{"type": "tool_use", "id": "tool-1", "name": "update_goal"},
-			{"type": "tool_result", "tool_use_id": "tool-1"},
-		},
-	}
-	if AssistantHasCountedToolProgress(message) {
-		t.Fatal("AssistantHasCountedToolProgress() = true, want false for update_goal")
+	for _, toolName := range []string{"update_goal", "mcp__nexus_goal__update_goal"} {
+		message := protocol.Message{
+			"role": "assistant",
+			"content": []map[string]any{
+				{"type": "tool_use", "id": "tool-1", "name": toolName},
+				{"type": "tool_result", "tool_use_id": "tool-1"},
+			},
+		}
+		if AssistantHasCountedToolProgress(message) {
+			t.Fatalf("AssistantHasCountedToolProgress() = true, want false for %s", toolName)
+		}
 	}
 }
 

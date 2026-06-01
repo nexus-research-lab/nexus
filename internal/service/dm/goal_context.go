@@ -6,7 +6,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
-const goalContextualInputName = "goal_context"
+const goalContextualInputName = "goal"
 
 func goalContextualInputs(contextText string, goalID string, sessionKey string) []runtimectx.ContextualInputBlock {
 	contextText = strings.TrimSpace(contextText)

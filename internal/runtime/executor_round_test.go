@@ -174,6 +174,46 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 	}
 }
 
+func TestExecuteRoundReturnsTerminalErrorMessage(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-error",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
+	close(client.messages)
+
+	mapper := &fakeRoundExecutionMapper{
+		results: []RoundMapResult{{
+			DurableMessages: []protocol.Message{
+				{
+					"message_id": "result-error",
+					"role":       "result",
+					"subtype":    "error",
+					"is_error":   true,
+					"result":     "Failed to authenticate. API Error: 401",
+				},
+			},
+			TerminalStatus: "error",
+			ResultSubtype:  "error",
+		}},
+	}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "continue",
+		Client: client,
+		Mapper: mapper,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if result.TerminalStatus != "error" || result.ResultSubtype != "error" {
+		t.Fatalf("result = %+v, want terminal error", result)
+	}
+	if result.ErrorMessage != "Failed to authenticate. API Error: 401" {
+		t.Fatalf("ErrorMessage = %q", result.ErrorMessage)
+	}
+}
+
 func TestExecuteRoundUsesStructuredContent(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-structured",
@@ -239,7 +279,7 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal_context", "<goal_context>\nContinue.\n</goal_context>", 0, map[string]string{"goal_id": "goal-1"}),
+			NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -249,11 +289,47 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
-	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal_context" {
-		t.Fatalf("contextInput = %#v, want goal_context", client.contextInput)
+	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "Continue." {
+		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
 	}
 	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "用户输入" {
 		t.Fatalf("queryPrompts = %#v, want unmodified user input", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundUsesTriggerForContextOnlyInternalTurn(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-context-only",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-only",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "",
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "Continue." {
+		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
+	}
+	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != contextOnlyTurnTrigger {
+		t.Fatalf("queryPrompts = %#v, want context-only trigger", client.queryPrompts)
 	}
 }
 
@@ -276,7 +352,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: "用户输入",
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal_context", "<goal_context>\nContinue.\n</goal_context>", 0, nil),
+			NewContextualInputBlock("goal", "Continue.", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -287,7 +363,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
 	if len(client.queryPrompts) != 1 ||
-		!strings.HasPrefix(client.queryPrompts[0], "<goal_context>\nContinue.\n</goal_context>\n\n") ||
+		!strings.HasPrefix(client.queryPrompts[0], "<codex_internal_context source=\"goal\">\nContinue.\n</codex_internal_context>\n\n") ||
 		!strings.Contains(client.queryPrompts[0], "用户输入") {
 		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
 	}
@@ -313,7 +389,7 @@ func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupp
 	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
 		Content: content,
 		ContextualInputs: []ContextualInputBlock{
-			NewContextualInputBlock("goal_context", "<goal_context>\nContinue.\n</goal_context>", 0, nil),
+			NewContextualInputBlock("goal", "Continue.", 0, nil),
 		},
 		Client: client,
 		Mapper: &fakeRoundExecutionMapper{
@@ -327,7 +403,7 @@ func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupp
 		t.Fatalf("queryContent = %#v, want one structured payload", client.queryContent)
 	}
 	blocks, ok := client.queryContent[0].([]map[string]any)
-	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<goal_context>\nContinue.\n</goal_context>" {
+	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<codex_internal_context source=\"goal\">\nContinue.\n</codex_internal_context>" {
 		t.Fatalf("queryContent[0] = %#v, want prepended context text block", client.queryContent[0])
 	}
 }

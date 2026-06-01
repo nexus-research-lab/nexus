@@ -58,7 +58,8 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 	case protocol.EventTypeGoalCreated,
 		protocol.EventTypeGoalUpdated,
 		protocol.EventTypeGoalStatusChanged,
-		protocol.EventTypeGoalProgress:
+		protocol.EventTypeGoalProgress,
+		protocol.EventTypeGoalContinuation:
 		b.rpcSubscribers.Broadcast(ctx, threadID, nil, protocol.AppServerJSONRPCNotification{
 			Method: "thread/goal/updated",
 			Params: protocol.ThreadGoalUpdatedNotification{

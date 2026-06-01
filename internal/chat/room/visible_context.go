@@ -388,6 +388,9 @@ func formatMemberDirectory(agentNameByID map[string]string) string {
 }
 
 func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string {
+	if strings.TrimSpace(trigger.TriggerType) == "goal_continuation" {
+		return "Goal continuation: continue the active Room goal using this turn's hidden internal goal context. Do not treat this as a new public user message."
+	}
 	if strings.TrimSpace(trigger.TriggerType) == "" && strings.TrimSpace(trigger.Content) == "" {
 		return "(No trigger message.)"
 	}

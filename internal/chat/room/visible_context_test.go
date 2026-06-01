@@ -253,6 +253,33 @@ func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
 	}
 }
 
+func TestBuildRoomVisibleContextUsesGoalContinuationTrigger(t *testing.T) {
+	got := BuildVisibleContext(VisibleContextInput{
+		LatestTrigger: Trigger{
+			TriggerType: "goal_continuation",
+		},
+		AgentNameByID: map[string]string{
+			"agent-devin": "Devin",
+		},
+		TargetAgentID: "agent-devin",
+	})
+
+	for _, expected := range []string{
+		"<latest_trigger>",
+		"Goal continuation: continue the active Room goal",
+		"hidden internal goal context",
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("Goal continuation trigger missing %q:\n%s", expected, got)
+		}
+	}
+	for _, unexpected := range []string{"User: (No content.)", "room host default takeover"} {
+		if strings.Contains(got, unexpected) {
+			t.Fatalf("Goal continuation trigger should not look like public chat %q:\n%s", unexpected, got)
+		}
+	}
+}
+
 func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 	history := []protocol.Message{
 		{"message_id": "m1", "role": "user", "content": "旧消息", "timestamp": int64(1)},

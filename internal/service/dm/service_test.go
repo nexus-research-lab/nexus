@@ -196,6 +196,8 @@ type fakeGoalContextProvider struct {
 	usage            []protocol.GoalUsage
 	usageLimitReason []string
 	progress         []bool
+	failures         []string
+	activities       []string
 	current          *bool
 }
 
@@ -235,6 +237,20 @@ func (p *fakeGoalContextProvider) RecordContinuationProgress(_ context.Context, 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.progress = append(p.progress, progressed)
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationFailure(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failures = append(p.failures, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordGoalActivity(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activities = append(p.activities, strings.TrimSpace(roundID))
 	return nil, nil
 }
 
@@ -357,11 +373,38 @@ func TestRoundRunnerRecordsEmptyGoalContinuationProgress(t *testing.T) {
 		},
 	}
 
-	runner.recordGoalContinuationProgress()
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || progress[0] {
 		t.Fatalf("progress = %#v, want one false continuation progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsGoalContinuationFailure(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{
+		TerminalStatus: "error",
+		ResultSubtype:  "error",
+		ErrorMessage:   "Failed to authenticate. API Error: 401",
+	})
+
+	failures := goalProvider.recordedFailures()
+	if len(failures) != 1 || failures[0] != "Failed to authenticate. API Error: 401" {
+		t.Fatalf("failures = %#v, want provider error", failures)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want failure path instead of empty progress", progress)
 	}
 }
 
@@ -379,11 +422,32 @@ func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
 	}
 
 	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
-	runner.recordGoalContinuationProgress()
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || !progress[0] {
 		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsUserGoalActivityInsteadOfContinuationProgress(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-user",
+		goalIDForUsage: "goal-1",
+	}
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.activities) != 1 || goalProvider.activities[0] != "round-user" {
+		t.Fatalf("activities = %#v, want explicit goal activity", goalProvider.activities)
+	}
+	if len(goalProvider.progress) != 0 {
+		t.Fatalf("progress = %#v, want no continuation progress for user round", goalProvider.progress)
 	}
 }
 
@@ -412,6 +476,34 @@ func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
 	}
 	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
 		t.Fatalf("usage = %#v, want update_goal usage only", usages[0])
+	}
+}
+
+func TestRoundRunnerClosesGoalUsageAfterMCPUpdateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__update_goal", false, 10, 2))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+			TotalTokens:  25,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
+		t.Fatalf("usage = %#v, want MCP update_goal usage only", usages[0])
 	}
 }
 
@@ -499,6 +591,33 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerResetsGoalUsageAfterMCPCreateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:    &Service{goals: goalProvider},
+		sessionKey: "agent:nexus:ws:dm:test",
+		roundID:    "round-1",
+		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__create_goal", false, 5, 1))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  8,
+			OutputTokens: 3,
+			TotalTokens:  11,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
+		t.Fatalf("usage = %#v, want post-MCP-create delta 3/2", usages[0])
+	}
+}
+
 func TestRoundRunnerIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
@@ -523,7 +642,7 @@ func TestRoundRunnerIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 		UsageLimitReached: true,
 		UsageLimitReason:  "usage limit",
 	})
-	runner.recordGoalContinuationProgress()
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
 
 	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
 		t.Fatalf("plan mode recorded goal usage: %#v", usages)
@@ -552,6 +671,12 @@ func (p *fakeGoalContextProvider) recordedProgress() []bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]bool(nil), p.progress...)
+}
+
+func (p *fakeGoalContextProvider) recordedFailures() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.failures...)
 }
 
 func (p *fakeGoalContextProvider) runtimeContextCallCount() int {
@@ -939,6 +1064,7 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 
 	client.mu.Lock()
 	queryOptions := append([]sdkprotocol.OutboundMessageOptions(nil), client.queryOptions...)
+	queryPrompts := append([]string(nil), client.queryPrompts...)
 	client.mu.Unlock()
 	if len(queryOptions) < 2 ||
 		queryOptions[1].HiddenFromUser ||
@@ -959,6 +1085,10 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	}
 	if !assistantVisible {
 		t.Fatalf("Goal continuation 的 assistant 输出应进入可见历史: %+v", rows)
+	}
+	if len(queryPrompts) < 2 ||
+		!strings.Contains(queryPrompts[1], "<codex_internal_context source=\"goal\">\nhidden continuation prompt\n</codex_internal_context>") {
+		t.Fatalf("Goal continuation 应作为 internal goal context 注入 runtime: %+v", queryPrompts)
 	}
 }
 
@@ -1034,7 +1164,7 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	goalProvider := &fakeGoalContextProvider{
-		runtimeContext: "<goal_context>\nshould not enter plan mode\n</goal_context>",
+		runtimeContext: "should not enter plan mode",
 		runtimeGoal: &protocol.Goal{
 			ID:         "goal-plan-context",
 			SessionKey: "agent:nexus:ws:dm:test-plan-context",

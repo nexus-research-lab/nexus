@@ -89,6 +89,9 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		)
 		return err
 	}
+	if override := strings.TrimSpace(request.GoalContext); request.Internal && override != "" {
+		goalContext = override
+	}
 	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID(), runtimeProvider, runtimeModel); syncErr != nil {
 		return syncErr
 	} else {
@@ -223,7 +226,8 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	if err != nil {
 		return "", protocol.SessionKey{}, err
 	}
-	if !protocol.HasChatInput(request.Content, request.Attachments) {
+	if !protocol.HasChatInput(request.Content, request.Attachments) &&
+		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", protocol.SessionKey{}, errors.New("content is required")
 	}
 	if strings.TrimSpace(request.RoundID) == "" {

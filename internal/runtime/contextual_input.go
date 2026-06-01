@@ -30,6 +30,8 @@ type nextTurnContextClient interface {
 	SetNextTurnContext(context.Context, []ContextualInputBlock) error
 }
 
+const contextOnlyTurnTrigger = "Continue."
+
 func prepareRoundContentWithContext(
 	ctx context.Context,
 	client Client,
@@ -42,12 +44,22 @@ func prepareRoundContentWithContext(
 	}
 	if setter, ok := client.(nextTurnContextClient); ok {
 		if err := setter.SetNextTurnContext(ctx, blocks); err == nil {
-			return content, nil
+			return contentWithContextTrigger(content), nil
 		} else if !errors.Is(err, agentclient.ErrUnsupportedCapability) {
 			return nil, err
 		}
 	}
 	return prependContextualInputBlocks(content, blocks), nil
+}
+
+func contentWithContextTrigger(content any) any {
+	switch value := content.(type) {
+	case string:
+		if strings.TrimSpace(value) == "" {
+			return contextOnlyTurnTrigger
+		}
+	}
+	return content
 }
 
 func normalizeContextualInputBlocks(blocks []ContextualInputBlock) []ContextualInputBlock {
@@ -78,11 +90,58 @@ func normalizeContextualInputBlocks(blocks []ContextualInputBlock) []ContextualI
 func renderContextualInputBlocks(blocks []ContextualInputBlock) string {
 	parts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		if content := strings.TrimSpace(block.Content); content != "" {
+		if content := renderContextualInputBlock(block); content != "" {
 			parts = append(parts, content)
 		}
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+func renderContextualInputBlock(block ContextualInputBlock) string {
+	content := strings.TrimSpace(block.Content)
+	if content == "" {
+		return ""
+	}
+	if source := internalContextSourceName(block.Name); source != "" {
+		return renderCodexInternalContext(source, content)
+	}
+	return content
+}
+
+func internalContextSourceName(name string) string {
+	switch strings.TrimSpace(name) {
+	case "goal", "goal_context":
+		return "goal"
+	default:
+		return ""
+	}
+}
+
+func renderCodexInternalContext(source string, content string) string {
+	content = strings.TrimSpace(content)
+	if isCodexInternalContext(content) {
+		return content
+	}
+	content = unwrapLegacyGoalContext(content)
+	return fmt.Sprintf("<codex_internal_context source=\"%s\">\n%s\n</codex_internal_context>", source, content)
+}
+
+func isCodexInternalContext(content string) bool {
+	content = strings.TrimSpace(content)
+	return strings.HasPrefix(content, "<codex_internal_context ") &&
+		strings.HasSuffix(content, "</codex_internal_context>")
+}
+
+func unwrapLegacyGoalContext(content string) string {
+	content = strings.TrimSpace(content)
+	const openTag = "<goal_context>"
+	const closeTag = "</goal_context>"
+	if strings.HasPrefix(content, openTag) && strings.HasSuffix(content, closeTag) {
+		content = strings.TrimPrefix(content, openTag)
+		content = strings.TrimSuffix(content, closeTag)
+		return strings.TrimSpace(content)
+	}
+	return content
 }
 
 func prependContextualInputBlocks(content any, blocks []ContextualInputBlock) any {

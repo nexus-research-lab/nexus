@@ -391,7 +391,7 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 	}
 	manager.StartRound(sessionKey, "round-guide", func() {})
 
-	if _, err := manager.QueueContextualGuidanceInput(context.Background(), sessionKey, "goal-event-1", "goal_context", "Budget reached."); err != nil {
+	if _, err := manager.QueueContextualGuidanceInput(context.Background(), sessionKey, "goal-event-1", "goal", "Budget reached."); err != nil {
 		t.Fatalf("登记 Goal 上下文失败: %v", err)
 	}
 
@@ -405,7 +405,7 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 		t.Fatalf("执行 PostToolUse hook 失败: %v", err)
 	}
 	additionalContext := output.SpecificOutput.AdditionalContext
-	if !strings.Contains(additionalContext, "<goal_context>\nBudget reached.\n</goal_context>") {
+	if !strings.Contains(additionalContext, "<codex_internal_context source=\"goal\">\nBudget reached.\n</codex_internal_context>") {
 		t.Fatalf("additionalContext 未包含 Goal context: %q", additionalContext)
 	}
 	if strings.Contains(additionalContext, "<nexus_guidance>") {

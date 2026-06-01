@@ -87,6 +87,77 @@ func goalContinuationTargetAgentID(
 	return ""
 }
 
+func (s *RealtimeService) dispatchPostRoundWork(ctx context.Context, roundValue *activeRoomRound) {
+	if roundValue == nil {
+		return
+	}
+	if s.ShouldDeferGoalContinuation(ctx, roundValue.SessionKey) {
+		return
+	}
+	s.dispatchGoalContinuation(ctx, roundValue)
+}
+
+func (s *RealtimeService) dispatchGoalContinuation(ctx context.Context, roundValue *activeRoomRound) {
+	if s == nil || roundValue == nil || s.goals == nil {
+		return
+	}
+	planner, ok := s.goals.(goalContinuationProvider)
+	if !ok {
+		return
+	}
+	plan, err := planner.PlanContinuationForSession(ctx, roundValue.SessionKey, roundValue.RoundID)
+	if err != nil {
+		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) || errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			return
+		}
+		s.loggerFor(ctx).Warn("规划 Room Goal 自动续跑失败",
+			"session_key", roundValue.SessionKey,
+			"round_id", roundValue.RoundID,
+			"err", err,
+		)
+		return
+	}
+	if plan == nil {
+		return
+	}
+	if s.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey) {
+		if releaser, ok := s.goals.(goalContinuationPlanReleaser); ok {
+			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation deferred before dispatch")
+		}
+		return
+	}
+	current, err := planner.GoalContinuationStillCurrent(ctx, *plan)
+	if err != nil {
+		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) || errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			return
+		}
+		s.loggerFor(ctx).Warn("校验 Room Goal 自动续跑状态失败",
+			"session_key", roundValue.SessionKey,
+			"round_id", plan.RoundID,
+			"goal_id", plan.Goal.ID,
+			"err", err,
+		)
+		return
+	}
+	if !current {
+		if releaser, ok := s.goals.(goalContinuationPlanReleaser); ok {
+			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation stale before dispatch")
+		}
+		return
+	}
+	if err := s.DispatchGoalContinuation(ctx, *plan); err != nil {
+		if releaser, ok := s.goals.(goalContinuationPlanReleaser); ok {
+			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation dispatch failed before runtime start")
+		}
+		s.loggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
+			"session_key", roundValue.SessionKey,
+			"round_id", plan.RoundID,
+			"goal_id", plan.Goal.ID,
+			"err", err,
+		)
+	}
+}
+
 // DispatchGoalContinuation 把共享 Room Goal 的隐藏续跑交给 Room 运行链路。
 func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
 	if s == nil {
@@ -100,7 +171,7 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	return s.HandleChat(ctx, ChatRequest{
 		SessionKey:     sessionKey,
 		ConversationID: parsed.ConversationID,
-		Content:        plan.Prompt,
+		GoalContext:    plan.Prompt,
 		RoundID:        plan.RoundID,
 		ReqID:          plan.RoundID,
 		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,

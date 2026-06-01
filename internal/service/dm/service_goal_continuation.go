@@ -70,6 +70,9 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 		return
 	}
 	if r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID) {
+		if releaser, ok := r.service.goals.(goalContinuationPlanReleaser); ok {
+			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation deferred before dispatch")
+		}
 		return
 	}
 	current, err := r.service.goals.GoalContinuationStillCurrent(ctx, *plan)
@@ -86,12 +89,15 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 		return
 	}
 	if !current {
+		if releaser, ok := r.service.goals.(goalContinuationPlanReleaser); ok {
+			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation stale before dispatch")
+		}
 		return
 	}
 	if err := r.service.HandleChat(ctx, Request{
 		SessionKey:           r.sessionKey,
 		AgentID:              r.agent.AgentID,
-		Content:              plan.Prompt,
+		GoalContext:          plan.Prompt,
 		RoundID:              plan.RoundID,
 		ReqID:                plan.RoundID,
 		DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,
@@ -105,6 +111,9 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 			Metadata:       plan.Metadata,
 		},
 	}); err != nil {
+		if releaser, ok := r.service.goals.(goalContinuationPlanReleaser); ok {
+			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation dispatch failed before runtime start")
+		}
 		r.service.loggerFor(ctx).Warn("启动 Goal 自动续跑失败",
 			"session_key", r.sessionKey,
 			"round_id", plan.RoundID,

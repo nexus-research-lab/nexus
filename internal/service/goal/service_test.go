@@ -278,6 +278,7 @@ func (a *fakeExternalMutationAccountant) ActivateGoalAccounting(_ context.Contex
 type fakeContinuationDispatcher struct {
 	deferSessions map[string]bool
 	plans         []protocol.GoalContinuation
+	dispatchErr   error
 	deferCalls    int
 	onShouldDefer func(call int, sessionKey string)
 }
@@ -292,5 +293,5 @@ func (d *fakeContinuationDispatcher) ShouldDeferGoalContinuation(_ context.Conte
 
 func (d *fakeContinuationDispatcher) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {
 	d.plans = append(d.plans, plan)
-	return nil
+	return d.dispatchErr
 }

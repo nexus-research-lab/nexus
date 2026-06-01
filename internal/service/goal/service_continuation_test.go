@@ -2,6 +2,7 @@ package goal
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestServiceQueuesObjectiveUpdateSteering(t *testing.T) {
 	}
 	item := dispatcher.items[0]
 	if item.sessionKey != created.SessionKey ||
-		item.contextName != "goal_context" ||
+		item.contextName != "goal" ||
 		!strings.Contains(item.content, "active thread goal objective was edited") ||
 		!strings.Contains(item.content, "Updated &lt;goal&gt;") ||
 		strings.Contains(item.content, "Nexus Goal") {
@@ -99,7 +100,7 @@ func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 		t.Fatalf("guidance = %#v, want one budget limit steering item", dispatcher.items)
 	}
 	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey ||
-		item.contextName != "goal_context" ||
+		item.contextName != "goal" ||
 		!strings.Contains(item.content, "active thread goal has reached its token budget") ||
 		!strings.Contains(item.content, "<objective>") ||
 		!strings.Contains(item.content, "</objective>") ||
@@ -336,6 +337,96 @@ func TestServicePlanContinuationStopsAtUsageLimit(t *testing.T) {
 	}
 }
 
+func TestServiceResumeUsageLimitedGoalStartsFreshContinuationRun(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 1,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Resume after continuation cap",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-2"); err != nil {
+		t.Fatal(err)
+	}
+	limited, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limited.Status != protocol.GoalStatusUsageLimited || limited.ContinuationCount != 1 {
+		t.Fatalf("limited = %#v, want usage_limited after one continuation", limited)
+	}
+
+	resumed, err := service.Resume(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != protocol.GoalStatusActive || resumed.ContinuationCount != 0 {
+		t.Fatalf("resumed = %#v, want active with continuation count reset", resumed)
+	}
+	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next == nil {
+		t.Fatal("next plan = nil, want fresh continuation after resume")
+	}
+	if next.Goal.ContinuationCount != 1 {
+		t.Fatalf("next continuation count = %d, want 1 for fresh run", next.Goal.ContinuationCount)
+	}
+}
+
+func TestServiceRecordGoalActivityResetsContinuationRun(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "User activity restarts the run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil {
+		t.Fatal("plan = nil, want continuation")
+	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, plan.RoundID, false); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.RecordGoalActivity(ctx, created.ID, "round-user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ContinuationCount != 0 || updated.EmptyProgressCount != 0 || updated.LastError != "" {
+		t.Fatalf("updated = %#v, want explicit activity to reset continuation run", updated)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_reset" || got.RoundID != "round-user" {
+		t.Fatalf("last event = %#v, want continuation_reset for user activity", got)
+	}
+}
+
 func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -377,6 +468,81 @@ func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
 	}
 	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.RoundID != plan.RoundID {
 		t.Fatalf("last event = %#v, want continuation_suppressed for continuation round", got)
+	}
+}
+
+func TestServiceResumeActiveGoalClearsEmptyProgressAndDispatchesContinuation(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	dispatcher := &fakeContinuationDispatcher{}
+	service.SetContinuationDispatcher(dispatcher)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Resume suppressed active goal",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher.plans = nil
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal_continuation_1", false); err != nil {
+		t.Fatal(err)
+	}
+
+	resumed, err := service.Resume(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.Status != protocol.GoalStatusActive || resumed.EmptyProgressCount != 0 {
+		t.Fatalf("resumed = %#v, want active goal with empty progress cleared", resumed)
+	}
+	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != created.ID {
+		t.Fatalf("plans = %#v, want resumed active goal to dispatch continuation", dispatcher.plans)
+	}
+	if got := repo.events[len(repo.events)-2]; got.EventType != "resumed" {
+		t.Fatalf("event before continuation = %#v, want resumed", got)
+	}
+}
+
+func TestServiceRecordContinuationFailureStoresLastError(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Surface provider errors",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := service.RecordContinuationFailure(ctx, created.ID, "goal_continuation_1", "Failed to authenticate. API Error: 401")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.LastError != "Failed to authenticate. API Error: 401" || updated.EmptyProgressCount != 1 {
+		t.Fatalf("updated = %#v, want last_error and empty progress suppression", updated)
+	}
+	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "goal_continuation_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next != nil {
+		t.Fatalf("next = %#v, want nil after continuation failure", next)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_failed" || got.RoundID != "goal_continuation_1" {
+		t.Fatalf("last event = %#v, want continuation_failed", got)
 	}
 }
 
@@ -524,6 +690,84 @@ func TestServiceRunAutoResumeOnceSkipsDeferredGoal(t *testing.T) {
 	}
 }
 
+func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchDefers(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Do not count deferred continuation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{}
+	dispatcher.onShouldDefer = func(call int, sessionKey string) {
+		if call == 2 {
+			dispatcher.deferSessions = map[string]bool{sessionKey: true}
+		}
+	}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatal(err)
+	}
+	if len(dispatcher.plans) != 0 {
+		t.Fatalf("plans = %#v, want no dispatch after second defer", dispatcher.plans)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 0 {
+		t.Fatalf("ContinuationCount = %d, want deferred continuation released", current.ContinuationCount)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_deferred" {
+		t.Fatalf("last event = %#v, want continuation_deferred", got)
+	}
+}
+
+func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchFails(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Do not count failed continuation dispatch",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchErr := errors.New("runtime start failed")
+	dispatcher := &fakeContinuationDispatcher{dispatchErr: dispatchErr}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); !errors.Is(err, dispatchErr) {
+		t.Fatalf("RunAutoResumeOnce error = %v, want %v", err, dispatchErr)
+	}
+	if len(dispatcher.plans) != 1 {
+		t.Fatalf("plans = %#v, want attempted dispatch", dispatcher.plans)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ContinuationCount != 0 {
+		t.Fatalf("ContinuationCount = %d, want failed continuation released", current.ContinuationCount)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_deferred" {
+		t.Fatalf("last event = %#v, want continuation_deferred", got)
+	}
+}
+
 func TestServiceRunAutoResumeOnceSkipsStaleContinuationBeforeDispatch(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -557,5 +801,12 @@ func TestServiceRunAutoResumeOnceSkipsStaleContinuationBeforeDispatch(t *testing
 	}
 	if len(dispatcher.plans) != 0 {
 		t.Fatalf("plans = %#v, want no dispatch after goal changed before launch", dispatcher.plans)
+	}
+	current := repo.goals[created.ID]
+	if current.ContinuationCount != 0 {
+		t.Fatalf("ContinuationCount = %d, want stale unstarted continuation released", current.ContinuationCount)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_deferred" {
+		t.Fatalf("last event = %#v, want continuation_deferred for stale unstarted plan", got)
 	}
 }

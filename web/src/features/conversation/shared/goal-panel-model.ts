@@ -1,5 +1,4 @@
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
-import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   active: "运行中",
@@ -51,85 +50,6 @@ export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
       return "已完成";
     default:
       return "Goal";
-  }
-}
-
-export type GoalRunTone = "active" | "waiting" | "stopped" | "done";
-
-export interface GoalRunState {
-  detail: string;
-  label: string;
-  tone: GoalRunTone;
-}
-
-export function goal_run_state(
-  goal: Goal,
-  is_generating: boolean,
-  continuation_hold: GoalContinuationHold | null = null,
-): GoalRunState {
-  switch (goal.status) {
-    case "active":
-      if (continuation_hold) {
-        return {
-          detail: continuation_hold.detail,
-          label: continuation_hold.label,
-          tone: "waiting",
-        };
-      }
-      if ((goal.empty_progress_count ?? 0) > 0) {
-        return {
-          detail: "上一轮没有可计入进展，等待新的用户或外部活动",
-          label: "续跑暂停",
-          tone: "waiting",
-        };
-      }
-      return is_generating
-        ? {
-            detail: "正在执行 Goal，完成后会显示回复",
-            label: "当前轮次",
-            tone: "active",
-          }
-        : {
-            detail: "下一轮会携带 Goal 上下文继续推进",
-            label: "下轮继续",
-            tone: "active",
-          };
-    case "paused":
-      return {
-        detail: "用户暂停后不会自动续跑",
-        label: "已暂停",
-        tone: "waiting",
-      };
-    case "blocked":
-      return {
-        detail: "解除阻塞或补充输入后继续",
-        label: "等待输入",
-        tone: "stopped",
-      };
-    case "budget_limited":
-      return {
-        detail: "调整预算后才能继续",
-        label: "预算耗尽",
-        tone: "stopped",
-      };
-    case "usage_limited":
-      return {
-        detail: "续跑上限触发，需要用户确认继续",
-        label: "续跑受限",
-        tone: "stopped",
-      };
-    case "complete":
-      return {
-        detail: "目标已完成，不再自动续跑",
-        label: "已完成",
-        tone: "done",
-      };
-    default:
-      return {
-        detail: "Goal 状态已更新",
-        label: "Goal",
-        tone: "waiting",
-      };
   }
 }
 

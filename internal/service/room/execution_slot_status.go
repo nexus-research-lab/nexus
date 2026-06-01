@@ -37,6 +37,10 @@ func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *act
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
+	s.recordGoalContinuationProgressForSlot(ctx, slot, roundValue, runtimectx.RoundExecutionResult{
+		TerminalStatus: "error",
+		ErrorMessage:   err.Error(),
+	}, slot.lastGoalAssistantMessage())
 	slot.setStatus("error")
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + slot.AgentRoundID,

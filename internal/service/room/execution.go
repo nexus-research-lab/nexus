@@ -70,12 +70,7 @@ func (s *RealtimeService) runRound(
 	if finalStatus == "finished" {
 		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
 	}
-	go s.dispatchNextInputQueueItem(
-		contextWithQueueOwner(context.Background(), roundValue.OwnerUserID),
-		roundValue.SessionKey,
-		roundValue.RoomID,
-		roundValue.ConversationID,
-	)
+	go s.dispatchPostRoundWork(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
 }
 
 func appendPromptSection(base string, section string) string {
@@ -175,6 +170,9 @@ func (s *RealtimeService) runSlot(
 	slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
 	if !slot.GoalRuntimeIgnored {
 		appendSystemPrompt, slot.GoalContext, slot.GoalIDForUsage, slot.GoalSessionKey = s.resolveGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
+	}
+	if override := strings.TrimSpace(roundValue.GoalContext); roundValue.Internal && override != "" {
+		slot.GoalContext = override
 	}
 	beginGoalUsageForSlot(slot)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
@@ -380,7 +378,7 @@ func (s *RealtimeService) runSlot(
 	}
 	s.recordGoalUsageForSlot(slotCtx, slot, result, mapper.LastAssistantMessage())
 	s.recordGoalUsageLimitForSlot(slotCtx, slot, result)
-	s.recordGoalContinuationProgressForSlot(slotCtx, slot, roundValue)
+	s.recordGoalContinuationProgressForSlot(slotCtx, slot, roundValue, result, mapper.LastAssistantMessage())
 	if slot.getStatus() == "running" {
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}

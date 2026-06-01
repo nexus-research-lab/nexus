@@ -66,6 +66,50 @@ func TestGoalEventBroadcasterSkipsExternalSourceForRPCNotification(t *testing.T)
 	}
 }
 
+func TestGoalEventBroadcasterSendsContinuationNotificationToRPCSubscribers(t *testing.T) {
+	registry := newAppServerGoalRPCRegistry()
+	sender := &capturingRawSender{key: "rpc-1"}
+	threadID := "agent:nexus:ws:dm:goal-rpc"
+	registry.Register(threadID, sender)
+	broadcaster := newGoalEventBroadcaster(&capturingNexusGoalBroadcaster{}, registry)
+
+	goal := protocol.Goal{
+		SessionKey:         threadID,
+		Objective:          "Finish parity",
+		Status:             protocol.GoalStatusActive,
+		ContinuationCount:  2,
+		EmptyProgressCount: 1,
+		LastError:          "provider returned 401",
+	}
+	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalContinuation, goal, map[string]any{
+		"source":          string(protocol.GoalUpdateSourceSystem),
+		"round_id":        "goal_continuation_2",
+		"goal_event_type": "continuation_failed",
+	})
+	broadcaster.BroadcastEvent(context.Background(), threadID, event)
+
+	if len(sender.payloads) != 1 {
+		t.Fatalf("app-server notifications = %d, want 1", len(sender.payloads))
+	}
+	notification, ok := sender.payloads[0].(protocol.AppServerJSONRPCNotification)
+	if !ok {
+		t.Fatalf("notification type = %T", sender.payloads[0])
+	}
+	if notification.Method != "thread/goal/updated" {
+		t.Fatalf("notification method = %q, want thread/goal/updated", notification.Method)
+	}
+	params, ok := notification.Params.(protocol.ThreadGoalUpdatedNotification)
+	if !ok {
+		t.Fatalf("notification params = %#v", notification.Params)
+	}
+	if params.TurnID == nil || *params.TurnID != "goal_continuation_2" {
+		t.Fatalf("notification turnId = %#v, want goal_continuation_2", params.TurnID)
+	}
+	if params.Goal.Status != protocol.ThreadGoalStatusActive {
+		t.Fatalf("notification goal = %#v", params.Goal)
+	}
+}
+
 type capturingNexusGoalBroadcaster struct {
 	events []protocol.EventMessage
 }

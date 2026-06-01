@@ -229,10 +229,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		sessionsByAgent[item.AgentID] = item
 	}
 
-	initialTriggerType := "public_chat"
-	if targetResolution == "room_host_default" {
-		initialTriggerType = "room_host_default"
-	}
+	initialTriggerType := initialRoomTriggerType(request, targetResolution)
 	initialTrigger := roomTrigger{
 		TriggerType: initialTriggerType,
 		Content:     strings.TrimSpace(request.Content),
@@ -252,6 +249,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		PermissionMode:    request.PermissionMode,
 		PermissionHandler: request.PermissionHandler,
 		EventObserver:     request.EventObserver,
+		GoalContext:       strings.TrimSpace(request.GoalContext),
 		Slots:             make(map[string]*activeRoomSlot),
 		Done:              make(chan struct{}),
 	}
@@ -356,6 +354,16 @@ func resolveRoomHostDefaultTarget(
 	return hostAgentID, true
 }
 
+func initialRoomTriggerType(request ChatRequest, targetResolution string) string {
+	if request.Internal && strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" {
+		return "goal_continuation"
+	}
+	if targetResolution == "room_host_default" {
+		return "room_host_default"
+	}
+	return "public_chat"
+}
+
 func (s *RealtimeService) scheduleTitleGeneration(
 	ctx context.Context,
 	sessionKey string,
@@ -416,7 +424,8 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 	if strings.TrimSpace(request.RoundID) == "" {
 		return "", "", errors.New("round_id is required")
 	}
-	if !protocol.HasChatInput(request.Content, request.Attachments) {
+	if !protocol.HasChatInput(request.Content, request.Attachments) &&
+		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", "", errors.New("content is required")
 	}
 	conversationID := firstNonEmpty(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))

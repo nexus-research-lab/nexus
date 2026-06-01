@@ -92,6 +92,9 @@ func (s *Service) persistTransitionWithOptions(
 	if resetEmptyProgressForTransition(source, status) {
 		item.EmptyProgressCount = 0
 	}
+	if resetContinuationCountForTransition(source, status) {
+		item.ContinuationCount = 0
+	}
 	item.Version++
 	item.UpdatedAt = now
 	switch status {

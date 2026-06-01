@@ -197,6 +197,10 @@ func renderGuidanceContextBlocks(inputs []GuidedInput) string {
 		if name == "" || content == "" {
 			continue
 		}
+		if source := internalContextSourceName(name); source != "" {
+			blocks = append(blocks, renderCodexInternalContext(source, content))
+			continue
+		}
 		blocks = append(blocks, fmt.Sprintf("<%s>\n%s\n</%s>", name, content, name))
 	}
 	return strings.Join(blocks, "\n\n")

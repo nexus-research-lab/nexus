@@ -29,12 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 自动续跑对齐 Codex 的空进展抑制语义：隐藏续跑轮次未产生可计入工具进展时暂停下一次自动续跑，用户/外部活动或工具进展会恢复续跑。
 - Goal app-server `thread/goal/set` 创建路径直接落最终状态，避免创建 paused/blocked/budgetLimited Goal 时短暂广播 active 状态。
 - Goal 模型侧完成/阻塞状态更新保留变更前 usage flush，但不再提前清理本轮 runtime accounting，确保 `update_goal` 工具结果后的最终用量仍可补记。
-- Goal runtime context 标记对齐 Codex `<goal_context>`，并在前端 Goal 面板直接展示剩余预算与续跑暂停状态。
+- Goal runtime context 标记对齐 Codex internal goal context，并在前端 Goal 面板直接展示剩余预算与续跑暂停状态。
 - Goal 续跑与 steering prompt 移除 Nexus 私有措辞和内部 round ID，进一步贴近 Codex thread goal 模板。
 - Goal runtime context 改为优先注入下一轮运行时上下文，bridge 暂不支持时降级为用户输入前缀；前端 Goal 面板新增运行上下文状态。
 - Goal runtime context 中的 objective 按 Codex 方式转义 XML 分隔符，避免用户目标内容闭合隐藏上下文。
 - Goal app-server `thread/goal/updated` 通知补齐 turnId，模型轮次内的 Goal 更新可按触发 round 归因。
-- Goal 运行中 objective/budget steering 改为注入 `<goal_context>` 命名上下文，不再包进通用 Nexus guidance。
+- Goal 运行中 objective/budget steering 改为注入 Codex internal goal context，不再包进通用 Nexus guidance。
 - Goal `update_goal` 工具描述收口到 Codex 当前模型可见契约，blocked 判定保留在续跑上下文审计提示中。
 - Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
 - Goal 面板上下文状态文案从调试式 `goal_context` 改为用户可理解的运行状态表达。
@@ -53,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 面板耗时展示对齐 Codex，超过 24 小时时保留分钟，并将停止态上下文文案收口为不再注入。
 - Goal 面板移除用户侧手动完成按钮，完成 Goal 继续交由模型 `update_goal(status=complete)` 审计后触发。
 - Goal native HTTP 与前端 API 移除用户侧完成/阻塞入口，完成和阻塞 Goal 只保留模型 `update_goal(status=...)` 审计路径。
-- Goal active turn 不再额外注入常驻 runtime context，只保留用量/耗时记账；`<goal_context>` 收口到隐藏续跑和运行中 steering。
+- Goal active turn 不再额外注入常驻 runtime context，只保留用量/耗时记账；internal goal context 收口到隐藏续跑和运行中 steering。
+- Goal 隐藏续跑与运行中 steering 的 fallback 渲染改为 Codex `<codex_internal_context source="goal">` 形态，bridge 支持 internal context 时只传 source=goal 的上下文块。
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
 - Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 - Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。
@@ -62,8 +63,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room Goal runtime 不再从房间 shared session 回落到成员私有 Goal，Web 面板也固定展示房间级 Goal 语义。
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
 - Goal 面板移除上下文注入模式和事件来源调试标签，不再展示 `仅记账不注入`、`用户 · 创建` 等内部状态。
+- Goal 运行中面板从多行卡片收敛为轻量状态条，只保留目标、运行状态、耗时、续跑状态和操作按钮，减少对聊天输入区的遮挡。
 
 ### Fixed
+- 修复 Goal 自动续跑上限在用户继续介入后仍沿用旧 continuation count，导致恢复后很快再次 `usage_limited` 的问题；显式用户/外部活动现在会重启一轮 continuation run。
+- 修复 GoalContext-only 隐藏续跑可能从底层 SDK transcript 投影成可见用户消息的问题，缺失 overlay marker 时也会隐藏 legacy `<goal_context>` 与 Codex internal goal context 输入。
+- 修复 Room Goal 隐藏续跑被渲染成空用户消息或 host default takeover 触发的问题，现在使用专用 Goal continuation trigger。
+- 修复 Goal 隐藏续跑在启动前被用户暂停或替换时仍消耗 continuation 次数的问题，未启动的 stale 计划现在会释放计数。
+- 修复未来 runtime 支持真实 internal context 后 GoalContext-only 续跑可能以空输入启动、导致 SDK 不执行下一轮的问题。
+- 修复 Goal 续跑失败事件不广播、异常路径不记录失败、恢复进展后旧错误残留的问题，并恢复 Goal 面板的 token 预算与用量展示。
+- 修复 Goal 隐藏续跑遇到 provider/API runtime 错误时只记录为空进展的问题，现在会写入 `last_error` 并记录 `continuation_failed` 事件，前端可直接展示真实失败原因。
 - 修复 Goal 隐藏续跑发给 Claude runtime 时仍带 `hidden/synthetic` 标记，导致续跑轮次进入后台但模型没有按普通输入产出回复的问题。
 - 修复 Goal 托管工具预授权在无显式工具白名单时误收窄 `allowedTools`，导致长程 Goal 无法使用 Agent 原有工具和 Skill 能力的问题。
 - 修复 Claude SDK 返回 API 错误 assistant 事件时被误判为成功回复或 interrupted，导致 Goal/聊天区只显示泛化错误、真实 401 等 provider 错误不可见的问题。

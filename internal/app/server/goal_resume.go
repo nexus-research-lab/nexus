@@ -72,7 +72,7 @@ func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Contex
 		return d.dm.HandleChat(ctx, dmsvc.Request{
 			SessionKey:           sessionKey,
 			AgentID:              parsed.AgentID,
-			Content:              plan.Prompt,
+			GoalContext:          plan.Prompt,
 			RoundID:              plan.RoundID,
 			ReqID:                plan.RoundID,
 			DeliveryPolicy:       protocol.ChatDeliveryPolicyQueue,

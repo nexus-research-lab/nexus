@@ -24,6 +24,13 @@ type fakeRoomGoalContextProvider struct {
 	usageLimitReason []string
 	usageLimitKeys   []string
 	progress         []bool
+	failures         []string
+	activities       []string
+	plan             *protocol.GoalContinuation
+	planCalls        int
+	stillCurrent     bool
+	releaseCalls     int
+	onPlan           func()
 }
 
 func (p *fakeRoomGoalContextProvider) RuntimeContext(_ context.Context, sessionKey string) (string, *protocol.Goal, error) {
@@ -62,6 +69,45 @@ func (p *fakeRoomGoalContextProvider) RecordContinuationProgress(_ context.Conte
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.progress = append(p.progress, progressed)
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) RecordContinuationFailure(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failures = append(p.failures, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) RecordGoalActivity(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activities = append(p.activities, strings.TrimSpace(roundID))
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error) {
+	p.mu.Lock()
+	p.planCalls++
+	onPlan := p.onPlan
+	plan := p.plan
+	p.mu.Unlock()
+	if onPlan != nil {
+		onPlan()
+	}
+	return plan, nil
+}
+
+func (p *fakeRoomGoalContextProvider) GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.stillCurrent, nil
+}
+
+func (p *fakeRoomGoalContextProvider) ReleaseContinuationPlan(context.Context, protocol.GoalContinuation, string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.releaseCalls++
 	return nil, nil
 }
 
@@ -147,6 +193,35 @@ func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalTool(t *testing.T) {
 	}
 	if len(goalProvider.usageSessionKeys) != 1 || goalProvider.usageSessionKeys[0] != sharedSessionKey {
 		t.Fatalf("usageSessionKeys = %#v, want shared room goal session", goalProvider.usageSessionKeys)
+	}
+}
+
+func TestRoomSlotRecordsUsageToSharedGoalAfterMCPCreateGoalTool(t *testing.T) {
+	sharedSessionKey := "room:group:conversation-1"
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
+		GoalSessionKey:    sharedSessionKey,
+		AgentRoundID:      "round-1:agent-1",
+		GoalUsage:         goalsvc.NewRuntimeUsageAccumulator(false),
+	}
+
+	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__create_goal", 4, 1))
+	service.recordGoalUsageForSlot(context.Background(), slot, runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  9,
+			OutputTokens: 3,
+			TotalTokens:  12,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want post-create delta", len(usages))
+	}
+	if usages[0].InputTokens != 5 || usages[0].OutputTokens != 2 || usages[0].Total() != 7 {
+		t.Fatalf("usage = %#v, want 5/2 delta after MCP create_goal baseline", usages[0])
 	}
 }
 
@@ -503,7 +578,7 @@ func TestRoomSlotIgnoresGoalRuntimeInPlanMode(t *testing.T) {
 	})
 	service.recordGoalContinuationProgressForSlot(context.Background(), slot, &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
-	})
+	}, runtimectx.RoundExecutionResult{}, nil)
 
 	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
 		t.Fatalf("plan mode recorded room goal usage: %#v", usages)
@@ -530,11 +605,46 @@ func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t 
 		},
 	}
 
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue)
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || progress[0] {
 		t.Fatalf("progress = %#v, want one false continuation progress", progress)
+	}
+}
+
+func TestRecordGoalContinuationProgressForRoomSlotRecordsFailure(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "goal_continuation_1",
+		GoalIDForUsage:    "goal-1",
+	}
+	roundValue := &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	service.recordGoalContinuationProgressForSlot(
+		context.Background(),
+		slot,
+		roundValue,
+		runtimectx.RoundExecutionResult{
+			TerminalStatus: "error",
+			ResultSubtype:  "error",
+			ErrorMessage:   "Failed to authenticate. API Error: 401",
+		},
+		nil,
+	)
+
+	failures := goalProvider.recordedFailures()
+	if len(failures) != 1 || failures[0] != "Failed to authenticate. API Error: 401" {
+		t.Fatalf("failures = %#v, want provider error", failures)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want failure path instead of empty progress", progress)
 	}
 }
 
@@ -554,11 +664,33 @@ func TestRecordGoalContinuationProgressForRoomSlotCountsToolProgress(t *testing.
 	}
 
 	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue)
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
 
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || !progress[0] {
 		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	}
+}
+
+func TestRecordGoalContinuationProgressForRoomSlotRecordsUserActivity(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "round-user",
+		GoalIDForUsage:    "goal-1",
+	}
+	roundValue := &activeRoomRound{}
+
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.activities) != 1 || goalProvider.activities[0] != "round-user" {
+		t.Fatalf("activities = %#v, want explicit room goal activity", goalProvider.activities)
+	}
+	if len(goalProvider.progress) != 0 {
+		t.Fatalf("progress = %#v, want no continuation progress for user room round", goalProvider.progress)
 	}
 }
 
@@ -578,6 +710,12 @@ func (p *fakeRoomGoalContextProvider) recordedProgress() []bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]bool(nil), p.progress...)
+}
+
+func (p *fakeRoomGoalContextProvider) recordedFailures() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.failures...)
 }
 
 func roomGoalToolResultAssistantMessage(

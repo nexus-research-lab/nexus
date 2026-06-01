@@ -1,6 +1,10 @@
 package message
 
-import "github.com/nexus-research-lab/nexus/internal/protocol"
+import (
+	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
 
 // ToolResultObservation 表示 assistant 快照中一次已物化的工具结果。
 type ToolResultObservation struct {
@@ -60,7 +64,7 @@ func AssistantHasCountedToolProgress(message protocol.Message) bool {
 }
 
 func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
-	switch normalizeString(observation.ToolName) {
+	switch CanonicalToolName(observation.ToolName) {
 	case "", "update_goal":
 		return false
 	}
@@ -70,6 +74,21 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 	default:
 		return true
 	}
+}
+
+// CanonicalToolName 把 SDK/MCP 展示名规整为模型工具短名。
+func CanonicalToolName(name string) string {
+	name = normalizeString(name)
+	if name == "" {
+		return ""
+	}
+	if strings.HasPrefix(name, "mcp__") {
+		parts := strings.Split(name, "__")
+		if len(parts) >= 3 {
+			return strings.TrimSpace(parts[len(parts)-1])
+		}
+	}
+	return name
 }
 
 func messageContentBlocks(value any) []map[string]any {

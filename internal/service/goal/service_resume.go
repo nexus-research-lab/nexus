@@ -115,6 +115,7 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 		return nil
 	}
 	if dispatcher.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey) {
+		_, _ = s.ReleaseContinuationPlan(ctx, *plan, "Goal continuation deferred before dispatch")
 		return nil
 	}
 	current, err := s.GoalContinuationStillCurrent(ctx, *plan)
@@ -122,9 +123,14 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 		return err
 	}
 	if !current {
+		_, _ = s.ReleaseContinuationPlan(ctx, *plan, "Goal continuation stale before dispatch")
 		return nil
 	}
-	return dispatcher.DispatchGoalContinuation(ctx, *plan)
+	if err := dispatcher.DispatchGoalContinuation(ctx, *plan); err != nil {
+		_, _ = s.ReleaseContinuationPlan(ctx, *plan, "Goal continuation dispatch failed before runtime start")
+		return err
+	}
+	return nil
 }
 
 func activeGoalContinuationSuppressed(ctx context.Context) bool {

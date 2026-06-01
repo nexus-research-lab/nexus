@@ -31,6 +31,7 @@ type Request struct {
 	SessionKey           string
 	AgentID              string
 	Content              string
+	GoalContext          string
 	Attachments          []protocol.ChatAttachment
 	RoundID              string
 	ReqID                string
@@ -96,8 +97,14 @@ type goalContextProvider interface {
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
+	RecordContinuationFailure(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordGoalActivity(context.Context, string, string) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
+}
+
+type goalContinuationPlanReleaser interface {
+	ReleaseContinuationPlan(context.Context, protocol.GoalContinuation, string) (*protocol.Goal, error)
 }
 
 // NewService 创建 DM 会话编排服务。

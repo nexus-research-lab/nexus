@@ -139,6 +139,53 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	return item.ID == goalID, nil
 }
 
+// ReleaseContinuationPlan 撤销尚未启动的隐藏续跑计划，避免未执行的 candidate 消耗续跑次数。
+func (s *Service) ReleaseContinuationPlan(ctx context.Context, plan protocol.GoalContinuation, reason string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	goalID := strings.TrimSpace(plan.Goal.ID)
+	if goalID == "" && plan.Metadata != nil {
+		goalID = strings.TrimSpace(plan.Metadata["goal_id"])
+	}
+	if goalID == "" {
+		return nil, fmt.Errorf("%w: continuation plan missing goal identity", ErrGoalInvalidInput)
+	}
+	item, err := s.repo.GetGoal(ctx, goalID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	if item.ContinuationCount != plan.Goal.ContinuationCount ||
+		item.ContinuationCount <= 0 {
+		return item, nil
+	}
+	expectedVersion := item.Version
+	item.ContinuationCount--
+	item.Version++
+	item.UpdatedAt = s.nowFn()
+	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGoalVersionStale
+	}
+	if err != nil {
+		return nil, err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "Goal continuation deferred before dispatch"
+	}
+	if err := s.appendEvent(ctx, *updated, "continuation_deferred", protocol.GoalUpdateSourceSystem, plan.RoundID, map[string]any{
+		"continuation_count": updated.ContinuationCount,
+		"reason":             reason,
+	}); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 func (s *Service) goalBudgetExhausted(item protocol.Goal) bool {
 	if item.TokenBudget == nil || *item.TokenBudget <= 0 {
 		return false

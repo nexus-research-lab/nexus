@@ -182,7 +182,7 @@ func (s *RealtimeService) recordGoalUsageFromSlotAssistantMessage(
 		if observation.IsError {
 			continue
 		}
-		switch strings.TrimSpace(observation.ToolName) {
+		switch messageutil.CanonicalToolName(observation.ToolName) {
 		case "create_goal":
 			hasSuccessfulCreate = true
 		case "update_goal":
@@ -211,6 +211,8 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 	roundValue *activeRoomRound,
+	result runtimectx.RoundExecutionResult,
+	finalAssistant protocol.Message,
 ) {
 	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || strings.TrimSpace(slot.GoalIDForUsage) == "" {
 		return
@@ -219,7 +221,36 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 	if roundValue != nil {
 		purpose = strings.TrimSpace(roundValue.InputOptions.Purpose)
 	}
-	hasProgress := purpose != "goal_continuation" || slotHasGoalToolProgress(slot)
+	if purpose == "goal_continuation" && result.TerminalStatus == "error" {
+		reason := firstNonEmpty(
+			strings.TrimSpace(result.ErrorMessage),
+			messageutil.ExtractAssistantDisplayText(finalAssistant),
+			"Goal continuation runtime failed",
+		)
+		_, err := s.goals.RecordContinuationFailure(ctx, slot.GoalIDForUsage, slot.AgentRoundID, reason)
+		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			s.loggerFor(ctx).Warn("记录 Room Goal 续跑失败原因失败",
+				"session_key", goalSessionKeyForSlot(slot),
+				"goal_id", slot.GoalIDForUsage,
+				"round_id", slot.AgentRoundID,
+				"err", err,
+			)
+		}
+		return
+	}
+	if purpose != "goal_continuation" {
+		_, err := s.goals.RecordGoalActivity(ctx, slot.GoalIDForUsage, slot.AgentRoundID)
+		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			s.loggerFor(ctx).Warn("记录 Room Goal 显式活动失败",
+				"session_key", goalSessionKeyForSlot(slot),
+				"goal_id", slot.GoalIDForUsage,
+				"round_id", slot.AgentRoundID,
+				"err", err,
+			)
+		}
+		return
+	}
+	hasProgress := slotHasGoalToolProgress(slot)
 	_, err := s.goals.RecordContinuationProgress(ctx, slot.GoalIDForUsage, slot.AgentRoundID, hasProgress)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
 		s.loggerFor(ctx).Warn("记录 Room Goal 续跑进展失败",

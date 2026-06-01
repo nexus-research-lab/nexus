@@ -51,7 +51,7 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("status.description = %#v, want string", status["description"])
 	}
-	for _, want := range []string{"objective is achieved", "cannot currently proceed", "external unblock"} {
+	for _, want := range []string{"objective is achieved", "three consecutive goal turns", "external unblock"} {
 		if !strings.Contains(description, want) {
 			t.Fatalf("status.description = %q, want %q", description, want)
 		}
@@ -60,7 +60,7 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	if !ok || !slices.Equal(enum, []string{"complete", "blocked"}) {
 		t.Fatalf("status.enum = %#v, want [complete blocked]", status["enum"])
 	}
-	for _, want := range []string{"mark the goal achieved or blocked", "until something external changes", "pause, resume, or budget-limit"} {
+	for _, want := range []string{"mark the goal achieved or blocked", "three consecutive goal turns", "pause, resume, or budget-limit"} {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}

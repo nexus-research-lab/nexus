@@ -140,6 +140,52 @@ func TestServiceWallClockAccountingResetsAcrossPauseAndResume(t *testing.T) {
 	}
 }
 
+func TestServiceWallClockAccountingStopsWhileContinuationSuppressed(t *testing.T) {
+	repo := newMemoryRepository()
+	clock := newMutableClock(time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC))
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = clock.Now
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:wall-clock-empty-continuation",
+		Objective:  "Do not count idle continuation hold time",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{RuntimeSeconds: 5}, "round-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal-continuation-1", false); err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(20 * time.Second)
+	objective := "Do not count idle continuation hold time, updated"
+	updated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &objective})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.TimeUsedSeconds != 5 {
+		t.Fatalf("updated.TimeUsedSeconds = %d, want only counted runtime before continuation hold", updated.TimeUsedSeconds)
+	}
+
+	if _, err := service.RecordContinuationProgress(ctx, created.ID, "round-2", true); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(3 * time.Second)
+	_, goal, err := service.RuntimeContext(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if goal == nil || goal.TimeUsedSeconds != 8 {
+		t.Fatalf("runtime goal = %#v, want wall clock to resume after real progress", goal)
+	}
+}
+
 func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)

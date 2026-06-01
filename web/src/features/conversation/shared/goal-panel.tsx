@@ -62,11 +62,18 @@ function next_budget_input(goal: Goal | null, value: string): number | null | un
 }
 
 function should_prompt_resume_goal(status: GoalStatus): boolean {
-  return can_resume_goal(status);
+  return can_resume_status(status);
 }
 
-function can_resume_goal(status: GoalStatus): boolean {
+function can_resume_status(status: GoalStatus): boolean {
   return status === "paused" || status === "blocked" || status === "usage_limited";
+}
+
+function can_resume_goal(goal: Goal): boolean {
+  return (
+    can_resume_status(goal.status) ||
+    (goal.status === "active" && (goal.empty_progress_count ?? 0) > 0)
+  );
 }
 
 function resume_prompt_key(goal: Goal): string {
@@ -262,7 +269,7 @@ export function GoalPanel({
   };
 
   const can_resume_current_goal = useMemo(
-    () => (goal ? can_resume_goal(goal.status) : false),
+    () => (goal ? can_resume_goal(goal) : false),
     [goal],
   );
 

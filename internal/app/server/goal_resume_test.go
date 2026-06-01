@@ -93,4 +93,7 @@ func TestGoalContinuationDispatcherKeepsAgentDispatch(t *testing.T) {
 	if len(dm.requests) != 1 || !dm.requests[0].Internal || !dm.requests[0].InputOptions.HiddenFromUser {
 		t.Fatalf("dm requests = %#v, want hidden internal continuation", dm.requests)
 	}
+	if dm.requests[0].Content != "" || dm.requests[0].GoalContext != plan.Prompt {
+		t.Fatalf("dm request prompt routing = %#v, want goal context only", dm.requests[0])
+	}
 }

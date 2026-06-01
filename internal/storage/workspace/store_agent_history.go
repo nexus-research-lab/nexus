@@ -865,6 +865,9 @@ func projectTranscriptChain(
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+			if marker.HiddenFromUser || isTranscriptGoalContextOnlyUserTurn(entry.Data) {
+				continue
+			}
 			userMessage := buildTranscriptUserMessage(
 				sessionKey,
 				agentID,
@@ -877,9 +880,6 @@ func projectTranscriptChain(
 				entryTimestamp,
 			)
 			if userMessage == nil {
-				continue
-			}
-			if marker.HiddenFromUser {
 				continue
 			}
 			projected = append(projected, *userMessage)
@@ -1160,6 +1160,16 @@ func markerAlreadyAligned(aligned []transcriptRoundMarker, candidate transcriptR
 
 func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {
 	return sanitizeTranscriptUserContent(transcriptUserContent(entry)) != ""
+}
+
+func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {
+	content := strings.TrimSpace(transcriptUserContent(entry))
+	if strings.HasPrefix(content, "<goal_context>") &&
+		strings.HasSuffix(content, "</goal_context>") {
+		return true
+	}
+	return strings.HasPrefix(content, "<codex_internal_context source=\"goal\">") &&
+		strings.HasSuffix(content, "</codex_internal_context>")
 }
 
 func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) transcriptRoundMarker {

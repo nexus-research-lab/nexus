@@ -57,7 +57,7 @@ func (s *Service) queueGoalSteering(ctx context.Context, item protocol.Goal, eve
 		return
 	}
 	if dispatcher, ok := s.guidance.(contextualGuidanceDispatcher); ok {
-		_, _ = dispatcher.QueueContextualGuidanceInput(ctx, item.SessionKey, event.ID, "goal_context", prompt)
+		_, _ = dispatcher.QueueContextualGuidanceInput(ctx, item.SessionKey, event.ID, "goal", prompt)
 		return
 	}
 	_, _ = s.guidance.QueueGuidanceInput(ctx, item.SessionKey, event.ID, prompt)
