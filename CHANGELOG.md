@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 面板移除上下文注入模式和事件来源调试标签，不再展示 `仅记账不注入`、`用户 · 创建` 等内部状态。
 - Goal 运行中面板从多行卡片收敛为轻量状态条，只保留目标、运行状态、耗时、续跑状态和操作按钮，减少对聊天输入区的遮挡。
 - Goal active 但已因续跑失败或空进展暂停时，面板改为展示“需处理/待继续”和对应警示色，不再误显示为正常执行中。
-- Goal 模型侧提示词优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
+- Goal 模型侧提示词和 Goal MCP 工具描述优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
 
 ### Fixed
 - 修复 Goal MCP 三件套缺少 model-visible 元数据的问题，`get_goal`、`create_goal`、`update_goal` 现在会像 Codex 内建 Goal 工具一样强制进入模型可见工具集。

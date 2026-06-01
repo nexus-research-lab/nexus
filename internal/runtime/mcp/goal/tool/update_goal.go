@@ -43,7 +43,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			}
 			status := protocol.GoalStatus(strings.TrimSpace(parsed.Status))
 			if status != protocol.GoalStatusComplete && status != protocol.GoalStatusBlocked {
-				return errorResult(fmt.Errorf("update_goal can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")), nil
+				return errorResult(fmt.Errorf("the Goal update tool can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")), nil
 			}
 			current, err := svc.Current(ctx, sctx.CurrentSessionKey)
 			if err != nil {
@@ -82,6 +82,6 @@ func updateGoalStatus(ctx context.Context, svc contract.Service, goalID string, 
 	case protocol.GoalStatusBlocked:
 		return svc.BlockByModel(ctx, goalID, protocol.BlockGoalRequest{RoundID: roundID})
 	default:
-		return nil, fmt.Errorf("update_goal can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")
+		return nil, fmt.Errorf("the Goal update tool can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")
 	}
 }

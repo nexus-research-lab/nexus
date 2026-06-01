@@ -48,9 +48,9 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 }
 
 const createGoalDescription = "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.\n" +
-	"Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use update_goal only for status."
+	"Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use the visible Goal update tool only for status. In Nexus this is normally mcp__nexus_goal__update_goal; in Codex/plain-tool runtimes it may be bare update_goal."
 
-const createGoalConflictMessage = "cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete"
+const createGoalConflictMessage = "cannot create a new goal because this thread already has a goal; use the visible Goal update tool only when the existing goal is complete"
 
 func createGoalErrorResult(err error) sdktool.ToolResult {
 	if isGoalConflictError(err) {
