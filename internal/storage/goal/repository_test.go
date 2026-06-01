@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
+	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -216,6 +217,31 @@ func TestRepositoryGoalCompatMigrationCreatesCurrentSchema(t *testing.T) {
 	}
 }
 
+func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	seedAppliedGooseVersions(t, db, 36)
+
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	assertGoalTablesExist(t, db)
+
+	var version int64
+	if err := db.QueryRow("SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 37 {
+		t.Fatalf("goose version = %d, want 37", version)
+	}
+}
+
 func newTestRepository(t *testing.T) *Repository {
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
@@ -255,6 +281,42 @@ func applyGoalMigrationFiles(t *testing.T, db *sql.DB, paths ...string) {
 			if _, err := db.Exec(statement); err != nil {
 				t.Fatalf("exec migration %s statement %q: %v", path, statement, err)
 			}
+		}
+	}
+}
+
+func seedAppliedGooseVersions(t *testing.T, db *sql.DB, version int) {
+	t.Helper()
+	if _, err := db.Exec(`CREATE TABLE goose_db_version (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		version_id INTEGER NOT NULL,
+		is_applied INTEGER NOT NULL,
+		tstamp TIMESTAMP DEFAULT (datetime('now'))
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	for current := 1; current <= version; current++ {
+		if _, err := db.Exec(
+			"INSERT INTO goose_db_version(version_id, is_applied) VALUES (?, 1)",
+			current,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func assertGoalTablesExist(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, tableName := range []string{"session_goals", "goal_events"} {
+		var count int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+			tableName,
+		).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("table %s count = %d, want 1", tableName, count)
 		}
 	}
 }
