@@ -153,7 +153,8 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		"Complete parity",
 		"Completion audit:",
 		"Blocked audit:",
-		"If the runtime exposes the Goal update tool under a qualified MCP name",
+		"mcp__nexus_goal__update_goal",
+		"bare `update_goal`",
 		"Tokens remaining:",
 	} {
 		if !strings.Contains(plan.Prompt, want) {

@@ -15,4 +15,4 @@ Budget:
 
 The system has marked the goal as budget_limited, so do not start new substantive work for this goal. Wrap up this turn soon: summarize useful progress, identify remaining work or blockers, and leave the user with a clear next step.
 
-Do not call update_goal unless the goal is actually complete. If the runtime exposes the Goal update tool under a qualified MCP name such as mcp__nexus_goal__update_goal, that is the same update_goal tool.
+Do not call the Goal update tool unless the goal is actually complete. In Nexus, the model-visible tool name is normally `mcp__nexus_goal__update_goal`; in Codex/plain-tool runtimes it may be visible as bare `update_goal`. These names refer to the same Goal update capability.

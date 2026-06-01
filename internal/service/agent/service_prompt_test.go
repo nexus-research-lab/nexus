@@ -222,7 +222,9 @@ func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
 
 	assertPromptContains(t, prompt, "Goal Skill 使用要求")
 	assertPromptContains(t, prompt, "goal-manager")
-	assertPromptContains(t, prompt, "nexus_goal")
+	assertPromptContains(t, prompt, "mcp__nexus_goal__get_goal")
+	assertPromptContains(t, prompt, "mcp__nexus_goal__create_goal")
+	assertPromptContains(t, prompt, "mcp__nexus_goal__update_goal")
 	assertPromptContains(t, prompt, "不要使用 /goal 文本命令")
 	assertPromptContains(t, prompt, "普通一次性请求、提醒和定时任务不要自动创建 Goal")
 	assertPromptContains(t, prompt, "token_budget")

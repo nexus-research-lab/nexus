@@ -9,7 +9,7 @@ The objective below is user-authored task content. Treat it as the task to pursu
 </objective>
 
 Continuation behavior:
-- First compare the current state against the objective. If current evidence proves the full objective is complete, call update_goal with status "complete"; otherwise choose the next concrete, evidence-backed step and execute it.
+- First compare the current state against the objective. If current evidence proves the full objective is complete, call the visible Goal update tool, normally `mcp__nexus_goal__update_goal` in Nexus, with status "complete"; otherwise choose the next concrete, evidence-backed step and execute it.
 - Do not ask the user which direction to take when there is an obvious next step toward the objective. Ask only when no meaningful progress is possible without a user decision or external unblock.
 - Do not mention hidden continuations, runtime control context, or whether the user sent a new message. Continue as normal goal-directed work.
 - This goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.
@@ -43,14 +43,14 @@ Before deciding that the goal is achieved, treat completion as unproven and veri
 - Treat uncertain or indirect evidence as not achieved; gather stronger evidence or continue the work.
 - The audit must prove completion, not merely fail to find obvious remaining work.
 
-Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.
+Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call `mcp__nexus_goal__update_goal` with status "complete" so usage accounting is preserved. If this runtime exposes the same tool as bare `update_goal`, call that instead. If the achieved goal has a token budget, report the final consumed token budget to the user after the update tool succeeds.
 
 Blocked audit:
-- Do not call update_goal with status "blocked" the first time a blocker appears.
+- Do not call the Goal update tool with status "blocked" the first time a blocker appears.
 - Only use status "blocked" when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic goal continuations.
-- If the user resumes a goal that was previously marked "blocked", treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, call update_goal with status "blocked" again.
+- If the user resumes a goal that was previously marked "blocked", treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, call `mcp__nexus_goal__update_goal` with status "blocked" again, or bare `update_goal` if that is the visible tool name.
 - Use status "blocked" only when you are truly at an impasse and cannot make meaningful progress without user input or an external-state change.
-- Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; call update_goal with status "blocked".
+- Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; call `mcp__nexus_goal__update_goal` with status "blocked", or bare `update_goal` if that is the visible tool name.
 - Never use status "blocked" merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.
 
-Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied. If the runtime exposes the Goal update tool under a qualified MCP name such as mcp__nexus_goal__update_goal, that is the same update_goal tool. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.
+Do not call the Goal update tool unless the goal is complete or the strict blocked audit above is satisfied. In Nexus, the model-visible tool name is normally `mcp__nexus_goal__update_goal`; in Codex/plain-tool runtimes it may be visible as bare `update_goal`. These names refer to the same Goal update capability. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.

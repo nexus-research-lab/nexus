@@ -15,4 +15,4 @@ Budget:
 
 Adjust the current turn to pursue the updated objective. Avoid continuing work that only served the previous objective unless it also helps the updated objective.
 
-Do not call update_goal unless the updated goal is actually complete. If the runtime exposes the Goal update tool under a qualified MCP name such as mcp__nexus_goal__update_goal, that is the same update_goal tool.
+Do not call the Goal update tool unless the updated goal is actually complete. In Nexus, the model-visible tool name is normally `mcp__nexus_goal__update_goal`; in Codex/plain-tool runtimes it may be visible as bare `update_goal`. These names refer to the same Goal update capability.
