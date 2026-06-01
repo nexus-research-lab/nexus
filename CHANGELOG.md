@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
 - Goal 面板移除上下文注入模式和事件来源调试标签，不再展示 `仅记账不注入`、`用户 · 创建` 等内部状态。
 - Goal 运行中面板从多行卡片收敛为轻量状态条，只保留目标、运行状态、耗时、续跑状态和操作按钮，减少对聊天输入区的遮挡。
+- Goal active 但已因续跑失败或空进展暂停时，面板改为展示“需处理/待继续”和对应警示色，不再误显示为正常执行中。
 
 ### Fixed
 - 修复 Goal 自动续跑上限在用户继续介入后仍沿用旧 continuation count，导致恢复后很快再次 `usage_limited` 的问题；显式用户/外部活动现在会重启一轮 continuation run。

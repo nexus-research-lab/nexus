@@ -119,13 +119,26 @@ export function GoalStatusStrip({
   const remaining_tokens =
     budget_value !== null ? Math.max(0, budget_value - usage_total) : null;
   const usage_percent = goal_budget_percent(goal);
-  const tone = goal_status_tone(goal.status);
   const runtime_label = goal_runtime_label(goal, is_generating);
   const active_continuation_hold =
     goal.status === "active" ? continuation_hold : null;
   const continuation_suppressed =
     goal.status === "active" &&
     (active_continuation_hold !== null || (goal.empty_progress_count ?? 0) > 0);
+  const active_needs_attention =
+    goal.status === "active" && !is_generating && Boolean(goal.last_error);
+  const active_waiting_to_resume =
+    goal.status === "active" && !is_generating && continuation_suppressed;
+  const tone = active_needs_attention
+    ? goal_status_tone("blocked")
+    : active_waiting_to_resume
+      ? goal_status_tone("paused")
+      : goal_status_tone(goal.status);
+  const status_label = active_needs_attention
+    ? "需处理"
+    : active_waiting_to_resume
+      ? "待继续"
+      : GOAL_STATUS_LABEL[goal.status] ?? goal.status;
   const continuation_metric_title = active_continuation_hold
     ? active_continuation_hold.detail
     : continuation_suppressed
@@ -203,7 +216,7 @@ export function GoalStatusStrip({
             tone.badge,
           )}
         >
-          {GOAL_STATUS_LABEL[goal.status] ?? goal.status}
+          {status_label}
         </span>
         <span className={cn("shrink-0 text-[11px] font-medium", tone.text)}>
           {runtime_label}

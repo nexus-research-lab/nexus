@@ -118,7 +118,8 @@ Nexus 目前没有同粒度 OpenTelemetry 指标；运行态依赖 `goal_events`
 - `internal/service/goal/service_progress.go`：约 244 行，负责续跑进展、失败和用户活动重置。
 - `internal/service/goal/service_transition.go`：状态迁移和持久化。
 - `internal/service/goal/service_helpers.go`：校验、预算、ID 和通用 helper。
-- `internal/service/goal/service_continuation_test.go`：约 812 行，是当前最大 Goal 测试文件，仍按 continuation/resume 场景聚合；如果继续增长到 900 行以上，应按 continuation planning、auto resume、failure accounting 拆成多个测试文件。
+- `internal/service/goal/service_continuation_test.go`：约 632 行，聚合 continuation planning 与 progress 场景。
+- `internal/service/goal/service_resume_test.go`：约 192 行，单独覆盖 durable/auto resume 投递、释放和失败记账，避免 continuation 测试文件继续膨胀。
 - `internal/runtime/mcp/goal/tool/registry_test.go`：约 380 行，覆盖三件模型工具的注册和行为，规模可接受。
 - `internal/service/room/goal_runtime.go`：约 412 行，集中 Room slot 级 usage/continuation accounting；接近阈值但职责单一，后续超过 450 行再拆。
 - `web/src/features/conversation/shared/goal-panel.tsx`：约 371 行，容器逻辑已拆到 draft/start/status 子组件；可接受。

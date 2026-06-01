@@ -37,6 +37,8 @@ export function goal_elapsed_label(seconds?: number | null): string {
 export function goal_runtime_label(goal: Goal, is_generating: boolean): string {
   switch (goal.status) {
     case "active":
+      if (!is_generating && goal.last_error) return "需处理";
+      if (!is_generating && (goal.empty_progress_count ?? 0) > 0) return "续跑暂停";
       return is_generating ? "执行中" : "追踪中";
     case "paused":
       return "已暂停";
