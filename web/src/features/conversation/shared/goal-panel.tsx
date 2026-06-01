@@ -62,7 +62,7 @@ function next_budget_input(goal: Goal | null, value: string): number | null | un
 }
 
 function should_prompt_resume_goal(status: GoalStatus): boolean {
-  return can_resume_status(status);
+  return status === "blocked" || status === "usage_limited";
 }
 
 function can_resume_status(status: GoalStatus): boolean {
