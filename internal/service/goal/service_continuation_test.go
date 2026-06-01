@@ -35,7 +35,8 @@ func TestServiceQueuesObjectiveUpdateSteering(t *testing.T) {
 	item := dispatcher.items[0]
 	if item.sessionKey != created.SessionKey ||
 		item.contextName != "goal" ||
-		!strings.Contains(item.content, "active thread goal objective was edited") ||
+		!strings.Contains(item.content, "active thread goal objective") ||
+		!strings.Contains(item.content, "existing, tracked Goal") ||
 		!strings.Contains(item.content, "Updated &lt;goal&gt;") ||
 		strings.Contains(item.content, "Nexus Goal") {
 		t.Fatalf("guidance item = %#v, want escaped objective update steering", item)
@@ -100,7 +101,9 @@ func TestServiceQueuesBudgetLimitSteering(t *testing.T) {
 	}
 	if item := dispatcher.items[0]; item.sessionKey != created.SessionKey ||
 		item.contextName != "goal" ||
-		!strings.Contains(item.content, "active thread goal has reached its token budget") ||
+		!strings.Contains(item.content, "active thread goal") ||
+		!strings.Contains(item.content, "existing, tracked Goal") ||
+		!strings.Contains(item.content, "reached its token budget") ||
 		!strings.Contains(item.content, "<objective>") ||
 		!strings.Contains(item.content, "</objective>") ||
 		!strings.Contains(item.content, "budget_limited") ||
@@ -142,10 +145,15 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Continue working toward the active thread goal.",
+		"Runtime note: this is an existing, tracked Goal",
+		"First compare the current state against the objective.",
+		"choose the next concrete, evidence-backed step and execute it",
+		"Do not ask the user which direction to take when there is an obvious next step",
+		"Do not mention hidden continuations",
 		"Complete parity",
 		"Completion audit:",
 		"Blocked audit:",
-		"Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied.",
+		"If the runtime exposes the Goal update tool under a qualified MCP name",
 		"Tokens remaining:",
 	} {
 		if !strings.Contains(plan.Prompt, want) {
@@ -156,6 +164,9 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 		if strings.Contains(plan.Prompt, forbidden) {
 			t.Fatalf("continuation prompt contains legacy runtime wording %q: %s", forbidden, plan.Prompt)
 		}
+	}
+	if strings.Contains(strings.ToLower(plan.Prompt), "absence of a new user message") {
+		t.Fatalf("continuation prompt should not mention missing user messages: %s", plan.Prompt)
 	}
 	current, err := service.Current(ctx, created.SessionKey)
 	if err != nil {

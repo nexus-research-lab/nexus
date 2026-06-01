@@ -363,7 +363,7 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 		t.Fatalf("ExecuteRound 失败: %v", err)
 	}
 	if len(client.queryPrompts) != 1 ||
-		!strings.HasPrefix(client.queryPrompts[0], "<codex_internal_context source=\"goal\">\nContinue.\n</codex_internal_context>\n\n") ||
+		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nContinue.\n</internal_context>\n\n") ||
 		!strings.Contains(client.queryPrompts[0], "用户输入") {
 		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
 	}
@@ -403,7 +403,7 @@ func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupp
 		t.Fatalf("queryContent = %#v, want one structured payload", client.queryContent)
 	}
 	blocks, ok := client.queryContent[0].([]map[string]any)
-	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<codex_internal_context source=\"goal\">\nContinue.\n</codex_internal_context>" {
+	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<internal_context source=\"goal\">\nContinue.\n</internal_context>" {
 		t.Fatalf("queryContent[0] = %#v, want prepended context text block", client.queryContent[0])
 	}
 }

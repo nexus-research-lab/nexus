@@ -13,9 +13,18 @@ type externalMutationAccountant interface {
 	ActivateGoalAccounting(context.Context, string) ([]string, error)
 }
 
+type runtimeInterrupter interface {
+	InterruptGoalRuntime(context.Context, string) error
+}
+
 // SetExternalMutationAccountant 注入运行时 accounting flush，用于外部 Goal 状态变化前结算进度。
 func (s *Service) SetExternalMutationAccountant(accountant externalMutationAccountant) {
 	s.externalMutation = accountant
+}
+
+// SetRuntimeInterrupter 注入用户暂停 Goal 时的运行中输出中断器。
+func (s *Service) SetRuntimeInterrupter(interrupter runtimeInterrupter) {
+	s.runtimeInterrupt = interrupter
 }
 
 func (s *Service) prepareExternalMutation(ctx context.Context, goalID string) {
@@ -67,6 +76,13 @@ func (s *Service) activateExternalGoalAccounting(ctx context.Context, item proto
 		return
 	}
 	_, _ = s.externalMutation.ActivateGoalAccounting(ctx, item.SessionKey)
+}
+
+func (s *Service) interruptGoalRuntimeAfterPause(ctx context.Context, item protocol.Goal) {
+	if s.runtimeInterrupt == nil {
+		return
+	}
+	_ = s.runtimeInterrupt.InterruptGoalRuntime(ctx, item.SessionKey)
 }
 
 func shouldClearRuntimeAccounting(status protocol.GoalStatus) bool {

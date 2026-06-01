@@ -206,6 +206,8 @@ func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 		roundID: "round-running",
 	}
 	service.SetExternalMutationAccountant(accountant)
+	interrupter := &fakeRuntimeInterrupter{}
+	service.SetRuntimeInterrupter(interrupter)
 
 	paused, err := service.Pause(ctx, created.ID)
 	if err != nil {
@@ -219,6 +221,9 @@ func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 	}
 	if len(accountant.clearedSessionKeys) != 1 || accountant.clearedSessionKeys[0] != created.SessionKey {
 		t.Fatalf("accountant clearedSessionKeys = %#v, want current session", accountant.clearedSessionKeys)
+	}
+	if len(interrupter.sessionKeys) != 1 || interrupter.sessionKeys[0] != created.SessionKey {
+		t.Fatalf("interrupter sessionKeys = %#v, want current session", interrupter.sessionKeys)
 	}
 	if len(repo.events) != 3 || repo.events[1].EventType != "usage_recorded" || repo.events[2].EventType != "paused" {
 		t.Fatalf("events = %#v, want usage_recorded before paused", repo.events)

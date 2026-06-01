@@ -106,7 +106,8 @@ type goalPayloadOptions struct {
 }
 
 const completionBudgetReportText = "Goal achieved. " +
-	"Report final usage from this tool result's structured goal fields. If `goal.tokenBudget` is present, include token usage from `goal.tokensUsed` and `goal.tokenBudget`. " +
+	"Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. " +
+	"If `goal.tokenBudget` is present, include token usage from this tool result's structured `goal.tokensUsed` and `goal.tokenBudget` fields. " +
 	"If `goal.timeUsedSeconds` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
 
 func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map[string]any {
@@ -165,9 +166,6 @@ func int64PointerValue(value *int64) any {
 
 func completionBudgetReport(item *protocol.Goal) string {
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusComplete {
-		return ""
-	}
-	if item.TokenBudget == nil && item.TimeUsedSeconds <= 0 {
 		return ""
 	}
 	return completionBudgetReportText

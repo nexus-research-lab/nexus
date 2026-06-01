@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Goal token 预算统计改为 Codex 口径：仅累计非缓存输入 token 与输出 token，缓存和 reasoning token 不再触发预算耗尽。
 - Goal 工具完成结果补齐 Codex 风格最终用量汇报提示，便于模型在完成预算 Goal 时报告结构化用量。
+- Goal `update_goal(status=complete)` 工具结果始终返回收尾停止提示，引导模型完成最终回复后等待用户输入。
 - Goal MCP 模型可见工具收口为 Codex 对齐的 `get_goal`、`create_goal`、`update_goal` 三件套。
 - Goal `update_goal` 工具入参收口为 Codex 风格的 `status` 字段，`blocked` 不再要求模型额外提供 reason。
 - Goal `get_goal` 在当前线程没有 Goal 时返回空 Goal 结构化结果，不再把空状态误报为工具失败。
@@ -54,7 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 面板移除用户侧手动完成按钮，完成 Goal 继续交由模型 `update_goal(status=complete)` 审计后触发。
 - Goal native HTTP 与前端 API 移除用户侧完成/阻塞入口，完成和阻塞 Goal 只保留模型 `update_goal(status=...)` 审计路径。
 - Goal active turn 不再额外注入常驻 runtime context，只保留用量/耗时记账；internal goal context 收口到隐藏续跑和运行中 steering。
-- Goal 隐藏续跑与运行中 steering 的 fallback 渲染改为 Codex `<codex_internal_context source="goal">` 形态，bridge 支持 internal context 时只传 source=goal 的上下文块。
+- Goal 隐藏续跑与运行中 steering 的 fallback 渲染改为中性 `<internal_context source="goal">` 形态，bridge 支持 internal context 时只传 source=goal 的上下文块，并继续隐藏旧 Codex internal context 历史输入。
+- Goal 面板创建和编辑目标时默认通过后台模型整理 objective，失败时回退用户原文，避免直接使用冗长输入作为持久化目标。
+- Goal 模型可见文案按 Codex current prompt 再次收敛：`update_goal` 工具描述补齐完整阻塞审计语义，objective 整理 prompt 明确保留原始范围、验收条件和可验证完成标准。
+- Goal 隐藏续跑去掉“没有新用户消息”类控制措辞，并要求模型先审计目标是否已完成；未完成时直接选择下一步推进，避免把明显下一步回问给用户。
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
 - Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 - Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。
@@ -67,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal active 但已因续跑失败或空进展暂停时，面板改为展示“需处理/待继续”和对应警示色，不再误显示为正常执行中。
 
 ### Fixed
+- 修复复用中的 SDK client 不会刷新动态 MCP server 的问题，启动或继续 Goal 后会把 `nexus_goal` 工具同步到当前运行时。
+- 修复底层运行时不支持动态 `mcp_set_servers` 时 Goal MCP 无法补挂的问题，现在会重建 SDK client 并通过初始 MCP 配置暴露 `nexus_goal`。
+- 修复用户点击 Goal 暂停只改状态、不停止当前模型输出的问题；暂停现在会沿 DM/Room 原有中断链路停止运行中的 round。
 - 修复 Goal 自动续跑上限在用户继续介入后仍沿用旧 continuation count，导致恢复后很快再次 `usage_limited` 的问题；显式用户/外部活动现在会重启一轮 continuation run。
 - 修复 GoalContext-only 隐藏续跑可能从底层 SDK transcript 投影成可见用户消息的问题，缺失 overlay marker 时也会隐藏 legacy `<goal_context>` 与 Codex internal goal context 输入。
 - 修复 Room Goal 隐藏续跑被渲染成空用户消息或 host default takeover 触发的问题，现在使用专用 Goal continuation trigger。
@@ -86,6 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal app-server `thread/goal/set` 响应和状态通知发送完成后再触发隐藏续跑，避免续跑先于客户端状态同步启动。
 - Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
 - Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
+- 修复 Goal hidden continuation 容易让模型误判“未使用 Goal 系统”的提示措辞，续跑/steering 现在明确这是当前会话已存在的受跟踪 Goal，并说明 MCP 限定名下的 `update_goal` 是同一个 Goal 更新工具。
+
 ## [0.1.12] - 2026-05-29
 
 ### Added

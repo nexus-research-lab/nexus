@@ -1168,8 +1168,10 @@ func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {
 		strings.HasSuffix(content, "</goal_context>") {
 		return true
 	}
-	return strings.HasPrefix(content, "<codex_internal_context source=\"goal\">") &&
-		strings.HasSuffix(content, "</codex_internal_context>")
+	return (strings.HasPrefix(content, "<internal_context source=\"goal\">") &&
+		strings.HasSuffix(content, "</internal_context>")) ||
+		(strings.HasPrefix(content, "<codex_internal_context source=\"goal\">") &&
+			strings.HasSuffix(content, "</codex_internal_context>"))
 }
 
 func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) transcriptRoundMarker {

@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -86,6 +87,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
 	goalService.SetPreviewFiller(titleService)
+	goalService.SetObjectiveRewriter(goalobjectivesvc.NewService(providerService, preferencesService))
 	goalService.SetGuidanceDispatcher(runtimeManager)
 	goalService.SetExternalMutationAccountant(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)
@@ -111,6 +113,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetUsageRecorder(usageService)
 	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetTitleGenerator(titleService)
+	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
 	automationService := automationsvc.NewService(
 		cfg,
 		db,

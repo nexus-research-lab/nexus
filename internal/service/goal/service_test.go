@@ -275,6 +275,15 @@ func (a *fakeExternalMutationAccountant) ActivateGoalAccounting(_ context.Contex
 	return []string{a.roundID}, nil
 }
 
+type fakeRuntimeInterrupter struct {
+	sessionKeys []string
+}
+
+func (i *fakeRuntimeInterrupter) InterruptGoalRuntime(_ context.Context, sessionKey string) error {
+	i.sessionKeys = append(i.sessionKeys, sessionKey)
+	return nil
+}
+
 type fakeContinuationDispatcher struct {
 	deferSessions map[string]bool
 	plans         []protocol.GoalContinuation

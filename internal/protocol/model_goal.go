@@ -177,6 +177,7 @@ type CreateGoalRequest struct {
 	TokenBudget *int64         `json:"token_budget,omitempty"`
 	CreatedBy   string         `json:"created_by,omitempty"`
 	RoundID     string         `json:"round_id,omitempty"`
+	OwnerUserID string         `json:"owner_user_id,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
@@ -184,6 +185,7 @@ type CreateGoalRequest struct {
 type UpdateGoalRequest struct {
 	Objective   *string        `json:"objective,omitempty"`
 	TokenBudget OptionalInt64  `json:"token_budget,omitempty"`
+	OwnerUserID string         `json:"owner_user_id,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
@@ -37,6 +38,7 @@ func (h *Handlers) HandleCreateGoal(writer http.ResponseWriter, request *http.Re
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
+	input.OwnerUserID = authsvc.OwnerUserID(request.Context())
 	goal, err := h.goals.Create(request.Context(), input)
 	if err != nil {
 		h.writeGoalError(writer, err)
@@ -51,6 +53,7 @@ func (h *Handlers) HandleUpdateGoal(writer http.ResponseWriter, request *http.Re
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
+	input.OwnerUserID = authsvc.OwnerUserID(request.Context())
 	goal, err := h.goals.Update(request.Context(), chi.URLParam(request, "goal_id"), input)
 	if err != nil {
 		h.writeGoalError(writer, err)

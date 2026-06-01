@@ -60,7 +60,7 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	if !ok || !slices.Equal(enum, []string{"complete", "blocked"}) {
 		t.Fatalf("status.enum = %#v, want [complete blocked]", status["enum"])
 	}
-	for _, want := range []string{"mark the goal achieved or blocked", "three consecutive goal turns", "pause, resume, or budget-limit"} {
+	for _, want := range []string{"achieved or genuinely blocked", "three consecutive goal turns", "budget-limit, or usage-limit"} {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}

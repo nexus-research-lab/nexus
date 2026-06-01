@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -80,7 +81,7 @@ func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
     "updatedAt": 20
   },
   "remainingTokens": 58,
-  "completionBudgetReport": "Goal achieved. Report final usage from this tool result's structured goal fields. If ` + "`goal.tokenBudget`" + ` is present, include token usage from ` + "`goal.tokensUsed`" + ` and ` + "`goal.tokenBudget`" + `. If ` + "`goal.timeUsedSeconds`" + ` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
+  "completionBudgetReport": "Goal achieved. Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. If ` + "`goal.tokenBudget`" + ` is present, include token usage from this tool result's structured ` + "`goal.tokensUsed`" + ` and ` + "`goal.tokenBudget`" + ` fields. If ` + "`goal.timeUsedSeconds`" + ` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
 }`
 	if text != want {
 		t.Fatalf("text content = %s, want %s", text, want)
@@ -100,13 +101,14 @@ func TestGoalPayloadOmitsCompletionBudgetReportOutsideCompletion(t *testing.T) {
 	}
 }
 
-func TestGoalCompletionPayloadOmitsReportWithoutUsageToReport(t *testing.T) {
+func TestGoalCompletionPayloadIncludesStopInstructionWithoutUsageToReport(t *testing.T) {
 	payload := goalCompletionPayload(&protocol.Goal{
 		Status: protocol.GoalStatusComplete,
 	})
 
-	if payload["completionBudgetReport"] != nil {
-		t.Fatalf("completionBudgetReport = %#v, want nil", payload["completionBudgetReport"])
+	report, ok := payload["completionBudgetReport"].(string)
+	if !ok || !strings.Contains(report, "stop and wait for user input") {
+		t.Fatalf("completionBudgetReport = %#v, want stop instruction", payload["completionBudgetReport"])
 	}
 }
 

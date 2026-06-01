@@ -26,7 +26,9 @@ type Service struct {
 	events           eventBroadcaster
 	guidance         guidanceDispatcher
 	preview          previewFiller
+	rewriter         objectiveRewriter
 	externalMutation externalMutationAccountant
+	runtimeInterrupt runtimeInterrupter
 	continuations    ContinuationDispatcher
 	wallClock        *goalWallClockAccounting
 	nowFn            func() time.Time
@@ -53,6 +55,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
+	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
 	current, err := s.repo.GetCurrentGoal(ctx, sessionKey)
 	if err != nil {
 		return nil, err
@@ -76,7 +79,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		CreatedBy:   strings.TrimSpace(request.CreatedBy),
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Metadata:    cloneMap(request.Metadata),
+		Metadata:    metadata,
 	}
 	created, err := s.repo.CreateGoal(ctx, item)
 	if err != nil {
@@ -137,6 +140,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		if err != nil {
 			return nil, err
 		}
+		objective, payload = s.rewriteUpdateObjective(ctx, request, objective, payload)
 		if item.Objective != objective {
 			item.Objective = objective
 			changed = true
@@ -193,7 +197,12 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 
 // Pause 暂停 active Goal。
 func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, error) {
-	return s.changeStatus(ctx, goalID, protocol.GoalStatusPaused, protocol.GoalUpdateSourceUser, "paused", "", nil)
+	paused, err := s.changeStatus(ctx, goalID, protocol.GoalStatusPaused, protocol.GoalUpdateSourceUser, "paused", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	s.interruptGoalRuntimeAfterPause(ctx, *paused)
+	return paused, nil
 }
 
 // Resume 恢复 paused/blocked/usage_limited Goal；预算耗尽时需要先调整预算。

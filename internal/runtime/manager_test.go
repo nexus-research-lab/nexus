@@ -9,6 +9,7 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -53,6 +54,12 @@ func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.O
 }
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
+
+type fakeSDKMCPServer struct{}
+
+func (fakeSDKMCPServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
+	return map[string]any{"ok": true}, nil
+}
 
 type fakeRuntimeFactory struct {
 	client  *fakeRuntimeClient
@@ -100,6 +107,49 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
 		t.Fatalf("Reconfigure 未收到权限模式: %+v", client.lastOptions)
+	}
+}
+
+func TestRuntimeMCPControlDetectsServerChanges(t *testing.T) {
+	currentOptions := agentclient.Options{}
+	nextOptions := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	}
+
+	if !shouldSyncMCPServersForRuntimeControl(currentOptions, nextOptions) {
+		t.Fatal("新增 MCP server 时应同步运行中 SDK client")
+	}
+	if shouldSyncMCPServersForRuntimeControl(nextOptions, nextOptions) {
+		t.Fatal("MCP server 配置未变化时不应重复同步")
+	}
+}
+
+func TestRuntimeMCPControlResolvesLegacySDKServers(t *testing.T) {
+	options := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_goal": sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
+			},
+			SDKServers: map[string]sdkmcp.SDKMCPServer{
+				"nexus_goal":       fakeSDKMCPServer{},
+				"nexus_automation": fakeSDKMCPServer{},
+			},
+		},
+	}
+
+	servers := resolvedMCPServersForRuntimeControl(options)
+	if len(servers) != 2 {
+		t.Fatalf("resolved servers = %+v, want 2", servers)
+	}
+	if _, ok := servers["nexus_goal"].(sdkmcp.HTTPServerConfig); !ok {
+		t.Fatalf("显式 MCP.Servers 应优先于旧式 SDKServers: %+v", servers["nexus_goal"])
+	}
+	if _, ok := servers["nexus_automation"].(sdkmcp.SDKServerConfig); !ok {
+		t.Fatalf("旧式 SDKServers 应合并为 SDKServerConfig: %+v", servers["nexus_automation"])
 	}
 }
 
@@ -170,6 +220,40 @@ func TestManagerGetOrCreateReplacesClientWhenBypassSwitchRequiresLaunchFlag(t *t
 	}
 }
 
+func TestManagerGetOrCreateReplacesClientWhenMCPControlUnsupported(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: errors.New("unsupported control request subtype: mcp_set_servers"),
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:mcp-control"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("MCP 控制面不支持时应重建 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("MCP 控制面不支持后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
 func TestManagerGetOrCreateKeepsNonTransportReconfigureError(t *testing.T) {
 	expectedErr := errors.New("permission mode is not supported")
 	stale := &fakeRuntimeClient{reconfigureErr: expectedErr}
@@ -203,6 +287,22 @@ func TestIsRuntimeTransportClosedError(t *testing.T) {
 	}
 	if IsRuntimeTransportClosedError(errors.New("permission mode is not supported")) {
 		t.Fatal("普通控制错误不应识别为 transport 断开")
+	}
+}
+
+func TestIsRuntimeControlRestartRequiredError(t *testing.T) {
+	cases := []error{
+		errors.New("unsupported control request subtype: mcp_set_servers"),
+		errors.New("MCP set servers is not supported by this runtime"),
+		errors.New("unknown mcp_set_servers control"),
+	}
+	for _, err := range cases {
+		if !IsRuntimeControlRestartRequiredError(err) {
+			t.Fatalf("应识别为需要重启的控制面错误: %v", err)
+		}
+	}
+	if IsRuntimeControlRestartRequiredError(errors.New("mcp_set_servers failed: invalid url")) {
+		t.Fatal("配置错误不应识别为必须重启")
 	}
 }
 
@@ -405,7 +505,7 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 		t.Fatalf("执行 PostToolUse hook 失败: %v", err)
 	}
 	additionalContext := output.SpecificOutput.AdditionalContext
-	if !strings.Contains(additionalContext, "<codex_internal_context source=\"goal\">\nBudget reached.\n</codex_internal_context>") {
+	if !strings.Contains(additionalContext, "<internal_context source=\"goal\">\nBudget reached.\n</internal_context>") {
 		t.Fatalf("additionalContext 未包含 Goal context: %q", additionalContext)
 	}
 	if strings.Contains(additionalContext, "<nexus_guidance>") {

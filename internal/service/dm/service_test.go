@@ -1118,7 +1118,7 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 		t.Fatalf("Goal continuation 的 assistant 输出应进入可见历史: %+v", rows)
 	}
 	if len(queryPrompts) < 2 ||
-		!strings.Contains(queryPrompts[1], "<codex_internal_context source=\"goal\">\nhidden continuation prompt\n</codex_internal_context>") {
+		!strings.Contains(queryPrompts[1], "<internal_context source=\"goal\">\nhidden continuation prompt\n</internal_context>") {
 		t.Fatalf("Goal continuation 应作为 internal goal context 注入 runtime: %+v", queryPrompts)
 	}
 }

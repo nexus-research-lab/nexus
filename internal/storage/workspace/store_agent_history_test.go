@@ -394,6 +394,23 @@ func TestAgentHistoryStoreHidesCodexInternalGoalContextTranscriptTurnWithoutMark
 	}
 }
 
+func TestTranscriptGoalContextOnlyUserTurnRecognizesInternalContextTags(t *testing.T) {
+	for name, content := range map[string]string{
+		"internal": "<internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</internal_context>",
+		"legacy":   "<codex_internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</codex_internal_context>",
+	} {
+		entry := map[string]any{
+			"message": map[string]any{
+				"role":    "user",
+				"content": content,
+			},
+		}
+		if !isTranscriptGoalContextOnlyUserTurn(entry) {
+			t.Fatalf("%s Goal context turn was not recognized: %#v", name, entry)
+		}
+	}
+}
+
 func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")

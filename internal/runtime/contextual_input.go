@@ -103,7 +103,7 @@ func renderContextualInputBlock(block ContextualInputBlock) string {
 		return ""
 	}
 	if source := internalContextSourceName(block.Name); source != "" {
-		return renderCodexInternalContext(source, content)
+		return renderInternalContext(source, content)
 	}
 	return content
 }
@@ -117,19 +117,21 @@ func internalContextSourceName(name string) string {
 	}
 }
 
-func renderCodexInternalContext(source string, content string) string {
+func renderInternalContext(source string, content string) string {
 	content = strings.TrimSpace(content)
-	if isCodexInternalContext(content) {
+	if isInternalContext(content) {
 		return content
 	}
 	content = unwrapLegacyGoalContext(content)
-	return fmt.Sprintf("<codex_internal_context source=\"%s\">\n%s\n</codex_internal_context>", source, content)
+	return fmt.Sprintf("<internal_context source=\"%s\">\n%s\n</internal_context>", source, content)
 }
 
-func isCodexInternalContext(content string) bool {
+func isInternalContext(content string) bool {
 	content = strings.TrimSpace(content)
-	return strings.HasPrefix(content, "<codex_internal_context ") &&
-		strings.HasSuffix(content, "</codex_internal_context>")
+	return (strings.HasPrefix(content, "<internal_context ") &&
+		strings.HasSuffix(content, "</internal_context>")) ||
+		(strings.HasPrefix(content, "<codex_internal_context ") &&
+			strings.HasSuffix(content, "</codex_internal_context>"))
 }
 
 func unwrapLegacyGoalContext(content string) string {

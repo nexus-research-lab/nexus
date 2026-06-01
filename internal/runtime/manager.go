@@ -5,12 +5,14 @@ import (
 	"errors"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -319,7 +321,51 @@ func applyRuntimeControls(
 			return err
 		}
 	}
+	if shouldSyncMCPServersForRuntimeControl(currentOptions, nextOptions) {
+		if _, err := session.MCP().SetServers(ctx, resolvedMCPServersForRuntimeControl(nextOptions)); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func shouldSyncMCPServersForRuntimeControl(
+	currentOptions agentclient.Options,
+	nextOptions agentclient.Options,
+) bool {
+	return !reflect.DeepEqual(
+		resolvedMCPServersForRuntimeControl(currentOptions),
+		resolvedMCPServersForRuntimeControl(nextOptions),
+	)
+}
+
+func resolvedMCPServersForRuntimeControl(options agentclient.Options) map[string]sdkmcp.ServerConfig {
+	if len(options.MCP.Servers) == 0 && len(options.MCP.SDKServers) == 0 {
+		return nil
+	}
+	servers := make(map[string]sdkmcp.ServerConfig, len(options.MCP.Servers)+len(options.MCP.SDKServers))
+	for name, config := range options.MCP.Servers {
+		if strings.TrimSpace(name) == "" || config == nil {
+			continue
+		}
+		servers[name] = config
+	}
+	for name, server := range options.MCP.SDKServers {
+		if strings.TrimSpace(name) == "" || server == nil {
+			continue
+		}
+		if _, exists := servers[name]; exists {
+			continue
+		}
+		servers[name] = sdkmcp.SDKServerConfig{
+			Name:     name,
+			Instance: server,
+		}
+	}
+	if len(servers) == 0 {
+		return nil
+	}
+	return servers
 }
 
 type sessionState struct {
@@ -404,7 +450,9 @@ func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options ag
 }
 
 func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
-	return IsRuntimeTransportClosedError(err) || errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed)
+	return IsRuntimeTransportClosedError(err) ||
+		errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed) ||
+		IsRuntimeControlRestartRequiredError(err)
 }
 
 func (m *Manager) replaceRuntimeClient(
@@ -454,6 +502,20 @@ func IsRuntimeTransportClosedError(err error) bool {
 		strings.Contains(message, "broken pipe") ||
 		strings.Contains(message, "file already closed") ||
 		strings.Contains(message, "client: not connected")
+}
+
+// IsRuntimeControlRestartRequiredError 判断控制面不支持运行时热更新、必须重建 SDK client 的情况。
+func IsRuntimeControlRestartRequiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if !(strings.Contains(message, "mcp_set_servers") || strings.Contains(message, "mcp set servers")) {
+		return false
+	}
+	return strings.Contains(message, "unsupported") ||
+		strings.Contains(message, "not supported") ||
+		strings.Contains(message, "unknown")
 }
 
 func closeSDKSession(session *agentclient.Session) {

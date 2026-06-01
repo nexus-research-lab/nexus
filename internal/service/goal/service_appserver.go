@@ -94,6 +94,13 @@ func (s *Service) createFromThreadGoalParams(
 	if err != nil {
 		return nil, err
 	}
+	objective, metadata := s.rewriteCreateObjective(ctx, protocol.CreateGoalRequest{
+		Objective: objective,
+		CreatedBy: "app_server",
+		Metadata: map[string]any{
+			"created_via": "thread_goal_set",
+		},
+	}, objective)
 	tokenBudget, err := normalizeThreadGoalBudget(request.TokenBudget)
 	if err != nil {
 		return nil, err
@@ -113,9 +120,7 @@ func (s *Service) createFromThreadGoalParams(
 		CreatedBy:   "app_server",
 		CreatedAt:   now,
 		UpdatedAt:   now,
-		Metadata: map[string]any{
-			"created_via": "thread_goal_set",
-		},
+		Metadata:    metadata,
 	}
 	applyInitialGoalStatusTime(&item, now)
 	created, err := s.repo.CreateGoal(ctx, item)
@@ -154,6 +159,7 @@ func (s *Service) updateFromThreadGoalParams(
 		if err != nil {
 			return nil, err
 		}
+		objective, payload = s.rewriteUpdateObjective(ctx, protocol.UpdateGoalRequest{Objective: &objective}, objective, payload)
 		if item.Objective != objective {
 			item.Objective = objective
 			valueChanged = true
