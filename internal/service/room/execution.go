@@ -225,10 +225,11 @@ func (s *RealtimeService) runSlot(
 	}))
 	previousStderr := options.Callbacks.Stderr
 	options.Callbacks.Stderr = func(line string) {
+		normalizedLine := normalizeRuntimeStderrLine(line)
 		if previousStderr != nil {
-			previousStderr(line)
+			previousStderr(normalizedLine)
 		}
-		logger.Warn("Agent SDK stderr", "stderr", strings.TrimSpace(line))
+		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
 	}
 	client := s.factory.New(options)
 	slot.setClient(client)

@@ -1,9 +1,10 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { Download, Maximize2, Minimize2 } from "lucide-react";
+import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
 
-import { get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
+import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
+import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 
 export const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
@@ -73,27 +74,36 @@ export function WorkspaceFileDownloadButton({
   agent_id,
   path,
   file_name,
-  label = "下载",
+  label,
 }: {
   agent_id: string;
   path: string;
   file_name: string;
   label?: string;
 }) {
-  const download_url = get_workspace_file_download_url(agent_id, path);
+  const file_action_copy = get_workspace_file_external_action_copy(file_name);
+  const visible_label = label ?? file_action_copy.label;
+  const handle_external_action = () => {
+    void download_workspace_file_api(agent_id, path, file_name).catch((error) => {
+      console.error(`[WorkspaceFileDownloadButton] ${file_action_copy.label} workspace 文件失败:`, error);
+    });
+  };
 
   return (
-    <a
-      aria-label={`下载 ${file_name}`}
+    <button
+      aria-label={file_action_copy.aria_label}
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
-      download={file_name}
-      href={download_url}
-      rel="noopener noreferrer"
-      target="_blank"
+      onClick={handle_external_action}
+      title={file_action_copy.title}
+      type="button"
     >
-      <Download className="h-3.5 w-3.5" />
-      <span>{label}</span>
-    </a>
+      {file_action_copy.mode === "reveal" ? (
+        <FolderOpen className="h-3.5 w-3.5" />
+      ) : (
+        <Download className="h-3.5 w-3.5" />
+      )}
+      <span>{visible_label}</span>
+    </button>
   );
 }
 

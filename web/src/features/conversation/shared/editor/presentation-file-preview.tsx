@@ -211,7 +211,7 @@ export function PresentationFilePreview({
 
         const content_length = response.headers.get("content-length");
         if (content_length && Number(content_length) > MAX_PPTX_PREVIEW_BYTES) {
-          throw new Error("pptx 文件超过 15MB，建议下载后查看");
+          throw new Error("pptx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
         const buffer = await response.arrayBuffer();
@@ -219,7 +219,7 @@ export function PresentationFilePreview({
           return;
         }
         if (buffer.byteLength > MAX_PPTX_PREVIEW_BYTES) {
-          throw new Error("pptx 文件超过 15MB，建议下载后查看");
+          throw new Error("pptx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
         set_status({ state: "loading", message: "解析 pptx 文件中" });

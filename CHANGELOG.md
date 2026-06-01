@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed DM runtime startup so stale SDK resume IDs are cleared and retried once instead of leaving the client disconnected.
 - Fixed group Thread opening while history, workspace, or about panels are active.
 - Fixed shared WebSocket workspace subscriptions so sidebar task status and active chat workspace events do not cancel each other while switching between running tasks.
+- Fixed workspace file actions so generated HTML files are revealed in Finder from the desktop app instead of navigating away from the Nexus interface.
+- Fixed Windows Claude Code runtime startup by bypassing npm `.cmd` shims and moving large system prompt/MCP payloads into local argument files to avoid command-line length limits.
 
 ## [0.1.12] - 2026-05-29
 

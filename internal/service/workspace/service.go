@@ -20,6 +20,9 @@ import (
 var (
 	// ErrFileNotFound 表示 workspace 文件不存在。
 	ErrFileNotFound = errors.New("workspace file not found")
+
+	// ErrLocalFileRevealUnavailable 表示当前运行模式不支持本机文件定位。
+	ErrLocalFileRevealUnavailable = errors.New("workspace local file reveal unavailable")
 )
 
 const maxUploadSize = 20 * 1024 * 1024

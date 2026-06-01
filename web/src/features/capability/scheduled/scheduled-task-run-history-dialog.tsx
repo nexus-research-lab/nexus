@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Copy, Download, History, RefreshCw, RotateCcw, X } from "lucide-react";
+import { Copy, Download, FolderOpen, History, RefreshCw, RotateCcw, X } from "lucide-react";
 
 import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
-import { get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
+import {
+  download_workspace_file_api,
+} from "@/lib/api/agent-manage-api";
+import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
@@ -77,6 +80,40 @@ function should_show_assistant_text(run: ScheduledTaskRunItem): boolean {
 
 function artifact_file_name(path: string): string {
   return path.split("/").filter(Boolean).at(-1) ?? "automation-run.md";
+}
+
+function download_run_artifact(agent_id: string, artifact_path: string) {
+  void download_workspace_file_api(
+    agent_id,
+    artifact_path,
+    artifact_file_name(artifact_path),
+  ).catch((error) => {
+    console.error("[ScheduledTaskRunHistoryDialog] 处理任务产物失败:", error);
+  });
+}
+
+function ScheduledRunArtifactButton({
+  agent_id,
+  artifact_path,
+}: {
+  agent_id: string;
+  artifact_path: string;
+}) {
+  const action_copy = get_workspace_file_external_action_copy(artifact_file_name(artifact_path));
+  const Icon = action_copy.mode === "reveal" ? FolderOpen : Download;
+  const label = action_copy.mode === "reveal" ? "打开产物" : "下载产物";
+  return (
+    <button
+      aria-label={action_copy.aria_label}
+      className="mt-2 inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
+      onClick={() => download_run_artifact(agent_id, artifact_path)}
+      title={action_copy.title}
+      type="button"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
 }
 
 function is_retryable_status(status: ScheduledTaskRunItem["status"]): boolean {
@@ -473,16 +510,10 @@ export function ScheduledTaskRunHistoryDialog({
                           ) : null}
                         </div>
                         {run.artifact_path ? (
-                          <a
-                            className="mt-2 inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
-                            download={artifact_file_name(run.artifact_path)}
-                            href={get_workspace_file_download_url(task.agent_id, run.artifact_path)}
-                            rel="noopener noreferrer"
-                            target="_blank"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            下载产物
-                          </a>
+                          <ScheduledRunArtifactButton
+                            agent_id={task.agent_id}
+                            artifact_path={run.artifact_path}
+                          />
                         ) : null}
                       </div>
                     </div>

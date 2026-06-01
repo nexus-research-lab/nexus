@@ -10,12 +10,14 @@ import (
 
 const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
 
-func processCLIPath() string {
-	return resolveClaudeCommandPath()
+type claudeCommandConfig struct {
+	CLIPath          string
+	Executable       string
+	PathToExecutable string
 }
 
-func resolveClaudeCommandPath() string {
-	return resolveClaudeCommandPathWith(
+func processCLICommandConfig() claudeCommandConfig {
+	return resolveClaudeCommandConfigWith(
 		runtime.GOOS,
 		os.Getenv,
 		exec.LookPath,
@@ -24,6 +26,22 @@ func resolveClaudeCommandPath() string {
 			return err == nil && !info.IsDir()
 		},
 	)
+}
+
+func resolveClaudeCommandConfigWith(
+	goos string,
+	getenv func(string) string,
+	lookPath func(string) (string, error),
+	fileExists func(string) bool,
+) claudeCommandConfig {
+	commandPath := resolveClaudeCommandPathWith(goos, getenv, lookPath, fileExists)
+	if goos != "windows" || strings.TrimSpace(commandPath) == "" {
+		return claudeCommandConfig{CLIPath: commandPath}
+	}
+	if config, ok := windowsNodeClaudeCommandConfig(commandPath, lookPath, fileExists); ok {
+		return config
+	}
+	return claudeCommandConfig{CLIPath: commandPath}
 }
 
 func resolveClaudeCommandPathWith(
@@ -51,6 +69,54 @@ func resolveClaudeCommandPathWith(
 		}
 	}
 	return ""
+}
+
+func windowsNodeClaudeCommandConfig(
+	commandPath string,
+	lookPath func(string) (string, error),
+	fileExists func(string) bool,
+) (claudeCommandConfig, bool) {
+	extension := strings.ToLower(filepath.Ext(commandPath))
+	if extension != ".cmd" && extension != ".bat" && extension != ".ps1" {
+		return claudeCommandConfig{}, false
+	}
+	scriptPath := windowsClaudeScriptPath(commandPath, fileExists)
+	if scriptPath == "" {
+		return claudeCommandConfig{}, false
+	}
+	return claudeCommandConfig{
+		Executable:       windowsNodeExecutable(commandPath, lookPath, fileExists),
+		PathToExecutable: scriptPath,
+	}, true
+}
+
+func windowsClaudeScriptPath(commandPath string, fileExists func(string) bool) string {
+	directory := filepath.Dir(commandPath)
+	candidates := []string{
+		filepath.Join(directory, "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
+		filepath.Join(directory, "node_modules", "@anthropic-ai", "claude-code", "cli.mjs"),
+		filepath.Join(directory, "..", "@anthropic-ai", "claude-code", "cli.js"),
+		filepath.Join(directory, "..", "@anthropic-ai", "claude-code", "cli.mjs"),
+	}
+	for _, candidate := range candidates {
+		cleanCandidate := filepath.Clean(candidate)
+		if fileExists(cleanCandidate) {
+			return cleanCandidate
+		}
+	}
+	return ""
+}
+
+func windowsNodeExecutable(commandPath string, lookPath func(string) (string, error), fileExists func(string) bool) string {
+	if localNode := filepath.Join(filepath.Dir(commandPath), "node.exe"); fileExists(localNode) {
+		return localNode
+	}
+	for _, name := range []string{"node.exe", "node"} {
+		if path, err := lookPath(name); err == nil && strings.TrimSpace(path) != "" {
+			return path
+		}
+	}
+	return "node"
 }
 
 func knownWindowsClaudeCommandPaths(getenv func(string) string) []string {

@@ -7,7 +7,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { Agent } from "@/types/agent/agent";
-import { get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
+import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { EditorPanel } from "@/features/conversation/shared/editor/editor-panel";
@@ -92,15 +92,17 @@ export function RoomWorkspaceView(
     />
   ) : null;
 
-  const handle_download_context_entry = () => {
+  const handle_external_context_entry = () => {
     if (!context_menu.entry || context_menu.entry.is_dir) {
       return;
     }
-    window.open(
-      get_workspace_file_download_url(view_agent_id, context_menu.entry.path),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    void download_workspace_file_api(
+      view_agent_id,
+      context_menu.entry.path,
+      context_menu.entry.name,
+    ).catch((error) => {
+      console.error("[RoomWorkspaceView] 处理 workspace 文件失败:", error);
+    });
   };
 
   const handle_toggle_preview_focus = () => {
@@ -297,7 +299,7 @@ export function RoomWorkspaceView(
         on_upload={() => handle_upload_click(context_menu.entry?.is_dir ? context_menu.entry.path : null)}
         on_create_file={() => open_create_prompt("file", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
         on_create_folder={() => open_create_prompt("directory", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        on_download={handle_download_context_entry}
+        on_download={handle_external_context_entry}
         on_rename={() => {
           if (context_menu.entry) open_rename_prompt(context_menu.entry);
         }}

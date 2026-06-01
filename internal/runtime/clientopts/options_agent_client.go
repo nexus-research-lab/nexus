@@ -74,13 +74,16 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
+	commandConfig := processCLICommandConfig()
 
 	options := agentclient.Options{
-		CLIPath:                processCLIPath(),
+		CLIPath:                commandConfig.CLIPath,
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
+		Executable:             commandConfig.Executable,
+		PathToExecutable:       commandConfig.PathToExecutable,
 		System: agentclient.SystemOptions{
 			Append: input.AppendSystemPrompt,
 		},
@@ -109,6 +112,9 @@ func BuildAgentClientOptions(
 	}
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
+	}
+	if err := materializeProcessArgFiles(&options); err != nil {
+		return agentclient.Options{}, err
 	}
 	return options, nil
 }

@@ -60,6 +60,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleWorkspaceFile)
 	s.router.Put(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleUpdateWorkspaceFile)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/upload"), s.handlers.workspace.HandleUploadWorkspaceFile)
+	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/reveal"), s.handlers.workspace.HandleRevealWorkspaceFile)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/download"), s.handlers.workspace.HandleDownloadWorkspaceFile)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleCreateWorkspaceEntry)
 	s.router.Patch(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleRenameWorkspaceEntry)

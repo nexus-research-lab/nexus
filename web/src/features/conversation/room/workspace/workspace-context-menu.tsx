@@ -11,8 +11,9 @@
 
 import { createPortal } from "react-dom";
 import { useEffect, useRef } from "react";
-import { Download, FilePlus, FolderPlus, Pencil, Trash2, Upload } from "lucide-react";
+import { Download, FilePlus, FolderOpen, FolderPlus, Pencil, Trash2, Upload } from "lucide-react";
 
+import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { WorkspaceFileEntry } from "@/types/agent/agent";
@@ -44,6 +45,7 @@ export function WorkspaceContextMenu({
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n();
   const menu_ref = useRef<HTMLDivElement>(null);
+  const file_action_copy = get_workspace_file_external_action_copy(entry?.name);
 
   useEffect(() => {
     const handle_click_outside = (event: MouseEvent) => {
@@ -120,12 +122,18 @@ export function WorkspaceContextMenu({
           <>
             {!entry.is_dir ? (
               <button
+                aria-label={file_action_copy.aria_label}
                 type="button"
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
                 onClick={() => { on_download(); on_close(); }}
+                title={file_action_copy.title}
               >
-                <Download className="h-4 w-4" />
-                <span>下载</span>
+                {file_action_copy.mode === "reveal" ? (
+                  <FolderOpen className="h-4 w-4" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                <span>{file_action_copy.label}</span>
               </button>
             ) : null}
             <button
