@@ -153,6 +153,34 @@ func TestRuntimeMCPControlResolvesLegacySDKServers(t *testing.T) {
 	}
 }
 
+func TestRuntimeRestartsWhenManagedGoalMCPServerSetChanges(t *testing.T) {
+	currentOptions := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	}
+	nextOptions := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
+				"nexus_goal":       sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	}
+
+	if !shouldRestartForManagedGoalMCPServerSetChange(currentOptions, nextOptions) {
+		t.Fatal("新增托管 Goal MCP server 时应重建 SDK client")
+	}
+	if shouldRestartForManagedGoalMCPServerSetChange(nextOptions, nextOptions) {
+		t.Fatal("Goal MCP server 集合未变化时不应重建 SDK client")
+	}
+	if !shouldReplaceRuntimeClientAfterReconfigureError(errManagedGoalMCPServerSetChanged) {
+		t.Fatal("托管 Goal MCP server 集合变化错误应触发 client 替换")
+	}
+}
+
 func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	stale := &fakeRuntimeClient{
 		reconfigureErr: errors.New("client: send control request failed: process: write payload failed: write |1: The pipe has been ended"),

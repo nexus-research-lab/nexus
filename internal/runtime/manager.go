@@ -17,12 +17,14 @@ import (
 )
 
 const interruptForceCancelDelay = 150 * time.Millisecond
+const managedGoalMCPServerName = "nexus_goal"
 
 var (
 	// ErrNoRunningRound 表示当前 session 没有可接收排队输入的运行中 round。
 	ErrNoRunningRound = errors.New("runtime session has no running round")
 	// ErrStreamingInputUnsupported 表示底层 client 不支持流式排队输入。
-	ErrStreamingInputUnsupported = errors.New("runtime client does not support streaming input")
+	ErrStreamingInputUnsupported      = errors.New("runtime client does not support streaming input")
+	errManagedGoalMCPServerSetChanged = errors.New("runtime client restart required: managed goal mcp server set changed")
 )
 
 // Client 抽象出运行时需要的最小 SDK 能力，便于测试替身接入。
@@ -180,6 +182,9 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 	session := c.session
 	c.mu.Unlock()
 	if session != nil {
+		if shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
+			return errManagedGoalMCPServerSetChanged
+		}
 		if err := applyRuntimeControls(ctx, session, currentOptions, options); err != nil {
 			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
 				closeSDKSession(session)
@@ -339,6 +344,23 @@ func shouldSyncMCPServersForRuntimeControl(
 	)
 }
 
+func shouldRestartForManagedGoalMCPServerSetChange(
+	currentOptions agentclient.Options,
+	nextOptions agentclient.Options,
+) bool {
+	return hasMCPServer(currentOptions, managedGoalMCPServerName) !=
+		hasMCPServer(nextOptions, managedGoalMCPServerName)
+}
+
+func hasMCPServer(options agentclient.Options, name string) bool {
+	if strings.TrimSpace(name) == "" {
+		return false
+	}
+	servers := resolvedMCPServersForRuntimeControl(options)
+	_, ok := servers[name]
+	return ok
+}
+
 func resolvedMCPServersForRuntimeControl(options agentclient.Options) map[string]sdkmcp.ServerConfig {
 	if len(options.MCP.Servers) == 0 && len(options.MCP.SDKServers) == 0 {
 		return nil
@@ -452,6 +474,7 @@ func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options ag
 func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
 	return IsRuntimeTransportClosedError(err) ||
 		errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed) ||
+		errors.Is(err, errManagedGoalMCPServerSetChanged) ||
 		IsRuntimeControlRestartRequiredError(err)
 }
 
