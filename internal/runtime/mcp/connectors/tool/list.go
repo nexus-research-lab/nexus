@@ -3,13 +3,13 @@ package tool
 import (
 	"context"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
 )
 
-func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func list(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "connector_list",
 		Description: "列出当前用户已连接的 connector。",
 		SearchHint:  searchHintConnectorList,
@@ -18,8 +18,8 @@ func list(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 			"type":       "object",
 			"properties": map[string]any{},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			items, err := svc.ListActiveConnections(ctx, sctx.OwnerUserID)
 			if err != nil {
 				return errorResult(err), nil

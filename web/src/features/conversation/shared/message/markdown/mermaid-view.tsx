@@ -23,10 +23,11 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
 import { DIALOG_ICON_BUTTON_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { useMermaidSvg } from "./use-mermaid-svg";
 
-interface MermaidViewProps {
+export interface MermaidViewProps {
   chart: string;
   compact?: boolean;
   class_name?: string;
@@ -304,9 +305,7 @@ export function MermaidView({
   }, []);
 
   const handle_copy_source = async () => {
-    try {
-      await navigator.clipboard.writeText(chart);
-    } catch {
+    if (!await write_text_to_clipboard(chart)) {
       return;
     }
 

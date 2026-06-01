@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
@@ -14,13 +14,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/internal/render"
 )
 
-func redeliver(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func redeliver(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "retry_scheduled_task_delivery",
 		Description: "按 job_id 或 query 只重试某次 run 的结果投递，不重新执行任务本身。适合处理“任务已跑完但飞书/IM 发送失败”。run_id 可显式传入；没传时会从任务健康摘要里自动选择唯一可手动补投递的失败 run，多候选会要求用户确认。query 只在当前权限范围内唯一命中当前未删除任务时才会执行。普通 agent 只能操作自己名下任务。",
 		SearchHint:  searchHintRetryDelivery,
 		InputSchema: runIDSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
 			if err != nil {
 				return render.Error(err), nil

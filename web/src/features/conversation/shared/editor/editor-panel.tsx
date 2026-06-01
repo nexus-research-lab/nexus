@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
-import { MermaidView } from "@/features/conversation/shared/message/markdown/mermaid-view";
+import { LazyMermaidView } from "@/features/conversation/shared/message/markdown/lazy-mermaid-view";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
 import {
   WorkspaceFileDownloadButton,
@@ -358,7 +358,7 @@ function TextFilePreview({
 
   if (file_type === "mermaid") {
     return (
-      <MermaidView
+      <LazyMermaidView
         chart={content}
         class_name="min-h-full"
         constrain_height={false}

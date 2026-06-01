@@ -14,7 +14,7 @@ import (
 func newGoalMCPBuilder(
 	cfg config.Config,
 	svc goalmcpcontract.Service,
-) func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
@@ -22,7 +22,7 @@ func newGoalMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
-	) map[string]sdkmcp.SDKMCPServer {
+	) map[string]sdkmcp.ServerConfig {
 		goalSessionKey := resolveGoalMCPSessionKey(sessionKey, sourceContextType)
 		if !cfg.GoalEnabled || svc == nil || goalSessionKey == "" {
 			return nil
@@ -31,8 +31,11 @@ func newGoalMCPBuilder(
 			CurrentSessionKey: goalSessionKey,
 			CurrentRoundID:    strings.TrimSpace(roundID),
 		}
-		return map[string]sdkmcp.SDKMCPServer{
-			goalmcpcontract.ServerName: goalmcp.NewServer(svc, sctx),
+		return map[string]sdkmcp.ServerConfig{
+			goalmcpcontract.ServerName: sdkmcp.SDKServerConfig{
+				Name:     goalmcpcontract.ServerName,
+				Instance: goalmcp.NewServer(svc, sctx),
+			},
 		}
 	}
 }

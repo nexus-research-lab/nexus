@@ -367,19 +367,16 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
 		"Each user turn includes <public_feed>",
-		"create a Room action",
-		`nexusctl --json room action`,
-		`room action private-message --target-agent-id <id> --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"`,
-		`room action private-message --audience-agent-id <id> [--audience-agent-id <id>] --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"`,
-		`room action request-reply --target-agent-id <id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none|delayed [--delay-seconds <s>] --content "<text>"`,
-		`To publish a delayed reply to public_feed yourself`,
-		`request-reply --target-agent-id <self_id> --reply-target public_feed`,
+		"create a Room directed message",
+		`nexusctl --json room message publish`,
+		`nexusctl --json room message send`,
+		`--recipient-agent-id <id> [--recipient-agent-id <id>]`,
+		`--reply-route public|none|private`,
+		`--reply-next-route public|private|none`,
+		"Small-group discussion is just a directed message with multiple recipients",
 		`latest_trigger says "room host default takeover"`,
-		"When you receive request_reply, answer in this turn's final reply",
-		"Do not create a Room action just to answer",
-		"Never restate private_message, request_reply, or private_note content",
-		`room action private-note --content "<text>"`,
-		`room action marker --visibility public|private --content "<text>"`,
+		"When you receive a directed message, answer in this turn's final reply",
+		"Never restate directed message content",
 		"# Nexus Room Member Directory",
 		"<room_member_directory>",
 		"- name=单聊助手 agent_id=" + memberAgent.AgentID,
@@ -2457,7 +2454,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		sourceContextLabel string
 	}
 	calls := make(chan builderCall, 1)
-	service.SetMCPServerBuilder(func(agentID string, sessionKey string, roundID string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.SDKMCPServer {
+	service.SetMCPServerBuilder(func(agentID string, sessionKey string, roundID string, sourceContextType string, sourceContextID string, sourceContextLabel string) map[string]sdkmcp.ServerConfig {
 		calls <- builderCall{
 			agentID:            agentID,
 			sessionKey:         sessionKey,

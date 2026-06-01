@@ -50,7 +50,7 @@ type AgentClientOptionsInput struct {
 	ResumeSessionID    string
 	MaxThinkingTokens  *int
 	MaxTurns           *int
-	MCPServers         map[string]sdkmcp.SDKMCPServer
+	MCPServers         map[string]sdkmcp.ServerConfig
 	ExtraEnv           map[string]string
 }
 
@@ -76,7 +76,7 @@ func BuildAgentClientOptions(
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
 
 	options := agentclient.Options{
-		Backend:                agentclient.ProcessBackend(processBackendOptions()),
+		CLIPath:                processCLIPath(),
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
@@ -109,7 +109,7 @@ func BuildAgentClientOptions(
 		options.Runtime.MaxTurns = *input.MaxTurns
 	}
 	if len(input.MCPServers) > 0 {
-		options.MCP.SDKServers = cloneMCPServers(input.MCPServers)
+		options.MCP.Servers = cloneMCPServers(input.MCPServers)
 	}
 	return options, nil
 }
@@ -221,12 +221,12 @@ func resolveRuntimeConfig(
 }
 
 func cloneMCPServers(
-	current map[string]sdkmcp.SDKMCPServer,
-) map[string]sdkmcp.SDKMCPServer {
+	current map[string]sdkmcp.ServerConfig,
+) map[string]sdkmcp.ServerConfig {
 	if len(current) == 0 {
 		return nil
 	}
-	result := make(map[string]sdkmcp.SDKMCPServer, len(current))
+	result := make(map[string]sdkmcp.ServerConfig, len(current))
 	for key, value := range current {
 		result[key] = value
 	}

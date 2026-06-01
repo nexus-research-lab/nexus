@@ -21,6 +21,7 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
@@ -754,6 +755,14 @@ func (s *fakeDMTitleScheduler) LastRequest() titlegen.Request {
 		return titlegen.Request{}
 	}
 	return s.requests[len(s.requests)-1]
+}
+
+type fakeDMPreferencesService struct {
+	prefs preferencessvc.Preferences
+}
+
+func (s fakeDMPreferencesService) Get(_ context.Context, _ string) (preferencessvc.Preferences, error) {
+	return s.prefs, nil
 }
 
 type blockingDMTestSender struct {
@@ -1571,6 +1580,84 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	titleRequest := titleScheduler.LastRequest()
 	if titleRequest.Provider != "glm" || titleRequest.Model != "glm-5.1" {
 		t.Fatalf("标题生成未复用本轮 runtime provider/model: %+v", titleRequest)
+	}
+}
+
+func TestServiceHandleChatUsesPreferenceDefaultModelForIncompleteAgentSelection(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "deepseek",
+		DisplayName: "DeepSeek",
+		AuthToken:   "deepseek-token",
+		BaseURL:     "https://api.deepseek.com/anthropic",
+		Enabled:     true,
+	}, "deepseek-v4-flash", true)
+	updatedAgent, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{
+			Provider: "kimi-code",
+		},
+	})
+	if err != nil {
+		t.Fatalf("写入历史 provider-only agent 配置失败: %v", err)
+	}
+	if updatedAgent == nil {
+		t.Fatal("更新 agent 后返回为空")
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-preference-default",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		DefaultAgentOptions: protocol.Options{
+			Provider: "deepseek",
+			Model:    "deepseek-v4-flash",
+		},
+	}})
+	sender := newDMTestSender("sender-preference-default")
+	sessionKey := "agent:nexus:ws:dm:preference-default"
+	permission.BindSession(sessionKey, sender, "client-preference-default", true)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试常规默认模型",
+		RoundID:    "round-preference-default",
+		ReqID:      "round-preference-default",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Model != "deepseek-v4-flash" {
+		t.Fatalf("runtime 未使用常规设置默认模型: %+v", options)
+	}
+	if options.Env["NEXUS_RUNTIME_PROVIDER"] != "deepseek" {
+		t.Fatalf("runtime 未使用常规设置默认 Provider: %+v", options.Env)
 	}
 }
 

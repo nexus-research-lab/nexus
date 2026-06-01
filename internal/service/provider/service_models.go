@@ -41,6 +41,9 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err != nil {
 		return nil, err
 	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
 	models, err := s.fetchRemoteModels(ctx, *item)
 	if err != nil {
 		return nil, err
@@ -48,20 +51,16 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	now := s.now()
 	entities := make([]providerstore.ModelEntity, 0, len(models))
 	for _, model := range models {
-		modelID := strings.TrimSpace(model.ID)
+		modelID := normalizeModelID(model.ID)
 		if modelID == "" {
 			continue
 		}
 		capabilities, category, contextWindow, maxOutput := model.modelCard()
-		displayName := strings.TrimSpace(model.DisplayName)
-		if displayName == "" {
-			displayName = modelID
-		}
 		entities = append(entities, providerstore.ModelEntity{
 			ID:                       s.idFactory("provider_model"),
 			ProviderID:               item.ID,
 			ModelID:                  modelID,
-			DisplayName:              displayName,
+			DisplayName:              modelDisplayName(modelID, model.DisplayName),
 			Category:                 category,
 			Enabled:                  false,
 			IsDefault:                false,
@@ -81,6 +80,9 @@ func (s *Service) FetchModels(ctx context.Context, provider string) (*FetchModel
 	if err = s.repository.UpsertModels(ctx, entities); err != nil {
 		return nil, err
 	}
+	if err = s.autoDefaultDiscoveredModel(ctx, *item, models); err != nil {
+		return nil, err
+	}
 	saved, err := s.modelsForRecord(ctx, item.ID)
 	if err != nil {
 		return nil, err
@@ -98,7 +100,10 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 	if err != nil {
 		return nil, err
 	}
-	modelID = strings.TrimSpace(modelID)
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
@@ -110,7 +115,7 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
 		}
 	}
-	model, err := s.repository.GetModel(ctx, item.ID, modelID)
+	model, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +149,7 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			return nil, err
 		}
 	} else {
+		normalizeModelEntityIdentity(model, modelID)
 		if model.IsDefault && !input.Enabled && !input.IsDefault {
 			return nil, fmt.Errorf("默认模型不能禁用: %s", modelID)
 		}
@@ -163,7 +169,7 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 			return nil, err
 		}
 	}
-	updated, err := s.repository.GetModel(ctx, item.ID, modelID)
+	updated, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +186,10 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if err != nil {
 		return nil, err
 	}
-	modelID = strings.TrimSpace(modelID)
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
@@ -190,18 +199,24 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if item.ProviderKind != ProviderKindLLM && item.ProviderKind != ProviderKindImageGeneration {
 		return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
 	}
-	model, err := s.repository.GetModel(ctx, item.ID, modelID)
+	model, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
 	}
 	if model == nil {
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
+	if normalizeModelEntityIdentity(model, modelID) {
+		model.UpdatedAt = s.now()
+		if err = s.repository.UpdateModel(ctx, *model); err != nil {
+			return nil, err
+		}
+	}
 	now := s.now()
 	if err = s.repository.UpdateDefaultModel(ctx, item.ID, model.ModelID, now); err != nil {
 		return nil, err
 	}
-	updated, err := s.repository.GetModel(ctx, item.ID, modelID)
+	updated, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
 	}
@@ -218,15 +233,26 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 	if err != nil {
 		return nil, err
 	}
-	models, modelsErr := s.fetchRemoteModels(ctx, *item)
-	if modelsErr != nil {
-		return s.persistTestResult(ctx, *item, "", modelsErr)
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	var models []remoteModel
+	if strings.TrimSpace(item.ModelsPath) != "" {
+		models, err = s.fetchRemoteModels(ctx, *item)
+		if err != nil {
+			return s.persistTestResult(ctx, *item, "", err)
+		}
 	}
 	modelID := s.pickTestModel(ctx, *item, models)
 	if modelID == "" {
 		return s.persistTestResult(ctx, *item, "", errors.New("未找到可测试模型"))
 	}
 	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
+	if testErr == nil {
+		if readyErr := s.ensureTestedModelReady(ctx, *item, modelID); readyErr != nil {
+			return nil, readyErr
+		}
+	}
 	return s.persistTestResult(ctx, *item, modelID, testErr)
 }
 
@@ -236,11 +262,19 @@ func (s *Service) TestModel(ctx context.Context, provider string, modelID string
 	if err != nil {
 		return nil, err
 	}
-	modelID = strings.TrimSpace(modelID)
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
 	testErr := s.sendMinimalModelRequest(ctx, *item, modelID)
+	if testErr == nil {
+		if readyErr := s.ensureTestedModelReady(ctx, *item, modelID); readyErr != nil {
+			return nil, readyErr
+		}
+	}
 	return s.persistTestResult(ctx, *item, modelID, testErr)
 }
 
@@ -256,18 +290,35 @@ func (s *Service) modelsForRecord(ctx context.Context, providerID string) ([]Mod
 	return result, nil
 }
 
+func (s *Service) getModelByID(ctx context.Context, providerID string, modelID string) (*providerstore.ModelEntity, error) {
+	normalized := normalizeModelID(modelID)
+	if normalized == "" {
+		return nil, nil
+	}
+	model, err := s.repository.GetModel(ctx, providerID, normalized)
+	if err != nil || model != nil {
+		return model, err
+	}
+	escaped := url.PathEscape(normalized)
+	if escaped == normalized {
+		return nil, nil
+	}
+	return s.repository.GetModel(ctx, providerID, escaped)
+}
+
 func (s *Service) requireProvider(ctx context.Context, provider string) (*providerstore.Entity, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.repository.GetByProvider(ctx, normalizedProvider)
+	item, err := s.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), normalizedProvider)
 	if err != nil {
 		return nil, err
 	}
 	if item == nil {
 		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
 	}
+	normalizeBuiltinEndpoint(item)
 	if strings.TrimSpace(item.AuthToken) == "" {
 		return nil, fmt.Errorf("provider=%s 缺少 auth_token", item.Provider)
 	}
@@ -275,6 +326,41 @@ func (s *Service) requireProvider(ctx context.Context, provider string) (*provid
 		return nil, fmt.Errorf("provider=%s 缺少 base_url", item.Provider)
 	}
 	return item, nil
+}
+
+func normalizeModelID(modelID string) string {
+	trimmed := strings.TrimSpace(modelID)
+	if trimmed == "" {
+		return ""
+	}
+	decoded, err := url.PathUnescape(trimmed)
+	if err != nil || strings.TrimSpace(decoded) == "" {
+		return trimmed
+	}
+	return strings.TrimSpace(decoded)
+}
+
+func modelDisplayName(modelID string, displayName string) string {
+	normalizedID := normalizeModelID(modelID)
+	trimmed := strings.TrimSpace(displayName)
+	if trimmed == "" {
+		return normalizedID
+	}
+	if normalizeModelID(trimmed) == normalizedID {
+		return normalizedID
+	}
+	return trimmed
+}
+
+func normalizeModelEntityIdentity(model *providerstore.ModelEntity, modelID string) bool {
+	modelID = normalizeModelID(modelID)
+	originalModelID := model.ModelID
+	originalDisplayName := model.DisplayName
+	model.ModelID = modelID
+	if modelDisplayName(originalModelID, originalDisplayName) == normalizeModelID(originalModelID) {
+		model.DisplayName = modelID
+	}
+	return model.ModelID != originalModelID || model.DisplayName != originalDisplayName
 }
 
 func (s *Service) fetchRemoteModels(ctx context.Context, item providerstore.Entity) ([]remoteModel, error) {
@@ -343,15 +429,123 @@ func (s *Service) fetchRemoteModels(ctx context.Context, item providerstore.Enti
 		"endpoint", endpoint,
 		"status", response.StatusCode,
 		"model_count", len(models),
-		"model_ids", previewRemoteModelIDs(models, 40),
-		"body_preview", sanitizedBodyPreview(body, item.AuthToken),
+		"model_ids", previewRemoteModelIDs(models, 10),
 	)
 	return models, nil
 }
 
+func (s *Service) autoDefaultDiscoveredModel(
+	ctx context.Context,
+	item providerstore.Entity,
+	remoteModels []remoteModel,
+) error {
+	if !item.Enabled {
+		return nil
+	}
+	switch item.ProviderKind {
+	case ProviderKindLLM:
+		if !isAgentRuntimeProvider(item) {
+			return nil
+		}
+		target, err := s.defaultRuntimeSelection(ctx)
+		if err != nil {
+			return err
+		}
+		if target != nil {
+			return nil
+		}
+	case ProviderKindImageGeneration:
+		target, err := s.defaultImageSelection(ctx)
+		if err != nil {
+			return err
+		}
+		if target != nil {
+			return nil
+		}
+	default:
+		return nil
+	}
+
+	modelID := ""
+	model, err := s.defaultOrFirstEnabledModel(ctx, item.ID)
+	if err != nil {
+		return err
+	}
+	if model != nil {
+		modelID = strings.TrimSpace(model.ModelID)
+	}
+	if modelID == "" {
+		modelID = firstRemoteModelID(remoteModels)
+	}
+	if modelID == "" {
+		return nil
+	}
+	if err := s.repository.UpdateDefaultModel(ctx, item.ID, modelID, s.now()); err != nil {
+		return err
+	}
+	s.loggerFor(ctx).Info(
+		"自动设置 Provider 默认模型",
+		"provider", item.Provider,
+		"model", modelID,
+	)
+	return nil
+}
+
+func (s *Service) ensureTestedModelReady(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+) error {
+	modelID = normalizeModelID(modelID)
+	if modelID == "" {
+		return nil
+	}
+	model, err := s.getModelByID(ctx, item.ID, modelID)
+	if err != nil {
+		return err
+	}
+	if model == nil {
+		capabilities, category, contextWindow, maxOutput := defaultModelCard()
+		now := s.now()
+		model = &providerstore.ModelEntity{
+			ID:                       s.idFactory("provider_model"),
+			ProviderID:               item.ID,
+			ModelID:                  modelID,
+			DisplayName:              modelID,
+			Category:                 category,
+			Enabled:                  true,
+			IsDefault:                false,
+			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+			CapabilitiesOverrideJSON: "{}",
+			ContextWindow:            contextWindow,
+			MaxOutputTokens:          maxOutput,
+			ProviderOptionsJSON:      "{}",
+			LastSeenAt:               now,
+			CreatedAt:                now,
+			UpdatedAt:                now,
+		}
+		if err = s.repository.UpsertModels(ctx, []providerstore.ModelEntity{*model}); err != nil {
+			return err
+		}
+	} else {
+		identityChanged := normalizeModelEntityIdentity(model, modelID)
+		enabledChanged := !model.Enabled
+		if enabledChanged {
+			model.Enabled = true
+		}
+		if identityChanged || enabledChanged {
+			model.UpdatedAt = s.now()
+			if err = s.repository.UpdateModel(ctx, *model); err != nil {
+				return err
+			}
+		}
+	}
+	return s.autoDefaultDiscoveredModel(ctx, item, []remoteModel{{ID: modelID}})
+}
+
 func (s *Service) sendMinimalModelRequest(ctx context.Context, item providerstore.Entity, modelID string) error {
 	endpoint := endpointURL(item, item.APIFormat)
-	payload, err := minimalPayload(item.APIFormat, modelID)
+	payload, err := minimalPayload(item, modelID)
 	if err != nil {
 		return err
 	}
@@ -380,14 +574,16 @@ func (s *Service) pickTestModel(ctx context.Context, item providerstore.Entity, 
 	localModels, err := s.repository.ListModelsByProviderID(ctx, item.ID)
 	if err == nil {
 		for _, model := range localModels {
-			if model.Enabled && strings.TrimSpace(model.ModelID) != "" {
-				return model.ModelID
+			modelID := normalizeModelID(model.ModelID)
+			if model.Enabled && modelID != "" {
+				return modelID
 			}
 		}
 	}
 	for _, model := range remoteModels {
-		if strings.TrimSpace(model.ID) != "" {
-			return strings.TrimSpace(model.ID)
+		modelID := normalizeModelID(model.ID)
+		if modelID != "" {
+			return modelID
 		}
 	}
 	return ""
@@ -409,7 +605,7 @@ func (s *Service) persistTestResult(ctx context.Context, item providerstore.Enti
 	}
 	return &TestResult{
 		Provider: item.Provider,
-		Model:    strings.TrimSpace(modelID),
+		Model:    normalizeModelID(modelID),
 		Success:  success,
 		Status:   item.LastTestStatus,
 		Error:    item.LastTestError,
@@ -421,11 +617,12 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 	createdAt := item.CreatedAt
 	updatedAt := item.UpdatedAt
 	lastSeenAt := item.LastSeenAt
+	modelID := normalizeModelID(item.ModelID)
 	return ModelRecord{
 		ID:                   item.ID,
 		ProviderID:           item.ProviderID,
-		ModelID:              item.ModelID,
-		DisplayName:          item.DisplayName,
+		ModelID:              modelID,
+		DisplayName:          modelDisplayName(item.ModelID, item.DisplayName),
 		Category:             item.Category,
 		Enabled:              item.Enabled,
 		IsDefault:            item.IsDefault,
@@ -441,9 +638,19 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 }
 
 func endpointURL(item providerstore.Entity, endpointKey string) string {
-	switch endpointKey {
-	case providerEndpointModels:
+	if endpointKey == providerEndpointModels {
 		return joinEndpointURL(item.BaseURL, item.ModelsPath)
+	}
+	if item.ProviderKind == ProviderKindImageGeneration {
+		switch normalizeAPIFormat(item.APIFormat) {
+		case APIFormatDashScopeImageGeneration:
+			return dashScopeEndpointURL(item.BaseURL)
+		case APIFormatModelScopeImageGeneration:
+			return modelScopeEndpointURL(item.BaseURL)
+		}
+		return joinEndpointURL(item.BaseURL, "/images/generations")
+	}
+	switch endpointKey {
 	case providerEndpointResponses:
 		return joinEndpointURL(item.BaseURL, "/responses")
 	case providerEndpointAnthropicMessages:
@@ -465,6 +672,36 @@ func joinEndpointURL(baseURL string, endpointPath string) string {
 	return base + "/" + strings.TrimLeft(path, "/")
 }
 
+func dashScopeEndpointURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return trimmed
+	}
+	if strings.HasSuffix(parsed.Path, "/generation") {
+		return parsed.String()
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/api/v1/services/aigc/multimodal-generation/generation"
+	return parsed.String()
+}
+
+func modelScopeEndpointURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return trimmed
+	}
+	if strings.HasSuffix(parsed.Path, "/images/generations") {
+		return parsed.String()
+	}
+	if strings.Trim(parsed.Path, "/") == "" {
+		parsed.Path = "/v1/images/generations"
+		return parsed.String()
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/images/generations"
+	return parsed.String()
+}
+
 func applyProviderHeaders(request *http.Request, item providerstore.Entity) {
 	token := strings.TrimSpace(item.AuthToken)
 	if token != "" {
@@ -476,14 +713,52 @@ func applyProviderHeaders(request *http.Request, item providerstore.Entity) {
 		}
 		request.Header.Set("anthropic-version", "2023-06-01")
 	}
+	if request.Method == http.MethodPost && normalizeAPIFormat(item.APIFormat) == APIFormatModelScopeImageGeneration {
+		request.Header.Set("X-ModelScope-Async-Mode", "true")
+	}
 }
 
-func minimalPayload(apiFormat string, modelID string) ([]byte, error) {
-	modelID = strings.TrimSpace(modelID)
+func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
+	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model 不能为空")
 	}
-	switch normalizeAPIFormat(apiFormat) {
+	if item.ProviderKind == ProviderKindImageGeneration {
+		switch normalizeAPIFormat(item.APIFormat) {
+		case APIFormatDashScopeImageGeneration:
+			return json.Marshal(map[string]any{
+				"model": modelID,
+				"input": map[string]any{
+					"messages": []map[string]any{
+						{
+							"role": "user",
+							"content": []map[string]string{
+								{"text": "ping"},
+							},
+						},
+					},
+				},
+				"parameters": map[string]any{
+					"n":         1,
+					"size":      "1K",
+					"watermark": false,
+				},
+			})
+		case APIFormatModelScopeImageGeneration:
+			return json.Marshal(map[string]any{
+				"model":  modelID,
+				"prompt": "ping",
+			})
+		default:
+			return json.Marshal(map[string]any{
+				"model":  modelID,
+				"prompt": "ping",
+				"n":      1,
+				"size":   "1024x1024",
+			})
+		}
+	}
+	switch normalizeAPIFormat(item.APIFormat) {
 	case APIFormatResponses:
 		return json.Marshal(map[string]any{
 			"model":             modelID,
@@ -522,7 +797,7 @@ func parseModelList(body []byte) ([]remoteModel, error) {
 	result := make([]remoteModel, 0, len(payload.Data))
 	for _, item := range payload.Data {
 		model := remoteModelFromCard(item)
-		modelID := strings.TrimSpace(model.ID)
+		modelID := normalizeModelID(model.ID)
 		if modelID == "" {
 			continue
 		}
@@ -850,6 +1125,16 @@ func sanitizedBodyPreview(body []byte, secrets ...string) string {
 	return logx.PreviewText(sanitizeErrorMessage(string(body), secrets...), 2000)
 }
 
+func firstRemoteModelID(models []remoteModel) string {
+	for _, model := range models {
+		modelID := normalizeModelID(model.ID)
+		if modelID != "" {
+			return modelID
+		}
+	}
+	return ""
+}
+
 func previewRemoteModelIDs(models []remoteModel, limit int) []string {
 	if limit <= 0 || len(models) == 0 {
 		return []string{}
@@ -859,7 +1144,7 @@ func previewRemoteModelIDs(models []remoteModel, limit int) []string {
 	}
 	result := make([]string, 0, limit)
 	for index := 0; index < limit; index++ {
-		modelID := strings.TrimSpace(models[index].ID)
+		modelID := normalizeModelID(models[index].ID)
 		if modelID == "" {
 			continue
 		}

@@ -5,7 +5,7 @@ include $(ENV_FILE)
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 
-TAG ?= 0.1.11
+TAG ?= 0.1.12
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 AGENT_UID ?= 1001
@@ -19,10 +19,10 @@ COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.ym
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
+	dev install gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-smoke app-win-package \
-	up down log reboot
+	pull deploy start-no-build
 
 # Show help
 help: ## Show this help message
@@ -34,13 +34,10 @@ help: ## Show this help message
 run-web: ## Run frontend in development mode
 	cd web && pnpm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
-db-init: ## Run Goose migrations for local database
-	go run ./cmd/nexus-migrate up
-
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
-	go run ./cmd/protocol-tsgen
+	go generate ./internal/protocol
 
-run-backend: db-init ## Run Go backend in development mode
+run-backend: ## Run Go backend in development mode
 	PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
@@ -173,6 +170,14 @@ start: prepare-host-data ## Start all services with Docker
 	@echo "📋 Backend logs: run 'make logs'"
 	@echo "📋 All service logs: run 'make logs-all'"
 
+start-no-build: prepare-host-data
+	TAG=$(TAG) $(COMPOSE_CMD) up -d --force-recreate
+	@echo ""
+	@echo "✅ Nexus Core is running!"
+	@echo "🌐 Web UI: http://localhost"
+	@echo "📋 Backend logs: run 'make logs'"
+	@echo "📋 All service logs: run 'make logs-all'"
+
 stop: ## Stop all Docker services
 	TAG=$(TAG) $(COMPOSE_CMD) down
 
@@ -199,10 +204,8 @@ clean: ## Clean up Docker resources
 pull:
 	git pull origin main
 
-deploy: pull restart
-
-# Legacy commands (for backward compatibility)
-up: start ## Legacy alias for start
-down: stop ## Legacy alias for stop
-log: logs ## Legacy alias for logs
-reboot: restart ## Legacy alias for restart
+deploy:
+	$(MAKE) pull
+	$(MAKE) build
+	$(MAKE) stop
+	$(MAKE) start-no-build

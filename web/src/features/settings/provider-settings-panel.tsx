@@ -65,6 +65,7 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 import type {
   ProviderApiFormat,
   ProviderConfigRecord,
+  ProviderKind,
   ProviderModelCapabilities,
   ProviderModelRecord,
   ProviderPreset,
@@ -86,6 +87,7 @@ interface FeedbackState {
 }
 
 interface ProviderDraft {
+  provider_kind: ProviderKind;
   provider: string;
   preset_key: string;
   api_format: ProviderApiFormat;
@@ -118,16 +120,25 @@ const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Chat Completions (/chat/completions)",
   responses: "Responses (/responses)",
   anthropic_messages: "Anthropic Messages (/v1/messages)",
+  dashscope_image_generation: "DashScope Image Generation",
+  modelscope_image_generation: "ModelScope Image Generation",
 };
 
 const API_FORMAT_SHORT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Completions",
   responses: "Responses",
   anthropic_messages: "Anthropic",
+  dashscope_image_generation: "DashScope Image",
+  modelscope_image_generation: "ModelScope Image",
 };
 
 const AUTO_TEST_MODEL_VALUE = "__auto__";
-const SUPPORTED_PROVIDER_API_FORMAT: ProviderApiFormat = "anthropic_messages";
+const SUPPORTED_AGENT_API_FORMAT: ProviderApiFormat = "anthropic_messages";
+const SUPPORTED_IMAGE_API_FORMATS = new Set<ProviderApiFormat>([
+  "chat_completions",
+  "dashscope_image_generation",
+  "modelscope_image_generation",
+]);
 const CONFIGURABLE_NON_RUNTIME_PRESET_KEYS = new Set(["custom", "openai"]);
 
 const PRESET_PROVIDER_KEYS: Record<string, string> = {
@@ -139,6 +150,8 @@ const PRESET_PROVIDER_KEYS: Record<string, string> = {
   "glm-coding-plan": "glm-coding-plan",
   "kimi-code": "kimi-code",
   "volcengine-coding-plan": "volcengine-coding-plan",
+  dashscope: "dashscope",
+  modelscope: "modelscope",
   "azure": "azure",
 };
 
@@ -154,11 +167,40 @@ function get_preset_format(preset: ProviderPreset | null, api_format?: ProviderA
   return preset.formats.find((item) => item.api_format === target_format) ?? preset.formats[0] ?? null;
 }
 
-function get_supported_preset_format(preset: ProviderPreset | null): ProviderPresetFormat | null {
+function format_supports_provider_kind(format: ProviderPresetFormat, provider_kind: ProviderKind): boolean {
+  if (format.provider_kind) {
+    return format.provider_kind === provider_kind;
+  }
+  return api_format_supported_for_kind(provider_kind, format.api_format);
+}
+
+function get_supported_preset_format(preset: ProviderPreset | null, provider_kind?: ProviderKind): ProviderPresetFormat | null {
   if (!preset) {
     return null;
   }
-  return preset.formats.find((item) => item.api_format === SUPPORTED_PROVIDER_API_FORMAT) ?? null;
+  const target_kind = provider_kind ?? preset.provider_kind;
+  return preset.formats.find((item) => format_supports_provider_kind(item, target_kind)) ?? null;
+}
+
+function preset_provider_kinds(preset: ProviderPreset | null): ProviderKind[] {
+  if (!preset) {
+    return [];
+  }
+  const values = new Set<ProviderKind>();
+  for (const format of preset.formats) {
+    if (format.provider_kind) {
+      values.add(format.provider_kind);
+      continue;
+    }
+    values.add("llm");
+    if (SUPPORTED_IMAGE_API_FORMATS.has(format.api_format)) {
+      values.add("image_generation");
+    }
+  }
+  if (values.size === 0) {
+    values.add(preset.provider_kind);
+  }
+  return Array.from(values);
 }
 
 function preset_supports_current_runtime(preset: ProviderPreset): boolean {
@@ -174,7 +216,16 @@ function preset_uses_builtin_endpoint(preset: ProviderPreset | null): boolean {
 }
 
 function preset_is_configurable(preset: ProviderPreset): boolean {
-  return preset_supports_current_runtime(preset) || preset_allows_non_runtime_config(preset);
+  return preset_provider_kinds(preset).includes("image_generation")
+    || preset_supports_current_runtime(preset)
+    || preset_allows_non_runtime_config(preset);
+}
+
+function api_format_supported_for_kind(provider_kind: ProviderKind, api_format: ProviderApiFormat): boolean {
+  if (provider_kind === "image_generation") {
+    return SUPPORTED_IMAGE_API_FORMATS.has(api_format);
+  }
+  return api_format === SUPPORTED_AGENT_API_FORMAT;
 }
 
 function build_provider_draft(
@@ -182,14 +233,16 @@ function build_provider_draft(
   preset_key = "anthropic",
 ): ProviderDraft {
   const preset = presets.find((item) => item.preset_key === preset_key) ?? presets[0] ?? null;
-  const supported_format = get_supported_preset_format(preset);
+  const provider_kind = preset?.provider_kind ?? "llm";
+  const supported_format = get_supported_preset_format(preset, provider_kind);
   const format = supported_format ?? get_preset_format(preset);
   const provider_key = preset ? get_preset_provider_key(preset) : "";
   const is_custom = preset?.preset_key === "custom";
   return {
+    provider_kind,
     provider: is_custom ? "" : provider_key,
     preset_key: preset?.preset_key ?? "custom",
-    api_format: (format?.api_format ?? preset?.default_api_format ?? SUPPORTED_PROVIDER_API_FORMAT) as ProviderApiFormat,
+    api_format: (format?.api_format ?? preset?.default_api_format ?? SUPPORTED_AGENT_API_FORMAT) as ProviderApiFormat,
     display_name: is_custom ? "" : (preset?.display_name ?? ""),
     auth_token: "",
     base_url: format?.base_url ?? "",
@@ -200,6 +253,7 @@ function build_provider_draft(
 
 function to_provider_draft(item: ProviderConfigRecord): ProviderDraft {
   return {
+    provider_kind: item.provider_kind,
     provider: item.provider,
     preset_key: item.preset_key || "custom",
     api_format: item.api_format,
@@ -264,7 +318,7 @@ function build_provider_payload_from_draft(
   preset: ProviderPreset | null,
 ): UpdateProviderConfigPayload {
   return {
-    provider_kind: "llm",
+    provider_kind: draft.provider_kind,
     preset_key: draft.preset_key,
     api_format: draft.api_format,
     display_name: draft.display_name.trim() || draft.provider.trim(),
@@ -485,16 +539,42 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     () => presets.find((item) => item.preset_key === draft.preset_key) ?? presets.find((item) => item.preset_key === "custom") ?? null,
     [draft.preset_key, presets],
   );
-  const can_select_non_runtime_format = preset_allows_non_runtime_config(current_preset);
+  const provider_kind_options = useMemo(() => {
+    const available_kinds = preset_provider_kinds(current_preset);
+    const ordered_kinds: ProviderKind[] = ["llm", "image_generation"];
+    return ordered_kinds
+      .filter((kind) => available_kinds.length === 0 || available_kinds.includes(kind))
+      .map((kind) => ({
+        value: kind,
+        label: kind === "image_generation"
+          ? t("settings.providers.kind_image_generation")
+          : t("settings.providers.kind_llm"),
+      }));
+  }, [current_preset, t]);
+  const can_select_non_runtime_format = draft.provider_kind === "llm" && preset_allows_non_runtime_config(current_preset);
   const format_options = useMemo(
-    () => (current_preset?.formats ?? []).map((item) => ({
-      value: item.api_format,
-      label: item.api_format === SUPPORTED_PROVIDER_API_FORMAT || can_select_non_runtime_format
-        ? API_FORMAT_LABELS[item.api_format]
-        : `${API_FORMAT_LABELS[item.api_format]}${t("settings.providers.unsupported_suffix")}`,
-      disabled: item.api_format !== SUPPORTED_PROVIDER_API_FORMAT && !can_select_non_runtime_format,
-    })),
-    [can_select_non_runtime_format, current_preset, t],
+    () => {
+      const seen = new Set<ProviderApiFormat>();
+      return (current_preset?.formats ?? [])
+        .filter((item) => {
+          if (seen.has(item.api_format)) {
+            return false;
+          }
+          seen.add(item.api_format);
+          return true;
+        })
+        .map((item) => {
+          const supported = format_supports_provider_kind(item, draft.provider_kind);
+          return {
+            value: item.api_format,
+            label: supported || can_select_non_runtime_format
+              ? API_FORMAT_LABELS[item.api_format]
+              : `${API_FORMAT_LABELS[item.api_format]}${t("settings.providers.unsupported_suffix")}`,
+            disabled: !supported && !can_select_non_runtime_format,
+          };
+        });
+    },
+    [can_select_non_runtime_format, current_preset, draft.provider_kind, t],
   );
   const filtered_models = useMemo(() => {
     const query = model_query.trim().toLowerCase();
@@ -511,12 +591,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   const is_editing = mode === "edit" && !!selected_record;
   const is_creating = mode === "create";
   const is_empty_mode = mode === "empty";
+  const selected_can_manage = !is_editing || selected_record?.can_manage !== false;
   const can_save = useMemo(() => {
-    if (is_empty_mode) {
+    if (is_empty_mode || !selected_can_manage) {
       return false;
     }
     return get_provider_draft_error(draft, current_preset, is_creating, t) === null;
-  }, [current_preset, draft, is_creating, is_empty_mode, t]);
+  }, [current_preset, draft, is_creating, is_empty_mode, selected_can_manage, t]);
 
   const refresh_all = useCallback(async (preferred_provider?: string | null) => {
     try {
@@ -585,9 +666,30 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     set_draft(build_provider_draft(presets, preset_key));
   }, [presets]);
 
+  const handle_provider_kind_change = useCallback((value: string) => {
+    const provider_kind = value as ProviderKind;
+    set_draft((current) => {
+      const current_format = get_preset_format(current_preset, current.api_format);
+      const format = current_format && format_supports_provider_kind(current_format, provider_kind)
+        ? current_format
+        : get_supported_preset_format(current_preset, provider_kind);
+      const api_format = format?.api_format
+        ?? (provider_kind === "image_generation" ? "chat_completions" : SUPPORTED_AGENT_API_FORMAT);
+      return {
+        ...current,
+        provider_kind,
+        api_format,
+        base_url: format?.base_url ?? current.base_url,
+        models_path: format?.models_path ?? current.models_path,
+      };
+    });
+  }, [current_preset]);
+
   const handle_api_format_change = useCallback((value: string) => {
     const api_format = value as ProviderApiFormat;
-    if (api_format !== SUPPORTED_PROVIDER_API_FORMAT && !can_select_non_runtime_format) {
+    const format = get_preset_format(current_preset, api_format);
+    const supported = format ? format_supports_provider_kind(format, draft.provider_kind) : false;
+    if (!supported && !can_select_non_runtime_format) {
       set_feedback({
         tone: "error",
         title: t("settings.providers.api_format_unsupported_title"),
@@ -595,14 +697,13 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
       });
       return;
     }
-    const format = get_preset_format(current_preset, api_format);
     set_draft((current) => ({
       ...current,
       api_format,
       base_url: format?.base_url ?? current.base_url,
       models_path: format?.models_path ?? current.models_path,
     }));
-  }, [can_select_non_runtime_format, current_preset, t]);
+  }, [can_select_non_runtime_format, current_preset, draft.provider_kind, t]);
 
   const handle_save = useCallback(async (options?: {
     draft_overrides?: Partial<ProviderDraft>;
@@ -611,6 +712,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }): Promise<ProviderConfigRecord | null> => {
     if (is_empty_mode) {
       return null;
+    }
+    if (is_editing && selected_record?.can_manage === false) {
+      return selected_record;
     }
     if (save_promise_ref.current) {
       return save_promise_ref.current;
@@ -649,7 +753,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
             ...payload,
             provider: next_draft.provider.trim(),
             auth_token: normalized_auth_token,
-            provider_kind: "llm",
+            provider_kind: next_draft.provider_kind,
             display_name: payload.display_name,
             base_url: payload.base_url,
             enabled: payload.enabled,
@@ -697,6 +801,9 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [can_save, current_preset, draft, handle_save, is_editing, pending_action, selected_record, submitting]);
 
   const handle_enabled_change = useCallback((checked: boolean) => {
+    if (!selected_can_manage) {
+      return;
+    }
     set_draft((current) => ({ ...current, enabled: checked }));
     void (async () => {
       const result = await handle_save({
@@ -708,7 +815,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         set_draft((current) => ({ ...current, enabled: !checked }));
       }
     })();
-  }, [handle_save]);
+  }, [handle_save, selected_can_manage]);
 
   const handle_request_delete_provider = useCallback((item: ProviderConfigRecord) => {
     if (!is_custom_provider_record(item)) {
@@ -765,7 +872,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [delete_target_record, refresh_all, submitting, t]);
 
   const handle_fetch_models = useCallback(async () => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -790,16 +897,19 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record, t]);
+  }, [handle_save, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_open_add_model = useCallback(() => {
+    if (!selected_can_manage) {
+      return;
+    }
     set_manual_model_id("");
     set_manual_model_enabled(true);
     set_add_model_open(true);
-  }, []);
+  }, [selected_can_manage]);
 
   const handle_add_model = useCallback(async () => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     const model_id = manual_model_id.trim();
@@ -838,10 +948,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [manual_model_enabled, manual_model_id, pending_action, refresh_all, selected_record, t]);
+  }, [manual_model_enabled, manual_model_id, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_test_provider = useCallback(async () => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -870,10 +980,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record, t]);
+  }, [handle_save, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_test_model = useCallback(async (model_id: string) => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     const normalized_model_id = model_id.trim();
@@ -906,7 +1016,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [handle_save, pending_action, refresh_all, selected_record, t]);
+  }, [handle_save, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_test_selection = useCallback((value: string) => {
     if (value === AUTO_TEST_MODEL_VALUE) {
@@ -917,7 +1027,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   }, [handle_test_model, handle_test_provider]);
 
   const handle_toggle_model = useCallback(async (model: ProviderModelRecord, enabled: boolean) => {
-    if (!selected_record || pending_action) {
+    if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -937,10 +1047,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [pending_action, refresh_all, selected_record, t]);
+  }, [pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const handle_save_model_options = useCallback(async () => {
-    if (!selected_record || !model_options || pending_action) {
+    if (!selected_record || !model_options || pending_action || !selected_can_manage) {
       return;
     }
     try {
@@ -968,7 +1078,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       set_pending_action(null);
     }
-  }, [model_options, pending_action, refresh_all, selected_record, t]);
+  }, [model_options, pending_action, refresh_all, selected_can_manage, selected_record, t]);
 
   const configured_by_preset = useMemo(() => {
     const result = new Map<string, ProviderConfigRecord>();
@@ -989,9 +1099,15 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     : draft.display_name || current_preset?.display_name || t("settings.providers.custom_provider");
   const is_custom_provider = draft.preset_key === "custom";
   const uses_builtin_endpoint = preset_uses_builtin_endpoint(current_preset);
-  const is_api_format_supported = draft.api_format === SUPPORTED_PROVIDER_API_FORMAT;
-  const is_api_format_configurable = is_api_format_supported || preset_allows_non_runtime_config(current_preset);
   const current_format = get_preset_format(current_preset, draft.api_format);
+  const current_format_supports_kind = current_format
+    ? format_supports_provider_kind(current_format, draft.provider_kind)
+    : false;
+  const is_api_format_configurable = current_format_supports_kind || can_select_non_runtime_format;
+  const show_runtime_format_badge = draft.provider_kind === "llm" && draft.api_format !== SUPPORTED_AGENT_API_FORMAT;
+  const can_configure_builtin_branch = !is_custom_provider && is_creating && provider_kind_options.length > 1;
+  const show_provider_shape_controls = is_custom_provider || can_configure_builtin_branch;
+  const has_models_endpoint = !!get_effective_models_path(draft, current_preset).trim();
   const displayed_models = sort_models_enabled_first(filtered_models);
   const test_model_options = useMemo(() => {
     const models = sort_models_enabled_first(selected_record?.models ?? []);
@@ -1088,7 +1204,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
 
                 {custom_providers.map((item) => {
                   const is_active = item.provider === selected_provider && is_editing;
-                  const can_show_delete = is_custom_provider_record(item);
+                  const can_show_delete = is_custom_provider_record(item) && item.can_manage;
                   return (
                     <div
                       className={cn(
@@ -1175,7 +1291,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       aria_label={t("settings.providers.test_provider")}
                       button_class_name="px-2"
                       class_name="w-auto min-w-18"
-                      disabled={pending_action !== null || submitting || !is_api_format_configurable}
+                      disabled={pending_action !== null || submitting || !is_api_format_configurable || !selected_can_manage}
                       leading={pending_action?.startsWith("test") ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
@@ -1191,7 +1307,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   ) : null}
                   <GlassSwitch
                     checked={draft.enabled}
-                    disabled={pending_action !== null || submitting || !is_api_format_configurable}
+                    disabled={pending_action !== null || submitting || !is_api_format_configurable || !selected_can_manage}
                     size="sm"
                     on_change={handle_enabled_change}
                   />
@@ -1199,34 +1315,56 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
               </div>
 
               <div className="space-y-4">
-                {is_custom_provider ? (
-                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+                {show_provider_shape_controls ? (
+                  <div className={cn(
+                    "grid gap-4",
+                    is_custom_provider
+                      ? "md:grid-cols-[minmax(0,1fr)_180px_260px]"
+                      : "md:grid-cols-[180px_260px]",
+                  )}
+                  >
+                    {is_custom_provider ? (
+                      <label className="space-y-2">
+                        <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.provider_name")}</span>
+                        <UiInput
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          control_size="lg"
+                          disabled={!selected_can_manage}
+                          onChange={(event) => {
+                            const next_name = event.target.value;
+                            set_draft((current) => ({
+                              ...current,
+                              display_name: next_name,
+                              provider: is_creating ? normalize_custom_provider_key(next_name) : current.provider,
+                            }));
+                          }}
+                          onBlur={handle_provider_field_blur}
+                          placeholder={t("settings.providers.provider_name_placeholder")}
+                          spellCheck={false}
+                          type="text"
+                          value={draft.display_name}
+                        />
+                      </label>
+                    ) : null}
+
                     <label className="space-y-2">
-                      <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.provider_name")}</span>
-                      <UiInput
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                        control_size="lg"
-                        onChange={(event) => {
-                          const next_name = event.target.value;
-                          set_draft((current) => ({
-                            ...current,
-                            display_name: next_name,
-                            provider: is_creating ? normalize_custom_provider_key(next_name) : current.provider,
-                          }));
-                        }}
-                        onBlur={handle_provider_field_blur}
-                        placeholder={t("settings.providers.provider_name_placeholder")}
-                        spellCheck={false}
-                        type="text"
-                        value={draft.display_name}
+                      <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.kind")}</span>
+                      <UiSelectMenu
+                        aria_label={t("settings.providers.kind")}
+                        class_name="h-11"
+                        disabled={!selected_can_manage || is_editing || provider_kind_options.length <= 1}
+                        on_change={handle_provider_kind_change}
+                        options={provider_kind_options}
+                        size="sm"
+                        value={draft.provider_kind}
                       />
                     </label>
 
                     <label className="space-y-2">
                       <span className="flex items-center gap-2">
                         <span className={PROVIDER_LABEL_CLASS_NAME}>{t("settings.providers.api_format")}</span>
-                        {!is_api_format_supported ? (
+                        {show_runtime_format_badge ? (
                           <span
                             className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-medium leading-4 text-(--text-muted)"
                             title={t("settings.providers.api_format_runtime_hint")}
@@ -1238,6 +1376,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       <UiSelectMenu
                         aria_label={t("settings.providers.api_format")}
                         class_name="h-11"
+                        disabled={!selected_can_manage || format_options.length <= 1}
                         on_change={handle_api_format_change}
                         options={format_options}
                         size="sm"
@@ -1256,6 +1395,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     control_size="md"
                     data-form-type="other"
                     data-lpignore="true"
+                    disabled={!selected_can_manage}
                     name="provider-auth-token"
                     onChange={(event) => set_draft((current) => ({ ...current, auth_token: event.target.value }))}
                     onBlur={handle_provider_field_blur}
@@ -1308,6 +1448,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       autoCapitalize="off"
                       autoCorrect="off"
                       control_size="md"
+                      disabled={!selected_can_manage}
                       onChange={(event) => set_draft((current) => ({ ...current, base_url: event.target.value }))}
                       onBlur={handle_provider_field_blur}
                       placeholder={current_format?.base_url || "https://api.example.com/v1"}
@@ -1334,7 +1475,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                       {is_editing && selected_record ? (
                         <>
                           <UiButton
-                            disabled={pending_action !== null || !is_api_format_configurable}
+                            disabled={pending_action !== null || !is_api_format_configurable || !selected_can_manage}
                             onClick={handle_open_add_model}
                             size="xs"
                             type="button"
@@ -1344,9 +1485,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                             {t("settings.providers.add_model")}
                           </UiButton>
                           <UiButton
-                            disabled={pending_action !== null || !is_api_format_configurable}
+                            disabled={pending_action !== null || !is_api_format_configurable || !selected_can_manage || !has_models_endpoint}
                             onClick={() => void handle_fetch_models()}
                             size="xs"
+                            title={!has_models_endpoint ? t("settings.providers.sync_models_unavailable") : undefined}
                             type="button"
                             variant="surface"
                           >
@@ -1417,7 +1559,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                               ) : (
                                 <GlassSwitch
                                   checked={model.enabled}
-                                  disabled={pending_action !== null}
+                                  disabled={pending_action !== null || !selected_can_manage}
                                   size="xs"
                                   on_change={(checked) => void handle_toggle_model(model, checked)}
                                 />
@@ -1644,7 +1786,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   {t("common.cancel")}
                 </UiButton>
                 <UiButton
-                  disabled={!manual_model_id.trim() || pending_action?.startsWith("add-model:")}
+                  disabled={!manual_model_id.trim() || pending_action?.startsWith("add-model:") || !selected_can_manage}
                   onClick={() => void handle_add_model()}
                   tone="primary"
                   type="button"
@@ -1793,7 +1935,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   {t("common.cancel")}
                 </UiButton>
                 <UiButton
-                  disabled={pending_action?.startsWith("options:")}
+                  disabled={pending_action?.startsWith("options:") || !selected_can_manage}
                   onClick={() => void handle_save_model_options()}
                   size="sm"
                   tone="primary"

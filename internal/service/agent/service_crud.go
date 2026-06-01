@@ -20,6 +20,14 @@ func (s *Service) ListAgentRecords(ctx context.Context) ([]protocol.Agent, error
 	return s.listAgents(ctx, false)
 }
 
+// ListAllAgentRecordsForMaintenance 返回全局活跃 Agent 记录，仅供维护任务跨 owner 迁移使用。
+func (s *Service) ListAllAgentRecordsForMaintenance(ctx context.Context) ([]protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	return s.repository.ListActiveAgents(ctx, "")
+}
+
 func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]protocol.Agent, error) {
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err

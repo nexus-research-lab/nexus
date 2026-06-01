@@ -127,9 +127,9 @@ func (h *Handlers) HandleImportLocalSkill(writer http.ResponseWriter, request *h
 	}
 	var item *skillspkg.Detail
 	if len(filePayload) > 0 {
-		item, err = h.skills.ImportUploadedArchive(filename, filePayload)
+		item, err = h.skills.ImportUploadedArchive(request.Context(), filename, filePayload)
 	} else {
-		item, err = h.skills.ImportLocalPath(localPath)
+		item, err = h.skills.ImportLocalPath(request.Context(), localPath)
 	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "SKILL.md") {
@@ -161,11 +161,12 @@ func (h *Handlers) HandleImportGitSkill(writer http.ResponseWriter, request *htt
 	var payload struct {
 		URL    string `json:"url"`
 		Branch string `json:"branch"`
+		Path   string `json:"path"`
 	}
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.skills.ImportGit(request.Context(), payload.URL, payload.Branch)
+	item, err := h.skills.ImportGitPath(request.Context(), payload.URL, payload.Branch, payload.Path)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
@@ -197,17 +198,42 @@ func (h *Handlers) HandlePreviewExternalSkill(writer http.ResponseWriter, reques
 	h.api.WriteSuccess(writer, item)
 }
 
-// HandleImportSkillsShSkill 导入 skills.sh 技能。
+// HandleImportSkillsShSkill 导入社区技能，兼容历史 skills.sh 接口路径。
 func (h *Handlers) HandleImportSkillsShSkill(writer http.ResponseWriter, request *http.Request) {
-	var payload struct {
-		PackageSpec string `json:"package_spec"`
-		SkillSlug   string `json:"skill_slug"`
-	}
+	var payload skillspkg.ExternalSkillSearchItem
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.skills.ImportSkillsSh(request.Context(), payload.PackageSpec, payload.SkillSlug)
+	item, err := h.skills.ImportExternalSkill(request.Context(), payload)
 	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleListExternalSkillSources 返回社区 skill 来源。
+func (h *Handlers) HandleListExternalSkillSources(writer http.ResponseWriter, request *http.Request) {
+	items, err := h.skills.ListExternalSkillSources(request.Context())
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, items)
+}
+
+// HandleUpdateExternalSkillSource 更新社区 skill 来源开关。
+func (h *Handlers) HandleUpdateExternalSkillSource(writer http.ResponseWriter, request *http.Request) {
+	var payload skillspkg.ExternalSkillSourceRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.skills.UpdateExternalSkillSource(request.Context(), chi.URLParam(request, "source_id"), payload)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}

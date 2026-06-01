@@ -110,8 +110,8 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 		output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
 		output.ResultSubtype = subtype
 		output.TerminalStatus = statusFromResultSubtype(subtype)
-	case sdkprotocol.MessageTypeToolProgress:
-		if messageValue := p.processToolProgressMessage(message); messageValue != nil {
+	case sdkprotocol.MessageTypeTaskProgress:
+		if messageValue := p.processTaskProgressMessage(message); messageValue != nil {
 			output.DurableMessages = append(output.DurableMessages, *messageValue)
 		}
 	case sdkprotocol.MessageTypeUser:

@@ -9,7 +9,13 @@
  * # =====================================================
  */
 
-export type ProviderApiFormat = "chat_completions" | "responses" | "anthropic_messages";
+export type ProviderApiFormat =
+  | "chat_completions"
+  | "responses"
+  | "anthropic_messages"
+  | "dashscope_image_generation"
+  | "modelscope_image_generation";
+export type ProviderKind = "llm" | "image_generation";
 
 export interface ProviderModelCapabilities {
   vision?: boolean;
@@ -39,7 +45,9 @@ export interface ProviderModelRecord {
 
 export interface ProviderConfigRecord {
   id: string;
-  provider_kind: "llm" | "image_generation";
+  owner_user_id?: string;
+  visibility: "public" | "private";
+  provider_kind: ProviderKind;
   provider: string;
   preset_key: string;
   api_format: ProviderApiFormat;
@@ -53,6 +61,7 @@ export interface ProviderConfigRecord {
   last_test_status: string;
   last_test_error: string;
   last_test_at?: string | null;
+  can_manage: boolean;
   agent_runtime_supported: boolean;
   models: ProviderModelRecord[];
   created_at?: string | null;
@@ -68,6 +77,7 @@ export interface ProviderUsageAgent {
 }
 
 export interface ProviderPresetFormat {
+  provider_kind?: ProviderKind;
   api_format: ProviderApiFormat;
   base_url: string;
   models_path: string;
@@ -75,6 +85,7 @@ export interface ProviderPresetFormat {
 
 export interface ProviderPreset {
   preset_key: string;
+  provider_kind: ProviderKind;
   display_name: string;
   description: string;
   key_url: string;
@@ -114,8 +125,9 @@ export interface ProviderOptionsResponse {
 }
 
 export interface ProviderConfigPayload {
-  provider_kind: "llm" | "image_generation";
+  provider_kind: ProviderKind;
   provider: string;
+  visibility?: "public" | "private";
   preset_key?: string;
   api_format?: ProviderApiFormat;
   display_name: string;
@@ -126,7 +138,7 @@ export interface ProviderConfigPayload {
 }
 
 export interface UpdateProviderConfigPayload {
-  provider_kind?: "llm" | "image_generation";
+  provider_kind?: ProviderKind;
   preset_key?: string;
   api_format?: ProviderApiFormat;
   display_name: string;

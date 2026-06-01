@@ -7,10 +7,16 @@
  * =====================================================
  */
 
-import type { ExternalSkillSearchItem, SkillInfo } from "@/types/capability/skill";
+import type {
+  ExternalSkillSearchItem,
+  ExternalSkillSourceInfo,
+  ExternalSkillSourceStatus,
+  SkillInfo,
+} from "@/types/capability/skill";
 import type { RefObject } from "react";
 
 export type DiscoveryMode = "catalog" | "external";
+export type SkillImportDialogMode = "local" | "git";
 
 export interface SkillMarketplaceController {
   skills: SkillInfo[];
@@ -18,11 +24,16 @@ export interface SkillMarketplaceController {
   discovery_mode: DiscoveryMode;
   active_category: string;
   external_query: string;
+  external_submitted_query: string;
   external_results: ExternalSkillSearchItem[];
+  external_source_statuses: ExternalSkillSourceStatus[];
+  external_sources: ExternalSkillSourceInfo[];
   preview_external_item: ExternalSkillSearchItem | null;
   external_loading: boolean;
   external_preview_loading: boolean;
-  git_prompt_open: boolean;
+  source_manager_open: boolean;
+  source_loading: boolean;
+  import_dialog_mode: SkillImportDialogMode | null;
   loading: boolean;
   busy_skill_name: string | null;
   busy_external_key: string | null;
@@ -39,15 +50,22 @@ export interface SkillMarketplaceController {
   set_active_category: (value: string) => void;
   set_external_query: (value: string) => void;
   set_preview_external_item: (value: ExternalSkillSearchItem | null) => void;
-  set_git_prompt_open: (value: boolean) => void;
+  set_source_manager_open: (value: boolean) => void;
+  set_import_dialog_mode: (value: SkillImportDialogMode | null) => void;
   set_status_message: (value: string | null) => void;
   set_error_message: (value: string | null) => void;
   refresh_marketplace: () => Promise<void>;
+  submit_external_search: () => void;
   handle_update_single: (skill_name: string) => Promise<void>;
   handle_delete_skill: (skill: SkillInfo) => Promise<void>;
   handle_update_installed: () => Promise<void>;
   handle_local_import: (file: File) => Promise<void>;
-  handle_git_import: (url: string) => Promise<void>;
+  handle_git_import: (url: string, branch?: string, path?: string) => Promise<void>;
   handle_preview_external: (item: ExternalSkillSearchItem) => Promise<void>;
   handle_import_external: (item: ExternalSkillSearchItem) => Promise<void>;
+  refresh_external_sources: () => Promise<void>;
+  handle_toggle_external_source: (
+    source: ExternalSkillSourceInfo,
+    enabled: boolean,
+  ) => Promise<void>;
 }

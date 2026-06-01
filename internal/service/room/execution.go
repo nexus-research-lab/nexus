@@ -177,7 +177,7 @@ func (s *RealtimeService) runSlot(
 	beginGoalUsageForSlot(slot)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
-	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
+	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
@@ -195,10 +195,15 @@ func (s *RealtimeService) runSlot(
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	runtimeProvider, runtimeModel, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
-		Provider:           agentValue.Options.Provider,
-		Model:              agentValue.Options.Model,
+		Provider:           runtimeProvider,
+		Model:              runtimeModel,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
 		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
@@ -383,7 +388,7 @@ func (s *RealtimeService) runSlot(
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
 	if !slot.shouldSuppressOutput() {
-		if err := s.recordRoomActionReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
+		if err := s.recordRoomDirectedMessageReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
@@ -399,17 +404,17 @@ func (s *RealtimeService) runSlot(
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		actionCursor, actionCursorRecorded, err := s.recordRoomActionCursor(slot, roundValue)
+		messageCursor, messageCursorRecorded, err := s.recordRoomDirectedMessageCursor(slot, roundValue)
 		if err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		if actionCursorRecorded {
+		if messageCursorRecorded {
 			s.broadcastSharedEventWithTimeout(
 				slotCtx,
 				roundValue.SessionKey,
 				roundValue.RoomID,
-				newRoomActionConsumedEvent(actionCursor),
+				newRoomDirectedMessageConsumedEvent(messageCursor),
 			)
 		}
 	}

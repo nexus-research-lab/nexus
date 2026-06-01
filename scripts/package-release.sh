@@ -77,7 +77,6 @@ build_binary() {
 }
 
 build_binary "nexus-server" "./cmd/nexus-server"
-build_binary "nexus-migrate" "./cmd/nexus-migrate"
 build_binary "nexusctl" "./cmd/nexusctl"
 
 echo "==> Staging runtime files"
@@ -145,7 +144,7 @@ ${START_COMMAND}
 默认 Web UI: http://localhost:8010
 默认 API 前缀: /nexus/v1
 
-这个包包含服务端、nexusctl、数据库迁移、内置技能与前端资源，不包含 macOS 桌面 app。
+这个包包含服务端、nexusctl、内置技能与前端资源；服务端启动时会自动执行数据库迁移，不包含 macOS 桌面 app。
 RELEASE_DOC
 
 echo "==> Creating archive"

@@ -168,7 +168,7 @@ func (h *Handlers) HandleFetchProviderModels(writer http.ResponseWriter, request
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -191,7 +191,7 @@ func (h *Handlers) HandleUpdateProviderModel(writer http.ResponseWriter, request
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -209,7 +209,7 @@ func (h *Handlers) HandleSetDefaultProviderModel(writer http.ResponseWriter, req
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -223,7 +223,7 @@ func (h *Handlers) HandleTestProviderConfig(writer http.ResponseWriter, request 
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -241,7 +241,7 @@ func (h *Handlers) HandleTestProviderModel(writer http.ResponseWriter, request *
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -255,7 +255,7 @@ func (h *Handlers) HandleCreateProviderConfig(writer http.ResponseWriter, reques
 	}
 	item, err := h.providers.Create(request.Context(), payload)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -273,7 +273,7 @@ func (h *Handlers) HandleUpdateProviderConfig(writer http.ResponseWriter, reques
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, item)
@@ -290,7 +290,7 @@ func (h *Handlers) HandleDeleteProviderConfig(writer http.ResponseWriter, reques
 			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 			return
 		}
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
 		return
 	}
 	h.api.WriteSuccess(writer, result)
@@ -303,4 +303,11 @@ func parseBoolQuery(value string) bool {
 	default:
 		return false
 	}
+}
+
+func providerMutationErrorStatus(err error) int {
+	if err != nil && strings.Contains(err.Error(), "只有管理员") {
+		return http.StatusForbidden
+	}
+	return http.StatusBadRequest
 }

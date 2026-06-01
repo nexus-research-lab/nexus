@@ -109,7 +109,7 @@ func (s *Service) ListAgentPrivateEvents(
 	events := append([]protocol.AgentPrivateEvent(nil), builder.events...)
 	sort.SliceStable(events, func(i, j int) bool {
 		if events[i].Timestamp == events[j].Timestamp {
-			return events[i].ActionID < events[j].ActionID
+			return events[i].MessageID < events[j].MessageID
 		}
 		return events[i].Timestamp < events[j].Timestamp
 	})
@@ -133,19 +133,19 @@ func (s *Service) collectAgentPrivateDomain(
 		return nil, err
 	}
 
-	actionStore := workspacestore.NewRoomActionStore(s.config.WorkspacePath)
+	messageStore := workspacestore.NewRoomDirectedMessageStore(s.config.WorkspacePath)
 	builders := make(map[string]*privateDomainThreadBuilder)
 	for _, contextValue := range contexts {
-		actions, readErr := actionStore.ReadActions(contextValue.Conversation.ID)
+		messages, readErr := messageStore.ReadMessages(contextValue.Conversation.ID)
 		if readErr != nil {
 			return nil, readErr
 		}
-		if len(actions) == 0 {
+		if len(messages) == 0 {
 			continue
 		}
 		participantsByID := privateDomainParticipantsByID(contextValue)
-		for _, action := range actions {
-			event, ok := buildPrivateDomainEvent(agentID, contextValue, participantsByID, action)
+		for _, message := range messages {
+			event, ok := buildPrivateDomainEvent(agentID, contextValue, participantsByID, message)
 			if !ok {
 				continue
 			}
@@ -157,7 +157,7 @@ func (s *Service) collectAgentPrivateDomain(
 				builders[event.ThreadID] = builder
 			}
 			builder.events = append(builder.events, event)
-			builder.thread.ActionCount++
+			builder.thread.MessageCount++
 			if event.Timestamp >= builder.thread.LastTimestamp {
 				updatePrivateDomainThreadFromEvent(&builder.thread, event)
 			}
@@ -209,57 +209,41 @@ func buildPrivateDomainEvent(
 	agentID string,
 	contextValue protocol.ConversationContextAggregate,
 	participantsByID map[string]protocol.AgentPrivateParticipant,
-	action protocol.RoomActionRecord,
+	message protocol.RoomDirectedMessageRecord,
 ) (protocol.AgentPrivateEvent, bool) {
-	participantIDs := privateDomainParticipantIDs(action)
+	participantIDs := privateDomainParticipantIDs(message)
 	if !containsPrivateDomainAgent(participantIDs, agentID) {
 		return protocol.AgentPrivateEvent{}, false
 	}
-	if !privateDomainActionVisible(action) {
+	if !privateDomainMessageVisible(message) {
 		return protocol.AgentPrivateEvent{}, false
 	}
 
 	scope, _ := privateDomainScope(agentID, participantIDs)
 	threadID := privateDomainThreadID(scope, participantIDs)
 	return protocol.AgentPrivateEvent{
-		ActionID:          strings.TrimSpace(action.ActionID),
+		MessageID:         strings.TrimSpace(message.MessageID),
 		ThreadID:          threadID,
-		Direction:         privateDomainDirection(agentID, action),
-		ActionType:        action.ActionType,
-		RequestID:         strings.TrimSpace(action.RequestID),
-		SourceAgentID:     strings.TrimSpace(action.SourceAgentID),
-		TargetAgentID:     strings.TrimSpace(action.TargetAgentID),
-		AudienceAgentIDs:  normalizedPrivateDomainAgents(action.AudienceAgentIDs),
-		Content:           strings.TrimSpace(action.Content),
-		Visibility:        strings.TrimSpace(action.Visibility),
-		ReplyTarget:       action.ReplyTarget,
-		WakePolicy:        action.WakePolicy,
-		DelaySeconds:      action.DelaySeconds,
+		Direction:         privateDomainDirection(agentID, message),
+		SourceAgentID:     strings.TrimSpace(message.SourceAgentID),
+		Recipients:        normalizedPrivateDomainAgents(message.Recipients),
+		Content:           strings.TrimSpace(message.Content),
+		ReplyRoute:        message.ReplyRoute,
+		WakePolicy:        message.WakePolicy,
+		DelaySeconds:      message.DelaySeconds,
+		CorrelationID:     strings.TrimSpace(message.CorrelationID),
 		RoomID:            contextValue.Room.ID,
 		RoomName:          contextValue.Room.Name,
 		RoomType:          contextValue.Room.RoomType,
 		ConversationID:    contextValue.Conversation.ID,
 		ConversationTitle: contextValue.Conversation.Title,
 		Participants:      buildPrivateDomainParticipants(participantIDs, participantsByID),
-		Timestamp:         action.Timestamp,
+		Timestamp:         message.Timestamp,
 	}, true
 }
 
-func privateDomainActionVisible(action protocol.RoomActionRecord) bool {
-	if strings.TrimSpace(action.SourceAgentID) == "" || strings.TrimSpace(action.ActionID) == "" {
-		return false
-	}
-	switch action.ActionType {
-	case protocol.RoomActionTypePrivateMessage,
-		protocol.RoomActionTypeRequestReply,
-		protocol.RoomActionTypePrivateNote:
-		return true
-	case protocol.RoomActionTypeMarker:
-		return strings.TrimSpace(action.Visibility) != protocol.RoomActionVisibilityPublic &&
-			action.ReplyTarget != protocol.RoomReplyTargetPublicFeed
-	default:
-		return false
-	}
+func privateDomainMessageVisible(message protocol.RoomDirectedMessageRecord) bool {
+	return strings.TrimSpace(message.SourceAgentID) != "" && strings.TrimSpace(message.MessageID) != ""
 }
 
 func privateDomainThreadFromEvent(agentID string, event protocol.AgentPrivateEvent) protocol.AgentPrivateThread {
@@ -288,19 +272,16 @@ func updatePrivateDomainThreadFromEvent(thread *protocol.AgentPrivateThread, eve
 	thread.RoomType = event.RoomType
 	thread.ConversationID = event.ConversationID
 	thread.ConversationTitle = event.ConversationTitle
-	thread.LastActionID = event.ActionID
-	thread.LastActionType = event.ActionType
+	thread.LastMessageID = event.MessageID
 	thread.LastContentPreview = privateDomainContentPreview(event.Content)
 	thread.LastTimestamp = event.Timestamp
 }
 
-func privateDomainParticipantIDs(action protocol.RoomActionRecord) []string {
-	ids := make([]string, 0, 2+len(action.AudienceAgentIDs))
-	ids = append(ids, strings.TrimSpace(action.SourceAgentID))
-	if strings.TrimSpace(action.TargetAgentID) != "" {
-		ids = append(ids, strings.TrimSpace(action.TargetAgentID))
-	}
-	ids = append(ids, action.AudienceAgentIDs...)
+func privateDomainParticipantIDs(message protocol.RoomDirectedMessageRecord) []string {
+	ids := make([]string, 0, 1+len(message.Recipients)+len(message.ReplyRoute.Recipients))
+	ids = append(ids, strings.TrimSpace(message.SourceAgentID))
+	ids = append(ids, message.Recipients...)
+	ids = append(ids, message.ReplyRoute.Recipients...)
 	return normalizedPrivateDomainAgents(ids)
 }
 
@@ -327,11 +308,13 @@ func privateDomainThreadID(scope string, participantIDs []string) string {
 	return "pd_" + hex.EncodeToString(hash[:])[:16]
 }
 
-func privateDomainDirection(agentID string, action protocol.RoomActionRecord) string {
-	if action.ActionType == protocol.RoomActionTypePrivateNote {
+func privateDomainDirection(agentID string, message protocol.RoomDirectedMessageRecord) string {
+	if strings.TrimSpace(message.SourceAgentID) == agentID &&
+		len(message.Recipients) == 1 &&
+		strings.TrimSpace(message.Recipients[0]) == agentID {
 		return "self"
 	}
-	if strings.TrimSpace(action.SourceAgentID) == agentID {
+	if strings.TrimSpace(message.SourceAgentID) == agentID {
 		return "outgoing"
 	}
 	return "incoming"

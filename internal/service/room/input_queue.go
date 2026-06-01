@@ -214,7 +214,7 @@ func (s *RealtimeService) dispatchInputQueueItem(
 	item protocol.InputQueueItem,
 ) error {
 	if item.Source == protocol.InputQueueSourceAgentPublicMention ||
-		item.Source == protocol.InputQueueSourceAgentRoomAction {
+		item.Source == protocol.InputQueueSourceAgentRoomMessage {
 		return s.dispatchAgentWakeQueueItem(
 			contextWithQueueOwner(ctx, item.OwnerUserID),
 			sessionKey,
@@ -330,9 +330,7 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 			TargetAgentID: targetAgentID,
 			Content:       content,
 			MessageID:     firstNonEmpty(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
-			RequestID:     strings.TrimSpace(item.RequestID),
-			ReplyTarget:   item.ReplyTarget,
-			ReplyAudience: append([]string(nil), item.AudienceAgentIDs...),
+			ReplyRoute:    item.ReplyRoute,
 		})
 	}
 	parentRound := &activeRoomRound{
@@ -350,8 +348,8 @@ func (s *RealtimeService) dispatchAgentWakeQueueItem(
 }
 
 func inputQueueWakeTriggerType(item protocol.InputQueueItem) string {
-	if item.Source == protocol.InputQueueSourceAgentRoomAction {
-		return "room_action"
+	if item.Source == protocol.InputQueueSourceAgentRoomMessage {
+		return "room_directed_message"
 	}
 	return "public_mention"
 }

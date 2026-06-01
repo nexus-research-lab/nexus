@@ -17,6 +17,17 @@ type Repository struct {
 	isPostgres bool
 }
 
+const (
+	// VisibilityPublic 表示平台公共 Provider。
+	VisibilityPublic = "public"
+	// VisibilityPrivate 表示用户私有 Provider。
+	VisibilityPrivate = "private"
+	// apiFormatDashScopeImageGeneration 表示无模型列表端点的 DashScope 生图分支协议。
+	apiFormatDashScopeImageGeneration = "dashscope_image_generation"
+	// apiFormatModelScopeImageGeneration 表示无模型列表端点的 ModelScope 生图分支协议。
+	apiFormatModelScopeImageGeneration = "modelscope_image_generation"
+)
+
 // NewRepository 创建 provider SQL 仓储。
 func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 	return &Repository{
@@ -32,10 +43,12 @@ func (r *Repository) bind(index int) string {
 	return "?"
 }
 
-func (r *Repository) List(ctx context.Context) ([]Entity, error) {
+func (r *Repository) ListVisible(ctx context.Context, ownerUserID string) ([]Entity, error) {
 	rows, err := r.db.QueryContext(ctx, `
 	SELECT
 	    id,
+	    COALESCE(owner_user_id, ''),
+	    visibility,
 	    provider_kind,
 	    provider,
 	    preset_key,
@@ -51,6 +64,50 @@ func (r *Repository) List(ctx context.Context) ([]Entity, error) {
 	    created_at,
 	    updated_at
 	FROM provider
+	WHERE visibility = 'public'
+	   OR (visibility = 'private' AND owner_user_id = `+r.bind(1)+`)
+	ORDER BY
+	    CASE WHEN visibility = 'private' THEN 0 ELSE 1 END,
+	    created_at ASC,
+	    provider ASC`, strings.TrimSpace(ownerUserID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]Entity, 0)
+	for rows.Next() {
+		item, scanErr := scanEntity(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *Repository) ListPublic(ctx context.Context) ([]Entity, error) {
+	rows, err := r.db.QueryContext(ctx, `
+	SELECT
+	    id,
+	    COALESCE(owner_user_id, ''),
+	    visibility,
+	    provider_kind,
+	    provider,
+	    preset_key,
+	    api_format,
+	    display_name,
+		    auth_token,
+		    base_url,
+		    models_path,
+		    enabled,
+		    last_test_status,
+	    last_test_error,
+	    last_test_at,
+	    created_at,
+	    updated_at
+	FROM provider
+	WHERE visibility = 'public'
 	ORDER BY created_at ASC, provider ASC`)
 	if err != nil {
 		return nil, err
@@ -68,10 +125,12 @@ func (r *Repository) List(ctx context.Context) ([]Entity, error) {
 	return items, rows.Err()
 }
 
-func (r *Repository) GetByProvider(ctx context.Context, provider string) (*Entity, error) {
+func (r *Repository) GetVisibleByProvider(ctx context.Context, ownerUserID string, provider string) (*Entity, error) {
 	row := r.db.QueryRowContext(ctx, `
 	SELECT
 	    id,
+	    COALESCE(owner_user_id, ''),
+	    visibility,
 	    provider_kind,
 	    provider,
 	    preset_key,
@@ -88,7 +147,58 @@ func (r *Repository) GetByProvider(ctx context.Context, provider string) (*Entit
 	    updated_at
 	FROM provider
 WHERE provider = `+r.bind(1)+`
-LIMIT 1`, strings.TrimSpace(provider))
+  AND (
+      visibility = 'public'
+      OR (visibility = 'private' AND owner_user_id = `+r.bind(2)+`)
+  )
+ORDER BY CASE WHEN visibility = 'private' THEN 0 ELSE 1 END
+LIMIT 1`, strings.TrimSpace(provider), strings.TrimSpace(ownerUserID))
+	item, err := scanEntity(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) GetScopedByProvider(
+	ctx context.Context,
+	visibility string,
+	ownerUserID string,
+	provider string,
+) (*Entity, error) {
+	args := []any{strings.TrimSpace(provider), strings.TrimSpace(visibility)}
+	ownerClause := "owner_user_id IS NULL"
+	if strings.TrimSpace(visibility) == VisibilityPrivate {
+		args = append(args, strings.TrimSpace(ownerUserID))
+		ownerClause = "owner_user_id = " + r.bind(3)
+	}
+	row := r.db.QueryRowContext(ctx, `
+	SELECT
+	    id,
+	    COALESCE(owner_user_id, ''),
+	    visibility,
+	    provider_kind,
+	    provider,
+	    preset_key,
+	    api_format,
+	    display_name,
+		    auth_token,
+		    base_url,
+		    models_path,
+		    enabled,
+		    last_test_status,
+	    last_test_error,
+	    last_test_at,
+	    created_at,
+	    updated_at
+	FROM provider
+WHERE provider = `+r.bind(1)+`
+  AND visibility = `+r.bind(2)+`
+  AND `+ownerClause+`
+LIMIT 1`, args...)
 	item, err := scanEntity(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -102,11 +212,13 @@ LIMIT 1`, strings.TrimSpace(provider))
 func (r *Repository) Create(ctx context.Context, item Entity) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO provider (
-		    id, provider_kind, provider, preset_key, api_format, display_name, auth_token, base_url,
+		    id, owner_user_id, visibility, provider_kind, provider, preset_key, api_format, display_name, auth_token, base_url,
 		    models_path, enabled, last_test_status,
 		    last_test_error, last_test_at, created_at, updated_at
-		) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+r.bind(15)+`)`,
+		) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+r.bind(15)+`, `+r.bind(16)+`, `+r.bind(17)+`)`,
 		item.ID,
+		nullableOwnerUserID(item),
+		item.Visibility,
 		item.ProviderKind,
 		item.Provider,
 		item.PresetKey,
@@ -136,7 +248,7 @@ func (r *Repository) Update(ctx context.Context, item Entity) error {
 		    preset_key = `+r.bind(6)+`,
 		    api_format = `+r.bind(7)+`,
 		    updated_at = `+r.bind(8)+`
-		WHERE provider = `+r.bind(9),
+		WHERE id = `+r.bind(9),
 		item.DisplayName,
 		item.AuthToken,
 		item.BaseURL,
@@ -145,25 +257,73 @@ func (r *Repository) Update(ctx context.Context, item Entity) error {
 		item.PresetKey,
 		item.APIFormat,
 		item.UpdatedAt.UTC(),
-		item.Provider,
+		item.ID,
 	)
 	return err
 }
 
-func (r *Repository) Delete(ctx context.Context, provider string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM provider WHERE provider = `+r.bind(1), strings.TrimSpace(provider))
+func (r *Repository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM provider WHERE id = `+r.bind(1), strings.TrimSpace(id))
 	return err
 }
 
-func (r *Repository) ReplaceRuntimeProvider(ctx context.Context, oldProvider string, newProvider string, newModel string) (int, error) {
+func (r *Repository) ReplaceRuntimeProviderForOwner(
+	ctx context.Context,
+	ownerUserID string,
+	oldProvider string,
+	newProvider string,
+	newModel string,
+) (int, error) {
 	result, err := r.db.ExecContext(ctx, `
 	UPDATE runtimes
 	SET provider = `+r.bind(1)+`,
 	    model = `+r.bind(2)+`,
 	    updated_at = `+r.currentTimestamp()+`
-	WHERE COALESCE(NULLIF(TRIM(provider), ''), '') = `+r.bind(3),
+	WHERE COALESCE(NULLIF(TRIM(provider), ''), '') = `+r.bind(3)+`
+	  AND agent_id IN (
+	      SELECT id FROM agents WHERE owner_user_id = `+r.bind(4)+`
+	  )`,
 		strings.TrimSpace(newProvider),
 		strings.TrimSpace(newModel),
+		strings.TrimSpace(oldProvider),
+		strings.TrimSpace(ownerUserID),
+	)
+	if err != nil {
+		return 0, err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, nil
+	}
+	return int(count), nil
+}
+
+func (r *Repository) ReplaceRuntimeProviderForPublic(
+	ctx context.Context,
+	oldProvider string,
+	newProvider string,
+	newModel string,
+) (int, error) {
+	result, err := r.db.ExecContext(ctx, `
+	UPDATE runtimes
+	SET provider = `+r.bind(1)+`,
+	    model = `+r.bind(2)+`,
+	    updated_at = `+r.currentTimestamp()+`
+	WHERE COALESCE(NULLIF(TRIM(provider), ''), '') = `+r.bind(3)+`
+	  AND agent_id IN (
+	      SELECT a.id
+	      FROM agents a
+	      WHERE NOT EXISTS (
+	          SELECT 1
+	          FROM provider private_provider
+	          WHERE private_provider.visibility = 'private'
+	            AND private_provider.owner_user_id = a.owner_user_id
+	            AND private_provider.provider = `+r.bind(4)+`
+	      )
+	  )`,
+		strings.TrimSpace(newProvider),
+		strings.TrimSpace(newModel),
+		strings.TrimSpace(oldProvider),
 		strings.TrimSpace(oldProvider),
 	)
 	if err != nil {
@@ -176,13 +336,14 @@ func (r *Repository) ReplaceRuntimeProvider(ctx context.Context, oldProvider str
 	return int(count), nil
 }
 
-func (r *Repository) UsageCount(ctx context.Context, provider string) (int, error) {
+func (r *Repository) UsageCountForOwner(ctx context.Context, ownerUserID string, provider string) (int, error) {
 	row := r.db.QueryRowContext(ctx, `
 	SELECT COUNT(*)
 	FROM runtimes rt
 JOIN agents a ON a.id = rt.agent_id
 WHERE a.status = 'active'
-  AND COALESCE(NULLIF(TRIM(rt.provider), ''), '') = `+r.bind(1), strings.TrimSpace(provider))
+  AND a.owner_user_id = `+r.bind(1)+`
+  AND COALESCE(NULLIF(TRIM(rt.provider), ''), '') = `+r.bind(2), strings.TrimSpace(ownerUserID), strings.TrimSpace(provider))
 	var count int
 	if err := row.Scan(&count); err != nil {
 		return 0, err
@@ -190,7 +351,28 @@ WHERE a.status = 'active'
 	return count, nil
 }
 
-func (r *Repository) ListUsageAgents(ctx context.Context) (map[string][]UsageAgentEntity, error) {
+func (r *Repository) UsageCountForPublic(ctx context.Context, provider string) (int, error) {
+	row := r.db.QueryRowContext(ctx, `
+	SELECT COUNT(*)
+	FROM runtimes rt
+JOIN agents a ON a.id = rt.agent_id
+WHERE a.status = 'active'
+  AND COALESCE(NULLIF(TRIM(rt.provider), ''), '') = `+r.bind(1)+`
+  AND NOT EXISTS (
+      SELECT 1
+      FROM provider private_provider
+      WHERE private_provider.visibility = 'private'
+        AND private_provider.owner_user_id = a.owner_user_id
+        AND private_provider.provider = `+r.bind(2)+`
+  )`, strings.TrimSpace(provider), strings.TrimSpace(provider))
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *Repository) ListUsageAgentsByOwner(ctx context.Context, ownerUserID string) (map[string][]UsageAgentEntity, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT
     COALESCE(NULLIF(TRIM(rt.provider), ''), '') AS provider,
@@ -203,8 +385,9 @@ FROM runtimes rt
 JOIN agents a ON a.id = rt.agent_id
 LEFT JOIN profiles p ON p.agent_id = a.id
 WHERE a.status = 'active'
+  AND a.owner_user_id = `+r.bind(1)+`
   AND COALESCE(NULLIF(TRIM(rt.provider), ''), '') <> ''
-ORDER BY provider ASC, a.is_main DESC, display_name ASC, a.name ASC`)
+ORDER BY provider ASC, a.is_main DESC, display_name ASC, a.name ASC`, strings.TrimSpace(ownerUserID))
 	if err != nil {
 		return nil, err
 	}
@@ -232,8 +415,12 @@ ORDER BY provider ASC, a.is_main DESC, display_name ASC, a.name ASC`)
 	return result, rows.Err()
 }
 
-func (r *Repository) ListUsageAgentsByProvider(ctx context.Context, provider string) ([]UsageAgentEntity, error) {
-	items, err := r.ListUsageAgents(ctx)
+func (r *Repository) ListUsageAgentsByOwnerProvider(
+	ctx context.Context,
+	ownerUserID string,
+	provider string,
+) ([]UsageAgentEntity, error) {
+	items, err := r.ListUsageAgentsByOwner(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -247,11 +434,11 @@ func (r *Repository) UpdateTestState(ctx context.Context, item Entity) error {
 	    last_test_error = `+r.bind(2)+`,
 	    last_test_at = `+r.bind(3)+`,
 	    updated_at = `+r.currentTimestamp()+`
-	WHERE provider = `+r.bind(4),
+	WHERE id = `+r.bind(4),
 		item.LastTestStatus,
 		item.LastTestError,
 		item.LastTestAt,
-		item.Provider,
+		item.ID,
 	)
 	return err
 }
@@ -370,14 +557,18 @@ func (r *Repository) upsertModel(ctx context.Context, item ModelEntity) error {
 func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
 	_, err := r.db.ExecContext(ctx, `
 	UPDATE provider_models
-	SET enabled = `+r.bind(1)+`,
-	    is_default = `+r.bind(2)+`,
-	    capabilities_override_json = `+r.bind(3)+`,
-	    context_window = `+r.bind(4)+`,
-	    max_output_tokens = `+r.bind(5)+`,
-	    provider_options_json = `+r.bind(6)+`,
-	    updated_at = `+r.bind(7)+`
-	WHERE provider_id = `+r.bind(8)+` AND model_id = `+r.bind(9),
+	SET model_id = `+r.bind(1)+`,
+	    display_name = `+r.bind(2)+`,
+	    enabled = `+r.bind(3)+`,
+	    is_default = `+r.bind(4)+`,
+	    capabilities_override_json = `+r.bind(5)+`,
+	    context_window = `+r.bind(6)+`,
+	    max_output_tokens = `+r.bind(7)+`,
+	    provider_options_json = `+r.bind(8)+`,
+	    updated_at = `+r.bind(9)+`
+	WHERE id = `+r.bind(10),
+		item.ModelID,
+		item.DisplayName,
 		item.Enabled,
 		item.IsDefault,
 		item.CapabilitiesOverrideJSON,
@@ -385,8 +576,7 @@ func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
 		item.MaxOutputTokens,
 		item.ProviderOptionsJSON,
 		item.UpdatedAt.UTC(),
-		item.ProviderID,
-		item.ModelID,
+		item.ID,
 	)
 	return err
 }
@@ -405,12 +595,16 @@ func (r *Repository) UpdateDefaultModel(ctx context.Context, providerID string, 
 	  AND provider_id IN (
 	      SELECT candidate.id
 	      FROM provider candidate
-	      WHERE candidate.provider_kind = (
-	          SELECT target.provider_kind
-	          FROM provider target
-	          WHERE target.id = `+r.bind(2)+`
-	          LIMIT 1
-	      )
+	      JOIN provider target ON target.id = `+r.bind(2)+`
+	      WHERE candidate.provider_kind = target.provider_kind
+	        AND (
+	            (target.visibility = 'public' AND candidate.visibility = 'public')
+	            OR (
+	                target.visibility = 'private'
+	                AND candidate.visibility = 'private'
+	                AND candidate.owner_user_id = target.owner_user_id
+	            )
+	        )
 	  )`,
 		updatedAt.UTC(),
 		strings.TrimSpace(providerID),
@@ -457,11 +651,14 @@ func scanEntity(scanner interface {
 	Scan(dest ...any) error
 }) (Entity, error) {
 	var item Entity
+	var ownerUserID sql.NullString
 	var lastTestStatus sql.NullString
 	var lastTestError sql.NullString
 	var lastTestAt sql.NullTime
 	err := scanner.Scan(
 		&item.ID,
+		&ownerUserID,
+		&item.Visibility,
 		&item.ProviderKind,
 		&item.Provider,
 		&item.PresetKey,
@@ -480,6 +677,13 @@ func scanEntity(scanner interface {
 	if err != nil {
 		return Entity{}, err
 	}
+	if ownerUserID.Valid {
+		item.OwnerUserID = strings.TrimSpace(ownerUserID.String)
+	}
+	item.Visibility = strings.TrimSpace(item.Visibility)
+	if item.Visibility == "" {
+		item.Visibility = VisibilityPublic
+	}
 	item.Provider = strings.TrimSpace(item.Provider)
 	item.ProviderKind = strings.TrimSpace(item.ProviderKind)
 	if item.ProviderKind == "" {
@@ -497,7 +701,9 @@ func scanEntity(scanner interface {
 	item.AuthToken = strings.TrimSpace(item.AuthToken)
 	item.BaseURL = strings.TrimSpace(item.BaseURL)
 	item.ModelsPath = strings.TrimSpace(item.ModelsPath)
-	if item.ModelsPath == "" {
+	if item.ModelsPath == "" &&
+		item.APIFormat != apiFormatDashScopeImageGeneration &&
+		item.APIFormat != apiFormatModelScopeImageGeneration {
 		item.ModelsPath = "/v1/models"
 	}
 	item.LastTestStatus = strings.TrimSpace(lastTestStatus.String)
@@ -509,6 +715,14 @@ func scanEntity(scanner interface {
 	item.CreatedAt = item.CreatedAt.UTC()
 	item.UpdatedAt = item.UpdatedAt.UTC()
 	return item, nil
+}
+
+func nullableOwnerUserID(item Entity) any {
+	ownerUserID := strings.TrimSpace(item.OwnerUserID)
+	if strings.TrimSpace(item.Visibility) != VisibilityPrivate || ownerUserID == "" {
+		return nil
+	}
+	return ownerUserID
 }
 
 func scanModelEntity(scanner interface {

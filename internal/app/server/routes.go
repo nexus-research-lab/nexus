@@ -114,7 +114,8 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/attachments/upload"), s.handlers.room.HandleUploadConversationAttachment)
 	s.router.Patch(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleUpdateConversation)
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}"), s.handlers.room.HandleDeleteConversation)
-	s.router.Post(s.prefixPath("/internal/rooms/{room_id}/conversations/{conversation_id}/actions"), s.handlers.room.HandleCreateAction)
+	s.router.Post(s.prefixPath("/internal/rooms/{room_id}/conversations/{conversation_id}/directed-messages"), s.handlers.room.HandleCreateDirectedMessage)
+	s.router.Post(s.prefixPath("/internal/rooms/{room_id}/conversations/{conversation_id}/public-messages"), s.handlers.room.HandleCreatePublicMessage)
 
 	s.router.Post(s.prefixPath("/launcher/query"), s.handlers.launcher.HandleLauncherQuery)
 	s.router.Get(s.prefixPath("/launcher/bootstrap"), s.handlers.launcher.HandleLauncherBootstrap)
@@ -132,6 +133,8 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/skills/search/external"), s.handlers.skill.HandleSearchExternalSkills)
 	s.router.Get(s.prefixPath("/skills/external/preview"), s.handlers.skill.HandlePreviewExternalSkill)
 	s.router.Post(s.prefixPath("/skills/import/skills-sh"), s.handlers.skill.HandleImportSkillsShSkill)
+	s.router.Get(s.prefixPath("/skills/sources"), s.handlers.skill.HandleListExternalSkillSources)
+	s.router.Patch(s.prefixPath("/skills/sources/{source_id}"), s.handlers.skill.HandleUpdateExternalSkillSource)
 	s.router.Post(s.prefixPath("/skills/update-imported"), s.handlers.skill.HandleUpdateImportedSkills)
 	s.router.Post(s.prefixPath("/skills/{skill_name}/update"), s.handlers.skill.HandleUpdateSingleSkill)
 	s.router.Delete(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleDeleteSkill)

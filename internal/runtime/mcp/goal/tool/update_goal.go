@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/goal/contract"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 )
 
 type updateGoalInput struct {
@@ -26,14 +25,14 @@ const updateGoalDescription = "Update the existing goal.\n" +
 
 const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the same blocker has repeated for at least three consecutive goal turns and progress is impossible without user input or external unblock."
 
-func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "update_goal",
 		Description: updateGoalDescription,
 		InputSchema: objectSchema(map[string]any{
 			"status": enumStringProperty(updateGoalStatusDescription, string(protocol.GoalStatusComplete), string(protocol.GoalStatusBlocked)),
 		}, "status"),
-		Handler: func(ctx context.Context, input map[string]any) (sdkmcp.ToolResult, error) {
+		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
 			var parsed updateGoalInput
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
@@ -58,7 +57,7 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
 	}
 }
 
-func updateGoalCurrentErrorResult(err error) sdkmcp.ToolResult {
+func updateGoalCurrentErrorResult(err error) sdktool.ToolResult {
 	if isGoalNotFoundError(err) {
 		return errorResultText("cannot update goal because this thread has no goal")
 	}

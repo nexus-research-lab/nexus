@@ -9,6 +9,8 @@ const PROVIDER_ICON_SRC: Record<string, string> = {
   openai: "/icon/provider/openai.svg",
   "qwen-token-plan": "/icon/provider/qwen.svg",
   "volcengine-coding-plan": "/icon/provider/volcengine.svg",
+  dashscope: "/icon/provider/alibabacloud.svg",
+  modelscope: "/icon/provider/modelscope.svg",
   azure: "/icon/provider/azureai.svg",
 };
 

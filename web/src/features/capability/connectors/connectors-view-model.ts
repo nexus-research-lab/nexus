@@ -24,6 +24,7 @@ export interface ConnectorDirectoryController {
   close_detail: () => void;
   close_device_auth_session: () => void;
   handle_connect: (connector_id: string) => Promise<void>;
+  handle_connect_with_credential: (connector_id: string, credential: string) => Promise<boolean>;
   handle_disconnect: (connector_id: string) => Promise<void>;
   handle_save_oauth_client: (connector_id: string, client_id: string, client_secret: string) => Promise<boolean>;
   handle_delete_oauth_client: (connector_id: string) => Promise<boolean>;

@@ -103,9 +103,7 @@ Open `http://localhost`.
 ```bash
 make install
 cd web && pnpm build && cd ..
-make db-init
-printf '%s\n' 'your-password' | go run ./cmd/nexusctl auth init-owner --username admin --password-stdin
-PORT=8010 go run ./cmd/nexus-server
+AUTH_INIT_OWNER_PASSWORD=your-password PORT=8010 go run ./cmd/nexus-server
 ```
 
 ### Local Development

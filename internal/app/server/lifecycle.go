@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	httpReadTimeout       = 30 * time.Second
+	// Git 导入和外部 skill 更新会同步等待网络传输与重试，写超时需要覆盖完整操作窗口。
+	httpWriteTimeout = 6 * time.Minute
+	httpIdleTimeout  = 60 * time.Second
+)
+
 // ListenAndServe 启动后台服务与 HTTP 服务。
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	stopBackground, err := s.startBackgroundServices(ctx)
@@ -18,10 +26,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	httpServer := &http.Server{
 		Addr:              s.config.Address(),
 		Handler:           s.router,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		ReadTimeout:       httpReadTimeout,
+		WriteTimeout:      httpWriteTimeout,
+		IdleTimeout:       httpIdleTimeout,
 	}
 
 	go func() {

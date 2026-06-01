@@ -20,7 +20,7 @@ func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
 	agents *agent.Service,
 	defaultTimezone string,
-) func(string, string, string, string, string, string) map[string]sdkmcp.SDKMCPServer {
+) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
 		sessionKey string,
@@ -28,7 +28,7 @@ func newAutomationMCPBuilder(
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
-	) map[string]sdkmcp.SDKMCPServer {
+	) map[string]sdkmcp.ServerConfig {
 		sctx := automationmcpcontract.ServerContext{
 			CurrentAgentID:      agentID,
 			CurrentSessionKey:   sessionKey,
@@ -45,8 +45,11 @@ func newAutomationMCPBuilder(
 				sctx.IsMainAgent = record.IsMain
 			}
 		}
-		return map[string]sdkmcp.SDKMCPServer{
-			automationmcpcontract.ServerName: automationmcp.NewServer(svc, sctx),
+		return map[string]sdkmcp.ServerConfig{
+			automationmcpcontract.ServerName: sdkmcp.SDKServerConfig{
+				Name:     automationmcpcontract.ServerName,
+				Instance: automationmcp.NewServer(svc, sctx),
+			},
 		}
 	}
 }

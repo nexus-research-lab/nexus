@@ -13,6 +13,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -49,7 +50,7 @@ type InterruptRequest struct {
 	RoundID    string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
+// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
 // 用 string 形参避免 dm 包反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(
 	agentID string,
@@ -58,7 +59,7 @@ type MCPServerBuilder func(
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
-) map[string]sdkmcp.SDKMCPServer
+) map[string]sdkmcp.ServerConfig
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
@@ -68,6 +69,7 @@ type Service struct {
 	permission *permissionctx.Context
 	roomStore  roomSessionStore
 	providers  clientopts.RuntimeConfigResolver
+	prefs      runtimePreferencesService
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 	inputQueue *workspacestore.InputQueueStore
@@ -85,6 +87,10 @@ type roomSessionStore interface {
 
 type titleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
+}
+
+type runtimePreferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
 type usageRecorder interface {
@@ -135,7 +141,7 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 	s.logger = logger
 }
 
-// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 // 由 server app 在构造定时任务服务后注入，避免 dm 包反向依赖 automation 子包。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
@@ -144,6 +150,11 @@ func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 // SetProviderResolver 注入 Provider 运行时解析器。
 func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver) {
 	s.providers = resolver
+}
+
+// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
+func (s *Service) SetPreferences(prefs runtimePreferencesService) {
+	s.prefs = prefs
 }
 
 // SetUsageRecorder 注入 token usage 持久化 ledger。

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
@@ -28,13 +28,13 @@ const createDescription = "创建定时任务（== UI「新建任务」对话框
 	"overlap_policy 可选 skip|allow，缺省 skip。" +
 	"想让结果回到当前会话：显式 execution_mode=existing + reply_mode=execution。"
 
-func create(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func create(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "create_scheduled_task",
 		Description: createDescription,
 		SearchHint:  searchHintCreateScheduledTask,
 		InputSchema: createSchema(),
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if args == nil {
 				args = map[string]any{}
 			}

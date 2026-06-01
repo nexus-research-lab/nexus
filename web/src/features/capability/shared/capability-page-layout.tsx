@@ -1,6 +1,10 @@
 "use client";
 
-import { type ReactNode } from "react";
+import {
+  type CompositionEventHandler,
+  type KeyboardEventHandler,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import { UiSearchInput } from "@/shared/ui/form-control";
@@ -25,7 +29,11 @@ interface CapabilitySectionHeaderProps {
 }
 
 interface CapabilityFilterSearchInputProps {
+  action?: ReactNode;
   on_change: (value: string) => void;
+  on_composition_end?: CompositionEventHandler<HTMLInputElement>;
+  on_composition_start?: CompositionEventHandler<HTMLInputElement>;
+  on_key_down?: KeyboardEventHandler<HTMLInputElement>;
   placeholder: string;
   value: string;
 }
@@ -66,7 +74,11 @@ export function CapabilityPageLayout({
 }
 
 export function CapabilityFilterSearchInput({
+  action,
   on_change,
+  on_composition_end,
+  on_composition_start,
+  on_key_down,
   placeholder,
   value,
 }: CapabilityFilterSearchInputProps) {
@@ -74,7 +86,11 @@ export function CapabilityFilterSearchInput({
     <UiSearchInput
       class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
       input_class_name="text-[14px]"
+      action={action}
       on_change={on_change}
+      onCompositionEnd={on_composition_end}
+      onCompositionStart={on_composition_start}
+      onKeyDown={on_key_down}
       placeholder={placeholder}
       value={value}
     />

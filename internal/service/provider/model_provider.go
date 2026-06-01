@@ -11,6 +11,10 @@ const (
 	APIFormatResponses = "responses"
 	// APIFormatAnthropicMessages 表示 Anthropic Messages 协议。
 	APIFormatAnthropicMessages = "anthropic_messages"
+	// APIFormatDashScopeImageGeneration 表示阿里云百炼 DashScope 图片生成分支协议。
+	APIFormatDashScopeImageGeneration = "dashscope_image_generation"
+	// APIFormatModelScopeImageGeneration 表示魔搭 ModelScope 异步图片生成分支协议。
+	APIFormatModelScopeImageGeneration = "modelscope_image_generation"
 )
 
 const (
@@ -23,6 +27,8 @@ const (
 // Record 表示对外暴露的 Provider 配置。
 type Record struct {
 	ID                    string        `json:"id"`
+	OwnerUserID           string        `json:"owner_user_id,omitempty"`
+	Visibility            string        `json:"visibility"`
 	ProviderKind          string        `json:"provider_kind"`
 	Provider              string        `json:"provider"`
 	PresetKey             string        `json:"preset_key"`
@@ -37,6 +43,7 @@ type Record struct {
 	LastTestStatus        string        `json:"last_test_status"`
 	LastTestError         string        `json:"last_test_error"`
 	LastTestAt            *time.Time    `json:"last_test_at,omitempty"`
+	CanManage             bool          `json:"can_manage"`
 	AgentRuntimeSupported bool          `json:"agent_runtime_supported"`
 	Models                []ModelRecord `json:"models"`
 	CreatedAt             *time.Time    `json:"created_at,omitempty"`
@@ -91,6 +98,7 @@ type OptionsResponse struct {
 type CreateInput struct {
 	ProviderKind string `json:"provider_kind"`
 	Provider     string `json:"provider"`
+	Visibility   string `json:"visibility,omitempty"`
 	PresetKey    string `json:"preset_key"`
 	APIFormat    string `json:"api_format"`
 	DisplayName  string `json:"display_name"`
@@ -128,6 +136,7 @@ type DeleteResult struct {
 // Preset 表示内置 Provider 模板。
 type Preset struct {
 	PresetKey     string         `json:"preset_key"`
+	ProviderKind  string         `json:"provider_kind"`
 	DisplayName   string         `json:"display_name"`
 	Description   string         `json:"description"`
 	KeyURL        string         `json:"key_url"`
@@ -137,9 +146,10 @@ type Preset struct {
 
 // PresetFormat 表示预置模板在某个 API Format 下的默认 endpoint。
 type PresetFormat struct {
-	APIFormat  string `json:"api_format"`
-	BaseURL    string `json:"base_url"`
-	ModelsPath string `json:"models_path"`
+	ProviderKind string `json:"provider_kind,omitempty"`
+	APIFormat    string `json:"api_format"`
+	BaseURL      string `json:"base_url"`
+	ModelsPath   string `json:"models_path"`
 }
 
 // ModelRecord 表示单个 Provider 下的模型卡。
@@ -199,9 +209,11 @@ type TestResult struct {
 
 // ImageConfig 表示图片生成要使用的 Provider 运行时配置。
 type ImageConfig struct {
-	Provider    string
-	DisplayName string
-	AuthToken   string
-	BaseURL     string
-	Model       string
+	Provider        string
+	DisplayName     string
+	APIFormat       string
+	AuthToken       string
+	BaseURL         string
+	Model           string
+	ProviderOptions map[string]any
 }

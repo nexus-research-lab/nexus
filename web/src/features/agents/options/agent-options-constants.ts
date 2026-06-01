@@ -4,6 +4,7 @@
 
 import { format_provider_label, type ProviderOption } from "@/types/capability/provider";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import type { AgentOptions } from "@/types/agent/agent";
 
 export const DEFAULT_AGENT_OPTION_PROVIDER = "";
 export const DEFAULT_AGENT_OPTION_MODEL = "";
@@ -101,4 +102,18 @@ export function build_agent_option_provider_options(
         : [],
     },
   ];
+}
+
+export function build_agent_options_save_payload(options: AgentOptions): AgentOptions {
+  return {
+    provider: options.provider,
+    model: options.model,
+    permission_mode: options.permission_mode,
+    allowed_tools: options.allowed_tools,
+    disallowed_tools: options.disallowed_tools,
+    max_turns: options.max_turns,
+    max_thinking_tokens: options.max_thinking_tokens,
+    mcp_servers: options.mcp_servers,
+    setting_sources: options.setting_sources,
+  };
 }

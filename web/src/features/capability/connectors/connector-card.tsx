@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clock3, Loader2, Plus, Settings2 } from "lucide-react";
+import { Check, Clock3, KeyRound, Loader2, Plus, Settings2 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent } from "react";
 
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { UiBadge } from "@/shared/ui/badge";
 import { UiIconButton } from "@/shared/ui/button";
 import { ConnectorInfo } from "@/types/capability/connector";
 
+import { is_direct_credential_auth } from "./connector-auth";
 import { ConnectorIcon } from "./connector-icon";
 import { get_connector_category_label } from "./connectors-categories";
 
@@ -39,12 +40,13 @@ export function ConnectorCard({
   } = connector;
   const is_connected = connection_state === "connected";
   const is_coming_soon = status === "coming_soon";
+  const requires_direct_credential = is_direct_credential_auth(connector.auth_type);
   const should_configure = !is_configured && oauth_client_config_required;
   const can_connect = !busy && !is_connected && !is_coming_soon && is_configured;
 
   const handle_action_click = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (can_connect) {
+    if (can_connect && !requires_direct_credential) {
       on_connect?.();
       return;
     }
@@ -108,13 +110,15 @@ export function ConnectorCard({
           <Clock3 className="h-4 w-4 text-(--icon-muted)" />
         ) : (
           <UiIconButton
-            aria-label={should_configure ? `配置 ${title}` : `连接 ${title}`}
+            aria-label={should_configure || requires_direct_credential ? `配置 ${title}` : `连接 ${title}`}
             onClick={handle_action_click}
             size="md"
             type="button"
           >
             {should_configure ? (
               <Settings2 className="h-4 w-4" />
+            ) : requires_direct_credential ? (
+              <KeyRound className="h-4 w-4" />
             ) : (
               <Plus className="h-4 w-4" />
             )}

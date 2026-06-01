@@ -15,6 +15,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -74,7 +75,7 @@ type InterruptRequest struct {
 	MsgID      string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
+// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
 // 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(
 	agentID string,
@@ -83,27 +84,28 @@ type MCPServerBuilder func(
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
-) map[string]sdkmcp.SDKMCPServer
+) map[string]sdkmcp.ServerConfig
 
 type RealtimeService struct {
-	config      config.Config
-	rooms       *Service
-	agents      *agentsvc.Service
-	runtime     *runtimectx.Manager
-	permission  *permissionctx.Context
-	providers   clientopts.RuntimeConfigResolver
-	history     *workspacestore.AgentHistoryStore
-	roomHistory *workspacestore.RoomHistoryStore
-	actions     *workspacestore.RoomActionStore
-	inputQueue  *workspacestore.InputQueueStore
-	usage       usageRecorder
-	goals       goalContextProvider
-	factory     roomClientFactory
-	broadcaster RoomBroadcaster
-	logger      *slog.Logger
-	mcpServers  MCPServerBuilder
-	titles      roomTitleScheduler
-	internalAPI roomInternalAPI
+	config           config.Config
+	rooms            *Service
+	agents           *agentsvc.Service
+	runtime          *runtimectx.Manager
+	permission       *permissionctx.Context
+	providers        clientopts.RuntimeConfigResolver
+	prefs            roomRuntimePreferencesService
+	history          *workspacestore.AgentHistoryStore
+	roomHistory      *workspacestore.RoomHistoryStore
+	directedMessages *workspacestore.RoomDirectedMessageStore
+	inputQueue       *workspacestore.InputQueueStore
+	usage            usageRecorder
+	goals            goalContextProvider
+	factory          roomClientFactory
+	broadcaster      RoomBroadcaster
+	logger           *slog.Logger
+	mcpServers       MCPServerBuilder
+	titles           roomTitleScheduler
+	internalAPI      roomInternalAPI
 
 	mu           sync.Mutex
 	activeRounds map[string]*activeRoomRound
@@ -116,6 +118,10 @@ type roomInternalAPI struct {
 
 type roomTitleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
+}
+
+type roomRuntimePreferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
 type usageRecorder interface {
@@ -165,18 +171,18 @@ func NewRealtimeServiceWithFactory(
 		factory = defaultRoomClientFactory{}
 	}
 	return &RealtimeService{
-		config:       cfg,
-		rooms:        roomService,
-		agents:       agentService,
-		runtime:      runtimeManager,
-		permission:   permission,
-		history:      workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		roomHistory:  workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
-		actions:      workspacestore.NewRoomActionStore(cfg.WorkspacePath),
-		inputQueue:   workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		factory:      factory,
-		logger:       logx.NewDiscardLogger(),
-		activeRounds: make(map[string]*activeRoomRound),
+		config:           cfg,
+		rooms:            roomService,
+		agents:           agentService,
+		runtime:          runtimeManager,
+		permission:       permission,
+		history:          workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
+		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
+		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		factory:          factory,
+		logger:           logx.NewDiscardLogger(),
+		activeRounds:     make(map[string]*activeRoomRound),
 	}
 }
 
@@ -199,6 +205,11 @@ func (s *RealtimeService) SetProviderResolver(resolver clientopts.RuntimeConfigR
 	s.providers = resolver
 }
 
+// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
+func (s *RealtimeService) SetPreferences(prefs roomRuntimePreferencesService) {
+	s.prefs = prefs
+}
+
 // SetUsageRecorder 注入 token usage 持久化 ledger。
 func (s *RealtimeService) SetUsageRecorder(recorder usageRecorder) {
 	s.usage = recorder
@@ -209,7 +220,7 @@ func (s *RealtimeService) SetGoalContextProvider(provider goalContextProvider) {
 	s.goals = provider
 }
 
-// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 func (s *RealtimeService) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
 }

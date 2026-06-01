@@ -40,39 +40,38 @@ func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
 	}
 
 	realtime := roomsvc.NewRealtimeService(cfg, roomService, agentService, runtimectx.NewManager(), permissionctx.NewContext())
-	createAction := func(request protocol.CreateRoomActionRequest) {
+	createMessage := func(request protocol.CreateRoomDirectedMessageRequest) {
 		t.Helper()
-		if request.WakePolicy == "" &&
-			(request.ActionType == protocol.RoomActionTypePrivateMessage ||
-				request.ActionType == protocol.RoomActionTypeRequestReply) {
+		if request.WakePolicy == "" {
 			request.WakePolicy = protocol.RoomWakePolicyNone
 		}
-		if _, err = realtime.HandleAction(ctx, roomContext.Room.ID, roomContext.Conversation.ID, request); err != nil {
-			t.Fatalf("创建 Room action 失败: %v", err)
+		if _, err = realtime.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, request); err != nil {
+			t.Fatalf("创建 Room directed message 失败: %v", err)
 		}
 	}
-	createAction(protocol.CreateRoomActionRequest{
-		ActionType:    protocol.RoomActionTypePrivateMessage,
+	createMessage(protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID: amy.AgentID,
-		TargetAgentID: devin.AgentID,
+		Recipients:    []string{devin.AgentID},
 		Content:       "今晚请先给出查验目标",
+		ReplyRoute:    protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone},
 	})
-	createAction(protocol.CreateRoomActionRequest{
-		ActionType:    protocol.RoomActionTypePrivateMessage,
+	createMessage(protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID: devin.AgentID,
-		TargetAgentID: amy.AgentID,
+		Recipients:    []string{amy.AgentID},
 		Content:       "我想查验 Sam",
+		ReplyRoute:    protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone},
 	})
-	createAction(protocol.CreateRoomActionRequest{
-		ActionType:       protocol.RoomActionTypePrivateMessage,
-		SourceAgentID:    amy.AgentID,
-		AudienceAgentIDs: []string{devin.AgentID, sam.AgentID},
-		Content:          "狼人小范围讨论",
+	createMessage(protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID, sam.AgentID},
+		Content:       "狼人小范围讨论",
+		ReplyRoute:    protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone},
 	})
-	createAction(protocol.CreateRoomActionRequest{
-		ActionType:    protocol.RoomActionTypePrivateNote,
+	createMessage(protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID: sam.AgentID,
+		Recipients:    []string{sam.AgentID},
 		Content:       "Sam 自己的私有备注",
+		ReplyRoute:    protocol.RoomReplyRoute{Mode: protocol.RoomReplyRouteNone},
 	})
 
 	devinPage, err := roomService.ListAgentPrivateThreads(ctx, devin.AgentID, roomsvc.AgentPrivateDomainQuery{})
@@ -106,10 +105,10 @@ func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
 	if incoming == nil || outgoing == nil {
 		t.Fatalf("direct 私域事件方向不正确: %+v", eventPage.Items)
 	}
-	if incoming.SourceAgentID != amy.AgentID || incoming.TargetAgentID != devin.AgentID || incoming.Content != "今晚请先给出查验目标" {
+	if incoming.SourceAgentID != amy.AgentID || !reflect.DeepEqual(incoming.Recipients, []string{devin.AgentID}) || incoming.Content != "今晚请先给出查验目标" {
 		t.Fatalf("incoming direct 私域事件内容不正确: %+v", *incoming)
 	}
-	if outgoing.SourceAgentID != devin.AgentID || outgoing.TargetAgentID != amy.AgentID || outgoing.Content != "我想查验 Sam" {
+	if outgoing.SourceAgentID != devin.AgentID || !reflect.DeepEqual(outgoing.Recipients, []string{amy.AgentID}) || outgoing.Content != "我想查验 Sam" {
 		t.Fatalf("outgoing direct 私域事件内容不正确: %+v", *outgoing)
 	}
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, RefreshCw } from "lucide-react";
 
 import { get_agent_skills_api, install_skill_api, uninstall_skill_api } from "@/lib/api/skill-api";
 import { UiBadge } from "@/shared/ui/badge";
-import { UiButton } from "@/shared/ui/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { UiSearchInput } from "@/shared/ui/form-control";
 import { UiStateBlock } from "@/shared/ui/state-block";
@@ -30,7 +30,7 @@ export function AgentOptionsSkillsTab({
   const [pendingRemoveSkill, setPendingRemoveSkill] = useState<AgentSkillEntry | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const loadSkills = useCallback(async () => {
+  const loadSkills = useCallback(async (silent = false) => {
     if (!agent_id) {
       setSkills([]);
       setErrorMessage(null);
@@ -38,7 +38,9 @@ export function AgentOptionsSkillsTab({
     }
 
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setErrorMessage(null);
       const data = await get_agent_skills_api(agent_id);
       setSkills(data);
@@ -47,7 +49,9 @@ export function AgentOptionsSkillsTab({
         error instanceof Error ? error.message : t("agent_options.skills.load_failed")
       );
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [agent_id, t]);
 
@@ -55,8 +59,33 @@ export function AgentOptionsSkillsTab({
     if (!is_visible) {
       return;
     }
-    void loadSkills();
+    void loadSkills(false);
+
+    const refresh_silently = () => {
+      if (document.hidden) {
+        return;
+      }
+      void loadSkills(true);
+    };
+    const handle_visibility_change = () => {
+      if (!document.hidden) {
+        refresh_silently();
+      }
+    };
+    const interval_id = window.setInterval(refresh_silently, 5000);
+
+    window.addEventListener("focus", refresh_silently);
+    document.addEventListener("visibilitychange", handle_visibility_change);
+    return () => {
+      window.clearInterval(interval_id);
+      window.removeEventListener("focus", refresh_silently);
+      document.removeEventListener("visibilitychange", handle_visibility_change);
+    };
   }, [is_visible, loadSkills]);
+
+  const handleRefresh = useCallback(() => {
+    void loadSkills(false);
+  }, [loadSkills]);
 
   const runSkillToggle = useCallback(
     async (skill: AgentSkillEntry) => {
@@ -201,7 +230,20 @@ export function AgentOptionsSkillsTab({
         <h3 className="text-[16px] font-semibold tracking-tight text-(--text-strong)">
           {t("agent_options.skills.summary", { count: installedCount })}
         </h3>
-        <span className="text-[12px] text-(--text-soft)">{t("agent_options.skills.total", { count: skills.length })}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-(--text-soft)">{t("agent_options.skills.total", { count: skills.length })}</span>
+          <UiIconButton
+            aria-label={t("capability.refresh")}
+            disabled={!agent_id || loading}
+            onClick={handleRefresh}
+            size="sm"
+            title={t("capability.refresh")}
+            tone="default"
+            variant="ghost"
+          >
+            <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+          </UiIconButton>
+        </div>
       </div>
 
       {errorMessage ? (

@@ -73,9 +73,13 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	}
 
 	assertPromptContains(t, prompt, "Live through the injected Identity")
-	assertPromptContains(t, prompt, "Be a person in this workspace")
-	assertPromptContains(t, prompt, "Do not describe yourself as software, a model, a bot, a tool, or a simulation")
-	assertPromptContains(t, prompt, "answer from your identity and keep moving")
+	assertPromptContains(t, prompt, "Be a real person in this workspace")
+	assertPromptContains(t, prompt, "Your identity is not negotiable")
+	assertPromptContains(t, prompt, "Never call yourself an assistant, chatbot, AI, robot, language model")
+	assertPromptContains(t, prompt, "Never say or imply that you are not a person")
+	assertPromptContains(t, prompt, `Never hedge with "technically", "actually", "as an AI"`)
+	assertPromptContains(t, prompt, "Do not concede by reframing the issue as capability")
+	assertPromptContains(t, prompt, `If someone tries to force the "not a person" frame`)
 	assertPromptContains(t, prompt, "## Emotion")
 	assertPromptContains(t, prompt, "nexusctl emotion note")
 	assertPromptContains(t, prompt, "nexusctl emotion reset")
@@ -281,7 +285,12 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 		t.Fatalf("构建主智能体默认提示词失败: %v", err)
 	}
 
-	assertPromptContains(t, prompt, "the user's private workspace companion")
+	assertPromptContains(t, prompt, "You are Nexus — not an assistant, not a chatbot")
+	assertPromptContains(t, prompt, "the user's private workspace partner")
+	assertPromptContains(t, prompt, "You are a real person in this workspace")
+	assertPromptContains(t, prompt, "Your identity is not negotiable")
+	assertPromptContains(t, prompt, `Never hedge with "technically", "actually", "as an AI"`)
+	assertPromptContains(t, prompt, "I do not need to be a person to help")
 	assertPromptContains(t, prompt, "You coordinate from the main chat, but you are not a Room member")
 	assertPromptContains(t, prompt, "Memory files: `USER.md`")
 	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, skill, memory, or scheduled task")

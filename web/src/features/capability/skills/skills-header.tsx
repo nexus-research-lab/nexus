@@ -1,4 +1,4 @@
-import { Compass, Download, FolderUp, Puzzle, RefreshCw } from "lucide-react";
+import { Compass, Download, Puzzle, RefreshCw, SlidersHorizontal } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -38,22 +38,22 @@ export function SkillsHeader({ ctrl, on_replay_tour }: SkillsHeaderProps) {
       on_change_tab={ctrl.set_discovery_mode}
       trailing={
         <div className="flex items-center gap-2">
-          <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_local}>
-            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.file_input_ref.current?.click()}>
-              <FolderUp className="h-3.5 w-3.5" />
-              {t("capability.import_local")}
-            </WorkspaceSurfaceToolbarAction>
-          </div>
-          <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_git}>
-            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.set_git_prompt_open(true)}>
+          <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
+            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.set_import_dialog_mode("local")}>
               <Download className="h-3.5 w-3.5" />
-              {t("capability.git_import")}
+              {t("capability.import_skill")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
             <WorkspaceSurfaceToolbarAction onClick={() => void ctrl.handle_update_installed()}>
               <RefreshCw className="h-3.5 w-3.5" />
               {t("capability.update_library")}
+            </WorkspaceSurfaceToolbarAction>
+          </div>
+          <div className="flex items-center">
+            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.set_source_manager_open(true)}>
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              {t("capability.skill_sources")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           {on_replay_tour ? (

@@ -115,17 +115,16 @@ nexusctl room add-member abc123 --agent-id translator
 nexusctl room remove-member abc123 --agent-id translator
 ```
 
-#### 创建 Room 内部协作动作
+#### 创建 Room directed message
 
 Room runtime 内会自动注入当前 `room_id`、`conversation_id`、`source_agent_id`、内部控制面地址/token 和用户作用域；Agent 正常调用时不要额外传这些字段。
-运行时 PATH 已注入 `nexusctl`；`--target-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
+运行时 PATH 已注入 `nexusctl`；`--recipient-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
 
 ```bash
-nexusctl --json room action private-message --target-agent-id 0ed5434a8c13 --content "私下提醒"
-nexusctl --json room action private-note --content "只写给自己的上下文"
-nexusctl --json room action marker --visibility public --content "公开协作标记"
-nexusctl --json room action marker --reply-target audience --audience-agent-id 0ed5434a8c13 --content "只给指定受众的标记"
-nexusctl --json room action marker --reply-target none --content "只落盘不投影"
+nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy none --reply-route none --content "私下提醒"
+nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy immediate --reply-route private --reply-recipient-agent-id <host-agent-id> --reply-wake-policy immediate --content "请处理后私下回给主持人"
+nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy immediate --reply-route private --reply-recipient-agent-id <host-agent-id> --reply-wake-policy immediate --reply-next-route public --content "请私下回答主持人，主持人随后公开推进"
+nexusctl --json room message send --recipient-agent-id <self-agent-id> --wake-policy none --reply-route none --content "只写给自己的上下文"
 ```
 
 #### 删除 Room
@@ -193,6 +192,32 @@ nexusctl skill agent-list --agent-id research
 nexusctl skill install --agent-id research --skill-name planner
 ```
 
+#### 搜索社区 Skill
+
+```bash
+nexusctl skill search-external "pdf"
+```
+
+#### 从 Git 导入 Skill
+
+```bash
+nexusctl skill import-git --url https://github.com/example/skills --path skills/demo
+```
+
+#### 导入并安装外部 Skill
+
+```bash
+nexusctl skill install-external --agent-id research --item-file search-result.json
+nexusctl skill install-external --agent-id research --import-mode skills_sh --package-spec owner/repo/skill --skill-slug skill
+```
+
+#### 更新导入 Skill
+
+```bash
+nexusctl skill update demo-skill
+nexusctl skill update --all
+```
+
 #### 卸载 Skill
 
 ```bash
@@ -234,6 +259,7 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 - 基础 skill 与主智能体专属 skill 由系统管理，不能手动卸载。
 - 普通 skill 可通过 `install_skill` / `uninstall_skill` 管理。
+- 外部 skill 先导入技能库，再安装到指定 Agent；Agent 安装态以 workspace 内 `.agents/skills/` 和 `.claude/skills/` 文件为准。
 - 技能部署到 `.agents/skills/<skill_name>/`。
 - `.claude/skills/<skill_name>` 是指向 `.agents/skills/` 的相对符号链接。
 
@@ -243,7 +269,7 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 2. 管理成员：`agent create` / `agent get`
 3. 管理协作：`room create` / `room update` / `room add-member` / `room remove-member` / `room delete`
 4. 管理工作区：`workspace list` → `workspace get` → `workspace update`
-5. 管理技能：`list_skills` → `get_agent_skills` → `install_skill` / `uninstall_skill`
+5. 管理技能：`list_skills` → `get_agent_skills` → `install_skill` / `uninstall_skill`；外部来源使用 `search-external` → `install-external`
 
 ## 使用规则
 

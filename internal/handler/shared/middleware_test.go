@@ -80,6 +80,45 @@ func TestAccessLogMiddlewareRedactsSensitiveQueryValues(t *testing.T) {
 	}
 }
 
+func TestAccessLogMiddlewareDemotesSuccessfulGetAtInfoLevel(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	handler := RequestContextMiddleware(logger)(
+		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			writer.WriteHeader(http.StatusOK)
+		})),
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if output := buffer.String(); strings.Contains(output, "HTTP 请求完成") {
+		t.Fatalf("成功 GET 不应写入 info access log: %s", output)
+	}
+}
+
+func TestAccessLogMiddlewareKeepsFailureAtInfoLevel(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	handler := RequestContextMiddleware(logger)(
+		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			writer.WriteHeader(http.StatusNotFound)
+		})),
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/assets/missing.js", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	output := buffer.String()
+	if !strings.Contains(output, "\"msg\":\"HTTP 请求完成\"") || !strings.Contains(output, "\"status\":404") {
+		t.Fatalf("失败请求应继续写入 access log: %s", output)
+	}
+}
+
 func TestRecoverMiddlewareReturnsInternalError(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))

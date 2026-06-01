@@ -2,36 +2,56 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 )
 
-func runMigrations(cfg config.Config, logger *slog.Logger) error {
-	dir := "db/migrations/" + storage.MigrationDirName(cfg.DatabaseDriver)
+const (
+	authInitOwnerUsernameEnvName    = "AUTH_INIT_OWNER_USERNAME"
+	authInitOwnerDisplayNameEnvName = "AUTH_INIT_OWNER_DISPLAY_NAME"
+	authInitOwnerPasswordEnvName    = "AUTH_INIT_OWNER_PASSWORD"
+)
+
+func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
+	dir := filepath.Join(appfs.Root(), "db", "migrations", storage.MigrationDirName(cfg.DatabaseDriver))
 
 	db, err := storage.OpenDB(cfg)
 	if err != nil {
-		return fmt.Errorf("open db for migration: %w", err)
+		return nil, "", fmt.Errorf("open db for migration: %w", err)
 	}
-	defer db.Close()
 
 	if err = goose.SetDialect(storage.GooseDialect(cfg.DatabaseDriver)); err != nil {
-		return fmt.Errorf("set goose dialect: %w", err)
+		_ = db.Close()
+		return nil, "", fmt.Errorf("set goose dialect: %w", err)
 	}
+	return db, dir, nil
+}
+
+func runMigrations(cfg config.Config, logger *slog.Logger) error {
+	db, dir, err := openMigrationDB(cfg)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
@@ -48,8 +68,87 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	return nil
 }
 
+func ensureOwnerFromEnv(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
+	password := os.Getenv(authInitOwnerPasswordEnvName)
+	username := strings.TrimSpace(os.Getenv(authInitOwnerUsernameEnvName))
+	displayName := strings.TrimSpace(os.Getenv(authInitOwnerDisplayNameEnvName))
+	if strings.TrimSpace(password) == "" {
+		if username != "" || displayName != "" {
+			return fmt.Errorf("%s is required when %s or %s is set",
+				authInitOwnerPasswordEnvName,
+				authInitOwnerUsernameEnvName,
+				authInitOwnerDisplayNameEnvName,
+			)
+		}
+		logger.Info("未配置 owner 初始化密码，跳过 owner bootstrap")
+		return nil
+	}
+	if username == "" {
+		username = "admin"
+	}
+
+	db, err := storage.OpenDB(cfg)
+	if err != nil {
+		return fmt.Errorf("open db for owner bootstrap: %w", err)
+	}
+	defer db.Close()
+
+	authService := authsvc.NewServiceWithDB(cfg, db)
+	users, err := authService.ListUsers(ctx)
+	if err != nil {
+		return err
+	}
+
+	hasActiveAdmin := false
+	targetUserRole := ""
+	normalizedUsername := strings.ToLower(strings.TrimSpace(username))
+	for _, user := range users {
+		if user.Username == normalizedUsername {
+			targetUserRole = user.Role
+		}
+		if user.Status == authsvc.UserStatusActive && (user.Role == authsvc.RoleOwner || user.Role == authsvc.RoleAdmin) {
+			hasActiveAdmin = true
+		}
+	}
+	if hasActiveAdmin {
+		logger.Info("owner/admin 用户已存在，跳过 owner bootstrap")
+		return nil
+	}
+
+	if len(users) == 0 {
+		user, err := authService.InitOwner(ctx, authsvc.InitOwnerInput{
+			Username:    username,
+			DisplayName: displayName,
+			Password:    password,
+		})
+		if err != nil {
+			return err
+		}
+		logger.Info("已初始化首个 owner 用户", "username", user.Username)
+		return nil
+	}
+
+	if targetUserRole != "" {
+		return fmt.Errorf("bootstrap username %s already exists with role %s, but no active owner/admin account was found",
+			username,
+			targetUserRole,
+		)
+	}
+	user, err := authService.CreateUser(ctx, authsvc.CreateUserInput{
+		Username:    username,
+		DisplayName: displayName,
+		Password:    password,
+		Role:        authsvc.RoleOwner,
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("已有用户但无 active owner/admin，已创建 owner 用户", "username", user.Username)
+	return nil
+}
+
 func buildRootCommand() *cobra.Command {
-	return &cobra.Command{
+	root := &cobra.Command{
 		Use:           "nexus-server",
 		Short:         "启动 Nexus HTTP 服务",
 		SilenceUsage:  true,
@@ -58,6 +157,7 @@ func buildRootCommand() *cobra.Command {
 			return runServer()
 		},
 	}
+	return root
 }
 
 func runServer() error {
@@ -93,6 +193,11 @@ func runServer() error {
 	// 自动运行 schema migrations，确保首次启动或升级时数据库 schema 就绪。
 	if err := runMigrations(cfg, logger); err != nil {
 		logger.Error("数据库迁移失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	if err := ensureOwnerFromEnv(context.Background(), cfg, logger); err != nil {
+		logger.Error("owner bootstrap 失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}

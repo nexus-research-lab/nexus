@@ -20,28 +20,24 @@ type AgentPrivateThread struct {
 	RoomType            string                    `json:"room_type,omitempty"`
 	ConversationID      string                    `json:"conversation_id,omitempty"`
 	ConversationTitle   string                    `json:"conversation_title,omitempty"`
-	LastActionID        string                    `json:"last_action_id,omitempty"`
-	LastActionType      RoomActionType            `json:"last_action_type,omitempty"`
+	LastMessageID       string                    `json:"last_message_id,omitempty"`
 	LastContentPreview  string                    `json:"last_content_preview,omitempty"`
 	LastTimestamp       int64                     `json:"last_timestamp,omitempty"`
-	ActionCount         int                       `json:"action_count"`
+	MessageCount        int                       `json:"message_count"`
 }
 
-// AgentPrivateEvent 表示私域线程内的一条可见 action。
+// AgentPrivateEvent 表示私域线程内的一条可见 directed message。
 type AgentPrivateEvent struct {
-	ActionID          string                    `json:"action_id"`
+	MessageID         string                    `json:"message_id"`
 	ThreadID          string                    `json:"thread_id"`
 	Direction         string                    `json:"direction"`
-	ActionType        RoomActionType            `json:"action_type"`
-	RequestID         string                    `json:"request_id,omitempty"`
 	SourceAgentID     string                    `json:"source_agent_id"`
-	TargetAgentID     string                    `json:"target_agent_id,omitempty"`
-	AudienceAgentIDs  []string                  `json:"audience_agent_ids,omitempty"`
+	Recipients        []string                  `json:"recipients"`
 	Content           string                    `json:"content,omitempty"`
-	Visibility        string                    `json:"visibility"`
-	ReplyTarget       RoomReplyTarget           `json:"reply_target"`
+	ReplyRoute        RoomReplyRoute            `json:"reply_route"`
 	WakePolicy        RoomWakePolicy            `json:"wake_policy,omitempty"`
 	DelaySeconds      int                       `json:"delay_seconds,omitempty"`
+	CorrelationID     string                    `json:"correlation_id,omitempty"`
 	RoomID            string                    `json:"room_id,omitempty"`
 	RoomName          string                    `json:"room_name,omitempty"`
 	RoomType          string                    `json:"room_type,omitempty"`

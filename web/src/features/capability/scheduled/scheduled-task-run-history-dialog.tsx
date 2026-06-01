@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, Download, History, RefreshCw, RotateCcw, X } from "lucide-react";
 
+import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
 import { get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
 import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
@@ -224,13 +225,12 @@ export function ScheduledTaskRunHistoryDialog({
 
   const handle_copy_diagnostic = async (run: ScheduledTaskRunItem) => {
     const diagnostic = build_run_diagnostic(task, run);
-    try {
-      await navigator.clipboard.writeText(diagnostic);
+    if (await write_text_to_clipboard(diagnostic)) {
       set_copied_run_id(run.run_id);
       set_action_message("诊断信息已复制");
-    } catch {
-      set_action_message("浏览器未允许写入剪贴板，请使用运行产物查看完整诊断");
+      return;
     }
+    set_action_message("浏览器未允许写入剪贴板，请使用运行产物查看完整诊断");
   };
 
   const handle_retry = async (run: ScheduledTaskRunItem) => {

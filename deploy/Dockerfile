@@ -46,12 +46,11 @@ COPY db /src/db
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     go build -o /out/nexus-server ./cmd/nexus-server && \
-    go build -o /out/nexus-migrate ./cmd/nexus-migrate && \
     go build -o /out/nexusctl ./cmd/nexusctl
 
 FROM ${NODE_IMAGE} AS web-builder
 
-ARG PNPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG VITE_WS_URL=
 ARG VITE_API_URL=
@@ -83,10 +82,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
-ARG PNPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com/
+ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -149,7 +148,6 @@ RUN groupadd --system --gid 1001 agent && \
 WORKDIR /opt/app
 
 COPY --from=builder /out/nexus-server /usr/local/bin/nexus-server
-COPY --from=builder /out/nexus-migrate /usr/local/bin/nexus-migrate
 COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
 COPY db /opt/app/db
 COPY skills /opt/app/skills

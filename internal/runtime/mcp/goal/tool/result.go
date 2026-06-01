@@ -4,17 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 )
 
-func structuredResult(_ string, content map[string]any) sdkmcp.ToolResult {
+func structuredResult(_ string, content map[string]any) sdktool.ToolResult {
 	text := "{}"
 	if payload, err := json.MarshalIndent(goalToolTextPayloadFrom(content), "", "  "); err == nil {
 		text = string(payload)
 	}
-	return sdkmcp.ToolResult{
+	return sdktool.ToolResult{
 		Content: []map[string]any{{
 			"type": "text",
 			"text": text,
@@ -65,7 +64,7 @@ func goalTextValueFromAny(value any) any {
 	}
 }
 
-func errorResult(err error) sdkmcp.ToolResult {
+func errorResult(err error) sdktool.ToolResult {
 	text := "goal tool failed"
 	if err != nil {
 		text = err.Error()
@@ -73,8 +72,8 @@ func errorResult(err error) sdkmcp.ToolResult {
 	return errorResultText(text)
 }
 
-func errorResultText(text string) sdkmcp.ToolResult {
-	return sdkmcp.ToolResult{
+func errorResultText(text string) sdktool.ToolResult {
+	return sdktool.ToolResult{
 		Content: []map[string]any{{
 			"type": "text",
 			"text": text,

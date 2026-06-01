@@ -87,11 +87,13 @@ export function ContactsAgentDetail({
   const initial_options = useMemo(
     () => ({
       provider: agent.options.provider,
+      model: agent.options.model,
       permission_mode: agent.options.permission_mode,
       allowed_tools: agent.options.allowed_tools,
       disallowed_tools: agent.options.disallowed_tools,
       max_turns: agent.options.max_turns,
       max_thinking_tokens: agent.options.max_thinking_tokens,
+      mcp_servers: agent.options.mcp_servers,
       setting_sources: agent.options.setting_sources,
     }),
     [
@@ -99,6 +101,8 @@ export function ContactsAgentDetail({
       agent.options.disallowed_tools,
       agent.options.max_thinking_tokens,
       agent.options.max_turns,
+      agent.options.mcp_servers,
+      agent.options.model,
       agent.options.permission_mode,
       agent.options.provider,
       agent.options.setting_sources,

@@ -48,18 +48,10 @@ func BuildSDKMessageLogFieldsWithOptions(
 			return nil
 		}
 		fields = append(fields, buildStreamEventFields(message)...)
-	case sdkprotocol.MessageTypeToolProgress:
-		fields = append(fields, buildToolProgressFields(message)...)
+	case sdkprotocol.MessageTypeTaskProgress:
+		fields = append(fields, buildTaskProgressFields(message)...)
 	case sdkprotocol.MessageTypeSystem:
 		fields = append(fields, buildSystemMessageFields(message)...)
-	case sdkprotocol.MessageTypeAuthStatus:
-		if message.AuthStatus != nil {
-			fields = append(
-				fields,
-				"is_authenticating", message.AuthStatus.IsAuthenticating,
-				"auth_error", strings.TrimSpace(message.AuthStatus.Error),
-			)
-		}
 	}
 	return redactSDKLogFields(fields)
 }
@@ -77,12 +69,8 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 		return summarizeResultMessage(message)
 	case sdkprotocol.MessageTypeSystem:
 		return summarizeSystemMessage(message)
-	case sdkprotocol.MessageTypeToolProgress:
-		return summarizeToolProgressMessage(message)
-	case sdkprotocol.MessageTypePromptSuggestion:
-		return "prompt_suggestion"
-	case sdkprotocol.MessageTypeAuthStatus:
-		return "auth_status"
+	case sdkprotocol.MessageTypeTaskProgress:
+		return summarizeTaskProgressMessage(message)
 	default:
 		return string(message.Type)
 	}
@@ -242,16 +230,16 @@ func buildStreamEventFields(message sdkprotocol.ReceivedMessage) []any {
 	return fields
 }
 
-func buildToolProgressFields(message sdkprotocol.ReceivedMessage) []any {
-	if message.ToolProgress == nil {
+func buildTaskProgressFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.TaskProgress == nil {
 		return nil
 	}
 	fields := []any{}
-	if toolName := safeToolName(message.ToolProgress.ToolName); toolName != "" {
+	if toolName := safeToolName(message.TaskProgress.LastToolName); toolName != "" {
 		fields = append(fields, "tool", toolName)
 	}
-	if message.ToolProgress.ElapsedTimeSeconds > 0 {
-		fields = append(fields, "elapsed_sec", message.ToolProgress.ElapsedTimeSeconds)
+	if message.TaskProgress.Usage.DurationMS > 0 {
+		fields = append(fields, "duration_ms", message.TaskProgress.Usage.DurationMS)
 	}
 	return fields
 }
@@ -392,15 +380,15 @@ func summarizeSystemMessage(message sdkprotocol.ReceivedMessage) string {
 	return "system " + subtype
 }
 
-func summarizeToolProgressMessage(message sdkprotocol.ReceivedMessage) string {
-	if message.ToolProgress == nil {
-		return "tool_progress"
+func summarizeTaskProgressMessage(message sdkprotocol.ReceivedMessage) string {
+	if message.TaskProgress == nil {
+		return "task_progress"
 	}
-	toolName := strings.TrimSpace(message.ToolProgress.ToolName)
+	toolName := strings.TrimSpace(message.TaskProgress.LastToolName)
 	if toolName == "" {
-		return "tool_progress"
+		return "task_progress"
 	}
-	return "tool_progress " + toolName
+	return "task_progress " + toolName
 }
 
 func appendSummaryPreview(summary string, preview string) string {

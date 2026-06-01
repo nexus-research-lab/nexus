@@ -885,7 +885,7 @@ func projectTranscriptChain(
 			projected = append(projected, *userMessage)
 		case sdkprotocol.MessageTypeAssistant,
 			sdkprotocol.MessageTypeSystem,
-			sdkprotocol.MessageTypeToolProgress:
+			sdkprotocol.MessageTypeTaskProgress:
 			if processor == nil {
 				currentRoundID = buildTranscriptRoundID(decoded.UUID)
 				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)

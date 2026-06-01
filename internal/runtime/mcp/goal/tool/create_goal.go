@@ -4,10 +4,9 @@ import (
 	"context"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/goal/contract"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 )
 
 type createGoalInput struct {
@@ -15,15 +14,15 @@ type createGoalInput struct {
 	TokenBudget *int64 `json:"token_budget,omitempty"`
 }
 
-func createGoal(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "create_goal",
 		Description: createGoalDescription,
 		InputSchema: objectSchema(map[string]any{
 			"objective":    stringProperty("Required. The concrete objective to start pursuing. This starts a new active goal only when no goal is currently defined; if a goal already exists, this tool fails."),
 			"token_budget": integerProperty("Optional positive token budget for the new active goal."),
 		}, "objective"),
-		Handler: func(ctx context.Context, input map[string]any) (sdkmcp.ToolResult, error) {
+		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
 			var parsed createGoalInput
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
@@ -51,7 +50,7 @@ const createGoalDescription = "Create a goal only when explicitly requested by t
 
 const createGoalConflictMessage = "cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete"
 
-func createGoalErrorResult(err error) sdkmcp.ToolResult {
+func createGoalErrorResult(err error) sdktool.ToolResult {
 	if isGoalConflictError(err) {
 		return errorResultText(createGoalConflictMessage)
 	}

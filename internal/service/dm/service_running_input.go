@@ -82,6 +82,7 @@ func (s *Service) guideRunningInput(
 	if err != nil {
 		return false, err
 	}
+	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent.PlainText())
 	if err != nil {
 		return false, err

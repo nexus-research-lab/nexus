@@ -3,14 +3,14 @@
 package tool
 
 import (
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 )
 
 // BuildAll 汇集全部工具，供 mcp.NewServer 注册。
-func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdkmcp.Tool {
-	return []sdkmcp.Tool{
+func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool {
+	return []sdktool.Tool{
 		list(svc, sctx),
 		searchHistory(svc, sctx),
 		create(svc, sctx),

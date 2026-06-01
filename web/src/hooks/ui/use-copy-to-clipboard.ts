@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { write_text_to_clipboard } from "./clipboard";
+
 const COPY_FEEDBACK_TIMEOUT_MS = 2000;
 
 export interface UseCopyToClipboardOptions {
@@ -23,8 +25,8 @@ export function useCopyToClipboard(
   const copy = useCallback(
     async (text: string): Promise<boolean> => {
       if (!text) return false;
-      try {
-        await navigator.clipboard.writeText(text);
+      const succeeded = await write_text_to_clipboard(text);
+      if (succeeded) {
         set_copied(true);
         if (reset_timer_ref.current) {
           clearTimeout(reset_timer_ref.current);
@@ -34,10 +36,9 @@ export function useCopyToClipboard(
           reset_timer_ref.current = null;
         }, timeout_ms);
         return true;
-      } catch (err) {
-        console.error("[useCopyToClipboard] copy failed:", err);
-        return false;
       }
+      console.error("[useCopyToClipboard] copy failed");
+      return false;
     },
     [timeout_ms],
   );

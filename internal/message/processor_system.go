@@ -53,16 +53,22 @@ func (p *Processor) processSystemMessage(message sdkprotocol.ReceivedMessage) ([
 	return nil, nil
 }
 
-func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.ToolProgress == nil {
+func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.TaskProgress == nil {
 		return nil
 	}
+	progress := message.TaskProgress
+	toolName := strings.TrimSpace(progress.LastToolName)
+	description := firstNonEmpty(strings.TrimSpace(progress.Summary), strings.TrimSpace(progress.Description))
+	if description == "" && toolName != "" {
+		description = toolName + " 正在执行"
+	}
 	return p.buildTaskProgressMessage(
-		firstNonEmpty(strings.TrimSpace(message.ToolProgress.TaskID), strings.TrimSpace(message.ToolProgress.ToolUseID)),
-		firstNonEmpty(strings.TrimSpace(message.ToolProgress.ToolName)+" 正在执行", "后台任务正在执行"),
-		strings.TrimSpace(message.ToolProgress.ToolUseID),
-		strings.TrimSpace(message.ToolProgress.ToolName),
-		nil,
+		firstNonEmpty(strings.TrimSpace(progress.TaskID), strings.TrimSpace(progress.ToolUseID)),
+		firstNonEmpty(description, "后台任务正在执行"),
+		strings.TrimSpace(progress.ToolUseID),
+		toolName,
+		taskUsageMap(progress.Usage),
 	)
 }
 
@@ -162,17 +168,21 @@ func firstTaskProgressUsage(message *sdkprotocol.SystemMessage) map[string]any {
 	if message == nil || message.TaskProgress == nil {
 		return nil
 	}
-	usage := map[string]any{}
-	if message.TaskProgress.Usage.TotalTokens > 0 {
-		usage["total_tokens"] = message.TaskProgress.Usage.TotalTokens
+	return taskUsageMap(message.TaskProgress.Usage)
+}
+
+func taskUsageMap(usage sdkprotocol.TaskUsage) map[string]any {
+	values := map[string]any{}
+	if usage.TotalTokens > 0 {
+		values["total_tokens"] = usage.TotalTokens
 	}
-	if message.TaskProgress.Usage.ToolUses > 0 {
-		usage["tool_uses"] = message.TaskProgress.Usage.ToolUses
+	if usage.ToolUses > 0 {
+		values["tool_uses"] = usage.ToolUses
 	}
-	if message.TaskProgress.Usage.DurationMS > 0 {
-		usage["duration_ms"] = message.TaskProgress.Usage.DurationMS
+	if usage.DurationMS > 0 {
+		values["duration_ms"] = usage.DurationMS
 	}
-	return usage
+	return values
 }
 
 func firstTaskStartedDescription(message *sdkprotocol.SystemMessage) string {

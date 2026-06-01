@@ -5,15 +5,15 @@ import (
 	"errors"
 	"strings"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	feishudocxapi "github.com/nexus-research-lab/nexus/internal/connectors/feishudocx"
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
 )
 
-func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_read",
 		Description: "阅读已授权飞书 Docx 或 Wiki 文档，返回 Markdown，可选择保留 block_id 注释用于后续精准更新。",
 		SearchHint:  searchHintFeishuDocxRead,
@@ -25,8 +25,8 @@ func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdkmcp.To
 				"with_block_ids": map[string]any{"type": "boolean", "description": "是否在 Markdown 中输出 feishu-docx:block_id 注释"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -40,8 +40,8 @@ func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdkmcp.To
 	}
 }
 
-func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_search",
 		Description: "全文搜索当前授权账号可访问的飞书云文档，返回匹配文档 token、类型、标题和分页信息。",
 		SearchHint:  searchHintFeishuDocxSearch,
@@ -57,8 +57,8 @@ func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdkmcp.
 				"count":      map[string]any{"type": "number", "description": "返回数量，默认 10，最大 50"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -80,8 +80,8 @@ func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdkmcp.
 	}
 }
 
-func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_sheet_sheets",
 		Description: "列出飞书电子表格内的工作表，返回 sheet_id、标题、行列信息等元数据。",
 		SearchHint:  searchHintFeishuDocxSheetSheets,
@@ -92,8 +92,8 @@ func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sd
 				"url": map[string]any{"type": "string", "description": "飞书 Sheet URL 或 spreadsheet_token"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -107,8 +107,8 @@ func feishuDocxSheetSheets(svc contract.Service, sctx contract.ServerContext) sd
 	}
 }
 
-func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_sheet_values",
 		Description: "读取飞书电子表格指定范围的具体单元格内容，适合查看表格正文。",
 		SearchHint:  searchHintFeishuDocxSheetValues,
@@ -120,8 +120,8 @@ func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sd
 				"range": map[string]any{"type": "string", "description": "读取范围，例如 Sheet1!A1:D20"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -135,8 +135,8 @@ func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sd
 	}
 }
 
-func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_sheet_find",
 		Description: "在飞书电子表格指定工作表内查找单元格内容，返回匹配单元格位置。",
 		SearchHint:  searchHintFeishuDocxSheetFind,
@@ -154,8 +154,8 @@ func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkm
 				"include_formulas":  map[string]any{"type": "boolean"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -179,8 +179,8 @@ func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkm
 	}
 }
 
-func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_bitable_tables",
 		Description: "列出飞书多维表格应用内的数据表，返回 table_id、名称和分页信息。",
 		SearchHint:  searchHintFeishuDocxBitableTables,
@@ -193,8 +193,8 @@ func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) 
 				"page_size":  map[string]any{"type": "number"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -208,8 +208,8 @@ func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) 
 	}
 }
 
-func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_bitable_fields",
 		Description: "列出飞书多维表格指定数据表的字段，返回字段名称、类型、属性和说明。",
 		SearchHint:  searchHintFeishuDocxBitableFields,
@@ -224,8 +224,8 @@ func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) 
 				"page_size":  map[string]any{"type": "number"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -246,8 +246,8 @@ func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) 
 	}
 }
 
-func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_bitable_records",
 		Description: "读取飞书多维表格指定数据表的记录内容，支持字段选择、视图、筛选、排序和分页。",
 		SearchHint:  searchHintFeishuDocxBitableRecords,
@@ -266,8 +266,8 @@ func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext)
 				"automatic_fields": map[string]any{"type": "boolean", "description": "是否返回 created_by/created_time 等自动字段"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -292,8 +292,8 @@ func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext)
 	}
 }
 
-func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_create",
 		Description: "创建飞书 Docx 文档，并可直接把 Markdown 内容写入文档。",
 		SearchHint:  searchHintFeishuDocxCreate,
@@ -306,8 +306,8 @@ func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext)
 				"folder_token": map[string]any{"type": "string", "description": "可选，目标云空间文件夹 token"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{OpenWorld: true},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			title := strings.TrimSpace(stringValue(args["title"]))
 			if title == "" {
 				return errorResult(errors.New("title 不能为空")), nil
@@ -325,8 +325,8 @@ func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext)
 	}
 }
 
-func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_append_markdown",
 		Description: "向飞书 Docx 或 Wiki 文档末尾追加 Markdown 内容。",
 		SearchHint:  searchHintFeishuDocxAppendMarkdown,
@@ -338,8 +338,8 @@ func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext)
 				"markdown": map[string]any{"type": "string"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{OpenWorld: true},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			markdown := strings.TrimSpace(stringValue(args["markdown"]))
 			if markdown == "" {
 				return errorResult(errors.New("markdown 不能为空")), nil
@@ -366,8 +366,8 @@ func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext)
 	}
 }
 
-func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_update_block",
 		Description: "更新飞书 Docx 文档中指定文本 Block 的内容。",
 		SearchHint:  searchHintFeishuDocxUpdateBlock,
@@ -380,8 +380,8 @@ func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sd
 				"content":  map[string]any{"type": "string"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{OpenWorld: true},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			blockID := strings.TrimSpace(stringValue(args["block_id"]))
 			if blockID == "" {
 				return errorResult(errors.New("block_id 不能为空")), nil
@@ -406,8 +406,8 @@ func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sd
 	}
 }
 
-func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_drive_list",
 		Description: "列出飞书云空间文件，可按 folder_token 分页浏览文档、知识库节点、文件夹等资源。",
 		SearchHint:  searchHintFeishuDocxDriveList,
@@ -423,8 +423,8 @@ func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkm
 				"file_type":    map[string]any{"type": "string", "description": "客户端过滤类型，如 docx / doc / sheet / bitable / wiki / folder / file"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -447,8 +447,8 @@ func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkm
 	}
 }
 
-func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_wiki_spaces",
 		Description: "列出当前授权账号或应用可访问的飞书知识库空间，返回 space_id、名称和分页信息。",
 		SearchHint:  searchHintFeishuDocxWikiSpaces,
@@ -459,8 +459,8 @@ func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdk
 				"page_size":  map[string]any{"type": "number"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
 				return errorResult(err), nil
@@ -474,8 +474,8 @@ func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdk
 	}
 }
 
-func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_wiki_space",
 		Description: "获取指定飞书知识库空间详情，用于确认知识库名称、描述和 space_id。",
 		SearchHint:  searchHintFeishuDocxWikiSpace,
@@ -486,8 +486,8 @@ func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdkm
 				"space_id": map[string]any{"type": "string"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			spaceID := strings.TrimSpace(stringValue(args["space_id"]))
 			if spaceID == "" {
 				return errorResult(errors.New("space_id 不能为空")), nil
@@ -505,8 +505,8 @@ func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdkm
 	}
 }
 
-func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_wiki_nodes",
 		Description: "分页列出飞书知识库空间中的子节点；不传 parent_node_token 时列出顶层节点，可用于逐层浏览操作文档。",
 		SearchHint:  searchHintFeishuDocxWikiNodes,
@@ -520,8 +520,8 @@ func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkm
 				"page_size":         map[string]any{"type": "number"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			spaceID := strings.TrimSpace(stringValue(args["space_id"]))
 			if spaceID == "" {
 				return errorResult(errors.New("space_id 不能为空")), nil
@@ -545,8 +545,8 @@ func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkm
 	}
 }
 
-func feishuDocxWikiNode(svc contract.Service, sctx contract.ServerContext) sdkmcp.Tool {
-	return sdkmcp.Tool{
+func feishuDocxWikiNode(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+	return sdktool.Tool{
 		Name:        "feishu_docx_wiki_node",
 		Description: "通过飞书 Wiki URL 或 node_token 解析知识库节点，返回真实 obj_token、obj_type、父节点、标题和是否有子节点。",
 		SearchHint:  searchHintFeishuDocxWikiNode,
@@ -558,8 +558,8 @@ func feishuDocxWikiNode(svc contract.Service, sctx contract.ServerContext) sdkmc
 				"obj_type": map[string]any{"type": "string", "description": "可选，默认 wiki"},
 			},
 		},
-		Annotations: &sdkmcp.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
-		Handler: func(ctx context.Context, args map[string]any) (sdkmcp.ToolResult, error) {
+		Annotations: &sdktool.ToolAnnotations{ReadOnly: true, OpenWorld: true, MaxResultSizeChars: maxResponseBytes},
+		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			token := strings.TrimSpace(stringValue(args["token"]))
 			if token == "" {
 				return errorResult(errors.New("token 不能为空")), nil

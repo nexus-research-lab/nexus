@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
 func newTestService(t *testing.T) (*Service, *sql.DB) {
@@ -173,6 +175,13 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if runtimeConfig.APIFormat != APIFormatAnthropicMessages {
 		t.Fatalf("runtime api_format 未透传: %+v", runtimeConfig)
 	}
+	runtimeConfig, err = service.ResolveRuntimeConfig(ctx, "kimi-code", "")
+	if err != nil {
+		t.Fatalf("Kimi Code 显式 provider 应回退到默认模型: %v", err)
+	}
+	if runtimeConfig.Model != "kimi-for-coding" {
+		t.Fatalf("runtime model 未回退到 provider 默认模型: %+v", runtimeConfig)
+	}
 
 	volcengine, err := service.Create(ctx, CreateInput{
 		Provider:  "volcengine-coding-plan",
@@ -194,6 +203,62 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if format := volcenginePreset.Format(APIFormatChatCompletions); format.BaseURL != "https://ark.cn-beijing.volces.com/api/coding/v3" ||
 		format.ModelsPath != "/models" {
 		t.Fatalf("Volcengine Coding Plan OpenAI 兼容 endpoint 不正确: %+v", format)
+	}
+
+	dashscope, err := service.Create(ctx, CreateInput{
+		Provider:  "dashscope",
+		PresetKey: presetDashScope,
+		AuthToken: "dashscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 DashScope provider 失败: %v", err)
+	}
+	if dashscope.ProviderKind != ProviderKindLLM ||
+		dashscope.APIFormat != APIFormatAnthropicMessages ||
+		dashscope.BaseURL != "https://dashscope.aliyuncs.com/apps/anthropic" ||
+		dashscope.DisplayName != "DashScope" ||
+		dashscope.ModelsPath != "" {
+		t.Fatalf("DashScope 默认配置不正确: %+v", dashscope)
+	}
+	if !dashscope.AgentRuntimeSupported {
+		t.Fatalf("DashScope Anthropic 分支应可成为 Agent runtime provider: %+v", dashscope)
+	}
+	dashscopePreset := resolvePreset(presetDashScope)
+	if format := dashscopePreset.Format(APIFormatDashScopeImageGeneration); format.ProviderKind != ProviderKindImageGeneration ||
+		format.BaseURL != "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation" {
+		t.Fatalf("DashScope 生图分支配置不正确: %+v", format)
+	}
+	if format := dashscopePreset.Format(APIFormatResponses); format.ProviderKind != ProviderKindLLM ||
+		format.BaseURL != "https://dashscope.aliyuncs.com/compatible-mode/v1" {
+		t.Fatalf("DashScope Responses 分支配置不正确: %+v", format)
+	}
+	if format := dashscopePreset.Format(APIFormatChatCompletions); format.ProviderKind != ProviderKindLLM ||
+		format.BaseURL != "https://dashscope.aliyuncs.com/compatible-mode/v1" {
+		t.Fatalf("DashScope Chat Completions 分支配置不正确: %+v", format)
+	}
+
+	modelscope, err := service.Create(ctx, CreateInput{
+		Provider:  "modelscope",
+		PresetKey: presetModelScope,
+		AuthToken: "modelscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope provider 失败: %v", err)
+	}
+	if modelscope.ProviderKind != ProviderKindLLM ||
+		modelscope.APIFormat != APIFormatChatCompletions ||
+		modelscope.BaseURL != "https://api-inference.modelscope.cn/v1" ||
+		modelscope.DisplayName != "ModelScope" ||
+		modelscope.ModelsPath != "" {
+		t.Fatalf("ModelScope 默认配置不正确: %+v", modelscope)
+	}
+	if modelscope.AgentRuntimeSupported {
+		t.Fatalf("ModelScope Chat Completions 分支不应成为 Agent runtime provider: %+v", modelscope)
+	}
+	modelscopePreset := resolvePreset(presetModelScope)
+	if format := modelscopePreset.Format(APIFormatModelScopeImageGeneration); format.ProviderKind != ProviderKindImageGeneration ||
+		format.BaseURL != "https://api-inference.modelscope.cn/v1" {
+		t.Fatalf("ModelScope 生图分支配置不正确: %+v", format)
 	}
 
 	options, err := service.ListOptions(ctx)
@@ -241,7 +306,7 @@ func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 		t.Fatalf("内置 provider update 应忽略自定义 endpoint: %+v", updated)
 	}
 
-	entity, err := service.repository.GetByProvider(ctx, "openai")
+	entity, err := service.repository.GetVisibleByProvider(ctx, ownerUserIDFromContext(ctx), "openai")
 	if err != nil || entity == nil {
 		t.Fatalf("读取 OpenAI provider 失败: entity=%+v err=%v", entity, err)
 	}
@@ -278,6 +343,53 @@ func TestBuiltinProviderEndpointUsesCatalog(t *testing.T) {
 	}
 	if custom.BaseURL != "https://proxy.example.com/v1" || custom.ModelsPath != "/proxy-models" {
 		t.Fatalf("custom provider 应保留自定义 endpoint: %+v", custom)
+	}
+}
+
+func TestBuiltinMultiBranchProviderFormatKindSelection(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+
+	dashscopeImage, err := service.Create(ctx, CreateInput{
+		Provider:     "dashscope-image-branch",
+		PresetKey:    presetDashScope,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatDashScopeImageGeneration,
+		AuthToken:    "dashscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 DashScope 生图分支失败: %v", err)
+	}
+	if dashscopeImage.ProviderKind != ProviderKindImageGeneration ||
+		dashscopeImage.APIFormat != APIFormatDashScopeImageGeneration ||
+		dashscopeImage.BaseURL != "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation" {
+		t.Fatalf("DashScope 生图分支未按 format 解析: %+v", dashscopeImage)
+	}
+
+	modelscopeImage, err := service.Create(ctx, CreateInput{
+		Provider:     "modelscope-image-branch",
+		PresetKey:    presetModelScope,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatModelScopeImageGeneration,
+		AuthToken:    "modelscope-key",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope 生图分支失败: %v", err)
+	}
+	if modelscopeImage.ProviderKind != ProviderKindImageGeneration ||
+		modelscopeImage.APIFormat != APIFormatModelScopeImageGeneration ||
+		modelscopeImage.BaseURL != "https://api-inference.modelscope.cn/v1" {
+		t.Fatalf("ModelScope 生图分支未按 format 解析: %+v", modelscopeImage)
+	}
+
+	if _, err = service.Create(ctx, CreateInput{
+		Provider:     "bad-dashscope",
+		PresetKey:    presetDashScope,
+		ProviderKind: ProviderKindImageGeneration,
+		APIFormat:    APIFormatAnthropicMessages,
+		AuthToken:    "dashscope-key",
+	}); err == nil || !strings.Contains(err.Error(), "不支持 provider_kind") {
+		t.Fatalf("DashScope LLM format 不应允许配置为 image_generation: %v", err)
 	}
 }
 
@@ -362,6 +474,350 @@ func TestProviderImageOptionsIncludeDefaultModel(t *testing.T) {
 	if options.DefaultImageProvider == nil || *options.DefaultImageProvider != imageProvider.Provider ||
 		len(options.ImageItems) != 1 {
 		t.Fatalf("生图默认模型未暴露到 options: %+v", options)
+	}
+}
+
+func TestUpdateModelNormalizesEscapedSlashModelID(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	record, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "modelscope-escaped",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatModelScopeImageGeneration,
+		AuthToken:    "image-key",
+		BaseURL:      "https://api-inference.modelscope.cn/v1",
+		ModelsPath:   "",
+		Enabled:      true,
+		DisplayName:  "ModelScope",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope provider 失败: %v", err)
+	}
+
+	const decodedModelID = "Tongyi-MAI/Z-Image-Turbo"
+	const escapedModelID = "Tongyi-MAI%2FZ-Image-Turbo"
+	now := service.now()
+	err = service.repository.UpsertModels(ctx, []providerstore.ModelEntity{
+		{
+			ID:                       service.idFactory("provider_model"),
+			ProviderID:               record.ID,
+			ModelID:                  escapedModelID,
+			DisplayName:              escapedModelID,
+			Category:                 "image",
+			CapabilitiesAutoJSON:     "{}",
+			CapabilitiesOverrideJSON: "{}",
+			ProviderOptionsJSON:      "{}",
+			LastSeenAt:               now,
+			CreatedAt:                now,
+			UpdatedAt:                now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("写入旧转义模型失败: %v", err)
+	}
+
+	renamed, err := service.UpdateModel(ctx, record.Provider, escapedModelID, UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	})
+	if err != nil {
+		t.Fatalf("写入转义模型失败: %v", err)
+	}
+	if renamed.ModelID != decodedModelID || renamed.DisplayName != decodedModelID {
+		t.Fatalf("模型 ID 未归一化: %+v", renamed)
+	}
+
+	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, escapedModelID)
+	if err != nil {
+		t.Fatalf("解析转义模型失败: %v", err)
+	}
+	if imageConfig.Model != decodedModelID {
+		t.Fatalf("生图配置模型 ID 未归一化: %+v", imageConfig)
+	}
+
+	updated, err := service.UpdateModel(ctx, record.Provider, decodedModelID, UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	})
+	if err != nil {
+		t.Fatalf("用真实模型 ID 更新失败: %v", err)
+	}
+	if updated.ModelID != decodedModelID {
+		t.Fatalf("真实模型 ID 更新后不正确: %+v", updated)
+	}
+
+	listed, err := service.Get(ctx, record.Provider)
+	if err != nil {
+		t.Fatalf("读取 provider 失败: %v", err)
+	}
+	count := 0
+	for _, model := range listed.Models {
+		if model.ModelID == escapedModelID {
+			t.Fatalf("模型列表不应返回转义 ID: %+v", listed.Models)
+		}
+		if model.ModelID == decodedModelID {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("模型列表应只保留一个真实 ID: count=%d models=%+v", count, listed.Models)
+	}
+}
+
+func TestDashScopeImageProviderTestUsesMultimodalPayload(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/services/aigc/multimodal-generation/generation" {
+			t.Fatalf("DashScope 测试路径不正确: %s", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer image-key" {
+			t.Fatalf("DashScope 测试鉴权头不正确: %q", request.Header.Get("Authorization"))
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("解析 DashScope 测试请求失败: %v", err)
+		}
+		if body["model"] != "wan2.7-image-pro" {
+			t.Fatalf("DashScope 测试模型不正确: %+v", body)
+		}
+		parameters := body["parameters"].(map[string]any)
+		if parameters["n"].(float64) != 1 || parameters["size"] != "1K" || parameters["watermark"] != false {
+			t.Fatalf("DashScope 测试参数不正确: %+v", parameters)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"output": map[string]any{
+				"finished": true,
+				"choices":  []map[string]any{},
+			},
+		})
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "dashscope-image",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatDashScopeImageGeneration,
+		AuthToken:    "image-key",
+		BaseURL:      server.URL,
+		ModelsPath:   "",
+		Enabled:      true,
+		DisplayName:  "DashScope",
+	})
+	if err != nil {
+		t.Fatalf("创建 DashScope 生图 provider 失败: %v", err)
+	}
+	result, err := service.TestModel(ctx, record.Provider, "wan2.7-image-pro")
+	if err != nil {
+		t.Fatalf("DashScope 模型测试失败: %v", err)
+	}
+	if !result.Success || result.Model != "wan2.7-image-pro" {
+		t.Fatalf("DashScope 模型测试结果不正确: %+v", result)
+	}
+	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, "wan2.7-image-pro")
+	if err != nil {
+		t.Fatalf("DashScope 测试成功后应可解析生图配置: %v", err)
+	}
+	if imageConfig.APIFormat != APIFormatDashScopeImageGeneration {
+		t.Fatalf("DashScope 生图配置未透传 api_format: %+v", imageConfig)
+	}
+}
+
+func TestModelScopeImageProviderTestUsesAsyncPayload(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/images/generations" {
+			t.Fatalf("ModelScope 测试路径不正确: %s", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer image-key" {
+			t.Fatalf("ModelScope 测试鉴权头不正确: %q", request.Header.Get("Authorization"))
+		}
+		if request.Header.Get("X-ModelScope-Async-Mode") != "true" {
+			t.Fatalf("ModelScope 测试缺少异步请求头: %q", request.Header.Get("X-ModelScope-Async-Mode"))
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("解析 ModelScope 测试请求失败: %v", err)
+		}
+		if body["model"] != "Tongyi-MAI/Z-Image-Turbo" || body["prompt"] != "ping" {
+			t.Fatalf("ModelScope 测试请求体不正确: %+v", body)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"task_id": "task-test"})
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "modelscope-image",
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatModelScopeImageGeneration,
+		AuthToken:    "image-key",
+		BaseURL:      server.URL + "/v1",
+		ModelsPath:   "",
+		Enabled:      true,
+		DisplayName:  "ModelScope",
+	})
+	if err != nil {
+		t.Fatalf("创建 ModelScope 生图 provider 失败: %v", err)
+	}
+	result, err := service.TestModel(ctx, record.Provider, "Tongyi-MAI/Z-Image-Turbo")
+	if err != nil {
+		t.Fatalf("ModelScope 模型测试失败: %v", err)
+	}
+	if !result.Success || result.Model != "Tongyi-MAI/Z-Image-Turbo" {
+		t.Fatalf("ModelScope 模型测试结果不正确: %+v", result)
+	}
+	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, "Tongyi-MAI/Z-Image-Turbo")
+	if err != nil {
+		t.Fatalf("ModelScope 测试成功后应可解析生图配置: %v", err)
+	}
+	if imageConfig.APIFormat != APIFormatModelScopeImageGeneration {
+		t.Fatalf("ModelScope 生图配置未透传 api_format: %+v", imageConfig)
+	}
+}
+
+func TestProviderVisibilityScopesProvidersByOwner(t *testing.T) {
+	service, _ := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
+	ownerACtx := providerTestContext("owner-a", authctx.RoleMember)
+	ownerBCtx := providerTestContext("owner-b", authctx.RoleMember)
+
+	publicProvider, err := service.Create(adminCtx, CreateInput{
+		Provider:    "shared",
+		Visibility:  providerstore.VisibilityPublic,
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "public-key",
+		BaseURL:     "https://public.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Public Shared",
+	})
+	if err != nil {
+		t.Fatalf("创建公共 provider 失败: %v", err)
+	}
+	if publicProvider.Visibility != providerstore.VisibilityPublic || publicProvider.OwnerUserID != "" {
+		t.Fatalf("公共 provider scope 不正确: %+v", publicProvider)
+	}
+	if _, err = service.UpdateModel(adminCtx, publicProvider.Provider, "public-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置公共模型失败: %v", err)
+	}
+
+	privateProvider, err := service.Create(ownerBCtx, CreateInput{
+		Provider:    "shared",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "private-key",
+		BaseURL:     "https://private.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Private Shared",
+	})
+	if err != nil {
+		t.Fatalf("创建私有 provider 失败: %v", err)
+	}
+	if privateProvider.Visibility != providerstore.VisibilityPrivate || privateProvider.OwnerUserID != "owner-b" {
+		t.Fatalf("私有 provider scope 不正确: %+v", privateProvider)
+	}
+	if _, err = service.UpdateModel(ownerBCtx, privateProvider.Provider, "private-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置私有模型失败: %v", err)
+	}
+
+	ownerAConfig, err := service.ResolveLLMConfig(ownerACtx, "shared", "public-model")
+	if err != nil {
+		t.Fatalf("owner A 应能使用公共 provider: %v", err)
+	}
+	if ownerAConfig.AuthToken != "public-key" || ownerAConfig.BaseURL != "https://public.example.com" {
+		t.Fatalf("owner A provider 解析不正确: %+v", ownerAConfig)
+	}
+	ownerBConfig, err := service.ResolveLLMConfig(ownerBCtx, "shared", "private-model")
+	if err != nil {
+		t.Fatalf("owner B 应优先使用私有 provider: %v", err)
+	}
+	if ownerBConfig.AuthToken != "private-key" || ownerBConfig.BaseURL != "https://private.example.com" {
+		t.Fatalf("owner B provider 解析不正确: %+v", ownerBConfig)
+	}
+
+	ownerARecords, err := service.List(ownerACtx)
+	if err != nil {
+		t.Fatalf("读取 owner A provider 列表失败: %v", err)
+	}
+	if len(ownerARecords) != 1 || ownerARecords[0].Visibility != providerstore.VisibilityPublic {
+		t.Fatalf("owner A 应只看到公共 provider: %+v", ownerARecords)
+	}
+	ownerBRecords, err := service.List(ownerBCtx)
+	if err != nil {
+		t.Fatalf("读取 owner B provider 列表失败: %v", err)
+	}
+	if len(ownerBRecords) != 1 || ownerBRecords[0].Visibility != providerstore.VisibilityPrivate ||
+		ownerBRecords[0].DisplayName != "Private Shared" {
+		t.Fatalf("owner B 应看到私有 provider 覆盖公共同名项: %+v", ownerBRecords)
+	}
+}
+
+func TestProviderPublicCreateRequiresAdmin(t *testing.T) {
+	service, _ := newTestService(t)
+	memberCtx := providerTestContext("member-user", authctx.RoleMember)
+
+	if _, err := service.Create(memberCtx, CreateInput{
+		Provider:   "member-public",
+		Visibility: providerstore.VisibilityPublic,
+		AuthToken:  "member-key",
+		BaseURL:    "https://member.example.com",
+	}); err == nil || !strings.Contains(err.Error(), "只有管理员") {
+		t.Fatalf("普通成员不应能创建公共 provider: %v", err)
+	}
+
+	privateProvider, err := service.Create(memberCtx, CreateInput{
+		Provider:  "member-private",
+		AuthToken: "member-key",
+		BaseURL:   "https://member.example.com",
+	})
+	if err != nil {
+		t.Fatalf("普通成员应能创建私有 provider: %v", err)
+	}
+	if privateProvider.Visibility != providerstore.VisibilityPrivate || privateProvider.OwnerUserID != "member-user" {
+		t.Fatalf("普通成员默认应创建私有 provider: %+v", privateProvider)
+	}
+}
+
+func TestProviderPublicMutationRequiresAdminAndDeleteProtectsGlobalUsage(t *testing.T) {
+	service, db := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
+	memberCtx := providerTestContext("member-user", authctx.RoleMember)
+	record, err := service.Create(adminCtx, CreateInput{
+		Provider:    "public-guard",
+		Visibility:  providerstore.VisibilityPublic,
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "public-key",
+		BaseURL:     "https://public.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Public Guard",
+	})
+	if err != nil {
+		t.Fatalf("创建公共 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(adminCtx, record.Provider, "public-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置公共模型失败: %v", err)
+	}
+	if _, err = service.Update(memberCtx, record.Provider, UpdateInput{
+		DisplayName: "Member Edit",
+		AuthToken:   stringPointer("member-key"),
+		BaseURL:     "https://member.example.com",
+		Enabled:     true,
+	}); err == nil || !strings.Contains(err.Error(), "只有管理员") {
+		t.Fatalf("普通成员不应能维护公共 provider: %v", err)
+	}
+
+	insertProviderUsageAgentForOwner(t, db, "owner-a", "agent-public-a", "public-a", "Public A", "", false, record.Provider, "active")
+	insertProviderUsageAgentForOwner(t, db, "owner-b", "agent-public-b", "public-b", "Public B", "", false, record.Provider, "active")
+	if _, err = service.Delete(adminCtx, record.Provider, DeleteInput{}); err == nil || !strings.Contains(err.Error(), "2 个 Agent") {
+		t.Fatalf("公共 provider 删除应按全局使用保护: %v", err)
 	}
 }
 
@@ -513,6 +969,187 @@ func TestFetchModelsMergesCardsAndPreservesOverride(t *testing.T) {
 	}
 }
 
+func TestFetchModelsAutoSelectsDefaultRuntimeModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/models" {
+			t.Fatalf("模型列表路径不正确: %s", request.URL.Path)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"model-b"},{"id":"model-a"}]}`))
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:    "runtime-default",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "runtime-key",
+		BaseURL:     server.URL,
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Runtime Default",
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	if _, err = service.FetchModels(ctx, record.Provider); err != nil {
+		t.Fatalf("FetchModels 失败: %v", err)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultProvider == nil || *options.DefaultProvider != record.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "model-b" {
+		t.Fatalf("未自动选择默认模型: %+v", options)
+	}
+	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, record.Provider, "")
+	if err != nil {
+		t.Fatalf("显式 provider 缺省 model 应回落到默认模型: %v", err)
+	}
+	if runtimeConfig.Provider != record.Provider || runtimeConfig.Model != "model-b" {
+		t.Fatalf("runtime config 默认模型不正确: %+v", runtimeConfig)
+	}
+}
+
+func TestFetchModelsKeepsExistingDefaultRuntimeModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	first, err := service.Create(ctx, CreateInput{
+		Provider:  "first-default",
+		PresetKey: presetCustom,
+		APIFormat: APIFormatAnthropicMessages,
+		AuthToken: "first-key",
+		BaseURL:   "https://first.example.com",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("创建首个 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, first.Provider, "first-model", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置首个默认模型失败: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"data":[{"id":"second-model"}]}`))
+	}))
+	defer server.Close()
+	second, err := service.Create(ctx, CreateInput{
+		Provider:   "second-default",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatAnthropicMessages,
+		AuthToken:  "second-key",
+		BaseURL:    server.URL,
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建第二个 provider 失败: %v", err)
+	}
+	if _, err = service.FetchModels(ctx, second.Provider); err != nil {
+		t.Fatalf("FetchModels 失败: %v", err)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultProvider == nil || *options.DefaultProvider != first.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "first-model" {
+		t.Fatalf("已有默认模型不应被覆盖: %+v", options)
+	}
+}
+
+func TestTestProviderAutoSelectsTestedModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/models":
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"data":[{"id":"model-b"},{"id":"model-a"}]}`))
+		case "/v1/messages":
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{}`))
+		default:
+			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:   "test-provider-default",
+		PresetKey:  presetCustom,
+		APIFormat:  APIFormatAnthropicMessages,
+		AuthToken:  "test-key",
+		BaseURL:    server.URL,
+		ModelsPath: "/models",
+		Enabled:    true,
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	result, err := service.TestProvider(ctx, record.Provider)
+	if err != nil {
+		t.Fatalf("测试 provider 失败: %v", err)
+	}
+	if !result.Success || result.Model != "model-b" {
+		t.Fatalf("测试结果不正确: %+v", result)
+	}
+	options, err := service.ListOptions(ctx)
+	if err != nil {
+		t.Fatalf("读取 provider options 失败: %v", err)
+	}
+	if options.DefaultProvider == nil || *options.DefaultProvider != record.Provider ||
+		options.DefaultModel == nil || *options.DefaultModel != "model-b" {
+		t.Fatalf("provider 测试成功后未自动设置默认模型: %+v", options)
+	}
+}
+
+func TestTestModelAutoSelectsTestedModel(t *testing.T) {
+	ctx := context.Background()
+	service, _ := newTestService(t)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/messages" {
+			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
+		}
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	record, err := service.Create(ctx, CreateInput{
+		Provider:  "test-model-default",
+		PresetKey: presetCustom,
+		APIFormat: APIFormatAnthropicMessages,
+		AuthToken: "model-key",
+		BaseURL:   server.URL,
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	result, err := service.TestModel(ctx, record.Provider, "manual-model")
+	if err != nil {
+		t.Fatalf("测试模型失败: %v", err)
+	}
+	if !result.Success || result.Model != "manual-model" {
+		t.Fatalf("模型测试结果不正确: %+v", result)
+	}
+	runtimeConfig, err := service.ResolveRuntimeConfig(ctx, record.Provider, "")
+	if err != nil {
+		t.Fatalf("测试模型成功后应可解析 runtime config: %v", err)
+	}
+	if runtimeConfig.Model != "manual-model" {
+		t.Fatalf("测试模型未成为默认模型: %+v", runtimeConfig)
+	}
+}
+
 func TestFetchModelsDoesNotInferModelCardsFromNames(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
@@ -619,12 +1256,8 @@ func TestFetchModelsLogsModelsResponseData(t *testing.T) {
 	if success.attrs["provider"] != "log-fetch" {
 		t.Fatalf("日志 provider 不正确: %+v", success.attrs)
 	}
-	bodyPreview, _ := success.attrs["body_preview"].(string)
-	if !strings.Contains(bodyPreview, "model-a") {
-		t.Fatalf("日志 body_preview 未包含模型数据: %s", bodyPreview)
-	}
-	if strings.Contains(bodyPreview, "secret-log-key") {
-		t.Fatalf("日志 body_preview 泄漏密钥: %s", bodyPreview)
+	if _, ok := success.attrs["body_preview"]; ok {
+		t.Fatalf("成功日志不应记录完整响应预览: %+v", success.attrs)
 	}
 	modelIDs, _ := success.attrs["model_ids"].([]string)
 	if len(modelIDs) != 1 || modelIDs[0] != "model-a" {
@@ -644,15 +1277,32 @@ func insertProviderUsageAgent(
 	status string,
 ) {
 	t.Helper()
+	insertProviderUsageAgentForOwner(t, db, authctx.SystemUserID, agentID, slug, name, displayName, isMain, provider, status)
+}
+
+func insertProviderUsageAgentForOwner(
+	t *testing.T,
+	db *sql.DB,
+	ownerUserID string,
+	agentID string,
+	slug string,
+	name string,
+	displayName string,
+	isMain bool,
+	provider string,
+	status string,
+) {
+	t.Helper()
 	_, err := db.Exec(`
 INSERT INTO agents (
     id, slug, name, description, definition, status, workspace_path, owner_user_id, is_main
-) VALUES (?, ?, ?, '', '', ?, ?, 'owner-1', ?)`,
+) VALUES (?, ?, ?, '', '', ?, ?, ?, ?)`,
 		agentID,
 		slug,
 		name,
 		status,
 		"/tmp/"+slug,
+		ownerUserID,
 		isMain,
 	)
 	if err != nil {
@@ -681,6 +1331,19 @@ INSERT INTO runtimes (
 	if err != nil {
 		t.Fatalf("插入 runtime 失败: %v", err)
 	}
+}
+
+func providerTestContext(userID string, role string) context.Context {
+	return authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     userID,
+		Username:   userID,
+		Role:       role,
+		AuthMethod: authctx.AuthMethodPassword,
+	})
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 type runtimeSelection struct {
