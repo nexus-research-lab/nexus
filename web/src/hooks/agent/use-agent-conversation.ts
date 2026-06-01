@@ -1547,12 +1547,14 @@ export function useAgentConversation(
     ws_send({
       type: "subscribe_workspace",
       agent_id,
+      watch_files: true,
     });
 
     return () => {
       ws_send({
         type: "unsubscribe_workspace",
         agent_id,
+        watch_files: true,
       });
     };
   }, [agent_id, ws_send, ws_state]);
