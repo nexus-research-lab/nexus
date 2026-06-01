@@ -1056,10 +1056,32 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 			event.Data["round_id"] == "goal_continuation_1" &&
 			event.Data["status"] == "finished"
 	})
+	continuationRunning := false
+	continuationAssistantVisible := false
 	for _, event := range events {
 		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "goal_continuation_1" {
 			t.Fatalf("隐藏 Goal continuation 不应广播 chat ack: %+v", events)
 		}
+		if event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["status"] == "running" {
+			continuationRunning = true
+		}
+		if event.EventType == protocol.EventTypeMessage &&
+			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["role"] == "assistant" {
+			for _, block := range contentBlocksFromPayload(t, event.Data) {
+				if block["type"] == "text" && block["text"] == "继续推进 Goal" {
+					continuationAssistantVisible = true
+				}
+			}
+		}
+	}
+	if !continuationRunning {
+		t.Fatalf("隐藏 Goal continuation 应广播 running round，避免前端空白运行态: %+v", events)
+	}
+	if !continuationAssistantVisible {
+		t.Fatalf("隐藏 Goal continuation 的 assistant 输出应通过消息事件进入当前会话: %+v", events)
 	}
 
 	client.mu.Lock()
