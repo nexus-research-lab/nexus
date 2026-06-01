@@ -29,6 +29,7 @@ import {
 } from "./goal-panel-view";
 
 type GoalPanelEmptyStateVariant = "hidden" | "launcher" | "strip";
+type GoalDraftSavePhase = "idle" | "creating" | "updating";
 
 interface GoalPanelProps {
   session_key: string | null;
@@ -76,6 +77,17 @@ function can_resume_goal(goal: Goal): boolean {
   );
 }
 
+function draft_save_loading_label(phase: GoalDraftSavePhase): string | null {
+  switch (phase) {
+    case "creating":
+      return "正在整理目标";
+    case "updating":
+      return "正在更新目标";
+    default:
+      return null;
+  }
+}
+
 function resume_prompt_key(goal: Goal): string {
   return `${goal.id}:${goal.status}:${goal.updated_at}`;
 }
@@ -95,6 +107,8 @@ export function GoalPanel({
   const [is_loading, set_is_loading] = useState(false);
   const [is_creating, set_is_creating] = useState(false);
   const [is_editing, set_is_editing] = useState(false);
+  const [draft_save_phase, set_draft_save_phase] =
+    useState<GoalDraftSavePhase>("idle");
   const [objective, set_objective] = useState("");
   const [budget, set_budget] = useState("");
   const [error, set_error] = useState<string | null>(null);
@@ -175,6 +189,8 @@ export function GoalPanel({
   const submit_goal = async (event: FormEvent) => {
     event.preventDefault();
     if (!session_key || !objective.trim()) return;
+    set_error(null);
+    set_draft_save_phase(is_editing ? "updating" : "creating");
     set_is_loading(true);
     try {
       const token_budget =
@@ -199,6 +215,7 @@ export function GoalPanel({
     } catch (err) {
       set_error(err instanceof Error ? err.message : "Goal 保存失败");
     } finally {
+      set_draft_save_phase("idle");
       set_is_loading(false);
     }
   };
@@ -264,6 +281,7 @@ export function GoalPanel({
   const cancel_editing_goal = () => {
     set_objective("");
     set_budget("");
+    set_draft_save_phase("idle");
     set_is_creating(false);
     set_is_editing(false);
   };
@@ -315,6 +333,7 @@ export function GoalPanel({
         error={error}
         is_editing={is_editing}
         is_loading={is_loading}
+        loading_label={draft_save_loading_label(draft_save_phase)}
         objective={objective}
         scope_label={scope_label}
         on_budget_change={set_budget}

@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Goal token 预算统计改为 Codex 口径：仅累计非缓存输入 token 与输出 token，缓存和 reasoning token 不再触发预算耗尽。
+- Goal 面板创建或编辑目标时会立刻展示整理/更新中的进度状态，避免后台 objective 整理等待看起来像界面卡住。
 - Goal 工具完成结果补齐 Codex 风格最终用量汇报提示，便于模型在完成预算 Goal 时报告结构化用量。
 - Goal `update_goal(status=complete)` 工具结果始终返回收尾停止提示，引导模型完成最终回复后等待用户输入。
 - Goal MCP 模型可见工具收口为 Codex 对齐的 `get_goal`、`create_goal`、`update_goal` 三件套。

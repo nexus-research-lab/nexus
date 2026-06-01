@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, ReactNode } from "react";
-import { Save, Target, X } from "lucide-react";
+import { Loader2, Save, Target, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ interface GoalDraftFormProps {
   can_cancel?: boolean;
   is_editing: boolean;
   is_loading: boolean;
+  loading_label?: string | null;
   objective: string;
   scope_label: string;
   on_budget_change: (value: string) => void;
@@ -56,6 +57,7 @@ export function GoalDraftForm({
   can_cancel = false,
   is_editing,
   is_loading,
+  loading_label = null,
   objective,
   scope_label,
   on_budget_change,
@@ -63,6 +65,12 @@ export function GoalDraftForm({
   on_objective_change,
   on_submit,
 }: GoalDraftFormProps) {
+  const submit_label = is_loading
+    ? (loading_label ?? "处理中")
+    : is_editing
+      ? "保存 Goal"
+      : "创建 Goal";
+
   return (
     <form
       className={cn(
@@ -82,6 +90,15 @@ export function GoalDraftForm({
           <span className="rounded border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
             {is_editing ? "编辑中" : "新建"}
           </span>
+          {is_loading && loading_label ? (
+            <span
+              aria-live="polite"
+              className="inline-flex min-w-0 items-center gap-1 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary"
+            >
+              <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+              <span className="truncate">{loading_label}</span>
+            </span>
+          ) : null}
         </div>
         <input
           className="h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -102,13 +119,19 @@ export function GoalDraftForm({
         onChange={(event) => on_budget_change(event.target.value)}
       />
       <button
-        aria-label={is_editing ? "保存 Goal" : "创建 Goal"}
+        aria-label={submit_label}
         className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled || is_loading || !objective.trim()}
-        title={is_editing ? "保存 Goal" : "创建 Goal"}
+        title={submit_label}
         type="submit"
       >
-        {is_editing ? <Save className="h-4 w-4" /> : <Target className="h-4 w-4" />}
+        {is_loading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : is_editing ? (
+          <Save className="h-4 w-4" />
+        ) : (
+          <Target className="h-4 w-4" />
+        )}
       </button>
       {is_editing || can_cancel ? (
         <GoalDraftButton
