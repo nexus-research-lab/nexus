@@ -223,11 +223,24 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string 
 		remainingTokens = fmt.Sprintf("%d", *remaining)
 	}
 	return renderGoalPromptTemplate(continuationPromptTemplate, map[string]string{
-		"objective":        objective,
-		"tokens_used":      fmt.Sprintf("%d", item.Usage.Total()),
-		"token_budget":     tokenBudget,
-		"remaining_tokens": remainingTokens,
+		"objective":                  objective,
+		"completion_tool_retry_note": buildCompletionToolRetryNote(item),
+		"tokens_used":                fmt.Sprintf("%d", item.Usage.Total()),
+		"token_budget":               tokenBudget,
+		"remaining_tokens":           remainingTokens,
 	})
+}
+
+func buildCompletionToolRetryNote(item protocol.Goal) string {
+	if goalCompletionToolRetryCount(item.Metadata) <= 0 {
+		return ""
+	}
+	return strings.TrimSpace(
+		"Completion finalization retry:\n" +
+			"- A previous goal-continuation response stated that the objective was complete but did not call the Goal update tool.\n" +
+			"- In Nexus, the model-visible tool name is `mcp__nexus_goal__update_goal`. Do not conclude it is unavailable because bare `update_goal` is absent.\n" +
+			"- Redo the completion audit now. If the objective is complete, call `mcp__nexus_goal__update_goal` with status \"complete\" before any final response. If it is not complete, continue the remaining work.",
+	)
 }
 
 func escapeGoalPromptText(input string) string {

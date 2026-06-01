@@ -104,6 +104,7 @@ type goalContextProvider interface {
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
 	RecordContinuationFailure(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordCompletionToolMiss(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
 	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)

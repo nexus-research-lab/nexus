@@ -198,6 +198,7 @@ type fakeGoalContextProvider struct {
 	usageLimitReason []string
 	progress         []bool
 	failures         []string
+	completionMisses []string
 	activities       []string
 	current          *bool
 }
@@ -245,6 +246,13 @@ func (p *fakeGoalContextProvider) RecordContinuationFailure(_ context.Context, _
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.failures = append(p.failures, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordCompletionToolMiss(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.completionMisses = append(p.completionMisses, strings.TrimSpace(reason))
 	return nil, nil
 }
 
@@ -428,6 +436,30 @@ func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
 	progress := goalProvider.recordedProgress()
 	if len(progress) != 1 || !progress[0] {
 		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsGoalCompletionToolMiss(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+	runner.rememberGoalAssistantMessage(goalCompletionToolMissAssistantMessage())
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	misses := goalProvider.recordedCompletionMisses()
+	if len(misses) != 1 || !strings.Contains(misses[0], "mcp__nexus_goal__update_goal") {
+		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want completion miss path instead of empty progress", progress)
 	}
 }
 
@@ -680,6 +712,12 @@ func (p *fakeGoalContextProvider) recordedFailures() []string {
 	return append([]string(nil), p.failures...)
 }
 
+func (p *fakeGoalContextProvider) recordedCompletionMisses() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.completionMisses...)
+}
+
 func (p *fakeGoalContextProvider) runtimeContextCallCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -714,6 +752,15 @@ func goalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.M
 			"input_tokens":  inputTokens,
 			"output_tokens": outputTokens,
 			"total_tokens":  inputTokens + outputTokens,
+		},
+	}
+}
+
+func goalCompletionToolMissAssistantMessage() protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。"},
 		},
 	}
 }

@@ -250,6 +250,19 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 		}
 		return
 	}
+	if messageutil.AssistantMissedGoalCompletionTool(finalAssistant) {
+		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
+		_, err := s.goals.RecordCompletionToolMiss(ctx, slot.GoalIDForUsage, slot.AgentRoundID, reason)
+		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			s.loggerFor(ctx).Warn("记录 Room Goal 完成工具漏调用失败",
+				"session_key", goalSessionKeyForSlot(slot),
+				"goal_id", slot.GoalIDForUsage,
+				"round_id", slot.AgentRoundID,
+				"err", err,
+			)
+		}
+		return
+	}
 	hasProgress := slotHasGoalToolProgress(slot)
 	_, err := s.goals.RecordContinuationProgress(ctx, slot.GoalIDForUsage, slot.AgentRoundID, hasProgress)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {

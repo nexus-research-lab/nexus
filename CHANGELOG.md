@@ -73,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 模型侧提示词和 Goal MCP 工具描述优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
 
 ### Fixed
+- 修复模型在隐藏 Goal 续跑中声称目标已完成但误判 `mcp__nexus_goal__update_goal` 不可用时会直接停在 active 状态的问题；现在会自动安排一次收尾重试，要求模型重新审计并调用完成工具，让最终 token/耗时汇报继续走 Goal 工具结果链路。
 - 修复 Goal MCP 三件套缺少 model-visible 元数据的问题，`get_goal`、`create_goal`、`update_goal` 现在会像 Codex 内建 Goal 工具一样强制进入模型可见工具集。
 - 修复旧运行时会话热更新后可能仍缺少 `nexus_goal` 工具的问题；托管 Goal MCP server 加入或移除时现在会重建 SDK client，确保初始工具 schema 带上 Goal 三件套。
 - 修复复用中的 SDK client 不会刷新动态 MCP server 的问题，启动或继续 Goal 后会把 `nexus_goal` 工具同步到当前运行时。

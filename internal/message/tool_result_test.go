@@ -96,3 +96,59 @@ func TestAssistantHasCountedToolProgressIgnoresUnmatchedToolResult(t *testing.T)
 		t.Fatal("AssistantHasCountedToolProgress() = true, want false without a matched tool_use")
 	}
 }
+
+func TestAssistantMissedGoalCompletionTool(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{
+				"type": "text",
+				"text": "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。",
+			},
+		},
+	}
+	if !AssistantMissedGoalCompletionTool(message) {
+		t.Fatal("AssistantMissedGoalCompletionTool() = false, want true")
+	}
+}
+
+func TestAssistantMissedGoalCompletionToolRequiresCompletionClaim(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{
+				"type": "text",
+				"text": "I cannot call update_goal yet because more verification is needed.",
+			},
+		},
+	}
+	if AssistantMissedGoalCompletionTool(message) {
+		t.Fatal("AssistantMissedGoalCompletionTool() = true, want false without completion claim")
+	}
+}
+
+func TestAssistantMissedGoalCompletionToolDetectsFinalClaimWithoutToolMention(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "PPT 已完成并验证通过：9 页内容、298 行。"},
+		},
+	}
+	if !AssistantMissedGoalCompletionTool(message) {
+		t.Fatal("AssistantMissedGoalCompletionTool() = false, want true for final completion claim")
+	}
+}
+
+func TestAssistantMissedGoalCompletionToolIgnoresSuccessfulGoalUpdate(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_use", "id": "tool-1", "name": "mcp__nexus_goal__update_goal"},
+			{"type": "tool_result", "tool_use_id": "tool-1"},
+			{"type": "text", "text": "Goal has been completed."},
+		},
+	}
+	if AssistantMissedGoalCompletionTool(message) {
+		t.Fatal("AssistantMissedGoalCompletionTool() = true, want false after successful update_goal")
+	}
+}

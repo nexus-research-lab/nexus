@@ -482,6 +482,111 @@ func TestServicePlanContinuationSuppressesAfterEmptyProgress(t *testing.T) {
 	}
 }
 
+func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Finish with a proper Goal update",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordCompletionToolMiss(ctx, created.ID, plan.RoundID, "assistant could not call update_goal"); err != nil {
+		t.Fatal(err)
+	}
+	retry, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry == nil {
+		t.Fatal("retry = nil, want finalization retry continuation")
+	}
+	for _, want := range []string{
+		"Completion finalization retry:",
+		"previous goal-continuation response",
+		"mcp__nexus_goal__update_goal",
+		"before any final response",
+	} {
+		if !strings.Contains(retry.Prompt, want) {
+			t.Fatalf("retry prompt missing %q: %s", want, retry.Prompt)
+		}
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.EmptyProgressCount != 0 || goalCompletionToolRetryCount(current.Metadata) != 1 {
+		t.Fatalf("current = %#v, want one retry without empty-progress suppression", current)
+	}
+	if got := repo.events[len(repo.events)-2]; got.EventType != "completion_tool_retry" || got.RoundID != plan.RoundID {
+		t.Fatalf("retry event = %#v, want completion_tool_retry for first miss", got)
+	}
+}
+
+func TestServiceCompletionToolMissSuppressesAfterRetry(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Finish with a proper Goal update",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.RecordCompletionToolMiss(ctx, created.ID, plan.RoundID, "first miss"); err != nil {
+		t.Fatal(err)
+	}
+	retry, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry == nil {
+		t.Fatal("retry = nil, want finalization retry continuation")
+	}
+	if _, err := service.RecordCompletionToolMiss(ctx, created.ID, retry.RoundID, "second miss"); err != nil {
+		t.Fatal(err)
+	}
+	if next, err := service.PlanContinuationForSession(ctx, created.SessionKey, retry.RoundID); err != nil {
+		t.Fatal(err)
+	} else if next != nil {
+		t.Fatalf("next = %#v, want nil after retry miss suppression", next)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.EmptyProgressCount != 1 || goalCompletionToolRetryCount(current.Metadata) != 1 {
+		t.Fatalf("current = %#v, want suppressed after one retry", current)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.Payload["reason"] != "second miss" {
+		t.Fatalf("last event = %#v, want second miss suppression reason", got)
+	}
+}
+
 func TestServiceResumeActiveGoalClearsEmptyProgressAndDispatchesContinuation(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

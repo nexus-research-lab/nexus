@@ -95,6 +95,9 @@ func (s *Service) persistTransitionWithOptions(
 	if resetContinuationCountForTransition(source, status) {
 		item.ContinuationCount = 0
 	}
+	if resetCompletionToolRetryForTransition(source, status) {
+		item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	}
 	item.Version++
 	item.UpdatedAt = now
 	switch status {

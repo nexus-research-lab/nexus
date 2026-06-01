@@ -159,6 +159,19 @@ func (r *roundRunner) recordGoalContinuationProgress(result runtimectx.RoundExec
 		}
 		return
 	}
+	if messageutil.AssistantMissedGoalCompletionTool(r.lastGoalAssistantMessage()) {
+		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
+		_, err := r.service.goals.RecordCompletionToolMiss(context.Background(), r.goalIDForUsage, r.roundID, reason)
+		if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
+			r.service.loggerFor(context.Background()).Warn("记录 Goal 完成工具漏调用失败",
+				"session_key", r.sessionKey,
+				"goal_id", r.goalIDForUsage,
+				"round_id", r.roundID,
+				"err", err,
+			)
+		}
+		return
+	}
 	progressed := r.hasGoalToolProgress()
 	_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {

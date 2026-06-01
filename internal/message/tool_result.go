@@ -2,6 +2,7 @@ package message
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -63,6 +64,26 @@ func AssistantHasCountedToolProgress(message protocol.Message) bool {
 	return false
 }
 
+// AssistantMissedGoalCompletionTool 判断 assistant 是否声称目标已完成，但把 Goal 完成工具误判为不可用。
+func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
+	if protocol.MessageRole(message) != "assistant" {
+		return false
+	}
+	if assistantHasSuccessfulGoalUpdateTool(message) {
+		return false
+	}
+	text := normalizeCompletionSignalText(ExtractAssistantDisplayText(message))
+	if text == "" {
+		return false
+	}
+	if claimsFinalGoalWorkComplete(text) {
+		return true
+	}
+	return mentionsGoalUpdateTool(text) &&
+		claimsGoalUpdateToolUnavailable(text) &&
+		claimsGoalWorkComplete(text)
+}
+
 func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 	switch CanonicalToolName(observation.ToolName) {
 	case "", "update_goal":
@@ -74,6 +95,18 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 	default:
 		return true
 	}
+}
+
+func assistantHasSuccessfulGoalUpdateTool(message protocol.Message) bool {
+	for _, observation := range AssistantToolResults(message) {
+		if observation.IsError {
+			continue
+		}
+		if CanonicalToolName(observation.ToolName) == "update_goal" {
+			return true
+		}
+	}
+	return false
 }
 
 // CanonicalToolName 把 SDK/MCP 展示名规整为模型工具短名。
@@ -89,6 +122,143 @@ func CanonicalToolName(name string) string {
 		}
 	}
 	return name
+}
+
+func normalizeCompletionSignalText(text string) string {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if text == "" {
+		return ""
+	}
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		return r
+	}, text)
+}
+
+func mentionsGoalUpdateTool(text string) bool {
+	for _, marker := range []string{
+		"mcp__nexus_goal__update_goal",
+		"update_goal",
+		"nexus_goal",
+		"goal update tool",
+		"更新目标",
+		"停止目标",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func claimsGoalUpdateToolUnavailable(text string) bool {
+	for _, marker := range []string{
+		"not available",
+		"unavailable",
+		"not exposed",
+		"not visible",
+		"not in the tool list",
+		"cannot call",
+		"can't call",
+		"could not call",
+		"unable to call",
+		"no access",
+		"don't see",
+		"do not see",
+		"missing",
+		"找不到",
+		"没找到",
+		"没有看到",
+		"没看到",
+		"没有权限",
+		"无法调用",
+		"不能调用",
+		"不可用",
+		"没有这个工具",
+		"没有这样的工具",
+		"工具不存在",
+		"未暴露",
+		"没暴露",
+		"不在工具",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func claimsGoalWorkComplete(text string) bool {
+	for _, marker := range []string{
+		"goal is complete",
+		"goal has been completed",
+		"task is complete",
+		"task has been completed",
+		"work is complete",
+		"work has been completed",
+		"deliverable is complete",
+		"deliverable has been completed",
+		"all requirements are satisfied",
+		"no required work remains",
+		"already complete",
+		"already completed",
+		"目标已经完成",
+		"目标已完成",
+		"任务已经完成",
+		"任务已完成",
+		"工作已经完成",
+		"工作已完成",
+		"交付成果已经完成",
+		"交付成果已完成",
+		"所有要求都已满足",
+		"所有要求已经满足",
+		"已经完成",
+		"已完成",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func claimsFinalGoalWorkComplete(text string) bool {
+	for _, marker := range []string{
+		"goal is complete",
+		"goal has been completed",
+		"task is complete",
+		"task has been completed",
+		"work is complete",
+		"work has been completed",
+		"deliverable is complete",
+		"deliverable has been completed",
+		"all requirements are satisfied",
+		"no required work remains",
+		"completed and verified",
+		"done and verified",
+		"目标已经完成",
+		"目标已完成",
+		"任务已经完成",
+		"任务已完成",
+		"工作已经完成",
+		"工作已完成",
+		"交付成果已经完成",
+		"交付成果已完成",
+		"所有要求都已满足",
+		"所有要求已经满足",
+		"已完成并验证",
+		"完成并验证",
+		"已完成并可用",
+		"完成并可用",
+		"已交付",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func messageContentBlocks(value any) []map[string]any {

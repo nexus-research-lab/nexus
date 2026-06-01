@@ -16,6 +16,8 @@ Continuation behavior:
 - Keep the full objective intact. If it cannot be finished now, make concrete progress toward the real requested end state, leave the goal active, and do not redefine success around a smaller or easier task.
 - Temporary rough edges are acceptable while the work is moving in the right direction. Completion still requires the requested end state to be true and verified.
 
+{{ completion_tool_retry_note }}
+
 Budget:
 - Tokens used: {{ tokens_used }}
 - Token budget: {{ token_budget }}
