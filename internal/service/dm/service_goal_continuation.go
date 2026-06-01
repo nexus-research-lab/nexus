@@ -111,13 +111,29 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 			Metadata:       plan.Metadata,
 		},
 	}); err != nil {
-		if releaser, ok := r.service.goals.(goalContinuationPlanReleaser); ok {
-			_, _ = releaser.ReleaseContinuationPlan(ctx, *plan, "Goal continuation dispatch failed before runtime start")
-		}
+		r.recordGoalContinuationDispatchFailure(ctx, *plan, err)
 		r.service.loggerFor(ctx).Warn("启动 Goal 自动续跑失败",
 			"session_key", r.sessionKey,
 			"round_id", plan.RoundID,
 			"goal_id", plan.Goal.ID,
+			"err", err,
+		)
+	}
+}
+
+func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
+	if r == nil || r.service == nil || r.service.goals == nil || dispatchErr == nil {
+		return
+	}
+	reason := strings.TrimSpace(dispatchErr.Error())
+	if reason == "" {
+		reason = "Goal continuation dispatch failed before runtime start"
+	}
+	if _, err := r.service.goals.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason); err != nil {
+		r.service.loggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
+			"session_key", plan.Goal.SessionKey,
+			"goal_id", plan.Goal.ID,
+			"round_id", plan.RoundID,
 			"err", err,
 		)
 	}

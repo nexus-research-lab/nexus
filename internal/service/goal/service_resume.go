@@ -127,8 +127,10 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 		return nil
 	}
 	if err := dispatcher.DispatchGoalContinuation(ctx, *plan); err != nil {
-		_, _ = s.ReleaseContinuationPlan(ctx, *plan, "Goal continuation dispatch failed before runtime start")
-		return err
+		if _, failureErr := s.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, err.Error()); failureErr != nil {
+			return failureErr
+		}
+		return nil
 	}
 	return nil
 }

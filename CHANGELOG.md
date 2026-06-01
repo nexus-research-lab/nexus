@@ -79,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 修复 UI 启动 Goal 或隐藏续跑时托管 `goal-manager` / `nexus_goal` 权限确认可能卡住，导致前端长期只有“回复中”但没有智能体输出的问题。
 - 修复复用中的 runtime session 从普通权限模式切到 `bypassPermissions` 时可能初始化失败，导致聊天消息发送不出去的问题。
 - 修复已有数据库 goose 版本高于本分支早期 Goal 迁移时不会创建 `session_goals` / `goal_events`，导致 Goal 查询、续跑和消息发送异常的问题。
+- 修复 Goal 续跑在 runtime 投递前失败时只释放计划并反复重试的问题，现在会记录 `continuation_failed` 和真实 `last_error`，避免前端长期显示运行中却没有可诊断输出。
 - 修复未设置 Goal 时聊天底部仍显示空 Goal 面板并遮挡输入区域的问题。
 - 修复 Goal 空态轮询使用 404 表达未设置状态，导致正常空态在服务日志中持续刷 WARN 的问题。
 - Goal app-server `thread/goal/set` 响应和状态通知发送完成后再触发隐藏续跑，避免续跑先于客户端状态同步启动。

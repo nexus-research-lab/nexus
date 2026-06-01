@@ -731,7 +731,7 @@ func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchDefers(t *testing.T) {
 	}
 }
 
-func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchFails(t *testing.T) {
+func TestServiceRunAutoResumeOnceRecordsFailureWhenDispatchFails(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -750,8 +750,8 @@ func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchFails(t *testing.T) {
 	}
 	dispatchErr := errors.New("runtime start failed")
 	dispatcher := &fakeContinuationDispatcher{dispatchErr: dispatchErr}
-	if err := service.RunAutoResumeOnce(ctx, dispatcher); !errors.Is(err, dispatchErr) {
-		t.Fatalf("RunAutoResumeOnce error = %v, want %v", err, dispatchErr)
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatalf("RunAutoResumeOnce error = %v, want nil after recording dispatch failure", err)
 	}
 	if len(dispatcher.plans) != 1 {
 		t.Fatalf("plans = %#v, want attempted dispatch", dispatcher.plans)
@@ -760,11 +760,14 @@ func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.ContinuationCount != 0 {
-		t.Fatalf("ContinuationCount = %d, want failed continuation released", current.ContinuationCount)
+	if current.ContinuationCount != 1 || current.EmptyProgressCount != 1 {
+		t.Fatalf("goal counts = continuation %d empty %d, want failed continuation recorded", current.ContinuationCount, current.EmptyProgressCount)
 	}
-	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_deferred" {
-		t.Fatalf("last event = %#v, want continuation_deferred", got)
+	if current.LastError != dispatchErr.Error() {
+		t.Fatalf("LastError = %q, want dispatch error", current.LastError)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_failed" {
+		t.Fatalf("last event = %#v, want continuation_failed", got)
 	}
 }
 

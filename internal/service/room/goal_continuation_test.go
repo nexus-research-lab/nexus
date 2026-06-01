@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -130,7 +131,7 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *t
 	}
 }
 
-func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchFails(t *testing.T) {
+func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{
 		stillCurrent: true,
 		plan: &protocol.GoalContinuation{
@@ -155,7 +156,13 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchFails(t *te
 
 	goalProvider.mu.Lock()
 	defer goalProvider.mu.Unlock()
-	if goalProvider.planCalls != 1 || goalProvider.releaseCalls != 1 {
-		t.Fatalf("planCalls=%d releaseCalls=%d, want released failed room continuation", goalProvider.planCalls, goalProvider.releaseCalls)
+	if goalProvider.planCalls != 1 || len(goalProvider.failures) != 1 {
+		t.Fatalf("planCalls=%d failures=%d, want recorded failed room continuation", goalProvider.planCalls, len(goalProvider.failures))
+	}
+	if !strings.Contains(goalProvider.failures[0], "room goal continuation requires a room session key") {
+		t.Fatalf("failure reason = %q, want room session dispatch error", goalProvider.failures[0])
+	}
+	if goalProvider.releaseCalls != 0 {
+		t.Fatalf("releaseCalls=%d, want failed continuation retained as failed", goalProvider.releaseCalls)
 	}
 }
