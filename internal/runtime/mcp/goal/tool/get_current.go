@@ -15,6 +15,8 @@ func readGoalTool(name string, description string, svc contract.Service, sctx co
 	return sdktool.Tool{
 		Name:        name,
 		Description: description,
+		SearchHint:  searchHintGetGoal,
+		AlwaysLoad:  true,
 		InputSchema: objectSchema(map[string]any{}),
 		Annotations: &sdktool.ToolAnnotations{
 			ReadOnlyHint: true,

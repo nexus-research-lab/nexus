@@ -18,6 +18,8 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	return sdktool.Tool{
 		Name:        "create_goal",
 		Description: createGoalDescription,
+		SearchHint:  searchHintCreateGoal,
+		AlwaysLoad:  true,
 		InputSchema: objectSchema(map[string]any{
 			"objective":    stringProperty("Required. The concrete objective to start pursuing. This starts a new active goal only when no goal is currently defined; if a goal already exists, this tool fails."),
 			"token_budget": integerProperty("Optional positive token budget for the new active goal."),

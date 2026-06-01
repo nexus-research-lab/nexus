@@ -72,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal active 但已因续跑失败或空进展暂停时，面板改为展示“需处理/待继续”和对应警示色，不再误显示为正常执行中。
 
 ### Fixed
+- 修复 Goal MCP 三件套缺少 model-visible 元数据的问题，`get_goal`、`create_goal`、`update_goal` 现在会像 Codex 内建 Goal 工具一样强制进入模型可见工具集。
 - 修复复用中的 SDK client 不会刷新动态 MCP server 的问题，启动或继续 Goal 后会把 `nexus_goal` 工具同步到当前运行时。
 - 修复底层运行时不支持动态 `mcp_set_servers` 时 Goal MCP 无法补挂的问题，现在会重建 SDK client 并通过初始 MCP 配置暴露 `nexus_goal`。
 - 修复用户点击 Goal 暂停只改状态、不停止当前模型输出的问题；暂停现在会沿 DM/Room 原有中断链路停止运行中的 round。

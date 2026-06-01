@@ -31,6 +31,8 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	return sdktool.Tool{
 		Name:        "update_goal",
 		Description: updateGoalDescription,
+		SearchHint:  searchHintUpdateGoal,
+		AlwaysLoad:  true,
 		InputSchema: objectSchema(map[string]any{
 			"status": enumStringProperty(updateGoalStatusDescription, string(protocol.GoalStatusComplete), string(protocol.GoalStatusBlocked)),
 		}, "status"),
