@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed conversation rendering so repeated assistant snapshots with the same `message_id` merge tool/action blocks instead of hiding earlier permission or MCP calls.
 - Fixed stream-closed runtime errors so expected SDK stream shutdowns are recognized instead of treated as unexpected failures.
 - Fixed Windows runtime startup when MCP servers are materialized through `--mcp-config`, avoiding the bridge SDK conflict between MCP config paths and inline `MCP.Servers`.
+- Fixed workspace file previews intermittently returning internal server errors when concurrent requests reinitialized managed Skills.
+- Fixed desktop Agent startup failing to find Claude Code from native, Homebrew, Linux package, or common Node version-manager installs when GUI launches omit shell PATH entries, and expanded missing-command guidance with diagnostic and install commands.
 
 ## [0.1.13] - 2026-06-02
 
