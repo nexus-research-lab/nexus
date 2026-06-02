@@ -984,6 +984,26 @@
   margin-top: 26px;
 }
 
+.landing-icp-footer {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid rgba(117, 131, 149, 0.12);
+  padding: 18px 20px 22px;
+}
+
+.landing-icp-footer a {
+  color: rgba(66, 81, 98, 0.68);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.landing-icp-footer a:hover {
+  color: var(--landing-ink);
+}
+
 @media (max-width: 1240px) {
   .landing-hero-inner {
     grid-template-columns: minmax(0, 0.82fr) minmax(390px, 0.76fr);

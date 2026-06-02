@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added a public Nexus landing page at `/` with a real workbench component preview, capability storytelling, and entry links before authentication.
+- Added the public ICP filing link on the Nexus landing page footer for deployment compliance.
 - Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI skill path.
 - Added a built-in Doubao provider with Volcengine Ark text and Seedream image-generation branches.
 

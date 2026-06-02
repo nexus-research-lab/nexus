@@ -845,6 +845,16 @@ function FinalCta() {
   );
 }
 
+function IcpFooter() {
+  return (
+    <footer className="landing-icp-footer" aria-label="ICP filing">
+      <a href="https://beian.miit.gov.cn/" rel="noreferrer" target="_blank">
+        粤ICP备2023024185号-2
+      </a>
+    </footer>
+  );
+}
+
 export function LandingPage() {
   return (
     <main className="landing-page">
@@ -855,6 +865,7 @@ export function LandingPage() {
       <CapabilitiesSection />
       <ControlSection />
       <FinalCta />
+      <IcpFooter />
     </main>
   );
 }
