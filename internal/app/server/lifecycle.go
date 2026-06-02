@@ -88,14 +88,14 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		stops = append(stops, s.services.Automation.Stop)
 	}
 
-	if stopRuntimeIdleJanitor := s.startRuntimeIdleSessionJanitor(ctx); stopRuntimeIdleJanitor != nil {
-		stops = append(stops, stopRuntimeIdleJanitor)
+	if stopRuntimeIdleReclaimer := s.startRuntimeIdleSessionReclaimer(ctx); stopRuntimeIdleReclaimer != nil {
+		stops = append(stops, stopRuntimeIdleReclaimer)
 	}
 
 	return stopAll, nil
 }
 
-func (s *Server) startRuntimeIdleSessionJanitor(ctx context.Context) func() {
+func (s *Server) startRuntimeIdleSessionReclaimer(ctx context.Context) func() {
 	if s.services == nil || s.services.Runtime == nil {
 		return nil
 	}
@@ -110,11 +110,11 @@ func (s *Server) startRuntimeIdleSessionJanitor(ctx context.Context) func() {
 		"idle_ttl_seconds", int64(idleFor.Seconds()),
 		"sweep_interval_seconds", int64(sweepInterval.Seconds()),
 	)
-	go s.runRuntimeIdleSessionJanitor(runCtx, sweepInterval, idleFor)
+	go s.runRuntimeIdleSessionReclaimer(runCtx, sweepInterval, idleFor)
 	return stop
 }
 
-func (s *Server) runRuntimeIdleSessionJanitor(ctx context.Context, sweepInterval time.Duration, idleFor time.Duration) {
+func (s *Server) runRuntimeIdleSessionReclaimer(ctx context.Context, sweepInterval time.Duration, idleFor time.Duration) {
 	ticker := time.NewTicker(sweepInterval)
 	defer ticker.Stop()
 
