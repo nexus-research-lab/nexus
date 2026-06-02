@@ -160,6 +160,7 @@ func TestIsRuntimeTransportClosedError(t *testing.T) {
 		errors.New("process: write payload failed: write |1: The pipe has been ended"),
 		errors.New("write payload failed: file already closed"),
 		errors.New("broken pipe"),
+		errors.New("Error in hook callback hook_1: Stream closed"),
 	}
 	for _, err := range cases {
 		if !IsRuntimeTransportClosedError(err) {

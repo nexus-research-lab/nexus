@@ -397,6 +397,7 @@ func IsRuntimeTransportClosedError(err error) bool {
 	return strings.Contains(message, "write payload failed") ||
 		strings.Contains(message, "pipe has been ended") ||
 		strings.Contains(message, "broken pipe") ||
+		strings.Contains(message, "stream closed") ||
 		strings.Contains(message, "file already closed") ||
 		strings.Contains(message, "client: not connected")
 }
