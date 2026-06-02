@@ -82,7 +82,7 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 xattr -dr com.apple.quarantine /Applications/Nexus.app
 ```
 
-应用启动后会按 24 小时节流后台检测 GitHub Release 中的 macOS metadata；也可以从应用菜单选择“检查更新...”。当前无 Developer ID 阶段只提示打开下载页，不自动下载或安装更新。
+应用启动后会按 24 小时节流后台检测 GitHub Release 中的 macOS metadata；也可以从应用菜单选择“检查更新...”。发现新版本时，Shell 会下载 `Nexus-macos-*.dmg` 或 zip 包及对应 sha256 到 `~/.nexus/cache/updates`，校验通过后提示退出、替换当前 `.app` 并自动重新打开；如果当前 App 不在可替换位置，会退回打开下载页手动处理。
 
 卸载或重置应用数据时，先退出 Nexus，再按需要删除：
 
@@ -91,6 +91,6 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 
 ## 当前边界
 
-- 还没有 Developer ID 签名、公证和 Sparkle 自动安装更新；当前 macOS 包是 ad-hoc 签名。
+- 还没有 Developer ID 签名、公证和 Sparkle；当前 macOS 包是 ad-hoc 签名，自更新依赖 GitHub Release 包和 sha256 校验，首次打开仍可能受 Gatekeeper 策略影响。
 - 还没有由 Go 协议真相源生成的 desktop bridge schema。
 - 还没有更完整的快捷键冲突引导、逐项 secret 级 Keychain API、occlusion 长时间/异常路径验证和多窗口生命周期细化。
