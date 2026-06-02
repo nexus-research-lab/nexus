@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added configurable runtime idle session recycling with `RUNTIME_IDLE_SESSION_TTL_SECONDS` and `RUNTIME_IDLE_SESSION_SWEEP_SECONDS`, so inactive SDK clients are disconnected instead of accumulating on small multi-user hosts.
+- Added a default `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` runtime environment override so Claude Code compacts earlier before long research workflows hit the context wall.
 
 ## [0.1.13] - 2026-06-02
 

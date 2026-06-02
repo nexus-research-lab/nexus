@@ -67,6 +67,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env["ENABLE_TOOL_SEARCH"] != "false" {
 		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
 	}
+	if options.Env[claudeAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
+		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
+	}
 	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
 	}
@@ -80,6 +83,21 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
+	}
+}
+
+func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		ExtraEnv: map[string]string{
+			claudeAutoCompactPctOverrideEnvName: "80",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
+		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
 	}
 }
 
