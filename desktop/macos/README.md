@@ -17,7 +17,7 @@
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
-- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/` launcher 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/app`、`/settings` 和 OAuth callback。
+- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/logs` 写入 `startup-failure-*.json`。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。

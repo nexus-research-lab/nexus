@@ -8,10 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added a public Nexus landing page at `/` with a real workbench component preview, capability storytelling, and entry links before authentication.
 - Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI skill path.
 - Added a built-in Doubao provider with Volcengine Ark text and Seedream image-generation branches.
 
 ### Changed
+- Moved the authenticated Launcher route from `/` to `/launcher` so browser users no longer land directly on the login page, and updated desktop launcher entry routes to keep packaged apps opening the authenticated launcher.
 - Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
 - Removed window controller/observer session-control behavior from chat sessions; bound clients now receive permission and session-status events without a primary-window role, and composer attachment hints are shorter.
 - Changed Room communication to use built-in `nexus_room` runtime tools instead of `nexusctl` Bash calls, removing the old Room message send/publish CLI control path.

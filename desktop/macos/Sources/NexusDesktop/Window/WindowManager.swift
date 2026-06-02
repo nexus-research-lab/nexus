@@ -33,7 +33,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func showMainWindow() {
-    showMainWindow(route: DesktopWebRoute(path: "/", entry: .app))
+    showMainWindow(route: DesktopWebRoute(path: "/launcher", entry: .app))
   }
 
   func reopenMainWindow() {
@@ -41,7 +41,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func showLauncher() {
-    showMainWindow(route: DesktopWebRoute(path: "/", entry: .app))
+    showMainWindow(route: DesktopWebRoute(path: "/launcher", entry: .app))
   }
 
   func showSettings() {
@@ -164,7 +164,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private func defaultMainRoute() -> DesktopWebRoute {
-    DesktopWebRoute(path: "/", entry: .app)
+    DesktopWebRoute(path: "/launcher", entry: .app)
   }
 
   private func surfaceName(for window: NSWindow) -> String? {
