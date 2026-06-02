@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduced low-signal sidecar logs for successful WebSocket closes, route remembering, and empty background title-generation results.
 - Clarified Agent prompts so interactive clarification should use `AskUserQuestion` instead of plain text when a native confirmation is needed.
 
+### Fixed
+- Fixed Windows runtime startup when MCP servers are materialized through `--mcp-config`, avoiding the bridge SDK conflict between MCP config paths and inline `MCP.Servers`.
+
 ## [0.1.13] - 2026-06-02
 
 ### Added

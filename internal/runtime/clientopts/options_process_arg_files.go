@@ -56,8 +56,26 @@ func materializeProcessArgFilesForOS(goos string, options *agentclient.Options) 
 			return fmt.Errorf("write MCP config arg file: %w", err)
 		}
 		options.MCP.Config = path
+		moveSDKMCPServersToRegistry(options, options.MCP.Servers)
+		options.MCP.Servers = nil
 	}
 	return nil
+}
+
+func moveSDKMCPServersToRegistry(options *agentclient.Options, servers map[string]sdkmcp.ServerConfig) {
+	if options == nil || len(servers) == 0 {
+		return
+	}
+	for name, config := range servers {
+		sdkConfig, ok := config.(sdkmcp.SDKServerConfig)
+		if !ok || sdkConfig.Instance == nil {
+			continue
+		}
+		if options.MCP.SDKServers == nil {
+			options.MCP.SDKServers = map[string]sdkmcp.SDKMCPServer{}
+		}
+		options.MCP.SDKServers[name] = sdkConfig.Instance
+	}
 }
 
 func cleanupRuntimeArgFiles() error {

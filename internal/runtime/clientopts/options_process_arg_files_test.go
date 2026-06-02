@@ -67,8 +67,11 @@ func TestMaterializeProcessArgFilesForWindowsUsesMCPConfigFile(t *testing.T) {
 	if options.MCP.Config == "" {
 		t.Fatalf("Windows 下应把 MCP config 写入文件")
 	}
-	if len(options.MCP.Servers) != 2 {
-		t.Fatalf("MCP server registry 应保留给 initialize/control 使用: %+v", options.MCP.Servers)
+	if len(options.MCP.Servers) != 0 {
+		t.Fatalf("MCP.Servers 已通过 config path 传递，不应继续保留: %+v", options.MCP.Servers)
+	}
+	if len(options.MCP.SDKServers) != 1 || options.MCP.SDKServers["nexus_room"] == nil {
+		t.Fatalf("SDK MCP server registry 应保留给 initialize/control 使用: %+v", options.MCP.SDKServers)
 	}
 	data, err := os.ReadFile(options.MCP.Config)
 	if err != nil {
