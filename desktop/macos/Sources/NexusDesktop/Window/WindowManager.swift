@@ -136,7 +136,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
         defer: false
       )
       window.title = "Nexus"
-      window.minSize = NSSize(width: 960, height: 640)
+      window.minSize = NSSize(width: 1120, height: 640)
       window.isReleasedWhenClosed = false
       window.delegate = self
       window.backgroundColor = .clear

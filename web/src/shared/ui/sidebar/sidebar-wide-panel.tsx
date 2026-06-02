@@ -27,6 +27,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { get_default_agent_avatar, get_default_agent_id, is_main_agent } from "@/config/options";
+import { is_desktop_runtime } from "@/config/desktop-runtime";
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { CapabilitiesPanelContent } from "@/features/capability/capabilities-sidebar-panel";
 import {
@@ -116,6 +117,7 @@ export function SidebarWidePanel() {
   const [is_guide_center_open, set_is_guide_center_open] = useState(false);
   const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
   const active_primary_tab = derive_primary_tab_from_path(location.pathname);
+  const should_show_logout = !is_desktop_runtime();
   const prefers_reduced_motion = usePrefersReducedMotion();
   const default_agent_id = get_default_agent_id();
   const nexus_agent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
@@ -501,19 +503,7 @@ export function SidebarWidePanel() {
         )}
         data-sidebar-collapsed="true"
       >
-        <div className={cn("flex w-full items-center justify-center border-b divider-subtle", COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS)}>
-          <button
-            aria-label={t("sidebar.expand_panel")}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={toggle_wide_panel_collapsed}
-            title={t("sidebar.expand_panel")}
-            type="button"
-          >
-            <PanelLeftOpen className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col items-center gap-2 py-3">
+        <div className="flex min-h-0 flex-1 flex-col items-center gap-2 pb-3 pt-2">
           <button
             aria-label="Nexus"
             className={cn(
@@ -592,16 +582,28 @@ export function SidebarWidePanel() {
             <Compass className="h-4 w-4" />
           </button>
 
+          {should_show_logout ? (
+            <button
+              aria-label={t("sidebar.logout")}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+              onClick={() => {
+                void logout();
+              }}
+              title={t("sidebar.logout")}
+              type="button"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          ) : null}
+
           <button
-            aria-label={t("sidebar.logout")}
+            aria-label={t("sidebar.expand_panel")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={() => {
-              void logout();
-            }}
-            title={t("sidebar.logout")}
+            onClick={toggle_wide_panel_collapsed}
+            title={t("sidebar.expand_panel")}
             type="button"
           >
-            <LogOut className="h-4 w-4" />
+            <PanelLeftOpen className="h-4 w-4" />
           </button>
         </div>
 
@@ -818,17 +820,19 @@ export function SidebarWidePanel() {
           <div className="min-w-0 flex-1" />
 
           <div className="flex items-center gap-2.5">
-            <button
-              aria-label={t("sidebar.logout")}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => {
-                void logout();
-              }}
-              title={t("sidebar.logout")}
-              type="button"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+            {should_show_logout ? (
+              <button
+                aria-label={t("sidebar.logout")}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                onClick={() => {
+                  void logout();
+                }}
+                title={t("sidebar.logout")}
+                type="button"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            ) : null}
 
             <button
               aria-label={t("sidebar.collapse_panel")}

@@ -12,6 +12,7 @@ export const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
   "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
   "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
   "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:border-(--divider-subtle-color) disabled:hover:bg-(--surface-panel-background) disabled:hover:text-(--text-default)",
+  "max-xl:w-8 max-xl:px-0 max-xl:gap-0",
 );
 
 export function WorkspaceFilePreviewHeader({
@@ -102,7 +103,7 @@ export function WorkspaceFileDownloadButton({
       ) : (
         <Download className="h-3.5 w-3.5" />
       )}
-      <span>{visible_label}</span>
+      <span className="max-xl:hidden">{visible_label}</span>
     </button>
   );
 }
@@ -149,7 +150,7 @@ export function WorkspaceFilePreviewFocusButton({
       title={is_preview_focused ? "还原文件树" : "聚焦预览"}
     >
       {is_preview_focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-      <span>{is_preview_focused ? "还原" : "放大"}</span>
+      <span className="max-xl:hidden">{is_preview_focused ? "还原" : "放大"}</span>
     </WorkspaceFileToolbarButton>
   );
 }

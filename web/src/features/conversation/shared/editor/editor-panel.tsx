@@ -1098,16 +1098,18 @@ export function EditorPanel({
                         }
                         enable_editing();
                       }}
+                      title={is_editing ? "预览" : "编辑"}
                     >
                       {is_editing ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                      <span>{is_editing ? "预览" : "编辑"}</span>
+                      <span className="max-xl:hidden">{is_editing ? "预览" : "编辑"}</span>
                     </WorkspaceFileToolbarButton>
                     <WorkspaceFileToolbarButton
                       disabled={!is_dirty || is_saving || is_external_writing}
                       on_click={() => void handle_save()}
+                      title={is_saving ? "保存中" : "保存"}
                     >
                       <Save className="h-4 w-4" />
-                      <span>{is_saving ? "保存中" : "保存"}</span>
+                      <span className="max-xl:hidden">{is_saving ? "保存中" : "保存"}</span>
                     </WorkspaceFileToolbarButton>
                   </>
                 )}

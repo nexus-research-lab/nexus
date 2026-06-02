@@ -33,6 +33,14 @@ type RoomAgentAboutRequestedTab = "identity" | "private_domain";
 
 const ChatBoundary = import.meta.env.DEV ? GroupChatErrorBoundary : Fragment;
 const RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY = "(max-width: 1440px)";
+const WIDE_AUXILIARY_PANEL_WIDTH_LIMITS = {
+  minWidth: "min(520px, 46vw)",
+  maxWidth: "min(860px, 54vw)",
+};
+const AUXILIARY_PANEL_WIDTH_LIMITS = {
+  minWidth: "min(420px, 40vw)",
+  maxWidth: "min(600px, 48vw)",
+};
 
 interface RoomSurfaceLayoutProps {
   current_agent: Agent;
@@ -316,8 +324,9 @@ function RoomSurfaceLayoutInner({
                 className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
                 style={{
                   width: `${editor_width_percent}%`,
-                  minWidth: is_wide_auxiliary_panel ? "660px" : "460px",
-                  maxWidth: is_wide_auxiliary_panel ? "960px" : "660px",
+                  ...(is_wide_auxiliary_panel
+                    ? WIDE_AUXILIARY_PANEL_WIDTH_LIMITS
+                    : AUXILIARY_PANEL_WIDTH_LIMITS),
                 }}
               >
                 <ConversationResizeHandle

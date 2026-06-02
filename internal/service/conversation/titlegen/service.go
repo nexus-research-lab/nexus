@@ -33,6 +33,7 @@ const (
 )
 
 var (
+	errEmptyGeneratedTitle     = errors.New("标题生成返回空结果")
 	defaultConversationPattern = regexp.MustCompile(`^.+\s·\s对话\s+\d+$`)
 	whitespacePattern          = regexp.MustCompile(`\s+`)
 )
@@ -194,6 +195,14 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 
 	title, err := s.generateTitle(ctx, request, request.Content)
 	if err != nil {
+		if errors.Is(err, errEmptyGeneratedTitle) {
+			s.logger.Debug("生成会话标题返回空结果",
+				"session_key", request.SessionKey,
+				"conversation_id", request.ConversationID,
+				"provider", strings.TrimSpace(request.Provider),
+			)
+			return
+		}
 		s.logger.Warn("生成会话标题失败",
 			"session_key", request.SessionKey,
 			"conversation_id", request.ConversationID,
@@ -311,7 +320,7 @@ func (s *Service) doGenerateTitle(
 	}
 	title := sanitizeGeneratedTitle(text)
 	if title == "" {
-		return "", errors.New("标题生成返回空结果")
+		return "", errEmptyGeneratedTitle
 	}
 	return title, nil
 }

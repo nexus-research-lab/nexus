@@ -99,6 +99,25 @@ func TestAccessLogMiddlewareDemotesSuccessfulGetAtInfoLevel(t *testing.T) {
 	}
 }
 
+func TestAccessLogMiddlewareDemotesSuccessfulWebSocketAtInfoLevel(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	handler := RequestContextMiddleware(logger)(
+		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			writer.WriteHeader(http.StatusSwitchingProtocols)
+		})),
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/chat/ws", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if output := buffer.String(); strings.Contains(output, "HTTP 请求完成") {
+		t.Fatalf("WebSocket 101 不应写入 info access log: %s", output)
+	}
+}
+
 func TestAccessLogMiddlewareKeepsFailureAtInfoLevel(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))

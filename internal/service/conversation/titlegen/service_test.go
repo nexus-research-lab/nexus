@@ -1,12 +1,15 @@
 package titlegen
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -276,6 +279,62 @@ func TestScheduleRetriesTimeoutOnce(t *testing.T) {
 	}
 	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "重试标题" {
 		t.Fatalf("重试后标题未更新: %s", got)
+	}
+}
+
+func TestScheduleDoesNotWarnOnEmptyGeneratedTitle(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "   ",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:ws:dm:conv_1": {
+				SessionKey: "agent:a:ws:dm:conv_1",
+				Title:      "New Chat",
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "glm",
+				AuthToken: "token-1",
+				BaseURL:   server.URL,
+				Model:     "glm-5.1",
+			},
+		},
+		sessionStore,
+		nil,
+		&fakeEventBroadcaster{},
+	)
+	var buffer bytes.Buffer
+	service.SetLogger(slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	service.runAsync = func(job func()) { job() }
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:          "agent:a:ws:dm:conv_1",
+		Provider:            "glm",
+		Content:             "给我起一个标题",
+		SessionMessageCount: 0,
+	})
+
+	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "New Chat" {
+		t.Fatalf("空标题不应更新 session 标题: %s", got)
+	}
+	if output := buffer.String(); strings.Contains(output, "生成会话标题失败") {
+		t.Fatalf("空标题不应写入 warn 日志: %s", output)
 	}
 }
 

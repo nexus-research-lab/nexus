@@ -318,7 +318,7 @@ func (r *Router) RememberRoute(ctx context.Context, agentID string, target Deliv
 		)
 		return nil, err
 	}
-	r.loggerFor(ctx).Info("记录最近投递目标",
+	r.loggerFor(ctx).Debug("记录最近投递目标",
 		"agent_id", strings.TrimSpace(agentID),
 		"channel", normalized.Channel,
 		"mode", normalized.Mode,
