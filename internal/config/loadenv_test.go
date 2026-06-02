@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func writeTestEnv(t *testing.T, content string) string {
@@ -218,6 +219,20 @@ func TestLoadMessageDebugStreamEvent(t *testing.T) {
 
 	if !cfg.MessageDebugStreamEvent {
 		t.Fatalf("MESSAGE_DEBUG_STREAM_EVENT=true 应开启 StreamEvent 日志")
+	}
+}
+
+func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
+	t.Setenv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "60")
+	t.Setenv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "15")
+
+	cfg := Load()
+
+	if cfg.RuntimeIdleSessionTTL() != 60*time.Second {
+		t.Fatalf("RuntimeIdleSessionTTL = %s, want 60s", cfg.RuntimeIdleSessionTTL())
+	}
+	if cfg.RuntimeIdleSessionSweepInterval() != 15*time.Second {
+		t.Fatalf("RuntimeIdleSessionSweepInterval = %s, want 15s", cfg.RuntimeIdleSessionSweepInterval())
 	}
 }
 

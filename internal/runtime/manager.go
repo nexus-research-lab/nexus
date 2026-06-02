@@ -293,6 +293,7 @@ type sessionState struct {
 	RoundDone     map[string]chan struct{}
 	Interruptions map[string]string
 	GuidedInputs  []GuidedInput
+	LastUsedAt    time.Time
 }
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
@@ -300,6 +301,7 @@ type Manager struct {
 	mu       sync.RWMutex
 	sessions map[string]*sessionState
 	factory  Factory
+	now      func() time.Time
 }
 
 // NewManager 创建运行时管理器。
@@ -315,18 +317,20 @@ func NewManagerWithFactory(factory Factory) *Manager {
 	return &Manager{
 		sessions: make(map[string]*sessionState),
 		factory:  factory,
+		now:      time.Now,
 	}
 }
 
 // GetOrCreate 获取或创建 client，并在复用时应用最新运行时配置。
 func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options agentclient.Options) (Client, error) {
-	m.mu.RLock()
+	m.mu.Lock()
 	state := m.sessions[sessionKey]
 	var existing Client
-	if state != nil {
+	if state != nil && state.Client != nil {
 		existing = state.Client
+		m.touchStateLocked(state)
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	if existing != nil {
 		if err := existing.Reconfigure(ctx, options); err != nil {
 			if IsRuntimeTransportClosedError(err) {
@@ -341,10 +345,12 @@ func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options ag
 	state = m.ensureStateLocked(sessionKey)
 	if state.Client == nil {
 		state.Client = m.factory.New(options)
+		m.touchStateLocked(state)
 		m.mu.Unlock()
 		return state.Client, nil
 	}
 	client := state.Client
+	m.touchStateLocked(state)
 	m.mu.Unlock()
 	if err := client.Reconfigure(ctx, options); err != nil {
 		return nil, err
@@ -370,6 +376,7 @@ func (m *Manager) replaceDisconnectedClient(
 		return next, nil
 	}
 	state.Client = next
+	m.touchStateLocked(state)
 	m.mu.Unlock()
 
 	disconnectCtx, cancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
@@ -420,6 +427,7 @@ func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.C
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
 	state.RunningRounds[roundID] = struct{}{}
+	m.touchStateLocked(state)
 	delete(state.Interruptions, roundID)
 	if cancel != nil {
 		state.RoundCancels[roundID] = cancel
@@ -443,6 +451,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	delete(state.RunningRounds, roundID)
 	delete(state.RoundCancels, roundID)
 	delete(state.Interruptions, roundID)
+	m.touchStateLocked(state)
 	if len(state.RunningRounds) == 0 {
 		state.GuidedInputs = nil
 	}
@@ -524,6 +533,7 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 
 	m.mu.Lock()
 	state = m.ensureStateLocked(sessionKey)
+	m.touchStateLocked(state)
 	for _, roundID := range roundIDs {
 		state.Interruptions[roundID] = interruptReason
 	}
@@ -554,10 +564,10 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 
 // SendContentToRunningRound 把新输入排入当前运行中的 SDK 流。
 func (m *Manager) SendContentToRunningRound(ctx context.Context, sessionKey string, content any) ([]string, error) {
-	m.mu.RLock()
+	m.mu.Lock()
 	state, ok := m.sessions[sessionKey]
 	if !ok || state == nil || state.Client == nil || len(state.RunningRounds) == 0 {
-		m.mu.RUnlock()
+		m.mu.Unlock()
 		return nil, ErrNoRunningRound
 	}
 	roundIDs := make([]string, 0, len(state.RunningRounds))
@@ -565,7 +575,8 @@ func (m *Manager) SendContentToRunningRound(ctx context.Context, sessionKey stri
 		roundIDs = append(roundIDs, roundID)
 	}
 	client := state.Client
-	m.mu.RUnlock()
+	m.touchStateLocked(state)
+	m.mu.Unlock()
 
 	sort.Strings(roundIDs)
 	if err := SendClientContent(ctx, client, content); err != nil {
@@ -649,7 +660,24 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 		}
 		m.sessions[sessionKey] = state
 	}
+	if state.LastUsedAt.IsZero() {
+		m.touchStateLocked(state)
+	}
 	return state
+}
+
+func (m *Manager) touchStateLocked(state *sessionState) {
+	if state == nil {
+		return
+	}
+	state.LastUsedAt = m.nowTime().UTC()
+}
+
+func (m *Manager) nowTime() time.Time {
+	if m.now == nil {
+		return time.Now()
+	}
+	return m.now()
 }
 
 func sessionBelongsToAgent(sessionKey string, agentID string) bool {

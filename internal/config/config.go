@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config 承载 Go 服务运行时配置。
@@ -61,6 +62,8 @@ type Config struct {
 	AllowedWebSocketOrigins        []string
 	ConnectorOAuthStateTTLSeconds  int
 	AutomationRunTimeoutSeconds    int
+	RuntimeIdleSessionTTLSeconds   int
+	RuntimeIdleSessionSweepSeconds int
 	ConnectorCredentialsKey        string
 	ConnectorGitHubClientID        string
 	ConnectorGitHubClientSecret    string
@@ -155,6 +158,8 @@ func Load() Config {
 		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
 		ConnectorOAuthStateTTLSeconds:  mustInt(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600")),
 		AutomationRunTimeoutSeconds:    mustInt(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600")),
+		RuntimeIdleSessionTTLSeconds:   mustInt(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600")),
+		RuntimeIdleSessionSweepSeconds: mustInt(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120")),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
@@ -169,6 +174,22 @@ func Load() Config {
 		ConnectorShopifyClientID:       getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
 		ConnectorShopifyClientSecret:   getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
 	}
+}
+
+// RuntimeIdleSessionTTL 返回无运行 round 的 SDK client 保留时长，<=0 表示关闭回收。
+func (c Config) RuntimeIdleSessionTTL() time.Duration {
+	if c.RuntimeIdleSessionTTLSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(c.RuntimeIdleSessionTTLSeconds) * time.Second
+}
+
+// RuntimeIdleSessionSweepInterval 返回 runtime 空闲 session 扫描间隔，<=0 表示关闭回收。
+func (c Config) RuntimeIdleSessionSweepInterval() time.Duration {
+	if c.RuntimeIdleSessionSweepSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(c.RuntimeIdleSessionSweepSeconds) * time.Second
 }
 
 func getEnv(key string, fallback string) string {
