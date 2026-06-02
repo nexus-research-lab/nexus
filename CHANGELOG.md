@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified Agent prompts so interactive clarification should use `AskUserQuestion` instead of plain text when a native confirmation is needed.
 
 ### Fixed
+- Fixed realtime result projection so completed assistant actions are marked terminal after the round result arrives.
+- Fixed transcript history replay for parallel tool results so switching conversations no longer leaves one completed action stuck in a running state.
 - Fixed conversation rendering so repeated assistant snapshots with the same `message_id` merge tool/action blocks instead of hiding earlier permission or MCP calls.
 - Fixed stream-closed runtime errors so expected SDK stream shutdowns are recognized instead of treated as unexpected failures.
 - Fixed Windows runtime startup when MCP servers are materialized through `--mcp-config`, avoiding the bridge SDK conflict between MCP config paths and inline `MCP.Servers`.

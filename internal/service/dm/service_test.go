@@ -488,6 +488,135 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-parallel-tools",
+						Model: "glm-5.1",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolUseBlock{
+								ID:    "tool-connectors",
+								Name:  "mcp__nexus_connectors__connector_list",
+								Input: json.RawMessage(`{}`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-parallel-tools",
+						Model: "glm-5.1",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolUseBlock{
+								ID:    "tool-automation",
+								Name:  "mcp__nexus_automation__list_scheduled_tasks",
+								Input: json.RawMessage(`{}`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeUser,
+				SessionID: client.sessionID,
+				User: &sdkprotocol.UserMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolResultBlock{
+								ToolUseID: "tool-connectors",
+								Content:   json.RawMessage(`[{"type":"text","text":"[]"}]`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeUser,
+				SessionID: client.sessionID,
+				User: &sdkprotocol.UserMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolResultBlock{
+								ToolUseID: "tool-automation",
+								Content:   json.RawMessage(`[{"type":"text","text":"[]"}]`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-parallel-final",
+						Model: "glm-5.1",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.TextBlock{Text: "两个工具都正常调用。"},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-parallel-tools",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1200,
+					NumTurns:   1,
+					Result:     "两个工具都正常调用。",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-parallel-tools")
+	sessionKey := "agent:nexus:ws:dm:parallel-tools"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "再试一下两个工具",
+		RoundID:    "round-parallel-tools",
+		ReqID:      "round-parallel-tools",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	assistantPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-tools")
+	blocks := contentBlocksFromPayload(t, assistantPayload)
+	assertContentBlockTypes(t, blocks, []string{"tool_use", "tool_use", "tool_result", "tool_result", "text"})
+	assertToolResultIDs(t, blocks, []string{"tool-connectors", "tool-automation"})
+	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "end_turn" {
+		t.Fatalf("最终实时 assistant 应标记完成: %+v", assistantPayload)
+	}
+	if _, exists := assistantPayload["stream_status"]; exists {
+		t.Fatalf("durable assistant 不应补写 stream_status: %+v", assistantPayload)
+	}
+}
+
 func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -2529,6 +2658,25 @@ func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, m
 	return nil
 }
 
+func findLatestAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {
+	t.Helper()
+	var latest protocol.Message
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
+			continue
+		}
+		if event.Data["role"] != "assistant" {
+			continue
+		}
+		latest = protocol.Message(event.Data)
+	}
+	if latest != nil {
+		return latest
+	}
+	t.Fatalf("未找到 assistant message_id=%s 的最后 durable 消息: %+v", messageID, events)
+	return nil
+}
+
 func contentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string]any {
 	t.Helper()
 	rawBlocks, ok := payload["content"]
@@ -2551,6 +2699,37 @@ func contentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string
 	default:
 		t.Fatalf("content 类型不正确: %+v", payload)
 		return nil
+	}
+}
+
+func assertContentBlockTypes(t *testing.T, blocks []map[string]any, expected []string) {
+	t.Helper()
+	if len(blocks) != len(expected) {
+		t.Fatalf("content block 数量不正确: got=%d want=%d blocks=%+v", len(blocks), len(expected), blocks)
+	}
+	for index, expectedType := range expected {
+		if blocks[index]["type"] != expectedType {
+			t.Fatalf("第 %d 个 content block 类型不正确: got=%v want=%s blocks=%+v", index, blocks[index]["type"], expectedType, blocks)
+		}
+	}
+}
+
+func assertToolResultIDs(t *testing.T, blocks []map[string]any, expected []string) {
+	t.Helper()
+	resultIDs := make([]string, 0, len(expected))
+	for _, block := range blocks {
+		if block["type"] != "tool_result" {
+			continue
+		}
+		resultIDs = append(resultIDs, anyToString(block["tool_use_id"]))
+	}
+	if len(resultIDs) != len(expected) {
+		t.Fatalf("tool_result 数量不正确: got=%+v want=%+v blocks=%+v", resultIDs, expected, blocks)
+	}
+	for index, expectedID := range expected {
+		if resultIDs[index] != expectedID {
+			t.Fatalf("tool_result 顺序不正确: got=%+v want=%+v blocks=%+v", resultIDs, expected, blocks)
+		}
 	}
 }
 
