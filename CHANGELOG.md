@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-06-02
+
 ### Added
-- Added configurable runtime idle session recycling with `RUNTIME_IDLE_SESSION_TTL_SECONDS` and `RUNTIME_IDLE_SESSION_SWEEP_SECONDS`, so inactive SDK clients are disconnected instead of accumulating on small multi-user hosts.
-- Added a default `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` runtime environment override so Claude Code compacts earlier before long research workflows hit the context wall.
+- Added macOS desktop self-update installation: the app can download macOS release packages plus sha256 files, verify them, stage `Nexus.app`, and relaunch through an external installer script when the current bundle is replaceable.
+- Added configurable runtime idle session recycling through `RUNTIME_IDLE_SESSION_TTL_SECONDS` and `RUNTIME_IDLE_SESSION_SWEEP_SECONDS`, plus a default `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` so Claude Code compacts earlier during long research workflows.
 
 ### Changed
 - Refined compact desktop workspace layout with icon-only narrow toolbars, a higher minimum desktop window width, and a collapsed sidebar that keeps panel controls at the bottom.
@@ -17,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified Agent prompts so interactive clarification should use `AskUserQuestion` instead of plain text when a native confirmation is needed.
 
 ### Fixed
+- Fixed conversation rendering so repeated assistant snapshots with the same `message_id` merge tool/action blocks instead of hiding earlier permission or MCP calls.
+- Fixed stream-closed runtime errors so expected SDK stream shutdowns are recognized instead of treated as unexpected failures.
 - Fixed Windows runtime startup when MCP servers are materialized through `--mcp-config`, avoiding the bridge SDK conflict between MCP config paths and inline `MCP.Servers`.
 
 ## [0.1.13] - 2026-06-02
