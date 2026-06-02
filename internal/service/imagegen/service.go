@@ -82,6 +82,7 @@ func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Resu
 	if err != nil {
 		return nil, nil, err
 	}
+	normalized = applyGenerateProviderDefaults(config, normalized)
 	payload, revisedPrompt, mimeType, err := s.callGenerateProvider(ctx, config, normalized)
 	if err != nil {
 		return nil, nil, err
@@ -200,11 +201,33 @@ func (s *Service) callGenerateProvider(
 	if err != nil {
 		return nil, "", "", err
 	}
-	fields := map[string]any{
-		"prompt": input.Prompt,
-		"n":      1,
+	fields := openAICompatibleGeneratePayload(config, input, endpoint)
+	if isSeedreamModel(config) {
+		if _, exists := fields["watermark"]; !exists {
+			fields["watermark"] = false
+		}
 	}
-	if !isAzureDeployment(endpoint) {
+
+	var response imageResponse
+	if err := s.postJSONWithRetries(ctx, endpoint, config.AuthToken, fields, &response); err != nil {
+		return nil, "", "", err
+	}
+	return s.extractImage(ctx, response, input.OutputFormat)
+}
+
+func openAICompatibleGeneratePayload(
+	config *providercfg.ImageConfig,
+	input GenerateInput,
+	endpoint string,
+) map[string]any {
+	var providerOptions map[string]any
+	if config != nil {
+		providerOptions = config.ProviderOptions
+	}
+	fields := cloneProviderOptions(providerOptions)
+	fields["prompt"] = input.Prompt
+	fields["n"] = 1
+	if config != nil && !isAzureDeployment(endpoint) {
 		fields["model"] = config.Model
 	}
 	if input.Size != "" {
@@ -222,12 +245,7 @@ func (s *Service) callGenerateProvider(
 	if input.Background != "" {
 		fields["background"] = input.Background
 	}
-
-	var response imageResponse
-	if err := s.postJSONWithRetries(ctx, endpoint, config.AuthToken, fields, &response); err != nil {
-		return nil, "", "", err
-	}
-	return s.extractImage(ctx, response, input.OutputFormat)
+	return fields
 }
 
 func (s *Service) callEditProvider(
@@ -321,6 +339,51 @@ func isAzureDeployment(rawURL string) bool {
 		return false
 	}
 	return strings.Contains(strings.ToLower(parsed.Path), "/openai/deployments/")
+}
+
+func applyGenerateProviderDefaults(config *providercfg.ImageConfig, input GenerateInput) GenerateInput {
+	if input.Size == defaultSize {
+		if config != nil {
+			if size := stringProviderOption(config.ProviderOptions, "size"); size != "" {
+				input.Size = size
+				return input
+			}
+		}
+		if isSeedreamModel(config) {
+			input.Size = "2K"
+		}
+	}
+	return input
+}
+
+func cloneProviderOptions(options map[string]any) map[string]any {
+	fields := map[string]any{}
+	for key, value := range options {
+		if strings.TrimSpace(key) != "" {
+			fields[key] = value
+		}
+	}
+	return fields
+}
+
+func stringProviderOption(options map[string]any, key string) string {
+	value, ok := options[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func isSeedreamModel(config *providercfg.ImageConfig) bool {
+	if config == nil {
+		return false
+	}
+	model := strings.ToLower(strings.TrimSpace(config.Model))
+	return strings.Contains(model, "seedream")
 }
 
 func validateProviderURL(parsed *url.URL) error {

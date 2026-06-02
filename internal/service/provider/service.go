@@ -116,7 +116,7 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 		if !item.Enabled {
 			continue
 		}
-		models, err := s.enabledModelOptions(ctx, item)
+		models, err := s.enabledModelOptionsForKind(ctx, item, ProviderKindLLM)
 		if err != nil {
 			return nil, err
 		}
@@ -131,8 +131,27 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 			if isAgentRuntimeProvider(item) {
 				result.Items = append(result.Items, option)
 			}
+			imageModels, modelErr := s.enabledModelOptionsForKind(ctx, item, ProviderKindImageGeneration)
+			if modelErr != nil {
+				return nil, modelErr
+			}
+			if len(imageModels) > 0 {
+				result.ImageItems = append(result.ImageItems, Option{
+					Provider:    item.Provider,
+					DisplayName: item.DisplayName,
+					Models:      imageModels,
+				})
+			}
 		case item.ProviderKind == ProviderKindImageGeneration:
-			result.ImageItems = append(result.ImageItems, option)
+			imageModels, modelErr := s.enabledModelOptionsForKind(ctx, item, ProviderKindImageGeneration)
+			if modelErr != nil {
+				return nil, modelErr
+			}
+			result.ImageItems = append(result.ImageItems, Option{
+				Provider:    item.Provider,
+				DisplayName: item.DisplayName,
+				Models:      imageModels,
+			})
 		}
 	}
 	if target, err := s.defaultRuntimeSelection(ctx); err != nil {
@@ -511,7 +530,7 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 	if targetModel != "" {
 		modelRecord, err = s.getModelByID(ctx, target.ID, targetModel)
 	} else {
-		modelRecord, err = s.defaultOrFirstEnabledModel(ctx, target.ID)
+		modelRecord, err = s.defaultOrFirstEnabledModelForKind(ctx, *target, ProviderKindImageGeneration)
 	}
 	if err != nil {
 		return nil, err
@@ -521,6 +540,9 @@ func (s *Service) ResolveImageModelConfig(ctx context.Context, provider string, 
 	}
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("provider=%s 图片生成配置不完整: %s", target.Provider, strings.Join(missing, ", "))
+	}
+	if !modelUsableForProviderKind(*target, *modelRecord, ProviderKindImageGeneration) {
+		return nil, fmt.Errorf("provider=%s model=%s 不是图片生成模型", target.Provider, modelRecord.ModelID)
 	}
 	if !modelRecord.Enabled {
 		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, modelRecord.ModelID)
@@ -663,7 +685,8 @@ func (s *Service) defaultImageSelection(ctx context.Context) (*providerModelTarg
 		return nil, err
 	}
 	for _, item := range items {
-		if !item.Enabled || item.ProviderKind != ProviderKindImageGeneration {
+		imageProvider, ok := imageRuntimeProvider(item)
+		if !item.Enabled || !ok {
 			continue
 		}
 		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
@@ -671,8 +694,8 @@ func (s *Service) defaultImageSelection(ctx context.Context) (*providerModelTarg
 			return nil, modelErr
 		}
 		for _, model := range models {
-			if model.Enabled && model.IsDefault {
-				return &providerModelTarget{provider: item, model: model}, nil
+			if model.Enabled && model.IsDefault && modelUsableForProviderKind(item, model, ProviderKindImageGeneration) {
+				return &providerModelTarget{provider: imageProvider, model: model}, nil
 			}
 		}
 	}
@@ -765,6 +788,14 @@ func modelSelectionFromTarget(target providerModelTarget) ModelSelection {
 }
 
 func (s *Service) enabledModelOptions(ctx context.Context, item providerstore.Entity) ([]ModelOption, error) {
+	return s.enabledModelOptionsForKind(ctx, item, item.ProviderKind)
+}
+
+func (s *Service) enabledModelOptionsForKind(
+	ctx context.Context,
+	item providerstore.Entity,
+	providerKind string,
+) ([]ModelOption, error) {
 	models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
 	if err != nil {
 		return nil, err
@@ -772,6 +803,9 @@ func (s *Service) enabledModelOptions(ctx context.Context, item providerstore.En
 	result := make([]ModelOption, 0, len(models))
 	for _, model := range models {
 		if !model.Enabled || strings.TrimSpace(model.ModelID) == "" {
+			continue
+		}
+		if !modelUsableForProviderKind(item, model, providerKind) {
 			continue
 		}
 		modelID := normalizeModelID(model.ModelID)
@@ -782,6 +816,74 @@ func (s *Service) enabledModelOptions(ctx context.Context, item providerstore.En
 		})
 	}
 	return result, nil
+}
+
+func modelUsableForProviderKind(
+	item providerstore.Entity,
+	model providerstore.ModelEntity,
+	providerKind string,
+) bool {
+	switch normalizeProviderKind(providerKind) {
+	case ProviderKindImageGeneration:
+		if item.ProviderKind != ProviderKindImageGeneration && !providerSupportsImageGeneration(item) {
+			return false
+		}
+		if item.ProviderKind == ProviderKindImageGeneration && !imageProviderRequiresModelFilter(item) {
+			return true
+		}
+		return modelHasImageOutputCapability(model)
+	case ProviderKindLLM:
+		return !modelHasImageOutputCapability(model)
+	default:
+		return true
+	}
+}
+
+func modelHasImageOutputCapability(model providerstore.ModelEntity) bool {
+	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
+	if overrideCapabilities.ImageOutput != nil {
+		return *overrideCapabilities.ImageOutput
+	}
+	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
+	return autoCapabilities.ImageOutput != nil && *autoCapabilities.ImageOutput
+}
+
+func imageProviderRequiresModelFilter(item providerstore.Entity) bool {
+	preset := resolvePreset(item.PresetKey)
+	if preset.PresetKey == presetCustom {
+		return false
+	}
+	hasLLM := false
+	hasImage := false
+	for _, format := range preset.Formats {
+		switch normalizeProviderKind(format.ProviderKind) {
+		case ProviderKindLLM:
+			hasLLM = true
+		case ProviderKindImageGeneration:
+			hasImage = true
+		}
+	}
+	return hasLLM && hasImage
+}
+
+func canSetDefaultModel(item providerstore.Entity, model providerstore.ModelEntity) bool {
+	if !item.Enabled {
+		return false
+	}
+	switch item.ProviderKind {
+	case ProviderKindLLM:
+		if isAgentRuntimeProvider(item) {
+			return true
+		}
+		if !providerSupportsImageGeneration(item) {
+			return false
+		}
+		return modelUsableForProviderKind(item, model, ProviderKindImageGeneration)
+	case ProviderKindImageGeneration:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) defaultOrFirstEnabledModel(
@@ -799,6 +901,28 @@ func (s *Service) defaultOrFirstEnabledModel(
 	}
 	for _, model := range models {
 		if model.Enabled {
+			return &model, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *Service) defaultOrFirstEnabledModelForKind(
+	ctx context.Context,
+	item providerstore.Entity,
+	providerKind string,
+) (*providerstore.ModelEntity, error) {
+	models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, model := range models {
+		if model.Enabled && model.IsDefault && modelUsableForProviderKind(item, model, providerKind) {
+			return &model, nil
+		}
+	}
+	for _, model := range models {
+		if model.Enabled && modelUsableForProviderKind(item, model, providerKind) {
 			return &model, nil
 		}
 	}
@@ -934,11 +1058,38 @@ func providerKindForFormat(preset Preset, format PresetFormat, fallback string) 
 
 func isImageGenerationAPIFormat(apiFormat string) bool {
 	switch normalizeAPIFormat(apiFormat) {
-	case APIFormatDashScopeImageGeneration, APIFormatModelScopeImageGeneration:
+	case APIFormatOpenAIImageGeneration, APIFormatDashScopeImageGeneration, APIFormatModelScopeImageGeneration:
 		return true
 	default:
 		return false
 	}
+}
+
+func providerSupportsImageGeneration(item providerstore.Entity) bool {
+	_, ok := imageRuntimeProvider(item)
+	return ok
+}
+
+func imageRuntimeProvider(item providerstore.Entity) (providerstore.Entity, bool) {
+	if item.ProviderKind == ProviderKindImageGeneration {
+		return item, true
+	}
+	preset := resolvePreset(item.PresetKey)
+	if preset.PresetKey == presetCustom {
+		return providerstore.Entity{}, false
+	}
+	for _, format := range preset.Formats {
+		if normalizeProviderKind(format.ProviderKind) != ProviderKindImageGeneration {
+			continue
+		}
+		imageItem := item
+		imageItem.ProviderKind = ProviderKindImageGeneration
+		imageItem.APIFormat = normalizeAPIFormat(format.APIFormat)
+		imageItem.BaseURL = strings.TrimSpace(format.BaseURL)
+		imageItem.ModelsPath = strings.TrimSpace(format.ModelsPath)
+		return imageItem, true
+	}
+	return providerstore.Entity{}, false
 }
 
 func (s *Service) selectImageProvider(
@@ -948,27 +1099,43 @@ func (s *Service) selectImageProvider(
 ) (*providerstore.Entity, error) {
 	if targetProvider != "" {
 		for index := range items {
-			if items[index].Provider == targetProvider && items[index].ProviderKind == ProviderKindImageGeneration {
-				return &items[index], nil
+			if items[index].Provider != targetProvider {
+				continue
+			}
+			if imageItem, ok := imageRuntimeProvider(items[index]); ok {
+				return &imageItem, nil
 			}
 		}
 		return nil, fmt.Errorf("provider 不存在: %s", targetProvider)
 	}
 	for index := range items {
-		if !items[index].Enabled || items[index].ProviderKind != ProviderKindImageGeneration {
+		if !items[index].Enabled {
 			continue
 		}
-		model, err := s.defaultOrFirstEnabledModel(ctx, items[index].ID)
+		imageItem, ok := imageRuntimeProvider(items[index])
+		if !ok {
+			continue
+		}
+		model, err := s.defaultOrFirstEnabledModelForKind(ctx, items[index], ProviderKindImageGeneration)
 		if err != nil {
 			return nil, err
 		}
 		if model != nil && model.IsDefault {
-			return &items[index], nil
+			return &imageItem, nil
 		}
 	}
 	for index := range items {
-		if items[index].Enabled && items[index].ProviderKind == ProviderKindImageGeneration {
-			return &items[index], nil
+		if !items[index].Enabled {
+			continue
+		}
+		if imageItem, ok := imageRuntimeProvider(items[index]); ok {
+			model, err := s.defaultOrFirstEnabledModelForKind(ctx, items[index], ProviderKindImageGeneration)
+			if err != nil {
+				return nil, err
+			}
+			if model != nil {
+				return &imageItem, nil
+			}
 		}
 	}
 	return nil, nil

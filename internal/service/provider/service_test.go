@@ -219,6 +219,77 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		t.Fatalf("Volcengine 内置 format 应忽略错误 provider_kind: %+v", volcengineCompletions)
 	}
 
+	doubao, err := service.Create(ctx, CreateInput{
+		Provider:  "doubao",
+		PresetKey: presetDoubao,
+		AuthToken: "volcengine-key",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("创建 Doubao provider 失败: %v", err)
+	}
+	if doubao.ProviderKind != ProviderKindLLM ||
+		doubao.APIFormat != APIFormatChatCompletions ||
+		doubao.BaseURL != "https://ark.cn-beijing.volces.com/api/v3" ||
+		doubao.ModelsPath != "/models" ||
+		doubao.DisplayName != "Doubao" {
+		t.Fatalf("Doubao 默认配置不正确: %+v", doubao)
+	}
+	if doubao.AgentRuntimeSupported {
+		t.Fatalf("Doubao Chat Completions 不应成为 Agent runtime provider: %+v", doubao)
+	}
+	doubaoPreset := resolvePreset(presetDoubao)
+	if format := doubaoPreset.Format(APIFormatChatCompletions); format.ProviderKind != ProviderKindLLM ||
+		format.BaseURL != "https://ark.cn-beijing.volces.com/api/v3" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Doubao Chat Completions 分支配置不正确: %+v", format)
+	}
+	if format := doubaoPreset.Format(APIFormatResponses); format.ProviderKind != ProviderKindLLM ||
+		format.BaseURL != "https://ark.cn-beijing.volces.com/api/v3" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Doubao Responses 分支配置不正确: %+v", format)
+	}
+	if format := doubaoPreset.Format(APIFormatOpenAIImageGeneration); format.ProviderKind != ProviderKindImageGeneration ||
+		format.BaseURL != "https://ark.cn-beijing.volces.com/api/v3" ||
+		format.ModelsPath != "/models" {
+		t.Fatalf("Doubao Seedream 生图分支配置不正确: %+v", format)
+	}
+	if _, err = service.UpdateModel(ctx, "doubao", "doubao-seedream-5-0-260128", UpdateModelInput{
+		Enabled: true,
+		CapabilitiesOverride: ModelCapabilities{
+			ImageOutput: boolPointer(true),
+		},
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置 Doubao Seedream 默认生图模型失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, "doubao", "doubao-1-5-pro-32k-250115", UpdateModelInput{
+		Enabled: true,
+	}); err != nil {
+		t.Fatalf("启用 Doubao 文本模型失败: %v", err)
+	}
+	doubaoLLMConfig, err := service.ResolveLLMConfig(ctx, "doubao", "doubao-1-5-pro-32k-250115")
+	if err != nil {
+		t.Fatalf("Doubao 文本模型应可用于后端 LLM 任务: %v", err)
+	}
+	if doubaoLLMConfig.APIFormat != APIFormatChatCompletions ||
+		doubaoLLMConfig.Model != "doubao-1-5-pro-32k-250115" {
+		t.Fatalf("Doubao LLM config 不正确: %+v", doubaoLLMConfig)
+	}
+	imageConfig, err := service.ResolveImageModelConfig(ctx, "doubao", "doubao-seedream-5-0-260128")
+	if err != nil {
+		t.Fatalf("Doubao 应可解析 Seedream 生图配置: %v", err)
+	}
+	if imageConfig.APIFormat != APIFormatOpenAIImageGeneration ||
+		imageConfig.BaseURL != "https://ark.cn-beijing.volces.com/api/v3" ||
+		imageConfig.Model != "doubao-seedream-5-0-260128" {
+		t.Fatalf("Doubao Seedream 生图配置不正确: %+v", imageConfig)
+	}
+	if _, err = service.ResolveImageModelConfig(ctx, "doubao", "doubao-1-5-pro-32k-250115"); err == nil ||
+		!strings.Contains(err.Error(), "不是图片生成模型") {
+		t.Fatalf("Doubao 文本模型不应被解析为生图模型: %v", err)
+	}
+
 	dashscope, err := service.Create(ctx, CreateInput{
 		Provider:  "dashscope",
 		PresetKey: presetDashScope,
@@ -284,6 +355,16 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 	if !hasOptionProvider(options.BackgroundItems, "openai") {
 		t.Fatalf("OpenAI 应出现在后台任务模型选项: %+v", options.BackgroundItems)
+	}
+	doubaoBackground := optionByProvider(options.BackgroundItems, "doubao")
+	if doubaoBackground == nil || hasModelOption(doubaoBackground.Models, "doubao-seedream-5-0-260128") ||
+		!hasModelOption(doubaoBackground.Models, "doubao-1-5-pro-32k-250115") {
+		t.Fatalf("Doubao 背景模型选项不正确: %+v", doubaoBackground)
+	}
+	doubaoImage := optionByProvider(options.ImageItems, "doubao")
+	if doubaoImage == nil || !hasModelOption(doubaoImage.Models, "doubao-seedream-5-0-260128") ||
+		hasModelOption(doubaoImage.Models, "doubao-1-5-pro-32k-250115") {
+		t.Fatalf("Doubao 生图模型选项不正确: %+v", doubaoImage)
 	}
 }
 
@@ -696,6 +777,34 @@ func TestModelScopeImageProviderTestUsesAsyncPayload(t *testing.T) {
 	}
 	if imageConfig.APIFormat != APIFormatModelScopeImageGeneration {
 		t.Fatalf("ModelScope 生图配置未透传 api_format: %+v", imageConfig)
+	}
+}
+
+func TestDoubaoSeedreamImageProviderUsesArkImagesPayload(t *testing.T) {
+	item := providerstore.Entity{
+		ProviderKind: ProviderKindImageGeneration,
+		Provider:     "doubao",
+		PresetKey:    presetDoubao,
+		APIFormat:    APIFormatOpenAIImageGeneration,
+		BaseURL:      "https://ark.cn-beijing.volces.com/api/v3",
+	}
+	if got := endpointURL(item, item.APIFormat); got != "https://ark.cn-beijing.volces.com/api/v3/images/generations" {
+		t.Fatalf("Doubao Seedream 生图 endpoint 不正确: %s", got)
+	}
+	payload, err := minimalPayload(item, "doubao-seedream-5-0-260128")
+	if err != nil {
+		t.Fatalf("生成 Doubao Seedream 测试 payload 失败: %v", err)
+	}
+	var body map[string]any
+	if err = json.Unmarshal(payload, &body); err != nil {
+		t.Fatalf("解析 Doubao Seedream 测试 payload 失败: %v", err)
+	}
+	if body["model"] != "doubao-seedream-5-0-260128" ||
+		body["prompt"] != "ping" ||
+		body["n"] != float64(1) ||
+		body["size"] != "2K" ||
+		body["watermark"] != false {
+		t.Fatalf("Doubao Seedream 测试 payload 不正确: %+v", body)
 	}
 }
 
@@ -1634,8 +1743,21 @@ func (h *captureSlogHandler) messages() []string {
 }
 
 func hasOptionProvider(items []Option, provider string) bool {
+	return optionByProvider(items, provider) != nil
+}
+
+func optionByProvider(items []Option, provider string) *Option {
+	for index := range items {
+		if items[index].Provider == provider {
+			return &items[index]
+		}
+	}
+	return nil
+}
+
+func hasModelOption(items []ModelOption, modelID string) bool {
 	for _, item := range items {
-		if item.Provider == provider {
+		if item.ModelID == modelID {
 			return true
 		}
 	}

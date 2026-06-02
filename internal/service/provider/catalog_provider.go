@@ -15,6 +15,7 @@ const (
 	presetGLMCodingPlan = "glm-coding-plan"
 	presetKimiCode      = "kimi-code"
 	presetVolcengine    = "volcengine-coding-plan"
+	presetDoubao        = "doubao"
 	presetDashScope     = "dashscope"
 	presetModelScope    = "modelscope"
 	presetCustom        = "custom"
@@ -172,6 +173,34 @@ var providerPresets = []Preset{
 		},
 	},
 	{
+		PresetKey:     presetDoubao,
+		ProviderKind:  ProviderKindLLM,
+		DisplayName:   "Doubao",
+		Description:   "Volcengine Ark Doubao provider with Chat Completions, Responses, and Seedream image generation branches.",
+		KeyURL:        "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
+		DefaultFormat: APIFormatChatCompletions,
+		Formats: []PresetFormat{
+			{
+				ProviderKind: ProviderKindLLM,
+				APIFormat:    APIFormatChatCompletions,
+				BaseURL:      "https://ark.cn-beijing.volces.com/api/v3",
+				ModelsPath:   "/models",
+			},
+			{
+				ProviderKind: ProviderKindLLM,
+				APIFormat:    APIFormatResponses,
+				BaseURL:      "https://ark.cn-beijing.volces.com/api/v3",
+				ModelsPath:   "/models",
+			},
+			{
+				ProviderKind: ProviderKindImageGeneration,
+				APIFormat:    APIFormatOpenAIImageGeneration,
+				BaseURL:      "https://ark.cn-beijing.volces.com/api/v3",
+				ModelsPath:   "/models",
+			},
+		},
+	},
+	{
 		PresetKey:     presetDashScope,
 		ProviderKind:  ProviderKindLLM,
 		DisplayName:   "DashScope",
@@ -237,6 +266,7 @@ var providerPresets = []Preset{
 			{APIFormat: APIFormatChatCompletions, ModelsPath: "/models"},
 			{APIFormat: APIFormatResponses, ModelsPath: "/models"},
 			{APIFormat: APIFormatAnthropicMessages, ModelsPath: "/v1/models"},
+			{ProviderKind: ProviderKindImageGeneration, APIFormat: APIFormatOpenAIImageGeneration, ModelsPath: "/models"},
 			{
 				APIFormat:  APIFormatDashScopeImageGeneration,
 				BaseURL:    "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
@@ -290,7 +320,7 @@ func clonePreset(preset Preset) Preset {
 
 func normalizeAPIFormat(apiFormat string) string {
 	switch strings.TrimSpace(apiFormat) {
-	case APIFormatChatCompletions, APIFormatResponses, APIFormatAnthropicMessages, APIFormatDashScopeImageGeneration, APIFormatModelScopeImageGeneration:
+	case APIFormatChatCompletions, APIFormatResponses, APIFormatAnthropicMessages, APIFormatOpenAIImageGeneration, APIFormatDashScopeImageGeneration, APIFormatModelScopeImageGeneration:
 		return strings.TrimSpace(apiFormat)
 	case "":
 		return ""

@@ -210,6 +210,9 @@ func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
 		if body["model"] != "gpt-image-1" || body["prompt"] != "a clean product photo" {
 			t.Fatalf("unexpected request body: %+v", body)
 		}
+		if body["response_format"] != "b64_json" {
+			t.Fatalf("provider_options 未透传到 OpenAI-compatible 请求体: %+v", body)
+		}
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"data": []map[string]any{{
@@ -226,6 +229,9 @@ func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
 		AuthToken: "test-token",
 		BaseURL:   server.URL + "/v1",
 		Model:     "gpt-image-1",
+		ProviderOptions: map[string]any{
+			"response_format": "b64_json",
+		},
 	}})
 	service.now = fixedNow
 
@@ -245,6 +251,75 @@ func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
 	}
 	if result.MIMEType != "image/png" {
 		t.Fatalf("unexpected mime: %s", result.MIMEType)
+	}
+	stored, err := os.ReadFile(filepath.Join(workspacePath, filepath.FromSlash(result.Path)))
+	if err != nil {
+		t.Fatalf("read generated file: %v", err)
+	}
+	if string(stored) != string(imageBytes) {
+		t.Fatalf("stored file mismatch")
+	}
+}
+
+func TestGenerateImageCallsDoubaoSeedreamProviderAndWritesFile(t *testing.T) {
+	imageBytes := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+	}
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/api/v3/images/generations":
+			if request.Header.Get("Authorization") != "Bearer doubao-token" {
+				t.Fatalf("unexpected auth: %q", request.Header.Get("Authorization"))
+			}
+			var body map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			if body["model"] != "doubao-seedream-5-0-260128" || body["prompt"] != "A golden cat" {
+				t.Fatalf("unexpected request body: %+v", body)
+			}
+			if body["size"] != "2K" || body["watermark"] != false || body["response_format"] != "url" {
+				t.Fatalf("Doubao Seedream 默认参数不正确: %+v", body)
+			}
+			writer.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"data": []map[string]any{{
+					"url": server.URL + "/doubao.png",
+				}},
+			})
+		case "/doubao.png":
+			writer.Header().Set("Content-Type", "image/png")
+			_, _ = writer.Write(imageBytes)
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	workspacePath := t.TempDir()
+	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
+		Provider:  "doubao",
+		AuthToken: "doubao-token",
+		BaseURL:   server.URL + "/api/v3",
+		Model:     "doubao-seedream-5-0-260128",
+		ProviderOptions: map[string]any{
+			"response_format": "url",
+		},
+	}})
+	result, payload, err := service.GenerateImage(context.Background(), GenerateInput{
+		Prompt:        "A golden cat",
+		WorkspacePath: workspacePath,
+		FileName:      "doubao-cat",
+	})
+	if err != nil {
+		t.Fatalf("GenerateImage returned error: %v", err)
+	}
+	if string(payload) != string(imageBytes) {
+		t.Fatalf("payload mismatch")
+	}
+	if result.Provider != "doubao" || result.Model != "doubao-seedream-5-0-260128" || result.Size != "2K" {
+		t.Fatalf("unexpected result metadata: %+v", result)
 	}
 	stored, err := os.ReadFile(filepath.Join(workspacePath, filepath.FromSlash(result.Path)))
 	if err != nil {

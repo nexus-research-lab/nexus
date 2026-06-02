@@ -120,6 +120,7 @@ const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Chat Completions (/chat/completions)",
   responses: "Responses (/responses)",
   anthropic_messages: "Anthropic Messages (/v1/messages)",
+  openai_image_generation: "OpenAI Image Generation (/images/generations)",
   dashscope_image_generation: "DashScope Image Generation",
   modelscope_image_generation: "ModelScope Image Generation",
 };
@@ -128,6 +129,7 @@ const API_FORMAT_SHORT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Completions",
   responses: "Responses",
   anthropic_messages: "Anthropic",
+  openai_image_generation: "OpenAI Image",
   dashscope_image_generation: "DashScope Image",
   modelscope_image_generation: "ModelScope Image",
 };
@@ -136,6 +138,7 @@ const AUTO_TEST_MODEL_VALUE = "__auto__";
 const SUPPORTED_AGENT_API_FORMAT: ProviderApiFormat = "anthropic_messages";
 const SUPPORTED_IMAGE_API_FORMATS = new Set<ProviderApiFormat>([
   "chat_completions",
+  "openai_image_generation",
   "dashscope_image_generation",
   "modelscope_image_generation",
 ]);
@@ -150,6 +153,7 @@ const PRESET_PROVIDER_KEYS: Record<string, string> = {
   "glm-coding-plan": "glm-coding-plan",
   "kimi-code": "kimi-code",
   "volcengine-coding-plan": "volcengine-coding-plan",
+  doubao: "doubao",
   dashscope: "dashscope",
   modelscope: "modelscope",
   "azure": "azure",
@@ -179,6 +183,10 @@ function get_supported_preset_format(preset: ProviderPreset | null, provider_kin
     return null;
   }
   const target_kind = provider_kind ?? preset.provider_kind;
+  const explicit_format = preset.formats.find((item) => item.provider_kind === target_kind);
+  if (explicit_format) {
+    return explicit_format;
+  }
   return preset.formats.find((item) => format_supports_provider_kind(item, target_kind)) ?? null;
 }
 

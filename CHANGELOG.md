@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI skill path.
+- Added a built-in Doubao provider with Volcengine Ark text and Seedream image-generation branches.
 
 ### Changed
 - Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
