@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -288,6 +289,35 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 	for _, fileName := range []string{"SOUL.md", "TOOLS.md", "RUNBOOK.md"} {
 		if _, err := os.Stat(filepath.Join(mainRoot, fileName)); !os.IsNotExist(err) {
 			t.Fatalf("main agent 不应默认生成 %s: %v", fileName, err)
+		}
+	}
+}
+
+func TestEnsureInitializedSerializesConcurrentSkillDeployment(t *testing.T) {
+	root := t.TempDir()
+	createdAt := time.Now()
+	const workerCount = 16
+
+	var wg sync.WaitGroup
+	errs := make(chan error, workerCount)
+	for index := 0; index < workerCount; index++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- EnsureInitialized("agent-1", "Planner", root, false, createdAt)
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("并发初始化 workspace 不应互相删除托管 skill: %v", err)
+		}
+	}
+	for _, skillName := range managedSkillNames(false) {
+		if _, err := os.Stat(filepath.Join(root, ".agents", "skills", skillName, "SKILL.md")); err != nil {
+			t.Fatalf("并发初始化后托管 skill 缺失 %s: %v", skillName, err)
 		}
 	}
 }
