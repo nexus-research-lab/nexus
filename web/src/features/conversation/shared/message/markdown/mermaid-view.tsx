@@ -27,7 +27,7 @@ import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
 import { DIALOG_ICON_BUTTON_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { useMermaidSvg } from "./use-mermaid-svg";
 
-interface MermaidViewProps {
+export interface MermaidViewProps {
   chart: string;
   compact?: boolean;
   class_name?: string;

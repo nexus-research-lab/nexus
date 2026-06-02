@@ -24,7 +24,7 @@ import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { type WorkspaceFileEntry } from "@/types/agent/agent";
 import { find_open_markdown_fence_language, read_markdown_fence_marker } from "./markdown-fence";
 import { remarkInlineHtmlTags, remarkMarkdownBreaks } from "./markdown-text-plugins";
-import { MermaidView } from "./mermaid-view";
+import { LazyMermaidView } from "./lazy-mermaid-view";
 
 import { CodeBlock } from "../blocks/code-block";
 
@@ -540,7 +540,7 @@ export function create_markdown_components(
         const language = /language-(\w+)/.exec(className || "")?.[1] || "text";
         if (language.toLowerCase() === "mermaid" || language.toLowerCase() === "mmd") {
           return (
-            <MermaidView
+            <LazyMermaidView
               chart={value}
               compact={options.compact_mermaid ?? true}
               is_streaming={options.stream_mermaid}

@@ -4,7 +4,7 @@ set -euo pipefail
 
 : "${DATABASE_DRIVER:=sqlite}"
 : "${DATABASE_URL:=sqlite:////home/agent/.nexus/data/nexus.db}"
-: "${PNPM_REGISTRY:=https://registry.npmmirror.com/}"
+: "${PNPM_REGISTRY:=https://registry.npmjs.org/}"
 : "${BUN_CONFIG_REGISTRY:=${PNPM_REGISTRY}}"
 : "${PIP_INDEX_URL:=https://pypi.tuna.tsinghua.edu.cn/simple}"
 : "${PIP_BREAK_SYSTEM_PACKAGES:=1}"

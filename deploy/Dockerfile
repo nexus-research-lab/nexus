@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM ${NODE_IMAGE} AS web-builder
 
-ARG PNPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG VITE_WS_URL=
 ARG VITE_API_URL=
@@ -82,10 +82,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn
 ARG DEBIAN_SECURITY_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/debian-security
-ARG PNPM_REGISTRY=https://registry.npmmirror.com/
+ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com/
+ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
