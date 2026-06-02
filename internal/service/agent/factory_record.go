@@ -78,7 +78,7 @@ func BuildDefaultMainAgentRecord(cfg config.Config, ownerUserID string) agentrep
 
 func defaultMainAgentOptions() protocol.Options {
 	return protocol.Options{
-		AllowedTools:   []string{"AskUserQuestion", "Bash", "Edit", "Glob", "Grep", "LS", "Read", "Skill", "TodoWrite", "WebFetch", "WebSearch", "Write", "nexus_imagegen"},
+		AllowedTools:   []string{},
 		PermissionMode: "default",
 		SettingSources: []string{"project"},
 	}

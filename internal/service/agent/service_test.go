@@ -46,6 +46,12 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].Options.Provider != "" {
 		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
 	}
+	if items[0].Options.PermissionMode != "default" {
+		t.Fatalf("主智能体默认权限应为询问模式: %+v", items[0].Options)
+	}
+	if len(items[0].Options.AllowedTools) != 0 {
+		t.Fatalf("主智能体默认不应预授权工具: %+v", items[0].Options.AllowedTools)
+	}
 	assertRuntimeEmotionStateFile(t, items[0].WorkspacePath)
 
 	validation, err := service.ValidateName(ctx, "测试助手", "")

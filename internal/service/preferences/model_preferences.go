@@ -30,29 +30,9 @@ type ModelSelection struct {
 	Model    string `json:"model,omitempty"`
 }
 
-// DefaultAllowedTools 返回新建 Agent 默认启用的工具集合。
+// DefaultAllowedTools 返回新建 Agent 默认预授权工具集合。
 func DefaultAllowedTools() []string {
-	return []string{
-		"Task",
-		"TaskOutput",
-		"Bash",
-		"Glob",
-		"Grep",
-		"LS",
-		"ExitPlanMode",
-		"Read",
-		"Edit",
-		"Write",
-		"NotebookEdit",
-		"WebFetch",
-		"TodoWrite",
-		"WebSearch",
-		"KillShell",
-		"AskUserQuestion",
-		"Skill",
-		"EnterPlanMode",
-		"nexus_imagegen",
-	}
+	return []string{}
 }
 
 // DefaultPreferences 返回系统默认偏好。
@@ -60,7 +40,7 @@ func DefaultPreferences() Preferences {
 	return normalizePreferences(Preferences{
 		ChatDefaultDeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 		DefaultAgentOptions: protocol.Options{
-			PermissionMode:  "bypassPermissions",
+			PermissionMode:  "default",
 			AllowedTools:    DefaultAllowedTools(),
 			DisallowedTools: []string{},
 			SettingSources:  []string{"project"},
@@ -75,7 +55,7 @@ func normalizePreferences(item Preferences) Preferences {
 	}
 	options := item.DefaultAgentOptions
 	if strings.TrimSpace(options.PermissionMode) == "" {
-		options.PermissionMode = "bypassPermissions"
+		options.PermissionMode = "default"
 	}
 	options.PermissionMode = strings.TrimSpace(options.PermissionMode)
 	options.Provider = strings.TrimSpace(options.Provider)
