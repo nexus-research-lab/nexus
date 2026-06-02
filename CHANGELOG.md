@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a built-in Doubao provider with Volcengine Ark text and Seedream image-generation branches.
 
 ### Changed
+- Hid public landing page launcher entry actions and refined the landing footer while keeping the authenticated launcher route available.
 - Moved the authenticated Launcher route from `/` to `/launcher` so browser users no longer land directly on the login page, and updated desktop launcher entry routes to keep packaged apps opening the authenticated launcher.
 - Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
 - Removed window controller/observer session-control behavior from chat sessions; bound clients now receive permission and session-status events without a primary-window role, and composer attachment hints are shorter.

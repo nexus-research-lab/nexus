@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  ArrowRight,
   Brain,
   CalendarClock,
   CheckCircle2,
@@ -342,12 +341,7 @@ function LandingHeader() {
           <a href="#control">Control</a>
         </nav>
 
-        <div className="landing-actions">
-          <Link className="landing-primary-button" to={APP_ROUTE_PATHS.launcher}>
-            Enter app
-            <ArrowRight size={15} />
-          </Link>
-        </div>
+        <div className="landing-actions landing-actions-placeholder" aria-hidden="true" />
       </div>
     </header>
   );
@@ -402,12 +396,6 @@ function HeroSection() {
           <p className="landing-hero-copy">
             Rooms, DMs, skills, connectors, memory, schedules, and workspace files share one operating surface.
           </p>
-          <div className="landing-hero-actions">
-            <Link className="landing-primary-button" to={APP_ROUTE_PATHS.launcher}>
-              Enter Nexus
-              <ArrowRight size={15} />
-            </Link>
-          </div>
         </div>
         <HeroSignal />
       </div>
@@ -836,21 +824,31 @@ function FinalCta() {
         <img alt="" src="/logo.webp" />
         <h2>Start from the launcher.</h2>
         <p>Route the task, keep the files, review the run.</p>
-        <Link className="landing-primary-button" to={APP_ROUTE_PATHS.launcher}>
-          Enter Nexus
-          <ArrowRight size={15} />
-        </Link>
       </div>
     </section>
   );
 }
 
-function IcpFooter() {
+function LandingFooter() {
   return (
-    <footer className="landing-icp-footer" aria-label="ICP filing">
-      <a href="https://beian.miit.gov.cn/" rel="noreferrer" target="_blank">
-        粤ICP备2023024185号-2
-      </a>
+    <footer className="landing-footer">
+      <div className="landing-section landing-footer-inner">
+        <div className="landing-footer-brand">
+          <div className="landing-footer-mark">
+            <img alt="" src="/logo.webp" />
+          </div>
+          <div>
+            <strong>Nexus</strong>
+            <p>Agent work, routed and reviewed in one workspace.</p>
+          </div>
+        </div>
+
+        <div className="landing-footer-bottom">
+          <a href="https://beian.miit.gov.cn/" rel="noreferrer" target="_blank">
+            粤ICP备2023024185号-2
+          </a>
+        </div>
+      </div>
     </footer>
   );
 }
@@ -865,7 +863,7 @@ export function LandingPage() {
       <CapabilitiesSection />
       <ControlSection />
       <FinalCta />
-      <IcpFooter />
+      <LandingFooter />
     </main>
   );
 }
