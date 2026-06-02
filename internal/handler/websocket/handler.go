@@ -560,7 +560,7 @@ func chatErrorDetail(err error) string {
 		strings.Contains(message, "claude.exe") ||
 		strings.Contains(message, "claude.cmd") ||
 		strings.Contains(message, "claude.ps1"):
-		return "未找到 Claude Code 命令，Agent 无法启动。请先安装 Claude Code，并在 PowerShell 里运行 `claude` 完成登录；如果已经安装，请确认 `claude` 在 PATH 中可用，或设置 NEXUS_CLAUDE_COMMAND_PATH 指向 claude.exe/claude.cmd。"
+		return "未找到 Claude Code 命令，Agent 无法启动。请先排查：macOS/Linux/WSL 运行 `command -v claude && claude --version && claude doctor`，Windows PowerShell 运行 `where.exe claude; claude --version; claude doctor`。如果尚未安装，可选择官方安装命令：macOS/Linux/WSL `curl -fsSL https://claude.ai/install.sh | bash`，macOS Homebrew `brew install --cask claude-code`，Windows PowerShell `irm https://claude.ai/install.ps1 | iex`，Windows WinGet `winget install Anthropic.ClaudeCode`，npm `npm install -g @anthropic-ai/claude-code`。安装后运行 `claude` 完成登录；如果终端可用但 Nexus 仍找不到，请设置 NEXUS_CLAUDE_COMMAND_PATH 指向可执行文件，例如 `~/.local/bin/claude`、`/opt/homebrew/bin/claude` 或 `claude.cmd`。"
 	case strings.Contains(message, "LLM Provider") ||
 		strings.Contains(message, "provider=") ||
 		strings.Contains(message, "Provider"):

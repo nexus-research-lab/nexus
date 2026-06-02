@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed desktop Agent startup failing to find Claude Code from native, Homebrew, Linux package, or common Node version-manager installs when GUI launches omit shell PATH entries, and expanded missing-command guidance with diagnostic and install commands.
+
 ## [0.1.13] - 2026-06-02
 
 ### Added
