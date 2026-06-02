@@ -7,20 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-06-02
+
 ### Added
-- Added a public Nexus landing page at `/` with a real workbench component preview, capability storytelling, and entry links before authentication.
-- Added the public ICP filing link on the Nexus landing page footer for deployment compliance.
-- Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI skill path.
+- Added a public Nexus landing page at `/` with a real workbench preview, capability storytelling, unauthenticated entry links, and an ICP filing footer link for deployment compliance.
+- Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI Skill path.
 - Added a built-in Doubao provider with Volcengine Ark text and Seedream image-generation branches.
 
 ### Changed
-- Hid public landing page launcher entry actions and refined the landing footer while keeping the authenticated launcher route available.
-- Moved the authenticated Launcher route from `/` to `/launcher` so browser users no longer land directly on the login page, and updated desktop launcher entry routes to keep packaged apps opening the authenticated launcher.
-- Changed Agent creation and renaming so `agent_id` is the identity anchor and Agent names are display labels that can be reused.
-- Removed window controller/observer session-control behavior from chat sessions; bound clients now receive permission and session-status events without a primary-window role, and composer attachment hints are shorter.
-- Changed Room communication to use built-in `nexus_room` runtime tools instead of `nexusctl` Bash calls, removing the old Room message send/publish CLI control path.
-- Tightened chat message typography and spacing for narrow workspace columns.
-- Added a collapsible left sidebar that auto-collapses on narrow screens while right-side panels are open.
+- Moved the authenticated Launcher route from `/` to `/launcher`, refined public landing actions, and updated desktop launcher routes so packaged apps still open the authenticated launcher.
+- Changed Agent identity to be anchored on `agent_id`; Agent names are now reusable display labels during creation and rename.
+- Changed Room communication to use built-in `nexus_room` runtime tools instead of `nexusctl` Bash calls, and removed window controller/observer session-control roles from chat sessions.
+- Refined conversation responsiveness with tighter narrow-column typography, shorter attachment hints, a collapsible left sidebar, and lazy-loaded Mermaid rendering.
+- Updated the bridge SDK to v0.1.2 and defaulted pnpm registry configuration to npmjs for audit compatibility.
 
 ### Fixed
 - Fixed built-in Provider settings so preset API format and Provider kind are derived internally instead of exposed as selectable controls.
@@ -29,8 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed DM runtime startup so stale SDK resume IDs are cleared and retried once instead of leaving the client disconnected.
 - Fixed group Thread opening while history, workspace, or about panels are active.
 - Fixed shared WebSocket workspace subscriptions so sidebar task status and active chat workspace events do not cancel each other while switching between running tasks.
-- Fixed workspace file actions so generated HTML files are revealed in Finder from the desktop app instead of navigating away from the Nexus interface.
-- Fixed Windows Claude Code runtime startup by bypassing npm `.cmd` shims and moving large system prompt/MCP payloads into local argument files to avoid command-line length limits.
+- Fixed desktop file actions, desktop update checks, WebView recovery, and Windows Claude Code runtime startup by bypassing npm `.cmd` shims and moving large system prompt/MCP payloads into local argument files.
 
 ## [0.1.12] - 2026-05-29
 
