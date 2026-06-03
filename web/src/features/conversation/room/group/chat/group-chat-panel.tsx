@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -34,7 +34,6 @@ import {
   type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
-import { RoomGoalPanel } from "./room-goal-panel";
 import { useRoomComposerHandlers } from "./use-room-composer-handlers";
 import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
@@ -80,8 +79,6 @@ export function GroupChatPanel({
   conversation_id,
   room_id = null,
   room_members,
-  room_host_agent_id,
-  room_host_auto_reply_enabled = false,
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
@@ -101,21 +98,14 @@ export function GroupChatPanel({
     ? build_room_shared_session_key(conversation_id)
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
-  const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
-  const refresh_goal_panel = useCallback(() => {
-    set_goal_refresh_seq((value) => value + 1);
-  }, []);
   const handle_conversation_event = useCallback(
     (
       event_type: string,
       data: import("@/types/agent/agent-conversation").RoomEventPayload,
     ) => {
-      if (event_type.startsWith("goal_")) {
-        refresh_goal_panel();
-      }
       on_room_event?.(event_type, data);
     },
-    [on_room_event, refresh_goal_panel],
+    [on_room_event],
   );
   const session_identity = useMemo<AgentConversationIdentity | null>(() => {
     if (!conversation_id) {
@@ -453,17 +443,6 @@ export function GroupChatPanel({
           {show_provider_warning ? (
             <ProviderUnavailableBanner compact={is_mobile_layout} />
           ) : null}
-
-          <RoomGoalPanel
-            activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
-            can_control_session={can_control_session}
-            is_loading={is_loading}
-            is_mobile_layout={is_mobile_layout}
-            room_host_agent_id={room_host_agent_id}
-            room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-            room_members={room_members}
-            session_key={session_key}
-          />
 
           <ComposerPanel
             allow_send_while_loading
