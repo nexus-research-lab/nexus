@@ -27,6 +27,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Sparkles,
+  Terminal,
   UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -71,7 +72,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { ProviderOption } from "@/types/capability/provider";
-import type { UserPreferences } from "@/types/settings/preferences";
+import type { AgentRuntimeKind, UserPreferences } from "@/types/settings/preferences";
 import type { Locale } from "@/shared/i18n/messages";
 
 import { ProviderSettingsPanel } from "./provider-settings-panel";
@@ -96,6 +97,14 @@ const DELIVERY_POLICY_OPTIONS: ReadonlyArray<{
 }> = [
   { value: "queue", label_key: "settings.general.default_delivery_queue" },
   { value: "interrupt", label_key: "settings.general.default_delivery_interrupt" },
+];
+
+const AGENT_RUNTIME_KIND_OPTIONS: ReadonlyArray<{
+  value: AgentRuntimeKind;
+  label_key: "settings.general.runtime_claude" | "settings.general.runtime_nxs";
+}> = [
+  { value: "claude", label_key: "settings.general.runtime_claude" },
+  { value: "nxs", label_key: "settings.general.runtime_nxs" },
 ];
 
 const THEME_OPTIONS: ReadonlyArray<{
@@ -186,6 +195,9 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
   return {
     chat_default_delivery_policy:
       preferences?.chat_default_delivery_policy ?? fallback.chat_default_delivery_policy,
+    agent_runtime_kind: normalize_agent_runtime_kind(
+      preferences?.agent_runtime_kind ?? fallback.agent_runtime_kind,
+    ),
     default_agent_options: {
       ...fallback.default_agent_options,
       ...(preferences?.default_agent_options ?? {}),
@@ -213,6 +225,10 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
     ),
     updated_at: preferences?.updated_at,
   };
+}
+
+function normalize_agent_runtime_kind(value?: string | null): AgentRuntimeKind {
+  return value?.trim() === "nxs" ? "nxs" : "claude";
 }
 
 function normalize_model_selection_preference(
@@ -288,6 +304,7 @@ function GeneralSettingsSection() {
   const provider_default_selection_ref = useRef({ provider: "", model: "" });
   const image_default_selection_ref = useRef({ provider: "", model: "" });
   const save_sequence_ref = useRef(0);
+  const agent_runtime_kind = normalize_agent_runtime_kind(preferences.agent_runtime_kind);
   const permission_mode = preferences.default_agent_options.permission_mode ?? DEFAULT_AGENT_PERMISSION_MODE;
   const selected_permission_mode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permission_mode) ?? AGENT_PERMISSION_MODES[0];
   const [desktop_available] = useState(() => is_desktop_bridge_available());
@@ -468,6 +485,7 @@ function GeneralSettingsSection() {
     try {
       const result = await update_user_preferences_api({
         chat_default_delivery_policy: normalized.chat_default_delivery_policy,
+        agent_runtime_kind: normalized.agent_runtime_kind,
         default_agent_options: normalized.default_agent_options,
         default_image_model_selection: normalized.default_image_model_selection,
         default_background_model_selection: normalized.default_background_model_selection,
@@ -505,6 +523,14 @@ function GeneralSettingsSection() {
     void persist_preferences({
       ...current_preferences,
       chat_default_delivery_policy: value,
+    });
+  }, [persist_preferences]);
+
+  const handle_agent_runtime_kind_change = useCallback((value: AgentRuntimeKind) => {
+    const current_preferences = preferences_ref.current;
+    void persist_preferences({
+      ...current_preferences,
+      agent_runtime_kind: value,
     });
   }, [persist_preferences]);
 
@@ -595,6 +621,7 @@ function GeneralSettingsSection() {
         set_user_preferences(next_preferences);
         const result = await update_user_preferences_api({
           chat_default_delivery_policy: next_preferences.chat_default_delivery_policy,
+          agent_runtime_kind: next_preferences.agent_runtime_kind,
           default_agent_options: next_preferences.default_agent_options,
           default_image_model_selection: next_preferences.default_image_model_selection,
           default_background_model_selection: next_preferences.default_background_model_selection,
@@ -926,6 +953,39 @@ function GeneralSettingsSection() {
                   label: t(option.label_key),
                 }))}
                 value={preferences.chat_default_delivery_policy}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Terminal className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.agent_runtime_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.agent_runtime_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.agent_runtime_label")}
+              </span>
+              <SettingsSegmentedControl
+                aria_label={t("settings.general.agent_runtime_label")}
+                disabled={preferences_loading || preferences_saving}
+                on_change={handle_agent_runtime_kind_change}
+                options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.label_key),
+                }))}
+                value={agent_runtime_kind}
               />
             </div>
           </div>

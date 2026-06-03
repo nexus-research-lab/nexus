@@ -41,6 +41,7 @@ func TestResolveClaudeCommandConfigBypassesWindowsNpmShim(t *testing.T) {
 	scriptPath := filepath.Clean(filepath.Join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code", "cli.js"))
 	nodePath := `C:\Program Files\nodejs\node.exe`
 	got := resolveClaudeCommandConfigWith(
+		"",
 		"windows",
 		fakeEnv(map[string]string{"APPDATA": appData}),
 		func(name string) (string, error) {
@@ -73,6 +74,7 @@ func TestResolveClaudeCommandConfigFallsBackWhenShimScriptMissing(t *testing.T) 
 	appData := `C:\Users\lee\AppData\Roaming`
 	shimPath := filepath.Join(appData, "npm", "claude.cmd")
 	got := resolveClaudeCommandConfigWith(
+		"",
 		"windows",
 		fakeEnv(map[string]string{"APPDATA": appData}),
 		func(name string) (string, error) {
@@ -88,6 +90,101 @@ func TestResolveClaudeCommandConfigFallsBackWhenShimScriptMissing(t *testing.T) 
 	)
 	if got.CLIPath != shimPath || got.Executable != "" || got.PathToExecutable != "" {
 		t.Fatalf("找不到 npm script 时应回退到原 CLIPath: %+v", got)
+	}
+}
+
+func TestResolveRuntimeCommandPathDefersNXSRuntimeKindToBridge(t *testing.T) {
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"darwin",
+		fakeEnv(nil),
+		func(name string) (string, error) {
+			if name == "nxs" {
+				return "/Users/lee/bin/nxs", nil
+			}
+			return "", os.ErrNotExist
+		},
+		func(string) bool { return false },
+		fakeGlob(nil),
+	)
+	if got != "" {
+		t.Fatalf("nxs runtime 默认应交给 bridge 解析: got=%q", got)
+	}
+}
+
+func TestResolveRuntimeCommandPathUsesNXSOverride(t *testing.T) {
+	expected := "/tmp/custom-nxs"
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"darwin",
+		fakeEnv(map[string]string{nexusNXSCommandPathEnvName: expected}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(string) bool { return false },
+		fakeGlob(nil),
+	)
+	if got != expected {
+		t.Fatalf("NEXUS_NXS_COMMAND_PATH override 未生效: got=%q want=%q", got, expected)
+	}
+}
+
+func TestResolveRuntimeCommandPathIgnoresClaudeOverrideForNXS(t *testing.T) {
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"darwin",
+		fakeEnv(map[string]string{
+			nexusClaudeCommandPathEnvName: "/tmp/manual-claude",
+		}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(string) bool { return false },
+		fakeGlob(nil),
+	)
+	if got != "" {
+		t.Fatalf("NEXUS_CLAUDE_COMMAND_PATH 不应覆盖 nxs runtime: got=%q", got)
+	}
+}
+
+func TestResolveRuntimeCommandPathUsesEnvRuntimeKind(t *testing.T) {
+	got := resolveRuntimeCommandPathWith(
+		"",
+		"darwin",
+		fakeEnv(map[string]string{
+			nexusAgentRuntimeKindEnvName: "nxs",
+		}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(string) bool { return false },
+		fakeGlob(nil),
+	)
+	if got != "" {
+		t.Fatalf("NEXUS_AGENT_RUNTIME_KIND=nxs 应交给 bridge 解析: got=%q", got)
+	}
+}
+
+func TestResolveRuntimeCommandPathAllowsEnvRuntimeKindOverrideToClaude(t *testing.T) {
+	expected := "/opt/homebrew/bin/claude"
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"darwin",
+		fakeEnv(map[string]string{nexusAgentRuntimeKindEnvName: "claude"}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(path string) bool { return path == expected },
+		fakeGlob(nil),
+	)
+	if got != expected {
+		t.Fatalf("NEXUS_AGENT_RUNTIME_KIND=claude 应覆盖 nxs 输入: got=%q want=%q", got, expected)
+	}
+}
+
+func TestResolveRuntimeCommandPathDefersNXSFallbackToBridge(t *testing.T) {
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"darwin",
+		fakeEnv(nil),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(string) bool { return false },
+		fakeGlob(nil),
+	)
+	if got != "" {
+		t.Fatalf("nxs fallback 应交给 bridge 处理: got=%q", got)
 	}
 }
 

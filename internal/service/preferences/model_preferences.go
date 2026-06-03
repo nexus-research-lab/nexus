@@ -10,6 +10,7 @@ import (
 // Preferences 表示当前用户的界面与运行默认偏好。
 type Preferences struct {
 	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
+	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
 	DefaultImageModelSelection      ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultBackgroundModelSelection ModelSelection              `json:"default_background_model_selection,omitempty"`
@@ -19,6 +20,7 @@ type Preferences struct {
 // UpdateRequest 表示偏好更新请求。字段为 nil 时保留原值。
 type UpdateRequest struct {
 	ChatDefaultDeliveryPolicy       *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
+	AgentRuntimeKind                *string                      `json:"agent_runtime_kind,omitempty"`
 	DefaultAgentOptions             *protocol.Options            `json:"default_agent_options,omitempty"`
 	DefaultImageModelSelection      *ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultBackgroundModelSelection *ModelSelection              `json:"default_background_model_selection,omitempty"`
@@ -39,6 +41,7 @@ func DefaultAllowedTools() []string {
 func DefaultPreferences() Preferences {
 	return normalizePreferences(Preferences{
 		ChatDefaultDeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+		AgentRuntimeKind:          "claude",
 		DefaultAgentOptions: protocol.Options{
 			PermissionMode:  "default",
 			AllowedTools:    DefaultAllowedTools(),
@@ -53,6 +56,7 @@ func normalizePreferences(item Preferences) Preferences {
 	if policy == "" {
 		policy = protocol.ChatDeliveryPolicyQueue
 	}
+	runtimeKind := normalizeRuntimeKind(item.AgentRuntimeKind)
 	options := item.DefaultAgentOptions
 	if strings.TrimSpace(options.PermissionMode) == "" {
 		options.PermissionMode = "default"
@@ -75,10 +79,20 @@ func normalizePreferences(item Preferences) Preferences {
 	}
 	return Preferences{
 		ChatDefaultDeliveryPolicy:       policy,
+		AgentRuntimeKind:                runtimeKind,
 		DefaultAgentOptions:             options,
 		DefaultImageModelSelection:      normalizeModelSelection(item.DefaultImageModelSelection),
 		DefaultBackgroundModelSelection: normalizeModelSelection(item.DefaultBackgroundModelSelection),
 		UpdatedAt:                       strings.TrimSpace(item.UpdatedAt),
+	}
+}
+
+func normalizeRuntimeKind(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "nxs":
+		return "nxs"
+	default:
+		return "claude"
 	}
 }
 

@@ -1848,6 +1848,7 @@ func TestServiceHandleChatUsesPreferenceDefaultModelForIncompleteAgentSelection(
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	service.SetProviderResolver(providerService)
 	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		AgentRuntimeKind: "nxs",
 		DefaultAgentOptions: protocol.Options{
 			Provider: "deepseek",
 			Model:    "deepseek-v4-flash",
@@ -1876,6 +1877,9 @@ func TestServiceHandleChatUsesPreferenceDefaultModelForIncompleteAgentSelection(
 	}
 	if options.Env["NEXUS_RUNTIME_PROVIDER"] != "deepseek" {
 		t.Fatalf("runtime 未使用常规设置默认 Provider: %+v", options.Env)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("runtime 未使用常规设置中的 nxs: %+v", options)
 	}
 }
 

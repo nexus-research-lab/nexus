@@ -84,6 +84,16 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 	if decision.Behavior != sdkpermission.BehaviorAllow {
 		t.Fatalf("internal ingress 的 Read 应自动允许: %+v", decision)
 	}
+	writeDecision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Write",
+		Input:    map[string]any{"file_path": "README.md"},
+	})
+	if err != nil {
+		t.Fatalf("执行 Write 权限处理器失败: %v", err)
+	}
+	if writeDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("internal ingress 的 Write 应默认拒绝: %+v", writeDecision)
+	}
 }
 
 func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) {

@@ -438,7 +438,7 @@ func (s *IngressService) resolveApprovedTools(channel string, explicit []string)
 		return toolpolicy.NormalizeSet(explicit)
 	}
 	if channel == ChannelTypeInternal {
-		return nil
+		return toolpolicy.CopySet(defaultReadOnlyApprovedTools)
 	}
 	return toolpolicy.CopySet(defaultExternalApprovedTools)
 }

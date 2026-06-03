@@ -9,7 +9,7 @@ import { request_api } from "@/lib/api/http";
 import { get_desktop_runtime_config } from "@/config/desktop-runtime";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import type { UserPreferences } from "@/types/settings/preferences";
+import type { AgentRuntimeKind, UserPreferences } from "@/types/settings/preferences";
 import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -21,6 +21,7 @@ export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 export let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
+let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "claude";
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
@@ -126,12 +127,17 @@ export function get_initial_agent_options(): Partial<AgentOptions> {
 }
 
 export function get_default_chat_delivery_policy(): AgentConversationDefaultDeliveryPolicy {
-  return DEFAULT_CHAT_DELIVERY_POLICY;
+	return DEFAULT_CHAT_DELIVERY_POLICY;
+}
+
+export function get_default_agent_runtime_kind(): AgentRuntimeKind {
+  return DEFAULT_AGENT_RUNTIME_KIND;
 }
 
 export function get_user_preferences(): UserPreferences {
   return {
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
+    agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
     default_agent_options: get_initial_agent_options(),
     default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
     default_background_model_selection: DEFAULT_BACKGROUND_MODEL_SELECTION,
@@ -142,6 +148,9 @@ export function set_user_preferences(preferences?: Partial<UserPreferences> | nu
   const policy = preferences?.chat_default_delivery_policy;
   if (policy !== undefined) {
     DEFAULT_CHAT_DELIVERY_POLICY = policy;
+  }
+  if (preferences?.agent_runtime_kind !== undefined) {
+    DEFAULT_AGENT_RUNTIME_KIND = normalize_agent_runtime_kind(preferences.agent_runtime_kind);
   }
   DEFAULT_IMAGE_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_image_model_selection);
   DEFAULT_BACKGROUND_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_background_model_selection);
@@ -201,6 +210,10 @@ function normalize_agent_options(options?: Partial<AgentOptions> | null): Partia
     disallowed_tools: [...(source.disallowed_tools ?? [])],
     setting_sources: [...(source.setting_sources ?? ["project"])],
   };
+}
+
+function normalize_agent_runtime_kind(value?: string | null): AgentRuntimeKind {
+  return value?.trim() === "nxs" ? "nxs" : "claude";
 }
 
 function normalize_model_selection_preference(

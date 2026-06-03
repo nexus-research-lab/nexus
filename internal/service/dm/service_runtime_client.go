@@ -66,8 +66,13 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", "", "", permissionMode, err
 	}
+	runtimeKind, err := s.preferenceRuntimeKind(ctx, agentValue)
+	if err != nil {
+		return nil, "", "", "", "", permissionMode, err
+	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
+		RuntimeKind:        runtimeKind,
 		Provider:           runtimeProvider,
 		Model:              runtimeModel,
 		PermissionMode:     permissionMode,
@@ -190,6 +195,30 @@ func (s *Service) preferenceRuntimeSelection(
 		return "", "", nil
 	}
 	return provider, model, nil
+}
+
+func (s *Service) preferenceRuntimeKind(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+) (string, error) {
+	if s.prefs == nil {
+		return "", nil
+	}
+	ownerUserID := ""
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok {
+		ownerUserID = currentUserID
+	}
+	if ownerUserID == "" && agentValue != nil {
+		ownerUserID = strings.TrimSpace(agentValue.OwnerUserID)
+	}
+	if ownerUserID == "" {
+		return "", nil
+	}
+	prefs, err := s.prefs.Get(ctx, ownerUserID)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(prefs.AgentRuntimeKind), nil
 }
 
 func resolvedRuntimeProvider(provider string, options agentclient.Options) string {

@@ -19,7 +19,7 @@ COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.ym
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev install gen-protocol-types lint-web typecheck-web prepare-host-data \
+	dev dev-nxs install gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-smoke app-win-package \
 	pull deploy start-no-build
@@ -38,7 +38,7 @@ gen-protocol-types: ## Generate frontend protocol types from Go protocol definit
 	go generate ./internal/protocol
 
 run-backend: ## Run Go backend in development mode
-	PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
+	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
 
@@ -58,6 +58,9 @@ dev: ## Run both frontend and backend in development mode
 		echo "Warning: frontend port $(WEB_PORT) is already in use, Vite will choose another available port."; \
 	fi
 	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
+
+dev-nxs: ## Run dev servers with bundled nxs runtime
+	NEXUS_AGENT_RUNTIME_KIND=nxs $(MAKE) dev BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
 install: ## Install all dependencies
 	@echo "Installing Go dependencies..."

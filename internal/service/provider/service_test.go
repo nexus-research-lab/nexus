@@ -162,6 +162,9 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if _, err = service.UpdateModel(ctx, "kimi-code", "kimi-for-coding", UpdateModelInput{
 		Enabled:   true,
 		IsDefault: true,
+		CapabilitiesOverride: ModelCapabilities{
+			Reasoning: boolPointer(true),
+		},
 	}); err != nil {
 		t.Fatalf("设置 Kimi Code 默认模型失败: %v", err)
 	}
@@ -175,12 +178,18 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if runtimeConfig.APIFormat != APIFormatAnthropicMessages {
 		t.Fatalf("runtime api_format 未透传: %+v", runtimeConfig)
 	}
+	if !runtimeConfig.Reasoning {
+		t.Fatalf("runtime reasoning 能力未透传: %+v", runtimeConfig)
+	}
 	runtimeConfig, err = service.ResolveRuntimeConfig(ctx, "kimi-code", "")
 	if err != nil {
 		t.Fatalf("Kimi Code 显式 provider 应回退到默认模型: %v", err)
 	}
 	if runtimeConfig.Model != "kimi-for-coding" {
 		t.Fatalf("runtime model 未回退到 provider 默认模型: %+v", runtimeConfig)
+	}
+	if !runtimeConfig.Reasoning {
+		t.Fatalf("runtime 默认模型 reasoning 能力未透传: %+v", runtimeConfig)
 	}
 
 	volcengine, err := service.Create(ctx, CreateInput{

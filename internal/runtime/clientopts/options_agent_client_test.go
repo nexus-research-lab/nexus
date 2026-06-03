@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -101,6 +102,46 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	}
 	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
 		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com",
+			Model:     "glm-5.1",
+			Reasoning: true,
+		},
+	}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for _, key := range []string{
+		"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
+	} {
+		if options.Env[key] != "thinking" {
+			t.Fatalf("%s = %q, want thinking; env=%+v", key, options.Env[key], options.Env)
+		}
+	}
+}
+
+func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("未把 nxs runtime kind 交给 bridge: %+v", options.Runtime)
+	}
+	if strings.TrimSpace(options.CLIPath) != "" {
+		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
 	}
 }
 

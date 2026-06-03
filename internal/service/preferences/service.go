@@ -43,6 +43,9 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if request.ChatDefaultDeliveryPolicy != nil {
 		current.ChatDefaultDeliveryPolicy = *request.ChatDefaultDeliveryPolicy
 	}
+	if request.AgentRuntimeKind != nil {
+		current.AgentRuntimeKind = *request.AgentRuntimeKind
+	}
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions
 	}

@@ -9,6 +9,11 @@ import (
 )
 
 const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
+const nexusNXSCommandPathEnvName = "NEXUS_NXS_COMMAND_PATH"
+const nexusAgentRuntimeKindEnvName = "NEXUS_AGENT_RUNTIME_KIND"
+const nexusAgentRuntimeEnvName = "NEXUS_AGENT_RUNTIME"
+const runtimeKindClaude = "claude"
+const runtimeKindNXS = "nxs"
 
 type claudeCommandConfig struct {
 	CLIPath          string
@@ -16,8 +21,9 @@ type claudeCommandConfig struct {
 	PathToExecutable string
 }
 
-func processCLICommandConfig() claudeCommandConfig {
+func processCLICommandConfig(runtimeKind string) claudeCommandConfig {
 	return resolveClaudeCommandConfigWith(
+		runtimeKind,
 		runtime.GOOS,
 		os.Getenv,
 		exec.LookPath,
@@ -30,14 +36,16 @@ func processCLICommandConfig() claudeCommandConfig {
 }
 
 func resolveClaudeCommandConfigWith(
+	runtimeKind string,
 	goos string,
 	getenv func(string) string,
 	lookPath func(string) (string, error),
 	fileExists func(string) bool,
 	globPaths func(string) ([]string, error),
 ) claudeCommandConfig {
-	commandPath := resolveClaudeCommandPathWith(goos, getenv, lookPath, fileExists, globPaths)
-	if goos != "windows" || strings.TrimSpace(commandPath) == "" {
+	effectiveKind := resolveRuntimeKind(runtimeKind, getenv)
+	commandPath := resolveRuntimeCommandPathWith(effectiveKind, goos, getenv, lookPath, fileExists, globPaths)
+	if effectiveKind != runtimeKindClaude || goos != "windows" || strings.TrimSpace(commandPath) == "" {
 		return claudeCommandConfig{CLIPath: commandPath}
 	}
 	if config, ok := windowsNodeClaudeCommandConfig(commandPath, lookPath, fileExists); ok {
@@ -53,6 +61,21 @@ func resolveClaudeCommandPathWith(
 	fileExists func(string) bool,
 	globPaths func(string) ([]string, error),
 ) string {
+	return resolveRuntimeCommandPathWith(runtimeKindClaude, goos, getenv, lookPath, fileExists, globPaths)
+}
+
+func resolveRuntimeCommandPathWith(
+	runtimeKind string,
+	goos string,
+	getenv func(string) string,
+	lookPath func(string) (string, error),
+	fileExists func(string) bool,
+	globPaths func(string) ([]string, error),
+) string {
+	runtimeKind = resolveRuntimeKind(runtimeKind, getenv)
+	if runtimeKind == runtimeKindNXS {
+		return resolveNXSCommandPathWith(getenv)
+	}
 	if override := strings.TrimSpace(getenv(nexusClaudeCommandPathEnvName)); override != "" {
 		return override
 	}
@@ -71,6 +94,33 @@ func resolveClaudeCommandPathWith(
 		if fileExists(candidate) {
 			return candidate
 		}
+	}
+	return ""
+}
+
+func resolveRuntimeKind(runtimeKind string, getenv func(string) string) string {
+	for _, value := range []string{
+		getenv(nexusAgentRuntimeKindEnvName),
+		getenv(nexusAgentRuntimeEnvName),
+		runtimeKind,
+	} {
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case runtimeKindNXS, "go", "go-native", "gonative":
+			return runtimeKindNXS
+		case runtimeKindClaude, "claude-code", "claudecode":
+			return runtimeKindClaude
+		case "":
+			continue
+		}
+	}
+	return runtimeKindClaude
+}
+
+func resolveNXSCommandPathWith(
+	getenv func(string) string,
+) string {
+	if override := strings.TrimSpace(getenv(nexusNXSCommandPathEnvName)); override != "" {
+		return override
 	}
 	return ""
 }

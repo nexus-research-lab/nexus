@@ -60,3 +60,31 @@ func (s *RealtimeService) preferenceRuntimeSelection(
 	}
 	return provider, model, nil
 }
+
+func (s *RealtimeService) preferenceRuntimeKind(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	agentValue *protocol.Agent,
+) (string, error) {
+	if s.prefs == nil {
+		return "", nil
+	}
+	ownerUserID := ""
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok {
+		ownerUserID = currentUserID
+	}
+	if ownerUserID == "" && roundValue != nil {
+		ownerUserID = strings.TrimSpace(roundValue.OwnerUserID)
+	}
+	if ownerUserID == "" && agentValue != nil {
+		ownerUserID = strings.TrimSpace(agentValue.OwnerUserID)
+	}
+	if ownerUserID == "" {
+		return "", nil
+	}
+	prefs, err := s.prefs.Get(ctx, ownerUserID)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(prefs.AgentRuntimeKind), nil
+}

@@ -231,6 +231,9 @@ export function ContentRenderer(
         };
 
         if (block.type === 'text') {
+          if (!block.text.trim()) {
+            return null;
+          }
           return wrap_block(
             index,
             <ContentRenderer
@@ -248,6 +251,9 @@ export function ContentRenderer(
         }
 
         if (block.type === 'thinking') {
+          if (!block.thinking.trim()) {
+            return null;
+          }
           return wrap_block(
             index,
             <ThinkingBlock

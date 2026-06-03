@@ -18,10 +18,16 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if len(prefs.DefaultAgentOptions.AllowedTools) != 0 {
 		t.Fatalf("默认不应预授权工具: %+v", prefs.DefaultAgentOptions.AllowedTools)
 	}
+	if prefs.AgentRuntimeKind != "claude" {
+		t.Fatalf("默认 runtime 应为 claude: %+v", prefs)
+	}
 
 	normalized := normalizePreferences(Preferences{})
 	if normalized.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("空偏好归一化后应为询问模式: %+v", normalized.DefaultAgentOptions)
+	}
+	if normalized.AgentRuntimeKind != "claude" {
+		t.Fatalf("空偏好归一化后 runtime 应为 claude: %+v", normalized)
 	}
 }
 
@@ -31,6 +37,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 
 	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
 		ChatDefaultDeliveryPolicy: policyPointer(protocol.ChatDeliveryPolicyQueue),
+		AgentRuntimeKind:          stringPointer("nxs"),
 		DefaultAgentOptions: &protocol.Options{
 			PermissionMode: "default",
 			Provider:       "glm-coding-plan",
@@ -52,6 +59,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if prefs.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue {
 		t.Fatalf("消息行为未持久化: %+v", prefs)
 	}
+	if prefs.AgentRuntimeKind != "nxs" {
+		t.Fatalf("runtime 偏好未持久化: %+v", prefs)
+	}
 	if prefs.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("权限模式未持久化: %+v", prefs.DefaultAgentOptions)
 	}
@@ -72,7 +82,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取偏好失败: %v", err)
 	}
-	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue || loaded.DefaultAgentOptions.PermissionMode != "default" {
+	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		loaded.AgentRuntimeKind != "nxs" ||
+		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}
 	if loaded.DefaultImageModelSelection.Model != "image-model" || loaded.DefaultBackgroundModelSelection.Model != "background-model" {
@@ -99,5 +111,9 @@ func TestServiceUpdatePersistsInterruptDefaultDeliveryPolicy(t *testing.T) {
 }
 
 func policyPointer(value protocol.ChatDeliveryPolicy) *protocol.ChatDeliveryPolicy {
+	return &value
+}
+
+func stringPointer(value string) *string {
 	return &value
 }

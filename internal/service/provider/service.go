@@ -774,6 +774,7 @@ func (s *Service) llmConfigFromTarget(
 		BaseURL:     target.BaseURL,
 		Model:       normalizeModelID(modelRecord.ModelID),
 		APIFormat:   target.APIFormat,
+		Reasoning:   modelHasReasoningCapability(*modelRecord),
 	}, nil
 }
 
@@ -846,6 +847,15 @@ func modelHasImageOutputCapability(model providerstore.ModelEntity) bool {
 	}
 	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
 	return autoCapabilities.ImageOutput != nil && *autoCapabilities.ImageOutput
+}
+
+func modelHasReasoningCapability(model providerstore.ModelEntity) bool {
+	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
+	if overrideCapabilities.Reasoning != nil {
+		return *overrideCapabilities.Reasoning
+	}
+	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
+	return autoCapabilities.Reasoning != nil && *autoCapabilities.Reasoning
 }
 
 func imageProviderRequiresModelFilter(item providerstore.Entity) bool {

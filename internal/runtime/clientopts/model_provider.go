@@ -8,4 +8,5 @@ type RuntimeConfig struct {
 	BaseURL     string
 	Model       string
 	APIFormat   string
+	Reasoning   bool
 }

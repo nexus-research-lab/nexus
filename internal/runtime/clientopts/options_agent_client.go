@@ -19,6 +19,7 @@ const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const apiFormatAnthropicMessages = "anthropic_messages"
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
+const thinkingCapabilityName = "thinking"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -41,6 +42,7 @@ type RuntimeConfigResolver interface {
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
 	WorkspacePath      string
+	RuntimeKind        string
 	Provider           string
 	Model              string
 	PermissionMode     sdkpermission.Mode
@@ -77,7 +79,8 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
-	commandConfig := processCLICommandConfig()
+	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
+	commandConfig := processCLICommandConfig(effectiveRuntimeKind)
 
 	options := agentclient.Options{
 		CLIPath:                commandConfig.CLIPath,
@@ -95,6 +98,7 @@ func BuildAgentClientOptions(
 			Deny:  appendDistinctTools(input.DisallowedTools, claudeSessionScheduleTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
+			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
 			PermissionMode:                  permissionMode,
 			AllowDangerouslySkipPermissions: true,
 		},
@@ -121,6 +125,13 @@ func BuildAgentClientOptions(
 		return agentclient.Options{}, err
 	}
 	return options, nil
+}
+
+func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {
+	if runtimeKind == runtimeKindNXS {
+		return agentclient.RuntimeNXS
+	}
+	return agentclient.RuntimeClaude
 }
 
 func appendDistinctTools(base []string, extra ...string) []string {
@@ -200,10 +211,24 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 	}
+	if runtimeConfig.Reasoning {
+		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
+	}
 	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
 		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
 	return env
+}
+
+func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...string) {
+	capabilityValue := strings.Join(capabilities, ",")
+	for _, key := range []string{
+		"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
+	} {
+		env[key] = capabilityValue
+	}
 }
 
 func defaultRuntimeEnv() map[string]string {

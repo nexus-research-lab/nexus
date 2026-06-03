@@ -201,8 +201,14 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	runtimeKind, err := s.preferenceRuntimeKind(slotCtx, roundValue, agentValue)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
+		RuntimeKind:        runtimeKind,
 		Provider:           runtimeProvider,
 		Model:              runtimeModel,
 		PermissionMode:     permissionMode,
