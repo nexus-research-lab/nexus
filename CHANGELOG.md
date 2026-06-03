@@ -7,27 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.14] - 2026-06-02
+## [0.1.14] - 2026-06-03
 
 ### Added
-- Added macOS desktop self-update installation: the app can download macOS release packages plus sha256 files, verify them, stage `Nexus.app`, and relaunch through an external installer script when the current bundle is replaceable.
-- Added configurable runtime idle session recycling through `RUNTIME_IDLE_SESSION_TTL_SECONDS` and `RUNTIME_IDLE_SESSION_SWEEP_SECONDS`, plus a default `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` so Claude Code compacts earlier during long research workflows.
+- Added macOS desktop self-update installation with release package download, sha256 verification, staged `Nexus.app` replacement, and relaunch through an external installer script.
+- Added runtime resilience defaults: idle SDK session recycling and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` for earlier Claude Code compaction during long workflows.
 
 ### Changed
-- Refined compact desktop workspace layout with icon-only narrow toolbars, a higher minimum desktop window width, and a collapsed sidebar that keeps panel controls at the bottom.
-- Reduced low-signal sidecar logs for successful WebSocket closes, route remembering, and empty background title-generation results.
-- Clarified Agent prompts so interactive clarification should use `AskUserQuestion` instead of plain text when a native confirmation is needed.
+- Refined compact desktop workspace layout, reduced low-signal sidecar logs, and clarified Agent prompts to use `AskUserQuestion` for native confirmations.
+- Defaulted new Agents and the main Agent to ask-permission mode without pre-authorized tools.
 
 ### Fixed
-- Fixed realtime result projection so completed assistant actions are marked terminal after the round result arrives.
-- Fixed transcript history replay for parallel tool results so switching conversations no longer leaves one completed action stuck in a running state.
-- Fixed conversation rendering so repeated assistant snapshots with the same `message_id` merge tool/action blocks instead of hiding earlier permission or MCP calls.
-- Fixed realtime action projection when SDK stream indexes are reused across multiple tool calls in the same assistant turn.
-- Fixed streamed assistant snapshots so final text replaces the partial streamed prefix instead of rendering duplicate text blocks.
-- Fixed stream-closed runtime errors so expected SDK stream shutdowns are recognized instead of treated as unexpected failures.
-- Fixed Windows runtime startup when MCP servers are materialized through `--mcp-config`, avoiding the bridge SDK conflict between MCP config paths and inline `MCP.Servers`.
-- Fixed workspace file previews intermittently returning internal server errors when concurrent requests reinitialized managed Skills.
-- Fixed desktop Agent startup failing to find Claude Code from native, Homebrew, Linux package, or common Node version-manager installs when GUI launches omit shell PATH entries, and expanded missing-command guidance with diagnostic and install commands.
+- Fixed assistant completion and replay consistency across realtime result projection, repeated assistant snapshots, parallel tool actions/results, and transcript history replay.
+- Fixed expected stream-closed runtime shutdown handling, Windows `--mcp-config` startup, concurrent managed-Skill workspace preview initialization, and desktop Claude Code command discovery.
 
 ## [0.1.13] - 2026-06-02
 
