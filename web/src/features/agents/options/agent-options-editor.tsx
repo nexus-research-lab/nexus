@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { list_provider_options_api } from "@/lib/api/provider-config-api";
 import type {
@@ -67,6 +67,11 @@ interface AgentDialogInitialOptions extends Partial<AgentConfigOptions> {
   disallowed_tools?: string[];
 }
 
+type SaveFeedback = {
+  tone: "success" | "error";
+  message: string;
+};
+
 // ==================== 主组件 ====================
 
 /** AgentOptions 表单主体 */
@@ -121,6 +126,8 @@ export function AgentOptionsEditor({
   const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
   const [providerOptionsError, setProviderOptionsError] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
+  const saveFeedbackTimerRef = useRef<number | null>(null);
 
   // ---- Advanced 状态 ----
   const [permissionMode, setPermissionMode] = useState(
@@ -163,6 +170,32 @@ export function AgentOptionsEditor({
     setIsValidatingName(false);
     setIsSaving(false);
   }, [initial_avatar, initial_description, initial_options, initial_resolved_title, initial_vibe_tags, is_active]);
+
+  useEffect(() => {
+    if (!is_active) {
+      setSaveFeedback(null);
+    }
+  }, [is_active]);
+
+  useEffect(() => {
+    setSaveFeedback(null);
+  }, [agent_id]);
+
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimerRef.current !== null) {
+        window.clearTimeout(saveFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  const clear_save_feedback = () => {
+    if (saveFeedbackTimerRef.current !== null) {
+      window.clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = null;
+    }
+    setSaveFeedback(null);
+  };
 
   useEffect(() => {
     if (!is_active) {
@@ -259,6 +292,7 @@ export function AgentOptionsEditor({
     toolName: string,
     type: "allowed" | "disallowed"
   ) => {
+    clear_save_feedback();
     if (type === "allowed") {
       setAllowedTools((prev) =>
         prev.includes(toolName)
@@ -274,10 +308,50 @@ export function AgentOptionsEditor({
     }
   };
 
+  const handle_title_change = (value: string) => {
+    clear_save_feedback();
+    setTitle(value);
+  };
+
+  const handle_avatar_change = (value: string) => {
+    clear_save_feedback();
+    setAvatar(value);
+  };
+
+  const handle_description_change = (value: string) => {
+    clear_save_feedback();
+    setDescription(value);
+  };
+
+  const handle_vibe_tags_change = (value: string[]) => {
+    clear_save_feedback();
+    setVibeTags(value);
+  };
+
+  const handle_provider_change = (value: AgentProvider) => {
+    clear_save_feedback();
+    setProvider(value);
+  };
+
+  const handle_model_change = (value: string) => {
+    clear_save_feedback();
+    setModel(value);
+  };
+
+  const handle_permission_mode_change = (value: string) => {
+    clear_save_feedback();
+    setPermissionMode(value);
+  };
+
   // ---- 保存逻辑 ----
   const handle_save = async () => {
     if (!trimmed_title) return;
     if (isValidatingName || isSaving) return;
+    if (saveFeedbackTimerRef.current !== null) {
+      window.clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = null;
+    }
+    setSaveFeedback(null);
     const requires_final_name_validation = Boolean(on_validate_name) && (mode === "create" || has_title_changed);
     let latest_name_validation = nameValidation;
 
@@ -337,7 +411,21 @@ export function AgentOptionsEditor({
       });
       if (close_after_save) {
         on_cancel?.();
+      } else {
+        setSaveFeedback({
+          tone: "success",
+          message: t("agent_options.save_success"),
+        });
+        saveFeedbackTimerRef.current = window.setTimeout(() => {
+          setSaveFeedback((current) => current?.tone === "success" ? null : current);
+          saveFeedbackTimerRef.current = null;
+        }, 1800);
       }
+    } catch (error) {
+      setSaveFeedback({
+        tone: "error",
+        message: error instanceof Error ? error.message : t("agent_options.save_failed"),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -355,13 +443,13 @@ export function AgentOptionsEditor({
       {activeTab === "identity" && (
         <AgentOptionsIdentityTab
           avatar={avatar}
-          on_avatar_change={setAvatar}
+          on_avatar_change={handle_avatar_change}
           title={title}
-          on_title_change={setTitle}
+          on_title_change={handle_title_change}
           description={description}
-          on_description_change={setDescription}
+          on_description_change={handle_description_change}
           vibe_tags={vibeTags}
-          on_vibe_tags_change={setVibeTags}
+          on_vibe_tags_change={handle_vibe_tags_change}
           provider={provider}
           model={model}
           default_provider={defaultProvider}
@@ -369,8 +457,8 @@ export function AgentOptionsEditor({
           provider_options={build_agent_option_provider_options(providerOptions, provider, model)}
           provider_options_error={providerOptionsError}
           provider_options_loading={providerOptionsLoading}
-          on_provider_change={setProvider}
-          on_model_change={setModel}
+          on_provider_change={handle_provider_change}
+          on_model_change={handle_model_change}
           name_validation={nameValidation}
           is_validating_name={isValidatingName}
           variant={variant}
@@ -380,7 +468,7 @@ export function AgentOptionsEditor({
       {activeTab === "advanced" && (
         <AgentOptionsAdvancedTab
           permission_mode={permissionMode}
-          on_permission_mode_change={setPermissionMode}
+          on_permission_mode_change={handle_permission_mode_change}
           allowed_tools={allowedTools}
           on_toggle_tool={toggle_tool}
         />
@@ -397,23 +485,41 @@ export function AgentOptionsEditor({
 
   if (variant === "inline") {
     const inline_content_width_class_name = content_max_width_class_name;
-    const save_button = (
-      <UiButton
-        onClick={() => {
-          void handle_save();
-        }}
-        disabled={!canSave}
-        size="sm"
-        tone={canSave ? "primary" : "default"}
-        type="button"
-        variant="surface"
+    const save_feedback = saveFeedback ? (
+      <span
+        className={cn(
+          "max-w-[280px] truncate text-[12px]",
+          saveFeedback.tone === "success" ? "text-emerald-600" : "text-(--destructive)",
+        )}
+        title={saveFeedback.message}
       >
-        {isSaving
-          ? t("common.saving")
-          : mode === "create"
-            ? t("agent_options.title_create")
-            : t("agent_options.save_changes")}
-      </UiButton>
+        {saveFeedback.message}
+      </span>
+    ) : null;
+    const save_button = (
+      <>
+        {save_feedback}
+        <UiButton
+          onClick={() => {
+            void handle_save();
+          }}
+          disabled={!canSave}
+          size="sm"
+          tone={canSave ? "primary" : "default"}
+          type="button"
+          variant="surface"
+        >
+          {isSaving
+            ? t("common.saving")
+            : saveFeedback?.tone === "success"
+              ? t("agent_options.save_success")
+              : saveFeedback?.tone === "error"
+                ? t("agent_options.save_failed")
+                : mode === "create"
+                  ? t("agent_options.title_create")
+                  : t("agent_options.save_changes")}
+        </UiButton>
+      </>
     );
 
     return (
@@ -440,7 +546,7 @@ export function AgentOptionsEditor({
         </div>
 
         {canDelete || (show_cancel_button && on_cancel) || hide_inline_nav ? (
-          <div className="flex items-center justify-end border-t dialog-divider px-6 py-3">
+          <div className="flex items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
             {canDelete ? (
               <UiButton
                 class_name="mr-auto"
@@ -523,10 +629,25 @@ export function AgentOptionsEditor({
         >
           {isSaving
             ? t("common.saving")
-            : mode === "create"
-              ? t("agent_options.title_create")
-              : t("agent_options.save_changes")}
+            : saveFeedback?.tone === "success"
+              ? t("agent_options.save_success")
+              : saveFeedback?.tone === "error"
+                ? t("agent_options.save_failed")
+                : mode === "create"
+                  ? t("agent_options.title_create")
+                  : t("agent_options.save_changes")}
         </UiButton>
+        {saveFeedback ? (
+          <span
+            className={cn(
+              "max-w-[260px] truncate text-[12px]",
+              saveFeedback.tone === "success" ? "text-emerald-600" : "text-(--destructive)",
+            )}
+            title={saveFeedback.message}
+          >
+            {saveFeedback.message}
+          </span>
+        ) : null}
       </div>
     </>
   );
