@@ -6,8 +6,8 @@ final class SidecarSupervisor {
   private let runtimeConfig: SidecarRuntimeConfig
   private let orphanReaper: SidecarOrphanReaper
   private let startupTimeline: DesktopStartupTimeline?
-  private let stdoutPipe = SidecarLogPipe(label: "stdout")
-  private let stderrPipe = SidecarLogPipe(label: "stderr")
+  private let stdoutPipe = SidecarLogPipe()
+  private let stderrPipe = SidecarLogPipe(label: "sidecar stderr")
   private var process: Process?
 
   init(startupTimeline: DesktopStartupTimeline? = nil) throws {
