@@ -51,7 +51,7 @@ func (s *RealtimeService) HandlePublicMessage(
 		},
 		"is_complete":           true,
 		"stop_reason":           "room_public_message",
-		"room_message_source":   "room_message_publish",
+		"room_message_source":   "nexus_room.publish_public_message",
 		"room_message_protocol": "public_feed",
 		"timestamp":             time.Now().UnixMilli(),
 	}

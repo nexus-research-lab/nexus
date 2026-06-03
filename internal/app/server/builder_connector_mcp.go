@@ -212,3 +212,21 @@ func combinedMCPBuilder(
 		return merged
 	}
 }
+
+func contextOnlyMCPBuilder(
+	builder func(string, string, string, string, string) map[string]sdkmcp.ServerConfig,
+) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+	return func(
+		agentID string,
+		sessionKey string,
+		_ string,
+		sourceContextType string,
+		sourceContextID string,
+		sourceContextLabel string,
+	) map[string]sdkmcp.ServerConfig {
+		if builder == nil {
+			return nil
+		}
+		return builder(agentID, sessionKey, sourceContextType, sourceContextID, sourceContextLabel)
+	}
+}

@@ -63,6 +63,42 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 	}
 }
 
+func TestAttachResultSummaryMarksAssistantComplete(t *testing.T) {
+	assistant := protocol.Message{
+		"message_id":  "assistant-1",
+		"session_key": "agent:nexus:ws:dm:test",
+		"agent_id":    "nexus",
+		"round_id":    "round-1",
+		"role":        "assistant",
+		"is_complete": false,
+		"content": []map[string]any{{
+			"type": "text",
+			"text": "done",
+		}},
+	}
+	result := protocol.Message{
+		"message_id": "result-1",
+		"round_id":   "round-1",
+		"role":       "result",
+		"subtype":    "success",
+		"result":     "done",
+	}
+
+	merged, ok := AttachResultSummary(assistant, result)
+	if !ok {
+		t.Fatalf("assistant 应挂载 result_summary")
+	}
+	if !boolFromAny(merged["is_complete"]) {
+		t.Fatalf("挂载 result_summary 后 assistant 必须变为完成态: %+v", merged)
+	}
+	if normalizeString(merged["stop_reason"]) != "end_turn" {
+		t.Fatalf("挂载 result_summary 后 stop_reason 不正确: %+v", merged)
+	}
+	if _, ok := merged["result_summary"].(map[string]any); !ok {
+		t.Fatalf("assistant 应保留 result_summary: %+v", merged)
+	}
+}
+
 func TestBuildAssistantResultSummaryPreservesPermissionDenials(t *testing.T) {
 	summary := BuildAssistantResultSummary(protocol.Message{
 		"message_id": "result-1",

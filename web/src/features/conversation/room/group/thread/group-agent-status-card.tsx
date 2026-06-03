@@ -70,7 +70,7 @@ function GroupAgentStatusCardInner({
     if (is_waiting_permission) {
       return can_respond_to_permissions
         ? (primary_pending_permission?.summary || "等待权限确认")
-        : (permission_read_only_reason || "另一窗口正在处理权限确认");
+        : (permission_read_only_reason || "当前暂不可确认权限");
     }
     if (preview) {
       return preview;

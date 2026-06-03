@@ -18,6 +18,7 @@ import {
   update_workspace_file_content_api,
   get_workspace_file_preview_url,
 } from "@/lib/api/agent-manage-api";
+import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
@@ -474,6 +475,7 @@ function ImagePreview({
 }) {
   const [is_loaded, setIsLoaded] = useState(false);
   const [has_error, setHasError] = useState(false);
+  const file_action_copy = get_workspace_file_external_action_copy(file_name);
   const preview_url = get_workspace_file_preview_url(agent_id, path);
 
   return (
@@ -529,7 +531,9 @@ function ImagePreview({
           <div className="m-auto text-center">
             <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
             <p className="mt-4 text-sm font-medium text-(--text-strong)">图片加载失败</p>
-            <p className="mt-2 text-xs text-(--text-soft)">请尝试下载文件</p>
+            <p className="mt-2 text-xs text-(--text-soft)">
+              请尝试{file_action_copy.label}文件
+            </p>
           </div>
         ) : (
           <img
@@ -561,6 +565,10 @@ function BinaryFilePlaceholder({
   on_toggle_preview_focus?: () => void;
   embedded?: boolean;
 }) {
+  const file_action_copy = get_workspace_file_external_action_copy(file_name);
+  const action_description = file_action_copy.mode === "reveal"
+    ? "在文件夹中显示此文件"
+    : "获取此文件";
   return (
     <>
       <WorkspaceFilePreviewHeader
@@ -590,7 +598,7 @@ function BinaryFilePlaceholder({
           </div>
           <p className="text-sm font-medium text-(--text-strong)">不支持预览此文件</p>
           <p className="mt-2 text-xs leading-5 text-(--text-soft)">
-            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"下载"按钮来获取此文件。
+            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"{file_action_copy.label}"按钮{action_description}。
           </p>
         </div>
       </div>
@@ -1090,16 +1098,18 @@ export function EditorPanel({
                         }
                         enable_editing();
                       }}
+                      title={is_editing ? "预览" : "编辑"}
                     >
                       {is_editing ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                      <span>{is_editing ? "预览" : "编辑"}</span>
+                      <span className="max-xl:hidden">{is_editing ? "预览" : "编辑"}</span>
                     </WorkspaceFileToolbarButton>
                     <WorkspaceFileToolbarButton
                       disabled={!is_dirty || is_saving || is_external_writing}
                       on_click={() => void handle_save()}
+                      title={is_saving ? "保存中" : "保存"}
                     >
                       <Save className="h-4 w-4" />
-                      <span>{is_saving ? "保存中" : "保存"}</span>
+                      <span className="max-xl:hidden">{is_saving ? "保存中" : "保存"}</span>
                     </WorkspaceFileToolbarButton>
                   </>
                 )}

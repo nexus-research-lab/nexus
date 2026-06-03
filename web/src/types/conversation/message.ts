@@ -229,9 +229,6 @@ export interface RoundStatusEventPayload {
 export interface SessionStatusEventPayload {
   is_generating: boolean;
   running_round_ids?: string[];
-  controller_client_id?: string | null;
-  observer_count?: number;
-  bound_client_count?: number;
 }
 
 export type StreamMessageType =

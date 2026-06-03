@@ -117,14 +117,13 @@ nexusctl room remove-member abc123 --agent-id translator
 
 #### 创建 Room directed message
 
-Room runtime 内会自动注入当前 `room_id`、`conversation_id`、`source_agent_id`、内部控制面地址/token 和用户作用域；Agent 正常调用时不要额外传这些字段。
-运行时 PATH 已注入 `nexusctl`；`--recipient-agent-id` 填 Room 成员的 `agent_id`，不是成员名。不要打印内部 token。
+Room runtime 内会自动注入当前 `room_id`、`conversation_id` 和 `source_agent_id`；Agent 正常调用时不要额外传这些字段。`recipients` 填 Room 成员的 `agent_id`，不是成员名。
 
-```bash
-nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy none --reply-route none --content "私下提醒"
-nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy immediate --reply-route private --reply-recipient-agent-id <host-agent-id> --reply-wake-policy immediate --content "请处理后私下回给主持人"
-nexusctl --json room message send --recipient-agent-id 0ed5434a8c13 --wake-policy immediate --reply-route private --reply-recipient-agent-id <host-agent-id> --reply-wake-policy immediate --reply-next-route public --content "请私下回答主持人，主持人随后公开推进"
-nexusctl --json room message send --recipient-agent-id <self-agent-id> --wake-policy none --reply-route none --content "只写给自己的上下文"
+```json
+{"tool":"nexus_room.send_directed_message","arguments":{"recipients":["0ed5434a8c13"],"wake_policy":"none","reply_route":{"mode":"none"},"content":"私下提醒"}}
+{"tool":"nexus_room.send_directed_message","arguments":{"recipients":["0ed5434a8c13"],"wake_policy":"immediate","reply_route":{"mode":"private","recipients":["<host-agent-id>"],"wake_policy":"immediate"},"content":"请处理后私下回给主持人"}}
+{"tool":"nexus_room.send_directed_message","arguments":{"recipients":["0ed5434a8c13"],"wake_policy":"immediate","reply_route":{"mode":"private","recipients":["<host-agent-id>"],"wake_policy":"immediate","next_reply_route":{"mode":"public"}},"content":"请私下回答主持人，主持人随后公开推进"}}
+{"tool":"nexus_room.send_directed_message","arguments":{"recipients":["<self-agent-id>"],"wake_policy":"none","reply_route":{"mode":"none"},"content":"只写给自己的上下文"}}
 ```
 
 #### 删除 Room

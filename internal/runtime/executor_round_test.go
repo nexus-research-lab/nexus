@@ -568,6 +568,23 @@ func TestExecuteRoundReturnsInterruptedWhenContextCancelled(t *testing.T) {
 	}
 }
 
+func TestExecuteRoundReturnsInterruptedWhenSDKAborted(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		queryErr:  agentclient.ErrAborted,
+		messages:  make(chan sdkprotocol.ReceivedMessage),
+	}
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{},
+	})
+	if !errors.Is(err, ErrRoundInterrupted) {
+		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
+	}
+}
+
 func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",

@@ -18,63 +18,46 @@ type Sender interface {
 	SendEvent(context.Context, protocol.EventMessage) error
 }
 
-// SessionBinding 表示 session 的控制权快照。
-type SessionBinding struct {
-	ControllerClientID string
-	ObserverCount      int
-	BoundClientCount   int
-}
-
 type senderBinding struct {
-	Sender    Sender
-	ClientID  string
-	BindOrder int64
+	Sender Sender
 }
 
-// Context 保存 session 绑定、控制端与广播逻辑。
+// Context 保存 session 绑定与权限请求广播逻辑。
 type Context struct {
-	mu                  sync.RWMutex
-	sessionBindings     map[string]map[string]senderBinding
-	senderSessions      map[string]map[string]struct{}
-	controllerSenderIDs map[string]string
-	bindSequence        int64
-	sessionRoutes       map[string]RouteContext
-	pendingRequests     map[string]*PendingRequest
-	requestTimeout      time.Duration
+	mu              sync.RWMutex
+	sessionBindings map[string]map[string]senderBinding
+	senderSessions  map[string]map[string]struct{}
+	sessionRoutes   map[string]RouteContext
+	pendingRequests map[string]*PendingRequest
+	requestTimeout  time.Duration
 }
 
 // NewContext 创建权限运行时上下文。
 func NewContext() *Context {
 	return &Context{
-		sessionBindings:     make(map[string]map[string]senderBinding),
-		senderSessions:      make(map[string]map[string]struct{}),
-		controllerSenderIDs: make(map[string]string),
-		sessionRoutes:       make(map[string]RouteContext),
-		pendingRequests:     make(map[string]*PendingRequest),
-		requestTimeout:      time.Minute,
+		sessionBindings: make(map[string]map[string]senderBinding),
+		senderSessions:  make(map[string]map[string]struct{}),
+		sessionRoutes:   make(map[string]RouteContext),
+		pendingRequests: make(map[string]*PendingRequest),
+		requestTimeout:  time.Minute,
 	}
 }
 
-// BindSession 绑定 sender 到 session，并按需要抢占控制权。
-func (c *Context) BindSession(sessionKey string, sender Sender, clientID string, requestControl bool) SessionBinding {
+// BindSession 绑定 sender 到 session。
+func (c *Context) BindSession(sessionKey string, sender Sender) {
 	if sender == nil || sender.IsClosed() || sessionKey == "" {
-		return c.Lookup(sessionKey)
+		return
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	bindings := c.sessionBindings[sessionKey]
 	if bindings == nil {
 		bindings = make(map[string]senderBinding)
 		c.sessionBindings[sessionKey] = bindings
 	}
-	c.bindSequence++
 	senderKey := sender.Key()
 	bindings[senderKey] = senderBinding{
-		Sender:    sender,
-		ClientID:  normalizeClientID(clientID, senderKey),
-		BindOrder: c.bindSequence,
+		Sender: sender,
 	}
 
 	sessions := c.senderSessions[senderKey]
@@ -85,29 +68,21 @@ func (c *Context) BindSession(sessionKey string, sender Sender, clientID string,
 	sessions[sessionKey] = struct{}{}
 
 	c.pruneClosedBindingsLocked(sessionKey)
+	c.mu.Unlock()
 
-	controllerSenderID := c.controllerSenderIDs[sessionKey]
-	if requestControl || controllerSenderID == "" || bindings[controllerSenderID].Sender == nil {
-		c.controllerSenderIDs[sessionKey] = senderKey
-	}
-	snapshot := c.lookupLocked(sessionKey)
-	go c.replayPendingRequests(sessionKey)
-	return snapshot
+	go c.replayPendingRequestsToSender(sessionKey, sender)
 }
 
 // UnbindSession 解绑 sender 对指定 session 的绑定。
-func (c *Context) UnbindSession(sessionKey string, sender Sender) SessionBinding {
+func (c *Context) UnbindSession(sessionKey string, sender Sender) {
 	if sender == nil || sessionKey == "" {
-		return c.Lookup(sessionKey)
+		return
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.removeBindingLocked(sessionKey, sender.Key())
 	c.pruneClosedBindingsLocked(sessionKey)
-	snapshot := c.lookupLocked(sessionKey)
-	go c.replayPendingRequests(sessionKey)
-	return snapshot
 }
 
 // UnregisterSender 删除 sender 持有的全部绑定。
@@ -133,18 +108,7 @@ func (c *Context) UnregisterSender(sender Sender) []string {
 	}
 	delete(c.senderSessions, senderKey)
 	sort.Strings(changed)
-	for _, sessionKey := range changed {
-		go c.replayPendingRequests(sessionKey)
-	}
 	return changed
-}
-
-// HasBindings 判断 session 是否存在活跃绑定。
-func (c *Context) HasBindings(sessionKey string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pruneClosedBindingsLocked(sessionKey)
-	return len(c.sessionBindings[sessionKey]) > 0
 }
 
 // IsBound 判断 sender 是否已绑定到 session。
@@ -157,27 +121,6 @@ func (c *Context) IsBound(sessionKey string, sender Sender) bool {
 	c.pruneClosedBindingsLocked(sessionKey)
 	_, ok := c.sessionBindings[sessionKey][sender.Key()]
 	return ok
-}
-
-// IsSessionController 判断 sender 是否是当前控制端。
-func (c *Context) IsSessionController(sessionKey string, sender Sender) bool {
-	if sender == nil {
-		return false
-	}
-	controller := c.ResolveControllerSender(sessionKey)
-	return controller != nil && controller.Key() == sender.Key()
-}
-
-// ResolveControllerSender 返回当前控制端 sender。
-func (c *Context) ResolveControllerSender(sessionKey string) Sender {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pruneClosedBindingsLocked(sessionKey)
-	controllerSenderID := c.controllerSenderIDs[sessionKey]
-	if controllerSenderID == "" {
-		return nil
-	}
-	return c.sessionBindings[sessionKey][controllerSenderID].Sender
 }
 
 // ResolveSessionSenders 返回当前 session 的全部绑定 sender。
@@ -202,27 +145,15 @@ func (c *Context) ResolveSessionSenders(sessionKey string) []Sender {
 	return result
 }
 
-// Lookup 返回当前 session 的控制权快照。
-func (c *Context) Lookup(sessionKey string) SessionBinding {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.pruneClosedBindingsLocked(sessionKey)
-	return c.lookupLocked(sessionKey)
-}
-
 // BroadcastSessionStatus 向当前 session 的全部绑定连接广播 session_status。
 func (c *Context) BroadcastSessionStatus(ctx context.Context, sessionKey string, runningRoundIDs []string) []error {
 	senders := c.ResolveSessionSenders(sessionKey)
 	if len(senders) == 0 {
 		return nil
 	}
-	snapshot := c.Lookup(sessionKey)
 	event := protocol.NewEvent(protocol.EventTypeSessionStatus, map[string]any{
-		"is_generating":        len(runningRoundIDs) > 0,
-		"running_round_ids":    runningRoundIDs,
-		"controller_client_id": emptyToNil(snapshot.ControllerClientID),
-		"observer_count":       snapshot.ObserverCount,
-		"bound_client_count":   snapshot.BoundClientCount,
+		"is_generating":     len(runningRoundIDs) > 0,
+		"running_round_ids": runningRoundIDs,
 	})
 	event.SessionKey = sessionKey
 
@@ -369,30 +300,10 @@ func (c *Context) CancelRequestsForSession(sessionKey string, message string) in
 	return len(requests)
 }
 
-func (c *Context) lookupLocked(sessionKey string) SessionBinding {
-	bindings := c.sessionBindings[sessionKey]
-	if len(bindings) == 0 {
-		return SessionBinding{}
-	}
-
-	controllerSenderID := c.controllerSenderIDs[sessionKey]
-	controllerClientID := ""
-	if controllerBinding, ok := bindings[controllerSenderID]; ok {
-		controllerClientID = controllerBinding.ClientID
-	}
-	boundClientCount := len(bindings)
-	return SessionBinding{
-		ControllerClientID: controllerClientID,
-		ObserverCount:      max(boundClientCount-1, 0),
-		BoundClientCount:   boundClientCount,
-	}
-}
-
 func (c *Context) pruneClosedBindingsLocked(sessionKey string) {
 	bindings := c.sessionBindings[sessionKey]
 	if len(bindings) == 0 {
 		delete(c.sessionBindings, sessionKey)
-		delete(c.controllerSenderIDs, sessionKey)
 		return
 	}
 
@@ -405,17 +316,6 @@ func (c *Context) pruneClosedBindingsLocked(sessionKey string) {
 	bindings = c.sessionBindings[sessionKey]
 	if len(bindings) == 0 {
 		delete(c.sessionBindings, sessionKey)
-		delete(c.controllerSenderIDs, sessionKey)
-		return
-	}
-
-	controllerSenderID := c.controllerSenderIDs[sessionKey]
-	if controllerSenderID == "" {
-		c.promoteControllerLocked(sessionKey)
-		return
-	}
-	if _, ok := bindings[controllerSenderID]; !ok {
-		c.promoteControllerLocked(sessionKey)
 	}
 }
 
@@ -437,52 +337,4 @@ func (c *Context) removeBindingLocked(sessionKey string, senderKey string) {
 			delete(c.senderSessions, senderKey)
 		}
 	}
-
-	if c.controllerSenderIDs[sessionKey] == senderKey {
-		delete(c.controllerSenderIDs, sessionKey)
-	}
-}
-
-func (c *Context) promoteControllerLocked(sessionKey string) {
-	bindings := c.sessionBindings[sessionKey]
-	if len(bindings) == 0 {
-		delete(c.controllerSenderIDs, sessionKey)
-		return
-	}
-
-	var (
-		promotedSenderID string
-		maxOrder         int64 = -1
-	)
-	for senderKey, binding := range bindings {
-		if binding.BindOrder > maxOrder {
-			maxOrder = binding.BindOrder
-			promotedSenderID = senderKey
-		}
-	}
-	if promotedSenderID != "" {
-		c.controllerSenderIDs[sessionKey] = promotedSenderID
-	}
-}
-
-func normalizeClientID(clientID string, senderKey string) string {
-	normalized := clientID
-	if normalized == "" {
-		return "sender:" + senderKey
-	}
-	return normalized
-}
-
-func emptyToNil(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
-}
-
-func max(left int, right int) int {
-	if left > right {
-		return left
-	}
-	return right
 }

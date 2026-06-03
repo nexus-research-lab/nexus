@@ -55,7 +55,8 @@ function MessageItemInner({
   return (
     <MessageShell
       class_name={cn(
-        "animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
+        "nexus-chat-message-round animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
+        compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
         class_name,
       )}
       separated={!compact}

@@ -34,12 +34,12 @@ export function MessageStats(
   return (
     <div
       className={cn(
-        "flex min-w-0 items-start justify-between gap-3 pt-1.5 text-(--text-muted)",
+        "nexus-chat-message-stats flex min-w-0 items-start justify-between gap-3 pt-1.5 text-(--text-muted)",
         compact ? "text-[10.5px]" : "text-[11px]",
       )}>
       <div
         className={cn(
-          "flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 leading-none",
+          "nexus-chat-message-stat-list flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 leading-none",
           compact ? "max-w-full" : "max-w-[calc(100%-2.5rem)]",
         )}>
         {stat_items.map((item, index) => (

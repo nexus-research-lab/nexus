@@ -53,5 +53,9 @@ func (h *Handler) handleUnsubscribeWorkspace(
 	if agentID == "" {
 		return
 	}
-	h.workspaceSubs.Unsubscribe(sender, agentID)
+	watchFiles := true
+	if value, ok := handlershared.BoolValue(inbound["watch_files"]); ok {
+		watchFiles = value
+	}
+	h.workspaceSubs.Unsubscribe(sender, agentID, watchFiles)
 }

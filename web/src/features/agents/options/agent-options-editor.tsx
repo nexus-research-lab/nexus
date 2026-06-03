@@ -32,6 +32,7 @@ import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/ag
 import {
   build_agent_option_provider_options,
   DEFAULT_AGENT_OPTION_MODEL,
+  DEFAULT_AGENT_PERMISSION_MODE,
   DEFAULT_AGENT_OPTION_PROVIDER,
   normalize_agent_option_provider,
 } from "@/features/agents/options/agent-options-constants";
@@ -123,7 +124,7 @@ export function AgentOptionsEditor({
 
   // ---- Advanced 状态 ----
   const [permissionMode, setPermissionMode] = useState(
-    sourceOptions.permission_mode || "bypassPermissions"
+    sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE
   );
   const [allowedTools, setAllowedTools] = useState<string[]>(
     sourceOptions.allowed_tools || []
@@ -155,7 +156,7 @@ export function AgentOptionsEditor({
     setDefaultProvider("");
     setDefaultModel("");
     setProviderOptionsError(null);
-    setPermissionMode(opts.permission_mode || "bypassPermissions");
+    setPermissionMode(opts.permission_mode || DEFAULT_AGENT_PERMISSION_MODE);
     setAllowedTools(opts.allowed_tools || []);
     setDisallowedTools(opts.disallowed_tools || []);
     setNameValidation(null);

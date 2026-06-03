@@ -194,6 +194,7 @@ func (s *RealtimeService) runSlot(
 			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
 		}
 	}
+	permissionHandler = roomRuntimePermissionHandler(permissionHandler)
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
 	runtimeProvider, runtimeModel, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
 	if err != nil {
@@ -206,8 +207,8 @@ func (s *RealtimeService) runSlot(
 		Model:              runtimeModel,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
-		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
-		DisallowedTools:    agentValue.Options.DisallowedTools,
+		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
+		DisallowedTools:    roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
 		SettingSources:     agentValue.Options.SettingSources,
 		AppendSystemPrompt: appendSystemPrompt,
 		ResumeSessionID:    slot.getSDKSessionID(),
@@ -233,10 +234,11 @@ func (s *RealtimeService) runSlot(
 	}))
 	previousStderr := options.Callbacks.Stderr
 	options.Callbacks.Stderr = func(line string) {
+		normalizedLine := normalizeRuntimeStderrLine(line)
 		if previousStderr != nil {
-			previousStderr(line)
+			previousStderr(normalizedLine)
 		}
-		logger.Warn("Agent SDK stderr", "stderr", runtimectx.RedactSensitiveText(line))
+		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
 	}
 	client := s.factory.New(options)
 	slot.setClient(client)
@@ -441,4 +443,59 @@ func roomSourceContextLabel(roundValue *activeRoomRound) string {
 		return roomName
 	}
 	return strings.TrimSpace(roundValue.Context.Conversation.Title)
+}
+
+func roomRuntimeAllowedTools(values []string) []string {
+	if len(toolpolicy.NormalizeSet(values)) == 0 {
+		return values
+	}
+	return appendDistinctRoomRuntimeTools(values, "nexus_room")
+}
+
+func roomRuntimeDisallowedTools(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if isRoomRuntimeTool(value) {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
+}
+
+func appendDistinctRoomRuntimeTools(values []string, extra ...string) []string {
+	result := make([]string, 0, len(values)+len(extra))
+	seen := make(map[string]struct{}, len(values)+len(extra))
+	for _, value := range append(append([]string(nil), values...), extra...) {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
+}
+
+func roomRuntimePermissionHandler(next sdkpermission.Handler) sdkpermission.Handler {
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if isRoomRuntimeTool(request.ToolName) {
+			return sdkpermission.Allow(request.Input, nil), nil
+		}
+		if next == nil {
+			return sdkpermission.Allow(request.Input, nil), nil
+		}
+		return next(ctx, request)
+	}
+}
+
+func isRoomRuntimeTool(toolName string) bool {
+	normalized := strings.TrimSpace(toolName)
+	return normalized == "nexus_room" ||
+		strings.HasPrefix(normalized, "mcp__nexus_room__") ||
+		strings.HasPrefix(normalized, "nexus_room__") ||
+		strings.HasPrefix(normalized, "nexus_room.")
 }

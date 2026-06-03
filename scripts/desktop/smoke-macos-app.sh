@@ -13,7 +13,8 @@ MAIN_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_URL_TIMEOUT_SECONDS:-3}"
 LAUNCHER_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_URL_TIMEOUT_SECONDS:-3}"
 EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}"
 ALLOW_FALLBACK="${NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK:-0}"
-MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=(/|/login) .*surface=main"
+MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=/launcher .*surface=main"
+LAUNCHER_ROUTE_PATTERN="/launcher($|[[:space:]])"
 
 APP_PID=""
 
@@ -116,20 +117,20 @@ else
 fi
 
 if open "nexus://open" >/dev/null 2>&1 &&
-  wait_for_log_match "event=app\\.url_route.*host=open .*route_path=/($|[[:space:]])" "${MAIN_URL_TIMEOUT_SECONDS}"; then
-  wait_for_log "event=main_window\\.route_load.*path=/($|[[:space:]])" "${MAIN_TIMEOUT_SECONDS}"
+  wait_for_log_match "event=app\\.url_route.*host=open .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_URL_TIMEOUT_SECONDS}"; then
+  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 else
   post_main_window_notification || fail "failed to request launcher route through nexus://open"
-  wait_for_log "event=main_window\\.route_load.*path=/($|[[:space:]])" "${MAIN_TIMEOUT_SECONDS}"
+  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
 wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 
 if open "nexus://launcher" >/dev/null 2>&1 &&
-  wait_for_log_match "event=app\\.url_route.*host=launcher .*route_path=/($|[[:space:]])" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
-  wait_for_log "event=main_window\\.route_load.*path=/($|[[:space:]])" "${MAIN_TIMEOUT_SECONDS}"
+  wait_for_log_match "event=app\\.url_route.*host=launcher .*route_path=${LAUNCHER_ROUTE_PATTERN}" "${LAUNCHER_URL_TIMEOUT_SECONDS}"; then
+  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 else
   post_launcher_notification || fail "failed to request launcher route"
-  wait_for_log "event=main_window\\.route_load.*path=/($|[[:space:]])" "${MAIN_TIMEOUT_SECONDS}"
+  wait_for_log "event=main_window\\.route_load.*path=${LAUNCHER_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 fi
 wait_for_log "${MAIN_READY_ROUTE_PATTERN}" "${MAIN_TIMEOUT_SECONDS}"
 

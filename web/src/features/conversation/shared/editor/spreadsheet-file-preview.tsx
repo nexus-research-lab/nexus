@@ -112,12 +112,12 @@ export function SpreadsheetFilePreview({
 
         const content_length = Number(response.headers.get("content-length") || 0);
         if (content_length > MAX_XLSX_PREVIEW_BYTES) {
-          throw new Error("文件超过 15MB，当前仅支持下载后查看");
+          throw new Error("文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
         const buffer = await response.arrayBuffer();
         if (buffer.byteLength > MAX_XLSX_PREVIEW_BYTES) {
-          throw new Error("文件超过 15MB，当前仅支持下载后查看");
+          throw new Error("文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
         if (cancelled) {
           return;

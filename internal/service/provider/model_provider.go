@@ -11,6 +11,8 @@ const (
 	APIFormatResponses = "responses"
 	// APIFormatAnthropicMessages 表示 Anthropic Messages 协议。
 	APIFormatAnthropicMessages = "anthropic_messages"
+	// APIFormatOpenAIImageGeneration 表示 OpenAI Images 生成协议。
+	APIFormatOpenAIImageGeneration = "openai_image_generation"
 	// APIFormatDashScopeImageGeneration 表示阿里云百炼 DashScope 图片生成分支协议。
 	APIFormatDashScopeImageGeneration = "dashscope_image_generation"
 	// APIFormatModelScopeImageGeneration 表示魔搭 ModelScope 异步图片生成分支协议。

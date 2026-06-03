@@ -13,6 +13,7 @@ export type ProviderApiFormat =
   | "chat_completions"
   | "responses"
   | "anthropic_messages"
+  | "openai_image_generation"
   | "dashscope_image_generation"
   | "modelscope_image_generation";
 export type ProviderKind = "llm" | "image_generation";

@@ -103,6 +103,19 @@ function auth_method_label(value: string, t: ReturnType<typeof useI18n>["t"]): s
   }
 }
 
+function user_role_label(value: string, t: ReturnType<typeof useI18n>["t"]): string {
+  switch (value) {
+    case "owner":
+      return t("settings.personal.role_owner");
+    case "admin":
+      return t("settings.personal.role_admin");
+    case "member":
+      return t("settings.personal.role_member");
+    default:
+      return value || "--";
+  }
+}
+
 export function PersonalSettingsPanel() {
   const { locale, t } = useI18n();
   const { refresh_status } = useAuth();
@@ -264,7 +277,7 @@ export function PersonalSettingsPanel() {
                   </div>
                   <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2">
                     <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-                      {t("settings.personal.role")}: {profile?.user.role || "--"}
+                      {t("settings.personal.role")}: {user_role_label(profile?.user.role ?? "", t)}
                     </span>
                     <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
                       {t("settings.personal.auth_method")}: {auth_method_label(profile?.user.auth_method ?? "", t)}

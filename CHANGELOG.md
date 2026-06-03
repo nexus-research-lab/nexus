@@ -113,6 +113,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
 - 修复 Goal hidden continuation 容易让模型误判“未使用 Goal 系统”的提示措辞，续跑/steering 现在明确这是当前会话已存在的受跟踪 Goal，并说明 MCP 限定名下的 `update_goal` 是同一个 Goal 更新工具。
 
+## [0.1.14] - 2026-06-03
+
+### Added
+- Added macOS desktop self-update installation with release package download, sha256 verification, staged `Nexus.app` replacement, and relaunch through an external installer script.
+- Added runtime resilience defaults: idle SDK session recycling and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70` for earlier Claude Code compaction during long workflows.
+
+### Changed
+- Refined compact desktop workspace layout, reduced low-signal sidecar logs, and clarified Agent prompts to use `AskUserQuestion` for native confirmations.
+- Defaulted new Agents and the main Agent to ask-permission mode without pre-authorized tools.
+
+### Fixed
+- Fixed assistant completion and replay consistency across realtime result projection, repeated assistant snapshots, parallel tool actions/results, and transcript history replay.
+- Fixed expected stream-closed runtime shutdown handling, Windows `--mcp-config` startup, concurrent managed-Skill workspace preview initialization, and desktop Claude Code command discovery.
+
+## [0.1.13] - 2026-06-02
+
+### Added
+- Added a public Nexus landing page at `/` with a real workbench preview, capability storytelling, unauthenticated entry links, and an ICP filing footer link for deployment compliance.
+- Added the built-in `nexus_imagegen` runtime tool so Agents can generate and edit images through the configured image Provider without going through the CLI Skill path.
+- Added a built-in Doubao provider with Volcengine Ark text and Seedream image-generation branches.
+
+### Changed
+- Moved the authenticated Launcher route from `/` to `/launcher`, refined public landing actions, and updated desktop launcher routes so packaged apps still open the authenticated launcher.
+- Changed Agent identity to be anchored on `agent_id`; Agent names are now reusable display labels during creation and rename.
+- Changed Room communication to use built-in `nexus_room` runtime tools instead of `nexusctl` Bash calls, and removed window controller/observer session-control roles from chat sessions.
+- Refined conversation responsiveness with tighter narrow-column typography, shorter attachment hints, a collapsible left sidebar, and lazy-loaded Mermaid rendering.
+- Updated the bridge SDK to v0.1.2 and defaulted pnpm registry configuration to npmjs for audit compatibility.
+
+### Fixed
+- Fixed built-in Provider settings so preset API format and Provider kind are derived internally instead of exposed as selectable controls.
+- Fixed image-generation workspace artifacts so built-in `nexus_imagegen` MCP results produce image artifact cards, not only legacy CLI/Bash output.
+- Fixed Agent deletion so removed Agents are hard-deleted with dependent database rows, preventing stale archived records from blocking name reuse.
+- Fixed DM runtime startup so stale SDK resume IDs are cleared and retried once instead of leaving the client disconnected.
+- Fixed group Thread opening while history, workspace, or about panels are active.
+- Fixed shared WebSocket workspace subscriptions so sidebar task status and active chat workspace events do not cancel each other while switching between running tasks.
+- Fixed desktop file actions, desktop update checks, WebView recovery, and Windows Claude Code runtime startup by bypassing npm `.cmd` shims and moving large system prompt/MCP payloads into local argument files.
+
 ## [0.1.12] - 2026-05-29
 
 ### Added

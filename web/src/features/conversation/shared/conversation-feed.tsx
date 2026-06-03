@@ -139,7 +139,7 @@ export const ConversationFeed = memo(function ConversationFeed({
   return (
     <div
       ref={feed_ref}
-      className={is_mobile_layout ? "space-y-4" : "mx-auto flex w-full max-w-[980px] flex-col gap-1"}
+      className={is_mobile_layout ? "nexus-chat-feed space-y-4" : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"}
     >
       {round_ids.map((roundId, idx) => {
         const roundMessages = message_groups.get(roundId) || [];
@@ -245,7 +245,7 @@ function VirtualFeed({
         container_ref.current = el;
         if (feed_ref) (feed_ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
       }}
-      className={is_mobile_layout ? "relative" : "relative mx-auto w-full max-w-[980px]"}
+      className={is_mobile_layout ? "nexus-chat-feed relative" : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"}
       style={{ height: total_size }}
     >
       <div

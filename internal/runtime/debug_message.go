@@ -53,7 +53,7 @@ func BuildSDKMessageLogFieldsWithOptions(
 	case sdkprotocol.MessageTypeSystem:
 		fields = append(fields, buildSystemMessageFields(message)...)
 	}
-	return redactSDKLogFields(fields)
+	return fields
 }
 
 // BuildSDKMessageLogSummary 生成适合调试视图的单行摘要。
@@ -490,7 +490,7 @@ func appendRawLogField(fields []any, key string, value any) []any {
 }
 
 func streamDebugText(value string) string {
-	value = RedactSensitiveText(strings.TrimSpace(strings.Join(strings.Fields(value), " ")))
+	value = strings.TrimSpace(strings.Join(strings.Fields(value), " "))
 	if value == "" {
 		return ""
 	}
@@ -503,7 +503,7 @@ func streamDebugText(value string) string {
 }
 
 func messageDebugText(value string) string {
-	return RedactSensitiveText(value)
+	return strings.TrimSpace(value)
 }
 
 func safeToolName(value string) string {

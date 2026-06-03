@@ -100,7 +100,7 @@ function TimelineBlock({
   }, [children]);
 
   return (
-    <div className="relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] gap-3 items-start">
+    <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
       <div className="relative">
         <span
           className={cn(
@@ -203,7 +203,7 @@ export function ContentRenderer(
     : null;
 
   return (
-    <div className={cn("min-w-0 space-y-2.5", class_name, show_timeline_dots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
+    <div className={cn("nexus-chat-block-stack min-w-0 space-y-2.5", class_name, show_timeline_dots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
       {content.map((block, index) => {
         const blockIsStreaming = streaming_block_indexes?.has(index) ?? false;
 

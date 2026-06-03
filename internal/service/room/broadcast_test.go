@@ -81,7 +81,7 @@ func TestBroadcastSharedEventDoesNotDuplicateObserverWhenUsingPermissionBroadcas
 
 	sessionKey := protocol.BuildRoomSharedSessionKey("conversation-1")
 	sender := &recordingPermissionSender{}
-	permission.BindSession(sessionKey, sender, "client-1", false)
+	permission.BindSession(sessionKey, sender)
 
 	observed := make(chan protocol.EventMessage, 1)
 	service.registerRound(&activeRoomRound{

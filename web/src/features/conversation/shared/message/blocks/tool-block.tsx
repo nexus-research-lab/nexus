@@ -302,7 +302,7 @@ export function ToolBlock({
     ? `${new Date(permission_request.expires_at).toLocaleTimeString()} 前确认`
     : '确认后继续执行';
   const waitingActionHint = interaction_disabled
-    ? interaction_disabled_reason || '当前窗口是观察视图'
+    ? interaction_disabled_reason || '当前暂不可操作'
     : waitingConfirmationText;
   const collapsedDetailText = useMemo(() => {
     if (isWaiting && permissionFieldSummary) {

@@ -51,6 +51,7 @@ func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content 
 		Content:     content,
 		ContextName: normalizeGuidanceContextName(contextName),
 	})
+	m.touchStateLocked(state)
 	return roundIDs, nil
 }
 
@@ -144,6 +145,7 @@ func (m *Manager) drainGuidanceInputs(sessionKey string) []GuidedInput {
 	}
 	inputs := append([]GuidedInput(nil), state.GuidedInputs...)
 	state.GuidedInputs = nil
+	m.touchStateLocked(state)
 	return inputs
 }
 

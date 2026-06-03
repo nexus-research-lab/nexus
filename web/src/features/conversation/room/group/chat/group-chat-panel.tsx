@@ -10,10 +10,7 @@ import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import { build_room_shared_session_key } from "@/lib/conversation/session-key";
 import { useAuth } from "@/shared/auth/auth-context";
-import {
-  AgentConversationIdentity,
-  get_session_control_status_text,
-} from "@/types/agent/agent-conversation";
+import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 import { Agent } from "@/types/agent/agent";
@@ -146,8 +143,6 @@ export function GroupChatPanel({
     is_history_loading,
     has_more_history,
     history_prepend_token,
-    session_control_state,
-    session_observer_count,
     pending_agent_slots,
     pending_permissions,
     send_message,
@@ -198,16 +193,8 @@ export function GroupChatPanel({
   });
   const last_snapshot_key_ref = useRef<string | null>(null);
   const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
-  const can_control_session = session_control_state !== "observer";
-  const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
-  const session_control_text = useMemo(
-    () =>
-      get_session_control_status_text(
-        session_control_state,
-        session_observer_count,
-      ),
-    [session_control_state, session_observer_count],
-  );
+  const can_control_session = true;
+  const observer_read_only_reason = "";
 
   useEffect(() => {
     on_todos_change?.(todos);
@@ -447,7 +434,6 @@ export function GroupChatPanel({
           <ComposerPanel
             allow_send_while_loading
             compact={is_mobile_layout}
-            control_status_text={session_control_text}
             default_delivery_policy={default_delivery_policy}
             input_queue_items={input_queue_items}
             is_loading={is_loading}

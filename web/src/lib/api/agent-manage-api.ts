@@ -18,6 +18,10 @@ import {
   WorkspaceEntryMutationResponse,
   WorkspaceEntryRenameResponse,
 } from "@/types/agent/agent";
+import {
+  apply_desktop_request_headers,
+  is_desktop_runtime,
+} from "@/config/desktop-runtime";
 import { get_agent_api_base_url } from "@/config/options";
 import { transform_api_agent } from "@/lib/api/agent-transform";
 import { request_api } from "@/lib/api/http";
@@ -230,3 +234,61 @@ export const get_workspace_file_preview_url = (
 ): string => {
   return build_workspace_file_transfer_url(agent_id, path, "inline");
 };
+
+export const reveal_workspace_file_in_folder_api = async (
+  agent_id: string,
+  path: string,
+): Promise<{ path: string }> => {
+  return request_api<{ path: string }>(
+    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/reveal`,
+    {
+      method: "POST",
+      body: { path },
+    },
+  );
+};
+
+function normalize_download_file_name(path: string, file_name?: string): string {
+  const normalized_name = file_name?.trim();
+  if (normalized_name) {
+    return normalized_name;
+  }
+  const normalized_path = path.trim().replace(/\\/g, "/");
+  return normalized_path.split("/").filter(Boolean).at(-1) || "download";
+}
+
+/** 桌面端在文件夹中定位，浏览器端下载文件，避免 HTML 触发桌面壳顶层导航。 */
+export async function download_workspace_file_api(
+  agent_id: string,
+  path: string,
+  file_name?: string,
+): Promise<void> {
+  if (is_desktop_runtime()) {
+    await reveal_workspace_file_in_folder_api(agent_id, path);
+    return;
+  }
+
+  const url = get_workspace_file_download_url(agent_id, path);
+  const resolved_file_name = normalize_download_file_name(path, file_name);
+  const headers = new Headers();
+  apply_desktop_request_headers(url, headers);
+  const response = await fetch(url, {
+    credentials: "include",
+    headers,
+    method: "GET",
+  });
+  if (!response.ok) {
+    throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+  }
+
+  const blob = await response.blob();
+  const object_url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = object_url;
+  anchor.download = resolved_file_name;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(object_url), 0);
+}

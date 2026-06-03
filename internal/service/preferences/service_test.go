@@ -10,6 +10,21 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+func TestDefaultPreferencesAskByDefault(t *testing.T) {
+	prefs := DefaultPreferences()
+	if prefs.DefaultAgentOptions.PermissionMode != "default" {
+		t.Fatalf("默认权限应为询问模式: %+v", prefs.DefaultAgentOptions)
+	}
+	if len(prefs.DefaultAgentOptions.AllowedTools) != 0 {
+		t.Fatalf("默认不应预授权工具: %+v", prefs.DefaultAgentOptions.AllowedTools)
+	}
+
+	normalized := normalizePreferences(Preferences{})
+	if normalized.DefaultAgentOptions.PermissionMode != "default" {
+		t.Fatalf("空偏好归一化后应为询问模式: %+v", normalized.DefaultAgentOptions)
+	}
+}
+
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})

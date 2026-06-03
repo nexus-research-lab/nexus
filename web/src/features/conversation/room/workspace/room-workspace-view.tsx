@@ -7,7 +7,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import { Agent } from "@/types/agent/agent";
-import { get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
+import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { EditorPanel } from "@/features/conversation/shared/editor/editor-panel";
@@ -16,6 +16,7 @@ import { useRoomWorkspaceController, } from "./use-room-workspace-controller";
 import { RoomAgentSwitcher } from "@/features/conversation/room/surface/room-agent-switcher";
 import { WorkspaceContextMenu } from "./workspace-context-menu";
 import { WorkspaceFileTree } from "./workspace-file-tree";
+import { useMediaQuery } from "@/hooks/ui/use-media-query";
 
 interface RoomWorkspaceViewProps {
   active_workspace_path: string | null;
@@ -30,6 +31,9 @@ interface RoomWorkspaceViewProps {
 const WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 280;
 const WORKSPACE_FILE_LIST_MIN_WIDTH = 200;
 const WORKSPACE_FILE_LIST_MAX_WIDTH = 360;
+const COMPACT_WORKSPACE_FILE_LIST_DEFAULT_WIDTH = 220;
+const COMPACT_WORKSPACE_FILE_LIST_MIN_WIDTH = 160;
+const COMPACT_WORKSPACE_FILE_LIST_MAX_WIDTH = 280;
 
 // ── main view ──────────────────────────────────────────────────────────────
 
@@ -46,9 +50,16 @@ export function RoomWorkspaceView(
   const {t} = useI18n();
   const file_input_ref = useRef<HTMLInputElement>(null);
   const workspace_panel_ref = useRef<HTMLDivElement>(null);
+  const is_compact_file_tree = useMediaQuery("(max-width: 1280px)");
   const [file_list_width, set_file_list_width] = useState(WORKSPACE_FILE_LIST_DEFAULT_WIDTH);
   const [is_resizing_file_list, set_is_resizing_file_list] = useState(false);
   const [is_preview_focused, set_is_preview_focused] = useState(false);
+  const file_list_min_width = is_compact_file_tree
+    ? COMPACT_WORKSPACE_FILE_LIST_MIN_WIDTH
+    : WORKSPACE_FILE_LIST_MIN_WIDTH;
+  const file_list_max_width = is_compact_file_tree
+    ? COMPACT_WORKSPACE_FILE_LIST_MAX_WIDTH
+    : WORKSPACE_FILE_LIST_MAX_WIDTH;
   const {
     view_agent_id,
     files,
@@ -92,15 +103,17 @@ export function RoomWorkspaceView(
     />
   ) : null;
 
-  const handle_download_context_entry = () => {
+  const handle_external_context_entry = () => {
     if (!context_menu.entry || context_menu.entry.is_dir) {
       return;
     }
-    window.open(
-      get_workspace_file_download_url(view_agent_id, context_menu.entry.path),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    void download_workspace_file_api(
+      view_agent_id,
+      context_menu.entry.path,
+      context_menu.entry.name,
+    ).catch((error) => {
+      console.error("[RoomWorkspaceView] 处理 workspace 文件失败:", error);
+    });
   };
 
   const handle_toggle_preview_focus = () => {
@@ -113,6 +126,14 @@ export function RoomWorkspaceView(
       set_is_preview_focused(false);
     }
   }, [active_workspace_path]);
+
+  useEffect(() => {
+    if (is_compact_file_tree) {
+      set_file_list_width((current) => Math.min(current, COMPACT_WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
+      return;
+    }
+    set_file_list_width((current) => Math.max(current, WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
+  }, [is_compact_file_tree]);
 
   useEffect(() => {
     if (!is_resizing_file_list) {
@@ -128,8 +149,8 @@ export function RoomWorkspaceView(
       const next_width = bounds.right - event.clientX;
       set_file_list_width(
         Math.min(
-          Math.max(next_width, WORKSPACE_FILE_LIST_MIN_WIDTH),
-          WORKSPACE_FILE_LIST_MAX_WIDTH,
+          Math.max(next_width, file_list_min_width),
+          file_list_max_width,
         ),
       );
     };
@@ -145,7 +166,7 @@ export function RoomWorkspaceView(
       window.removeEventListener("mousemove", handle_mouse_move);
       window.removeEventListener("mouseup", handle_mouse_up);
     };
-  }, [is_resizing_file_list]);
+  }, [file_list_max_width, file_list_min_width, is_resizing_file_list]);
 
   return (
     <>
@@ -208,30 +229,42 @@ export function RoomWorkspaceView(
               </div>
 
               <div
-                className="soft-scrollbar flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1">
+                className="soft-scrollbar flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 max-xl:gap-2">
                 <div className="shrink-0">
                   <WorkspaceSurfaceToolbarAction onClick={() => handle_upload_click()}
-                                                 disabled={is_uploading} tone="primary">
+                                                 disabled={is_uploading}
+                                                 tone="primary"
+                                                 aria_label={t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+                                                 class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+                                                 title={t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}>
                     {is_uploading ? (
                       <LoaderCircle className="h-3 w-3 animate-spin"/>
                     ) : (
                       <Upload className="h-3 w-3"/>
                     )}
-                    {t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+                    <span className="max-xl:hidden">
+                      {t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+                    </span>
                   </WorkspaceSurfaceToolbarAction>
                 </div>
 
                 <div className="shrink-0">
-                  <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("directory")}>
+                  <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("directory")}
+                                                 aria_label={t("room.workspace_action_new_folder")}
+                                                 class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+                                                 title={t("room.workspace_action_new_folder")}>
                     <FolderPlus className="h-3 w-3"/>
-                    {t("room.workspace_action_new_folder")}
+                    <span className="max-xl:hidden">{t("room.workspace_action_new_folder")}</span>
                   </WorkspaceSurfaceToolbarAction>
                 </div>
 
                 <div className="shrink-0">
-                  <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("file")}>
+                  <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("file")}
+                                                 aria_label={t("room.workspace_action_new_file")}
+                                                 class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+                                                 title={t("room.workspace_action_new_file")}>
                     <FilePlus className="h-3 w-3"/>
-                    {t("room.workspace_action_new_file")}
+                    <span className="max-xl:hidden">{t("room.workspace_action_new_file")}</span>
                   </WorkspaceSurfaceToolbarAction>
                 </div>
               </div>
@@ -297,7 +330,7 @@ export function RoomWorkspaceView(
         on_upload={() => handle_upload_click(context_menu.entry?.is_dir ? context_menu.entry.path : null)}
         on_create_file={() => open_create_prompt("file", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
         on_create_folder={() => open_create_prompt("directory", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        on_download={handle_download_context_entry}
+        on_download={handle_external_context_entry}
         on_rename={() => {
           if (context_menu.entry) open_rename_prompt(context_menu.entry);
         }}

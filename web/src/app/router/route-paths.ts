@@ -1,6 +1,7 @@
 export const APP_ROUTE_PATHS = {
+  landing: "/",
   login: "/login",
-  launcher: "/",
+  launcher: "/launcher",
   home: "/app",
   room: "/rooms/:room_id",
   room_conversation: "/rooms/:room_id/conversations/:conversation_id",
@@ -18,6 +19,7 @@ export const APP_ROUTE_PATHS = {
 } as const;
 
 export const AppRouteBuilders = {
+  landing: () => APP_ROUTE_PATHS.landing,
   login: () => APP_ROUTE_PATHS.login,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,

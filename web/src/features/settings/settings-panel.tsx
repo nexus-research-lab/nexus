@@ -54,6 +54,7 @@ import {
 } from "@/config/options";
 import {
   AGENT_PERMISSION_MODES,
+  DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
 import {
   list_provider_options_api,
@@ -287,7 +288,7 @@ function GeneralSettingsSection() {
   const provider_default_selection_ref = useRef({ provider: "", model: "" });
   const image_default_selection_ref = useRef({ provider: "", model: "" });
   const save_sequence_ref = useRef(0);
-  const permission_mode = preferences.default_agent_options.permission_mode ?? "bypassPermissions";
+  const permission_mode = preferences.default_agent_options.permission_mode ?? DEFAULT_AGENT_PERMISSION_MODE;
   const selected_permission_mode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permission_mode) ?? AGENT_PERMISSION_MODES[0];
   const [desktop_available] = useState(() => is_desktop_bridge_available());
   const [desktop_version, set_desktop_version] = useState<DesktopAppVersion | null>(null);

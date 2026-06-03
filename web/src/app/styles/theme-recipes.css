@@ -393,4 +393,132 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* 中文注释：聊天列在桌面分栏后也可能变窄，按容器宽度收紧消息排版，而不是只依赖移动端断点。 */
+  .nexus-chat-feed {
+    container: nexus-chat-feed / inline-size;
+  }
+
+  @container nexus-chat-feed (max-width: 620px) {
+    .nexus-chat-feed .nexus-chat-message-round {
+      padding-top: 0.625rem;
+      padding-bottom: 0.625rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-round > :not(:last-child) {
+      margin-bottom: 0.375rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-section {
+      padding-right: 0.25rem;
+      padding-left: 0.25rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-assistant-grid-expanded {
+      grid-template-columns: 2rem minmax(0, 1fr);
+      column-gap: 0.625rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-round-expanded .nexus-chat-avatar {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.625rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-header {
+      height: auto;
+      min-height: 1.375rem;
+      gap: 0.375rem;
+      padding-bottom: 0;
+    }
+
+    .nexus-chat-feed .nexus-chat-author {
+      font-size: 0.8125rem;
+      line-height: 1.25rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-meta {
+      font-size: 0.6875rem;
+      line-height: 1rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-user-content-shell {
+      padding: 0.5rem 0.625rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-content,
+    .nexus-chat-feed .nexus-chat-user-content,
+    .nexus-chat-feed .nexus-chat-markdown {
+      font-size: 0.875rem;
+      line-height: 1.58;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-content {
+      padding-top: 0.125rem;
+      padding-bottom: 0.375rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-markdown [data-markdown-anchor] {
+      margin-top: 0.375rem;
+      margin-bottom: 0.375rem;
+      line-height: 1.58;
+    }
+
+    .nexus-chat-feed .nexus-chat-markdown h1[data-markdown-anchor] {
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      font-size: 1.25rem;
+      line-height: 1.35;
+    }
+
+    .nexus-chat-feed .nexus-chat-markdown h2[data-markdown-anchor] {
+      margin-top: 0.875rem;
+      margin-bottom: 0.45rem;
+      font-size: 1.125rem;
+      line-height: 1.35;
+    }
+
+    .nexus-chat-feed .nexus-chat-markdown h3[data-markdown-anchor] {
+      margin-top: 0.75rem;
+      margin-bottom: 0.375rem;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    .nexus-chat-feed .markdown-list {
+      gap: 0.35rem;
+      margin-top: 0.375rem;
+      margin-bottom: 0.625rem;
+    }
+
+    .nexus-chat-feed .markdown-list-item {
+      grid-template-columns: 1.5rem minmax(0, 1fr);
+      column-gap: 0.375rem;
+      line-height: 1.58;
+    }
+
+    .nexus-chat-feed .markdown-list-item::before {
+      min-width: 1rem;
+      font-weight: 600;
+    }
+
+    .nexus-chat-feed .nexus-chat-block-stack > :not(:last-child) {
+      margin-bottom: 0.5rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-timeline-block {
+      grid-template-columns: 0.625rem minmax(0, 1fr);
+      gap: 0.5rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-stats {
+      gap: 0.5rem;
+      padding-top: 0.375rem;
+      font-size: 0.625rem;
+    }
+
+    .nexus-chat-feed .nexus-chat-message-stat-list {
+      gap: 0.25rem 0.375rem;
+    }
+  }
 }

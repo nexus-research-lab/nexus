@@ -290,7 +290,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-1")
-	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -368,11 +368,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"You are a member in a multi-member Nexus Room",
 		"Each user turn includes <public_feed>",
 		"create a Room directed message",
-		`nexusctl --json room message publish`,
-		`nexusctl --json room message send`,
-		`--recipient-agent-id <id> [--recipient-agent-id <id>]`,
-		`--reply-route public|none|private`,
-		`--reply-next-route public|private|none`,
+		`nexus_room.publish_public_message`,
+		`nexus_room.send_directed_message`,
+		`recipients: string[]`,
+		`reply_route: { mode: public|private|none`,
+		`next_reply_route`,
 		"Small-group discussion is just a directed message with multiple recipients",
 		`latest_trigger says "room host default takeover"`,
 		"When you receive a directed message, answer in this turn's final reply",
@@ -529,7 +529,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	service := roomsvc.NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimectx.NewManager(), permission, factory)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-host-default")
-	permission.BindSession(sharedSessionKey, sender, "client-host-default", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -632,7 +632,7 @@ func TestRealtimeServiceCompletesRoomRoundFromTerminalAssistantWithoutResult(t *
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-assistant-terminal")
-	permission.BindSession(sharedSessionKey, sender, "client-assistant-terminal", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -801,7 +801,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-think-stream")
-	permission.BindSession(sharedSessionKey, sender, "room-client-think-stream", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -985,7 +985,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-model")
-	permission.BindSession(sharedSessionKey, sender, "client-no-model", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1085,7 +1085,7 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-bypass")
-	permission.BindSession(sharedSessionKey, sender, "client-bypass", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1209,6 +1209,14 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "非交互助手")
+	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{
+			DisallowedTools: []string{"nexus_room", "mcp__nexus_room__send_directed_message", "Write"},
+		},
+	})
+	if err != nil || memberAgent == nil {
+		t.Fatalf("更新 member agent 配置失败: value=%+v err=%v", memberAgent, err)
+	}
 	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
 	if err != nil {
 		t.Fatalf("创建直聊 room 失败: %v", err)
@@ -1243,7 +1251,7 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	service := NewRealtimeServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-permission-handler")
-	permission.BindSession(sharedSessionKey, sender, "client-permission-handler", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:        sharedSessionKey,
@@ -1283,6 +1291,20 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	}
 	if decision.Behavior != sdkpermission.BehaviorDeny || len(handledTools) != 1 || handledTools[0] != "Write" {
 		t.Fatalf("room 请求级权限处理器未生效: decision=%+v tools=%+v", decision, handledTools)
+	}
+	roomDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_room__send_directed_message"})
+	if err != nil {
+		t.Fatalf("执行 room 内建通讯工具权限处理器失败: %v", err)
+	}
+	if roomDecision.Behavior != sdkpermission.BehaviorAllow || len(handledTools) != 1 {
+		t.Fatalf("nexus_room 应由 Room runtime 内建放行: decision=%+v tools=%+v", roomDecision, handledTools)
+	}
+	if roomTestStringSliceContains(options.Tools.Deny, "nexus_room") ||
+		roomTestStringSliceContains(options.Tools.Deny, "mcp__nexus_room__send_directed_message") {
+		t.Fatalf("Room runtime 不应让 agent deny 列表屏蔽内建通讯工具: %+v", options.Tools.Deny)
+	}
+	if !roomTestStringSliceContains(options.Tools.Deny, "Write") {
+		t.Fatalf("Room runtime 应保留非通讯工具 deny 配置: %+v", options.Tools.Deny)
 	}
 }
 
@@ -1331,7 +1353,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-public-mention")
-	permission.BindSession(sharedSessionKey, sender, "client-public-mention", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1424,7 +1446,7 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-public-mention-chain")
-	permission.BindSession(sharedSessionKey, sender, "client-public-mention-chain", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1501,7 +1523,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-public-mention-queue")
-	permission.BindSession(sharedSessionKey, sender, "client-public-mention-queue", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1645,7 +1667,7 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-user-queue-idle-target")
-	permission.BindSession(sharedSessionKey, sender, "client-user-queue-idle-target", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1745,7 +1767,7 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-mention")
-	permission.BindSession(sharedSessionKey, sender, "client-no-mention", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1857,7 +1879,7 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	service.SetUsageRecorder(usageService)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-no-reply")
-	permission.BindSession(sharedSessionKey, sender, "client-no-reply", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -1964,7 +1986,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-2")
-	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2100,7 +2122,7 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-parallel-agents")
-	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2203,7 +2225,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-queue-running")
-	permission.BindSession(sharedSessionKey, sender, "client-queue-running", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2324,7 +2346,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-guide-running")
-	permission.BindSession(sharedSessionKey, sender, "client-guide-running", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2468,7 +2490,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-mcp-context")
-	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2555,7 +2577,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-interrupt-closed-stream")
-	permission.BindSession(sharedSessionKey, sender, "client-1", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2689,7 +2711,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-resume-sender")
-	permission.BindSession(sharedSessionKey, sender, "client-room-resume", true)
+	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
@@ -2974,6 +2996,15 @@ func hasStreamText(events []protocol.EventMessage, text string) bool {
 		}
 		block, _ := event.Data["content_block"].(map[string]any)
 		if strings.Contains(normalizePendingValue(block["text"]), text) {
+			return true
+		}
+	}
+	return false
+}
+
+func roomTestStringSliceContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
 			return true
 		}
 	}

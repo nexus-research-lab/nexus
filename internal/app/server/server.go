@@ -13,12 +13,11 @@ import (
 
 // Server 表示完整 HTTP 进程入口。
 type Server struct {
-	config               config.Config
-	api                  *handlershared.API
-	router               chi.Router
-	services             *AppServices
-	handlers             handlerSet
-	internalControlToken string
+	config   config.Config
+	api      *handlershared.API
+	router   chi.Router
+	services *AppServices
+	handlers handlerSet
 }
 
 // New 创建 HTTP server。
@@ -39,21 +38,13 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 
 	api := handlershared.NewAPI(logger)
 	websocketHandler := newWebSocketHandler(api, appServices, cfg)
-	internalControlToken, err := newInternalControlToken()
-	if err != nil {
-		return nil, err
-	}
-	if appServices.RoomRealtime != nil {
-		appServices.RoomRealtime.SetInternalAPI(internalControlBaseURL(cfg), internalControlToken)
-	}
 
 	server := &Server{
-		config:               cfg,
-		api:                  api,
-		router:               chi.NewRouter(),
-		services:             appServices,
-		handlers:             newHandlerSet(api, appServices, websocketHandler, internalControlToken, cfg),
-		internalControlToken: internalControlToken,
+		config:   cfg,
+		api:      api,
+		router:   chi.NewRouter(),
+		services: appServices,
+		handlers: newHandlerSet(api, appServices, websocketHandler, cfg),
 	}
 
 	server.mountMiddleware(logger)
@@ -64,14 +55,6 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 // Router 返回已初始化路由。
 func (s *Server) Router() http.Handler {
 	return s.router
-}
-
-// InternalControlToken 返回当前进程内部控制面的临时 token。
-func (s *Server) InternalControlToken() string {
-	if s == nil {
-		return ""
-	}
-	return s.internalControlToken
 }
 
 func (s *Server) mountMiddleware(logger *slog.Logger) {

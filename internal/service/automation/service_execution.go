@@ -454,7 +454,7 @@ func (s *Service) bindSink(sessionKey string, sink *automationdomain.ExecutionSi
 	if s.permission == nil {
 		return func() {}
 	}
-	s.permission.BindSession(sessionKey, sink, sink.Key(), false)
+	s.permission.BindSession(sessionKey, sink)
 	return func() {
 		s.permission.UnbindSession(sessionKey, sink)
 	}

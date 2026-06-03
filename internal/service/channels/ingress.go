@@ -450,7 +450,11 @@ func (s *IngressService) buildPermissionHandler(
 	allowedByAgent := toolpolicy.NormalizeSet(agentValue.Options.AllowedTools)
 	approved := request.autoApproveTools
 	if request.channelStored == ChannelTypeInternal && len(approved) == 0 {
-		approved = toolpolicy.CopySet(allowedByAgent)
+		if len(allowedByAgent) > 0 {
+			approved = toolpolicy.CopySet(allowedByAgent)
+		} else {
+			approved = toolpolicy.CopySet(defaultReadOnlyApprovedTools)
+		}
 	}
 	return func(_ context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
 		toolName := strings.TrimSpace(permissionRequest.ToolName)

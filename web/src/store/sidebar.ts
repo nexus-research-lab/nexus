@@ -12,6 +12,7 @@ import { persist } from "zustand/middleware";
 export const WIDE_PANEL_MIN_WIDTH = 264;
 export const WIDE_PANEL_MAX_WIDTH = 400;
 export const WIDE_PANEL_DEFAULT_WIDTH = 264;
+type WidePanelCollapseSource = "manual" | "right_panel_auto";
 export const SIDEBAR_SYSTEM_ITEM_IDS = {
   nexus: "system:nexus",
 } as const;
@@ -60,6 +61,10 @@ interface SidebarState {
   nexus_room_id: string | null;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;
+  /** 宽面板是否处于收起状态。 */
+  wide_panel_collapsed: boolean;
+  /** 记录收起来源，避免右侧面板自动收起覆盖用户手动选择。 */
+  wide_panel_collapse_source: WidePanelCollapseSource | null;
   /** 聊天入口未读消息提示数量。 */
   chat_badge_count: number;
   /** 聊天会话维度的未读完成消息数。 */
@@ -83,6 +88,10 @@ interface SidebarActions {
   clear_chat_notifications_for_room: (room_id: string | null | undefined) => void;
   /** 设置宽面板宽度，自动 clamp 到 [180, 400] */
   set_wide_panel_width: (width: number) => void;
+  set_wide_panel_collapsed: (collapsed: boolean) => void;
+  toggle_wide_panel_collapsed: () => void;
+  collapse_wide_panel_for_right_panel: () => void;
+  expand_wide_panel_after_right_panel: () => void;
   toggle_section: (section_id: string) => void;
 }
 
@@ -128,6 +137,8 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       active_panel_item_id: null,
       nexus_room_id: null,
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
+      wide_panel_collapsed: false,
+      wide_panel_collapse_source: null,
       chat_badge_count: 0,
       chat_unread_counts: {},
       chat_unread_targets: {},
@@ -210,6 +221,36 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
 
       set_wide_panel_width: (width) =>
         set({ wide_panel_width: clamp_panel_width(width) }),
+      set_wide_panel_collapsed: (collapsed) =>
+        set({
+          wide_panel_collapsed: collapsed,
+          wide_panel_collapse_source: collapsed ? "manual" : null,
+        }),
+      toggle_wide_panel_collapsed: () =>
+        set((state) => ({
+          wide_panel_collapsed: !state.wide_panel_collapsed,
+          wide_panel_collapse_source: !state.wide_panel_collapsed ? "manual" : null,
+        })),
+      collapse_wide_panel_for_right_panel: () =>
+        set((state) => {
+          if (state.wide_panel_collapsed) {
+            return state;
+          }
+          return {
+            wide_panel_collapsed: true,
+            wide_panel_collapse_source: "right_panel_auto",
+          };
+        }),
+      expand_wide_panel_after_right_panel: () =>
+        set((state) => {
+          if (state.wide_panel_collapse_source !== "right_panel_auto") {
+            return state;
+          }
+          return {
+            wide_panel_collapsed: false,
+            wide_panel_collapse_source: null,
+          };
+        }),
 
       toggle_section: (section_id) =>
         set((state) => ({
@@ -224,6 +265,12 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       // 只持久化布局相关状态，条目高亮保持运行时态
       partialize: (state) => ({
         wide_panel_width: state.wide_panel_width,
+        wide_panel_collapsed: state.wide_panel_collapse_source === "manual"
+          ? state.wide_panel_collapsed
+          : false,
+        wide_panel_collapse_source: state.wide_panel_collapse_source === "manual"
+          ? state.wide_panel_collapse_source
+          : null,
         collapsed_sections: state.collapsed_sections,
       }),
     },

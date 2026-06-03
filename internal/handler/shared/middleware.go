@@ -166,7 +166,10 @@ func accessLogLevel(request *http.Request, status int, duration time.Duration) s
 	if status >= http.StatusBadRequest {
 		return slog.LevelWarn
 	}
-	if status == http.StatusSwitchingProtocols || duration >= time.Second {
+	if status == http.StatusSwitchingProtocols {
+		return slog.LevelDebug
+	}
+	if duration >= time.Second {
 		return slog.LevelInfo
 	}
 	switch request.Method {

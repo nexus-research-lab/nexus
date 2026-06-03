@@ -6,7 +6,7 @@
   Title="Nexus"
   Width="1280"
   Height="820"
-  MinWidth="960"
+  MinWidth="1120"
   MinHeight="640"
   Background="#F7F8FA"
   WindowStartupLocation="CenterScreen">

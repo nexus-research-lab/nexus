@@ -17,6 +17,8 @@ import (
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const apiFormatAnthropicMessages = "anthropic_messages"
+const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+const defaultClaudeAutoCompactPctOverride = "70"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -64,7 +66,8 @@ func BuildAgentClientOptions(
 	if err != nil {
 		return agentclient.Options{}, err
 	}
-	runtimeEnv := runtimeEnvFromConfig(runtimeConfig)
+	runtimeEnv := defaultRuntimeEnv()
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
@@ -74,13 +77,16 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
+	commandConfig := processCLICommandConfig()
 
 	options := agentclient.Options{
-		CLIPath:                processCLIPath(),
+		CLIPath:                commandConfig.CLIPath,
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
+		Executable:             commandConfig.Executable,
+		PathToExecutable:       commandConfig.PathToExecutable,
 		System: agentclient.SystemOptions{
 			Append: input.AppendSystemPrompt,
 		},
@@ -110,6 +116,9 @@ func BuildAgentClientOptions(
 	}
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
+	}
+	if err := materializeProcessArgFiles(&options); err != nil {
+		return agentclient.Options{}, err
 	}
 	return options, nil
 }
@@ -195,6 +204,12 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
 	return env
+}
+
+func defaultRuntimeEnv() map[string]string {
+	return map[string]string{
+		claudeAutoCompactPctOverrideEnvName: defaultClaudeAutoCompactPctOverride,
+	}
 }
 
 func resolveRuntimeConfig(

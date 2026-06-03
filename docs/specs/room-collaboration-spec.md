@@ -92,7 +92,7 @@ Public feed 的唯一执行触发是 `@成员`。
 
 任何进入 public feed 的文本，只要包含可解析的裸 `@成员`，都走统一公区唤醒规则。行内代码和 fenced code 中的 `@成员` 只是示例，不触发唤醒。唤醒属于 public feed + `@`，不属于某种特殊消息类型。
 
-agent 主动发布公开消息使用 `room message publish`。这是写 public feed 的能力，不是 directed message，也不是 marker。它只表达“当前成员发布了一条公开消息”；平台不从中解释阶段、票型、胜负或业务状态。
+agent 主动发布公开消息使用内建工具 `nexus_room.publish_public_message`。这是写 public feed 的能力，不是 directed message，也不是 marker。它只表达“当前成员发布了一条公开消息”；平台不从中解释阶段、票型、胜负或业务状态。
 
 ### 2.5 Private Context
 
@@ -355,12 +355,12 @@ agent final reply 中产生的公区 `@` 不应该在同一个模型执行循环
 
 - recipient 的 final reply 使用 `reply_route=public`。
 - private handback 使用 `next_reply_route=public` 唤醒 route recipient 后，该 recipient 的 final reply 进入 public feed。
-- 当前 agent 调用 `room message publish` 主动发布公开消息。
+- 当前 agent 调用内建工具 `nexus_room.publish_public_message` 主动发布公开消息。
 
 平台必须保证：
 
 - 原始私域 content 不自动进入 public feed。
-- action / tool result 不自动进入 public feed；只有 `room message publish` 的 `content` 是公开消息正文。
+- action / tool result 不自动进入 public feed；只有 `nexus_room.publish_public_message` 的 `content` 是公开消息正文。
 - 公开回复进入 public feed 后，如果包含 `@成员`，再走统一公区 `@` 唤醒规则。
 
 ### 4.5 私域转私域

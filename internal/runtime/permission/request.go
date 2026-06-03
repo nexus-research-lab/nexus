@@ -62,7 +62,10 @@ func (c *Context) resolveRouteContext(sessionKey string) RouteContext {
 	return route
 }
 
-func (c *Context) replayPendingRequests(sessionKey string) {
+func (c *Context) replayPendingRequestsToSender(sessionKey string, sender Sender) {
+	if sender == nil || sender.IsClosed() {
+		return
+	}
 	dispatchSessionKey := c.ResolveDispatchSessionKey(sessionKey)
 	c.mu.RLock()
 	requests := make([]*PendingRequest, 0)
@@ -74,7 +77,7 @@ func (c *Context) replayPendingRequests(sessionKey string) {
 	c.mu.RUnlock()
 
 	for _, pending := range requests {
-		c.dispatchPendingRequest(pending)
+		c.dispatchPendingRequestToSender(pending, sender)
 	}
 }
 
@@ -82,15 +85,20 @@ func (c *Context) dispatchPendingRequest(pending *PendingRequest) {
 	if pending == nil {
 		return
 	}
-	controller := c.ResolveControllerSender(pending.DispatchSessionKey)
-	if controller == nil || controller.IsClosed() {
-		return
-	}
-
 	event := buildPermissionEvent(pending)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = controller.SendEvent(ctx, event)
+	_ = c.BroadcastEvent(ctx, pending.DispatchSessionKey, event)
+}
+
+func (c *Context) dispatchPendingRequestToSender(pending *PendingRequest, sender Sender) {
+	if pending == nil || sender == nil || sender.IsClosed() {
+		return
+	}
+	event := buildPermissionEvent(pending)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = sender.SendEvent(ctx, event)
 }
 
 func (c *Context) cleanupRequest(requestID string) {
@@ -151,11 +159,6 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 	if pending == nil {
 		return
 	}
-	controller := c.ResolveControllerSender(pending.DispatchSessionKey)
-	if controller == nil || controller.IsClosed() {
-		return
-	}
-
 	event := protocol.NewPermissionRequestResolvedEvent(
 		pending.DispatchSessionKey,
 		pending.RequestID,
@@ -169,7 +172,7 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = controller.SendEvent(ctx, event)
+	_ = c.BroadcastEvent(ctx, pending.DispatchSessionKey, event)
 }
 
 func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) map[string]string {

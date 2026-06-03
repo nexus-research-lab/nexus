@@ -107,17 +107,25 @@ func (s *Service) UpdateModel(ctx context.Context, provider string, modelID stri
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
-	if input.IsDefault {
-		if item.ProviderKind == ProviderKindLLM && (!item.Enabled || !isAgentRuntimeProvider(*item)) {
-			return nil, fmt.Errorf("provider=%s 暂不可设为 Agent 默认模型", item.Provider)
-		}
-		if item.ProviderKind != ProviderKindLLM && item.ProviderKind != ProviderKindImageGeneration {
-			return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
-		}
-	}
 	model, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
+	}
+	if input.IsDefault {
+		candidate := providerstore.ModelEntity{
+			ModelID:                  modelID,
+			DisplayName:              modelID,
+			CapabilitiesAutoJSON:     encodeModelCapabilities(ModelCapabilities{}),
+			CapabilitiesOverrideJSON: encodeModelCapabilities(input.CapabilitiesOverride),
+		}
+		if model != nil {
+			candidate = *model
+			normalizeModelEntityIdentity(&candidate, modelID)
+			candidate.CapabilitiesOverrideJSON = encodeModelCapabilities(input.CapabilitiesOverride)
+		}
+		if !canSetDefaultModel(*item, candidate) {
+			return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
+		}
 	}
 	if model == nil {
 		capabilities, category, contextWindow, maxOutput := defaultModelCard()
@@ -193,12 +201,6 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
-	if item.ProviderKind == ProviderKindLLM && (!item.Enabled || !isAgentRuntimeProvider(*item)) {
-		return nil, fmt.Errorf("provider=%s 暂不可设为 Agent 默认模型", item.Provider)
-	}
-	if item.ProviderKind != ProviderKindLLM && item.ProviderKind != ProviderKindImageGeneration {
-		return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
-	}
 	model, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
 		return nil, err
@@ -206,7 +208,11 @@ func (s *Service) SetDefaultModel(ctx context.Context, provider string, modelID 
 	if model == nil {
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
-	if normalizeModelEntityIdentity(model, modelID) {
+	identityChanged := normalizeModelEntityIdentity(model, modelID)
+	if !canSetDefaultModel(*item, *model) {
+		return nil, fmt.Errorf("provider=%s 暂不可设置默认模型", item.Provider)
+	}
+	if identityChanged {
 		model.UpdatedAt = s.now()
 		if err = s.repository.UpdateModel(ctx, *model); err != nil {
 			return nil, err
@@ -750,12 +756,21 @@ func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 				"prompt": "ping",
 			})
 		default:
-			return json.Marshal(map[string]any{
+			size := "1024x1024"
+			usesSeedreamDefaults := shouldUseSeedreamDefaults(modelID)
+			if usesSeedreamDefaults {
+				size = "2K"
+			}
+			payload := map[string]any{
 				"model":  modelID,
 				"prompt": "ping",
 				"n":      1,
-				"size":   "1024x1024",
-			})
+				"size":   size,
+			}
+			if usesSeedreamDefaults {
+				payload["watermark"] = false
+			}
+			return json.Marshal(payload)
 		}
 	}
 	switch normalizeAPIFormat(item.APIFormat) {
@@ -785,6 +800,11 @@ func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 			},
 		})
 	}
+}
+
+func shouldUseSeedreamDefaults(modelID string) bool {
+	model := strings.ToLower(strings.TrimSpace(modelID))
+	return strings.Contains(model, "seedream")
 }
 
 func parseModelList(body []byte) ([]remoteModel, error) {

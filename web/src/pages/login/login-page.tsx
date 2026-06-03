@@ -21,7 +21,7 @@ function resolve_redirect_path(raw_redirect: string | null): string {
   if (!raw_redirect || !raw_redirect.startsWith("/")) {
     return APP_ROUTE_PATHS.launcher;
   }
-  if (raw_redirect === APP_ROUTE_PATHS.login) {
+  if (raw_redirect === APP_ROUTE_PATHS.login || raw_redirect === APP_ROUTE_PATHS.landing) {
     return APP_ROUTE_PATHS.launcher;
   }
   return raw_redirect;

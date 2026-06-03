@@ -17,7 +17,7 @@
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
-- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/` launcher 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/app`、`/settings` 和 OAuth callback。
+- Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/logs` 写入 `startup-failure-*.json`。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
@@ -82,7 +82,7 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 xattr -dr com.apple.quarantine /Applications/Nexus.app
 ```
 
-应用启动后会按 24 小时节流后台检测 GitHub Release 中的 macOS metadata；也可以从应用菜单选择“检查更新...”。当前无 Developer ID 阶段只提示打开下载页，不自动下载或安装更新。
+应用启动后会按 24 小时节流后台检测 GitHub Release 中的 macOS metadata；也可以从应用菜单选择“检查更新...”。发现新版本时，Shell 会下载 `Nexus-macos-*.dmg` 或 zip 包及对应 sha256 到 `~/.nexus/cache/updates`，校验通过后提示退出、替换当前 `.app` 并自动重新打开；如果当前 App 不在可替换位置，会退回打开下载页手动处理。
 
 卸载或重置应用数据时，先退出 Nexus，再按需要删除：
 
@@ -91,6 +91,6 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 
 ## 当前边界
 
-- 还没有 Developer ID 签名、公证和 Sparkle 自动安装更新；当前 macOS 包是 ad-hoc 签名。
+- 还没有 Developer ID 签名、公证和 Sparkle；当前 macOS 包是 ad-hoc 签名，自更新依赖 GitHub Release 包和 sha256 校验，首次打开仍可能受 Gatekeeper 策略影响。
 - 还没有由 Go 协议真相源生成的 desktop bridge schema。
 - 还没有更完整的快捷键冲突引导、逐项 secret 级 Keychain API、occlusion 长时间/异常路径验证和多窗口生命周期细化。

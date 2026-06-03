@@ -94,7 +94,26 @@ func (s *Service) ensureClient(
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
-		return nil, "", "", "", "", permissionMode, err
+		if !shouldRetryDMClientWithoutResume(options.Session.ResumeID, err) {
+			return nil, "", "", "", "", permissionMode, err
+		}
+		s.loggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"sdk_session_id", options.Session.ResumeID,
+			"err", err,
+		)
+		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			return nil, "", "", "", "", permissionMode, closeErr
+		}
+		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
+			return nil, "", "", "", "", permissionMode, clearErr
+		}
+		options.Session.ResumeID = ""
+		client, err = s.acquireRuntimeClient(ctx, sessionKey, options)
+		if err != nil {
+			return nil, "", "", "", "", permissionMode, err
+		}
 	}
 	return client, runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
 }
@@ -260,4 +279,8 @@ func (s *Service) acquireRuntimeClient(
 		return nil, err
 	}
 	return client, nil
+}
+
+func shouldRetryDMClientWithoutResume(resumeID string, err error) bool {
+	return strings.TrimSpace(resumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err)
 }

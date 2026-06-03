@@ -10,7 +10,10 @@ import { get_desktop_runtime_config } from "@/config/desktop-runtime";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { UserPreferences } from "@/types/settings/preferences";
-import { DEFAULT_AGENT_ALLOWED_TOOLS } from "@/features/agents/options/agent-options-constants";
+import {
+  DEFAULT_AGENT_ALLOWED_TOOLS,
+  DEFAULT_AGENT_PERMISSION_MODE,
+} from "@/features/agents/options/agent-options-constants";
 
 export let DEFAULT_AGENT_ID = "";
 export let DEFAULT_AGENT_AVATAR = "";
@@ -21,7 +24,7 @@ let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queu
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
-  permission_mode: "bypassPermissions",
+  permission_mode: DEFAULT_AGENT_PERMISSION_MODE,
   allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
   disallowed_tools: [],
   setting_sources: ["project"],
@@ -193,7 +196,7 @@ function normalize_agent_options(options?: Partial<AgentOptions> | null): Partia
   const source = options ?? {};
   return {
     ...source,
-    permission_mode: source.permission_mode?.trim() || "bypassPermissions",
+    permission_mode: source.permission_mode?.trim() || DEFAULT_AGENT_PERMISSION_MODE,
     allowed_tools: [...(source.allowed_tools ?? DEFAULT_AGENT_ALLOWED_TOOLS)],
     disallowed_tools: [...(source.disallowed_tools ?? [])],
     setting_sources: [...(source.setting_sources ?? ["project"])],

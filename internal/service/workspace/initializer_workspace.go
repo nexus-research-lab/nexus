@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -26,6 +27,8 @@ var (
 		"tools":  "TOOLS.md",
 	}
 	defaultDirs = []string{".agents", ".claude", "memory"}
+	// 中文注释：初始化会重建托管 skill 目录，同一 workspace 并发执行会互相删除正在复制的文件。
+	workspaceInitializationLocks sync.Map
 )
 
 // EnsureInitialized 保证 workspace 模板与系统技能已经落地。
@@ -40,6 +43,10 @@ func EnsureInitialized(
 	if root == "" {
 		return fmt.Errorf("workspace_path 不能为空")
 	}
+	lock := workspaceInitializationLock(root)
+	lock.Lock()
+	defer lock.Unlock()
+
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
 	}
@@ -106,6 +113,12 @@ func EnsureInitialized(
 		}
 	}
 	return nil
+}
+
+func workspaceInitializationLock(workspacePath string) *sync.Mutex {
+	key := filepath.Clean(strings.TrimSpace(workspacePath))
+	value, _ := workspaceInitializationLocks.LoadOrStore(key, &sync.Mutex{})
+	return value.(*sync.Mutex)
 }
 
 // BuildSkillRenderContext 构建 skill 模板渲染上下文。

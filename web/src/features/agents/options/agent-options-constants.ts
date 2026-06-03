@@ -8,6 +8,7 @@ import type { AgentOptions } from "@/types/agent/agent";
 
 export const DEFAULT_AGENT_OPTION_PROVIDER = "";
 export const DEFAULT_AGENT_OPTION_MODEL = "";
+export const DEFAULT_AGENT_PERMISSION_MODE = "default";
 
 export const AGENT_PERMISSION_MODES: ReadonlyArray<{
   value: string;
@@ -58,9 +59,10 @@ export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
   { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
   { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
   { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
+  { name: "nexus_imagegen", description_key: "agent_options.advanced.tool.nexus_imagegen" },
 ] as const;
 
-export const DEFAULT_AGENT_ALLOWED_TOOLS = AVAILABLE_AGENT_TOOLS.map((tool) => tool.name);
+export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
 
 export function normalize_agent_option_provider(provider?: string | null): string {
   const normalized_provider = provider?.trim();

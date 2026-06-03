@@ -307,16 +307,7 @@ func (h *Handler) handleBindSession(
 	if parsed.Kind == protocol.SessionKeyKindUnknown {
 		return
 	}
-	requestControl, exists := handlershared.BoolValue(inbound["request_control"])
-	if !exists {
-		requestControl = true
-	}
-	h.permission.BindSession(
-		sessionKey,
-		sender,
-		handlershared.StringValue(inbound["client_id"]),
-		requestControl,
-	)
+	h.permission.BindSession(sessionKey, sender)
 	if h.channels != nil {
 		_ = h.channels.RememberWebSocketRoute(ctx, sessionKey)
 	}
@@ -393,9 +384,6 @@ func (h *Handler) handleControlMessage(
 		return
 	}
 	if h.ensureSessionBinding(ctx, sender, inbound, sessionKey) {
-		return
-	}
-	if h.rejectControlMessageFromObserver(ctx, sender, inbound, sessionKey) {
 		return
 	}
 
@@ -518,44 +506,9 @@ func (h *Handler) ensureSessionBinding(
 	if h.permission.IsBound(sessionKey, sender) {
 		return false
 	}
-	if h.permission.HasBindings(sessionKey) {
-		return false
-	}
-	h.permission.BindSession(
-		sessionKey,
-		sender,
-		handlershared.StringValue(inbound["client_id"]),
-		true,
-	)
+	h.permission.BindSession(sessionKey, sender)
 	h.broadcastSessionStatus(ctx, sessionKey)
 	return false
-}
-
-func (h *Handler) rejectControlMessageFromObserver(
-	ctx context.Context,
-	sender *handlershared.WebSocketSender,
-	inbound map[string]any,
-	sessionKey string,
-) bool {
-	if h.permission.IsSessionController(sessionKey, sender) {
-		return false
-	}
-	actionLabel := map[string]string{
-		"chat":                "发送消息",
-		"input_queue":         "更新待发送队列",
-		"interrupt":           "停止生成",
-		"permission_response": "确认权限",
-	}[handlershared.StringValue(inbound["type"])]
-	if actionLabel == "" {
-		actionLabel = "执行操作"
-	}
-	_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(
-		sessionKey,
-		"session_control_denied",
-		"当前窗口不是该会话的控制端，无法"+actionLabel,
-		map[string]any{"type": handlershared.StringValue(inbound["type"])},
-	))
-	return true
 }
 
 func (h *Handler) validateSessionKey(
@@ -603,8 +556,6 @@ func (h *Handler) errorEventDetail(errorType string, err error) string {
 		return "session_key 不合法"
 	case "permission_request_not_found":
 		return "未找到待确认的权限请求"
-	case "session_control_denied":
-		return message
 	case "chat_error":
 		return chatErrorDetail(err)
 	default:
@@ -625,7 +576,7 @@ func chatErrorDetail(err error) string {
 		strings.Contains(message, "claude.exe") ||
 		strings.Contains(message, "claude.cmd") ||
 		strings.Contains(message, "claude.ps1"):
-		return "未找到 Claude Code 命令，Agent 无法启动。请先安装 Claude Code，并在 PowerShell 里运行 `claude` 完成登录；如果已经安装，请确认 `claude` 在 PATH 中可用，或设置 NEXUS_CLAUDE_COMMAND_PATH 指向 claude.exe/claude.cmd。"
+		return "未找到 Claude Code 命令，Agent 无法启动。请先排查：macOS/Linux/WSL 运行 `command -v claude && claude --version && claude doctor`，Windows PowerShell 运行 `where.exe claude; claude --version; claude doctor`。如果尚未安装，可选择官方安装命令：macOS/Linux/WSL `curl -fsSL https://claude.ai/install.sh | bash`，macOS Homebrew `brew install --cask claude-code`，Windows PowerShell `irm https://claude.ai/install.ps1 | iex`，Windows WinGet `winget install Anthropic.ClaudeCode`，npm `npm install -g @anthropic-ai/claude-code`。安装后运行 `claude` 完成登录；如果终端可用但 Nexus 仍找不到，请设置 NEXUS_CLAUDE_COMMAND_PATH 指向可执行文件，例如 `~/.local/bin/claude`、`/opt/homebrew/bin/claude` 或 `claude.cmd`。"
 	case strings.Contains(message, "LLM Provider") ||
 		strings.Contains(message, "provider=") ||
 		strings.Contains(message, "Provider"):

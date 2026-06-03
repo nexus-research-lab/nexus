@@ -31,7 +31,7 @@ func BuildCreateRecord(
 	return agentrepo.CreateRecord{
 		AgentID:             agentID,
 		OwnerUserID:         ownerUserID,
-		Slug:                BuildWorkspaceDirName(normalizedName),
+		Slug:                BuildWorkspaceDirName(agentID),
 		Name:                normalizedName,
 		WorkspacePath:       workspacePath,
 		Status:              status,
@@ -78,7 +78,7 @@ func BuildDefaultMainAgentRecord(cfg config.Config, ownerUserID string) agentrep
 
 func defaultMainAgentOptions() protocol.Options {
 	return protocol.Options{
-		AllowedTools:   []string{"AskUserQuestion", "Bash", "Edit", "Glob", "Grep", "LS", "Read", "Skill", "TodoWrite", "WebFetch", "WebSearch", "Write"},
+		AllowedTools:   []string{},
 		PermissionMode: "default",
 		SettingSources: []string{"project"},
 	}

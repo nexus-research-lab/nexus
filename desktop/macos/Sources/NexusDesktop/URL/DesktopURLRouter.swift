@@ -108,7 +108,7 @@ enum DesktopURLRouter {
       return DesktopWebRoute(path: "/settings", entry: .settings)
     }
     if isLauncherURL(url) {
-      return DesktopWebRoute(path: "/", entry: .app)
+      return DesktopWebRoute(path: "/launcher", entry: .app)
     }
     if isConnectorOAuthCallbackURL(url) {
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -120,7 +120,7 @@ enum DesktopURLRouter {
       )
     }
     if url.host?.lowercased() == "open" || url.host == nil && url.path.isEmpty {
-      return DesktopWebRoute(path: "/", entry: .app)
+      return DesktopWebRoute(path: "/launcher", entry: .app)
     }
     return nil
   }

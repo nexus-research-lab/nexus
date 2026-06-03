@@ -215,6 +215,34 @@ func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, reque
 	http.ServeFile(writer, request, filePath)
 }
 
+// HandleRevealWorkspaceFile 在桌面端文件管理器中定位工作区文件。
+func (h *Handlers) HandleRevealWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
+	var payload struct {
+		Path string `json:"path"`
+	}
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	filePath, err := h.workspace.RevealFileInFolder(request.Context(), chi.URLParam(request, "agent_id"), payload.Path)
+	if errors.Is(err, agentpkg.ErrAgentNotFound) || errors.Is(err, workspacepkg.ErrFileNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, workspacepkg.ErrLocalFileRevealUnavailable) {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "仅桌面端支持在文件夹中显示")
+		return
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "目录") {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]string{"path": filePath})
+}
+
 // 中文注释：预览与下载共用同一路由，但内容处置必须显式分流，避免 PDF/图片预览复用下载语义。
 func buildWorkspaceFileDispositionHeader(fileName string, requestedDisposition string) string {
 	disposition := workspaceFileDispositionAttachment

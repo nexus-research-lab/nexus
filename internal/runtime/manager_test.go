@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
@@ -332,6 +333,7 @@ func TestIsRuntimeTransportClosedError(t *testing.T) {
 		errors.New("process: write payload failed: write |1: The pipe has been ended"),
 		errors.New("write payload failed: file already closed"),
 		errors.New("broken pipe"),
+		errors.New("Error in hook callback hook_1: Stream closed"),
 	}
 	for _, err := range cases {
 		if !IsRuntimeTransportClosedError(err) {
@@ -563,5 +565,92 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 	}
 	if strings.Contains(additionalContext, "<nexus_guidance>") {
 		t.Fatalf("Goal context 不应包在 nexus_guidance 中: %q", additionalContext)
+	}
+}
+
+func TestManagerCloseIdleSessionsClosesOnlyIdleClients(t *testing.T) {
+	now := time.Date(2026, 6, 2, 15, 0, 0, 0, time.UTC)
+	idleClient := &fakeRuntimeClient{}
+	activeClient := &fakeRuntimeClient{}
+	recentClient := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{
+		idleClient,
+		activeClient,
+		recentClient,
+	}})
+	manager.now = func() time.Time { return now }
+
+	idleKey := "agent:nexus:ws:dm:idle"
+	activeKey := "agent:nexus:ws:dm:active"
+	recentKey := "agent:nexus:ws:dm:recent"
+	if _, err := manager.GetOrCreate(context.Background(), idleKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 idle client 失败: %v", err)
+	}
+	if _, err := manager.GetOrCreate(context.Background(), activeKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 active client 失败: %v", err)
+	}
+	if _, err := manager.GetOrCreate(context.Background(), recentKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 recent client 失败: %v", err)
+	}
+	manager.StartRound(activeKey, "round-active", nil)
+
+	manager.mu.Lock()
+	manager.sessions[idleKey].LastUsedAt = now.Add(-20 * time.Minute)
+	manager.sessions[activeKey].LastUsedAt = now.Add(-20 * time.Minute)
+	manager.sessions[recentKey].LastUsedAt = now.Add(-2 * time.Minute)
+	manager.mu.Unlock()
+
+	closed, err := manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil {
+		t.Fatalf("回收空闲 session 失败: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("回收数量 = %d, want 1", closed)
+	}
+	if idleClient.disconnectCalls != 1 {
+		t.Fatalf("idle client 应关闭一次: %d", idleClient.disconnectCalls)
+	}
+	if activeClient.disconnectCalls != 0 {
+		t.Fatalf("active client 不应关闭: %d", activeClient.disconnectCalls)
+	}
+	if recentClient.disconnectCalls != 0 {
+		t.Fatalf("recent client 不应关闭: %d", recentClient.disconnectCalls)
+	}
+	if got := manager.GetRunningRoundIDs(activeKey); len(got) != 1 || got[0] != "round-active" {
+		t.Fatalf("active round 不应被清理: %+v", got)
+	}
+}
+
+func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
+	now := time.Date(2026, 6, 2, 15, 0, 0, 0, time.UTC)
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	manager.now = func() time.Time { return now }
+	sessionKey := "agent:nexus:ws:dm:finish-idle"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 client 失败: %v", err)
+	}
+	manager.StartRound(sessionKey, "round-finish", nil)
+
+	now = now.Add(20 * time.Minute)
+	manager.MarkRoundFinished(sessionKey, "round-finish")
+	closed, err := manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil {
+		t.Fatalf("回收空闲 session 失败: %v", err)
+	}
+	if closed != 0 {
+		t.Fatalf("round 刚结束不应立即回收: %d", closed)
+	}
+
+	now = now.Add(11 * time.Minute)
+	closed, err = manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil {
+		t.Fatalf("第二次回收空闲 session 失败: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("超过结束后 TTL 应回收: %d", closed)
+	}
+	if client.disconnectCalls != 1 {
+		t.Fatalf("client 应关闭一次: %d", client.disconnectCalls)
 	}
 }
