@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -18,6 +19,7 @@ public partial class MainWindow : System.Windows.Window
     private WebViewHost? webViewHost;
     private bool closed;
     private bool exitRequested;
+    private bool webViewRecreateInFlight;
 
     internal MainWindow(
         SidecarRuntimeConfig runtime,
@@ -86,7 +88,7 @@ public partial class MainWindow : System.Windows.Window
         if (webViewHost is null)
         {
             startupTimeline.Mark("main_window.create_begin");
-            webViewHost = new WebViewHost(MainWebView, runtime, startupTimeline);
+            webViewHost = CreateWebViewHost(GetOrCreateWebViewControl());
             ShowMainWindow();
             await webViewHost.InitializeAsync();
             startupTimeline.Mark("main_window.created");
@@ -102,6 +104,83 @@ public partial class MainWindow : System.Windows.Window
     {
         webViewHost?.Dispose();
         webViewHost = null;
+    }
+
+    private WebViewHost CreateWebViewHost(WebView2 webView)
+    {
+        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAfterProcessFailureAsync);
+    }
+
+    private WebView2 GetOrCreateWebViewControl()
+    {
+        foreach (UIElement child in WebViewContainer.Children)
+        {
+            if (child is WebView2 webView)
+            {
+                return webView;
+            }
+        }
+
+        WebView2 nextWebView = new();
+        WebViewContainer.Children.Add(nextWebView);
+        return nextWebView;
+    }
+
+    private async Task RecreateWebViewAfterProcessFailureAsync(DesktopWebRoute route, string reason)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _ = RecreateWebViewAfterProcessFailureAsync(route, reason);
+            });
+            return;
+        }
+        if (closed || webViewRecreateInFlight)
+        {
+            return;
+        }
+
+        webViewRecreateInFlight = true;
+        try
+        {
+            startupTimeline.Mark("webview.process_failed_recreate_begin", new Dictionary<string, string>
+            {
+                ["path"] = route.Path,
+                ["reason"] = reason,
+            });
+            await Task.Delay(300);
+            if (closed)
+            {
+                return;
+            }
+
+            DisposeWebView();
+            WebViewContainer.Children.Clear();
+            WebView2 replacement = new();
+            WebViewContainer.Children.Add(replacement);
+            webViewHost = CreateWebViewHost(replacement);
+            await webViewHost.InitializeAsync();
+            startupTimeline.Mark("webview.process_failed_recreate_ready", new Dictionary<string, string>
+            {
+                ["path"] = route.Path,
+                ["reason"] = reason,
+            });
+            await webViewHost.LoadRouteAsync(route);
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("webview.process_failed_recreate_failed", new Dictionary<string, string>
+            {
+                ["error"] = TrimMetadata(exception.Message),
+                ["path"] = route.Path,
+                ["reason"] = reason,
+            });
+        }
+        finally
+        {
+            webViewRecreateInFlight = false;
+        }
     }
 
     private bool ShouldCloseForExit()
@@ -170,5 +249,16 @@ public partial class MainWindow : System.Windows.Window
         }
         Activate();
         Focus();
+    }
+
+    private static string TrimMetadata(string value)
+    {
+        string normalized = value.Trim();
+        const int maxLength = 240;
+        if (normalized.Length <= maxLength)
+        {
+            return normalized;
+        }
+        return normalized[..maxLength] + "...";
     }
 }

@@ -15,6 +15,7 @@ internal sealed class WebViewHost : IDisposable
     private readonly WebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
+    private readonly Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
@@ -24,11 +25,13 @@ internal sealed class WebViewHost : IDisposable
     public WebViewHost(
         WebView2 webView,
         SidecarRuntimeConfig runtime,
-        DesktopStartupTimeline startupTimeline)
+        DesktopStartupTimeline startupTimeline,
+        Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
+        this.recreateAfterProcessFailureAsync = recreateAfterProcessFailureAsync;
     }
 
     public async Task InitializeAsync()
@@ -89,7 +92,7 @@ internal sealed class WebViewHost : IDisposable
                 metadata["diagnostics_path"] = diagnosticsPath;
             }
             startupTimeline.Mark("webview.process_failed", metadata);
-            _ = ReloadAfterProcessFailureAsync();
+            _ = recreateAfterProcessFailureAsync(lastRoute, args.ProcessFailedKind.ToString());
         };
         startupTimeline.Mark("webview.initialize_ready");
     }
@@ -189,6 +192,9 @@ internal sealed class WebViewHost : IDisposable
         catch (InvalidOperationException)
         {
         }
+        catch (ObjectDisposedException)
+        {
+        }
         webView.Dispose();
     }
 
@@ -286,45 +292,6 @@ internal sealed class WebViewHost : IDisposable
     private static bool IsTruthyScriptResult(string value)
     {
         return string.Equals(value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task ReloadAfterProcessFailureAsync()
-    {
-        if (disposed)
-        {
-            return;
-        }
-
-        try
-        {
-            await Task.Delay(300);
-            if (disposed)
-            {
-                return;
-            }
-
-            await webView.Dispatcher.InvokeAsync(() =>
-            {
-                if (disposed)
-                {
-                    return;
-                }
-
-                startupTimeline.Mark("webview.process_failed_reload", new Dictionary<string, string>
-                {
-                    ["path"] = lastRoute.Path,
-                });
-                webView.Source = lastRoute.ToUri(runtime);
-            });
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
-        {
-            startupTimeline.Mark("webview.process_failed_reload_skipped", new Dictionary<string, string>
-            {
-                ["error"] = exception.Message,
-                ["path"] = lastRoute.Path,
-            });
-        }
     }
 
     private void InstallDesktopSessionCookie(CoreWebView2 core)
