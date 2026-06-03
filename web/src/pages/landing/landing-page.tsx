@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  ArrowRight,
   Brain,
   CalendarClock,
   CheckCircle2,
@@ -341,7 +342,12 @@ function LandingHeader() {
           <a href="#control">Control</a>
         </nav>
 
-        <div className="landing-actions landing-actions-placeholder" aria-hidden="true" />
+        <div className="landing-actions">
+          <Link className="landing-primary-button" to={APP_ROUTE_PATHS.launcher}>
+            Enter app
+            <ArrowRight size={15} />
+          </Link>
+        </div>
       </div>
     </header>
   );

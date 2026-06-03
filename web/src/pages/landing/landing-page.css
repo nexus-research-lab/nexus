@@ -102,10 +102,6 @@
   gap: 10px;
 }
 
-.landing-actions-placeholder {
-  min-width: 112px;
-}
-
 .landing-primary-button {
   min-height: 40px;
   justify-content: center;
