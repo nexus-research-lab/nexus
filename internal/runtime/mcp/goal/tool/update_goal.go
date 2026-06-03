@@ -23,7 +23,7 @@ const updateGoalDescription = "Update the existing goal.\n" +
 	"Do not use `blocked` merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.\n" +
 	"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.\n" +
 	"You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal; those status changes are controlled by the user or system.\n" +
-	"When marking a budgeted goal achieved with status `complete`, report the final token usage from the tool result to the user."
+	"When marking a goal achieved with status `complete`, include the final token usage and elapsed time from the tool result's `completionBudgetReport` in the final response to the user."
 
 const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the same blocker has repeated for at least three consecutive goal turns and progress is impossible without user input or external unblock."
 

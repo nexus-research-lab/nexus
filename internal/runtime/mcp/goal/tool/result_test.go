@@ -8,7 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestGoalCompletionPayloadIncludesBudgetReportInstruction(t *testing.T) {
+func TestGoalCompletionPayloadIncludesFinalUsageReport(t *testing.T) {
 	budget := int64(100)
 	payload := goalCompletionPayload(&protocol.Goal{
 		Status:          protocol.GoalStatusComplete,
@@ -25,8 +25,8 @@ func TestGoalCompletionPayloadIncludesBudgetReportInstruction(t *testing.T) {
 	if !ok || report == "" {
 		t.Fatalf("completionBudgetReport = %#v, want instruction", payload["completionBudgetReport"])
 	}
-	if report != completionBudgetReportText {
-		t.Fatalf("completionBudgetReport = %q, want %q", report, completionBudgetReportText)
+	if !strings.Contains(report, "最终 Goal 用量：42 / 100 tokens，剩余 58 tokens，耗时约 1m30s。") {
+		t.Fatalf("completionBudgetReport = %q, want final usage line", report)
 	}
 	if payload["remainingTokens"] != int64(58) {
 		t.Fatalf("remainingTokens = %#v, want 58", payload["remainingTokens"])
@@ -81,10 +81,22 @@ func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
     "updatedAt": 20
   },
   "remainingTokens": 58,
-  "completionBudgetReport": "Goal achieved. Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. Briefly summarize what ` + "`goal.objective`" + ` achieved, and include consumed tokens from this tool result's structured ` + "`goal.tokensUsed`" + ` field; if ` + "`goal.tokenBudget`" + ` is present, include it too. If ` + "`goal.timeUsedSeconds`" + ` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
+  "completionBudgetReport": "Goal achieved. Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. Briefly summarize what ` + "`goal.objective`" + ` achieved. Include this exact final usage line in the response: ` + "`最终 Goal 用量：42 / 100 tokens，剩余 58 tokens，耗时约 1m30s。`" + `"
 }`
 	if text != want {
 		t.Fatalf("text content = %s, want %s", text, want)
+	}
+}
+
+func TestGoalCompletionReportFormatsCodexStyleUsageLine(t *testing.T) {
+	report := completionBudgetReport(&protocol.Goal{
+		Status:          protocol.GoalStatusComplete,
+		Usage:           protocol.GoalUsage{TotalTokens: 603673},
+		TimeUsedSeconds: 23*60 + 4,
+	})
+
+	if !strings.Contains(report, "最终 Goal 用量：603,673 tokens，耗时约 23m4s。") {
+		t.Fatalf("completionBudgetReport = %q, want Codex-style usage line", report)
 	}
 }
 
@@ -109,6 +121,9 @@ func TestGoalCompletionPayloadIncludesStopInstructionWithoutUsageToReport(t *tes
 	report, ok := payload["completionBudgetReport"].(string)
 	if !ok || !strings.Contains(report, "stop and wait for user input") {
 		t.Fatalf("completionBudgetReport = %#v, want stop instruction", payload["completionBudgetReport"])
+	}
+	if !strings.Contains(report, "最终 Goal 用量：0 tokens，耗时约 0s。") {
+		t.Fatalf("completionBudgetReport = %q, want zero usage line", report)
 	}
 }
 

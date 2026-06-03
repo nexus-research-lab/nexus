@@ -3,6 +3,8 @@ package tool
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	sdktool "github.com/nexus-research-lab/nexus/internal/runtime/mcp/sdktool"
@@ -105,12 +107,6 @@ type goalPayloadOptions struct {
 	completionBudgetReport bool
 }
 
-const completionBudgetReportText = "Goal achieved. " +
-	"Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. " +
-	"State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. " +
-	"Briefly summarize what `goal.objective` achieved, and include consumed tokens from this tool result's structured `goal.tokensUsed` field; if `goal.tokenBudget` is present, include it too. " +
-	"If `goal.timeUsedSeconds` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
-
 func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map[string]any {
 	payload := map[string]any{
 		"goal":                   toolGoalValue(item),
@@ -169,5 +165,51 @@ func completionBudgetReport(item *protocol.Goal) string {
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusComplete {
 		return ""
 	}
-	return completionBudgetReportText
+	return "Goal achieved. " +
+		"Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. " +
+		"State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. " +
+		"Briefly summarize what `goal.objective` achieved. " +
+		"Include this exact final usage line in the response: `" + finalGoalUsageLine(item) + "`"
+}
+
+func finalGoalUsageLine(item *protocol.Goal) string {
+	tokensUsed := formatGoalTokenCount(item.Usage.Total())
+	elapsed := formatGoalElapsedTime(item.TimeUsedSeconds)
+	if item.TokenBudget != nil {
+		remaining := item.RemainingTokens()
+		if remaining != nil {
+			return fmt.Sprintf("最终 Goal 用量：%s / %s tokens，剩余 %s tokens，耗时约 %s。",
+				tokensUsed,
+				formatGoalTokenCount(*item.TokenBudget),
+				formatGoalTokenCount(*remaining),
+				elapsed,
+			)
+		}
+		return fmt.Sprintf("最终 Goal 用量：%s / %s tokens，耗时约 %s。",
+			tokensUsed,
+			formatGoalTokenCount(*item.TokenBudget),
+			elapsed,
+		)
+	}
+	return fmt.Sprintf("最终 Goal 用量：%s tokens，耗时约 %s。", tokensUsed, elapsed)
+}
+
+func formatGoalElapsedTime(seconds int64) string {
+	if seconds < 0 {
+		seconds = 0
+	}
+	return (time.Duration(seconds) * time.Second).String()
+}
+
+func formatGoalTokenCount(value int64) string {
+	sign := ""
+	if value < 0 {
+		sign = "-"
+		value = -value
+	}
+	text := strconv.FormatInt(value, 10)
+	for insertAt := len(text) - 3; insertAt > 0; insertAt -= 3 {
+		text = text[:insertAt] + "," + text[insertAt:]
+	}
+	return sign + text
 }
