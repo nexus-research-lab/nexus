@@ -30,8 +30,9 @@ func TestRoomRoundInputOptionsMarksInternalContinuationHidden(t *testing.T) {
 	}
 }
 
-func TestRoomRuntimeInputOptionsPreserveGoalContinuationFlags(t *testing.T) {
-	options := runtimectx.InternalInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
+func TestRoomRuntimeInputOptionsClearGoalContinuationFlags(t *testing.T) {
+	options := runtimectx.RuntimeInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
+		Meta:           true,
 		HiddenFromUser: true,
 		Synthetic:      true,
 		Purpose:        "goal_continuation",
@@ -39,8 +40,8 @@ func TestRoomRuntimeInputOptionsPreserveGoalContinuationFlags(t *testing.T) {
 		Metadata:       map[string]string{"goal_id": "goal-room"},
 	}, "goal_continuation")
 
-	if !options.Meta || !options.HiddenFromUser || !options.Synthetic || options.Purpose != "goal_continuation" || options.Priority != "internal" || options.Metadata["goal_id"] != "goal-room" {
-		t.Fatalf("runtime options = %#v, want internal continuation runtime input", options)
+	if options.Meta || options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || options.Metadata != nil {
+		t.Fatalf("runtime options = %#v, want continuation runtime control fields cleared", options)
 	}
 }
 

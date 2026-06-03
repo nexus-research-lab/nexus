@@ -42,6 +42,9 @@ func prepareRoundContentWithContext(
 	if len(blocks) == 0 {
 		return content, nil
 	}
+	if isContextOnlyContent(content) {
+		return prependContextualInputBlocks(content, blocks), nil
+	}
 	if setter, ok := client.(nextTurnContextClient); ok {
 		if err := setter.SetNextTurnContext(ctx, blocks); err == nil {
 			return contentWithContextTrigger(content), nil
@@ -50,6 +53,11 @@ func prepareRoundContentWithContext(
 		}
 	}
 	return prependContextualInputBlocks(content, blocks), nil
+}
+
+func isContextOnlyContent(content any) bool {
+	value, ok := content.(string)
+	return ok && strings.TrimSpace(value) == ""
 }
 
 func contentWithContextTrigger(content any) any {

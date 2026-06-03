@@ -6,16 +6,16 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// InternalInputOptionsForPurpose 保留内部续跑语义，让 runtime 不把控制输入当普通用户消息。
-func InternalInputOptionsForPurpose(options sdkprotocol.OutboundMessageOptions, purpose string) sdkprotocol.OutboundMessageOptions {
+// RuntimeInputOptionsForPurpose 剥离只属于本地队列/历史层的控制字段。
+func RuntimeInputOptionsForPurpose(options sdkprotocol.OutboundMessageOptions, purpose string) sdkprotocol.OutboundMessageOptions {
 	if strings.TrimSpace(options.Purpose) != strings.TrimSpace(purpose) {
 		return options
 	}
-	options.Meta = true
-	options.Synthetic = true
-	options.HiddenFromUser = true
-	if strings.TrimSpace(options.Priority) == "" {
-		options.Priority = "internal"
-	}
+	options.Meta = false
+	options.Synthetic = false
+	options.HiddenFromUser = false
+	options.Priority = ""
+	options.Purpose = ""
+	options.Metadata = nil
 	return options
 }

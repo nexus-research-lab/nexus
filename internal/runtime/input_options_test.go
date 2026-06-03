@@ -6,28 +6,33 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-func TestInternalInputOptionsForPurposeMarksContinuationMetaHidden(t *testing.T) {
-	options := InternalInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
+func TestRuntimeInputOptionsForPurposeClearsContinuationControlFields(t *testing.T) {
+	options := RuntimeInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
+		Meta:           true,
+		HiddenFromUser: true,
+		Synthetic:      true,
 		Purpose:        "goal_continuation",
+		Priority:       "internal",
 		Metadata:       map[string]string{"goal_id": "goal-1"},
 	}, "goal_continuation")
 
-	if !options.Meta || !options.HiddenFromUser || !options.Synthetic || options.Purpose != "goal_continuation" || options.Priority != "internal" || options.Metadata["goal_id"] != "goal-1" {
-		t.Fatalf("options = %#v, want internal continuation runtime input", options)
+	if options.Meta || options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || options.Metadata != nil {
+		t.Fatalf("options = %#v, want continuation runtime input control fields cleared", options)
 	}
 }
 
-func TestInternalInputOptionsForPurposePreservesOtherPurposes(t *testing.T) {
+func TestRuntimeInputOptionsForPurposePreservesOtherPurposes(t *testing.T) {
 	options := sdkprotocol.OutboundMessageOptions{
+		Meta:           true,
 		HiddenFromUser: true,
 		Synthetic:      true,
 		Purpose:        "other",
 		Priority:       "internal",
 		Metadata:       map[string]string{"key": "value"},
 	}
-	got := InternalInputOptionsForPurpose(options, "goal_continuation")
+	got := RuntimeInputOptionsForPurpose(options, "goal_continuation")
 
-	if !got.HiddenFromUser || !got.Synthetic || got.Purpose != "other" || got.Priority != "internal" || got.Metadata["key"] != "value" {
+	if !got.Meta || !got.HiddenFromUser || !got.Synthetic || got.Purpose != "other" || got.Priority != "internal" || got.Metadata["key"] != "value" {
 		t.Fatalf("options = %#v, want non-matching purpose preserved", got)
 	}
 }
