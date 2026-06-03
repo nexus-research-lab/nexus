@@ -103,7 +103,7 @@ func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)
-	for _, toolName := range []string{"Read", "create_goal", "get_goal", "update_goal", "Skill"} {
+	for _, toolName := range []string{"Read", "create_goal", "get_goal", "update_goal", "mcp__nexus_goal__get_goal", "mcp__nexus_goal__create_goal", "mcp__nexus_goal__update_goal", "Skill"} {
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
 		}

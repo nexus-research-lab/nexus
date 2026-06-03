@@ -84,8 +84,8 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current == nil || current.ID != item.ID || completed.Status != protocol.GoalStatusComplete {
-		t.Fatalf("current = %#v updated = %#v, want complete current goal", current, completed)
+	if current != nil || completed.Status != protocol.GoalStatusComplete {
+		t.Fatalf("current = %#v updated = %#v, want completed goal no longer current", current, completed)
 	}
 	if _, err := repository.UpdateGoal(ctx, *updated, 1); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("stale update error = %v, want sql.ErrNoRows", err)

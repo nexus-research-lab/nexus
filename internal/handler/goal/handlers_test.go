@@ -27,6 +27,10 @@ func (emptyGoalRepository) GetCurrentGoal(context.Context, string) (*protocol.Go
 	return nil, nil
 }
 
+func (emptyGoalRepository) ListGoals(context.Context) ([]protocol.Goal, error) {
+	return nil, nil
+}
+
 func (emptyGoalRepository) ListRunnableGoals(context.Context, int) ([]protocol.Goal, error) {
 	return nil, nil
 }

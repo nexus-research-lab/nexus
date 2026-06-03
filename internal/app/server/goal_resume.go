@@ -3,11 +3,14 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -15,11 +18,14 @@ import (
 
 type goalContinuationDM interface {
 	ShouldDeferGoalContinuation(context.Context, string, string) bool
+	GoalContinuationTargetMissing(context.Context, string, string) (bool, error)
 	HandleChat(context.Context, dmsvc.Request) error
 }
 
 type goalContinuationRoom interface {
 	ShouldDeferGoalContinuation(context.Context, string) bool
+	GoalContinuationTargetMissing(context.Context, string) (bool, error)
+	GoalContinuationConversationMissing(context.Context, string) (bool, error)
 	DispatchGoalContinuation(context.Context, protocol.GoalContinuation) error
 }
 
@@ -58,6 +64,40 @@ func (d *goalContinuationDispatcher) ShouldDeferGoalContinuation(ctx context.Con
 	}
 }
 
+func (d *goalContinuationDispatcher) GoalContinuationTargetMissing(ctx context.Context, sessionKey string) (bool, error) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if d == nil || sessionKey == "" {
+		return false, nil
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured {
+		return true, nil
+	}
+	switch parsed.Kind {
+	case protocol.SessionKeyKindAgent:
+		if strings.TrimSpace(parsed.AgentID) == "" {
+			return true, nil
+		}
+		if parsed.ChatType == "group" && strings.TrimSpace(parsed.Ref) != "" && d.room != nil {
+			missing, err := d.room.GoalContinuationConversationMissing(ctx, parsed.Ref)
+			if err != nil || missing {
+				return missing, err
+			}
+		}
+		if d.dm == nil {
+			return false, nil
+		}
+		return d.dm.GoalContinuationTargetMissing(ctx, sessionKey, parsed.AgentID)
+	case protocol.SessionKeyKindRoom:
+		if d.room == nil {
+			return false, nil
+		}
+		return d.room.GoalContinuationTargetMissing(ctx, sessionKey)
+	default:
+		return true, nil
+	}
+}
+
 func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
 	if d == nil {
 		return errors.New("goal continuation dispatcher is not configured")
@@ -69,7 +109,7 @@ func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Contex
 		if strings.TrimSpace(parsed.AgentID) == "" || d.dm == nil {
 			return errors.New("goal continuation requires an agent session dispatcher")
 		}
-		return d.dm.HandleChat(ctx, dmsvc.Request{
+		err := d.dm.HandleChat(ctx, dmsvc.Request{
 			SessionKey:           sessionKey,
 			AgentID:              parsed.AgentID,
 			GoalContext:          plan.Prompt,
@@ -86,11 +126,19 @@ func (d *goalContinuationDispatcher) DispatchGoalContinuation(ctx context.Contex
 				Metadata:       plan.Metadata,
 			},
 		})
+		if errors.Is(err, agentsvc.ErrAgentNotFound) {
+			return fmt.Errorf("%w: %v", goalsvc.ErrGoalContinuationTargetMissing, err)
+		}
+		return err
 	case protocol.SessionKeyKindRoom:
 		if d.room == nil {
 			return errors.New("goal continuation requires a room session dispatcher")
 		}
-		return d.room.DispatchGoalContinuation(ctx, plan)
+		err := d.room.DispatchGoalContinuation(ctx, plan)
+		if errors.Is(err, roomsvc.ErrRoomNotFound) || errors.Is(err, roomsvc.ErrConversationNotFound) {
+			return fmt.Errorf("%w: %v", goalsvc.ErrGoalContinuationTargetMissing, err)
+		}
+		return err
 	default:
 		return errors.New("goal continuation only supports agent or room session keys")
 	}

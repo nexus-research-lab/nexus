@@ -81,7 +81,7 @@ func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
     "updatedAt": 20
   },
   "remainingTokens": 58,
-  "completionBudgetReport": "Goal achieved. Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. If ` + "`goal.tokenBudget`" + ` is present, include token usage from this tool result's structured ` + "`goal.tokensUsed`" + ` and ` + "`goal.tokenBudget`" + ` fields. If ` + "`goal.timeUsedSeconds`" + ` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
+  "completionBudgetReport": "Goal achieved. Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. Briefly summarize what ` + "`goal.objective`" + ` achieved, and include consumed tokens from this tool result's structured ` + "`goal.tokensUsed`" + ` field; if ` + "`goal.tokenBudget`" + ` is present, include it too. If ` + "`goal.timeUsedSeconds`" + ` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
 }`
 	if text != want {
 		t.Fatalf("text content = %s, want %s", text, want)

@@ -1,12 +1,17 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+type goalCleaner interface {
+	DeleteGoalsForAgent(context.Context, string) (int, error)
+}
 
 var (
 	// ErrAgentNotFound 表示 Agent 不存在。
@@ -19,6 +24,7 @@ type Service struct {
 	repository Repository
 	history    *workspacestore.AgentHistoryStore
 	prompts    *promptBuilder
+	goals      goalCleaner
 	readyMu    sync.Mutex
 }
 
@@ -30,4 +36,9 @@ func NewService(cfg config.Config, repository Repository) *Service {
 		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		prompts:    newPromptBuilder(cfg),
 	}
+}
+
+// SetGoalCleaner 注入 Agent 删除时的 Goal 级联清理器。
+func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
+	s.goals = cleaner
 }

@@ -199,8 +199,9 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 	if reason == "" {
 		reason = "Goal completion was claimed, but the Goal update tool was not called"
 	}
-	if goalCompletionToolRetryCount(item.Metadata) >= goalCompletionToolMaxRetries {
-		return s.noteEmptyContinuationProgress(ctx, item, roundID, reason)
+	retryCount := goalCompletionToolRetryCount(item.Metadata)
+	if retryCount >= goalCompletionToolMaxRetries {
+		return s.completeAfterCompletionToolMissRetry(ctx, item, roundID, reason)
 	}
 	expectedVersion := item.Version
 	item.Metadata = cloneMap(item.Metadata)
@@ -228,6 +229,18 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 	}
 	s.markWallClockGoalActive(*updated)
 	return updated, nil
+}
+
+func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
+	retryCount := goalCompletionToolRetryCount(item.Metadata)
+	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
+	item.EmptyProgressCount = 0
+	item.LastError = ""
+	return s.persistTransition(ctx, *item, protocol.GoalStatusComplete, protocol.GoalUpdateSourceSystem, "completed", roundID, map[string]any{
+		"reason":      strings.TrimSpace(reason),
+		"retry_count": retryCount,
+		"source":      "completion_tool_miss",
+	})
 }
 
 func (s *Service) recordGoalActivityForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {

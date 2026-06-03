@@ -138,10 +138,94 @@ func TestServiceThreadGoalSetRewritesObjectiveByDefault(t *testing.T) {
 	}
 }
 
+func TestServiceObjectiveRewriteReceivesSessionKey(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	rewriter := &recordingObjectiveRewriter{
+		outputs: []string{
+			"整理后的创建目标",
+			"整理后的更新目标",
+			"整理后的 app-server 创建目标",
+			"整理后的 app-server 更新目标",
+		},
+	}
+	service.SetObjectiveRewriter(rewriter)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "创建目标草稿",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedObjective := "更新目标草稿"
+	if _, err = service.Update(ctx, created.ID, protocol.UpdateGoalRequest{Objective: &updatedObjective}); err != nil {
+		t.Fatal(err)
+	}
+	roomObjective := "app-server 创建草稿"
+	appCreated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  "room:group:conversation-1",
+		Objective: &roomObjective,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	roomUpdateObjective := "app-server 更新草稿"
+	if _, err = service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  appCreated.SessionKey,
+		Objective: &roomUpdateObjective,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	wantSessionKeys := []string{
+		"agent:nexus:ws:dm:chat",
+		"agent:nexus:ws:dm:chat",
+		"room:group:conversation-1",
+		"room:group:conversation-1",
+	}
+	if len(rewriter.calls) != len(wantSessionKeys) {
+		t.Fatalf("rewrite calls = %#v, want %d calls", rewriter.calls, len(wantSessionKeys))
+	}
+	for index, want := range wantSessionKeys {
+		if rewriter.calls[index].sessionKey != want {
+			t.Fatalf("call %d session_key = %q, want %q; calls=%#v", index, rewriter.calls[index].sessionKey, want, rewriter.calls)
+		}
+	}
+}
+
 type fakeObjectiveRewriter struct {
 	rewritten string
 }
 
-func (f fakeObjectiveRewriter) RewriteGoalObjective(context.Context, string, string) (string, error) {
+func (f fakeObjectiveRewriter) RewriteGoalObjective(context.Context, string, string, string) (string, error) {
 	return f.rewritten, nil
+}
+
+type recordingObjectiveRewriter struct {
+	outputs []string
+	calls   []recordingObjectiveRewriteCall
+}
+
+type recordingObjectiveRewriteCall struct {
+	ownerUserID string
+	sessionKey  string
+	objective   string
+}
+
+func (r *recordingObjectiveRewriter) RewriteGoalObjective(_ context.Context, ownerUserID string, sessionKey string, objective string) (string, error) {
+	r.calls = append(r.calls, recordingObjectiveRewriteCall{
+		ownerUserID: ownerUserID,
+		sessionKey:  sessionKey,
+		objective:   objective,
+	})
+	if len(r.outputs) == 0 {
+		return objective, nil
+	}
+	output := r.outputs[0]
+	r.outputs = r.outputs[1:]
+	return output, nil
 }

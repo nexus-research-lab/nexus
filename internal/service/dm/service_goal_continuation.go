@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -35,6 +36,27 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 	}
 	s.dispatchNextInputQueueItemAtLocation(ctx, normalizedSessionKey, agentID, location)
 	return true
+}
+
+// GoalContinuationTargetMissing 判断隐藏续跑目标 Agent 是否已被删除。
+func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey string, agentID string) (bool, error) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if s == nil || sessionKey == "" {
+		return false, nil
+	}
+	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
+	if err != nil {
+		return true, nil
+	}
+	parsed := protocol.ParseSessionKey(normalized)
+	if parsed.Kind != protocol.SessionKeyKindAgent {
+		return false, nil
+	}
+	_, err = s.resolveInputQueueAgent(ctx, parsed, agentID)
+	if errors.Is(err, agentsvc.ErrAgentNotFound) {
+		return true, nil
+	}
+	return false, err
 }
 
 func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, agentID string) bool {

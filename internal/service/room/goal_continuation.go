@@ -72,6 +72,39 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(ctx context.
 	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
 }
 
+// GoalContinuationTargetMissing 判断共享 Room Goal 的 conversation 是否已被删除。
+func (s *RealtimeService) GoalContinuationTargetMissing(ctx context.Context, sessionKey string) (bool, error) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if s == nil || sessionKey == "" {
+		return false, nil
+	}
+	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
+	if err != nil {
+		return true, nil
+	}
+	parsed := protocol.ParseSessionKey(normalized)
+	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
+		return false, nil
+	}
+	return s.GoalContinuationConversationMissing(ctx, parsed.ConversationID)
+}
+
+// GoalContinuationConversationMissing 判断 Room conversation 是否已不存在。
+func (s *RealtimeService) GoalContinuationConversationMissing(ctx context.Context, conversationID string) (bool, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	if s == nil || s.rooms == nil || conversationID == "" {
+		return false, nil
+	}
+	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	if errors.Is(err, ErrRoomNotFound) || errors.Is(err, ErrConversationNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return contextValue == nil, nil
+}
+
 func goalContinuationTargetAgentID(
 	contextValue *protocol.ConversationContextAggregate,
 	agentNameByID map[string]string,

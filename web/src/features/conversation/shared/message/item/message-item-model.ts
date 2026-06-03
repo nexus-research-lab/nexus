@@ -306,6 +306,11 @@ export function useMessageItemState({
     OrderedAssistantEntry[]
   >(() => {
     const assistant_entries: OrderedAssistantEntry[] = [];
+    const should_show_task_progress_inline =
+      is_loading ||
+      !merged_content.some(
+        (block) => block.type === "text" && Boolean(block.text.trim()),
+      );
     const resolve_source_order = (source_message_id: string) =>
       source_message_order_by_id.get(source_message_id) ??
       Number.MAX_SAFE_INTEGER;
@@ -365,12 +370,14 @@ export function useMessageItemState({
       }
 
       if (block.type === "task_progress") {
-        assistant_entries.push({
-          block,
-          merged_index,
-          source_message_id,
-          source_order,
-        });
+        if (should_show_task_progress_inline) {
+          assistant_entries.push({
+            block,
+            merged_index,
+            source_message_id,
+            source_order,
+          });
+        }
         return;
       }
 
@@ -475,6 +482,7 @@ export function useMessageItemState({
   }, [
     hidden_tool_use_ids,
     hidden_tool_names,
+    is_loading,
     merged_content,
     merged_content_source_message_ids,
     source_message_order_by_id,

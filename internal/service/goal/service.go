@@ -140,7 +140,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		if err != nil {
 			return nil, err
 		}
-		objective, payload = s.rewriteUpdateObjective(ctx, request, objective, payload)
+		objective, payload = s.rewriteUpdateObjective(ctx, request, item.SessionKey, objective, payload)
 		if item.Objective != objective {
 			item.Objective = objective
 			changed = true

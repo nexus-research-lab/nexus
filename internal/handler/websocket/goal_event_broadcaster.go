@@ -55,9 +55,19 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 				ThreadID: threadID,
 			},
 		})
+	case protocol.EventTypeGoalStatusChanged:
+		if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusComplete {
+			b.rpcSubscribers.Broadcast(ctx, threadID, nil, protocol.AppServerJSONRPCNotification{
+				Method: "thread/goal/cleared",
+				Params: protocol.ThreadGoalClearedNotification{
+					ThreadID: threadID,
+				},
+			})
+			return
+		}
+		fallthrough
 	case protocol.EventTypeGoalCreated,
 		protocol.EventTypeGoalUpdated,
-		protocol.EventTypeGoalStatusChanged,
 		protocol.EventTypeGoalProgress,
 		protocol.EventTypeGoalContinuation:
 		b.rpcSubscribers.Broadcast(ctx, threadID, nil, protocol.AppServerJSONRPCNotification{

@@ -405,6 +405,8 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	goalCleaner := &fakeRoomGoalCleaner{}
+	roomService.SetGoalCleaner(goalCleaner)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "清理助手A")
@@ -487,6 +489,10 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 SELECT COUNT(*) FROM sessions
 WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation.ID, agentC.AgentID)
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, mainAgentCRoundID)
+	assertRoomGoalMemberCleanup(t, goalCleaner, 0, agentC.AgentID, []string{
+		mainContextAfterAdd.Conversation.ID,
+		topicContextAfterAdd.Conversation.ID,
+	})
 
 	fallbackContext, err := roomService.DeleteConversation(ctx, mainContext.Room.ID, topicContextAfterAdd.Conversation.ID)
 	if err != nil {
@@ -504,6 +510,7 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM sessions WHERE conversation_id = ?`, 0, topicContextAfterAdd.Conversation.ID)
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, 0, topicContextAfterAdd.Conversation.ID)
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, topicRoundID)
+	assertRoomGoalConversationCleanup(t, goalCleaner, 0, []string{topicContextAfterAdd.Conversation.ID})
 
 	if err = roomService.DeleteRoom(ctx, mainContext.Room.ID); err != nil {
 		t.Fatalf("删除 room 失败: %v", err)
@@ -517,6 +524,30 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM sessions WHERE conversation_id = ?`, 0, mainContextAfterAdd.Conversation.ID)
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, 0, mainContextAfterAdd.Conversation.ID)
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, mainRoundID)
+	assertRoomGoalConversationCleanup(t, goalCleaner, 1, []string{mainContextAfterAdd.Conversation.ID})
+}
+
+type fakeRoomGoalCleaner struct {
+	conversationCalls [][]string
+	memberCalls       []fakeRoomGoalMemberCleanup
+}
+
+type fakeRoomGoalMemberCleanup struct {
+	agentID         string
+	conversationIDs []string
+}
+
+func (f *fakeRoomGoalCleaner) DeleteGoalsForRoomConversations(_ context.Context, conversationIDs []string) (int, error) {
+	f.conversationCalls = append(f.conversationCalls, append([]string(nil), conversationIDs...))
+	return len(conversationIDs), nil
+}
+
+func (f *fakeRoomGoalCleaner) DeleteGoalsForRoomMember(_ context.Context, agentID string, conversationIDs []string) (int, error) {
+	f.memberCalls = append(f.memberCalls, fakeRoomGoalMemberCleanup{
+		agentID:         agentID,
+		conversationIDs: append([]string(nil), conversationIDs...),
+	})
+	return len(conversationIDs), nil
 }
 
 func createTestAgent(
@@ -670,6 +701,49 @@ func assertSQLCount(t *testing.T, db *sql.DB, query string, want int, args ...an
 	if got != want {
 		t.Fatalf("数量不符合预期: got=%d want=%d query=%s args=%v", got, want, query, args)
 	}
+}
+
+func assertRoomGoalConversationCleanup(t *testing.T, cleaner *fakeRoomGoalCleaner, index int, wantConversationIDs []string) {
+	t.Helper()
+	if len(cleaner.conversationCalls) <= index {
+		t.Fatalf("goal conversation cleanup calls = %#v, want index %d", cleaner.conversationCalls, index)
+	}
+	if !sameStringSet(cleaner.conversationCalls[index], wantConversationIDs) {
+		t.Fatalf("goal conversation cleanup[%d] = %#v, want %#v", index, cleaner.conversationCalls[index], wantConversationIDs)
+	}
+}
+
+func assertRoomGoalMemberCleanup(t *testing.T, cleaner *fakeRoomGoalCleaner, index int, wantAgentID string, wantConversationIDs []string) {
+	t.Helper()
+	if len(cleaner.memberCalls) <= index {
+		t.Fatalf("goal member cleanup calls = %#v, want index %d", cleaner.memberCalls, index)
+	}
+	call := cleaner.memberCalls[index]
+	if call.agentID != wantAgentID || !sameStringSet(call.conversationIDs, wantConversationIDs) {
+		t.Fatalf("goal member cleanup[%d] = %#v, want agent=%s conversations=%#v", index, call, wantAgentID, wantConversationIDs)
+	}
+}
+
+func sameStringSet(got []string, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	counts := make(map[string]int, len(want))
+	for _, item := range got {
+		counts[item]++
+	}
+	for _, item := range want {
+		if counts[item] == 0 {
+			return false
+		}
+		counts[item]--
+	}
+	for _, count := range counts {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func stringPointer(value string) *string {

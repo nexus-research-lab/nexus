@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 新增 Goal runtime parity audit 文档，记录当前分支与 Codex upstream Goal 的对齐矩阵、剩余宿主差异和文件拆分阈值。
 
 ### Changed
+- Goal `complete` 不再属于当前会话 Goal；模型完成后 `thread/goal/get` / Goal 面板会回到空态，完成记录仍保留用于最终 usage/time 结算。
+- Goal MCP 托管工具预授权补齐完整 `mcp__nexus_goal__get_goal|create_goal|update_goal` 名称，并在工具策略变化时重建 runtime client，避免显式工具白名单或旧会话导致模型工具列表缺少 Goal 工具。
+- 对话中的 SDK `task_progress` 现在会联动右侧任务条；归档后如同轮已有正文，TaskCreate/TaskUpdate 过程块不再挤占主要回答区域。
+- Goal objective 整理默认优先复用当前会话模型；DM 使用当前 Agent 模型，Room 使用唯一成员或 host auto-reply 目标 Agent 模型，无法解析时才回退后台模型偏好。
+- Goal 完成工具结果和 `goal-manager` 文案明确要求最终回复说明 Goal 已完成、可清理，并汇报完成内容、token 用量与耗时，避免把完成态误写成暂停。
 - Goal token 预算统计改为 Codex 口径：仅累计非缓存输入 token 与输出 token，缓存和 reasoning token 不再触发预算耗尽。
 - Goal 面板创建或编辑目标时会立刻展示整理/更新中的进度状态，避免后台 objective 整理等待看起来像界面卡住。
 - Goal 工具完成结果补齐 Codex 风格最终用量汇报提示，便于模型在完成预算 Goal 时报告结构化用量。
@@ -73,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 模型侧提示词和 Goal MCP 工具描述优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
 
 ### Fixed
+- Goal 完成收尾重试后如果模型仍只文字声明完成、没有调用 `update_goal`，系统会把该 Goal 收尾为 complete 并清空当前 Goal；旧的“完成工具重试后续跑暂停”状态也会在续跑扫描时自动清理，避免完成后仍显示待继续条。
+- Goal manager skill 明确区分“加载 skill”和“调用 Goal MCP 工具”，完成/阻塞段落直接标出 `mcp__nexus_goal__update_goal`，避免模型把 skill 文档当成工具列表并误报 Goal MCP 不可用。
+- 删除 Agent、Room、Room 成员或话题时会级联清理关联 Goal；Goal 自动续跑遇到已删除的 agent/room/conversation 目标时会清理旧 active Goal，避免 orphan Goal 持续续跑刷 warning。
 - 修复模型在隐藏 Goal 续跑中声称目标已完成但误判 `mcp__nexus_goal__update_goal` 不可用时会直接停在 active 状态的问题；现在会自动安排一次收尾重试，要求模型重新审计并调用完成工具，让最终 token/耗时汇报继续走 Goal 工具结果链路。
 - 修复 Goal MCP 三件套缺少 model-visible 元数据的问题，`get_goal`、`create_goal`、`update_goal` 现在会像 Codex 内建 Goal 工具一样强制进入模型可见工具集。
 - 修复旧运行时会话热更新后可能仍缺少 `nexus_goal` 工具的问题；托管 Goal MCP server 加入或移除时现在会重建 SDK client，确保初始工具 schema 带上 Goal 三件套。

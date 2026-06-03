@@ -19,6 +19,10 @@ type ContinuationDispatcher interface {
 	DispatchGoalContinuation(context.Context, protocol.GoalContinuation) error
 }
 
+type continuationTargetChecker interface {
+	GoalContinuationTargetMissing(context.Context, string) (bool, error)
+}
+
 // WithActiveGoalContinuationSuppressed 延后本次 Goal mutation 触发的隐藏续跑。
 func WithActiveGoalContinuationSuppressed(ctx context.Context) context.Context {
 	if ctx == nil {
@@ -99,6 +103,10 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil
 	}
+	cleared, err := s.clearMissingGoalContinuationTarget(ctx, item, dispatcher)
+	if err != nil || cleared {
+		return err
+	}
 	if dispatcher.ShouldDeferGoalContinuation(ctx, item.SessionKey) {
 		return nil
 	}
@@ -114,6 +122,10 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 	if plan == nil {
 		return nil
 	}
+	cleared, err = s.clearMissingGoalContinuationTarget(ctx, plan.Goal, dispatcher)
+	if err != nil || cleared {
+		return err
+	}
 	if dispatcher.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey) {
 		_, _ = s.ReleaseContinuationPlan(ctx, *plan, "Goal continuation deferred before dispatch")
 		return nil
@@ -127,12 +139,32 @@ func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol
 		return nil
 	}
 	if err := dispatcher.DispatchGoalContinuation(ctx, *plan); err != nil {
+		if errors.Is(err, ErrGoalContinuationTargetMissing) {
+			_, cleanupErr := s.deleteGoal(ctx, plan.Goal, protocol.GoalUpdateSourceSystem)
+			return cleanupErr
+		}
 		if _, failureErr := s.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, err.Error()); failureErr != nil {
 			return failureErr
 		}
 		return nil
 	}
 	return nil
+}
+
+func (s *Service) clearMissingGoalContinuationTarget(
+	ctx context.Context,
+	item protocol.Goal,
+	dispatcher ContinuationDispatcher,
+) (bool, error) {
+	checker, ok := dispatcher.(continuationTargetChecker)
+	if !ok {
+		return false, nil
+	}
+	missing, err := checker.GoalContinuationTargetMissing(ctx, item.SessionKey)
+	if err != nil || !missing {
+		return false, err
+	}
+	return s.deleteGoal(ctx, item, protocol.GoalUpdateSourceSystem)
 }
 
 func activeGoalContinuationSuppressed(ctx context.Context) bool {

@@ -148,6 +148,35 @@ func TestServiceRunAutoResumeOnceRecordsFailureWhenDispatchFails(t *testing.T) {
 	}
 }
 
+func TestServiceRunAutoResumeOnceClearsMissingContinuationTarget(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:deleted-agent:ws:dm:chat",
+		Objective:  "Clean stale goal after agent deletion",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := &fakeContinuationDispatcher{missingSessions: map[string]bool{created.SessionKey: true}}
+	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
+		t.Fatalf("RunAutoResumeOnce error = %v", err)
+	}
+	if len(dispatcher.plans) != 0 {
+		t.Fatalf("plans = %#v, want no dispatch for missing target", dispatcher.plans)
+	}
+	if _, ok := repo.goals[created.ID]; ok {
+		t.Fatal("missing target goal still exists")
+	}
+}
+
 func TestServiceRunAutoResumeOnceSkipsStaleContinuationBeforeDispatch(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

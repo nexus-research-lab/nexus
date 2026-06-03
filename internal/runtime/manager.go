@@ -25,6 +25,7 @@ var (
 	// ErrStreamingInputUnsupported 表示底层 client 不支持流式排队输入。
 	ErrStreamingInputUnsupported      = errors.New("runtime client does not support streaming input")
 	errManagedGoalMCPServerSetChanged = errors.New("runtime client restart required: managed goal mcp server set changed")
+	errRuntimeToolPolicyChanged       = errors.New("runtime client restart required: tool policy changed")
 )
 
 // Client 抽象出运行时需要的最小 SDK 能力，便于测试替身接入。
@@ -184,6 +185,9 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 	if session != nil {
 		if shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
 			return errManagedGoalMCPServerSetChanged
+		}
+		if shouldRestartForToolPolicyChange(currentOptions, options) {
+			return errRuntimeToolPolicyChanged
 		}
 		if err := applyRuntimeControls(ctx, session, currentOptions, options); err != nil {
 			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
@@ -352,6 +356,14 @@ func shouldRestartForManagedGoalMCPServerSetChange(
 		hasMCPServer(nextOptions, managedGoalMCPServerName)
 }
 
+func shouldRestartForToolPolicyChange(
+	currentOptions agentclient.Options,
+	nextOptions agentclient.Options,
+) bool {
+	return !reflect.DeepEqual(currentOptions.Tools.Allow, nextOptions.Tools.Allow) ||
+		!reflect.DeepEqual(currentOptions.Tools.Deny, nextOptions.Tools.Deny)
+}
+
 func hasMCPServer(options agentclient.Options, name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
@@ -475,6 +487,7 @@ func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
 	return IsRuntimeTransportClosedError(err) ||
 		errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed) ||
 		errors.Is(err, errManagedGoalMCPServerSetChanged) ||
+		errors.Is(err, errRuntimeToolPolicyChanged) ||
 		IsRuntimeControlRestartRequiredError(err)
 }
 

@@ -305,6 +305,11 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if existing.IsMain {
 		return errors.New("主智能体不可删除")
 	}
+	if s.goals != nil {
+		if _, err = s.goals.DeleteGoalsForAgent(ctx, existing.AgentID); err != nil {
+			return err
+		}
+	}
 	if s.history != nil {
 		if _, err = s.history.DeleteTranscriptProject(existing.WorkspacePath); err != nil {
 			return err

@@ -181,6 +181,31 @@ func TestRuntimeRestartsWhenManagedGoalMCPServerSetChanges(t *testing.T) {
 	}
 }
 
+func TestRuntimeRestartsWhenToolPolicyChanges(t *testing.T) {
+	currentOptions := agentclient.Options{
+		Tools: agentclient.ToolOptions{
+			Allow: []string{"Read", "create_goal"},
+			Deny:  []string{"ScheduleWakeup"},
+		},
+	}
+	nextOptions := agentclient.Options{
+		Tools: agentclient.ToolOptions{
+			Allow: []string{"Read", "create_goal", "mcp__nexus_goal__update_goal"},
+			Deny:  []string{"ScheduleWakeup"},
+		},
+	}
+
+	if !shouldRestartForToolPolicyChange(currentOptions, nextOptions) {
+		t.Fatal("工具白名单变化时应重建 SDK client")
+	}
+	if shouldRestartForToolPolicyChange(nextOptions, nextOptions) {
+		t.Fatal("工具策略未变化时不应重建 SDK client")
+	}
+	if !shouldReplaceRuntimeClientAfterReconfigureError(errRuntimeToolPolicyChanged) {
+		t.Fatal("工具策略变化错误应触发 client 替换")
+	}
+}
+
 func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	stale := &fakeRuntimeClient{
 		reconfigureErr: errors.New("client: send control request failed: process: write payload failed: write |1: The pipe has been ended"),

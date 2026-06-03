@@ -10,11 +10,16 @@ import (
 
 type fakeGoalContinuationDM struct {
 	deferResult bool
+	missing     bool
 	requests    []dmsvc.Request
 }
 
 func (f *fakeGoalContinuationDM) ShouldDeferGoalContinuation(context.Context, string, string) bool {
 	return f.deferResult
+}
+
+func (f *fakeGoalContinuationDM) GoalContinuationTargetMissing(context.Context, string, string) (bool, error) {
+	return f.missing, nil
 }
 
 func (f *fakeGoalContinuationDM) HandleChat(_ context.Context, request dmsvc.Request) error {
@@ -24,11 +29,22 @@ func (f *fakeGoalContinuationDM) HandleChat(_ context.Context, request dmsvc.Req
 
 type fakeGoalContinuationRoom struct {
 	deferResult bool
+	missing     bool
+	checkedRefs []string
 	plans       []protocol.GoalContinuation
 }
 
 func (f *fakeGoalContinuationRoom) ShouldDeferGoalContinuation(context.Context, string) bool {
 	return f.deferResult
+}
+
+func (f *fakeGoalContinuationRoom) GoalContinuationTargetMissing(context.Context, string) (bool, error) {
+	return f.missing, nil
+}
+
+func (f *fakeGoalContinuationRoom) GoalContinuationConversationMissing(_ context.Context, conversationID string) (bool, error) {
+	f.checkedRefs = append(f.checkedRefs, conversationID)
+	return f.missing, nil
 }
 
 func (f *fakeGoalContinuationRoom) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {
@@ -95,5 +111,22 @@ func TestGoalContinuationDispatcherKeepsAgentDispatch(t *testing.T) {
 	}
 	if dm.requests[0].Content != "" || dm.requests[0].GoalContext != plan.Prompt {
 		t.Fatalf("dm request prompt routing = %#v, want goal context only", dm.requests[0])
+	}
+}
+
+func TestGoalContinuationDispatcherChecksAgentGroupConversationTarget(t *testing.T) {
+	room := &fakeGoalContinuationRoom{missing: true}
+	dm := &fakeGoalContinuationDM{}
+	dispatcher := &goalContinuationDispatcher{dm: dm, room: room}
+
+	missing, err := dispatcher.GoalContinuationTargetMissing(context.Background(), "agent:nexus:ws:group:conversation-1")
+	if err != nil {
+		t.Fatalf("GoalContinuationTargetMissing() error = %v", err)
+	}
+	if !missing {
+		t.Fatal("GoalContinuationTargetMissing() = false, want missing group conversation")
+	}
+	if len(room.checkedRefs) != 1 || room.checkedRefs[0] != "conversation-1" {
+		t.Fatalf("checked refs = %#v, want conversation-1", room.checkedRefs)
 	}
 }

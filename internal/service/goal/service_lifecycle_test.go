@@ -221,37 +221,23 @@ func TestServiceStateTransitions(t *testing.T) {
 	if _, err := service.Resume(ctx, completed.ID); !errors.Is(err, ErrGoalInvalidState) {
 		t.Fatalf("resume complete error = %v, want ErrGoalInvalidState", err)
 	}
-	current, err := service.Current(ctx, created.SessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.Status != protocol.GoalStatusComplete {
-		t.Fatalf("current = %#v, want complete goal still visible", current)
-	}
-	cleared, err := service.Clear(ctx, completed.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !cleared {
-		t.Fatal("Clear() = false, want true")
-	}
-	current, err = service.CurrentOptional(ctx, created.SessionKey)
+	current, err := service.CurrentOptional(ctx, created.SessionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if current != nil {
-		t.Fatalf("current after clear = %#v, want nil", current)
+		t.Fatalf("current = %#v, want nil after complete", current)
 	}
-	deleted, err := repo.GetGoal(ctx, completed.ID)
+	stored, err := repo.GetGoal(ctx, completed.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if deleted != nil {
-		t.Fatalf("deleted = %#v, want nil after clear", deleted)
+	if stored == nil || stored.Status != protocol.GoalStatusComplete {
+		t.Fatalf("stored = %#v, want completed history retained", stored)
 	}
 }
 
-func TestServiceEditCompletedGoalReactivatesIt(t *testing.T) {
+func TestServiceEditCompletedGoalDoesNotReactivateCurrentGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
 	service.nowFn = fixedClock()
@@ -270,14 +256,17 @@ func TestServiceEditCompletedGoalReactivatesIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	updatedObjective := "Continue with revised objective"
-	edited, err := service.Update(ctx, completed.ID, protocol.UpdateGoalRequest{
+	if _, err = service.Update(ctx, completed.ID, protocol.UpdateGoalRequest{
 		Objective: &updatedObjective,
-	})
+	}); !errors.Is(err, ErrGoalInvalidState) {
+		t.Fatalf("update completed goal error = %v, want ErrGoalInvalidState", err)
+	}
+	current, err := service.CurrentOptional(ctx, created.SessionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if edited.Status != protocol.GoalStatusActive || edited.Objective != updatedObjective || edited.CompletedAt != nil {
-		t.Fatalf("edited = %#v, want active revised goal without completed_at", edited)
+	if current != nil {
+		t.Fatalf("current = %#v, want nil after completed goal update attempt", current)
 	}
 }
 

@@ -36,15 +36,12 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 	if !ok {
 		t.Fatalf("notification type = %T", sender.payloads[0])
 	}
-	if notification.Method != "thread/goal/updated" {
-		t.Fatalf("notification method = %q, want thread/goal/updated", notification.Method)
+	if notification.Method != "thread/goal/cleared" {
+		t.Fatalf("notification method = %q, want thread/goal/cleared", notification.Method)
 	}
-	params, ok := notification.Params.(protocol.ThreadGoalUpdatedNotification)
-	if !ok || params.Goal.Status != protocol.ThreadGoalStatusComplete {
+	params, ok := notification.Params.(protocol.ThreadGoalClearedNotification)
+	if !ok || params.ThreadID != threadID {
 		t.Fatalf("notification params = %#v", notification.Params)
-	}
-	if params.TurnID == nil || *params.TurnID != "round-1" {
-		t.Fatalf("notification turnId = %#v, want round-1", params.TurnID)
 	}
 }
 

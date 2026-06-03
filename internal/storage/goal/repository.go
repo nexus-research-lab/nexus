@@ -98,7 +98,7 @@ func (r *Repository) GetGoal(ctx context.Context, goalID string) (*protocol.Goal
 
 // GetCurrentGoal 读取 session 当前 Goal。
 func (r *Repository) GetCurrentGoal(ctx context.Context, sessionKey string) (*protocol.Goal, error) {
-	query := goalSelectQuery("session_key = " + r.bind(1) + " AND status IN ('active', 'paused', 'blocked', 'budget_limited', 'usage_limited', 'complete')")
+	query := goalSelectQuery("session_key = " + r.bind(1) + " AND status IN ('active', 'paused', 'blocked', 'budget_limited', 'usage_limited')")
 	row := r.db.QueryRowContext(ctx, query, strings.TrimSpace(sessionKey))
 	goal, err := scanGoal(row)
 	if err == sql.ErrNoRows {
@@ -108,6 +108,28 @@ func (r *Repository) GetCurrentGoal(ctx context.Context, sessionKey string) (*pr
 		return nil, err
 	}
 	return &goal, nil
+}
+
+// ListGoals 返回全部 Goal，用于资源删除时按结构化 session_key 做级联清理。
+func (r *Repository) ListGoals(ctx context.Context) ([]protocol.Goal, error) {
+	rows, err := r.db.QueryContext(ctx, goalSelectQuery("1 = 1 ORDER BY updated_at ASC, goal_id ASC"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]protocol.Goal, 0)
+	for rows.Next() {
+		item, scanErr := scanGoal(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 // ListRunnableGoals 返回需要系统继续推进的 active Goal。

@@ -66,6 +66,10 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 		return nil, err
 	}
 	if item.EmptyProgressCount > 0 {
+		if goalCompletionToolRetryCount(item.Metadata) >= goalCompletionToolMaxRetries {
+			_, err := s.completeAfterCompletionToolMissRetry(ctx, item, previousRoundID, "Goal completion finalization retry already exhausted")
+			return nil, err
+		}
 		return nil, nil
 	}
 	if max := s.config.GoalMaxContinuationsPerRun; max > 0 && item.ContinuationCount >= max {

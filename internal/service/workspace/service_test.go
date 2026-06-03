@@ -169,9 +169,13 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"nexus_goal",
+		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_goal__create_goal",
+		"mcp__nexus_goal__update_goal",
 		"create_goal",
 		"get_goal",
 		"update_goal",
+		"Skill 只负责加载这份使用说明",
 		"不要用 /goal 文本命令",
 	} {
 		if !strings.Contains(string(goalSkill), expected) {

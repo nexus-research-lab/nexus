@@ -43,6 +43,11 @@ type Repository interface {
 	UpdateSessionSDKSessionID(context.Context, string, string) error
 }
 
+type goalCleaner interface {
+	DeleteGoalsForRoomConversations(context.Context, []string) (int, error)
+	DeleteGoalsForRoomMember(context.Context, string, []string) (int, error)
+}
+
 // Service 提供 Room 编排能力。
 type Service struct {
 	config     config.Config
@@ -51,6 +56,7 @@ type Service struct {
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 	skills     RoomSkillCatalog
+	goals      goalCleaner
 }
 
 // NewService 创建 Room 服务。
@@ -62,6 +68,11 @@ func NewService(cfg config.Config, agents *agentsvc.Service, repository Reposito
 		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
 		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 	}
+}
+
+// SetGoalCleaner 注入 Room 删除时的 Goal 级联清理器。
+func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
+	s.goals = cleaner
 }
 
 // ListRooms 列出最近房间。
@@ -355,10 +366,9 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 	if contextValue == nil {
 		return nil, ErrRoomNotFound
 	}
-	if err = s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}}); err != nil {
-		return nil, err
-	}
-	return contextValue, nil
+	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
+	goalErr := s.cleanupGoalsForRoomMemberContexts(ctx, roomContexts, normalizedAgentID)
+	return contextValue, errors.Join(artifactErr, goalErr)
 }
 
 // DeleteRoom 删除房间。
@@ -374,10 +384,9 @@ func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
 	if !deleted {
 		return ErrRoomNotFound
 	}
-	if err = s.cleanupConversationArtifacts(ctx, roomContexts, true, nil); err != nil {
-		return err
-	}
-	return nil
+	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, true, nil)
+	goalErr := s.cleanupGoalsForRoomContexts(ctx, roomContexts)
+	return errors.Join(artifactErr, goalErr)
 }
 
 // CreateConversation 创建 room 话题。
@@ -490,10 +499,9 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	if err = s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil); err != nil {
-		return nil, err
-	}
-	return contextValue, nil
+	artifactErr := s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
+	goalErr := s.cleanupGoalsForRoomContexts(ctx, []protocol.ConversationContextAggregate{targetContext})
+	return contextValue, errors.Join(artifactErr, goalErr)
 }
 
 // UpdateSessionSDKSessionID 更新房间会话记录中的 Claude session_id。
@@ -559,6 +567,47 @@ func (s *Service) cleanupConversationArtifacts(
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (s *Service) cleanupGoalsForRoomContexts(ctx context.Context, contexts []protocol.ConversationContextAggregate) error {
+	if s == nil || s.goals == nil {
+		return nil
+	}
+	conversationIDs := roomContextConversationIDs(contexts)
+	if len(conversationIDs) == 0 {
+		return nil
+	}
+	_, err := s.goals.DeleteGoalsForRoomConversations(ctx, conversationIDs)
+	return err
+}
+
+func (s *Service) cleanupGoalsForRoomMemberContexts(ctx context.Context, contexts []protocol.ConversationContextAggregate, agentID string) error {
+	if s == nil || s.goals == nil {
+		return nil
+	}
+	conversationIDs := roomContextConversationIDs(contexts)
+	if len(conversationIDs) == 0 {
+		return nil
+	}
+	_, err := s.goals.DeleteGoalsForRoomMember(ctx, agentID, conversationIDs)
+	return err
+}
+
+func roomContextConversationIDs(contexts []protocol.ConversationContextAggregate) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(contexts))
+	for _, contextValue := range contexts {
+		conversationID := strings.TrimSpace(contextValue.Conversation.ID)
+		if conversationID == "" {
+			continue
+		}
+		if _, ok := seen[conversationID]; ok {
+			continue
+		}
+		seen[conversationID] = struct{}{}
+		result = append(result, conversationID)
+	}
+	return result
 }
 
 func (s *Service) resolveAgentWorkspacePath(ctx context.Context, agentID string) (string, error) {

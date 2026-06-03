@@ -20,6 +20,7 @@ func canTransition(source protocol.GoalUpdateSource, from protocol.GoalStatus, t
 			return false
 		}
 		return to == protocol.GoalStatusBlocked ||
+			to == protocol.GoalStatusComplete ||
 			to == protocol.GoalStatusBudgetLimited ||
 			to == protocol.GoalStatusUsageLimited
 	case protocol.GoalUpdateSourceExternal:

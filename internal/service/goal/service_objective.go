@@ -8,7 +8,7 @@ import (
 )
 
 type objectiveRewriter interface {
-	RewriteGoalObjective(context.Context, string, string) (string, error)
+	RewriteGoalObjective(context.Context, string, string, string) (string, error)
 }
 
 // SetObjectiveRewriter 注入可选的 Goal objective 改写器，用于把 UI 草稿整理成可执行目标。
@@ -21,7 +21,7 @@ func (s *Service) rewriteCreateObjective(ctx context.Context, request protocol.C
 	if skipObjectiveRewriteForCreatedBy(request.CreatedBy) {
 		return objective, metadata
 	}
-	rewritten := s.rewriteObjectiveBestEffort(ctx, request.OwnerUserID, objective)
+	rewritten := s.rewriteObjectiveBestEffort(ctx, request.OwnerUserID, request.SessionKey, objective)
 	if rewritten == "" || rewritten == objective {
 		return objective, metadata
 	}
@@ -33,8 +33,8 @@ func (s *Service) rewriteCreateObjective(ctx context.Context, request protocol.C
 	return rewritten, metadata
 }
 
-func (s *Service) rewriteUpdateObjective(ctx context.Context, request protocol.UpdateGoalRequest, objective string, payload map[string]any) (string, map[string]any) {
-	rewritten := s.rewriteObjectiveBestEffort(ctx, request.OwnerUserID, objective)
+func (s *Service) rewriteUpdateObjective(ctx context.Context, request protocol.UpdateGoalRequest, sessionKey string, objective string, payload map[string]any) (string, map[string]any) {
+	rewritten := s.rewriteObjectiveBestEffort(ctx, request.OwnerUserID, sessionKey, objective)
 	if rewritten == "" || rewritten == objective {
 		return objective, payload
 	}
@@ -46,11 +46,11 @@ func (s *Service) rewriteUpdateObjective(ctx context.Context, request protocol.U
 	return rewritten, payload
 }
 
-func (s *Service) rewriteObjectiveBestEffort(ctx context.Context, ownerUserID string, objective string) string {
+func (s *Service) rewriteObjectiveBestEffort(ctx context.Context, ownerUserID string, sessionKey string, objective string) string {
 	if s == nil || s.rewriter == nil {
 		return ""
 	}
-	rewritten, err := s.rewriter.RewriteGoalObjective(ctx, strings.TrimSpace(ownerUserID), objective)
+	rewritten, err := s.rewriter.RewriteGoalObjective(ctx, strings.TrimSpace(ownerUserID), strings.TrimSpace(sessionKey), objective)
 	if err != nil {
 		return ""
 	}

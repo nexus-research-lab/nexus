@@ -47,6 +47,20 @@ func (r *memoryRepository) GetCurrentGoal(_ context.Context, sessionKey string) 
 	return nil, nil
 }
 
+func (r *memoryRepository) ListGoals(_ context.Context) ([]protocol.Goal, error) {
+	items := make([]protocol.Goal, 0, len(r.goals))
+	for _, item := range r.goals {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i int, j int) bool {
+		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+			return items[i].ID < items[j].ID
+		}
+		return items[i].UpdatedAt.Before(items[j].UpdatedAt)
+	})
+	return items, nil
+}
+
 func (r *memoryRepository) ListRunnableGoals(_ context.Context, limit int) ([]protocol.Goal, error) {
 	items := make([]protocol.Goal, 0)
 	for _, item := range r.goals {
@@ -285,11 +299,12 @@ func (i *fakeRuntimeInterrupter) InterruptGoalRuntime(_ context.Context, session
 }
 
 type fakeContinuationDispatcher struct {
-	deferSessions map[string]bool
-	plans         []protocol.GoalContinuation
-	dispatchErr   error
-	deferCalls    int
-	onShouldDefer func(call int, sessionKey string)
+	deferSessions   map[string]bool
+	missingSessions map[string]bool
+	plans           []protocol.GoalContinuation
+	dispatchErr     error
+	deferCalls      int
+	onShouldDefer   func(call int, sessionKey string)
 }
 
 func (d *fakeContinuationDispatcher) ShouldDeferGoalContinuation(_ context.Context, sessionKey string) bool {
@@ -298,6 +313,10 @@ func (d *fakeContinuationDispatcher) ShouldDeferGoalContinuation(_ context.Conte
 		d.onShouldDefer(d.deferCalls, sessionKey)
 	}
 	return d.deferSessions[sessionKey]
+}
+
+func (d *fakeContinuationDispatcher) GoalContinuationTargetMissing(_ context.Context, sessionKey string) (bool, error) {
+	return d.missingSessions[sessionKey], nil
 }
 
 func (d *fakeContinuationDispatcher) DispatchGoalContinuation(_ context.Context, plan protocol.GoalContinuation) error {

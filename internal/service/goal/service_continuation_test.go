@@ -536,7 +536,7 @@ func TestServiceCompletionToolMissAllowsOneFinalizationRetry(t *testing.T) {
 	}
 }
 
-func TestServiceCompletionToolMissSuppressesAfterRetry(t *testing.T) {
+func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
 		GoalEnabled:             true,
@@ -573,17 +573,70 @@ func TestServiceCompletionToolMissSuppressesAfterRetry(t *testing.T) {
 	if next, err := service.PlanContinuationForSession(ctx, created.SessionKey, retry.RoundID); err != nil {
 		t.Fatal(err)
 	} else if next != nil {
-		t.Fatalf("next = %#v, want nil after retry miss suppression", next)
+		t.Fatalf("next = %#v, want nil after system completion", next)
 	}
-	current, err := service.Current(ctx, created.SessionKey)
+	current, err := service.CurrentOptional(ctx, created.SessionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if current.EmptyProgressCount != 1 || goalCompletionToolRetryCount(current.Metadata) != 1 {
-		t.Fatalf("current = %#v, want suppressed after one retry", current)
+	if current != nil {
+		t.Fatalf("current = %#v, want nil after system completion", current)
 	}
-	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_suppressed" || got.Payload["reason"] != "second miss" {
-		t.Fatalf("last event = %#v, want second miss suppression reason", got)
+	completed, err := repo.GetGoal(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || goalCompletionToolRetryCount(completed.Metadata) != 0 {
+		t.Fatalf("completed = %#v, want complete with retry metadata cleared", completed)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "completed" || got.Payload["reason"] != "second miss" {
+		t.Fatalf("last event = %#v, want completed event with second miss reason", got)
+	}
+}
+
+func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:chat",
+		Objective:  "Finish with a proper Goal update",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := repo.goals[created.ID]
+	stale.EmptyProgressCount = 1
+	stale.Metadata = map[string]any{goalCompletionToolRetryMetadataKey: 1}
+	stale.Version++
+	repo.goals[created.ID] = stale
+
+	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "retry-round")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next != nil {
+		t.Fatalf("next = %#v, want nil after stale completion finalization", next)
+	}
+	current, err := service.CurrentOptional(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("current = %#v, want nil after stale completion finalization", current)
+	}
+	completed := repo.goals[created.ID]
+	if completed.Status != protocol.GoalStatusComplete || goalCompletionToolRetryCount(completed.Metadata) != 0 {
+		t.Fatalf("completed = %#v, want complete with retry metadata cleared", completed)
+	}
+	if got := repo.events[len(repo.events)-1]; got.EventType != "completed" || got.RoundID != "retry-round" {
+		t.Fatalf("last event = %#v, want completed event for stale retry suppression", got)
 	}
 }
 

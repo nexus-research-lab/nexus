@@ -277,6 +277,8 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
+	goalCleaner := &fakeAgentGoalCleaner{}
+	service.SetGoalCleaner(goalCleaner)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "删除助手"})
@@ -312,6 +314,18 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	if _, err = os.Stat(projectDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("删除 agent 后 transcript 项目目录仍残留: %v", err)
 	}
+	if len(goalCleaner.agentIDs) != 1 || goalCleaner.agentIDs[0] != created.AgentID {
+		t.Fatalf("goal cleaner agent IDs = %#v, want deleted agent", goalCleaner.agentIDs)
+	}
+}
+
+type fakeAgentGoalCleaner struct {
+	agentIDs []string
+}
+
+func (f *fakeAgentGoalCleaner) DeleteGoalsForAgent(_ context.Context, agentID string) (int, error) {
+	f.agentIDs = append(f.agentIDs, agentID)
+	return 1, nil
 }
 
 func newTestConfig(t *testing.T) config.Config {

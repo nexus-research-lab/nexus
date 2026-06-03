@@ -19,6 +19,9 @@ var managedGoalTools = []string{
 
 var managedGoalAllowedTools = []string{
 	"nexus_goal",
+	"mcp__nexus_goal__get_goal",
+	"mcp__nexus_goal__create_goal",
+	"mcp__nexus_goal__update_goal",
 	"get_goal",
 	"create_goal",
 	"update_goal",

@@ -95,8 +95,9 @@ func (s *Service) createFromThreadGoalParams(
 		return nil, err
 	}
 	objective, metadata := s.rewriteCreateObjective(ctx, protocol.CreateGoalRequest{
-		Objective: objective,
-		CreatedBy: "app_server",
+		SessionKey: sessionKey,
+		Objective:  objective,
+		CreatedBy:  "app_server",
 		Metadata: map[string]any{
 			"created_via": "thread_goal_set",
 		},
@@ -159,7 +160,7 @@ func (s *Service) updateFromThreadGoalParams(
 		if err != nil {
 			return nil, err
 		}
-		objective, payload = s.rewriteUpdateObjective(ctx, protocol.UpdateGoalRequest{Objective: &objective}, objective, payload)
+		objective, payload = s.rewriteUpdateObjective(ctx, protocol.UpdateGoalRequest{Objective: &objective}, item.SessionKey, objective, payload)
 		if item.Objective != objective {
 			item.Objective = objective
 			valueChanged = true

@@ -41,6 +41,7 @@ type preferencesService interface {
 
 type Request struct {
 	OwnerUserID string
+	SessionKey  string
 	Provider    string
 	Model       string
 	Objective   string
@@ -49,6 +50,8 @@ type Request struct {
 type Service struct {
 	providers providerResolver
 	prefs     preferencesService
+	agents    agentLookup
+	rooms     roomContextLookup
 	llmClient *llm.Client
 }
 
@@ -58,6 +61,11 @@ func NewService(providers providerResolver, prefs preferencesService) *Service {
 		prefs:     prefs,
 		llmClient: llm.NewClient(http.DefaultClient),
 	}
+}
+
+func (s *Service) SetConversationResolvers(agents agentLookup, rooms roomContextLookup) {
+	s.agents = agents
+	s.rooms = rooms
 }
 
 func (s *Service) Rewrite(ctx context.Context, request Request) (string, error) {
@@ -96,14 +104,25 @@ func (s *Service) Rewrite(ctx context.Context, request Request) (string, error) 
 	return rewritten, nil
 }
 
-func (s *Service) RewriteGoalObjective(ctx context.Context, ownerUserID string, objective string) (string, error) {
+func (s *Service) RewriteGoalObjective(ctx context.Context, ownerUserID string, sessionKey string, objective string) (string, error) {
 	return s.Rewrite(ctx, Request{
 		OwnerUserID: ownerUserID,
+		SessionKey:  sessionKey,
 		Objective:   objective,
 	})
 }
 
 func (s *Service) resolveLLMConfig(ctx context.Context, request Request) (*clientopts.RuntimeConfig, error) {
+	if strings.TrimSpace(request.Provider) != "" && strings.TrimSpace(request.Model) != "" {
+		return s.providers.ResolveLLMConfig(ctx, request.Provider, request.Model)
+	}
+	provider, model, ok, err := s.resolveConversationRuntimeSelection(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return s.providers.ResolveLLMConfig(ctx, provider, model)
+	}
 	if s.prefs != nil {
 		ownerUserID := strings.TrimSpace(request.OwnerUserID)
 		if ownerUserID != "" {
