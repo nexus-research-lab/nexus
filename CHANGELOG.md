@@ -112,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
 - Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
 - 修复 Goal hidden continuation 容易让模型误判“未使用 Goal 系统”的提示措辞，续跑/steering 现在明确这是当前会话已存在的受跟踪 Goal，并说明 MCP 限定名下的 `update_goal` 是同一个 Goal 更新工具。
+- Added an Agent Runtime setting and `make dev-nxs` development entrypoint for switching the bridge-backed runtime to the bridge-local `nxs` executable.
 
 ## [0.1.14] - 2026-06-03
 
@@ -125,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed assistant completion and replay consistency across realtime result projection, repeated assistant snapshots, parallel tool actions/results, and transcript history replay.
+- Fixed Windows desktop WebView recovery after long idle, window occlusion, or restore by repaint probing and reloading stale routes.
 - Fixed expected stream-closed runtime shutdown handling, Windows `--mcp-config` startup, concurrent managed-Skill workspace preview initialization, and desktop Claude Code command discovery.
 
 ## [0.1.13] - 2026-06-02

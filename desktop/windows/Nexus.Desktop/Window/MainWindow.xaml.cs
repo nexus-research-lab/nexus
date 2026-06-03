@@ -57,6 +57,21 @@ public partial class MainWindow : System.Windows.Window
         }
     }
 
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        _ = webViewHost?.RecoverAfterWindowShownAsync("activated");
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState != WindowState.Minimized)
+        {
+            _ = webViewHost?.RecoverAfterWindowShownAsync("state_changed");
+        }
+    }
+
     public async Task ShowLauncherAsync()
     {
         await ShowRouteAsync(DesktopWebRoute.Launcher);
@@ -119,6 +134,7 @@ public partial class MainWindow : System.Windows.Window
 
         startupTimeline.Mark("main_window.restored_from_tray");
         ShowMainWindow();
+        _ = webViewHost?.RecoverAfterWindowShownAsync("tray_restore");
     }
 
     private void ExitFromTray()
