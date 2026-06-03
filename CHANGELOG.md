@@ -79,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 模型侧提示词和 Goal MCP 工具描述优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
 
 ### Fixed
+- 修复 Goal MCP tool schema 中无参数工具的 `required` 被序列化为 `null`，导致 SDK 在 `tools/list` 阶段拒绝整个 `nexus_goal` server、模型看不到 `mcp__nexus_goal__*` 工具的问题。
 - Goal 完成收尾重试后如果模型仍只文字声明完成、没有调用 `update_goal`，系统会把该 Goal 收尾为 complete 并清空当前 Goal；旧的“完成工具重试后续跑暂停”状态也会在续跑扫描时自动清理，避免完成后仍显示待继续条。
 - Goal manager skill 明确区分“加载 skill”和“调用 Goal MCP 工具”，完成/阻塞段落直接标出 `mcp__nexus_goal__update_goal`，避免模型把 skill 文档当成工具列表并误报 Goal MCP 不可用。
 - 删除 Agent、Room、Room 成员或话题时会级联清理关联 Goal；Goal 自动续跑遇到已删除的 agent/room/conversation 目标时会清理旧 active Goal，避免 orphan Goal 持续续跑刷 warning。

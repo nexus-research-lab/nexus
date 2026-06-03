@@ -38,6 +38,27 @@ func TestBuildAllKeepsGoalToolsModelVisible(t *testing.T) {
 	}
 }
 
+func TestBuildAllSchemasMarshalRequiredAsArrays(t *testing.T) {
+	tools := BuildAll(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	for _, item := range tools {
+		encoded, err := json.Marshal(item.InputSchema)
+		if err != nil {
+			t.Fatalf("%s input schema is not JSON-serializable: %v", item.Name, err)
+		}
+		if strings.Contains(string(encoded), `"required":null`) {
+			t.Fatalf("%s input schema marshaled invalid required:null: %s", item.Name, encoded)
+		}
+
+		var decoded map[string]any
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("%s input schema did not round-trip as JSON: %v", item.Name, err)
+		}
+		if _, ok := decoded["required"].([]any); !ok {
+			t.Fatalf("%s required = %#v, want JSON array", item.Name, decoded["required"])
+		}
+	}
+}
+
 func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	tool := updateGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	properties, ok := tool.InputSchema["properties"].(map[string]any)
@@ -187,7 +208,7 @@ func TestGetGoalDescriptionMatchesCodexShape(t *testing.T) {
 		}
 	}
 	required, ok := tool.InputSchema["required"].([]string)
-	if !ok || len(required) != 0 {
+	if !ok || required == nil || len(required) != 0 {
 		t.Fatalf("required = %#v, want empty required list", tool.InputSchema["required"])
 	}
 }

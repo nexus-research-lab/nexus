@@ -1,11 +1,15 @@
 package tool
 
 func objectSchema(properties map[string]any, required ...string) map[string]any {
+	if properties == nil {
+		properties = map[string]any{}
+	}
+	requiredList := append([]string{}, required...)
 	schema := map[string]any{
 		"type":                 "object",
 		"properties":           properties,
 		"additionalProperties": false,
-		"required":             required,
+		"required":             requiredList,
 	}
 	return schema
 }
