@@ -126,6 +126,7 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 		BroadcastUserMessage: false,
 		Internal:             true,
 		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Meta:           true,
 			Synthetic:      plan.Synthetic,
 			HiddenFromUser: plan.HiddenFromUser,
 			Purpose:        plan.Purpose,

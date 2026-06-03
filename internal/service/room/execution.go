@@ -284,7 +284,7 @@ func (s *RealtimeService) runSlot(
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
 		Content:          dispatchRuntimeContent.Payload(),
 		ContextualInputs: goalContextualInputs(slot.GoalContext, slot.GoalIDForUsage, goalSessionKeyForSlot(slot)),
-		InputOptions:     runtimectx.VisibleInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation"),
+		InputOptions:     runtimectx.InternalInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: mapper},
 		InterruptReason: func() string {

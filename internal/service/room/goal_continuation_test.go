@@ -30,8 +30,8 @@ func TestRoomRoundInputOptionsMarksInternalContinuationHidden(t *testing.T) {
 	}
 }
 
-func TestRoomRuntimeVisibleInputOptionsClearsGoalContinuationRuntimeFlags(t *testing.T) {
-	options := runtimectx.VisibleInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
+func TestRoomRuntimeInputOptionsPreserveGoalContinuationFlags(t *testing.T) {
+	options := runtimectx.InternalInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
 		HiddenFromUser: true,
 		Synthetic:      true,
 		Purpose:        "goal_continuation",
@@ -39,8 +39,8 @@ func TestRoomRuntimeVisibleInputOptionsClearsGoalContinuationRuntimeFlags(t *tes
 		Metadata:       map[string]string{"goal_id": "goal-room"},
 	}, "goal_continuation")
 
-	if options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || len(options.Metadata) > 0 {
-		t.Fatalf("runtime options = %#v, want visible normal runtime input", options)
+	if !options.Meta || !options.HiddenFromUser || !options.Synthetic || options.Purpose != "goal_continuation" || options.Priority != "internal" || options.Metadata["goal_id"] != "goal-room" {
+		t.Fatalf("runtime options = %#v, want internal continuation runtime input", options)
 	}
 }
 

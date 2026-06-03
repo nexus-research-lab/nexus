@@ -231,6 +231,7 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 
 func goalContinuationInputOptions(plan protocol.GoalContinuation) sdkprotocol.OutboundMessageOptions {
 	return sdkprotocol.OutboundMessageOptions{
+		Meta:           true,
 		Synthetic:      plan.Synthetic,
 		HiddenFromUser: plan.HiddenFromUser,
 		Purpose:        plan.Purpose,

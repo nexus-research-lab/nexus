@@ -6,16 +6,16 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// VisibleInputOptionsForPurpose 清除只应影响本地持久化/UI 的输入标记，让 runtime 按普通用户输入执行。
-func VisibleInputOptionsForPurpose(options sdkprotocol.OutboundMessageOptions, purpose string) sdkprotocol.OutboundMessageOptions {
+// InternalInputOptionsForPurpose 保留内部续跑语义，让 runtime 不把控制输入当普通用户消息。
+func InternalInputOptionsForPurpose(options sdkprotocol.OutboundMessageOptions, purpose string) sdkprotocol.OutboundMessageOptions {
 	if strings.TrimSpace(options.Purpose) != strings.TrimSpace(purpose) {
 		return options
 	}
-	options.Meta = false
-	options.Synthetic = false
-	options.HiddenFromUser = false
-	options.Priority = ""
-	options.Purpose = ""
-	options.Metadata = nil
+	options.Meta = true
+	options.Synthetic = true
+	options.HiddenFromUser = true
+	if strings.TrimSpace(options.Priority) == "" {
+		options.Priority = "internal"
+	}
 	return options
 }

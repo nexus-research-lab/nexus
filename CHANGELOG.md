@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 面板创建和编辑目标时默认通过后台模型整理 objective，失败时回退用户原文，避免直接使用冗长输入作为持久化目标。
 - Goal 模型可见文案按 Codex current prompt 再次收敛：`update_goal` 工具描述补齐完整阻塞审计语义，objective 整理 prompt 明确保留原始范围、验收条件和可验证完成标准。
 - Goal 隐藏续跑去掉“没有新用户消息”类控制措辞，并要求模型先审计目标是否已完成；未完成时直接选择下一步推进，避免把明显下一步回问给用户。
+- Goal 隐藏续跑投递到 runtime 时保留 meta/hidden/synthetic 内部输入语义，避免模型把自动 `Continue.` 触发误判为用户消息。
 - Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
 - Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
 - Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。

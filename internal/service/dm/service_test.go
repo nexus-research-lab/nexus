@@ -1145,10 +1145,12 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	queryPrompts := append([]string(nil), client.queryPrompts...)
 	client.mu.Unlock()
 	if len(queryOptions) < 2 ||
-		queryOptions[1].HiddenFromUser ||
-		queryOptions[1].Synthetic ||
-		queryOptions[1].Purpose != "" {
-		t.Fatalf("Goal continuation 发给 runtime 时不应带 hidden/synthetic options: %+v", queryOptions)
+		!queryOptions[1].Meta ||
+		!queryOptions[1].HiddenFromUser ||
+		!queryOptions[1].Synthetic ||
+		queryOptions[1].Purpose != "goal_continuation" ||
+		queryOptions[1].Priority != "internal" {
+		t.Fatalf("Goal continuation 发给 runtime 时必须保持 meta/hidden/synthetic options: %+v", queryOptions)
 	}
 
 	rows := readDMSessionHistory(t, cfg, service, sessionKey)

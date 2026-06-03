@@ -6,22 +6,18 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-func TestVisibleInputOptionsForPurposeClearsLocalOnlyFlags(t *testing.T) {
-	options := VisibleInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
-		Meta:           true,
-		HiddenFromUser: true,
-		Synthetic:      true,
+func TestInternalInputOptionsForPurposeMarksContinuationMetaHidden(t *testing.T) {
+	options := InternalInputOptionsForPurpose(sdkprotocol.OutboundMessageOptions{
 		Purpose:        "goal_continuation",
-		Priority:       "internal",
 		Metadata:       map[string]string{"goal_id": "goal-1"},
 	}, "goal_continuation")
 
-	if options.Meta || options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || len(options.Metadata) > 0 {
-		t.Fatalf("options = %#v, want normal visible runtime input", options)
+	if !options.Meta || !options.HiddenFromUser || !options.Synthetic || options.Purpose != "goal_continuation" || options.Priority != "internal" || options.Metadata["goal_id"] != "goal-1" {
+		t.Fatalf("options = %#v, want internal continuation runtime input", options)
 	}
 }
 
-func TestVisibleInputOptionsForPurposePreservesOtherPurposes(t *testing.T) {
+func TestInternalInputOptionsForPurposePreservesOtherPurposes(t *testing.T) {
 	options := sdkprotocol.OutboundMessageOptions{
 		HiddenFromUser: true,
 		Synthetic:      true,
@@ -29,7 +25,7 @@ func TestVisibleInputOptionsForPurposePreservesOtherPurposes(t *testing.T) {
 		Priority:       "internal",
 		Metadata:       map[string]string{"key": "value"},
 	}
-	got := VisibleInputOptionsForPurpose(options, "goal_continuation")
+	got := InternalInputOptionsForPurpose(options, "goal_continuation")
 
 	if !got.HiddenFromUser || !got.Synthetic || got.Purpose != "other" || got.Priority != "internal" || got.Metadata["key"] != "value" {
 		t.Fatalf("options = %#v, want non-matching purpose preserved", got)
