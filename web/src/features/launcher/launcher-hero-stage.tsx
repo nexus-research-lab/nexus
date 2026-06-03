@@ -297,10 +297,16 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                       "cursor-not-allowed opacity-(--disabled-opacity) hover:translate-y-0",
                   )}
                   style={{
-                    background: "var(--launcher-submit-background)",
-                    borderColor: "rgba(255,255,255,0.34)",
+                    background: is_query_loading
+                      ? "var(--launcher-submit-background)"
+                      : "transparent",
+                    borderColor: is_query_loading
+                      ? "rgba(255,255,255,0.34)"
+                      : "transparent",
                     boxShadow:
-                      "inset 0 1px 0 rgba(255,255,255,0.26), var(--launcher-submit-shadow)",
+                      is_query_loading
+                        ? "inset 0 1px 0 rgba(255,255,255,0.26), var(--launcher-submit-shadow)"
+                        : "none",
                     color: "var(--launcher-submit-color)",
                   }}
                   onClick={handle_submit}
@@ -310,7 +316,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   {is_query_loading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
-                    <img alt="Send" className="h-7 w-7 object-contain" src="/nexus/pointing.png" />
+                    <img alt="Send" className="h-10 w-10 object-contain sm:h-11 sm:w-11" src="/nexus/launcher-send-mascot.png" />
                   )}
                 </button>
               </div>

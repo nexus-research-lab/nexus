@@ -55,7 +55,7 @@ export function build_launcher_tour(
         description: t("launcher.tour_enter_app_description"),
         target: LAUNCHER_TOUR_ANCHORS.enter_app,
         placement: "bottom",
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
       },
     ],
   };

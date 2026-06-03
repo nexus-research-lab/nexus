@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added an Agent Runtime setting and `make dev-nxs` development entrypoint for switching the bridge-backed runtime to the bridge-bundled `nxs` executable.
 - 新增系统托管 `goal-manager` Skill，引导模型通过 `nexus_goal` 工具启动、读取、完成或阻塞当前会话 Goal，不再依赖 `/goal` 文本命令。
 - Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约和续跑上下文。
 - Goal 运行时新增 durable resume 后台恢复与 WebSocket 状态事件广播，服务重启后可继续推进 active Goal，前端 Goal 面板也能随状态事件刷新。
@@ -112,11 +113,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
 - Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
 - 修复 Goal hidden continuation 容易让模型误判“未使用 Goal 系统”的提示措辞，续跑/steering 现在明确这是当前会话已存在的受跟踪 Goal，并说明 MCP 限定名下的 `update_goal` 是同一个 Goal 更新工具。
-- Added an Agent Runtime setting and `make dev-nxs` development entrypoint for switching the bridge-backed runtime to the bridge-local `nxs` executable.
 
 ### Changed
 - Restored the public landing header app entry and redesigned the login page to match the Nexus web visual language.
 - Regenerated the Nexus mascot directional assets with transparent backgrounds and semantic filenames.
+- Replaced the Launcher send-button mascot with a transparent Nexus illustration asset that includes the chest mark.
+
+### Fixed
+- Fixed reasoning-capable provider models so their capability is passed to Claude-compatible runtimes, allowing `nxs` and Claude Code to enable thinking by default.
 
 ## [0.1.14] - 2026-06-03
 

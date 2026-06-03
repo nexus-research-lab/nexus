@@ -33,7 +33,7 @@ export function build_skills_tour(
         title: t("capability.skills_tour_modes_title"),
         description: t("capability.skills_tour_modes_description"),
         target: SKILLS_TOUR_ANCHORS.modes,
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
@@ -41,7 +41,7 @@ export function build_skills_tour(
         title: t("capability.skills_tour_import_title"),
         description: t("capability.skills_tour_import_description"),
         target: SKILLS_TOUR_ANCHORS.import_skill,
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
