@@ -139,6 +139,41 @@ func TestAssistantMissedGoalCompletionToolDetectsFinalClaimWithoutToolMention(t 
 	}
 }
 
+func TestAssistantMissedGoalCompletionToolIgnoresStageCompletion(t *testing.T) {
+	for _, text := range []string{
+		"第一阶段已完成，下一步会继续进行 Goal 恢复链路检查。",
+		"阶段任务已完成；还需要验证 update_goal 后是否清空当前 Goal。",
+		"Phase 1 is complete; remaining work continues in the next phase.",
+	} {
+		message := protocol.Message{
+			"role": "assistant",
+			"content": []map[string]any{
+				{"type": "text", "text": text},
+			},
+		}
+		if AssistantMissedGoalCompletionTool(message) {
+			t.Fatalf("AssistantMissedGoalCompletionTool() = true, want false for stage completion: %q", text)
+		}
+	}
+}
+
+func TestAssistantMissedGoalCompletionToolKeepsAllStagesCompleteClaim(t *testing.T) {
+	for _, text := range []string{
+		"所有阶段已完成并验证通过。",
+		"所有阶段已完成，无需继续。",
+	} {
+		message := protocol.Message{
+			"role": "assistant",
+			"content": []map[string]any{
+				{"type": "text", "text": text},
+			},
+		}
+		if !AssistantMissedGoalCompletionTool(message) {
+			t.Fatalf("AssistantMissedGoalCompletionTool() = false, want true for all stages complete claim: %q", text)
+		}
+	}
+}
+
 func TestAssistantMissedGoalCompletionToolIgnoresSuccessfulGoalUpdate(t *testing.T) {
 	message := protocol.Message{
 		"role": "assistant",

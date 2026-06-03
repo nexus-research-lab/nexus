@@ -173,6 +173,82 @@ func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	}
 }
 
+func TestWebSocketAppServerGoalSetCompleteClearsCurrentGoal(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	cfg.GoalEnabled = true
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	threadID := "agent:nexus:ws:dm:goal-rpc-complete"
+	if err := wsjson.Write(ctx, conn, map[string]any{
+		"id":     1,
+		"method": "thread/goal/set",
+		"params": map[string]any{
+			"threadId":  threadID,
+			"objective": "Finish app-server RPC parity",
+			"status":    "paused",
+		},
+	}); err != nil {
+		t.Fatalf("发送 thread/goal/set 失败: %v", err)
+	}
+	setResponse := readRPCResponse[protocol.ThreadGoalSetResponse](t, conn)
+	if setResponse.Goal.Status != protocol.ThreadGoalStatusPaused {
+		t.Fatalf("initial thread/goal/set response = %#v, want paused", setResponse)
+	}
+	updated := readRPCNotification[protocol.ThreadGoalUpdatedNotification](t, conn)
+	if updated.Method != "thread/goal/updated" {
+		t.Fatalf("initial notification = %#v, want thread/goal/updated", updated)
+	}
+
+	if err := wsjson.Write(ctx, conn, map[string]any{
+		"id":     2,
+		"method": "thread/goal/set",
+		"params": map[string]any{
+			"threadId": threadID,
+			"status":   "complete",
+		},
+	}); err != nil {
+		t.Fatalf("发送 complete thread/goal/set 失败: %v", err)
+	}
+	completeResponse := readRPCResponse[protocol.ThreadGoalSetResponse](t, conn)
+	if completeResponse.Goal.Status != protocol.ThreadGoalStatusComplete {
+		t.Fatalf("complete response = %#v, want complete", completeResponse)
+	}
+	cleared := readRPCNotification[protocol.ThreadGoalClearedNotification](t, conn)
+	if cleared.Method != "thread/goal/cleared" || cleared.Params.ThreadID != threadID {
+		t.Fatalf("complete notification = %#v, want thread/goal/cleared", cleared)
+	}
+
+	if err := wsjson.Write(ctx, conn, map[string]any{
+		"id":     "get-after-complete",
+		"method": "thread/goal/get",
+		"params": map[string]any{"threadId": threadID},
+	}); err != nil {
+		t.Fatalf("发送 thread/goal/get 失败: %v", err)
+	}
+	getResponse := readRPCResponse[protocol.ThreadGoalGetResponse](t, conn)
+	if getResponse.Goal != nil {
+		t.Fatalf("thread/goal/get after complete = %#v, want nil current goal", getResponse)
+	}
+}
+
 func readEventMessage(t *testing.T, conn *websocket.Conn) protocol.EventMessage {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

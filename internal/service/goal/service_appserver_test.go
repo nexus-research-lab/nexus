@@ -81,6 +81,43 @@ func TestServiceSetFromThreadGoalParamsCreatesFinalStatusDirectly(t *testing.T) 
 	}
 }
 
+func TestServiceSetFromThreadGoalParamsCompleteIsNotCurrentGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	threadID := "agent:nexus:ws:dm:chat"
+	objective := "Complete through app-server set"
+	complete := protocol.ThreadGoalStatusComplete
+
+	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		ThreadID:  threadID,
+		Objective: &objective,
+		Status:    &complete,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Status != protocol.GoalStatusComplete || created.CompletedAt == nil {
+		t.Fatalf("created = %#v, want completed goal", created)
+	}
+	current, err := service.CurrentOptional(ctx, threadID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("current = %#v, want nil after app-server complete", current)
+	}
+	stored, err := repo.GetGoal(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || stored.Status != protocol.GoalStatusComplete {
+		t.Fatalf("stored = %#v, want completed history record", stored)
+	}
+}
+
 func TestServiceSetFromThreadGoalParamsRequiresObjectiveWhenMissing(t *testing.T) {
 	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
 	active := protocol.ThreadGoalStatusActive

@@ -76,6 +76,9 @@ func AssistantMissedGoalCompletionTool(message protocol.Message) bool {
 	if text == "" {
 		return false
 	}
+	if claimsPartialGoalWorkOrContinuation(text) {
+		return false
+	}
 	if claimsFinalGoalWorkComplete(text) {
 		return true
 	}
@@ -190,6 +193,47 @@ func claimsGoalUpdateToolUnavailable(text string) bool {
 	return false
 }
 
+func claimsPartialGoalWorkOrContinuation(text string) bool {
+	for _, marker := range []string{
+		"下一步",
+		"下一个步骤",
+		"下一阶段",
+		"还需要",
+		"仍需要",
+		"仍需",
+		"剩余",
+		"未完成",
+		"没完成",
+		"尚未完成",
+		"后续",
+		"需要继续",
+		"next step",
+		"next phase",
+		"remaining",
+		"still need",
+		"still needs",
+		"not complete",
+		"not completed",
+		"not done",
+		"unfinished",
+		"follow-up",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	if strings.Contains(text, "阶段") && !strings.Contains(text, "所有阶段") && !strings.Contains(text, "全部阶段") {
+		return true
+	}
+	if strings.Contains(text, "phase") && !strings.Contains(text, "all phases") {
+		return true
+	}
+	if strings.Contains(text, "stage") && !strings.Contains(text, "all stages") {
+		return true
+	}
+	return false
+}
+
 func claimsGoalWorkComplete(text string) bool {
 	for _, marker := range []string{
 		"goal is complete",
@@ -248,6 +292,8 @@ func claimsFinalGoalWorkComplete(text string) bool {
 		"交付成果已完成",
 		"所有要求都已满足",
 		"所有要求已经满足",
+		"所有阶段已完成",
+		"全部阶段已完成",
 		"已完成并验证",
 		"完成并验证",
 		"已完成并可用",

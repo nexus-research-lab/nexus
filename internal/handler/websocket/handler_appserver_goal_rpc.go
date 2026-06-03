@@ -67,14 +67,7 @@ func (h *Handler) handleThreadGoalSetRPC(
 	}
 	goal := protocol.ThreadGoalFromGoal(*item)
 	h.sendAppServerRPCResponse(ctx, sender, request.ID, protocol.ThreadGoalSetResponse{Goal: goal})
-	h.broadcastAppServerGoalNotification(ctx, sender, item.SessionKey, protocol.AppServerJSONRPCNotification{
-		Method: "thread/goal/updated",
-		Params: protocol.ThreadGoalUpdatedNotification{
-			ThreadID: item.SessionKey,
-			TurnID:   nil,
-			Goal:     goal,
-		},
-	})
+	h.broadcastThreadGoalSetNotification(ctx, sender, *item, goal)
 	h.goals.DispatchActiveGoalContinuation(ctx, *item)
 }
 
@@ -213,6 +206,32 @@ func (h *Handler) broadcastAppServerGoalNotification(
 		return
 	}
 	h.goalRPCSubs.Broadcast(ctx, threadID, current, notification)
+}
+
+func (h *Handler) broadcastThreadGoalSetNotification(
+	ctx context.Context,
+	current *handlershared.WebSocketSender,
+	item protocol.Goal,
+	goal protocol.ThreadGoal,
+) {
+	threadID := strings.TrimSpace(item.SessionKey)
+	if protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusComplete {
+		h.broadcastAppServerGoalNotification(ctx, current, threadID, protocol.AppServerJSONRPCNotification{
+			Method: "thread/goal/cleared",
+			Params: protocol.ThreadGoalClearedNotification{
+				ThreadID: threadID,
+			},
+		})
+		return
+	}
+	h.broadcastAppServerGoalNotification(ctx, current, threadID, protocol.AppServerJSONRPCNotification{
+		Method: "thread/goal/updated",
+		Params: protocol.ThreadGoalUpdatedNotification{
+			ThreadID: threadID,
+			TurnID:   nil,
+			Goal:     goal,
+		},
+	})
 }
 
 func (h *Handler) registerAppServerGoalRPCSender(threadID string, sender *handlershared.WebSocketSender) {
