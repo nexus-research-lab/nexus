@@ -100,7 +100,6 @@ func (s *Service) Download() (RuntimeStatus, error) {
 		Path:        filepath.Clean(path),
 		Source:      "cache",
 		CanDownload: false,
-		Message:     "nxs runtime 已下载，可以切换。",
 	}, nil
 }
 
@@ -141,7 +140,6 @@ func (s *Service) statusFromEnv() (RuntimeStatus, bool) {
 			Path:        filepath.Clean(path),
 			Source:      "env",
 			CanDownload: false,
-			Message:     "已使用 NEXUS_NXS_COMMAND_PATH 指定的 nxs runtime。",
 		}, true
 	}
 	return RuntimeStatus{
@@ -163,7 +161,6 @@ func (s *Service) statusFromAppRoot() (RuntimeStatus, bool) {
 		Path:        filepath.Clean(path),
 		Source:      "app_root",
 		CanDownload: false,
-		Message:     "已找到应用内置 nxs runtime。",
 	}, true
 }
 
@@ -180,12 +177,12 @@ func (s *Service) statusFromCache() (RuntimeStatus, bool) {
 	if path == "" {
 		return RuntimeStatus{}, false
 	}
+	cleanPath := filepath.Clean(path)
 	return RuntimeStatus{
 		Available:   true,
-		Path:        filepath.Clean(path),
+		Path:        cleanPath,
 		Source:      "cache",
 		CanDownload: false,
-		Message:     "已找到本地缓存 nxs runtime。",
 	}, true
 }
 

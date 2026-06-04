@@ -305,7 +305,6 @@ function GeneralSettingsSection() {
   const [provider_options_loading, set_provider_options_loading] = useState(true);
   const [default_model_saving_role, set_default_model_saving_role] = useState<DefaultModelPreferenceRole | null>(null);
   const [default_model_feedback, set_default_model_feedback] = useState<PreferenceFeedback | null>(null);
-  const [nxs_runtime_status, set_nxs_runtime_status] = useState<NXSRuntimeStatus | null>(null);
   const [nxs_runtime_checking, set_nxs_runtime_checking] = useState(false);
   const [nxs_runtime_downloading, set_nxs_runtime_downloading] = useState(false);
   const [nxs_download_prompt_status, set_nxs_download_prompt_status] = useState<NXSRuntimeStatus | null>(null);
@@ -546,7 +545,6 @@ function GeneralSettingsSection() {
     }
     if (value !== "nxs") {
       set_nxs_download_prompt_status(null);
-      set_nxs_runtime_status(null);
       void persist_preferences({
         ...current_preferences,
         agent_runtime_kind: value,
@@ -558,7 +556,6 @@ function GeneralSettingsSection() {
       set_preference_feedback(null);
       try {
         const status = await get_nxs_runtime_status_api();
-        set_nxs_runtime_status(status);
         if (status.available) {
           await persist_preferences({
             ...preferences_ref.current,
@@ -592,7 +589,6 @@ function GeneralSettingsSection() {
       set_preference_feedback(null);
       try {
         const status = await download_nxs_runtime_api();
-        set_nxs_runtime_status(status);
         if (!status.available) {
           set_nxs_download_prompt_status(status);
           set_preference_feedback({
@@ -1074,16 +1070,6 @@ function GeneralSettingsSection() {
                 }))}
                 value={agent_runtime_kind}
               />
-              {nxs_runtime_checking || nxs_runtime_status?.message ? (
-                <p className="flex min-w-0 items-center gap-1 text-[11px] leading-4 text-(--text-soft)">
-                  {nxs_runtime_checking ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : null}
-                  <span className="min-w-0 truncate">
-                    {nxs_runtime_checking
-                      ? t("settings.general.agent_runtime_checking")
-                      : nxs_runtime_status?.message}
-                  </span>
-                </p>
-              ) : null}
             </div>
           </div>
 
@@ -1167,13 +1153,9 @@ function GeneralSettingsSection() {
           <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
             {t("settings.general.section_permissions")}
           </h2>
-          {preferences_saving || preference_feedback ? (
-            <span className={cn(
-              "inline-flex items-center gap-1.5 text-[11px]",
-              preference_feedback ? "text-(--destructive)" : "text-(--text-soft)",
-            )}>
-              {preferences_saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-              {preference_feedback?.message ?? t("settings.general.preferences_saving")}
+          {preference_feedback ? (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-(--destructive)">
+              {preference_feedback.message}
             </span>
           ) : null}
         </div>
