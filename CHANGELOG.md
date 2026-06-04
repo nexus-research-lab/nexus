@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refined the Goal composer/status UI with a smaller status strip, shared edit dialog, and Codex-aligned add-menu entry.
+
 ## [0.1.15] - 2026-06-04
 
 ### Added

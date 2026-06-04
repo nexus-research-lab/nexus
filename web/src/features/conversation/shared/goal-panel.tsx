@@ -265,25 +265,6 @@ export function GoalPanel({
     return null;
   }
 
-  if (is_editing) {
-    return (
-      <GoalDraftForm
-        budget={budget}
-        compact={compact}
-        disabled={disabled}
-        error={error}
-        is_loading={is_loading}
-        loading_label={draft_save_loading_label(draft_save_phase)}
-        objective={objective}
-        scope_label={scope_label}
-        on_budget_change={set_budget}
-        on_cancel={cancel_editing_goal}
-        on_objective_change={set_objective}
-        on_submit={submit_goal}
-      />
-    );
-  }
-
   return (
     <>
       <GoalStatusStrip
@@ -302,6 +283,20 @@ export function GoalPanel({
         on_refresh={() => void refresh_goal()}
         on_resume={() => void mutate_goal(resume_goal_api)}
       />
+      {is_editing ? (
+        <GoalDraftForm
+          budget={budget}
+          disabled={disabled}
+          error={error}
+          is_loading={is_loading}
+          loading_label={draft_save_loading_label(draft_save_phase)}
+          objective={objective}
+          on_budget_change={set_budget}
+          on_cancel={cancel_editing_goal}
+          on_objective_change={set_objective}
+          on_submit={submit_goal}
+        />
+      ) : null}
       <ConfirmDialog
         cancel_text="取消"
         confirm_text="清除"
