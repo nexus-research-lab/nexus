@@ -22,6 +22,7 @@ jobs:
     runs-on: macos-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
 
     steps:
       - name: Checkout
@@ -62,6 +63,49 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
 
+      - name: Resolve pnpm Store
+        id: macos-pnpm-store
+        run: |
+          echo "path=$(pnpm store path --silent)" >> "${GITHUB_OUTPUT}"
+
+      - name: Cache pnpm Store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.macos-pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Cache SwiftPM Build
+        uses: actions/cache@v5
+        with:
+          path: desktop/macos/.build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('desktop/macos/Package.swift', 'desktop/macos/Sources/**/*.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
+      - name: Cache nxs Runtime
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/macos-runtime-cache
+          key: ${{ runner.os }}-${{ env.NEXUS_DESKTOP_NXS_RELEASE }}-darwin-${{ runner.arch }}
+
+      - name: Resolve nxs Runtime
+        env:
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
+        run: |
+          cache_dir="${RUNNER_TEMP}/macos-runtime-cache"
+          goarch="$(go env GOARCH)"
+          nxs_path="${cache_dir}/nxs-${goarch}"
+          mkdir -p "${cache_dir}"
+          if [ ! -x "${nxs_path}" ]; then
+            node scripts/desktop/fetch-nxs-runtime.js \
+              --goos darwin \
+              --goarch "${goarch}" \
+              --output "${nxs_path}"
+          fi
+          echo "NEXUS_DESKTOP_NXS_RUNTIME_PATH=${nxs_path}" >> "${GITHUB_ENV}"
+
       - name: Build macOS DMG
         env:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
@@ -72,7 +116,6 @@ jobs:
           NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
           NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
           NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
-          NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           scripts/desktop/package-macos-app.sh
