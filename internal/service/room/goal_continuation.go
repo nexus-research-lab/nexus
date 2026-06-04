@@ -3,6 +3,8 @@ package room
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -41,7 +43,7 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	}
 	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, parsed.ConversationID, entries)
 	if !ok {
-		return s.shouldDeferGoalContinuationForTargetState(ctx, contextValue)
+		return s.shouldDeferGoalContinuationForTargetState(ctx, sessionKey, contextValue)
 	}
 	s.dispatchNextInputQueueItem(
 		contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
@@ -52,7 +54,11 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	return true
 }
 
-func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(ctx context.Context, contextValue *protocol.ConversationContextAggregate) bool {
+func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+) bool {
 	if s == nil || s.agents == nil || contextValue == nil {
 		return false
 	}
@@ -61,7 +67,7 @@ func (s *RealtimeService) shouldDeferGoalContinuationForTargetState(ctx context.
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
 		return false
 	}
-	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID)
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, s.currentRoomGoalForSession(ctx, sessionKey))
 	if targetAgentID == "" {
 		return true
 	}
@@ -108,16 +114,50 @@ func (s *RealtimeService) GoalContinuationConversationMissing(ctx context.Contex
 func goalContinuationTargetAgentID(
 	contextValue *protocol.ConversationContextAggregate,
 	agentNameByID map[string]string,
+	goal *protocol.Goal,
 ) string {
+	if goal != nil {
+		leadAgentID := protocol.GoalRoomLeadAgentID(*goal)
+		if leadAgentID != "" {
+			if _, ok := agentNameByID[leadAgentID]; ok {
+				return leadAgentID
+			}
+		}
+	}
+	if contextValue != nil {
+		hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
+		if hostAgentID != "" {
+			if _, ok := agentNameByID[hostAgentID]; ok {
+				return hostAgentID
+			}
+		}
+	}
 	if len(agentNameByID) == 1 {
 		for agentID := range agentNameByID {
 			return agentID
 		}
 	}
-	if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByID); ok {
-		return hostAgentID
-	}
 	return ""
+}
+
+type currentGoalProvider interface {
+	CurrentOptional(context.Context, string) (*protocol.Goal, error)
+}
+
+func (s *RealtimeService) currentRoomGoalForSession(ctx context.Context, sessionKey string) *protocol.Goal {
+	provider, ok := s.goals.(currentGoalProvider)
+	if !ok {
+		return nil
+	}
+	goal, err := provider.CurrentOptional(ctx, sessionKey)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Room Goal 负责人失败", "session_key", sessionKey, "err", err)
+		return nil
+	}
+	if goal == nil || protocol.NormalizeGoalStatus(goal.Status) != protocol.GoalStatusActive {
+		return nil
+	}
+	return goal
 }
 
 func (s *RealtimeService) dispatchPostRoundWork(ctx context.Context, roundValue *activeRoomRound) {
@@ -217,16 +257,121 @@ func (s *RealtimeService) DispatchGoalContinuation(ctx context.Context, plan pro
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
 		return errors.New("room goal continuation requires a room session key")
 	}
+	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
+	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
+	if collaborationContext != "" {
+		s.recordRoomGoalCollaborationRequired(ctx, plan.Goal.ID, plan.RoundID)
+	}
 	return s.HandleChat(ctx, ChatRequest{
 		SessionKey:     sessionKey,
 		ConversationID: parsed.ConversationID,
-		GoalContext:    plan.Prompt,
+		GoalContext:    goalContext,
+		TargetAgentIDs: targetAgentIDs,
 		RoundID:        plan.RoundID,
 		ReqID:          plan.RoundID,
 		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
 		Internal:       true,
 		InputOptions:   goalContinuationInputOptions(plan),
 	})
+}
+
+func (s *RealtimeService) goalContinuationTargetAgentIDs(
+	ctx context.Context,
+	conversationID string,
+	goal protocol.Goal,
+) []string {
+	targetAgentIDs, _ := s.goalContinuationDispatchTarget(ctx, conversationID, goal)
+	return targetAgentIDs
+}
+
+func (s *RealtimeService) goalContinuationDispatchTarget(
+	ctx context.Context,
+	conversationID string,
+	goal protocol.Goal,
+) ([]string, string) {
+	if s == nil || s.rooms == nil {
+		return nil, ""
+	}
+	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	if err != nil || contextValue == nil {
+		if err != nil {
+			s.loggerFor(ctx).Warn("读取 Room Goal 续跑目标失败", "conversation_id", conversationID, "err", err)
+		}
+		return nil, ""
+	}
+	agentNameByID, _, err := s.buildAgentDirectory(ctx, contextValue)
+	if err != nil {
+		s.loggerFor(ctx).Warn("读取 Room Goal 续跑目标 Agent 失败", "conversation_id", conversationID, "err", err)
+		return nil, ""
+	}
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, &goal)
+	if targetAgentID == "" {
+		return nil, ""
+	}
+	return []string{targetAgentID}, buildRoomGoalCollaborationContext(agentNameByID, targetAgentID)
+}
+
+func (s *RealtimeService) recordRoomGoalCollaborationRequired(ctx context.Context, goalID string, roundID string) {
+	if s == nil || s.goals == nil || strings.TrimSpace(goalID) == "" {
+		return
+	}
+	if _, err := s.goals.RecordRoomGoalCollaborationRequired(ctx, goalID, roundID); err != nil &&
+		!errors.Is(err, goalsvc.ErrGoalDisabled) &&
+		!errors.Is(err, goalsvc.ErrGoalNotFound) &&
+		!errors.Is(err, goalsvc.ErrGoalInvalidState) &&
+		!errors.Is(err, goalsvc.ErrGoalVersionStale) {
+		s.loggerFor(ctx).Warn("标记 Room Goal 协作要求失败",
+			"goal_id", goalID,
+			"round_id", roundID,
+			"err", err,
+		)
+	}
+}
+
+func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgentID string) string {
+	leadAgentID = strings.TrimSpace(leadAgentID)
+	if leadAgentID == "" || len(agentNameByID) <= 1 {
+		return ""
+	}
+	type memberLine struct {
+		agentID string
+		name    string
+	}
+	members := make([]memberLine, 0, len(agentNameByID)-1)
+	for agentID, name := range agentNameByID {
+		normalizedAgentID := strings.TrimSpace(agentID)
+		if normalizedAgentID == "" || normalizedAgentID == leadAgentID {
+			continue
+		}
+		members = append(members, memberLine{
+			agentID: normalizedAgentID,
+			name:    firstNonEmpty(strings.TrimSpace(name), normalizedAgentID),
+		})
+	}
+	if len(members) == 0 {
+		return ""
+	}
+	sort.Slice(members, func(i int, j int) bool {
+		if members[i].name != members[j].name {
+			return members[i].name < members[j].name
+		}
+		return members[i].agentID < members[j].agentID
+	})
+	lines := make([]string, 0, len(members))
+	for _, member := range members {
+		lines = append(lines, fmt.Sprintf("- @%s (agent_id=%s)", member.name, member.agentID))
+	}
+	leadName := firstNonEmpty(strings.TrimSpace(agentNameByID[leadAgentID]), leadAgentID)
+	return strings.TrimSpace(fmt.Sprintf(`
+Room Goal collaboration requirement:
+- This Room Goal has multiple members. Visible collaboration is a required part of completing the Goal, not optional polish.
+- Lead agent for this continuation: %s (agent_id=%s).
+- Available public delegation targets:
+%s
+- If the room-visible history does not already contain a substantive reply from at least one non-lead member for this Goal, your public reply for this turn must @ exactly one target above and assign a concrete deliverable.
+- Do not call the Goal update tool in the same turn as the first public delegation.
+- Do not mark the Room Goal complete using only your own private work. Completion requires room-visible collaborator evidence plus your final audit.
+`, leadName, leadAgentID, strings.Join(lines, "\n")))
 }
 
 func goalContinuationInputOptions(plan protocol.GoalContinuation) sdkprotocol.OutboundMessageOptions {

@@ -130,6 +130,8 @@ type goalContextProvider interface {
 	RecordContinuationFailure(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordCompletionToolMiss(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string) (*protocol.Goal, error)
+	RecordRoomGoalCollaborationRequired(context.Context, string, string) (*protocol.Goal, error)
+	RecordRoomGoalCollaborationEvidence(context.Context, string, string, string) (*protocol.Goal, error)
 }
 
 type goalContinuationProvider interface {

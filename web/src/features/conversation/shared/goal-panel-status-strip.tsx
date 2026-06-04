@@ -37,6 +37,7 @@ interface GoalStatusStripProps {
   is_generating: boolean;
   is_loading: boolean;
   scope_label: string;
+  status_extra?: ReactNode;
   on_clear_request: () => void;
   on_edit: () => void;
   on_pause: () => void;
@@ -108,6 +109,7 @@ export function GoalStatusStrip({
   is_generating,
   is_loading,
   scope_label,
+  status_extra = null,
   on_clear_request,
   on_edit,
   on_pause,
@@ -221,6 +223,7 @@ export function GoalStatusStrip({
         <span className={cn("shrink-0 text-[11px] font-medium", tone.text)}>
           {runtime_label}
         </span>
+        {status_extra}
         <span className="min-w-[140px] flex-1 truncate text-sm font-medium text-foreground">
           {goal.objective}
         </span>

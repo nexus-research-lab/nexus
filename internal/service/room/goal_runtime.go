@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -217,6 +218,7 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 	if s.goals == nil || slot == nil || slot.GoalRuntimeIgnored || strings.TrimSpace(slot.GoalIDForUsage) == "" {
 		return
 	}
+	s.recordRoomGoalCollaborationEvidenceForSlot(ctx, slot, finalAssistant)
 	purpose := ""
 	if roundValue != nil {
 		purpose = strings.TrimSpace(roundValue.InputOptions.Purpose)
@@ -271,6 +273,35 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 			"goal_id", slot.GoalIDForUsage,
 			"round_id", slot.AgentRoundID,
 			"progressed", hasProgress,
+			"err", err,
+		)
+	}
+}
+
+func (s *RealtimeService) recordRoomGoalCollaborationEvidenceForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	finalAssistant protocol.Message,
+) {
+	if s == nil || s.goals == nil || slot == nil || !protocol.IsRoomSharedSessionKey(goalSessionKeyForSlot(slot)) {
+		return
+	}
+	if roomdomain.IsNoReplyAssistantMessage(finalAssistant) {
+		return
+	}
+	if strings.TrimSpace(messageutil.ExtractAssistantDisplayText(finalAssistant)) == "" {
+		return
+	}
+	if _, err := s.goals.RecordRoomGoalCollaborationEvidence(ctx, slot.GoalIDForUsage, slot.AgentRoundID, slot.AgentID); err != nil &&
+		!errors.Is(err, goalsvc.ErrGoalDisabled) &&
+		!errors.Is(err, goalsvc.ErrGoalNotFound) &&
+		!errors.Is(err, goalsvc.ErrGoalInvalidState) &&
+		!errors.Is(err, goalsvc.ErrGoalVersionStale) {
+		s.loggerFor(ctx).Warn("记录 Room Goal 协作证据失败",
+			"session_key", goalSessionKeyForSlot(slot),
+			"goal_id", slot.GoalIDForUsage,
+			"round_id", slot.AgentRoundID,
+			"agent_id", slot.AgentID,
 			"err", err,
 		)
 	}

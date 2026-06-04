@@ -27,6 +27,8 @@ type fakeRoomGoalContextProvider struct {
 	failures         []string
 	completionMisses []string
 	activities       []string
+	collabRequired   []string
+	collabEvidence   []string
 	plan             *protocol.GoalContinuation
 	planCalls        int
 	stillCurrent     bool
@@ -91,6 +93,20 @@ func (p *fakeRoomGoalContextProvider) RecordGoalActivity(_ context.Context, _ st
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.activities = append(p.activities, strings.TrimSpace(roundID))
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationRequired(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.collabRequired = append(p.collabRequired, strings.TrimSpace(roundID))
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) RecordRoomGoalCollaborationEvidence(_ context.Context, _ string, roundID string, agentID string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.collabEvidence = append(p.collabEvidence, strings.TrimSpace(roundID)+":"+strings.TrimSpace(agentID))
 	return nil, nil
 }
 
@@ -733,6 +749,56 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsUserActivity(t *testing
 	}
 }
 
+func TestRecordGoalContinuationProgressForRoomSlotRecordsCollaborationEvidence(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "room:group:conversation-1",
+		AgentRoundID:      "room_mention_1",
+		AgentID:           "agent-peer",
+		GoalIDForUsage:    "goal-1",
+	}
+
+	service.recordGoalContinuationProgressForSlot(
+		context.Background(),
+		slot,
+		&activeRoomRound{},
+		runtimectx.RoundExecutionResult{},
+		roomGoalTextAssistantMessage("peer-reply", "我完成了调研。"),
+	)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.collabEvidence) != 1 || goalProvider.collabEvidence[0] != "room_mention_1:agent-peer" {
+		t.Fatalf("collaboration evidence = %#v, want peer evidence", goalProvider.collabEvidence)
+	}
+}
+
+func TestRecordGoalContinuationProgressForRoomSlotSkipsNoReplyCollaborationEvidence(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "room:group:conversation-1",
+		AgentRoundID:      "room_mention_1",
+		AgentID:           "agent-peer",
+		GoalIDForUsage:    "goal-1",
+	}
+
+	service.recordGoalContinuationProgressForSlot(
+		context.Background(),
+		slot,
+		&activeRoomRound{},
+		runtimectx.RoundExecutionResult{},
+		roomGoalTextAssistantMessage("peer-no-reply", "<nexus_room_no_reply/>"),
+	)
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.collabEvidence) != 0 {
+		t.Fatalf("collaboration evidence = %#v, want no-reply ignored", goalProvider.collabEvidence)
+	}
+}
+
 func (p *fakeRoomGoalContextProvider) recordedUsage() []protocol.GoalUsage {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -788,6 +854,16 @@ func roomGoalCompletionToolMissAssistantMessage() protocol.Message {
 		"role": "assistant",
 		"content": []map[string]any{
 			{"type": "text", "text": "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。"},
+		},
+	}
+}
+
+func roomGoalTextAssistantMessage(messageID string, text string) protocol.Message {
+	return protocol.Message{
+		"message_id": messageID,
+		"role":       "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": text},
 		},
 	}
 }

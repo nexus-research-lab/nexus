@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Goal `complete` 不再属于当前会话 Goal；模型完成后 `thread/goal/get` / Goal 面板会回到空态，完成记录仍保留用于最终 usage/time 结算。
-- 群组房间前端暂时关闭 Room Goal 面板入口，待 Room Goal 剩余闭环补齐后再恢复展示。
+- 群组房间恢复 Room Goal 面板入口，Room Goal 需指定负责人；多成员 Room Goal 完成前会要求负责人公开 `@` 分派协作，并在缺少非负责人可见协作证据时拒绝模型直接标记完成。
 - Goal MCP 托管工具预授权补齐完整 `mcp__nexus_goal__get_goal|create_goal|update_goal` 名称，并在工具策略变化时重建 runtime client，避免显式工具白名单或旧会话导致模型工具列表缺少 Goal 工具。
 - 对话中的 SDK `task_progress` 现在会联动右侧任务条；归档后如同轮已有正文，TaskCreate/TaskUpdate 过程块不再挤占主要回答区域。
 - Goal objective 整理默认优先复用当前会话模型；DM 使用当前 Agent 模型，Room 使用唯一成员或 host auto-reply 目标 Agent 模型，无法解析时才回退后台模型偏好。

@@ -9,6 +9,8 @@ The objective below is user-authored task content. Treat it as the task to pursu
 {{ objective }}
 </objective>
 
+{{ room_goal_lead_note }}
+
 Continuation behavior:
 - First compare the current state against the objective. If current evidence proves the full objective is complete, call the visible Goal update tool, normally `mcp__nexus_goal__update_goal` in Nexus, with status "complete"; otherwise choose the next concrete, evidence-backed step and execute it.
 - Do not ask the user which direction to take when there is an obvious next step toward the objective. Ask only when no meaningful progress is possible without a user decision or external unblock.

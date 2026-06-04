@@ -2,6 +2,7 @@
 
 import {
   FormEvent,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -36,10 +37,17 @@ interface GoalPanelProps {
   compact?: boolean;
   disabled?: boolean;
   activity_key?: string | number | null;
+  can_submit_draft?: boolean;
   continuation_hold?: GoalContinuationHold | null;
+  draft_extra_controls?: ReactNode;
+  draft_metadata?: Record<string, unknown> | null;
+  draft_submit_disabled_title?: string | null;
   empty_state_variant?: GoalPanelEmptyStateVariant;
+  hide_budget_input?: boolean;
   is_generating?: boolean;
   scope_label?: string;
+  status_extra?: ReactNode;
+  on_goal_change?: (goal: Goal | null) => void;
 }
 
 function is_goal_unavailable(error: unknown) {
@@ -95,12 +103,19 @@ function resume_prompt_key(goal: Goal): string {
 export function GoalPanel({
   session_key,
   compact = false,
+  can_submit_draft = true,
   continuation_hold = null,
   disabled = false,
+  draft_extra_controls = null,
+  draft_metadata = null,
+  draft_submit_disabled_title = null,
   activity_key = null,
   empty_state_variant = "hidden",
+  hide_budget_input = false,
   is_generating = false,
   scope_label = "会话 Goal",
+  status_extra = null,
+  on_goal_change,
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
   const [is_available, set_is_available] = useState(true);
@@ -115,6 +130,10 @@ export function GoalPanel({
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
   const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
   const resume_prompt_key_ref = useRef<string | null>(null);
+
+  useEffect(() => {
+    on_goal_change?.(goal);
+  }, [goal, on_goal_change]);
 
   const maybe_prompt_resume_goal = useCallback(
     (current: Goal) => {
@@ -194,17 +213,25 @@ export function GoalPanel({
     set_is_loading(true);
     try {
       const token_budget =
-        is_editing ? next_budget_input(goal, budget) : normalize_budget(budget);
+        hide_budget_input
+          ? is_editing
+            ? undefined
+            : null
+          : is_editing
+            ? next_budget_input(goal, budget)
+            : normalize_budget(budget);
       const updated =
         is_editing && goal
           ? await update_goal_api(goal.id, {
               objective: objective.trim(),
               token_budget,
+              metadata: draft_metadata ?? undefined,
             })
           : await create_goal_api({
               session_key,
               objective: objective.trim(),
               token_budget: token_budget ?? null,
+              metadata: draft_metadata ?? undefined,
             });
       set_goal(updated);
       set_objective("");
@@ -327,15 +354,19 @@ export function GoalPanel({
     return (
       <GoalDraftForm
         budget={budget}
+        can_submit={can_submit_draft}
         can_cancel={is_creating}
         compact={compact}
         disabled={disabled}
         error={error}
+        extra_controls={draft_extra_controls}
+        hide_budget_input={hide_budget_input}
         is_editing={is_editing}
         is_loading={is_loading}
         loading_label={draft_save_loading_label(draft_save_phase)}
         objective={objective}
         scope_label={scope_label}
+        submit_disabled_title={draft_submit_disabled_title}
         on_budget_change={set_budget}
         on_cancel={cancel_editing_goal}
         on_objective_change={set_objective}
@@ -360,6 +391,7 @@ export function GoalPanel({
         is_generating={is_generating}
         is_loading={is_loading}
         scope_label={scope_label}
+        status_extra={status_extra}
         on_clear_request={() => set_is_clear_confirm_open(true)}
         on_edit={start_editing_goal}
         on_pause={() => void mutate_goal(pause_goal_api)}

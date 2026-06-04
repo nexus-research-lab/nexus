@@ -7,15 +7,19 @@ import { cn } from "@/lib/utils";
 
 interface GoalDraftFormProps {
   budget: string;
+  can_submit?: boolean;
   compact: boolean;
   disabled: boolean;
   error: string | null;
   can_cancel?: boolean;
+  extra_controls?: ReactNode;
+  hide_budget_input?: boolean;
   is_editing: boolean;
   is_loading: boolean;
   loading_label?: string | null;
   objective: string;
   scope_label: string;
+  submit_disabled_title?: string | null;
   on_budget_change: (value: string) => void;
   on_cancel: () => void;
   on_objective_change: (value: string) => void;
@@ -51,15 +55,19 @@ function GoalDraftButton({
 
 export function GoalDraftForm({
   budget,
+  can_submit = true,
   compact,
   disabled,
   error,
   can_cancel = false,
+  extra_controls = null,
+  hide_budget_input = false,
   is_editing,
   is_loading,
   loading_label = null,
   objective,
   scope_label,
+  submit_disabled_title = null,
   on_budget_change,
   on_cancel,
   on_objective_change,
@@ -109,20 +117,23 @@ export function GoalDraftForm({
         />
         {error ? <div className="text-[11px] text-destructive">{error}</div> : null}
       </div>
-      <input
-        className="h-8 w-24 rounded-md border border-border/70 bg-background px-2 text-xs outline-none placeholder:text-muted-foreground"
-        disabled={disabled || is_loading}
-        inputMode="numeric"
-        placeholder="Token"
-        title="Token 预算"
-        value={budget}
-        onChange={(event) => on_budget_change(event.target.value)}
-      />
+      {extra_controls}
+      {hide_budget_input ? null : (
+        <input
+          className="h-8 w-24 rounded-md border border-border/70 bg-background px-2 text-xs outline-none placeholder:text-muted-foreground"
+          disabled={disabled || is_loading}
+          inputMode="numeric"
+          placeholder="Token"
+          title="Token 预算"
+          value={budget}
+          onChange={(event) => on_budget_change(event.target.value)}
+        />
+      )}
       <button
         aria-label={submit_label}
         className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={disabled || is_loading || !objective.trim()}
-        title={submit_label}
+        disabled={disabled || is_loading || !objective.trim() || !can_submit}
+        title={!can_submit && submit_disabled_title ? submit_disabled_title : submit_label}
         type="submit"
       >
         {is_loading ? (
