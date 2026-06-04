@@ -68,6 +68,7 @@ export function BrowserSurface({
 
       <BrowserViewport
         iframe_url={session.iframe_url}
+        page_kind={session.page_kind}
         query={query}
         srcdoc={session.srcdoc}
         target={target}
@@ -180,6 +181,7 @@ function BrowserViewport({
   event,
   iframe_url,
   lines,
+  page_kind,
   query,
   srcdoc,
   target,
@@ -187,6 +189,7 @@ function BrowserViewport({
   event: NexusOperationEvent;
   iframe_url: string | null;
   lines: string[];
+  page_kind: "embedded" | "workspace" | "web" | "search" | "start";
   query: string;
   srcdoc: string | null;
   target?: string | null;
@@ -211,7 +214,55 @@ function BrowserViewport({
     );
   }
 
+  if (page_kind === "start") {
+    return <SafariStartPage event={event} />;
+  }
+
   return <BrowserSearchResults event={event} lines={lines} query={query} />;
+}
+
+function SafariStartPage({
+  event,
+}: {
+  event: NexusOperationEvent;
+}) {
+  return (
+    <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[radial-gradient(70%_44%_at_50%_0%,rgba(91,114,255,0.06),transparent_72%),#fbfcfe]">
+      <div className="mx-auto flex min-h-full max-w-[860px] flex-col items-center px-6 py-10 text-center">
+        <div className="grid h-16 w-16 place-items-center rounded-[20px] bg-white/84 text-[color:var(--primary)] shadow-[0_20px_48px_rgba(18,28,42,0.10),inset_0_1px_0_rgba(255,255,255,0.86)]">
+          <Globe2 className="h-7 w-7" />
+        </div>
+        <div className="mt-6 flex w-full max-w-[640px] min-w-0 items-center gap-2 rounded-[18px] border border-(--divider-subtle-color) bg-white px-4 py-3 text-[13px] text-(--text-strong) shadow-[0_16px_42px_rgba(18,28,42,0.08),inset_0_1px_0_rgba(255,255,255,0.82)]">
+          <Search className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+          <span className="min-w-0 flex-1 text-left text-(--text-soft)">搜索或输入网站名称</span>
+        </div>
+        <p className="mt-3 text-[11px] text-(--text-soft)">
+          Safari 起始页 · Nexus 待命 · {PHASE_LABEL[event.phase]}
+        </p>
+
+        <div className="mt-8 grid w-full grid-cols-3 gap-2 max-md:grid-cols-1">
+          <SafariSummaryTile label="收藏" value="工作区预览" />
+          <SafariSummaryTile label="阅读列表" value="空" />
+          <SafariSummaryTile label="隐私报告" value="已启用" />
+        </div>
+
+        <div className="mt-4 grid w-full grid-cols-3 gap-3 max-md:grid-cols-1">
+          {["工作区", "本地预览", "执行记录"].map((label) => (
+            <div
+              className="rounded-[16px] border border-(--divider-subtle-color) bg-white/68 px-4 py-4 text-left shadow-[0_18px_54px_rgba(18,28,42,0.06)]"
+              key={label}
+            >
+              <div className="mb-3 grid h-9 w-9 place-items-center rounded-[12px] bg-[rgba(91,114,255,0.10)] text-[color:var(--primary)]">
+                <BookOpen className="h-4 w-4" />
+              </div>
+              <p className="text-[12px] font-black text-(--text-strong)">{label}</p>
+              <p className="mt-1 text-[10.5px] leading-4 text-(--text-soft)">等待 Nexus 打开页面</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 

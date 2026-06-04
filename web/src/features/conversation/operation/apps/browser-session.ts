@@ -12,7 +12,7 @@ const PHASE_LABEL: Record<OperationPhase, string> = {
 export interface BrowserSessionView {
   display_url: string;
   iframe_url: string | null;
-  page_kind: "embedded" | "workspace" | "web" | "search";
+  page_kind: "embedded" | "workspace" | "web" | "search" | "start";
   source_label: string;
   srcdoc: string | null;
   status: { label: string; tone: "loading" | "ready" | "error" | "idle" };
@@ -110,6 +110,9 @@ function browser_page_kind({
   if (iframe_url?.startsWith("/nexus/")) {
     return "workspace";
   }
+  if (display_url === "about:blank") {
+    return "start";
+  }
   if (looks_like_url(display_url)) {
     return "web";
   }
@@ -125,6 +128,9 @@ function browser_source_label(page_kind: BrowserSessionView["page_kind"]): strin
   }
   if (page_kind === "web") {
     return "网页";
+  }
+  if (page_kind === "start") {
+    return "起始页";
   }
   return "摘要";
 }
@@ -150,6 +156,9 @@ function browser_tab_title({
     ?? "起始页";
   if (page_kind === "search") {
     return `搜索：${compact_title(fallback)}`;
+  }
+  if (page_kind === "start") {
+    return "起始页";
   }
   return compact_title(fallback);
 }

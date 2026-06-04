@@ -105,7 +105,7 @@ function build_dock_launch_payload({
     return {
       ...base,
       lines: ["Safari 已就绪", "等待 Nexus 打开网页或本地预览。"],
-      query: "新建标签页",
+      query: "about:blank",
       url: "about:blank",
     };
   }
@@ -172,7 +172,7 @@ function dock_launch_surface_for_kind(kind: StageWindowKind): OperationSurface {
 
 function dock_launch_title_for_kind(kind: StageWindowKind, app_label: string): string {
   if (kind === "browser") {
-    return "新建标签页";
+    return "起始页";
   }
   if (kind === "terminal") {
     return "终端";

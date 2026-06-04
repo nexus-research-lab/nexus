@@ -995,7 +995,15 @@ function verify_stage_dock_launch_window_model(now) {
   assert(browser_window.id === window_id, `Dock-launched browser should use stable window id, got ${browser_window.id}`);
   assert(browser_window.phase === "focused", `Dock-launched app should open focused, got ${browser_window.phase}`);
   assert(browser_window.kind === "browser", `Dock-launched Safari should open a browser window, got ${browser_window.kind}`);
-  assert(browser_window.payload.query === "新建标签页", `Dock-launched Safari should open a new tab surface, got ${browser_window.payload.query}`);
+  assert(browser_window.payload.query === "about:blank", `Dock-launched Safari should open a blank start page, got ${browser_window.payload.query}`);
+  const safari_start = build_browser_session_view({
+    event: browser_window.payload.event,
+    preview: browser_window.payload.preview,
+    query: browser_window.payload.query,
+    target: browser_window.payload.target,
+  });
+  assert(safari_start.page_kind === "start", `Dock-launched Safari should render a start page, got ${safari_start.page_kind}`);
+  assert(safari_start.tab_title === "起始页", `Dock-launched Safari should use start page tab title, got ${safari_start.tab_title}`);
 
   const terminal_window = build_stage_dock_launch_window({
     app_label: "终端",
