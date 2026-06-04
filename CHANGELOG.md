@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room Goal creation now keeps the remote composer UI while requiring a responsible Agent selection and writing Room Goal lead/collaboration metadata.
 
 ### Fixed
+- Stopped the macOS auto-updater from stripping quarantine and added staged app bundle, code-signing, and Gatekeeper trust checks before automatic replacement.
 - Added Docker image build-time `nxs` runtime bundling and Settings runtime checks so switching to `nxs` first verifies local availability and prompts for download when needed.
 - Clarified nxs runtime startup failures in WebSocket chat errors so automatic runtime resolver failures are distinguished from missing local executables.
 - Restored visible Goal creation progress in the new composer UI while objective normalization is running.
 - Fixed Go backend startup after the SDK bridge bump by adding the `v0.1.5` checksum and passing Nexus runtime kind selection through to the bridge.
-
 
 ## [0.1.15] - 2026-06-04
 
