@@ -9,7 +9,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -130,15 +129,12 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
+func TestBuildAgentClientOptionsDoesNotResolveNXSCLIPathWithoutOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if options.Runtime.Kind != agentclient.RuntimeNXS {
-		t.Fatalf("未把 nxs runtime kind 交给 bridge: %+v", options.Runtime)
 	}
 	if strings.TrimSpace(options.CLIPath) != "" {
 		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)

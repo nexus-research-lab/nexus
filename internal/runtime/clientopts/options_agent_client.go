@@ -98,7 +98,6 @@ func BuildAgentClientOptions(
 			Deny:  appendDistinctTools(input.DisallowedTools, claudeSessionScheduleTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
-			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
 			PermissionMode:                  permissionMode,
 			AllowDangerouslySkipPermissions: true,
 		},
@@ -125,13 +124,6 @@ func BuildAgentClientOptions(
 		return agentclient.Options{}, err
 	}
 	return options, nil
-}
-
-func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {
-	if runtimeKind == runtimeKindNXS {
-		return agentclient.RuntimeNXS
-	}
-	return agentclient.RuntimeClaude
 }
 
 func appendDistinctTools(base []string, extra ...string) []string {

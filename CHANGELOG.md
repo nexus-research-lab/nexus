@@ -81,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal 模型侧提示词和 Goal MCP 工具描述优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
 
 ### Fixed
+- 修复远端 SDK bridge 尚未发布 `RuntimeOptions.Kind`/`RuntimeKind` 时 Go 后端无法启动的问题；现阶段不再向 SDK 传递 runtime kind，保留 Nexus 侧 runtime 设置与命令解析。
 - 修复 app-server WebSocket `thread/goal/set status=complete` 仍广播 `thread/goal/updated` 的问题，现在完成态会广播 `thread/goal/cleared`，随后重复查看 Goal 返回空态。
 - 修复 Goal 隐藏续跑中“阶段已完成/下一阶段继续”等阶段性进展文案被误判为整个 Goal 已完成的问题，避免错误触发完成工具漏调收尾链路。
 - 修复 Goal MCP tool schema 中无参数工具的 `required` 被序列化为 `null`，导致 SDK 在 `tools/list` 阶段拒绝整个 `nexus_goal` server、模型看不到 `mcp__nexus_goal__*` 工具的问题。
