@@ -192,9 +192,6 @@ internal sealed class WebViewHost : IDisposable
         catch (InvalidOperationException)
         {
         }
-        catch (ObjectDisposedException)
-        {
-        }
         webView.Dispose();
     }
 
