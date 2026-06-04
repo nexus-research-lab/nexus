@@ -7,7 +7,8 @@ param(
   [string]$Version = "",
   [string]$BuildNumber = "",
   [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
-  [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME
+  [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME,
+  [string]$NXSRuntimePath = $env:NEXUS_DESKTOP_NXS_RUNTIME_PATH
 )
 
 $ErrorActionPreference = "Stop"
@@ -180,7 +181,7 @@ $resourcesBinDir = Join-Path $resourcesDir "bin"
 Write-Host "==> Building web/dist"
 Push-Location (Join-Path $rootDir "web")
 try {
-  pnpm install --frozen-lockfile
+  pnpm install --frozen-lockfile --prefer-offline
   $env:NEXUS_DESKTOP_BUILD = "1"
   pnpm build
 } finally {
@@ -233,14 +234,22 @@ Copy-Item -Recurse -Force (Join-Path $publishDir "*") $OutputDir
 Copy-Item -Force $sidecarPath (Join-Path $resourcesDir "nexus-server.exe")
 Copy-Item -Force $nexusctlPath (Join-Path $resourcesBinDir "nexusctl.exe")
 if ($bundleNXSRuntime) {
-  Write-Host "==> Downloading bundled nxs runtime"
   $nxsPath = Join-Path $resourcesBinDir "nxs.exe"
-  & node (Join-Path $rootDir "scripts/desktop/fetch-nxs-runtime.js") `
-    --goos "windows" `
-    --goarch $goArch `
-    --output $nxsPath
-  if ($LASTEXITCODE -ne 0) {
-    throw "Failed to download bundled nxs runtime"
+  if (-not [string]::IsNullOrWhiteSpace($NXSRuntimePath)) {
+    if (-not (Test-Path -LiteralPath $NXSRuntimePath)) {
+      throw "Missing cached nxs runtime: $NXSRuntimePath"
+    }
+    Write-Host "==> Using cached bundled nxs runtime"
+    Copy-Item -Force (Resolve-Path -LiteralPath $NXSRuntimePath).Path $nxsPath
+  } else {
+    Write-Host "==> Downloading bundled nxs runtime"
+    & node (Join-Path $rootDir "scripts/desktop/fetch-nxs-runtime.js") `
+      --goos "windows" `
+      --goarch $goArch `
+      --output $nxsPath
+    if ($LASTEXITCODE -ne 0) {
+      throw "Failed to download bundled nxs runtime"
+    }
   }
 }
 Copy-Item -Recurse -Force (Join-Path $rootDir "web/dist") (Join-Path $resourcesDir "Web")

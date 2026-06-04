@@ -22,6 +22,7 @@ jobs:
     runs-on: macos-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
 
     steps:
       - name: Checkout
@@ -62,6 +63,49 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
 
+      - name: Resolve pnpm Store
+        id: macos-pnpm-store
+        run: |
+          echo "path=$(pnpm store path --silent)" >> "${GITHUB_OUTPUT}"
+
+      - name: Cache pnpm Store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.macos-pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Cache SwiftPM Build
+        uses: actions/cache@v5
+        with:
+          path: desktop/macos/.build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('desktop/macos/Package.swift', 'desktop/macos/Sources/**/*.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
+      - name: Cache nxs Runtime
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/macos-runtime-cache
+          key: ${{ runner.os }}-${{ env.NEXUS_DESKTOP_NXS_RELEASE }}-darwin-${{ runner.arch }}
+
+      - name: Resolve nxs Runtime
+        env:
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
+        run: |
+          cache_dir="${RUNNER_TEMP}/macos-runtime-cache"
+          goarch="$(go env GOARCH)"
+          nxs_path="${cache_dir}/nxs-${goarch}"
+          mkdir -p "${cache_dir}"
+          if [ ! -x "${nxs_path}" ]; then
+            node scripts/desktop/fetch-nxs-runtime.js \
+              --goos darwin \
+              --goarch "${goarch}" \
+              --output "${nxs_path}"
+          fi
+          echo "NEXUS_DESKTOP_NXS_RUNTIME_PATH=${nxs_path}" >> "${GITHUB_ENV}"
+
       - name: Build macOS DMG
         env:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
@@ -72,7 +116,6 @@ jobs:
           NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
           NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
           NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
-          NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           scripts/desktop/package-macos-app.sh
@@ -91,6 +134,7 @@ jobs:
     runs-on: windows-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
 
     steps:
       - name: Checkout
@@ -128,6 +172,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Cache NuGet Packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('desktop/windows/**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -139,10 +191,78 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
 
+      - name: Resolve pnpm Store
+        id: pnpm-store
+        shell: pwsh
+        run: |
+          $storePath = (pnpm store path --silent).Trim()
+          "path=$storePath" >> $env:GITHUB_OUTPUT
+
+      - name: Cache pnpm Store
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Cache Inno Setup
+        uses: actions/cache@v5
+        with:
+          path: C:\Program Files (x86)\Inno Setup 6
+          key: ${{ runner.os }}-innosetup-6
+
       - name: Install Inno Setup
         shell: pwsh
         run: |
-          choco install innosetup --no-progress -y
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path -LiteralPath $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path -LiteralPath $iscc)) {
+            throw "Inno Setup compiler was not installed: $iscc"
+          }
+          Split-Path -Parent $iscc | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "NEXUS_INNO_SETUP_COMPILER=$iscc" >> $env:GITHUB_ENV
+
+      - name: Cache WebView2 Bootstrapper
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}\windows-runtime-cache\MicrosoftEdgeWebView2Setup.exe
+          key: ${{ runner.os }}-webview2-bootstrapper-evergreen
+
+      - name: Resolve WebView2 Bootstrapper
+        shell: pwsh
+        run: |
+          $cacheDir = Join-Path "${{ runner.temp }}" "windows-runtime-cache"
+          $bootstrapperPath = Join-Path $cacheDir "MicrosoftEdgeWebView2Setup.exe"
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          if (-not (Test-Path -LiteralPath $bootstrapperPath)) {
+            Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $bootstrapperPath
+          }
+          "NEXUS_WEBVIEW2_BOOTSTRAPPER_PATH=$bootstrapperPath" >> $env:GITHUB_ENV
+
+      - name: Cache nxs Runtime
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}\windows-runtime-cache\nxs.exe
+          key: ${{ runner.os }}-${{ env.NEXUS_DESKTOP_NXS_RELEASE }}-windows-amd64
+
+      - name: Resolve nxs Runtime
+        shell: pwsh
+        env:
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
+        run: |
+          $cacheDir = Join-Path "${{ runner.temp }}" "windows-runtime-cache"
+          $nxsPath = Join-Path $cacheDir "nxs.exe"
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          if (-not (Test-Path -LiteralPath $nxsPath)) {
+            node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to download cached nxs runtime"
+            }
+          }
+          "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 
       - name: Build Windows App Package
         shell: pwsh
@@ -156,7 +276,6 @@ jobs:
           NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX_BASE64 }}
           NEXUS_WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
           NEXUS_WINDOWS_TIMESTAMP_SERVER: ${{ vars.WINDOWS_TIMESTAMP_SERVER || 'http://timestamp.digicert.com' }}
-          NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/desktop/package-windows-app.ps1

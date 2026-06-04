@@ -48,6 +48,7 @@ SIDECAR_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-server"
 NEXUSCTL_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexusctl"
 SWIFT_PRODUCT="NexusDesktop"
 BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
+NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
 
 is_enabled() {
   case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
@@ -62,7 +63,7 @@ is_enabled() {
 
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --prefer-offline
 NEXUS_DESKTOP_BUILD=1 pnpm build
 
 echo "==> Building Go sidecar"
@@ -96,13 +97,23 @@ cp "${NEXUSCTL_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexusctl"
 cp "${MACOS_DIR}/Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 
 if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
-  echo "==> Downloading bundled nxs runtime"
+  nxs_output_path="${RESOURCES_DIR}/bin/nxs"
   NXS_GOOS="${NEXUS_DESKTOP_NXS_GOOS:-darwin}"
   NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-$(go env GOARCH)}"
-  node "${ROOT_DIR}/scripts/desktop/fetch-nxs-runtime.js" \
-    --goos "${NXS_GOOS}" \
-    --goarch "${NXS_GOARCH}" \
-    --output "${RESOURCES_DIR}/bin/nxs"
+  if [[ -n "${NXS_RUNTIME_PATH}" ]]; then
+    if [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
+      echo "missing cached nxs runtime: ${NXS_RUNTIME_PATH}" >&2
+      exit 1
+    fi
+    echo "==> Using cached bundled nxs runtime"
+    cp "${NXS_RUNTIME_PATH}" "${nxs_output_path}"
+  else
+    echo "==> Downloading bundled nxs runtime"
+    node "${ROOT_DIR}/scripts/desktop/fetch-nxs-runtime.js" \
+      --goos "${NXS_GOOS}" \
+      --goarch "${NXS_GOARCH}" \
+      --output "${nxs_output_path}"
+  fi
 fi
 
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
