@@ -294,6 +294,12 @@ final class DesktopUpdateChecker {
         "staged_app": stagedAppURL.path,
       ])
 
+      try await verifyStagedAppTrust(stagedAppURL)
+      startupTimeline.mark("update_check.package_trust_verified", metadata: [
+        "latest_version": latest.version,
+        "staged_app": stagedAppURL.path,
+      ])
+
       guard promptInstall(latest, downloadedUpdate: downloadedUpdate) else {
         return
       }
@@ -448,7 +454,7 @@ final class DesktopUpdateChecker {
     更新包：\(downloadedUpdate.packageURL.lastPathComponent)
     sha256：\(downloadedUpdate.sha256Hash)
 
-    继续后 Nexus 会退出，替换当前 App，并自动重新打开。
+    更新包已通过 macOS 签名与 Gatekeeper 信任评估。继续后 Nexus 会退出，替换当前 App，并自动重新打开。
     """
     alert.alertStyle = .informational
     alert.addButton(withTitle: "退出并更新")
@@ -554,7 +560,7 @@ final class DesktopUpdateChecker {
       lines.append("")
     }
     if latest.canDownloadPackage && currentInstallTargetURL() != nil {
-      lines.append("选择“下载并更新”会下载安装包和 sha256 文件，校验通过后再询问是否退出并替换当前 App。")
+      lines.append("选择“下载并更新”会下载安装包和 sha256 文件，通过 macOS 本地信任校验后再询问是否退出并替换当前 App。")
     } else {
       lines.append("当前 Release 缺少可自动校验的 macOS 安装包或 sha256 文件，或者当前 App 所在位置不可替换。")
     }
@@ -586,6 +592,33 @@ final class DesktopUpdateChecker {
       return nil
     }
     return appURL
+  }
+
+  private func verifyStagedAppTrust(_ stagedAppURL: URL) async throws {
+    guard let expectedBundleIdentifier = Bundle.main.bundleIdentifier,
+          !expectedBundleIdentifier.isEmpty else {
+      throw DesktopUpdateError.appBundleIdentityUnavailable
+    }
+    guard let stagedBundle = Bundle(url: stagedAppURL),
+          let actualBundleIdentifier = stagedBundle.bundleIdentifier,
+          !actualBundleIdentifier.isEmpty else {
+      throw DesktopUpdateError.appBundleIdentityUnavailable
+    }
+    guard actualBundleIdentifier == expectedBundleIdentifier else {
+      throw DesktopUpdateError.appBundleIdentityMismatch(
+        expected: expectedBundleIdentifier,
+        actual: actualBundleIdentifier
+      )
+    }
+
+    try await Self.runProcess(
+      executablePath: "/usr/bin/codesign",
+      arguments: ["--verify", "--deep", "--strict", stagedAppURL.path]
+    )
+    try await Self.runProcess(
+      executablePath: "/usr/sbin/spctl",
+      arguments: ["--assess", "--type", "execute", stagedAppURL.path]
+    )
   }
 }
 
@@ -650,7 +683,6 @@ private extension DesktopUpdateChecker {
       /bin/rm -rf "${BACKUP_APP}"
     fi
 
-    /usr/bin/xattr -dr com.apple.quarantine "${TARGET_APP}" 2>/dev/null || true
     /usr/bin/open "${TARGET_APP}"
     echo "Nexus update installer finished"
   } >> "${LOG_PATH}" 2>&1
@@ -1041,6 +1073,8 @@ private enum DesktopUpdateError: LocalizedError {
   case unsupportedPackageFormat(String)
   case appBundleNotFound
   case unsupportedInstallLocation
+  case appBundleIdentityUnavailable
+  case appBundleIdentityMismatch(expected: String, actual: String)
   case processFailed(String, Int32, String)
 
   var errorDescription: String? {
@@ -1063,6 +1097,10 @@ private enum DesktopUpdateError: LocalizedError {
       return "更新包中没有找到可替换的 Nexus.app。"
     case .unsupportedInstallLocation:
       return "当前 Nexus.app 所在位置不可自动替换。"
+    case .appBundleIdentityUnavailable:
+      return "更新包缺少可验证的 App 标识，无法自动安装。"
+    case let .appBundleIdentityMismatch(expected, actual):
+      return "更新包 App 标识不匹配，期望 \(expected)，实际 \(actual)。"
     case let .processFailed(executablePath, statusCode, output):
       let detail = output.trimmingCharacters(in: .whitespacesAndNewlines)
       if detail.isEmpty {
