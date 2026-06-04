@@ -77,6 +77,101 @@ func TestInitialRoomTriggerTypeUsesGoalContinuationForInternalContinuation(t *te
 	}
 }
 
+func TestShouldBroadcastRoomChatAckForInternalGoalContinuation(t *testing.T) {
+	if !shouldBroadcastRoomChatAck(ChatRequest{
+		Internal: true,
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}) {
+		t.Fatal("internal Room Goal continuation should publish chat_ack for visible execution state")
+	}
+	if shouldBroadcastRoomChatAck(ChatRequest{Internal: true}) {
+		t.Fatal("ordinary internal Room turns should remain hidden from chat_ack")
+	}
+	if !shouldBroadcastRoomChatAck(ChatRequest{}) {
+		t.Fatal("public Room turns should publish chat_ack")
+	}
+}
+
+func TestBuildRoomGoalCollaborationContextRequiresPublicDelegation(t *testing.T) {
+	contextValue := buildRoomGoalCollaborationContext(map[string]string{
+		"agent-lead":  "负责人",
+		"agent-alpha": "Alpha",
+		"agent-beta":  "Beta",
+	}, "agent-lead")
+
+	for _, expected := range []string{
+		"Visible collaboration is a required part",
+		"Lead agent for this continuation: 负责人 (agent_id=agent-lead)",
+		"@Alpha (agent_id=agent-alpha)",
+		"@Beta (agent_id=agent-beta)",
+		"must @ exactly one target",
+		"Do not call the Goal update tool in the same turn",
+		"Completion requires room-visible collaborator evidence",
+	} {
+		if !strings.Contains(contextValue, expected) {
+			t.Fatalf("collaboration context missing %q:\n%s", expected, contextValue)
+		}
+	}
+	if strings.Contains(contextValue, "@负责人") {
+		t.Fatalf("collaboration context should not delegate to lead:\n%s", contextValue)
+	}
+}
+
+func TestBuildRoomGoalCollaborationContextSkipsSingleMemberRoom(t *testing.T) {
+	contextValue := buildRoomGoalCollaborationContext(map[string]string{
+		"agent-lead": "负责人",
+	}, "agent-lead")
+
+	if contextValue != "" {
+		t.Fatalf("single-member Room Goal should not require collaboration: %q", contextValue)
+	}
+}
+
+func TestGoalContinuationTargetAgentIDPrefersRoomGoalLead(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			HostAgentID:          "agent-host",
+			HostAutoReplyEnabled: false,
+		},
+	}
+	agentNameByID := map[string]string{
+		"agent-host": "主持人",
+		"agent-lead": "负责人",
+	}
+	goal := &protocol.Goal{
+		Metadata: map[string]any{
+			protocol.GoalMetadataRoomGoalLeadAgentID: "agent-lead",
+		},
+	}
+
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, goal)
+
+	if targetAgentID != "agent-lead" {
+		t.Fatalf("targetAgentID = %q, want metadata lead", targetAgentID)
+	}
+}
+
+func TestGoalContinuationTargetAgentIDUsesHostWithoutAutoReply(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			HostAgentID:          "agent-host",
+			HostAutoReplyEnabled: false,
+		},
+	}
+	agentNameByID := map[string]string{
+		"agent-host": "主持人",
+		"agent-peer": "成员",
+	}
+
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, nil)
+
+	if targetAgentID != "agent-host" {
+		t.Fatalf("targetAgentID = %q, want room host even when auto reply is disabled", targetAgentID)
+	}
+}
+
 func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &RealtimeService{

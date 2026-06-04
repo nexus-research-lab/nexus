@@ -181,6 +181,50 @@ func TestServicePlanContinuationForSession(t *testing.T) {
 	}
 }
 
+func TestServicePlanContinuationForRoomGoalIncludesLeadPrompt(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:                true,
+		GoalAutoContinueEnabled:    true,
+		GoalMaxContinuationsPerRun: 3,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "room:group:conversation-1",
+		Objective:  "完成房间协作",
+		Metadata: map[string]any{
+			protocol.GoalMetadataRoomGoalScope:         "room",
+			protocol.GoalMetadataRoomGoalLeadAgentID:   "agent-host",
+			protocol.GoalMetadataRoomGoalLeadAgentName: "主持人",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Room Goal lead:",
+		"主持人 (agent-host)",
+		"This is a shared Room Goal",
+		"publish a normal public Room message that @mentions exactly that member",
+		"Public @ delegation is visible to the user",
+		"visible collaboration is part of completion",
+		"@ exactly one non-lead member",
+		"must not call the Goal update tool in that same turn",
+		"only mark the Goal complete after the full room objective is verified",
+	} {
+		if plan == nil || !strings.Contains(plan.Prompt, want) {
+			t.Fatalf("Room Goal continuation prompt missing %q: %s", want, plan.Prompt)
+		}
+	}
+}
+
 func TestServicePlanContinuationRetriesVersionStale(t *testing.T) {
 	repo := &staleOnceVersionRepository{
 		memoryRepository: newMemoryRepository(),

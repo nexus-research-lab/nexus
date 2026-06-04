@@ -290,6 +290,8 @@ func TestBuildRoomVisibleContextUsesGoalContinuationTrigger(t *testing.T) {
 		"<latest_trigger>",
 		"Goal continuation: continue the active Room goal",
 		"hidden internal goal context",
+		"room-visible collaborator evidence",
+		"@ exactly one collaborator",
 	} {
 		if !strings.Contains(got, expected) {
 			t.Fatalf("Goal continuation trigger missing %q:\n%s", expected, got)

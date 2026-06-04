@@ -321,7 +321,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
-	if !request.Internal {
+	if shouldBroadcastRoomChatAck(request) {
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
 			sessionKey,
 			roomID,
@@ -362,6 +362,13 @@ func initialRoomTriggerType(request ChatRequest, targetResolution string) string
 		return "room_host_default"
 	}
 	return "public_chat"
+}
+
+func shouldBroadcastRoomChatAck(request ChatRequest) bool {
+	if !request.Internal {
+		return true
+	}
+	return strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation"
 }
 
 func (s *RealtimeService) scheduleTitleGeneration(

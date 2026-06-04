@@ -1186,14 +1186,14 @@ func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *test
 		Name:                 "主持人 Goal 房间",
 		Title:                "主对话",
 		HostAgentID:          amy.AgentID,
-		HostAutoReplyEnabled: true,
+		HostAutoReplyEnabled: false,
 	})
 	if err != nil {
 		t.Fatalf("创建 hosted room 失败: %v", err)
 	}
 	hostedSessionKey := protocol.BuildRoomSharedSessionKey(hostedContext.Conversation.ID)
 	if service.ShouldDeferGoalContinuation(ctx, hostedSessionKey) {
-		t.Fatal("Room Goal continuation should not defer when a host default target exists")
+		t.Fatal("Room Goal continuation should not defer when a host lead exists")
 	}
 }
 

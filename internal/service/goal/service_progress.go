@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -74,6 +75,36 @@ func (s *Service) RecordGoalActivity(ctx context.Context, goalID string, roundID
 	return s.recordGoalActivityForGoal(ctx, item, strings.TrimSpace(roundID))
 }
 
+// RecordRoomGoalCollaborationRequired 标记多成员 Room Goal 完成前必须具备非负责人可见协作证据。
+func (s *Service) RecordRoomGoalCollaborationRequired(ctx context.Context, goalID string, roundID string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.recordRoomGoalCollaborationRequiredForGoal(ctx, item, strings.TrimSpace(roundID))
+}
+
+// RecordRoomGoalCollaborationEvidence 记录非负责人在房间可见回复中参与了 Room Goal。
+func (s *Service) RecordRoomGoalCollaborationEvidence(ctx context.Context, goalID string, roundID string, agentID string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.recordRoomGoalCollaborationEvidenceForGoal(ctx, item, strings.TrimSpace(roundID), strings.TrimSpace(agentID))
+}
+
 func (s *Service) recordContinuationProgressForGoal(ctx context.Context, item *protocol.Goal, roundID string, progressed bool) (*protocol.Goal, error) {
 	current := item
 	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
@@ -135,6 +166,44 @@ func (s *Service) recordGoalActivityForGoal(ctx context.Context, item *protocol.
 	current := item
 	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
 		updated, err := s.recordGoalActivityForLoadedGoal(ctx, current, roundID)
+		if !errors.Is(err, ErrGoalVersionStale) {
+			return updated, err
+		}
+		reloaded, reloadErr := s.repo.GetGoal(ctx, current.ID)
+		if reloadErr != nil {
+			return nil, reloadErr
+		}
+		if reloaded == nil {
+			return nil, ErrGoalNotFound
+		}
+		current = reloaded
+	}
+	return nil, ErrGoalVersionStale
+}
+
+func (s *Service) recordRoomGoalCollaborationRequiredForGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
+	current := item
+	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
+		updated, err := s.recordRoomGoalCollaborationRequiredForLoadedGoal(ctx, current, roundID)
+		if !errors.Is(err, ErrGoalVersionStale) {
+			return updated, err
+		}
+		reloaded, reloadErr := s.repo.GetGoal(ctx, current.ID)
+		if reloadErr != nil {
+			return nil, reloadErr
+		}
+		if reloaded == nil {
+			return nil, ErrGoalNotFound
+		}
+		current = reloaded
+	}
+	return nil, ErrGoalVersionStale
+}
+
+func (s *Service) recordRoomGoalCollaborationEvidenceForGoal(ctx context.Context, item *protocol.Goal, roundID string, agentID string) (*protocol.Goal, error) {
+	current := item
+	for attempt := 0; attempt < goalUpdateMaxAttempts; attempt++ {
+		updated, err := s.recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx, current, roundID, agentID)
 		if !errors.Is(err, ErrGoalVersionStale) {
 			return updated, err
 		}
@@ -232,6 +301,9 @@ func (s *Service) recordCompletionToolMissForLoadedGoal(ctx context.Context, ite
 }
 
 func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item *protocol.Goal, roundID string, reason string) (*protocol.Goal, error) {
+	if roomGoalCompletionRequiresCollaboration(*item) {
+		return s.noteEmptyContinuationProgress(ctx, item, roundID, "Room Goal completion requires room-visible non-lead collaboration")
+	}
 	retryCount := goalCompletionToolRetryCount(item.Metadata)
 	item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
 	item.EmptyProgressCount = 0
@@ -329,6 +401,78 @@ func (s *Service) noteEmptyContinuationProgress(ctx context.Context, item *proto
 	return updated, nil
 }
 
+func (s *Service) recordRoomGoalCollaborationRequiredForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive || !protocol.IsRoomSharedSessionKey(item.SessionKey) {
+		return item, nil
+	}
+	if protocol.GoalRoomCollaborationRequired(*item) {
+		return item, nil
+	}
+	expectedVersion := item.Version
+	item.Metadata = cloneMap(item.Metadata)
+	if item.Metadata == nil {
+		item.Metadata = map[string]any{}
+	}
+	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired] = true
+	if roundID != "" {
+		item.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequirementRound] = roundID
+	}
+	item.Version++
+	item.UpdatedAt = s.nowFn()
+	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGoalVersionStale
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.appendEvent(ctx, *updated, "room_collaboration_required", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+		"reason": "multi-member Room Goal requires room-visible non-lead collaboration before completion",
+	}); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func (s *Service) recordRoomGoalCollaborationEvidenceForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string, agentID string) (*protocol.Goal, error) {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive ||
+		!protocol.IsRoomSharedSessionKey(item.SessionKey) ||
+		agentID == "" ||
+		agentID == protocol.GoalRoomLeadAgentID(*item) {
+		return item, nil
+	}
+	if protocol.GoalRoomCollaborationObserved(*item) {
+		return item, nil
+	}
+	expectedVersion := item.Version
+	item.Metadata = cloneMap(item.Metadata)
+	if item.Metadata == nil {
+		item.Metadata = map[string]any{}
+	}
+	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired] = true
+	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationObserved] = true
+	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationAgentID] = agentID
+	if roundID != "" {
+		item.Metadata[protocol.GoalMetadataRoomGoalCollaborationRoundID] = roundID
+	}
+	item.Metadata[protocol.GoalMetadataRoomGoalCollaborationObservedAt] = s.nowFn().UTC().Format(time.RFC3339)
+	item.Version++
+	item.UpdatedAt = s.nowFn()
+	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrGoalVersionStale
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.appendEvent(ctx, *updated, "room_collaboration_observed", protocol.GoalUpdateSourceSystem, roundID, map[string]any{
+		"agent_id": agentID,
+	}); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 func goalCompletionToolRetryCount(metadata map[string]any) int {
 	if metadata == nil {
 		return 0
@@ -347,6 +491,12 @@ func goalCompletionToolRetryCount(metadata map[string]any) int {
 	default:
 		return 0
 	}
+}
+
+func roomGoalCompletionRequiresCollaboration(item protocol.Goal) bool {
+	return protocol.IsRoomSharedSessionKey(item.SessionKey) &&
+		protocol.GoalRoomCollaborationRequired(item) &&
+		!protocol.GoalRoomCollaborationObserved(item)
 }
 
 func clearCompletionToolRetryMetadata(metadata map[string]any) map[string]any {

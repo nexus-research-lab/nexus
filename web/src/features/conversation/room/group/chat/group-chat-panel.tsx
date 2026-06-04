@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UserRound } from "lucide-react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -37,6 +38,10 @@ import { useRoomComposerHandlers } from "./use-room-composer-handlers";
 import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { RoomGoalPanel } from "./room-goal-panel";
+import {
+  build_room_goal_metadata,
+  resolve_default_room_goal_lead,
+} from "./room-goal-model";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
@@ -104,6 +109,21 @@ export function GroupChatPanel({
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
+  const default_room_goal_lead_agent_id = useMemo(
+    () => resolve_default_room_goal_lead(room_members, room_host_agent_id),
+    [room_host_agent_id, room_members],
+  );
+  const [room_goal_lead_agent_id, set_room_goal_lead_agent_id] = useState(
+    default_room_goal_lead_agent_id,
+  );
+  useEffect(() => {
+    set_room_goal_lead_agent_id((current) => {
+      if (current && room_members.some((agent) => agent.agent_id === current)) {
+        return current;
+      }
+      return default_room_goal_lead_agent_id;
+    });
+  }, [default_room_goal_lead_agent_id, room_members]);
   const handle_conversation_event = useCallback(
     (
       event_type: string,
@@ -350,17 +370,54 @@ export function GroupChatPanel({
       send_message,
       session_key,
     });
+  const room_goal_create_disabled_reason =
+    room_members.length === 0
+      ? "房间还没有可指派的 Agent"
+      : room_goal_lead_agent_id.trim() === ""
+        ? "请选择 Room Goal 负责人"
+        : null;
+  const room_goal_lead_control = (
+    <label
+      className="pointer-events-auto inline-flex h-5 min-w-0 max-w-[190px] items-center gap-1 rounded-[7px] border border-(--surface-canvas-border) bg-(--surface-elevated-background) px-1.5 text-[10px] font-medium text-(--text-muted)"
+      title="选择 Room Goal 负责人"
+    >
+      <UserRound className="h-3 w-3 shrink-0" />
+      <select
+        className="min-w-0 flex-1 bg-transparent text-[10px] font-semibold text-(--text-default) outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+        disabled={!can_control_session || is_loading || room_members.length === 0}
+        value={room_goal_lead_agent_id}
+        onChange={(event) => set_room_goal_lead_agent_id(event.target.value)}
+      >
+        <option value="">负责人</option>
+        {room_members.map((agent) => (
+          <option key={agent.agent_id} value={agent.agent_id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
   const handle_create_goal = useCallback(async (objective: string) => {
     if (!session_key) {
       throw new Error("当前房间会话尚未准备好，暂时无法启动 Goal。");
+    }
+    const lead_agent_id = room_goal_lead_agent_id.trim();
+    if (!lead_agent_id) {
+      throw new Error("请选择 Room Goal 负责人。");
     }
     await create_goal_api({
       session_key,
       objective,
       token_budget: null,
+      metadata: build_room_goal_metadata(room_members, lead_agent_id),
     });
     refresh_goal_panel();
-  }, [refresh_goal_panel, session_key]);
+  }, [
+    refresh_goal_panel,
+    room_goal_lead_agent_id,
+    room_members,
+    session_key,
+  ]);
   useRoomThreadPanelData({
     agent_avatar_map,
     agent_name_map,
@@ -469,6 +526,8 @@ export function GroupChatPanel({
             allow_send_while_loading
             compact={is_mobile_layout}
             default_delivery_policy={default_delivery_policy}
+            goal_create_disabled_reason={room_goal_create_disabled_reason}
+            goal_mode_extra={room_goal_lead_control}
             goal_scope_label={ROOM_GOAL_SCOPE_LABEL}
             input_queue_items={input_queue_items}
             is_loading={is_loading}

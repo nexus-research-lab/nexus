@@ -336,6 +336,52 @@ func TestServiceModelStatusUpdateFlushesButDoesNotClearRuntimeAccountingEarly(t 
 	}
 }
 
+func TestServiceCompleteByModelRequiresRoomGoalCollaborationEvidence(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "room:group:conversation-1",
+		Objective:  "完成房间协作目标",
+		Metadata: map[string]any{
+			protocol.GoalMetadataRoomGoalScope:                 "room",
+			protocol.GoalMetadataRoomGoalLeadAgentID:           "agent-lead",
+			protocol.GoalMetadataRoomGoalCollaborationRequired: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead"}); !errors.Is(err, ErrGoalInvalidState) {
+		t.Fatalf("CompleteByModel error = %v, want ErrGoalInvalidState before collaborator evidence", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusActive {
+		t.Fatalf("status = %q, want active after rejected completion", current.Status)
+	}
+
+	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
+		t.Fatal(err)
+	}
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{RoundID: "round-lead-final"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete {
+		t.Fatalf("status = %q, want complete after collaborator evidence", completed.Status)
+	}
+	if !protocol.GoalRoomCollaborationObserved(*completed) {
+		t.Fatalf("metadata = %#v, want collaboration observed", completed.Metadata)
+	}
+}
+
 func TestServiceBlockByModelAllowsEmptyReason(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)

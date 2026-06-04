@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   CircleSlash,
   GaugeCircle,
@@ -39,6 +40,7 @@ interface GoalStatusStripProps {
   is_generating: boolean;
   is_loading: boolean;
   scope_label: string;
+  status_extra?: ReactNode;
   on_clear_request: () => void;
   on_edit: () => void;
   on_pause: () => void;
@@ -93,6 +95,7 @@ export function GoalStatusStrip({
   is_generating,
   is_loading,
   scope_label,
+  status_extra = null,
   on_clear_request,
   on_edit,
   on_pause,
@@ -142,6 +145,7 @@ export function GoalStatusStrip({
               {is_generating && goal.status === "active" ? (
                 <span className={cn("font-semibold", tone.text)}>执行中</span>
               ) : null}
+              {status_extra}
             </div>
             <div className="mt-0.5 line-clamp-1 text-[12px] font-medium leading-5 text-(--text-strong)">
               {goal.objective}

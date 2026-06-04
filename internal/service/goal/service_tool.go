@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -11,6 +12,9 @@ import (
 
 // CompleteByModel 允许模型工具把 active Goal 标记为完成。
 func (s *Service) CompleteByModel(ctx context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
+	if err := s.ensureRoomGoalCollaborationComplete(ctx, goalID); err != nil {
+		return nil, err
+	}
 	payload := map[string]any{}
 	if summary := strings.TrimSpace(request.Summary); summary != "" {
 		payload["summary"] = summary
@@ -29,6 +33,23 @@ func (s *Service) BlockByModel(ctx context.Context, goalID string, request proto
 		payload["needed_input"] = neededInput
 	}
 	return s.changeStatus(ctx, goalID, protocol.GoalStatusBlocked, protocol.GoalUpdateSourceModel, "blocked", request.RoundID, payload)
+}
+
+func (s *Service) ensureRoomGoalCollaborationComplete(ctx context.Context, goalID string) error {
+	if err := s.ensureEnabled(); err != nil {
+		return err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return ErrGoalNotFound
+	}
+	if roomGoalCompletionRequiresCollaboration(*item) {
+		return fmt.Errorf("%w: multi-member Room Goal requires a room-visible non-lead collaboration reply before completion", ErrGoalInvalidState)
+	}
+	return nil
 }
 
 // Events 返回 Goal 审计事件。

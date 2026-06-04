@@ -1,0 +1,73 @@
+name: macOS Desktop Build
+
+on:
+  pull_request:
+    paths:
+      - "desktop/macos/**"
+      - "scripts/desktop/**"
+      - "web/**"
+      - "db/migrations/**"
+      - "skills/**"
+      - "cmd/nexus-server/**"
+      - "cmd/nexusctl/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "desktop/macos/**"
+      - "scripts/desktop/**"
+      - "web/**"
+      - "db/migrations/**"
+      - "skills/**"
+      - "cmd/nexus-server/**"
+      - "cmd/nexusctl/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: Validate macOS desktop build and smoke
+    runs-on: macos-latest
+    env:
+      NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
+      NEXUS_DESKTOP_SKIP_CODESIGN: "1"
+      NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
+      NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
+      NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
+      NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE: "file"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+
+      - name: Build and smoke test macOS app
+        run: |
+          scripts/desktop/smoke-macos-app.sh

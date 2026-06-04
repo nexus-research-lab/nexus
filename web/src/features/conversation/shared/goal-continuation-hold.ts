@@ -34,13 +34,12 @@ export function goal_continuation_hold_for_agent(
 
 export function goal_continuation_hold_for_room_target(
   room_members: Agent[],
-  host_agent_id: string | null | undefined,
-  host_auto_reply_enabled: boolean,
+  lead_agent_id: string | null | undefined,
+  room_host_auto_reply_enabled = true,
 ): GoalContinuationHold | null {
   const target_agent = resolve_goal_continuation_target_agent(
     room_members,
-    host_agent_id,
-    host_auto_reply_enabled,
+    lead_agent_id,
   );
   if (target_agent) {
     return goal_continuation_hold_for_agent(target_agent);
@@ -48,27 +47,30 @@ export function goal_continuation_hold_for_room_target(
   if (room_members.length <= 1) {
     return null;
   }
+  if (!room_host_auto_reply_enabled) {
+    return {
+      detail:
+        "房间有多个 Agent，但还没有指定 Room Goal 负责人；群主接管未开启，请先选择一个 Agent 负责推进",
+      label: "等待负责人",
+    };
+  }
   return {
     detail:
-      "房间有多个 Agent，但没有唯一默认目标；启用主持人自动回复后，隐藏 Goal 续跑才会自动启动",
+      "房间有多个 Agent，但还没有指定 Room Goal 负责人；请选择一个 Agent 负责推进",
     label: "等待目标 Agent",
   };
 }
 
 export function resolve_goal_continuation_target_agent(
   room_members: Agent[],
-  host_agent_id: string | null | undefined,
-  host_auto_reply_enabled: boolean,
+  lead_agent_id: string | null | undefined,
 ): Agent | null {
   if (room_members.length === 1) {
     return room_members[0] ?? null;
   }
-  if (!host_auto_reply_enabled) {
+  const normalized_lead_agent_id = lead_agent_id?.trim();
+  if (!normalized_lead_agent_id) {
     return null;
   }
-  const normalized_host_agent_id = host_agent_id?.trim();
-  if (!normalized_host_agent_id) {
-    return null;
-  }
-  return room_members.find((agent) => agent.agent_id === normalized_host_agent_id) ?? null;
+  return room_members.find((agent) => agent.agent_id === normalized_lead_agent_id) ?? null;
 }

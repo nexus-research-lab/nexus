@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, ClipboardEvent, KeyboardEvent, memo, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, ClipboardEvent, KeyboardEvent, memo, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -87,6 +87,8 @@ interface ComposerPanelProps {
   mention_unavailable_agent_ids?: string[];
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
   on_create_goal?: (objective: string) => Promise<void>;
+  goal_create_disabled_reason?: string | null;
+  goal_mode_extra?: ReactNode;
   goal_scope_label?: string;
   tour_anchor?: string;
 }
@@ -223,6 +225,8 @@ const ComposerPanelView = memo(({
   mention_unavailable_agent_ids = [],
   on_prepare_attachments,
   on_create_goal,
+  goal_create_disabled_reason = null,
+  goal_mode_extra = null,
   goal_scope_label = "会话 Goal",
   tour_anchor,
 }: ComposerPanelProps) => {
@@ -276,8 +280,11 @@ const ComposerPanelView = memo(({
   const dragging_message_id_ref = useRef<string | null>(null);
   const is_dispatching = is_loading && runtime_phase === "sending";
   const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
+  const is_textarea_locked = is_input_locked || (is_goal_mode && is_goal_creating);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
   const can_create_goal = Boolean(on_create_goal);
+  const goal_create_blocked_reason =
+    goal_create_disabled_reason?.trim() || null;
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
@@ -408,7 +415,13 @@ const ComposerPanelView = memo(({
   const handle_send = useCallback(async () => {
     const trimmed_input = input.trim();
     if (is_goal_mode) {
-      if (!trimmed_input || is_input_locked || is_goal_creating || !on_create_goal) {
+      if (
+        !trimmed_input ||
+        is_input_locked ||
+        is_goal_creating ||
+        !on_create_goal ||
+        goal_create_blocked_reason
+      ) {
         return;
       }
       set_is_goal_creating(true);
@@ -486,6 +499,7 @@ const ComposerPanelView = memo(({
     attachments,
     default_delivery_policy,
     dispatch_message,
+    goal_create_blocked_reason,
     input_queue_items.length,
     input,
     is_goal_creating,
@@ -721,12 +735,14 @@ const ComposerPanelView = memo(({
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
   const is_send_disabled = is_goal_mode
-    ? !has_text_input || is_input_locked || is_over_limit || is_goal_creating || !on_create_goal
+    ? !has_text_input || is_input_locked || is_over_limit || is_goal_creating || !on_create_goal || Boolean(goal_create_blocked_reason)
     : is_input_empty || is_input_locked || is_over_limit || is_preparing_attachments;
   const should_show_stop_button =
     !is_goal_mode && can_stop_generation && (!allow_send_while_loading || is_input_empty);
   const has_pending_queue = input_queue_items.length > 0;
-  const active_error = is_goal_mode ? goal_error : attachment_error;
+  const active_error = is_goal_mode
+    ? goal_error ?? goal_create_blocked_reason
+    : attachment_error;
   const send_button_label = is_goal_mode ? t("composer.goal_confirm") : t("composer.send_message");
   const inline_enter_label = is_goal_mode
     ? t("composer.goal_enter_start")
@@ -946,7 +962,7 @@ const ComposerPanelView = memo(({
                 "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                 should_show_inline_shortcuts && "min-[760px]:pr-[210px]",
               )}
-              disabled={is_input_locked}
+              disabled={is_textarea_locked}
               onChange={(event) => handle_input_change(event.target.value)}
               onWheel={(event) => {
                 const target = event.currentTarget;
@@ -1082,6 +1098,7 @@ const ComposerPanelView = memo(({
                 <Target className="h-3.5 w-3.5 shrink-0" />
                 <span>{t("composer.goal_mode")}</span>
                 <span className="truncate font-medium text-(--text-muted)">{goal_scope_label}</span>
+                {goal_mode_extra}
                 <button
                   aria-label={t("composer.cancel_goal_mode")}
                   className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
@@ -1109,6 +1126,11 @@ const ComposerPanelView = memo(({
               <span className="flex items-center gap-2 text-(--text-default)">
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
                 <span>{t("composer.preparing_attachments")}</span>
+              </span>
+            ) : is_goal_creating ? (
+              <span className="flex items-center gap-2 text-(--primary)">
+                <LoadingOrb frames={["·", "◦", "•", "◦"]} />
+                <span className="animate-pulse">{t("composer.goal_normalizing")}</span>
               </span>
             ) : active_error ? (
               <span className="text-(--destructive)">{active_error}</span>

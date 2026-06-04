@@ -29,6 +29,18 @@ const (
 	GoalUpdateSourceExternal GoalUpdateSource = "external"
 )
 
+const (
+	GoalMetadataRoomGoalScope                         = "room_goal_scope"
+	GoalMetadataRoomGoalLeadAgentID                   = "room_goal_lead_agent_id"
+	GoalMetadataRoomGoalLeadAgentName                 = "room_goal_lead_agent_name"
+	GoalMetadataRoomGoalCollaborationRequired         = "room_goal_collaboration_required"
+	GoalMetadataRoomGoalCollaborationObserved         = "room_goal_collaboration_observed"
+	GoalMetadataRoomGoalCollaborationAgentID          = "room_goal_collaboration_agent_id"
+	GoalMetadataRoomGoalCollaborationRoundID          = "room_goal_collaboration_round_id"
+	GoalMetadataRoomGoalCollaborationObservedAt       = "room_goal_collaboration_observed_at"
+	GoalMetadataRoomGoalCollaborationRequirementRound = "room_goal_collaboration_requirement_round_id"
+)
+
 // GoalUsage 记录 Goal 长程执行累计用量。
 type GoalUsage struct {
 	InputTokens              int64 `json:"input_tokens,omitempty"`
@@ -112,6 +124,54 @@ type Goal struct {
 	BlockedAt          *time.Time     `json:"blocked_at,omitempty"`
 	LastError          string         `json:"last_error,omitempty"`
 	Metadata           map[string]any `json:"metadata,omitempty"`
+}
+
+// GoalMetadataString 从 Goal metadata 中读取字符串值。
+func GoalMetadataString(metadata map[string]any, key string) string {
+	value, ok := metadata[strings.TrimSpace(key)]
+	if !ok {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return ""
+	}
+}
+
+// GoalMetadataBool 从 Goal metadata 中读取布尔值。
+func GoalMetadataBool(metadata map[string]any, key string) bool {
+	value, ok := metadata[strings.TrimSpace(key)]
+	if !ok {
+		return false
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	default:
+		return false
+	}
+}
+
+// GoalRoomLeadAgentID 返回 Room Goal 的负责人 Agent。
+func GoalRoomLeadAgentID(goal Goal) string {
+	return GoalMetadataString(goal.Metadata, GoalMetadataRoomGoalLeadAgentID)
+}
+
+// GoalRoomLeadAgentName 返回 Room Goal 的负责人展示名。
+func GoalRoomLeadAgentName(goal Goal) string {
+	return GoalMetadataString(goal.Metadata, GoalMetadataRoomGoalLeadAgentName)
+}
+
+// GoalRoomCollaborationRequired 判断 Room Goal 是否要求非负责人可见协作。
+func GoalRoomCollaborationRequired(goal Goal) bool {
+	return GoalMetadataBool(goal.Metadata, GoalMetadataRoomGoalCollaborationRequired)
+}
+
+// GoalRoomCollaborationObserved 判断 Room Goal 是否已有非负责人可见协作证据。
+func GoalRoomCollaborationObserved(goal Goal) bool {
+	return GoalMetadataBool(goal.Metadata, GoalMetadataRoomGoalCollaborationObserved)
 }
 
 // RemainingTokens 返回剩余 token 预算；没有预算时返回 nil。

@@ -2,6 +2,7 @@
 
 import {
   FormEvent,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -32,6 +33,8 @@ interface GoalPanelProps {
   continuation_hold?: GoalContinuationHold | null;
   is_generating?: boolean;
   scope_label?: string;
+  status_extra?: ReactNode;
+  on_goal_change?: (goal: Goal | null) => void;
 }
 
 function is_goal_unavailable(error: unknown) {
@@ -90,6 +93,8 @@ export function GoalPanel({
   activity_key = null,
   is_generating = false,
   scope_label = "会话 Goal",
+  status_extra = null,
+  on_goal_change,
 }: GoalPanelProps) {
   const [goal, set_goal] = useState<Goal | null>(null);
   const [is_available, set_is_available] = useState(true);
@@ -103,6 +108,10 @@ export function GoalPanel({
   const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
   const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
   const resume_prompt_key_ref = useRef<string | null>(null);
+
+  useEffect(() => {
+    on_goal_change?.(goal);
+  }, [goal, on_goal_change]);
 
   const maybe_prompt_resume_goal = useCallback(
     (current: Goal) => {
@@ -277,6 +286,7 @@ export function GoalPanel({
         is_generating={is_generating}
         is_loading={is_loading}
         scope_label={scope_label}
+        status_extra={status_extra}
         on_clear_request={() => set_is_clear_confirm_open(true)}
         on_edit={start_editing_goal}
         on_pause={() => void mutate_goal(pause_goal_api)}

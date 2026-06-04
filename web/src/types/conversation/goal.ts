@@ -51,6 +51,7 @@ export interface CreateGoalInput {
   session_key: string;
   objective: string;
   token_budget?: number | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface UpdateGoalInput {

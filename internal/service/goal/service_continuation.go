@@ -228,11 +228,38 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string 
 	}
 	return renderGoalPromptTemplate(continuationPromptTemplate, map[string]string{
 		"objective":                  objective,
+		"room_goal_lead_note":        buildRoomGoalLeadNote(item),
 		"completion_tool_retry_note": buildCompletionToolRetryNote(item),
 		"tokens_used":                fmt.Sprintf("%d", item.Usage.Total()),
 		"token_budget":               tokenBudget,
 		"remaining_tokens":           remainingTokens,
 	})
+}
+
+func buildRoomGoalLeadNote(item protocol.Goal) string {
+	if !protocol.IsRoomSharedSessionKey(item.SessionKey) {
+		return ""
+	}
+	leadAgentID := protocol.GoalRoomLeadAgentID(item)
+	if leadAgentID == "" {
+		return ""
+	}
+	leadName := protocol.GoalRoomLeadAgentName(item)
+	leadLabel := leadAgentID
+	if leadName != "" {
+		leadLabel = fmt.Sprintf("%s (%s)", leadName, leadAgentID)
+	}
+	return strings.TrimSpace(fmt.Sprintf(`
+Room Goal lead:
+- This is a shared Room Goal. You are the assigned lead agent: %s.
+- The Goal belongs to the room, not to your private session. You are responsible for driving coordination, evidence gathering, final audit, and completion.
+- Follow all Room rules and member roles. When another member should act, publish a normal public Room message that @mentions exactly that member and states a concrete deliverable.
+- Public @ delegation is visible to the user and should be the default for ordinary collaboration. Use private Room directed messages only for secrets, private reminders, hidden collection, or explicitly private work.
+- For a multi-member Room Goal, visible collaboration is part of completion. If the runtime provides a Room Goal collaboration requirement, satisfy it before attempting completion.
+- If room-visible history does not already show substantive work from a non-lead member for this Goal, your next public reply should @ exactly one non-lead member with a concrete deliverable and you must not call the Goal update tool in that same turn.
+- If a public @ delegation is the right next step, make that @ message your public reply for this turn and do not mark the Goal complete yet.
+- When delegated work returns, inspect the room-visible evidence, continue or delegate again if needed, and only mark the Goal complete after the full room objective is verified.
+`, leadLabel))
 }
 
 func buildCompletionToolRetryNote(item protocol.Goal) string {
