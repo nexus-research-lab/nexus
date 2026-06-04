@@ -6,7 +6,7 @@
 
 - Native shell：C# + WPF，负责窗口、单实例、基础 `nexus://` 唤起和后续任务栏、系统菜单、通知、更新。
 - WebView：WebView2，只作为 React/Vite UI 的渲染面。
-- Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`。
+- Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`，正式包优先使用 `Resources\bin\nxs.exe` 作为 `nxs` runtime。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/launcher`。
 - GitHub OAuth：桌面包只注入公开 `NEXUS_DESKTOP_GITHUB_CLIENT_ID`，WebView 内使用 Device Flow 授权码完成连接，不打包 Client Secret。
 
@@ -48,9 +48,11 @@ pwsh scripts/desktop/smoke-windows-app.ps1
 pwsh scripts/desktop/package-windows-app.ps1
 ```
 
+package 脚本默认从 bridge runtime release 下载并预置当前平台的 `nxs` runtime。默认版本为 `nxs-v0.1.1`，可通过 `NEXUS_DESKTOP_NXS_RELEASE` 覆盖。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`。
+
 package 脚本默认用 self-contained .NET 发布 shell，当前只构建 `win-x64`；安装器允许在 x64-compatible Windows 上运行，也就是 x64 Windows 和支持 x64 仿真的 Windows 11 ARM64。
 
-如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe` 和安装器：
+如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nxs.exe` 和安装器：
 
 ```powershell
 $env:NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64 = "<base64 pfx>"

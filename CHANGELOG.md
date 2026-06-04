@@ -7,121 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refined the Goal composer/status UI with a smaller status strip, shared edit dialog, and Codex-aligned add-menu entry.
+- Room Goal creation now keeps the remote composer UI while requiring a responsible Agent selection and writing Room Goal lead/collaboration metadata.
+
+### Fixed
+- Fixed Go backend startup after the SDK bridge bump by adding the `v0.1.5` checksum and passing Nexus runtime kind selection through to the bridge.
+
+## [0.1.15] - 2026-06-04
+
 ### Added
-- Added an Agent Runtime setting and `make dev-nxs` development entrypoint for switching the bridge-backed runtime to the bridge-bundled `nxs` executable.
-- 新增系统托管 `goal-manager` Skill，引导模型通过 `nexus_goal` 工具启动、读取、完成或阻塞当前会话 Goal，不再依赖 `/goal` 文本命令。
-- Goal 长程任务对齐 Codex 语义：新增预算/用量限制状态、模型侧 `get_goal`/`create_goal`/`update_goal` 工具契约和续跑上下文。
-- Goal 运行时新增 durable resume 后台恢复与 WebSocket 状态事件广播，服务重启后可继续推进 active Goal，前端 Goal 面板也能随状态事件刷新。
-- Goal 新增 Codex app-server 风格 `thread/goal/set|get|clear` 兼容 HTTP 入口，返回 camelCase `ThreadGoal` 投影。
-- Goal WebSocket 新增 Codex app-server 轻量 JSON-RPC 兼容入口，支持 `thread/goal/set|get|clear` 和 `thread/goal/updated|cleared` 通知。
-- 新增 Goal runtime parity audit 文档，记录当前分支与 Codex upstream Goal 的对齐矩阵、剩余宿主差异和文件拆分阈值。
+- Added Goal management with the managed `goal-manager` Skill, Codex-aligned Goal MCP tools, app-server HTTP/WebSocket compatibility endpoints, durable continuation recovery, shared Room Goal routing, and runtime status events.
+- Added Agent Runtime selection for `nxs`, including `make dev-nxs` and bundled macOS/Windows release runtimes so desktop installs can run without a first-run runtime download.
 
 ### Changed
-- Goal `complete` 不再属于当前会话 Goal；模型完成后 `thread/goal/get` / Goal 面板会回到空态，完成记录仍保留用于最终 usage/time 结算。
-- 群组房间恢复 Room Goal 面板入口，Room Goal 需指定负责人；多成员 Room Goal 完成前会要求负责人公开 `@` 分派协作，并在缺少非负责人可见协作证据时拒绝模型直接标记完成。
-- Goal MCP 托管工具预授权补齐完整 `mcp__nexus_goal__get_goal|create_goal|update_goal` 名称，并在工具策略变化时重建 runtime client，避免显式工具白名单或旧会话导致模型工具列表缺少 Goal 工具。
-- 对话中的 SDK `task_progress` 现在会联动右侧任务条；归档后如同轮已有正文，TaskCreate/TaskUpdate 过程块不再挤占主要回答区域。
-- Goal objective 整理默认优先复用当前会话模型；DM 使用当前 Agent 模型，Room 使用唯一成员或 host auto-reply 目标 Agent 模型，无法解析时才回退后台模型偏好。
-- Goal 完成工具结果和 `goal-manager` 文案明确要求最终回复说明 Goal 已完成、可清理，并汇报完成内容、token 用量与耗时，避免把完成态误写成暂停。
-- Goal token 预算统计改为 Codex 口径：仅累计非缓存输入 token 与输出 token，缓存和 reasoning token 不再触发预算耗尽。
-- Goal 面板创建或编辑目标时会立刻展示整理/更新中的进度状态，避免后台 objective 整理等待看起来像界面卡住。
-- Goal 工具完成结果补齐 Codex 风格动态最终用量与耗时行，便于模型在完成 Goal 时稳定汇报结构化用量。
-- Goal `update_goal(status=complete)` 工具结果始终返回收尾停止提示，引导模型完成最终回复后等待用户输入。
-- Goal MCP 模型可见工具收口为 Codex 对齐的 `get_goal`、`create_goal`、`update_goal` 三件套。
-- Goal `update_goal` 工具入参收口为 Codex 风格的 `status` 字段，`blocked` 不再要求模型额外提供 reason。
-- Goal `get_goal` 在当前线程没有 Goal 时返回空 Goal 结构化结果，不再把空状态误报为工具失败。
-- Goal 创建时不再应用隐式默认 token budget，只有显式传入 `token_budget` 时才设置预算。
-- Goal 工具结构化结果改为 Codex 风格 camelCase 字段，包括 `remainingTokens`、`completionBudgetReport` 和 `goal.tokensUsed`。
-- Goal 工具结构化结果中的 `goal.tokenBudget` 改为 Codex 一致的显式 nullable 字段，无预算时返回 `null` 而不是省略。
-- Goal 工具 schema 与文本结果继续贴近 Codex：`token_budget` 使用 integer 类型，成功结果文本输出 JSON payload。
-- Goal round usage 绑定到本轮开始时的 Goal ID，模型在本轮完成/阻塞 Goal 后仍会补记最终用量。
-- Goal 自动续跑对齐 Codex 的空进展抑制语义：隐藏续跑轮次未产生可计入工具进展时暂停下一次自动续跑，用户/外部活动或工具进展会恢复续跑。
-- Goal app-server `thread/goal/set` 创建路径直接落最终状态，避免创建 paused/blocked/budgetLimited Goal 时短暂广播 active 状态。
-- Goal 模型侧完成/阻塞状态更新保留变更前 usage flush，但不再提前清理本轮 runtime accounting，确保 `update_goal` 工具结果后的最终用量仍可补记。
-- Goal runtime context 标记对齐 Codex internal goal context，并在前端 Goal 面板直接展示剩余预算与续跑暂停状态。
-- Goal 续跑与 steering prompt 移除 Nexus 私有措辞和内部 round ID，进一步贴近 Codex thread goal 模板。
-- Goal runtime context 改为优先注入下一轮运行时上下文，bridge 暂不支持时降级为用户输入前缀；前端 Goal 面板新增运行上下文状态。
-- Goal runtime context 中的 objective 按 Codex 方式转义 XML 分隔符，避免用户目标内容闭合隐藏上下文。
-- Goal app-server `thread/goal/updated` 通知补齐 turnId，模型轮次内的 Goal 更新可按触发 round 归因。
-- Goal 运行中 objective/budget steering 改为注入 Codex internal goal context，不再包进通用 Nexus guidance。
-- Goal `update_goal` 工具描述收口到 Codex 当前模型可见契约，blocked 判定保留在续跑上下文审计提示中。
-- Goal 面板新增独立运行态行，直观展示当前轮次、下轮续跑、空进展暂停、预算耗尽与阻塞状态。
-- Goal 面板上下文状态文案从调试式 `goal_context` 改为用户可理解的运行状态表达。
-- Goal 面板未设置状态改为轻量启动入口，只有用户点击启动时才展开创建表单；聊天输入框不再承载 `/goal` 专用提示和拦截逻辑。
-- Goal runtime context 移除要求模型记录 checkpoint 的私有提示，避免提示模型使用 Codex 三件套之外的不可见能力。
-- Goal 移除未暴露的 checkpoint 协议、事件、仓储和迁移表，当前持久化模型收口到 Codex 的 thread goal 状态与事件。
-- Goal budget limit steering 的目标段落改为 Codex 模板一致的 `<objective>`，目标内容仍会进行 XML 转义。
-- Goal objective 更新时也会按 Codex 语义尝试填充空会话预览，不再只在创建 Goal 时处理。
-- Goal 自动续跑对齐 Codex plan mode 语义，目标 Agent 处于 Plan 模式时不会启动隐藏续跑，并在 Goal 面板显式展示暂停原因。
-- Goal runtime 进一步对齐 Codex plan mode 语义，Plan 模式下不再注入 Goal 上下文、记录 Goal usage 或标记 Goal usage limit。
-- Goal runtime context 进一步收口到 active Goal，paused/blocked/usage_limited/budget_limited 等停止态不再继续注入隐藏上下文。
-- Goal budget_limited 状态下调高预算恢复 active 后，会立即尝试触发下一轮 Goal 续跑。
-- Goal objective/budget 更新仅在归一化后实际变化时记录事件和触发 objective-updated steering。
-- Goal 外部或用户操作把目标恢复为 active 时，会按当前运行中 round 的 usage 快照重置 Goal accounting 基线，后续用量继续归属该 Goal。
-- Goal 面板的上下文状态会跟随 Plan 模式与空进展暂停展示，不再误提示 Plan 模式下会注入 Goal 上下文。
-- Goal 面板耗时展示对齐 Codex，超过 24 小时时保留分钟，并将停止态上下文文案收口为不再注入。
-- Goal 面板移除用户侧手动完成按钮，完成 Goal 继续交由模型 `update_goal(status=complete)` 审计后触发。
-- Goal native HTTP 与前端 API 移除用户侧完成/阻塞入口，完成和阻塞 Goal 只保留模型 `update_goal(status=...)` 审计路径。
-- Goal active turn 不再额外注入常驻 runtime context，只保留用量/耗时记账；internal goal context 收口到隐藏续跑和运行中 steering。
-- Goal 隐藏续跑与运行中 steering 的 fallback 渲染改为中性 `<internal_context source="goal">` 形态，bridge 支持 internal context 时只传 source=goal 的上下文块，并继续隐藏旧 Codex internal context 历史输入。
-- Goal 面板创建和编辑目标时默认通过后台模型整理 objective，失败时回退用户原文，避免直接使用冗长输入作为持久化目标。
-- Goal 模型可见文案按 Codex current prompt 再次收敛：`update_goal` 工具描述补齐完整阻塞审计语义，objective 整理 prompt 明确保留原始范围、验收条件和可验证完成标准。
-- Goal 隐藏续跑去掉“没有新用户消息”类控制措辞，并要求模型先审计目标是否已完成；未完成时直接选择下一步推进，避免把明显下一步回问给用户。
-- Goal 隐藏续跑只在本地 round marker/history 层保留内部输入语义，投递到 runtime 时剥离 meta/hidden/synthetic 控制字段，并将无正文续跑内联为 Goal internal context，避免模型流空转。
-- Goal runtime 将 budget_limited 继续保留为本轮 usage accounting 目标，但不再注入 Goal 上下文，贴近 Codex 预算耗尽后的收尾结算语义。
-- Goal active 状态会在运行时上下文读取和外部 mutation 前结算 wall-clock 用时，没有运行中 round 时也能对齐 Codex 的长程耗时统计。
-- Goal 隐藏续跑在启动前会重新校验当前 active Goal，避免用户已暂停或替换目标后继续投递旧续跑。
-- Goal app-server `ThreadGoal.tokenBudget` 与 `thread/goal/updated.turnId` 改为 Codex 一致的显式 nullable 字段，无值时返回 `null` 而不是省略。
-- Room group runtime 中的 Goal MCP 工具改为绑定房间 shared session，房间成员完成/阻塞 Goal 时会更新同一个房间 Goal。
-- Room Goal runtime 不再从房间 shared session 回落到成员私有 Goal，Web 面板也固定展示房间级 Goal 语义。
-- Room 多 Agent 且没有唯一默认目标时，Goal 隐藏续跑会保持等待并在面板展示原因，不再消耗 continuation 次数后才投递失败。
-- Goal 面板移除上下文注入模式和事件来源调试标签，不再展示 `仅记账不注入`、`用户 · 创建` 等内部状态。
-- Goal 运行中面板从多行卡片收敛为轻量状态条，只保留目标、运行状态、耗时、续跑状态和操作按钮，减少对聊天输入区的遮挡。
-- Goal active 但已因续跑失败或空进展暂停时，面板改为展示“需处理/待继续”和对应警示色，不再误显示为正常执行中。
-- Goal 模型侧提示词和 Goal MCP 工具描述优先使用 Nexus 模型可见工具名 `mcp__nexus_goal__get_goal|create_goal|update_goal`，裸 `get_goal/create_goal/update_goal` 仅作为 Codex/plain-tool 兼容名。
+- Aligned Goal semantics with Codex across lifecycle states, budgets, usage accounting, tool schemas/results, plan-mode pauses, hidden continuation prompts, internal context injection, and completion reporting.
+- Refined Goal panel behavior with a lighter status strip, clearer create/edit progress, room-specific disabled states, and reduced internal/debug labels.
+- Refreshed public and launcher surfaces with restored app entry links, redesigned login visuals, generated mascot assets, and a transparent Launcher send-button mascot.
+- Updated desktop packaging, smoke checks, diagnostics, and release workflows to surface bundled runtime metadata and package the matching `nxs` runtime.
 
 ### Fixed
-- 修复远端 SDK bridge 尚未发布 `RuntimeOptions.Kind`/`RuntimeKind` 时 Go 后端无法启动的问题；现阶段不再向 SDK 传递 runtime kind，保留 Nexus 侧 runtime 设置与命令解析。
-- 修复 app-server WebSocket `thread/goal/set status=complete` 仍广播 `thread/goal/updated` 的问题，现在完成态会广播 `thread/goal/cleared`，随后重复查看 Goal 返回空态。
-- 修复 Goal 隐藏续跑中“阶段已完成/下一阶段继续”等阶段性进展文案被误判为整个 Goal 已完成的问题，避免错误触发完成工具漏调收尾链路。
-- 修复 Goal MCP tool schema 中无参数工具的 `required` 被序列化为 `null`，导致 SDK 在 `tools/list` 阶段拒绝整个 `nexus_goal` server、模型看不到 `mcp__nexus_goal__*` 工具的问题。
-- Goal 完成收尾重试后如果模型仍只文字声明完成、没有调用 `update_goal`，系统会把该 Goal 收尾为 complete 并清空当前 Goal；旧的“完成工具重试后续跑暂停”状态也会在续跑扫描时自动清理，避免完成后仍显示待继续条。
-- Goal manager skill 明确区分“加载 skill”和“调用 Goal MCP 工具”，完成/阻塞段落直接标出 `mcp__nexus_goal__update_goal`，避免模型把 skill 文档当成工具列表并误报 Goal MCP 不可用。
-- 删除 Agent、Room、Room 成员或话题时会级联清理关联 Goal；Goal 自动续跑遇到已删除的 agent/room/conversation 目标时会清理旧 active Goal，避免 orphan Goal 持续续跑刷 warning。
-- 修复模型在隐藏 Goal 续跑中声称目标已完成但误判 `mcp__nexus_goal__update_goal` 不可用时会直接停在 active 状态的问题；现在会自动安排一次收尾重试，要求模型重新审计并调用完成工具，让最终 token/耗时汇报继续走 Goal 工具结果链路。
-- 修复 Goal MCP 三件套缺少 model-visible 元数据的问题，`get_goal`、`create_goal`、`update_goal` 现在会像 Codex 内建 Goal 工具一样强制进入模型可见工具集。
-- 修复旧运行时会话热更新后可能仍缺少 `nexus_goal` 工具的问题；托管 Goal MCP server 加入或移除时现在会重建 SDK client，确保初始工具 schema 带上 Goal 三件套。
-- 修复复用中的 SDK client 不会刷新动态 MCP server 的问题，启动或继续 Goal 后会把 `nexus_goal` 工具同步到当前运行时。
-- 修复底层运行时不支持动态 `mcp_set_servers` 时 Goal MCP 无法补挂的问题，现在会重建 SDK client 并通过初始 MCP 配置暴露 `nexus_goal`。
-- 修复用户点击 Goal 暂停只改状态、不停止当前模型输出的问题；暂停现在会沿 DM/Room 原有中断链路停止运行中的 round。
-- 修复 Goal 自动续跑上限在用户继续介入后仍沿用旧 continuation count，导致恢复后很快再次 `usage_limited` 的问题；显式用户/外部活动现在会重启一轮 continuation run。
-- 修复 GoalContext-only 隐藏续跑可能从底层 SDK transcript 投影成可见用户消息的问题，缺失 overlay marker 时也会隐藏 legacy `<goal_context>` 与 Codex internal goal context 输入。
-- 修复 Room Goal 隐藏续跑被渲染成空用户消息或 host default takeover 触发的问题，现在使用专用 Goal continuation trigger。
-- 修复 Goal 隐藏续跑在启动前被用户暂停或替换时仍消耗 continuation 次数的问题，未启动的 stale 计划现在会释放计数。
-- 修复未来 runtime 支持真实 internal context 后 GoalContext-only 续跑可能以空输入启动、导致 SDK 不执行下一轮的问题。
-- 修复 Goal 续跑失败事件不广播、异常路径不记录失败、恢复进展后旧错误残留的问题，并恢复 Goal 面板的 token 预算与用量展示。
-- 修复 Goal 隐藏续跑遇到 provider/API runtime 错误时只记录为空进展的问题，现在会写入 `last_error` 并记录 `continuation_failed` 事件，前端可直接展示真实失败原因。
-- 修复 Goal 隐藏续跑发给 Claude runtime 时仍带 `hidden/synthetic` 标记，导致续跑轮次进入后台但模型没有按普通输入产出回复的问题。
-- 修复 Goal 托管工具预授权在无显式工具白名单时误收窄 `allowedTools`，导致长程 Goal 无法使用 Agent 原有工具和 Skill 能力的问题。
-- 修复 Claude SDK 返回 API 错误 assistant 事件时被误判为成功回复或 interrupted，导致 Goal/聊天区只显示泛化错误、真实 401 等 provider 错误不可见的问题。
-- 修复 UI 启动 Goal 或隐藏续跑时托管 `goal-manager` / `nexus_goal` 权限确认可能卡住，导致前端长期只有“回复中”但没有智能体输出的问题。
-- 修复复用中的 runtime session 从普通权限模式切到 `bypassPermissions` 时可能初始化失败，导致聊天消息发送不出去的问题。
-- 修复已有数据库 goose 版本高于本分支早期 Goal 迁移时不会创建 `session_goals` / `goal_events`，导致 Goal 查询、续跑和消息发送异常的问题。
-- 修复 Goal 续跑在 runtime 投递前失败时只释放计划并反复重试的问题，现在会记录 `continuation_failed` 和真实 `last_error`，避免前端长期显示运行中却没有可诊断输出。
-- 修复未设置 Goal 时聊天底部仍显示空 Goal 面板并遮挡输入区域的问题。
-- 修复 Goal 空态轮询使用 404 表达未设置状态，导致正常空态在服务日志中持续刷 WARN 的问题。
-- Goal app-server `thread/goal/set` 响应和状态通知发送完成后再触发隐藏续跑，避免续跑先于客户端状态同步启动。
-- Goal usage、wall-clock、续跑进展和续跑规划在版本冲突时会重载重试，降低 Room 多 Agent 共享 Goal 并发更新时丢失记账或续跑的概率。
-- Goal 自动续跑进展判断对齐 Codex 工具生命周期语义，权限超时等未实际执行的工具结果不再误算为隐藏续跑进展。
-- 修复 Goal hidden continuation 容易让模型误判“未使用 Goal 系统”的提示措辞，续跑/steering 现在明确这是当前会话已存在的受跟踪 Goal，并说明 MCP 限定名下的 `update_goal` 是同一个 Goal 更新工具。
-
-### Changed
-- Restored the public landing header app entry and redesigned the login page to match the Nexus web visual language.
-- Regenerated the Nexus mascot directional assets with transparent backgrounds and semantic filenames.
-- Replaced the Launcher send-button mascot with a transparent Nexus illustration asset that includes the chest mark.
-
-### Fixed
-- Fixed reasoning-capable provider models so their capability is passed to Claude-compatible runtimes, allowing `nxs` and Claude Code to enable thinking by default.
+- Fixed Goal MCP visibility, managed-tool authorization, runtime client refresh/rebuild, provider/API error surfacing, hidden continuation delivery, pause/interrupt behavior, stale continuation cleanup, and database migration compatibility.
+- Fixed Goal usage, wall-clock, continuation progress, retry accounting, Room shared Goal concurrency, and completion finalization so long-running Goals can report usage and stop cleanly.
+- Fixed reasoning-capable provider models so their capabilities are passed to Claude-compatible runtimes, enabling `nxs` and Claude Code thinking by default.
 
 ## [0.1.14] - 2026-06-03
 

@@ -1,31 +1,34 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   CircleSlash,
-  Clock3,
   GaugeCircle,
   Pause,
   Pencil,
   Play,
   RefreshCw,
-  Repeat2,
   Target,
 } from "lucide-react";
 
 import { cn, format_tokens } from "@/lib/utils";
-import type { Goal } from "@/types/conversation/goal";
+import { UiIconButton } from "@/shared/ui/button";
+import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import {
   GOAL_STATUS_LABEL,
   goal_budget_percent,
-  goal_elapsed_label,
-  goal_runtime_label,
   goal_status_tone,
   goal_usage_total,
 } from "./goal-panel-model";
-
-const GOAL_ELAPSED_TICK_MS = 1000;
+import {
+  GOAL_PANEL_BADGE_CLASS_NAME,
+  GOAL_PANEL_COMPACT_CLASS_NAME,
+  GOAL_PANEL_LEADING_ICON_CLASS_NAME,
+  GOAL_PANEL_ROW_CLASS_NAME,
+  GOAL_PANEL_STRIP_CLASS_NAME,
+  GOAL_PANEL_SURFACE_CLASS_NAME,
+} from "./goal-panel-styles";
 
 interface GoalStatusStripProps {
   can_resume: boolean;
@@ -45,58 +48,41 @@ interface GoalStatusStripProps {
   on_resume: () => void;
 }
 
-interface GoalActionButtonProps {
-  children: ReactNode;
-  disabled?: boolean;
-  title: string;
-  on_click: () => void;
+function visible_goal_status({
+  continuation_hold,
+  goal,
+  is_generating,
+}: {
+  continuation_hold: GoalContinuationHold | null;
+  goal: Goal;
+  is_generating: boolean;
+}): { label: string; status: GoalStatus } {
+  if (goal.status === "active" && !is_generating && goal.last_error) {
+    return { label: "需处理", status: "blocked" };
+  }
+  if (
+    goal.status === "active" &&
+    !is_generating &&
+    (continuation_hold !== null || (goal.empty_progress_count ?? 0) > 0)
+  ) {
+    return { label: "待继续", status: "paused" };
+  }
+  return {
+    label: GOAL_STATUS_LABEL[goal.status] ?? goal.status,
+    status: goal.status,
+  };
 }
 
-interface GoalMetricPillProps {
-  children: ReactNode;
-  className?: string;
-  icon: ReactNode;
-  title?: string;
-}
-
-function GoalActionButton({
-  children,
-  disabled = false,
-  title,
-  on_click,
-}: GoalActionButtonProps) {
-  return (
-    <button
-      aria-label={title}
-      className="grid h-7 w-7 place-items-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:bg-muted/70 disabled:cursor-not-allowed disabled:opacity-50"
-      disabled={disabled}
-      title={title}
-      type="button"
-      onClick={on_click}
-    >
-      {children}
-    </button>
-  );
-}
-
-function GoalMetricPill({
-  children,
-  className,
-  icon,
-  title,
-}: GoalMetricPillProps) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2 text-[11px] text-muted-foreground",
-        className,
-      )}
-      title={title}
-    >
-      {icon}
-      <span className="truncate">{children}</span>
-    </span>
-  );
+function goal_budget_label(goal: Goal): string | null {
+  const usage_total = goal_usage_total(goal);
+  const budget = goal.token_budget ?? null;
+  if (budget && budget > 0) {
+    return `${format_tokens(usage_total)} / ${format_tokens(budget)}`;
+  }
+  if (usage_total > 0) {
+    return format_tokens(usage_total);
+  }
+  return null;
 }
 
 export function GoalStatusStrip({
@@ -116,217 +102,144 @@ export function GoalStatusStrip({
   on_refresh,
   on_resume,
 }: GoalStatusStripProps) {
-  const usage_total = goal_usage_total(goal);
-  const budget_value = goal.token_budget ?? null;
-  const remaining_tokens =
-    budget_value !== null ? Math.max(0, budget_value - usage_total) : null;
-  const usage_percent = goal_budget_percent(goal);
-  const runtime_label = goal_runtime_label(goal, is_generating);
   const active_continuation_hold =
     goal.status === "active" ? continuation_hold : null;
-  const continuation_suppressed =
-    goal.status === "active" &&
-    (active_continuation_hold !== null || (goal.empty_progress_count ?? 0) > 0);
-  const active_needs_attention =
-    goal.status === "active" && !is_generating && Boolean(goal.last_error);
-  const active_waiting_to_resume =
-    goal.status === "active" && !is_generating && continuation_suppressed;
-  const tone = active_needs_attention
-    ? goal_status_tone("blocked")
-    : active_waiting_to_resume
-      ? goal_status_tone("paused")
-      : goal_status_tone(goal.status);
-  const status_label = active_needs_attention
-    ? "需处理"
-    : active_waiting_to_resume
-      ? "待继续"
-      : GOAL_STATUS_LABEL[goal.status] ?? goal.status;
-  const continuation_metric_title = active_continuation_hold
-    ? active_continuation_hold.detail
-    : continuation_suppressed
-      ? "隐藏续跑无可计入进展，等待新的用户或外部活动"
-      : "Goal 自动续跑次数";
-  const continuation_metric_label = active_continuation_hold
-    ? active_continuation_hold.label
-    : continuation_suppressed
-      ? "续跑暂停"
-      : `续跑 ${goal.continuation_count}`;
-  const [observed_at_ms, set_observed_at_ms] = useState(() => Date.now());
-  const [active_turn_started_at_ms, set_active_turn_started_at_ms] = useState<
-    number | null
-  >(null);
-  const [now_ms, set_now_ms] = useState(() => Date.now());
-
-  useEffect(() => {
-    const now = Date.now();
-    set_observed_at_ms(now);
-    set_now_ms(now);
-  }, [goal.id, goal.status, goal.time_used_seconds, goal.updated_at]);
-
-  useEffect(() => {
-    if (goal.status !== "active" || !is_generating) {
-      set_active_turn_started_at_ms(null);
-      return;
-    }
-    set_active_turn_started_at_ms((current) => current ?? Date.now());
-  }, [goal.id, goal.status, is_generating]);
-
-  useEffect(() => {
-    if (active_turn_started_at_ms === null) return;
-    const timer = window.setInterval(() => {
-      set_now_ms(Date.now());
-    }, GOAL_ELAPSED_TICK_MS);
-    return () => window.clearInterval(timer);
-  }, [active_turn_started_at_ms]);
-
-  const active_elapsed_seconds =
-    active_turn_started_at_ms !== null
-      ? Math.max(
-          0,
-          Math.floor(
-            (now_ms - Math.max(observed_at_ms, active_turn_started_at_ms)) /
-              1000,
-          ),
-        )
-      : 0;
-  const elapsed_label = goal_elapsed_label(
-    (goal.time_used_seconds ?? 0) + active_elapsed_seconds,
-  );
+  const visible_status = visible_goal_status({
+    continuation_hold: active_continuation_hold,
+    goal,
+    is_generating,
+  });
+  const tone = goal_status_tone(visible_status.status);
+  const budget_label = goal_budget_label(goal);
+  const usage_percent = goal_budget_percent(goal);
+  const attention_message = error ?? goal.last_error ?? null;
+  const status_title = active_continuation_hold?.detail ?? visible_status.label;
 
   return (
     <div
       className={cn(
-        "mx-auto mb-2 w-full max-w-[980px] rounded-md border border-border/70 bg-background/90 px-2.5 py-1.5 shadow-sm backdrop-blur",
-        compact && "mx-2 max-w-none",
+        GOAL_PANEL_STRIP_CLASS_NAME,
+        compact && GOAL_PANEL_COMPACT_CLASS_NAME,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div
-          className={cn(
-            "grid h-7 w-7 shrink-0 place-items-center rounded-md border",
-            tone.icon,
-          )}
-        >
-          <Target className="h-3.5 w-3.5" />
-        </div>
-        <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
-          {scope_label}
-        </span>
-        <span
-          className={cn(
-            "shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium",
-            tone.badge,
-          )}
-        >
-          {status_label}
-        </span>
-        <span className={cn("shrink-0 text-[11px] font-medium", tone.text)}>
-          {runtime_label}
-        </span>
-        {status_extra}
-        <span className="min-w-[140px] flex-1 truncate text-sm font-medium text-foreground">
-          {goal.objective}
-        </span>
-        <GoalMetricPill
-          icon={<GaugeCircle className="h-3.5 w-3.5 shrink-0" />}
-          title="已用 token"
-        >
-          已用 {format_tokens(usage_total)}
-          {budget_value ? ` / ${format_tokens(budget_value)}` : ""}
-        </GoalMetricPill>
-        {remaining_tokens !== null ? (
-          <GoalMetricPill
-            icon={<GaugeCircle className="h-3.5 w-3.5 shrink-0" />}
-            title="剩余 token 预算"
-          >
-            剩余 {format_tokens(remaining_tokens)}
-          </GoalMetricPill>
-        ) : null}
-        <GoalMetricPill
-          icon={<Clock3 className="h-3.5 w-3.5 shrink-0" />}
-          title="已计入 Goal 的运行时间"
-        >
-          {elapsed_label}
-        </GoalMetricPill>
-        <GoalMetricPill
-          className={
-            continuation_suppressed
-              ? "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-              : undefined
-          }
-          icon={
-            continuation_suppressed ? (
-              <Pause className="h-3.5 w-3.5 shrink-0" />
-            ) : (
-              <Repeat2 className="h-3.5 w-3.5 shrink-0" />
-            )
-          }
-          title={continuation_metric_title}
-        >
-          {continuation_metric_label}
-        </GoalMetricPill>
-        {goal.last_error ? (
+      <div className={GOAL_PANEL_SURFACE_CLASS_NAME}>
+        <div className={GOAL_PANEL_ROW_CLASS_NAME}>
           <span
-            className="inline-flex h-6 max-w-[220px] items-center truncate rounded-md border border-destructive/20 bg-destructive/10 px-2 text-[11px] text-destructive"
-            title={goal.last_error}
+            className={cn(
+              GOAL_PANEL_LEADING_ICON_CLASS_NAME,
+              tone.icon,
+            )}
           >
-            {goal.last_error}
+            <Target className="h-3.5 w-3.5" />
           </span>
-        ) : null}
-        {error ? (
-          <span
-            className="inline-flex h-6 max-w-[220px] items-center truncate rounded-md border border-destructive/20 bg-destructive/10 px-2 text-[11px] text-destructive"
-            title={error}
-          >
-            {error}
-          </span>
-        ) : null}
-        <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
-          <GoalActionButton title="刷新" on_click={on_refresh}>
-            <RefreshCw className={cn("h-4 w-4", is_loading && "animate-spin")} />
-          </GoalActionButton>
-          <GoalActionButton
-            disabled={disabled || is_loading}
-            title={goal.status === "budget_limited" ? "调整预算" : "编辑"}
-            on_click={on_edit}
-          >
-            <Pencil className="h-4 w-4" />
-          </GoalActionButton>
-          {goal.status === "active" ? (
-            <GoalActionButton
-              disabled={disabled || is_loading}
-              title="暂停"
-              on_click={on_pause}
+
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-(--text-soft)">
+              <span className="truncate">{scope_label}</span>
+              <span
+                className={cn(GOAL_PANEL_BADGE_CLASS_NAME, tone.badge)}
+                title={status_title}
+              >
+                {visible_status.label}
+              </span>
+              {is_generating && goal.status === "active" ? (
+                <span className={cn("font-semibold", tone.text)}>执行中</span>
+              ) : null}
+              {status_extra}
+            </div>
+            <div className="mt-0.5 line-clamp-1 text-[12px] font-medium leading-5 text-(--text-strong)">
+              {goal.objective}
+            </div>
+          </div>
+
+          {budget_label ? (
+            <span
+              className="hidden h-6 max-w-[128px] shrink-0 items-center gap-1 truncate rounded-[8px] px-1.5 text-[11px] font-medium text-(--text-muted) sm:inline-flex"
+              title="Token 使用"
             >
-              <Pause className="h-4 w-4" />
-            </GoalActionButton>
+              <GaugeCircle className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{budget_label}</span>
+            </span>
           ) : null}
-          {can_resume ? (
-            <GoalActionButton
-              disabled={disabled || is_loading}
-              title="继续"
-              on_click={on_resume}
+
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <UiIconButton
+              aria-label="刷新"
+              size="sm"
+              title="刷新"
+              type="button"
+              variant="ghost"
+              onClick={on_refresh}
             >
-              <Play className="h-4 w-4" />
-            </GoalActionButton>
-          ) : null}
-          <GoalActionButton
-            disabled={disabled || is_loading}
-            title="清除"
-            on_click={on_clear_request}
-          >
-            <CircleSlash className="h-4 w-4" />
-          </GoalActionButton>
+              <RefreshCw className={cn("h-4 w-4", is_loading && "animate-spin")} />
+            </UiIconButton>
+            <UiIconButton
+              aria-label="编辑"
+              disabled={disabled || is_loading}
+              size="sm"
+              title="编辑"
+              type="button"
+              variant="ghost"
+              onClick={on_edit}
+            >
+              <Pencil className="h-4 w-4" />
+            </UiIconButton>
+            {goal.status === "active" ? (
+              <UiIconButton
+                aria-label="暂停"
+                disabled={disabled || is_loading}
+                size="sm"
+                title="暂停"
+                type="button"
+                variant="ghost"
+                onClick={on_pause}
+              >
+                <Pause className="h-4 w-4" />
+              </UiIconButton>
+            ) : null}
+            {can_resume ? (
+              <UiIconButton
+                aria-label="继续"
+                disabled={disabled || is_loading}
+                size="sm"
+                title="继续"
+                tone="primary"
+                type="button"
+                variant="ghost"
+                onClick={on_resume}
+              >
+                <Play className="h-4 w-4" />
+              </UiIconButton>
+            ) : null}
+            <UiIconButton
+              aria-label="清除"
+              disabled={disabled || is_loading}
+              size="sm"
+              title="清除"
+              tone="danger"
+              type="button"
+              variant="ghost"
+              onClick={on_clear_request}
+            >
+              <CircleSlash className="h-4 w-4" />
+            </UiIconButton>
+          </div>
         </div>
+
+        {attention_message ? (
+          <div className="ml-7 line-clamp-1 pb-1 text-[11px] leading-4 text-(--destructive)">
+            {attention_message}
+          </div>
+        ) : null}
+        {usage_percent !== null ? (
+          <div className="ml-7 h-1 overflow-hidden rounded-full bg-(--surface-interactive-hover-background)">
+            <div
+              className={cn("h-full", tone.meter)}
+              style={{ width: `${usage_percent}%` }}
+            />
+          </div>
+        ) : null}
       </div>
-      {usage_percent !== null ? (
-        <div className="mt-1.5 h-1 overflow-hidden rounded bg-muted">
-          <div
-            className={cn("h-full", tone.meter)}
-            style={{ width: `${usage_percent}%` }}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

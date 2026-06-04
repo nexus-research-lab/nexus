@@ -23,8 +23,8 @@ func TestChatErrorDetailExplainsMissingClaudeCommand(t *testing.T) {
 func TestChatErrorDetailExplainsMissingNXSCommand(t *testing.T) {
 	message := chatErrorDetail(errors.New(`client: backend executable "process backend" not found: process: cli executable "nxs" not found`))
 	if !strings.Contains(message, "nxs runtime") ||
-		!strings.Contains(message, "bridge 内嵌") ||
-		!strings.Contains(message, "当前平台暂未内置") ||
+		!strings.Contains(message, "桌面包") ||
+		!strings.Contains(message, "随包预置") ||
 		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
 		t.Fatalf("缺少 nxs 时应返回 nxs 可执行提示: %q", message)
 	}

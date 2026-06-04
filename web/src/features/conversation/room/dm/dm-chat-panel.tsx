@@ -8,6 +8,7 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import { create_goal_api } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
@@ -297,6 +298,18 @@ export function DmChatPanel({
     return prepare_workspace_attachments(target_agent_id, files);
   };
 
+  const handle_create_goal = useCallback(async (objective: string) => {
+    if (!session_key) {
+      throw new Error("当前会话尚未准备好，暂时无法启动 Goal。");
+    }
+    await create_goal_api({
+      session_key,
+      objective,
+      token_budget: null,
+    });
+    refresh_goal_panel();
+  }, [refresh_goal_panel, session_key]);
+
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
     if (
@@ -400,7 +413,6 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         continuation_hold={goal_continuation_hold}
         disabled={!can_control_session}
-        empty_state_variant="launcher"
         is_generating={is_loading}
         session_key={session_key}
         scope_label="会话 Goal"
@@ -412,9 +424,11 @@ export function DmChatPanel({
         default_delivery_policy={default_delivery_policy}
         input_queue_items={input_queue_items}
         is_loading={is_loading}
+        goal_scope_label="会话 Goal"
         runtime_phase={runtime_phase}
         on_delete_queued_message={delete_input_queue_message}
         on_enqueue_message={enqueue_input_queue_message}
+        on_create_goal={session_key && can_control_session ? handle_create_goal : undefined}
         on_guide_queued_message={guide_input_queue_message}
         on_prepare_attachments={handle_prepare_attachments}
         on_reorder_queue_messages={reorder_input_queue_messages}

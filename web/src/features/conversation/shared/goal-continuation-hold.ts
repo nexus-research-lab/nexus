@@ -35,6 +35,7 @@ export function goal_continuation_hold_for_agent(
 export function goal_continuation_hold_for_room_target(
   room_members: Agent[],
   lead_agent_id: string | null | undefined,
+  room_host_auto_reply_enabled = true,
 ): GoalContinuationHold | null {
   const target_agent = resolve_goal_continuation_target_agent(
     room_members,
@@ -45,6 +46,13 @@ export function goal_continuation_hold_for_room_target(
   }
   if (room_members.length <= 1) {
     return null;
+  }
+  if (!room_host_auto_reply_enabled) {
+    return {
+      detail:
+        "房间有多个 Agent，但还没有指定 Room Goal 负责人；群主接管未开启，请先选择一个 Agent 负责推进",
+      label: "等待负责人",
+    };
   }
   return {
     detail:

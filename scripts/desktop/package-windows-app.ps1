@@ -20,6 +20,7 @@ param(
   [string]$SigningCertificatePassword = $env:NEXUS_WINDOWS_SIGNING_CERT_PASSWORD,
   [string]$TimestampServer = $(if ($env:NEXUS_WINDOWS_TIMESTAMP_SERVER) { $env:NEXUS_WINDOWS_TIMESTAMP_SERVER } else { "http://timestamp.digicert.com" }),
   [string]$SignToolPath = $env:NEXUS_SIGNTOOL_PATH,
+  [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME,
   [int]$SmokeTimeoutSeconds = 75,
   [switch]$SkipBuild,
   [switch]$SkipSmoke,
@@ -371,6 +372,8 @@ $appVersion = Resolve-AppVersion $rootDir $Version
 $resolvedBuildNumber = Resolve-BuildNumber $rootDir $BuildNumber
 $packageSelfContained = Resolve-Bool $SelfContained $true
 $packageSelfContainedValue = $packageSelfContained.ToString().ToLowerInvariant()
+$bundleNXSRuntime = Resolve-Bool $BundleNXSRuntime $true
+$bundleNXSRuntimeValue = $bundleNXSRuntime.ToString().ToLowerInvariant()
 $createdAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $commitSha = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "HEAD") -fallback "unknown"
 $commitShort = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "--short", "HEAD") -fallback "unknown"
@@ -425,12 +428,18 @@ if ((-not $SkipBuild) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_BUILD -ne "1") {
     -OutputDir $AppBuildDir `
     -Version $appVersion `
     -BuildNumber $resolvedBuildNumber `
-    -SelfContained $packageSelfContainedValue
+    -SelfContained $packageSelfContainedValue `
+    -BundleNXSRuntime $bundleNXSRuntimeValue
 }
 
 $appExe = Join-Path $AppBuildDir $executableFileName
 if (-not (Test-Path -LiteralPath $appExe)) {
   throw "Missing Windows app executable: $appExe"
+}
+
+$nxsRuntimePath = Join-Path $AppBuildDir "Resources/bin/nxs.exe"
+if ($bundleNXSRuntime -and (-not (Test-Path -LiteralPath $nxsRuntimePath))) {
+  throw "Missing bundled nxs runtime: $nxsRuntimePath"
 }
 
 if ($signingEnabled) {
@@ -439,7 +448,8 @@ if ($signingEnabled) {
     $appExe,
     (Join-Path $AppBuildDir "$shellBinaryBaseName.dll"),
     (Join-Path $AppBuildDir "Resources/nexus-server.exe"),
-    (Join-Path $AppBuildDir "Resources/bin/nexusctl.exe")
+    (Join-Path $AppBuildDir "Resources/bin/nexusctl.exe"),
+    (Join-Path $AppBuildDir "Resources/bin/nxs.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
 
   foreach ($signTarget in $signTargets) {
@@ -456,7 +466,8 @@ if ((-not $SkipSmoke) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE -ne "1") {
   & (Join-Path $rootDir "scripts/desktop/smoke-windows-app.ps1") `
     -AppDir $AppBuildDir `
     -ExecutableName $executableFileName `
-    -TimeoutSeconds $SmokeTimeoutSeconds
+    -TimeoutSeconds $SmokeTimeoutSeconds `
+    -ExpectNXSRuntime $bundleNXSRuntimeValue
 }
 
 foreach ($path in @($stagingDir, $MetadataPath, $InstallerOutputPath, $installerSha256Path, $installerScriptPath)) {
@@ -494,6 +505,13 @@ $webView2BootstrapperUrlForMetadata = $null
 if (-not $SkipWebView2Bootstrapper) {
   $webView2BootstrapperUrlForMetadata = $WebView2BootstrapperUrl
 }
+$nxsRuntimeRelease = if ($env:NEXUS_DESKTOP_NXS_RELEASE) {
+  $env:NEXUS_DESKTOP_NXS_RELEASE
+} elseif ($env:NEXUS_NXS_RUNTIME_RELEASE) {
+  $env:NEXUS_NXS_RUNTIME_RELEASE
+} else {
+  "nxs-v0.1.1"
+}
 $signingKind = "unsigned"
 $signingTimestampServer = $null
 if ($signingEnabled) {
@@ -513,6 +531,11 @@ $metadata = [ordered]@{
     dotnet_self_contained = $packageSelfContained
     runtime_identifier = $RuntimeIdentifier
     supported_runtime_identifiers = @("win-x64")
+    nxs = [ordered]@{
+      bundled = (Test-Path -LiteralPath $nxsRuntimePath)
+      release = $nxsRuntimeRelease
+      relative_path = "Resources/bin/nxs.exe"
+    }
   }
   dependencies = [ordered]@{
     webview2 = [ordered]@{

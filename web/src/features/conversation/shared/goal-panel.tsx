@@ -12,7 +12,6 @@ import {
 
 import {
   clear_goal_api,
-  create_goal_api,
   get_current_goal_api,
   pause_goal_api,
   resume_goal_api,
@@ -22,28 +21,16 @@ import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
-import {
-  GoalDraftForm,
-  GoalEmptyStrip,
-  GoalStartLauncher,
-  GoalStatusStrip,
-} from "./goal-panel-view";
+import { GoalDraftForm, GoalStatusStrip } from "./goal-panel-view";
 
-type GoalPanelEmptyStateVariant = "hidden" | "launcher" | "strip";
-type GoalDraftSavePhase = "idle" | "creating" | "updating";
+type GoalDraftSavePhase = "idle" | "updating";
 
 interface GoalPanelProps {
   session_key: string | null;
   compact?: boolean;
   disabled?: boolean;
   activity_key?: string | number | null;
-  can_submit_draft?: boolean;
   continuation_hold?: GoalContinuationHold | null;
-  draft_extra_controls?: ReactNode;
-  draft_metadata?: Record<string, unknown> | null;
-  draft_submit_disabled_title?: string | null;
-  empty_state_variant?: GoalPanelEmptyStateVariant;
-  hide_budget_input?: boolean;
   is_generating?: boolean;
   scope_label?: string;
   status_extra?: ReactNode;
@@ -87,8 +74,6 @@ function can_resume_goal(goal: Goal): boolean {
 
 function draft_save_loading_label(phase: GoalDraftSavePhase): string | null {
   switch (phase) {
-    case "creating":
-      return "正在整理目标";
     case "updating":
       return "正在更新目标";
     default:
@@ -103,15 +88,9 @@ function resume_prompt_key(goal: Goal): string {
 export function GoalPanel({
   session_key,
   compact = false,
-  can_submit_draft = true,
   continuation_hold = null,
   disabled = false,
-  draft_extra_controls = null,
-  draft_metadata = null,
-  draft_submit_disabled_title = null,
   activity_key = null,
-  empty_state_variant = "hidden",
-  hide_budget_input = false,
   is_generating = false,
   scope_label = "会话 Goal",
   status_extra = null,
@@ -120,7 +99,6 @@ export function GoalPanel({
   const [goal, set_goal] = useState<Goal | null>(null);
   const [is_available, set_is_available] = useState(true);
   const [is_loading, set_is_loading] = useState(false);
-  const [is_creating, set_is_creating] = useState(false);
   const [is_editing, set_is_editing] = useState(false);
   const [draft_save_phase, set_draft_save_phase] =
     useState<GoalDraftSavePhase>("idle");
@@ -154,7 +132,6 @@ export function GoalPanel({
   const refresh_goal = useCallback(async () => {
     if (!session_key) {
       set_goal(null);
-      set_is_creating(false);
       set_is_editing(false);
       return;
     }
@@ -169,7 +146,6 @@ export function GoalPanel({
         return;
       }
       set_goal(current);
-      set_is_creating(false);
       maybe_prompt_resume_goal(current);
       set_is_available(true);
       set_error(null);
@@ -177,7 +153,6 @@ export function GoalPanel({
       if (is_goal_unavailable(err)) {
         set_is_available(false);
         set_goal(null);
-        set_is_creating(false);
         set_is_editing(false);
         set_resume_prompt_goal(null);
         return;
@@ -201,42 +176,24 @@ export function GoalPanel({
   const begin_editing_goal = useCallback((current: Goal) => {
     set_objective(current.objective);
     set_budget(current.token_budget ? String(current.token_budget) : "");
-    set_is_creating(false);
     set_is_editing(true);
   }, []);
 
   const submit_goal = async (event: FormEvent) => {
     event.preventDefault();
-    if (!session_key || !objective.trim()) return;
+    if (!session_key || !goal || !objective.trim()) return;
     set_error(null);
-    set_draft_save_phase(is_editing ? "updating" : "creating");
+    set_draft_save_phase("updating");
     set_is_loading(true);
     try {
-      const token_budget =
-        hide_budget_input
-          ? is_editing
-            ? undefined
-            : null
-          : is_editing
-            ? next_budget_input(goal, budget)
-            : normalize_budget(budget);
-      const updated =
-        is_editing && goal
-          ? await update_goal_api(goal.id, {
-              objective: objective.trim(),
-              token_budget,
-              metadata: draft_metadata ?? undefined,
-            })
-          : await create_goal_api({
-              session_key,
-              objective: objective.trim(),
-              token_budget: token_budget ?? null,
-              metadata: draft_metadata ?? undefined,
-            });
+      const token_budget = next_budget_input(goal, budget);
+      const updated = await update_goal_api(goal.id, {
+        objective: objective.trim(),
+        token_budget,
+      });
       set_goal(updated);
       set_objective("");
       set_budget("");
-      set_is_creating(false);
       set_is_editing(false);
       set_error(null);
     } catch (err) {
@@ -268,7 +225,6 @@ export function GoalPanel({
       const result = await clear_goal_api(goal.id);
       if (result.cleared) {
         set_goal(null);
-        set_is_creating(false);
         set_is_editing(false);
       }
       set_error(null);
@@ -298,18 +254,10 @@ export function GoalPanel({
     begin_editing_goal(goal);
   };
 
-  const start_creating_goal = () => {
-    set_objective("");
-    set_budget("");
-    set_is_editing(false);
-    set_is_creating(true);
-  };
-
   const cancel_editing_goal = () => {
     set_objective("");
     set_budget("");
     set_draft_save_phase("idle");
-    set_is_creating(false);
     set_is_editing(false);
   };
 
@@ -320,59 +268,6 @@ export function GoalPanel({
 
   if (!is_available || !session_key) {
     return null;
-  }
-
-  if (!goal && !is_creating) {
-    if (empty_state_variant === "hidden") {
-      return null;
-    }
-    if (empty_state_variant === "launcher") {
-      return (
-        <GoalStartLauncher
-          compact={compact}
-          disabled={disabled}
-          is_loading={is_loading}
-          scope_label={scope_label}
-          on_create={start_creating_goal}
-        />
-      );
-    }
-    return (
-      <GoalEmptyStrip
-        compact={compact}
-        disabled={disabled}
-        error={error}
-        is_loading={is_loading}
-        scope_label={scope_label}
-        on_create={start_creating_goal}
-        on_refresh={() => void refresh_goal()}
-      />
-    );
-  }
-
-  if (is_creating || is_editing) {
-    return (
-      <GoalDraftForm
-        budget={budget}
-        can_submit={can_submit_draft}
-        can_cancel={is_creating}
-        compact={compact}
-        disabled={disabled}
-        error={error}
-        extra_controls={draft_extra_controls}
-        hide_budget_input={hide_budget_input}
-        is_editing={is_editing}
-        is_loading={is_loading}
-        loading_label={draft_save_loading_label(draft_save_phase)}
-        objective={objective}
-        scope_label={scope_label}
-        submit_disabled_title={draft_submit_disabled_title}
-        on_budget_change={set_budget}
-        on_cancel={cancel_editing_goal}
-        on_objective_change={set_objective}
-        on_submit={submit_goal}
-      />
-    );
   }
 
   if (!goal) {
@@ -398,6 +293,20 @@ export function GoalPanel({
         on_refresh={() => void refresh_goal()}
         on_resume={() => void mutate_goal(resume_goal_api)}
       />
+      {is_editing ? (
+        <GoalDraftForm
+          budget={budget}
+          disabled={disabled}
+          error={error}
+          is_loading={is_loading}
+          loading_label={draft_save_loading_label(draft_save_phase)}
+          objective={objective}
+          on_budget_change={set_budget}
+          on_cancel={cancel_editing_goal}
+          on_objective_change={set_objective}
+          on_submit={submit_goal}
+        />
+      ) : null}
       <ConfirmDialog
         cancel_text="取消"
         confirm_text="清除"

@@ -72,6 +72,8 @@ jobs:
           NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
           NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
           NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
+          NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           scripts/desktop/package-macos-app.sh
 
@@ -154,6 +156,8 @@ jobs:
           NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX_BASE64 }}
           NEXUS_WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
           NEXUS_WINDOWS_TIMESTAMP_SERVER: ${{ vars.WINDOWS_TIMESTAMP_SERVER || 'http://timestamp.digicert.com' }}
+          NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/desktop/package-windows-app.ps1
 

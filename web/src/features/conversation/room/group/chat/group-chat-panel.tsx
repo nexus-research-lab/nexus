@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UserRound } from "lucide-react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -8,6 +9,7 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import { create_goal_api } from "@/lib/api/goal-api";
 import { build_room_shared_session_key } from "@/lib/conversation/session-key";
 import { useAuth } from "@/shared/auth/auth-context";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -20,6 +22,7 @@ import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
+import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import {
   build_conversation_activity_snapshot,
@@ -35,6 +38,10 @@ import { useRoomComposerHandlers } from "./use-room-composer-handlers";
 import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { RoomGoalPanel } from "./room-goal-panel";
+import {
+  build_room_goal_metadata,
+  resolve_default_room_goal_lead,
+} from "./room-goal-model";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
@@ -78,6 +85,7 @@ export function GroupChatPanel({
   room_id = null,
   room_members,
   room_host_agent_id = null,
+  room_host_auto_reply_enabled = false,
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
@@ -101,6 +109,21 @@ export function GroupChatPanel({
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
+  const default_room_goal_lead_agent_id = useMemo(
+    () => resolve_default_room_goal_lead(room_members, room_host_agent_id),
+    [room_host_agent_id, room_members],
+  );
+  const [room_goal_lead_agent_id, set_room_goal_lead_agent_id] = useState(
+    default_room_goal_lead_agent_id,
+  );
+  useEffect(() => {
+    set_room_goal_lead_agent_id((current) => {
+      if (current && room_members.some((agent) => agent.agent_id === current)) {
+        return current;
+      }
+      return default_room_goal_lead_agent_id;
+    });
+  }, [default_room_goal_lead_agent_id, room_members]);
   const handle_conversation_event = useCallback(
     (
       event_type: string,
@@ -347,6 +370,54 @@ export function GroupChatPanel({
       send_message,
       session_key,
     });
+  const room_goal_create_disabled_reason =
+    room_members.length === 0
+      ? "房间还没有可指派的 Agent"
+      : room_goal_lead_agent_id.trim() === ""
+        ? "请选择 Room Goal 负责人"
+        : null;
+  const room_goal_lead_control = (
+    <label
+      className="pointer-events-auto inline-flex h-5 min-w-0 max-w-[190px] items-center gap-1 rounded-[7px] border border-(--surface-canvas-border) bg-(--surface-elevated-background) px-1.5 text-[10px] font-medium text-(--text-muted)"
+      title="选择 Room Goal 负责人"
+    >
+      <UserRound className="h-3 w-3 shrink-0" />
+      <select
+        className="min-w-0 flex-1 bg-transparent text-[10px] font-semibold text-(--text-default) outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+        disabled={!can_control_session || is_loading || room_members.length === 0}
+        value={room_goal_lead_agent_id}
+        onChange={(event) => set_room_goal_lead_agent_id(event.target.value)}
+      >
+        <option value="">负责人</option>
+        {room_members.map((agent) => (
+          <option key={agent.agent_id} value={agent.agent_id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  const handle_create_goal = useCallback(async (objective: string) => {
+    if (!session_key) {
+      throw new Error("当前房间会话尚未准备好，暂时无法启动 Goal。");
+    }
+    const lead_agent_id = room_goal_lead_agent_id.trim();
+    if (!lead_agent_id) {
+      throw new Error("请选择 Room Goal 负责人。");
+    }
+    await create_goal_api({
+      session_key,
+      objective,
+      token_budget: null,
+      metadata: build_room_goal_metadata(room_members, lead_agent_id),
+    });
+    refresh_goal_panel();
+  }, [
+    refresh_goal_panel,
+    room_goal_lead_agent_id,
+    room_members,
+    session_key,
+  ]);
   useRoomThreadPanelData({
     agent_avatar_map,
     agent_name_map,
@@ -446,6 +517,7 @@ export function GroupChatPanel({
             is_loading={is_loading}
             is_mobile_layout={is_mobile_layout}
             room_host_agent_id={room_host_agent_id}
+            room_host_auto_reply_enabled={Boolean(room_host_auto_reply_enabled)}
             room_members={room_members}
             session_key={session_key}
           />
@@ -454,10 +526,14 @@ export function GroupChatPanel({
             allow_send_while_loading
             compact={is_mobile_layout}
             default_delivery_policy={default_delivery_policy}
+            goal_create_disabled_reason={room_goal_create_disabled_reason}
+            goal_mode_extra={room_goal_lead_control}
+            goal_scope_label={ROOM_GOAL_SCOPE_LABEL}
             input_queue_items={input_queue_items}
             is_loading={is_loading}
             queue_when_session_busy={false}
             runtime_phase={runtime_phase}
+            on_create_goal={session_key && can_control_session ? handle_create_goal : undefined}
             on_delete_queued_message={delete_input_queue_message}
             on_enqueue_message={enqueue_input_queue_message}
             on_guide_queued_message={guide_input_queue_message}

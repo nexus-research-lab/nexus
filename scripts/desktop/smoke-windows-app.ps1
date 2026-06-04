@@ -1,7 +1,8 @@
 param(
   [string]$AppDir = "",
   [string]$ExecutableName = "Nexus.exe",
-  [int]$TimeoutSeconds = 75
+  [int]$TimeoutSeconds = 75,
+  [string]$ExpectNXSRuntime = $env:NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,6 +39,25 @@ function Find-SidecarProcess([int]$ParentPid, [string]$AppDir) {
     }
 }
 
+function Resolve-Bool([string]$value, [bool]$defaultValue) {
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $defaultValue
+  }
+
+  switch ($value.Trim().ToLowerInvariant()) {
+    "1" { return $true }
+    "true" { return $true }
+    "yes" { return $true }
+    "on" { return $true }
+    "0" { return $false }
+    "false" { return $false }
+    "no" { return $false }
+    "off" { return $false }
+  }
+
+  throw "Invalid boolean value: $value"
+}
+
 $rootDir = Resolve-RootDir
 if ([string]::IsNullOrWhiteSpace($AppDir)) {
   $AppDir = Join-Path $rootDir "desktop/windows/.build/app/Nexus"
@@ -56,6 +76,18 @@ if (-not (Test-Path $nexusctlExe)) {
 & $nexusctlExe --help *> $null
 if ($LASTEXITCODE -ne 0) {
   throw "Bundled nexusctl --help failed with exit code $LASTEXITCODE"
+}
+
+$nxsExpected = Resolve-Bool $ExpectNXSRuntime $false
+$nxsExe = Join-Path $AppDir "Resources/bin/nxs.exe"
+if ($nxsExpected) {
+  if (-not (Test-Path $nxsExe)) {
+    throw "Missing bundled nxs executable: $nxsExe"
+  }
+  & $nxsExe --version *> $null
+  if ($LASTEXITCODE -ne 0) {
+    throw "Bundled nxs --version failed with exit code $LASTEXITCODE"
+  }
 }
 
 $logPath = Join-Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)) ".nexus/logs/shell.log"
