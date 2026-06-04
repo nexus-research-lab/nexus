@@ -102,6 +102,9 @@ coverage.xml
 # 部署镜像构建需要访问这些目录
 !deploy/
 !deploy/**
+!scripts/
+!scripts/desktop/
+!scripts/desktop/fetch-nxs-runtime.js
 !db/
 !db/**
 !web/
