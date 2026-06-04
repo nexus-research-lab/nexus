@@ -3,6 +3,14 @@ import type { AgentOptions } from "@/types/agent/agent";
 
 export type AgentRuntimeKind = "claude" | "nxs";
 
+export interface NXSRuntimeStatus {
+  available: boolean;
+  path?: string;
+  source?: "env" | "app_root" | "cache" | string;
+  can_download: boolean;
+  message?: string;
+}
+
 export interface ModelSelectionPreference {
   provider?: string;
   model?: string;

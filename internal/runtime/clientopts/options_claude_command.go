@@ -12,6 +12,7 @@ const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
 const nexusNXSCommandPathEnvName = "NEXUS_NXS_COMMAND_PATH"
 const nexusAgentRuntimeKindEnvName = "NEXUS_AGENT_RUNTIME_KIND"
 const nexusAgentRuntimeEnvName = "NEXUS_AGENT_RUNTIME"
+const nexusAppRootEnvName = "NEXUS_APP_ROOT"
 const runtimeKindClaude = "claude"
 const runtimeKindNXS = "nxs"
 
@@ -74,7 +75,7 @@ func resolveRuntimeCommandPathWith(
 ) string {
 	runtimeKind = resolveRuntimeKind(runtimeKind, getenv)
 	if runtimeKind == runtimeKindNXS {
-		return resolveNXSCommandPathWith(getenv)
+		return resolveNXSCommandPathWith(goos, getenv, fileExists)
 	}
 	if override := strings.TrimSpace(getenv(nexusClaudeCommandPathEnvName)); override != "" {
 		return override
@@ -117,12 +118,27 @@ func resolveRuntimeKind(runtimeKind string, getenv func(string) string) string {
 }
 
 func resolveNXSCommandPathWith(
+	goos string,
 	getenv func(string) string,
+	fileExists func(string) bool,
 ) string {
 	if override := strings.TrimSpace(getenv(nexusNXSCommandPathEnvName)); override != "" {
 		return override
 	}
+	if appRoot := strings.TrimSpace(getenv(nexusAppRootEnvName)); appRoot != "" {
+		candidate := filepath.Join(appRoot, "bin", nxsExecutableName(goos))
+		if fileExists(candidate) {
+			return candidate
+		}
+	}
 	return ""
+}
+
+func nxsExecutableName(goos string) string {
+	if goos == "windows" {
+		return "nxs.exe"
+	}
+	return "nxs"
 }
 
 func claudeCommandNames(goos string) []string {

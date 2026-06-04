@@ -40,6 +40,37 @@ func TestHandleSystemVersion(t *testing.T) {
 	}
 }
 
+func TestHandleNXSRuntimeStatus(t *testing.T) {
+	t.Setenv("NEXUS_NXS_COMMAND_PATH", "")
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/runtime/nxs/status", nil)
+	recorder := httptest.NewRecorder()
+	server.Router().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Data struct {
+			Available   bool   `json:"available"`
+			CanDownload bool   `json:"can_download"`
+			Message     string `json:"message"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if !payload.Data.Available && !payload.Data.CanDownload {
+		t.Fatalf("不可用时应允许下载或给出阻断原因: %+v", payload.Data)
+	}
+}
+
 func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)

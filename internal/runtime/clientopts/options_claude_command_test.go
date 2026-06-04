@@ -108,7 +108,37 @@ func TestResolveRuntimeCommandPathDefersNXSRuntimeKindToBridge(t *testing.T) {
 		fakeGlob(nil),
 	)
 	if got != "" {
-		t.Fatalf("nxs runtime 默认应交给 bridge 解析: got=%q", got)
+		t.Fatalf("没有预置 nxs 时应交给 bridge 解析: got=%q", got)
+	}
+}
+
+func TestResolveRuntimeCommandPathUsesAppRootNXSRuntime(t *testing.T) {
+	expected := "/opt/app/bin/nxs"
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"linux",
+		fakeEnv(map[string]string{nexusAppRootEnvName: "/opt/app"}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(path string) bool { return path == expected },
+		fakeGlob(nil),
+	)
+	if got != expected {
+		t.Fatalf("NEXUS_APP_ROOT 预置 nxs 未生效: got=%q want=%q", got, expected)
+	}
+}
+
+func TestResolveRuntimeCommandPathUsesWindowsAppRootNXSRuntime(t *testing.T) {
+	expected := filepath.Join(`C:\Nexus\Resources`, "bin", "nxs.exe")
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"windows",
+		fakeEnv(map[string]string{nexusAppRootEnvName: `C:\Nexus\Resources`}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(path string) bool { return path == expected },
+		fakeGlob(nil),
+	)
+	if got != expected {
+		t.Fatalf("Windows NEXUS_APP_ROOT 预置 nxs 未生效: got=%q want=%q", got, expected)
 	}
 }
 
@@ -155,7 +185,7 @@ func TestResolveRuntimeCommandPathUsesEnvRuntimeKind(t *testing.T) {
 		fakeGlob(nil),
 	)
 	if got != "" {
-		t.Fatalf("NEXUS_AGENT_RUNTIME_KIND=nxs 应交给 bridge 解析: got=%q", got)
+		t.Fatalf("NEXUS_AGENT_RUNTIME_KIND=nxs 无预置路径时应交给 bridge 解析: got=%q", got)
 	}
 }
 
@@ -184,7 +214,7 @@ func TestResolveRuntimeCommandPathDefersNXSFallbackToBridge(t *testing.T) {
 		fakeGlob(nil),
 	)
 	if got != "" {
-		t.Fatalf("nxs fallback 应交给 bridge 处理: got=%q", got)
+		t.Fatalf("nxs fallback 无预置路径时应交给 bridge 处理: got=%q", got)
 	}
 }
 

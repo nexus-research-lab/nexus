@@ -86,6 +86,10 @@ ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
+ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-v0.1.1
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -119,6 +123,7 @@ ENV HOME=/home/agent \
     PATH=/usr/local/share/pnpm:/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
     PNPM_REGISTRY=${PNPM_REGISTRY} \
     BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
+    NEXUS_NXS_RUNTIME_RELEASE=${NEXUS_NXS_RUNTIME_RELEASE} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     UV_BREAK_SYSTEM_PACKAGES=true \
@@ -152,10 +157,18 @@ COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
 COPY db /opt/app/db
 COPY skills /opt/app/skills
 COPY --from=web-builder /src/web/dist /opt/app/web/dist
+COPY scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
 COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
 COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
 
-RUN chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
+RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
+        node /opt/app/scripts/desktop/fetch-nxs-runtime.js \
+        --goos "${TARGETOS:-linux}" \
+        --goarch "${TARGETARCH:-amd64}" \
+        --release "${NEXUS_NXS_RUNTIME_RELEASE}" \
+        --output /opt/app/bin/nxs; \
+    fi && \
+    chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
     chown root:root /usr/local/bin/nexus-apt-install && \
     printf '%s\n' \
     'Defaults:agent !requiretty' \

@@ -31,6 +31,8 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
+	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
+	s.router.Post(s.prefixPath("/settings/runtime/nxs/download"), s.handlers.core.HandleDownloadNXSRuntime)
 	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.core.HandleListProviderPresets)
 	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.core.HandleListProviderConfigs)
 	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.core.HandleListProviderOptions)

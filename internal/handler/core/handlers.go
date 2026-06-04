@@ -7,6 +7,7 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	nxsruntimesvc "github.com/nexus-research-lab/nexus/internal/service/nxsruntime"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
@@ -20,6 +21,7 @@ type Handlers struct {
 	agents    *agentpkg.Service
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
+	nxs       *nxsruntimesvc.Service
 }
 
 // New 创建核心 handlers。
@@ -38,6 +40,7 @@ func New(
 		agents:    agents,
 		providers: providers,
 		prefs:     prefService,
+		nxs:       nxsruntimesvc.NewService(),
 	}
 }
 
@@ -122,6 +125,29 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 		return
 	}
 	h.api.WriteSuccess(writer, item)
+}
+
+// HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。
+func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *http.Request) {
+	h.api.WriteSuccess(writer, h.nxs.Status())
+}
+
+// HandleDownloadNXSRuntime 下载并缓存当前平台的 nxs runtime。
+func (h *Handlers) HandleDownloadNXSRuntime(writer http.ResponseWriter, request *http.Request) {
+	status, err := h.nxs.Download()
+	if err != nil {
+		h.api.WriteJSON(writer, http.StatusUnprocessableEntity, map[string]any{
+			"code":    "422",
+			"message": "failed",
+			"success": false,
+			"data": map[string]any{
+				"detail": status.Message,
+				"status": status,
+			},
+		})
+		return
+	}
+	h.api.WriteSuccess(writer, status)
 }
 
 func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Preferences, error) {

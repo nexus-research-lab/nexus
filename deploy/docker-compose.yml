@@ -22,6 +22,8 @@ services:
         PNPM_VERSION: ${PNPM_VERSION:-9.15.2}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         BUN_CONFIG_REGISTRY: ${BUN_CONFIG_REGISTRY:-https://registry.npmjs.org/}
+        NEXUS_DOCKER_BUNDLE_NXS_RUNTIME: ${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME:-1}
+        NEXUS_NXS_RUNTIME_RELEASE: ${NEXUS_NXS_RUNTIME_RELEASE:-nxs-v0.1.1}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
     env_file:

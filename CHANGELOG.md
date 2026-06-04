@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Refined the Goal composer/status UI with a smaller status strip, shared edit dialog, and Codex-aligned add-menu entry.
+- Unified bundled `nxs` runtime discovery around `$NEXUS_APP_ROOT/bin/nxs` so Docker and desktop packages use the same app-root path before falling back to the bridge resolver cache.
+
+### Fixed
+- Added Docker image build-time `nxs` runtime bundling and Settings runtime checks so switching to `nxs` first verifies local availability and prompts for download when needed.
+- Clarified nxs runtime startup failures in WebSocket chat errors so automatic runtime resolver failures are distinguished from missing local executables.
 
 ## [0.1.15] - 2026-06-04
 

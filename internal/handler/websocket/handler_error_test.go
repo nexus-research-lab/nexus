@@ -30,6 +30,15 @@ func TestChatErrorDetailExplainsMissingNXSCommand(t *testing.T) {
 	}
 }
 
+func TestChatErrorDetailExplainsNXSRuntimeResolverFailure(t *testing.T) {
+	message := chatErrorDetail(errors.New(`client: resolve nxs runtime failed: download nxs runtime manifest: unexpected http status 404 Not Found`))
+	if !strings.Contains(message, "自动解析失败") ||
+		!strings.Contains(message, "manifest") ||
+		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
+		t.Fatalf("nxs 自动解析失败时应返回 resolver 提示: %q", message)
+	}
+}
+
 func TestChatErrorDetailExplainsProviderConfig(t *testing.T) {
 	message := chatErrorDetail(errors.New("provider=default 配置不完整: auth_token, model"))
 	if !strings.Contains(message, "Provider") || !strings.Contains(message, "auth_token") {

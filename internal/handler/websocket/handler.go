@@ -572,6 +572,8 @@ func chatErrorDetail(err error) string {
 	}
 	message := strings.TrimSpace(err.Error())
 	switch {
+	case strings.Contains(message, "resolve nxs runtime failed"):
+		return "nxs runtime 自动解析失败，Agent 无法启动。请确认当前网络可以访问 bridge 发布的 nxs runtime manifest；如果你已经有本地 nxs，请设置 NEXUS_NXS_COMMAND_PATH 指向它。也可以在 Settings 将 Agent Runtime 切回 Claude。"
 	case strings.Contains(message, "nxs"):
 		return "未找到 nxs runtime，Agent 无法启动。Nexus 桌面包会优先使用随包预置的 nxs；如果当前包未预置，或你要覆盖路径，请设置 NEXUS_NXS_COMMAND_PATH 指向已有 nxs。也可以在 Settings 将 Agent Runtime 切回 Claude。"
 	case strings.Contains(message, "cli executable") ||
