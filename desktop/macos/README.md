@@ -6,7 +6,7 @@
 
 - SwiftPM 可执行程序，使用 AppKit + WKWebView。
 - 开发模式下从仓库根目录启动 `go run ./cmd/nexus-server`。
-- Bundle 模式下从 `.app/Contents/MacOS/nexus-server` 启动 Go sidecar。
+- Bundle 模式下从 `.app/Contents/MacOS/nexus-server` 启动 Go sidecar，并优先使用 `.app/Contents/Resources/bin/nxs` 作为 `nxs` runtime。
 - Shell 自动分配 loopback 随机端口。
 - Sidecar 通过 `WEB_DIST_DIR` 托管 `web/dist`，WebView 访问同源 `http://127.0.0.1:<port>/`。
 - Shell 在 document start 注入 `window.__NEXUS_DESKTOP_RUNTIME__`，前端优先使用注入的 API / WebSocket 地址。
@@ -44,7 +44,7 @@ scripts/desktop/package-macos-app.sh
 `generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
-`package-macos-app.sh` 会先构建 `.app`、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
+`package-macos-app.sh` 会先构建 `.app`、下载并预置当前平台的 `nxs` runtime、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
 人工 macOS app 验收步骤维护在 `docs/specs/desktop-app-qa-checklist.md`。
 
 本地验证 Keychain 时可以显式设置：
@@ -62,6 +62,8 @@ NEXUS_DESKTOP_KEYCHAIN_MODE=keychain scripts/desktop/run-macos-app.sh
 ```bash
 make app-dmg
 ```
+
+打包默认从 bridge runtime release 下载 `nxs-v0.1.1`。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时会回到 bridge 下载兜底或 `NEXUS_NXS_COMMAND_PATH` 覆盖路径。
 
 默认输出到 `desktop/macos/.build/package/`：
 

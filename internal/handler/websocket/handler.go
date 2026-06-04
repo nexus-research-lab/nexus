@@ -573,7 +573,7 @@ func chatErrorDetail(err error) string {
 	message := strings.TrimSpace(err.Error())
 	switch {
 	case strings.Contains(message, "nxs"):
-		return "未找到 nxs runtime，Agent 无法启动。Nexus 会优先使用 bridge 内嵌的 nxs；如果当前平台暂未内置，或你要覆盖路径，请设置 NEXUS_NXS_COMMAND_PATH 指向已有 nxs。也可以在 Settings 将 Agent Runtime 切回 Claude。"
+		return "未找到 nxs runtime，Agent 无法启动。Nexus 桌面包会优先使用随包预置的 nxs；如果当前包未预置，或你要覆盖路径，请设置 NEXUS_NXS_COMMAND_PATH 指向已有 nxs。也可以在 Settings 将 Agent Runtime 切回 Claude。"
 	case strings.Contains(message, "cli executable") ||
 		strings.Contains(message, "claude.exe") ||
 		strings.Contains(message, "claude.cmd") ||

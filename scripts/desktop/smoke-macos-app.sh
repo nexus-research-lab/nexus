@@ -12,6 +12,7 @@ MAIN_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS:-15}"
 MAIN_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_MAIN_URL_TIMEOUT_SECONDS:-3}"
 LAUNCHER_URL_TIMEOUT_SECONDS="${NEXUS_DESKTOP_SMOKE_LAUNCHER_URL_TIMEOUT_SECONDS:-3}"
 EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}"
+EXPECT_NXS_RUNTIME="${NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME:-0}"
 ALLOW_FALLBACK="${NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK:-0}"
 MAIN_READY_ROUTE_PATTERN="event=web\\.ready.*location_path=/launcher .*surface=main"
 LAUNCHER_ROUTE_PATTERN="/launcher($|[[:space:]])"
@@ -89,6 +90,16 @@ fi
 
 if ! "${NEXUSCTL_EXECUTABLE}" --help >/dev/null 2>&1; then
   fail "bundled nexusctl --help failed"
+fi
+
+NXS_EXECUTABLE="${APP_BUNDLE}/Contents/Resources/bin/nxs"
+if [[ "${EXPECT_NXS_RUNTIME}" == "1" ]]; then
+  if [[ ! -x "${NXS_EXECUTABLE}" ]]; then
+    fail "missing bundled nxs executable: ${NXS_EXECUTABLE}"
+  fi
+  if ! "${NXS_EXECUTABLE}" --version >/dev/null 2>&1; then
+    fail "bundled nxs --version failed"
+  fi
 fi
 
 if pgrep -x "${EXECUTABLE_NAME}" >/dev/null 2>&1; then

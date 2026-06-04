@@ -175,6 +175,7 @@ internal static class DesktopDiagnosticsReport
             ["bundled_web_oauth_callback_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "oauth-callback.html")),
             ["bundled_sidecar_exists"] = File.Exists(Path.Combine(resourceDirectory, "nexus-server.exe")),
             ["bundled_nexusctl_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nexusctl.exe")),
+            ["bundled_nxs_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nxs.exe")),
             ["connector_credentials_dpapi_exists"] = File.Exists(Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.dpapi")),
             ["connector_credentials_fallback_key_exists"] = File.Exists(Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.key")),
             ["nexus_url_scheme_registered"] = NexusUrlSchemeRegistered(),

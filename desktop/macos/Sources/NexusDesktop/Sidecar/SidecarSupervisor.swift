@@ -101,6 +101,7 @@ final class SidecarSupervisor {
     environment["TELEGRAM_ENABLED"] = "false"
     environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback"
     applyPackagedConnectorConfig(to: &environment)
+    applyBundledNXSRuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = "\(webOrigin),nexus://connectors"
     return environment
@@ -125,6 +126,19 @@ final class SidecarSupervisor {
       if key == "CONNECTOR_GITHUB_CLIENT_ID" && !value.isEmpty {
         environment[key] = value
       }
+    }
+  }
+
+  private func applyBundledNXSRuntime(to environment: inout [String: String]) {
+    guard locator.projectRoot == nil else {
+      return
+    }
+    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return
+    }
+    let nxsURL = locator.appRootURL.appendingPathComponent("bin/nxs")
+    if FileManager.default.isExecutableFile(atPath: nxsURL.path) {
+      environment["NEXUS_NXS_COMMAND_PATH"] = nxsURL.path
     }
   }
 

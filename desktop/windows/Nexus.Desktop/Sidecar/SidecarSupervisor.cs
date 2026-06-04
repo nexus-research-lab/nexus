@@ -112,6 +112,7 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["TELEGRAM_ENABLED"] = "false";
         startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback";
         ApplyPackagedConnectorConfig(startInfo);
+        ApplyBundledNXSRuntime(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = $"{runtime.WebBaseUrl.TrimEnd('/')},nexus://connectors";
         return startInfo;
     }
@@ -144,6 +145,26 @@ internal sealed class SidecarSupervisor : IDisposable
             {
                 startInfo.Environment[key] = value;
             }
+        }
+    }
+
+    private void ApplyBundledNXSRuntime(ProcessStartInfo startInfo)
+    {
+        if (locator.IsDevelopment)
+        {
+            return;
+        }
+
+        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
+            !string.IsNullOrWhiteSpace(overridePath))
+        {
+            return;
+        }
+
+        string nxsPath = Path.Combine(locator.AppRoot, "bin", "nxs.exe");
+        if (File.Exists(nxsPath))
+        {
+            startInfo.Environment["NEXUS_NXS_COMMAND_PATH"] = nxsPath;
         }
     }
 

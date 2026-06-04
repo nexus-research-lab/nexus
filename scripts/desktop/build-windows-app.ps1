@@ -6,7 +6,8 @@ param(
   [string]$OutputDir = "",
   [string]$Version = "",
   [string]$BuildNumber = "",
-  [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED
+  [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
+  [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME
 )
 
 $ErrorActionPreference = "Stop"
@@ -160,6 +161,7 @@ $resolvedBuildNumber = Resolve-BuildNumber $rootDir $BuildNumber
 $fileVersion = Convert-FileVersion $appVersion $resolvedBuildNumber
 $publishSelfContained = Resolve-Bool $SelfContained $false
 $publishSelfContainedValue = $publishSelfContained.ToString().ToLowerInvariant()
+$bundleNXSRuntime = Resolve-Bool $BundleNXSRuntime $false
 $goArch = Resolve-WindowsGoArch $RuntimeIdentifier
 $gitCommit = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "--short=12", "HEAD") -fallback "unknown"
 $buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -230,6 +232,17 @@ New-Item -ItemType Directory -Force -Path $resourcesBinDir | Out-Null
 Copy-Item -Recurse -Force (Join-Path $publishDir "*") $OutputDir
 Copy-Item -Force $sidecarPath (Join-Path $resourcesDir "nexus-server.exe")
 Copy-Item -Force $nexusctlPath (Join-Path $resourcesBinDir "nexusctl.exe")
+if ($bundleNXSRuntime) {
+  Write-Host "==> Downloading bundled nxs runtime"
+  $nxsPath = Join-Path $resourcesBinDir "nxs.exe"
+  & node (Join-Path $rootDir "scripts/desktop/fetch-nxs-runtime.js") `
+    --goos "windows" `
+    --goarch $goArch `
+    --output $nxsPath
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to download bundled nxs runtime"
+  }
+}
 Copy-Item -Recurse -Force (Join-Path $rootDir "web/dist") (Join-Path $resourcesDir "Web")
 New-Item -ItemType Directory -Force -Path (Join-Path $resourcesDir "db") | Out-Null
 Copy-Item -Recurse -Force (Join-Path $rootDir "db/migrations") (Join-Path $resourcesDir "db/migrations")
