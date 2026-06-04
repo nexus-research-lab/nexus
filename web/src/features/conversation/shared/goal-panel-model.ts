@@ -99,11 +99,11 @@ export function goal_status_tone(status: GoalStatus): {
       };
     default:
       return {
-        badge: "border-border/70 bg-muted/60 text-muted-foreground",
-        icon: "border-border/70 bg-muted/60 text-muted-foreground",
+        badge: "border-transparent bg-transparent text-(--text-soft)",
+        icon: "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)",
         meter: "bg-muted-foreground",
         rail: "bg-muted-foreground",
-        text: "text-muted-foreground",
+        text: "text-(--text-soft)",
       };
   }
 }

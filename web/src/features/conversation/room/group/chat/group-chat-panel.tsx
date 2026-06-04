@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -8,6 +8,7 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import { create_goal_api } from "@/lib/api/goal-api";
 import { build_room_shared_session_key } from "@/lib/conversation/session-key";
 import { useAuth } from "@/shared/auth/auth-context";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -20,6 +21,7 @@ import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
+import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import {
   build_conversation_activity_snapshot,
@@ -34,6 +36,7 @@ import { GroupConversationFeed } from "./group-conversation-feed";
 import { useRoomComposerHandlers } from "./use-room-composer-handlers";
 import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
+import { RoomGoalPanel } from "./room-goal-panel";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
 
 const HISTORY_LOAD_THRESHOLD_PX = 120;
@@ -76,6 +79,8 @@ export function GroupChatPanel({
   conversation_id,
   room_id = null,
   room_members,
+  room_host_agent_id = null,
+  room_host_auto_reply_enabled = false,
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
@@ -95,14 +100,21 @@ export function GroupChatPanel({
     ? build_room_shared_session_key(conversation_id)
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
+  const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const refresh_goal_panel = useCallback(() => {
+    set_goal_refresh_seq((value) => value + 1);
+  }, []);
   const handle_conversation_event = useCallback(
     (
       event_type: string,
       data: import("@/types/agent/agent-conversation").RoomEventPayload,
     ) => {
+      if (event_type.startsWith("goal_")) {
+        refresh_goal_panel();
+      }
       on_room_event?.(event_type, data);
     },
-    [on_room_event],
+    [on_room_event, refresh_goal_panel],
   );
   const session_identity = useMemo<AgentConversationIdentity | null>(() => {
     if (!conversation_id) {
@@ -338,6 +350,17 @@ export function GroupChatPanel({
       send_message,
       session_key,
     });
+  const handle_create_goal = useCallback(async (objective: string) => {
+    if (!session_key) {
+      throw new Error("当前房间会话尚未准备好，暂时无法启动 Goal。");
+    }
+    await create_goal_api({
+      session_key,
+      objective,
+      token_budget: null,
+    });
+    refresh_goal_panel();
+  }, [refresh_goal_panel, session_key]);
   useRoomThreadPanelData({
     agent_avatar_map,
     agent_name_map,
@@ -431,14 +454,27 @@ export function GroupChatPanel({
             <ProviderUnavailableBanner compact={is_mobile_layout} />
           ) : null}
 
+          <RoomGoalPanel
+            activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
+            can_control_session={can_control_session}
+            is_loading={is_loading}
+            is_mobile_layout={is_mobile_layout}
+            room_host_agent_id={room_host_agent_id}
+            room_host_auto_reply_enabled={Boolean(room_host_auto_reply_enabled)}
+            room_members={room_members}
+            session_key={session_key}
+          />
+
           <ComposerPanel
             allow_send_while_loading
             compact={is_mobile_layout}
             default_delivery_policy={default_delivery_policy}
+            goal_scope_label={ROOM_GOAL_SCOPE_LABEL}
             input_queue_items={input_queue_items}
             is_loading={is_loading}
             queue_when_session_busy={false}
             runtime_phase={runtime_phase}
+            on_create_goal={session_key && can_control_session ? handle_create_goal : undefined}
             on_delete_queued_message={delete_input_queue_message}
             on_enqueue_message={enqueue_input_queue_message}
             on_guide_queued_message={guide_input_queue_message}

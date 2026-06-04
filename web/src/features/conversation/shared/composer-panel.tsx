@@ -9,9 +9,11 @@ import {
   FileText,
   GripVertical,
   Image as ImageIcon,
+  Plus,
   Paperclip,
   Send,
   StopCircle,
+  Target,
   Trash2,
   X,
 } from "lucide-react";
@@ -19,6 +21,8 @@ import {
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
+import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { UiActionMenu } from "@/shared/ui/action-menu";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   AgentConversationDefaultDeliveryPolicy,
@@ -29,7 +33,6 @@ import {
 import { Agent } from "@/types/agent/agent";
 
 import {
-  COMPOSER_ACTION_BUTTON_CLASS_NAME,
   COMPOSER_ATTACHMENT_CLASS_NAME,
   COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
   COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
@@ -83,6 +86,8 @@ interface ComposerPanelProps {
   room_members?: Agent[];
   mention_unavailable_agent_ids?: string[];
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
+  on_create_goal?: (objective: string) => Promise<void>;
+  goal_scope_label?: string;
   tour_anchor?: string;
 }
 
@@ -96,6 +101,7 @@ const COMPOSITION_END_ENTER_GUARD_MS = 80;
 const PENDING_QUEUE_AUTO_SCROLL_ZONE_PX = 28;
 const PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX = 10;
 const MAX_COMPOSER_ATTACHMENTS = 6;
+type ComposerInputMode = "message" | "goal";
 
 const CLIPBOARD_IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
   "image/png": "png",
@@ -216,10 +222,16 @@ const ComposerPanelView = memo(({
   room_members = [],
   mention_unavailable_agent_ids = [],
   on_prepare_attachments,
+  on_create_goal,
+  goal_scope_label = "会话 Goal",
   tour_anchor,
 }: ComposerPanelProps) => {
   const { t } = useI18n();
-  const resolved_placeholder = placeholder ?? t("composer.default_placeholder");
+  const [input_mode, set_input_mode] = useState<ComposerInputMode>("message");
+  const is_goal_mode = input_mode === "goal";
+  const resolved_placeholder = is_goal_mode
+    ? t("composer.goal_placeholder")
+    : placeholder ?? t("composer.default_placeholder");
   const [input, setInput] = useState("");
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
@@ -231,6 +243,9 @@ const ComposerPanelView = memo(({
   const [drag_over_message_id, set_drag_over_message_id] = useState<string | null>(null);
   const [is_pending_queue_collapsed, set_is_pending_queue_collapsed] = useState(false);
   const [is_queue_action_running, set_is_queue_action_running] = useState(false);
+  const [is_action_menu_open, set_is_action_menu_open] = useState(false);
+  const [is_goal_creating, set_is_goal_creating] = useState(false);
+  const [goal_error, set_goal_error] = useState<string | null>(null);
 
   // 共享 Composer 同时服务 DM 和 Room，这里统一在共享层过滤不可提及成员，
   // 避免再保留第二套几乎相同的输入区实现。
@@ -254,6 +269,7 @@ const ComposerPanelView = memo(({
   const last_composition_end_at_ref = useRef(0);
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
+  const action_button_ref = useRef<HTMLButtonElement>(null);
   const pending_queue_scroll_ref = useRef<HTMLDivElement>(null);
   const pending_queue_drag_y_ref = useRef<number | null>(null);
   const pending_queue_scroll_frame_ref = useRef<number | null>(null);
@@ -261,6 +277,7 @@ const ComposerPanelView = memo(({
   const is_dispatching = is_loading && runtime_phase === "sending";
   const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
+  const can_create_goal = Boolean(on_create_goal);
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
@@ -313,6 +330,14 @@ const ComposerPanelView = memo(({
     if (attachment_error) {
       setAttachmentError(null);
     }
+    if (goal_error) {
+      set_goal_error(null);
+    }
+
+    if (is_goal_mode) {
+      set_mention_active(false);
+      return;
+    }
 
     if (available_room_members.length === 0) {
       set_mention_active(false);
@@ -337,7 +362,7 @@ const ComposerPanelView = memo(({
     }
 
     set_mention_active(false);
-  }, [attachment_error, available_room_members.length]);
+  }, [attachment_error, available_room_members.length, goal_error, is_goal_mode]);
 
   const handle_mention_select = useCallback((agent: Agent) => {
     const before = input.slice(0, mention_start_pos);
@@ -382,6 +407,24 @@ const ComposerPanelView = memo(({
 
   const handle_send = useCallback(async () => {
     const trimmed_input = input.trim();
+    if (is_goal_mode) {
+      if (!trimmed_input || is_input_locked || is_goal_creating || !on_create_goal) {
+        return;
+      }
+      set_is_goal_creating(true);
+      set_goal_error(null);
+      try {
+        await on_create_goal(trimmed_input);
+        setInput("");
+        set_input_mode("message");
+      } catch (error) {
+        set_goal_error(error instanceof Error ? error.message : t("composer.goal_create_failed"));
+      } finally {
+        set_is_goal_creating(false);
+      }
+      return;
+    }
+
     if (
       (!trimmed_input && attachments.length === 0) ||
       is_input_locked ||
@@ -445,14 +488,48 @@ const ComposerPanelView = memo(({
     dispatch_message,
     input_queue_items.length,
     input,
+    is_goal_creating,
+    is_goal_mode,
     is_input_locked,
     is_loading,
     is_preparing_attachments,
     on_enqueue_message,
+    on_create_goal,
     on_prepare_attachments,
     queue_when_session_busy,
     t,
   ]);
+
+  const open_attachment_picker = useCallback(() => {
+    set_is_action_menu_open(false);
+    file_input_ref.current?.click();
+  }, []);
+
+  const start_goal_input = useCallback(() => {
+    if (!can_create_goal) {
+      return;
+    }
+    set_is_action_menu_open(false);
+    set_input_mode("goal");
+    set_goal_error(null);
+    set_mention_active(false);
+    requestAnimationFrame(() => textarea_ref.current?.focus());
+  }, [can_create_goal]);
+
+  const cancel_goal_input = useCallback(() => {
+    set_input_mode("message");
+    set_goal_error(null);
+    requestAnimationFrame(() => textarea_ref.current?.focus());
+  }, []);
+
+  const toggle_goal_input = useCallback((checked: boolean) => {
+    if (checked) {
+      start_goal_input();
+      return;
+    }
+    set_is_action_menu_open(false);
+    cancel_goal_input();
+  }, [cancel_goal_input, start_goal_input]);
 
   const remove_pending_message = useCallback(async (id: string) => {
     await on_delete_queued_message?.(id);
@@ -627,25 +704,42 @@ const ComposerPanelView = memo(({
     }
 
     event.preventDefault();
+    if (is_goal_mode) {
+      set_goal_error(t("composer.goal_attachment_unsupported"));
+      return;
+    }
     append_attachment_files(pasted_files);
-  }, [append_attachment_files]);
+  }, [append_attachment_files, is_goal_mode, t]);
 
   const remove_attachment = (id: string) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const is_input_empty = input.trim().length === 0 && attachments.length === 0;
+  const has_text_input = input.trim().length > 0;
+  const is_input_empty = !has_text_input && attachments.length === 0;
   const char_count = input.length;
   const is_near_limit = char_count > max_length * 0.8;
   const is_over_limit = char_count > max_length;
-  const is_send_disabled =
-    is_input_empty || is_input_locked || is_over_limit || is_preparing_attachments;
+  const is_send_disabled = is_goal_mode
+    ? !has_text_input || is_input_locked || is_over_limit || is_goal_creating || !on_create_goal
+    : is_input_empty || is_input_locked || is_over_limit || is_preparing_attachments;
   const should_show_stop_button =
-    can_stop_generation && (!allow_send_while_loading || is_input_empty);
+    !is_goal_mode && can_stop_generation && (!allow_send_while_loading || is_input_empty);
   const has_pending_queue = input_queue_items.length > 0;
+  const active_error = is_goal_mode ? goal_error : attachment_error;
+  const send_button_label = is_goal_mode ? t("composer.goal_confirm") : t("composer.send_message");
+  const inline_enter_label = is_goal_mode
+    ? t("composer.goal_enter_start")
+    : queue_when_session_busy && (is_loading || input_queue_items.length > 0)
+      ? t("composer.enter_queue")
+      : t("composer.enter_send");
+  const should_show_inline_shortcuts = !compact && input.length === 0;
   let composer_input_row_padding_class = compact ? "px-2 py-2" : "px-3 py-3";
   if (has_pending_queue) {
     composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1" : "px-3 pb-3 pt-1.5";
+  }
+  if (is_goal_mode) {
+    composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1.5" : "px-3 pb-3 pt-2";
   }
 
   return (
@@ -826,16 +920,6 @@ const ComposerPanelView = memo(({
         ) : null}
 
         <div className={cn("flex items-end gap-2", composer_input_row_padding_class)}>
-          <button
-            aria-label={t("composer.add_attachment")}
-            className={COMPOSER_ACTION_BUTTON_CLASS_NAME}
-            disabled={is_input_locked || is_preparing_attachments}
-            onClick={() => file_input_ref.current?.click()}
-            type="button"
-          >
-            <Paperclip size={16} />
-          </button>
-
           {mention_active && mention_target_items.length > 0 ? (
             <MentionTargetPopover
               anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
@@ -860,6 +944,7 @@ const ComposerPanelView = memo(({
                 "placeholder:text-(--text-soft)",
                 "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
                 "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
+                should_show_inline_shortcuts && "min-[760px]:pr-[210px]",
               )}
               disabled={is_input_locked}
               onChange={(event) => handle_input_change(event.target.value)}
@@ -884,6 +969,20 @@ const ComposerPanelView = memo(({
               rows={1}
               value={input}
             />
+            {should_show_inline_shortcuts ? (
+              <div className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-2 text-[10px] text-(--text-soft) min-[760px]:flex">
+                <span className="flex items-center gap-1">
+                  <kbd>Enter</kbd>
+                  <span>{inline_enter_label}</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd>Shift</kbd>
+                  <span>+</span>
+                  <kbd>Enter</kbd>
+                  <span>{t("composer.shift_enter_newline")}</span>
+                </span>
+              </div>
+            ) : null}
           </div>
 
           {should_show_stop_button ? (
@@ -897,7 +996,7 @@ const ComposerPanelView = memo(({
             </button>
           ) : (
             <button
-              aria-label={t("composer.send_message")}
+              aria-label={send_button_label}
               className={COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME}
               disabled={is_send_disabled}
               onClick={() => {
@@ -905,8 +1004,10 @@ const ComposerPanelView = memo(({
               }}
               type="button"
             >
-              {is_preparing_attachments ? (
+              {is_preparing_attachments || is_goal_creating ? (
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
+              ) : is_goal_mode ? (
+                <Target size={16} />
               ) : (
                 <Send size={16} />
               )}
@@ -915,7 +1016,84 @@ const ComposerPanelView = memo(({
         </div>
 
         <div className={COMPOSER_FOOTER_CLASS_NAME}>
-          <div className="flex items-center gap-3 text-[10px] text-(--text-soft)">
+          <div className="flex min-w-0 items-center gap-2 text-[10px] text-(--text-soft)">
+            <div className="shrink-0">
+              <button
+                ref={action_button_ref}
+                aria-expanded={is_action_menu_open}
+                aria-haspopup="menu"
+                aria-label={t("composer.open_actions")}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                disabled={is_input_locked}
+                onClick={() => set_is_action_menu_open((current) => !current)}
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <UiActionMenu
+                anchor_ref={action_button_ref}
+                aria_label={t("composer.open_actions")}
+                is_open={is_action_menu_open}
+                items={[
+                  {
+                    value: "attachment",
+                    label: t("composer.add_attachment"),
+                    icon: <Paperclip className="h-4 w-4 text-(--icon-muted)" />,
+                    disabled: is_input_locked || is_preparing_attachments || is_goal_mode,
+                  },
+                  {
+                    value: "goal",
+                    label: t("composer.start_goal"),
+                    icon: <Target className="h-4 w-4 text-(--primary)" />,
+                    trailing: (
+                      <span
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <GlassSwitch
+                          checked={is_goal_mode}
+                          disabled={!can_create_goal || is_input_locked || is_goal_creating}
+                          on_change={toggle_goal_input}
+                          size="xs"
+                        />
+                      </span>
+                    ),
+                    active: is_goal_mode,
+                    disabled: !can_create_goal || is_input_locked || is_goal_creating,
+                    tone: "primary",
+                  },
+                ]}
+                placement="top"
+                on_close={() => set_is_action_menu_open(false)}
+                on_select={(value) => {
+                  if (value === "attachment") {
+                    open_attachment_picker();
+                    return;
+                  }
+                  if (value === "goal") {
+                    toggle_goal_input(!is_goal_mode);
+                  }
+                }}
+              />
+            </div>
+
+            {is_goal_mode ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-(--primary)">
+                <Target className="h-3.5 w-3.5 shrink-0" />
+                <span>{t("composer.goal_mode")}</span>
+                <span className="truncate font-medium text-(--text-muted)">{goal_scope_label}</span>
+                <button
+                  aria-label={t("composer.cancel_goal_mode")}
+                  className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                  disabled={is_goal_creating}
+                  onClick={cancel_goal_input}
+                  type="button"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ) : null}
+
             {is_dispatching ? (
               <span className="flex items-center gap-2 text-emerald-900/90">
                 <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
@@ -932,22 +1110,9 @@ const ComposerPanelView = memo(({
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
                 <span>{t("composer.preparing_attachments")}</span>
               </span>
-            ) : attachment_error ? (
-              <span className="text-(--destructive)">{attachment_error}</span>
-            ) : (
-              <>
-                <span className="flex items-center gap-1">
-                  <kbd>Enter</kbd>
-                  <span>{queue_when_session_busy && (is_loading || input_queue_items.length > 0) ? t("composer.enter_queue") : t("composer.enter_send")}</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <kbd>Shift</kbd>
-                  <span>+</span>
-                  <kbd>Enter</kbd>
-                  <span>{t("composer.shift_enter_newline")}</span>
-                </span>
-              </>
-            )}
+            ) : active_error ? (
+              <span className="text-(--destructive)">{active_error}</span>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-3 text-[10px] tabular-nums">
