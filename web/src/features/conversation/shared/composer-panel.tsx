@@ -280,6 +280,7 @@ const ComposerPanelView = memo(({
   const dragging_message_id_ref = useRef<string | null>(null);
   const is_dispatching = is_loading && runtime_phase === "sending";
   const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
+  const is_textarea_locked = is_input_locked || (is_goal_mode && is_goal_creating);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
   const can_create_goal = Boolean(on_create_goal);
   const goal_create_blocked_reason =
@@ -961,7 +962,7 @@ const ComposerPanelView = memo(({
                 "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                 should_show_inline_shortcuts && "min-[760px]:pr-[210px]",
               )}
-              disabled={is_input_locked}
+              disabled={is_textarea_locked}
               onChange={(event) => handle_input_change(event.target.value)}
               onWheel={(event) => {
                 const target = event.currentTarget;
@@ -1125,6 +1126,11 @@ const ComposerPanelView = memo(({
               <span className="flex items-center gap-2 text-(--text-default)">
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
                 <span>{t("composer.preparing_attachments")}</span>
+              </span>
+            ) : is_goal_creating ? (
+              <span className="flex items-center gap-2 text-(--primary)">
+                <LoadingOrb frames={["·", "◦", "•", "◦"]} />
+                <span className="animate-pulse">{t("composer.goal_normalizing")}</span>
               </span>
             ) : active_error ? (
               <span className="text-(--destructive)">{active_error}</span>
