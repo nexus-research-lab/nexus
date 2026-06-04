@@ -330,9 +330,35 @@ func normalizeAPIFormat(apiFormat string) string {
 }
 
 func isAgentRuntimeAPIFormat(apiFormat string) bool {
-	return normalizeAPIFormat(apiFormat) == APIFormatAnthropicMessages
+	return isAgentRuntimeAPIFormatForRuntime(apiFormat, "claude")
+}
+
+func isAgentRuntimeAPIFormatForRuntime(apiFormat string, runtimeKind string) bool {
+	switch normalizeAPIFormat(apiFormat) {
+	case APIFormatAnthropicMessages:
+		return true
+	case APIFormatChatCompletions:
+		return normalizeRuntimeKind(runtimeKind) == "nxs"
+	default:
+		return false
+	}
 }
 
 func isAgentRuntimeProvider(item providerstore.Entity) bool {
 	return item.ProviderKind == ProviderKindLLM && isAgentRuntimeAPIFormat(item.APIFormat)
+}
+
+func isAgentRuntimeProviderForRuntime(item providerstore.Entity, runtimeKind string) bool {
+	return item.ProviderKind == ProviderKindLLM && isAgentRuntimeAPIFormatForRuntime(item.APIFormat, runtimeKind)
+}
+
+func isAnyAgentRuntimeProvider(item providerstore.Entity) bool {
+	return isAgentRuntimeProviderForRuntime(item, "claude") || isAgentRuntimeProviderForRuntime(item, "nxs")
+}
+
+func normalizeRuntimeKind(runtimeKind string) string {
+	if strings.TrimSpace(runtimeKind) == "nxs" {
+		return "nxs"
+	}
+	return "claude"
 }

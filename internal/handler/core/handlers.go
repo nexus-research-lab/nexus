@@ -67,12 +67,12 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
-	providerOptions, err := h.providers.ListOptions(request.Context())
+	prefs, err := h.currentPreferences(request)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
-	prefs, err := h.currentPreferences(request)
+	providerOptions, err := h.providers.ListOptionsForRuntime(request.Context(), prefs.AgentRuntimeKind)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
@@ -178,7 +178,19 @@ func (h *Handlers) HandleListProviderPresets(writer http.ResponseWriter, request
 
 // HandleListProviderOptions 返回 provider 下拉选项。
 func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.providers.ListOptions(request.Context())
+	runtimeKind := strings.TrimSpace(request.URL.Query().Get("agent_runtime_kind"))
+	if runtimeKind == "" {
+		runtimeKind = strings.TrimSpace(request.URL.Query().Get("runtime_kind"))
+	}
+	if runtimeKind == "" {
+		prefs, err := h.currentPreferences(request)
+		if err != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
+		runtimeKind = prefs.AgentRuntimeKind
+	}
+	item, err := h.providers.ListOptionsForRuntime(request.Context(), runtimeKind)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return

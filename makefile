@@ -13,6 +13,13 @@ AGENT_GID ?= 1001
 HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
+NXS_DEV_GOOS ?= $(shell go env GOOS)
+NXS_DEV_GOARCH ?= $(shell go env GOARCH)
+NXS_DEV_BINARY_NAME := nxs
+ifeq ($(NXS_DEV_GOOS),windows)
+NXS_DEV_BINARY_NAME := nxs.exe
+endif
+NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 
 # Default target
@@ -59,8 +66,13 @@ dev: ## Run both frontend and backend in development mode
 	fi
 	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
-dev-nxs: ## Run dev servers with bundled nxs runtime
-	NEXUS_AGENT_RUNTIME_KIND=nxs $(MAKE) dev BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
+dev-nxs: ## Run dev servers with local Go SDK nxs runtime
+	@if [ -z "$$NEXUS_NXS_COMMAND_PATH" ] && [ ! -x "$(NXS_DEV_RUNTIME_PATH)" ]; then \
+		echo "Error: dev nxs runtime not found: $(NXS_DEV_RUNTIME_PATH)"; \
+		echo "Hint: run 'make -C ../nexus-agent-sdk/nexus-agent-sdk-go build-nxs' first."; \
+		exit 1; \
+	fi
+	NEXUS_AGENT_RUNTIME_KIND=nxs NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" $(MAKE) dev BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
 install: ## Install all dependencies
 	@echo "Installing Go dependencies..."

@@ -22,6 +22,7 @@ import type {
   UpdateProviderModelPayload,
   UpdateProviderConfigPayload,
 } from "@/types/capability/provider";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 const PROVIDER_CONFIG_BASE_URL = `${get_agent_api_base_url()}/settings/providers`;
 const PROVIDER_PRESETS_URL = `${get_agent_api_base_url()}/settings/provider-presets`;
@@ -34,9 +35,17 @@ export async function list_provider_configs_api(): Promise<
   });
 }
 
-export async function list_provider_options_api(): Promise<ProviderOptionsResponse> {
+export async function list_provider_options_api(
+  runtime_kind?: AgentRuntimeKind | string,
+): Promise<ProviderOptionsResponse> {
+  const params = new URLSearchParams();
+  const normalized_runtime_kind = runtime_kind?.trim();
+  if (normalized_runtime_kind) {
+    params.set("agent_runtime_kind", normalized_runtime_kind);
+  }
+  const query = params.toString();
   return request_api<ProviderOptionsResponse>(
-    `${PROVIDER_CONFIG_BASE_URL}/options`,
+    `${PROVIDER_CONFIG_BASE_URL}/options${query ? `?${query}` : ""}`,
     {
       method: "GET",
     },

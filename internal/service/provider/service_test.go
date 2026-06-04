@@ -68,10 +68,11 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		t.Fatalf("chat_completions 暂不应成为 Agent runtime provider: %+v", openai)
 	}
 	if _, err = service.ResolveRuntimeConfig(ctx, "openai", "gpt-4o"); err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
-		t.Fatalf("OpenAI chat_completions 应被 Agent runtime 拒绝: %v", err)
+		t.Fatalf("OpenAI chat_completions 应被 Claude runtime 拒绝: %v", err)
 	}
 	if _, err = service.UpdateModel(ctx, "openai", "gpt-4o", UpdateModelInput{
-		Enabled: true,
+		Enabled:   true,
+		IsDefault: true,
 	}); err != nil {
 		t.Fatalf("启用 OpenAI 模型失败: %v", err)
 	}
@@ -81,6 +82,21 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	}
 	if llmConfig.APIFormat != APIFormatChatCompletions || llmConfig.Model != "gpt-4o" {
 		t.Fatalf("OpenAI LLM config 不正确: %+v", llmConfig)
+	}
+	nxsRuntimeConfig, err := service.ResolveRuntimeConfigForRuntime(ctx, "openai", "gpt-4o", "nxs")
+	if err != nil {
+		t.Fatalf("OpenAI chat_completions 应可用于 nxs runtime: %v", err)
+	}
+	if nxsRuntimeConfig.APIFormat != APIFormatChatCompletions || nxsRuntimeConfig.Model != "gpt-4o" {
+		t.Fatalf("OpenAI nxs runtime config 不正确: %+v", nxsRuntimeConfig)
+	}
+	openAINXSOptions, err := service.ListOptionsForRuntime(ctx, "nxs")
+	if err != nil {
+		t.Fatalf("读取 OpenAI nxs provider options 失败: %v", err)
+	}
+	if openAINXSOptions.DefaultProvider == nil || *openAINXSOptions.DefaultProvider != "openai" ||
+		openAINXSOptions.DefaultModel == nil || *openAINXSOptions.DefaultModel != "gpt-4o" {
+		t.Fatalf("OpenAI 应可成为 nxs 默认模型: %+v", openAINXSOptions)
 	}
 
 	deepseek, err := service.Create(ctx, CreateInput{
@@ -374,6 +390,18 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 	if doubaoImage == nil || !hasModelOption(doubaoImage.Models, "doubao-seedream-5-0-260128") ||
 		hasModelOption(doubaoImage.Models, "doubao-1-5-pro-32k-250115") {
 		t.Fatalf("Doubao 生图模型选项不正确: %+v", doubaoImage)
+	}
+	nxsOptions, err := service.ListOptionsForRuntime(ctx, "nxs")
+	if err != nil {
+		t.Fatalf("读取 nxs provider options 失败: %v", err)
+	}
+	if !hasOptionProvider(nxsOptions.Items, "openai") {
+		t.Fatalf("OpenAI 应出现在 nxs 默认对话模型选项: %+v", nxsOptions.Items)
+	}
+	doubaoRuntime := optionByProvider(nxsOptions.Items, "doubao")
+	if doubaoRuntime == nil || !hasModelOption(doubaoRuntime.Models, "doubao-1-5-pro-32k-250115") ||
+		hasModelOption(doubaoRuntime.Models, "doubao-seedream-5-0-260128") {
+		t.Fatalf("Doubao nxs runtime 模型选项不正确: %+v", doubaoRuntime)
 	}
 }
 

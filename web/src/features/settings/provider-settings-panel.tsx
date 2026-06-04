@@ -135,7 +135,11 @@ const API_FORMAT_SHORT_LABELS: Record<ProviderApiFormat, string> = {
 };
 
 const AUTO_TEST_MODEL_VALUE = "__auto__";
-const SUPPORTED_AGENT_API_FORMAT: ProviderApiFormat = "anthropic_messages";
+const DEFAULT_AGENT_API_FORMAT: ProviderApiFormat = "anthropic_messages";
+const SUPPORTED_AGENT_API_FORMATS = new Set<ProviderApiFormat>([
+  "anthropic_messages",
+  "chat_completions",
+]);
 const SUPPORTED_IMAGE_API_FORMATS = new Set<ProviderApiFormat>([
   "chat_completions",
   "openai_image_generation",
@@ -233,7 +237,7 @@ function api_format_supported_for_kind(provider_kind: ProviderKind, api_format: 
   if (provider_kind === "image_generation") {
     return SUPPORTED_IMAGE_API_FORMATS.has(api_format);
   }
-  return api_format === SUPPORTED_AGENT_API_FORMAT;
+  return SUPPORTED_AGENT_API_FORMATS.has(api_format);
 }
 
 function build_provider_draft(
@@ -250,7 +254,7 @@ function build_provider_draft(
     provider_kind,
     provider: is_custom ? "" : provider_key,
     preset_key: preset?.preset_key ?? "custom",
-    api_format: (format?.api_format ?? preset?.default_api_format ?? SUPPORTED_AGENT_API_FORMAT) as ProviderApiFormat,
+    api_format: (format?.api_format ?? preset?.default_api_format ?? DEFAULT_AGENT_API_FORMAT) as ProviderApiFormat,
     display_name: is_custom ? "" : (preset?.display_name ?? ""),
     auth_token: "",
     base_url: format?.base_url ?? "",
@@ -682,7 +686,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         ? current_format
         : get_supported_preset_format(current_preset, provider_kind);
       const api_format = format?.api_format
-        ?? (provider_kind === "image_generation" ? "chat_completions" : SUPPORTED_AGENT_API_FORMAT);
+        ?? (provider_kind === "image_generation" ? "chat_completions" : DEFAULT_AGENT_API_FORMAT);
       return {
         ...current,
         provider_kind,
@@ -1112,7 +1116,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     ? format_supports_provider_kind(current_format, draft.provider_kind)
     : false;
   const is_api_format_configurable = current_format_supports_kind || can_select_non_runtime_format;
-  const show_runtime_format_badge = draft.provider_kind === "llm" && draft.api_format !== SUPPORTED_AGENT_API_FORMAT;
+  const show_runtime_format_badge = draft.provider_kind === "llm" && !SUPPORTED_AGENT_API_FORMATS.has(draft.api_format);
   const show_provider_shape_controls = is_custom_provider;
   const has_models_endpoint = !!get_effective_models_path(draft, current_preset).trim();
   const displayed_models = sort_models_enabled_first(filtered_models);

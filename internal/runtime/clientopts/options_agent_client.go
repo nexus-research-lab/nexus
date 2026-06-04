@@ -17,6 +17,7 @@ import (
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const apiFormatAnthropicMessages = "anthropic_messages"
+const apiFormatChatCompletions = "chat_completions"
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
@@ -37,6 +38,11 @@ var claudeSessionScheduleTools = []string{
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
 	ResolveRuntimeConfig(context.Context, string, string) (*RuntimeConfig, error)
+}
+
+// RuntimeConfigForRuntimeResolver 可按 Agent runtime 类型解析 Provider 配置。
+type RuntimeConfigForRuntimeResolver interface {
+	ResolveRuntimeConfigForRuntime(context.Context, string, string, string) (*RuntimeConfig, error)
 }
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
@@ -64,12 +70,13 @@ func BuildAgentClientOptions(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model)
+	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
 		return agentclient.Options{}, err
 	}
 	runtimeEnv := defaultRuntimeEnv()
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
@@ -79,7 +86,6 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
-	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
 	commandConfig := processCLICommandConfig(effectiveRuntimeKind)
 
 	options := agentclient.Options{
@@ -184,23 +190,32 @@ func BuildRuntimeEnv(
 	provider string,
 	model string,
 ) (map[string]string, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider, model)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider, model, runtimeKindClaude)
 	if err != nil {
 		return nil, err
 	}
 	if runtimeConfig == nil {
 		return nil, nil
 	}
-	return runtimeEnvFromConfig(runtimeConfig), nil
+	return runtimeEnvFromConfig(runtimeConfig, runtimeKindClaude), nil
 }
 
-func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
 	if runtimeConfig == nil {
 		return nil
 	}
-	if apiFormat := strings.TrimSpace(runtimeConfig.APIFormat); apiFormat != "" && apiFormat != apiFormatAnthropicMessages {
-		return nil
+	switch strings.TrimSpace(runtimeConfig.APIFormat) {
+	case "", apiFormatAnthropicMessages:
+		return anthropicRuntimeEnvFromConfig(runtimeConfig)
+	case apiFormatChatCompletions:
+		if resolveRuntimeKind(runtimeKind, os.Getenv) == runtimeKindNXS {
+			return openAIRuntimeEnvFromConfig(runtimeConfig)
+		}
 	}
+	return nil
+}
+
+func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	env := map[string]string{
 		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
 		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
@@ -210,6 +225,7 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
 		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
+		"NEXUS_API_PROVIDER":             "anthropic-compatible",
 	}
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
@@ -218,6 +234,17 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
 	return env
+}
+
+func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+	return map[string]string{
+		"OPENAI_API_KEY":             runtimeConfig.AuthToken,
+		"OPENAI_BASE_URL":            runtimeConfig.BaseURL,
+		"OPENAI_MODEL":               runtimeConfig.Model,
+		"CLAUDE_CODE_SUBAGENT_MODEL": runtimeConfig.Model,
+		NexusRuntimeProviderEnvName:  runtimeConfig.Provider,
+		"NEXUS_API_PROVIDER":         "openai",
+	}
 }
 
 func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...string) {
@@ -242,11 +269,12 @@ func resolveRuntimeConfig(
 	resolver RuntimeConfigResolver,
 	provider string,
 	model string,
+	runtimeKind string,
 ) (*RuntimeConfig, error) {
 	if resolver == nil {
 		return nil, nil
 	}
-	runtimeConfig, err := resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider), strings.TrimSpace(model))
+	runtimeConfig, err := resolveProviderRuntimeConfig(ctx, resolver, provider, model, runtimeKind)
 	if err != nil {
 		return nil, err
 	}
@@ -254,10 +282,36 @@ func resolveRuntimeConfig(
 		return nil, nil
 	}
 	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
-	if apiFormat != "" && apiFormat != apiFormatAnthropicMessages {
+	if !runtimeSupportsAPIFormat(runtimeKind, apiFormat) {
 		return nil, fmt.Errorf("api_format=%s 暂不可用于 Agent runtime", apiFormat)
 	}
 	return runtimeConfig, nil
+}
+
+func resolveProviderRuntimeConfig(
+	ctx context.Context,
+	resolver RuntimeConfigResolver,
+	provider string,
+	model string,
+	runtimeKind string,
+) (*RuntimeConfig, error) {
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	if runtimeResolver, ok := resolver.(RuntimeConfigForRuntimeResolver); ok {
+		return runtimeResolver.ResolveRuntimeConfigForRuntime(ctx, provider, model, runtimeKind)
+	}
+	return resolver.ResolveRuntimeConfig(ctx, provider, model)
+}
+
+func runtimeSupportsAPIFormat(runtimeKind string, apiFormat string) bool {
+	apiFormat = strings.TrimSpace(apiFormat)
+	if apiFormat == "" || apiFormat == apiFormatAnthropicMessages {
+		return true
+	}
+	if resolveRuntimeKind(runtimeKind, os.Getenv) != runtimeKindNXS {
+		return false
+	}
+	return apiFormat == apiFormatChatCompletions
 }
 
 func cloneMCPServers(

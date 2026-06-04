@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room Goal creation now keeps the remote composer UI while requiring a responsible Agent selection and writing Room Goal lead/collaboration metadata.
 
 ### Fixed
+- Added native `nxs` runtime support for OpenAI-compatible provider configs so Chat Completions providers can be selected and launched without Anthropic-compatible shims.
 - Stopped the macOS auto-updater from stripping quarantine and added staged app bundle, code-signing, and Gatekeeper trust checks before automatic replacement.
 - Added Docker image build-time `nxs` runtime bundling and Settings runtime checks so switching to `nxs` first verifies local availability and prompts for download when needed.
 - Clarified nxs runtime startup failures in WebSocket chat errors so automatic runtime resolver failures are distinguished from missing local executables.

@@ -31,6 +31,33 @@ func (r fakeRuntimeConfigResolver) ResolveRuntimeConfig(
 	return r.config, r.err
 }
 
+type fakeRuntimeConfigForRuntimeResolver struct {
+	config      *RuntimeConfig
+	runtimeKind string
+	calls       int
+	legacyCalls int
+}
+
+func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfig(
+	context.Context,
+	string,
+	string,
+) (*RuntimeConfig, error) {
+	r.legacyCalls++
+	return r.config, nil
+}
+
+func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfigForRuntime(
+	_ context.Context,
+	_ string,
+	_ string,
+	runtimeKind string,
+) (*RuntimeConfig, error) {
+	r.calls++
+	r.runtimeKind = runtimeKind
+	return r.config, nil
+}
+
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	thinkingTokens := 2048
 	maxTurns := 8
@@ -64,6 +91,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
+	}
+	if options.Env["NEXUS_API_PROVIDER"] != "anthropic-compatible" {
+		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
 	}
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
@@ -145,6 +175,49 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsUsesNXSChatCompletionsProviderEnv(t *testing.T) {
+	resolver := &fakeRuntimeConfigForRuntimeResolver{
+		config: &RuntimeConfig{
+			Provider:  "openai",
+			AuthToken: "openai-token",
+			BaseURL:   "https://api.openai.com/v1",
+			Model:     "gpt-4o",
+			APIFormat: apiFormatChatCompletions,
+		},
+	}
+	options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if resolver.calls != 1 || resolver.legacyCalls != 0 || resolver.runtimeKind != runtimeKindNXS {
+		t.Fatalf("未按 runtime kind 解析 provider: calls=%d legacy=%d kind=%q", resolver.calls, resolver.legacyCalls, resolver.runtimeKind)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("未启用 nxs runtime: %+v", options.Runtime)
+	}
+	wantEnv := map[string]string{
+		"OPENAI_API_KEY":             "openai-token",
+		"OPENAI_BASE_URL":            "https://api.openai.com/v1",
+		"OPENAI_MODEL":               "gpt-4o",
+		"CLAUDE_CODE_SUBAGENT_MODEL": "gpt-4o",
+		NexusRuntimeProviderEnvName:  "openai",
+		"NEXUS_API_PROVIDER":         "openai",
+	}
+	for key, want := range wantEnv {
+		if options.Env[key] != want {
+			t.Fatalf("%s=%q, want %q; env=%+v", key, options.Env[key], want, options.Env)
+		}
+	}
+	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+		t.Fatalf("nxs chat_completions 不应注入 Anthropic token: %+v", options.Env)
+	}
+	if options.Model != "gpt-4o" {
+		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
+	}
+}
+
 func TestBuildAgentClientOptionsRejectsNonAnthropicAPIFormat(t *testing.T) {
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
@@ -156,6 +229,22 @@ func TestBuildAgentClientOptionsRejectsNonAnthropicAPIFormat(t *testing.T) {
 	}, AgentClientOptionsInput{})
 	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
 		t.Fatalf("非 anthropic_messages provider 应被拒绝: %v", err)
+	}
+}
+
+func TestBuildAgentClientOptionsRejectsNXSResponsesAPIFormat(t *testing.T) {
+	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com/v1",
+			Model:     "gpt-4.1",
+			APIFormat: "responses",
+		},
+	}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+		t.Fatalf("nxs responses provider 应被拒绝: %v", err)
 	}
 }
 

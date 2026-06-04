@@ -324,10 +324,11 @@ function GeneralSettingsSection() {
   const [desktop_feedback, set_desktop_feedback] = useState<PreferenceFeedback | null>(null);
   const [exporting_logs, set_exporting_logs] = useState(false);
 
-  const load_provider_options = useCallback(async () => {
+  const load_provider_options = useCallback(async (runtime_kind?: AgentRuntimeKind) => {
     try {
       set_provider_options_loading(true);
-      const result = await list_provider_options_api();
+      const selected_runtime_kind = runtime_kind ?? normalize_agent_runtime_kind(preferences_ref.current.agent_runtime_kind);
+      const result = await list_provider_options_api(selected_runtime_kind);
       set_provider_options(result.items ?? []);
       set_background_provider_options(result.background_items ?? result.items ?? []);
       set_image_provider_options(result.image_items ?? []);
@@ -372,8 +373,8 @@ function GeneralSettingsSection() {
   }, []);
 
   useEffect(() => {
-    void load_provider_options();
-  }, [load_provider_options]);
+    void load_provider_options(agent_runtime_kind);
+  }, [agent_runtime_kind, load_provider_options]);
 
   useEffect(() => {
     let cancelled = false;
@@ -545,10 +546,13 @@ function GeneralSettingsSection() {
     }
     if (value !== "nxs") {
       set_nxs_download_prompt_status(null);
-      void persist_preferences({
-        ...current_preferences,
-        agent_runtime_kind: value,
-      });
+      void (async () => {
+        await persist_preferences({
+          ...current_preferences,
+          agent_runtime_kind: value,
+        });
+        await load_provider_options(value);
+      })();
       return;
     }
     void (async () => {
@@ -561,6 +565,7 @@ function GeneralSettingsSection() {
             ...preferences_ref.current,
             agent_runtime_kind: "nxs",
           });
+          await load_provider_options("nxs");
           return;
         }
         if (status.can_download) {
@@ -578,7 +583,7 @@ function GeneralSettingsSection() {
         set_nxs_runtime_checking(false);
       }
     })();
-  }, [persist_preferences, t]);
+  }, [load_provider_options, persist_preferences, t]);
 
   const handle_confirm_nxs_download = useCallback(() => {
     if (nxs_runtime_downloading) {
@@ -601,6 +606,7 @@ function GeneralSettingsSection() {
           ...preferences_ref.current,
           agent_runtime_kind: "nxs",
         });
+        await load_provider_options("nxs");
       } catch (error) {
         const message = error instanceof Error ? error.message : t("settings.general.agent_runtime_download_failed");
         set_nxs_download_prompt_status({
@@ -615,7 +621,7 @@ function GeneralSettingsSection() {
         set_nxs_runtime_downloading(false);
       }
     })();
-  }, [nxs_download_prompt_status, nxs_runtime_downloading, persist_preferences, t]);
+  }, [load_provider_options, nxs_download_prompt_status, nxs_runtime_downloading, persist_preferences, t]);
 
   const handle_permission_mode_change = useCallback((value: string) => {
     const current_preferences = preferences_ref.current;

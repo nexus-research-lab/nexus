@@ -21,7 +21,11 @@ import type {
 import type { ProviderOption } from "@/types/capability/provider";
 import { UiButton } from "@/shared/ui/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { set_default_agent_model, set_default_agent_provider } from "@/config/options";
+import {
+  get_default_agent_runtime_kind,
+  set_default_agent_model,
+  set_default_agent_provider,
+} from "@/config/options";
 import {
   AgentOptionsNav,
   type TabKey,
@@ -207,7 +211,7 @@ export function AgentOptionsEditor({
     const load_provider_options = async () => {
       try {
         setProviderOptionsLoading(true);
-        const payload = await list_provider_options_api();
+        const payload = await list_provider_options_api(get_default_agent_runtime_kind());
         if (cancelled) {
           return;
         }

@@ -103,10 +103,16 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 
 // ListOptions 返回启用状态的 Provider 下拉选项。
 func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
+	return s.ListOptionsForRuntime(ctx, "claude")
+}
+
+// ListOptionsForRuntime 返回指定 Agent runtime 可使用的 Provider 下拉选项。
+func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string) (*OptionsResponse, error) {
 	items, err := s.listAndNormalize(ctx)
 	if err != nil {
 		return nil, err
 	}
+	runtimeKind = normalizeRuntimeKind(runtimeKind)
 	result := &OptionsResponse{
 		Items:           make([]Option, 0, len(items)),
 		BackgroundItems: make([]Option, 0, len(items)),
@@ -128,7 +134,7 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 		switch {
 		case item.ProviderKind == ProviderKindLLM:
 			result.BackgroundItems = append(result.BackgroundItems, option)
-			if isAgentRuntimeProvider(item) {
+			if isAgentRuntimeProviderForRuntime(item, runtimeKind) {
 				result.Items = append(result.Items, option)
 			}
 			imageModels, modelErr := s.enabledModelOptionsForKind(ctx, item, ProviderKindImageGeneration)
@@ -154,7 +160,7 @@ func (s *Service) ListOptions(ctx context.Context) (*OptionsResponse, error) {
 			})
 		}
 	}
-	if target, err := s.defaultRuntimeSelection(ctx); err != nil {
+	if target, err := s.defaultRuntimeSelectionForRuntime(ctx, runtimeKind); err != nil {
 		return nil, err
 	} else if target != nil {
 		selection := modelSelectionFromTarget(*target)
@@ -205,7 +211,7 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 			continue
 		}
 		state.Total++
-		if !item.Enabled || !isAgentRuntimeProvider(item) {
+		if !item.Enabled || !isAnyAgentRuntimeProvider(item) {
 			continue
 		}
 		state.EnabledList = append(state.EnabledList, item.Provider)
@@ -214,7 +220,7 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 			return AvailabilityState{}, modelErr
 		}
 		for _, model := range models {
-			if model.Enabled && model.IsDefault {
+			if model.Enabled && model.IsDefault && modelUsableForProviderKind(item, model, ProviderKindLLM) {
 				state.HasDefault = true
 			}
 		}
@@ -383,10 +389,16 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 
 // ResolveRuntimeConfig 解析 Agent 最终运行时要使用的 Provider 配置。
 func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string, model string) (*clientopts.RuntimeConfig, error) {
+	return s.ResolveRuntimeConfigForRuntime(ctx, provider, model, "claude")
+}
+
+// ResolveRuntimeConfigForRuntime 按 Agent runtime 类型解析最终 Provider 配置。
+func (s *Service) ResolveRuntimeConfigForRuntime(ctx context.Context, provider string, model string, runtimeKind string) (*clientopts.RuntimeConfig, error) {
 	items, err := s.listAndNormalize(ctx)
 	if err != nil {
 		return nil, err
 	}
+	runtimeKind = normalizeRuntimeKind(runtimeKind)
 	targetProvider, err := NormalizeProvider(provider, true)
 	if err != nil {
 		return nil, err
@@ -414,7 +426,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string, mod
 		if targetModel != "" {
 			return nil, errors.New("指定 model 时必须同时指定 provider")
 		}
-		defaultTarget, defaultErr := s.defaultRuntimeSelection(ctx)
+		defaultTarget, defaultErr := s.defaultRuntimeSelectionForRuntime(ctx, runtimeKind)
 		if defaultErr != nil {
 			return nil, defaultErr
 		}
@@ -423,7 +435,7 @@ func (s *Service) ResolveRuntimeConfig(ctx context.Context, provider string, mod
 			targetModel = defaultTarget.model.ModelID
 		}
 	}
-	return s.runtimeConfigFromTarget(ctx, target, targetModel)
+	return s.runtimeConfigFromTarget(ctx, target, targetModel, runtimeKind)
 }
 
 // ResolveLLMConfig 解析后端轻量 LLM 任务要使用的 Provider 配置，不受 Agent runtime 协议限制。
@@ -658,12 +670,17 @@ func normalizeBuiltinEndpoint(item *providerstore.Entity) {
 }
 
 func (s *Service) defaultRuntimeSelection(ctx context.Context) (*providerModelTarget, error) {
+	return s.defaultRuntimeSelectionForRuntime(ctx, "claude")
+}
+
+func (s *Service) defaultRuntimeSelectionForRuntime(ctx context.Context, runtimeKind string) (*providerModelTarget, error) {
 	items, err := s.listAndNormalize(ctx)
 	if err != nil {
 		return nil, err
 	}
+	runtimeKind = normalizeRuntimeKind(runtimeKind)
 	for _, item := range items {
-		if !item.Enabled || !isAgentRuntimeProvider(item) {
+		if !item.Enabled || !isAgentRuntimeProviderForRuntime(item, runtimeKind) {
 			continue
 		}
 		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
@@ -671,7 +688,7 @@ func (s *Service) defaultRuntimeSelection(ctx context.Context) (*providerModelTa
 			return nil, modelErr
 		}
 		for _, model := range models {
-			if model.Enabled && model.IsDefault {
+			if model.Enabled && model.IsDefault && modelUsableForProviderKind(item, model, ProviderKindLLM) {
 				return &providerModelTarget{provider: item, model: model}, nil
 			}
 		}
@@ -706,6 +723,7 @@ func (s *Service) runtimeConfigFromTarget(
 	ctx context.Context,
 	target *providerstore.Entity,
 	targetModel string,
+	runtimeKind string,
 ) (*clientopts.RuntimeConfig, error) {
 	if target == nil {
 		return nil, errors.New("未配置默认模型，请先到 Settings 选择默认模型")
@@ -716,7 +734,7 @@ func (s *Service) runtimeConfigFromTarget(
 	if target.ProviderKind != ProviderKindLLM {
 		return nil, fmt.Errorf("provider=%s 不是 LLM Provider", target.Provider)
 	}
-	if !isAgentRuntimeProvider(*target) {
+	if !isAgentRuntimeProviderForRuntime(*target, runtimeKind) {
 		return nil, fmt.Errorf("provider=%s 的 api_format=%s 暂不可用于 Agent runtime", target.Provider, target.APIFormat)
 	}
 	return s.llmConfigFromTarget(ctx, target, targetModel)
@@ -882,7 +900,7 @@ func canSetDefaultModel(item providerstore.Entity, model providerstore.ModelEnti
 	}
 	switch item.ProviderKind {
 	case ProviderKindLLM:
-		if isAgentRuntimeProvider(item) {
+		if isAnyAgentRuntimeProvider(item) && modelUsableForProviderKind(item, model, ProviderKindLLM) {
 			return true
 		}
 		if !providerSupportsImageGeneration(item) {

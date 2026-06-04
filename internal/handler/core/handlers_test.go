@@ -143,3 +143,76 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 		t.Fatalf("default_agent_avatar 不正确: got=%s want=%s", payload.Data.DefaultAgentAvatar, avatar)
 	}
 }
+
+func TestHandleProviderOptionsUsesRuntimeKind(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+	providers := providercfg.NewServiceWithDB(cfg, db)
+	record, err := providers.Create(context.Background(), providercfg.CreateInput{
+		Provider:  "openai",
+		PresetKey: "openai",
+		AuthToken: "openai-token",
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("创建 OpenAI provider 失败: %v", err)
+	}
+	if _, err = providers.UpdateModel(context.Background(), record.Provider, "gpt-4o", providercfg.UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置 OpenAI 默认模型失败: %v", err)
+	}
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	defaultOptions := requestProviderOptions(t, server, "/nexus/v1/settings/providers/options")
+	if providerOptionsContains(defaultOptions.Items, "openai") {
+		t.Fatalf("默认 Claude runtime 不应返回 OpenAI: %+v", defaultOptions.Items)
+	}
+	nxsOptions := requestProviderOptions(t, server, "/nexus/v1/settings/providers/options?agent_runtime_kind=nxs")
+	if !providerOptionsContains(nxsOptions.Items, "openai") {
+		t.Fatalf("nxs runtime 应返回 OpenAI: %+v", nxsOptions.Items)
+	}
+	if nxsOptions.DefaultProvider == nil || *nxsOptions.DefaultProvider != "openai" ||
+		nxsOptions.DefaultModel == nil || *nxsOptions.DefaultModel != "gpt-4o" {
+		t.Fatalf("nxs runtime 默认模型不正确: %+v", nxsOptions)
+	}
+}
+
+type routerServer interface {
+	Router() http.Handler
+}
+
+func requestProviderOptions(t *testing.T, server routerServer, target string) providercfg.OptionsResponse {
+	t.Helper()
+
+	request := httptest.NewRequest(http.MethodGet, target, nil)
+	recorder := httptest.NewRecorder()
+	server.Router().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Data providercfg.OptionsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	return payload.Data
+}
+
+func providerOptionsContains(items []providercfg.Option, provider string) bool {
+	for _, item := range items {
+		if item.Provider == provider {
+			return true
+		}
+	}
+	return false
+}
