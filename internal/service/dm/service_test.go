@@ -2680,7 +2680,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	rows := readDMSessionHistory(t, cfg, service, sessionKey)
 	for _, row := range rows {
 		if row["message_id"] == "round-guide-2" {
-			t.Fatalf("引导消息不应直接写入 overlay 历史，历史回放应来自 Claude transcript: %+v", rows)
+			t.Fatalf("引导消息不应直接写入 overlay 历史，历史回放应来自 runtime transcript: %+v", rows)
 		}
 	}
 

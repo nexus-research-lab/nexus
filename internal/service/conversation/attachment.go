@@ -99,7 +99,7 @@ func (c RuntimeContent) AppendText(suffix string) RuntimeContent {
 	return c
 }
 
-// RenderRuntimeContentWithAttachments 将结构化附件渲染成 Claude Code 运行时可消费的输入。
+// RenderRuntimeContentWithAttachments 将结构化附件渲染成 SDK runtime 可消费的输入。
 func RenderRuntimeContentWithAttachments(
 	ctx context.Context,
 	content string,
@@ -123,7 +123,7 @@ func RenderRuntimeContentWithAttachments(
 		if err != nil {
 			return RuntimeContent{}, err
 		}
-		ref, err := quoteClaudePathReference(absolutePath)
+		ref, err := quoteRuntimePathReference(absolutePath)
 		if err != nil {
 			return RuntimeContent{}, err
 		}
@@ -195,7 +195,7 @@ func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (
 	return targetPath, nil
 }
 
-func quoteClaudePathReference(path string) (string, error) {
+func quoteRuntimePathReference(path string) (string, error) {
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(path))
 	if normalizedPath == "" {
 		return "", errors.New("attachment path is required")
@@ -207,7 +207,7 @@ func quoteClaudePathReference(path string) (string, error) {
 }
 
 func imageAttachmentBlock(attachment protocol.ChatAttachment, absolutePath string) (map[string]any, error) {
-	// Claude Code 入口使用 Anthropic ContentBlockParam 形状，media_type 必须位于 source 内。
+	// SDK runtime 使用 Anthropic ContentBlockParam 形状，media_type 必须位于 source 内。
 	mimeType, ok := runtimeImageBlockMIMEType(attachment, absolutePath)
 	if !ok {
 		return nil, fmt.Errorf("unsupported runtime image attachment: %s", filepath.Base(absolutePath))

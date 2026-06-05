@@ -679,7 +679,7 @@ WHERE id = ? AND room_id = ? AND EXISTS (
 	return r.getContextByConversation(ctx, ownerUserID, roomID, conversationID)
 }
 
-// UpdateSessionSDKSessionID 更新房间会话记录上的 Claude session_id。
+// UpdateSessionSDKSessionID 更新房间会话记录上的 SDK session_id。
 func (r *RoomRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
 	result, err := r.db.ExecContext(ctx, `
 UPDATE sessions

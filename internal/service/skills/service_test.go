@@ -171,36 +171,36 @@ description: 兼容直接位于 .agents 下的技能目录
 		t.Fatalf("agent 直属本地 skill 移除后目录仍存在: %v", err)
 	}
 
-	claudeLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
-	if err = os.MkdirAll(claudeLocalSkillRoot, 0o755); err != nil {
-		t.Fatalf("创建 agent Claude 本地 skill 目录失败: %v", err)
+	legacyLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
+	if err = os.MkdirAll(legacyLocalSkillRoot, 0o755); err != nil {
+		t.Fatalf("创建 agent legacy 本地 skill 目录失败: %v", err)
 	}
-	if err = os.WriteFile(filepath.Join(claudeLocalSkillRoot, "SKILL.md"), []byte(`---
+	if err = os.WriteFile(filepath.Join(legacyLocalSkillRoot, "SKILL.md"), []byte(`---
 name: claude-agent-skill
 title: Claude Agent Skill
-description: 兼容 Agent 在 .claude/skills 下创建的技能目录
+description: 兼容旧版 runtime 在 .claude/skills 下创建的技能目录
 ---
 
 # claude-agent-skill
 `), 0o644); err != nil {
-		t.Fatalf("写入 agent Claude 本地 skill 失败: %v", err)
+		t.Fatalf("写入 agent legacy 本地 skill 失败: %v", err)
 	}
 	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
 	if err != nil {
-		t.Fatalf("读取含 agent Claude 本地 skill 的列表失败: %v", err)
+		t.Fatalf("读取含 agent legacy 本地 skill 的列表失败: %v", err)
 	}
-	claudeAgentSkill, ok := findSkill(items, "claude-agent-skill")
+	legacyAgentSkill, ok := findSkill(items, "claude-agent-skill")
 	if !ok {
-		t.Fatalf("agent Claude 本地 skill 未暴露: %+v", items)
+		t.Fatalf("agent legacy 本地 skill 未暴露: %+v", items)
 	}
-	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.Installed || claudeAgentSkill.Locked {
-		t.Fatalf("agent Claude 本地 skill 状态不正确: %+v", claudeAgentSkill)
+	if legacyAgentSkill.SourceType != sourceTypeWorkspace || !legacyAgentSkill.Installed || legacyAgentSkill.Locked {
+		t.Fatalf("agent legacy 本地 skill 状态不正确: %+v", legacyAgentSkill)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "claude-agent-skill"); err != nil {
-		t.Fatalf("agent Claude 本地 skill 应允许从当前智能体移除: %v", err)
+		t.Fatalf("agent legacy 本地 skill 应允许从当前智能体移除: %v", err)
 	}
-	if _, err = os.Stat(claudeLocalSkillRoot); !os.IsNotExist(err) {
-		t.Fatalf("agent Claude 本地 skill 移除后目录仍存在: %v", err)
+	if _, err = os.Stat(legacyLocalSkillRoot); !os.IsNotExist(err) {
+		t.Fatalf("agent legacy 本地 skill 移除后目录仍存在: %v", err)
 	}
 
 	localSkillRoot := filepath.Join(t.TempDir(), "demo-skill")

@@ -1,7 +1,7 @@
 /**
  * AskUserQuestion Block Component - 用户问答交互组件
  *
- * 渲染 Claude 的问题，支持单选/多选，用户提交答案后返回给 Agent
+ * 渲染 Agent 的问题，支持单选/多选，用户提交答案后返回给 Agent
  *
  * [INPUT]: 依赖 @/types/conversation/ask-user-question、@/types/conversation/message、@/lib/utils
  * [OUTPUT]: 对外提供 AskUserQuestionBlock 组件

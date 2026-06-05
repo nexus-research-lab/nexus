@@ -95,7 +95,7 @@ func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 		source["type"] != "base64" ||
 		source["media_type"] != "image/png" ||
 		source["data"] == "" {
-		t.Fatalf("second block should be Claude Code image data, got %#v", blocks[1])
+		t.Fatalf("second block should be runtime image data, got %#v", blocks[1])
 	}
 	if !strings.Contains(content.PlainText(), "@\"") {
 		t.Fatalf("plain text should keep path reference for history, got %q", content.PlainText())

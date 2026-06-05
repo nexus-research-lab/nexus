@@ -129,21 +129,21 @@ func BuildSkillRenderContext(agentID string, agentName string, workspacePath str
 // DeploySkill 把指定 skill 部署到目标 workspace。
 func DeploySkill(skillName string, sourceDir string, workspacePath string, context map[string]string) error {
 	agentsSkillDir := filepath.Join(workspacePath, ".agents", "skills", skillName)
-	claudeSkillLink := filepath.Join(workspacePath, ".claude", "skills", skillName)
+	legacySkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
 	if err := syncDirectory(sourceDir, agentsSkillDir, context); err != nil {
 		return err
 	}
-	return ensureClaudeSkillEntry(sourceDir, claudeSkillLink, filepath.Join("..", "..", ".agents", "skills", skillName), context)
+	return ensureLegacySkillEntry(sourceDir, legacySkillEntry, filepath.Join("..", "..", ".agents", "skills", skillName), context)
 }
 
 // UndeploySkill 从 workspace 中移除指定 skill。
 func UndeploySkill(workspacePath string, skillName string) error {
 	targetDir := filepath.Join(workspacePath, ".agents", "skills", skillName)
-	claudeSkillLink := filepath.Join(workspacePath, ".claude", "skills", skillName)
+	legacySkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
 	if err := os.RemoveAll(targetDir); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(claudeSkillLink); err != nil && !os.IsNotExist(err) {
+	if err := os.RemoveAll(legacySkillEntry); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -470,14 +470,14 @@ func removeDirIfEmpty(dir string) error {
 	return nil
 }
 
-func ensureClaudeSkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {
+func ensureLegacySkillEntry(sourceDir string, entryPath string, relativeTarget string, context map[string]string) error {
 	err := ensureRelativeSymlink(entryPath, relativeTarget)
 	if err == nil {
 		return nil
 	}
-	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给 Claude Code 读取。
+	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给旧版 runtime 读取。
 	if mirrorErr := syncDirectory(sourceDir, entryPath, context); mirrorErr != nil {
-		return fmt.Errorf("创建 Claude skill symlink 失败: %w；镜像目录也失败: %v", err, mirrorErr)
+		return fmt.Errorf("创建 legacy skill symlink 失败: %w；镜像目录也失败: %v", err, mirrorErr)
 	}
 	return nil
 }

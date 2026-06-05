@@ -517,7 +517,7 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
-// UpdateSessionSDKSessionID 更新房间会话记录中的 Claude session_id。
+// UpdateSessionSDKSessionID 更新房间会话记录中的 SDK session_id。
 func (s *Service) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(sdkSessionID) == "" {
 		return nil

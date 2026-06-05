@@ -149,15 +149,15 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			t.Fatalf("scheduled-task-manager skill 缺少 %q", expected)
 		}
 	}
-	claudeSkillLink := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "scheduled-task-manager")
-	if info, statErr := os.Lstat(claudeSkillLink); statErr != nil {
-		t.Fatalf("scheduled-task-manager skill 的 Claude 链接未生成: %v", statErr)
+	legacySkillEntry := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "scheduled-task-manager")
+	if info, statErr := os.Lstat(legacySkillEntry); statErr != nil {
+		t.Fatalf("scheduled-task-manager skill 的 legacy 入口未生成: %v", statErr)
 	} else if info.Mode()&os.ModeSymlink == 0 {
 		if !info.IsDir() {
-			t.Fatalf("scheduled-task-manager skill 的 Claude 入口应为符号链接或镜像目录: %s", claudeSkillLink)
+			t.Fatalf("scheduled-task-manager skill 的 legacy 入口应为符号链接或镜像目录: %s", legacySkillEntry)
 		}
-		if _, err = os.Stat(filepath.Join(claudeSkillLink, "SKILL.md")); err != nil {
-			t.Fatalf("scheduled-task-manager skill 的 Claude 镜像目录缺少 SKILL.md: %v", err)
+		if _, err = os.Stat(filepath.Join(legacySkillEntry, "SKILL.md")); err != nil {
+			t.Fatalf("scheduled-task-manager skill 的 legacy 镜像目录缺少 SKILL.md: %v", err)
 		}
 	}
 	goalSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "goal-manager", "SKILL.md")
@@ -465,7 +465,7 @@ func TestUploadFileToRootReusesAttachmentByMD5(t *testing.T) {
 	}
 }
 
-func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testing.T) {
+func TestDeploySkillFallsBackToLegacySkillMirrorWhenSymlinkUnavailable(t *testing.T) {
 	sourceDir := filepath.Join(t.TempDir(), "source")
 	if err := os.MkdirAll(filepath.Join(sourceDir, "scripts"), 0o755); err != nil {
 		t.Fatalf("创建 skill 源目录失败: %v", err)
@@ -495,18 +495,18 @@ func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testin
 		t.Fatalf("部署 skill fallback 失败: %v", err)
 	}
 
-	claudeSkillDir := filepath.Join(workspacePath, ".claude", "skills", "demo-skill")
-	if info, err := os.Lstat(claudeSkillDir); err != nil {
-		t.Fatalf("Claude skill 镜像目录未生成: %v", err)
+	legacySkillDir := filepath.Join(workspacePath, ".claude", "skills", "demo-skill")
+	if info, err := os.Lstat(legacySkillDir); err != nil {
+		t.Fatalf("legacy skill 镜像目录未生成: %v", err)
 	} else if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		t.Fatalf("Claude skill fallback 应生成普通目录: mode=%s", info.Mode())
+		t.Fatalf("legacy skill fallback 应生成普通目录: mode=%s", info.Mode())
 	}
-	payload, err := os.ReadFile(filepath.Join(claudeSkillDir, "SKILL.md"))
+	payload, err := os.ReadFile(filepath.Join(legacySkillDir, "SKILL.md"))
 	if err != nil {
-		t.Fatalf("读取 Claude skill 镜像失败: %v", err)
+		t.Fatalf("读取 legacy skill 镜像失败: %v", err)
 	}
 	if !strings.Contains(string(payload), "测试助手") {
-		t.Fatalf("Claude skill 镜像未渲染模板: %s", payload)
+		t.Fatalf("legacy skill 镜像未渲染模板: %s", payload)
 	}
 	if _, err = os.Stat(filepath.Join(workspacePath, ".agents", "skills", "demo-skill", "scripts", "run.txt")); err != nil {
 		t.Fatalf(".agents skill 副本不完整: %v", err)
@@ -515,8 +515,8 @@ func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testin
 	if err = UndeploySkill(workspacePath, "demo-skill"); err != nil {
 		t.Fatalf("卸载 fallback skill 失败: %v", err)
 	}
-	if _, err = os.Stat(claudeSkillDir); !os.IsNotExist(err) {
-		t.Fatalf("卸载后 Claude skill 镜像应被删除: %v", err)
+	if _, err = os.Stat(legacySkillDir); !os.IsNotExist(err) {
+		t.Fatalf("卸载后 legacy skill 镜像应被删除: %v", err)
 	}
 }
 

@@ -471,7 +471,7 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 		}
 	}
 	if guidance == nil {
-		t.Fatalf("Claude hook additionalContext 应投影成引导系统消息: %+v", rows)
+		t.Fatalf("runtime hook additionalContext 应投影成引导系统消息: %+v", rows)
 	}
 	if (*guidance)["role"] != "system" || (*guidance)["round_id"] != "round-1" {
 		t.Fatalf("引导系统消息应归入当前 round: %+v", *guidance)
