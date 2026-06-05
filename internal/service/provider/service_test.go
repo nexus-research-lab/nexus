@@ -98,6 +98,10 @@ func TestProviderPresetDefaultsAndRuntimeGate(t *testing.T) {
 		openAINXSOptions.DefaultModel == nil || *openAINXSOptions.DefaultModel != "gpt-4o" {
 		t.Fatalf("OpenAI 应可成为 nxs 默认模型: %+v", openAINXSOptions)
 	}
+	openAINXSOption := optionByProvider(openAINXSOptions.Items, "openai")
+	if openAINXSOption == nil || !hasModelOption(openAINXSOption.Models, "gpt-4o") {
+		t.Fatalf("OpenAI nxs 默认模型下拉缺少已启用模型: %+v", openAINXSOptions.Items)
+	}
 
 	deepseek, err := service.Create(ctx, CreateInput{
 		Provider:  "deepseek",

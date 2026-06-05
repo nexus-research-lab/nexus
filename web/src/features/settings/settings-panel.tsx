@@ -56,6 +56,7 @@ import {
 } from "@/config/options";
 import {
   AGENT_PERMISSION_MODES,
+  build_agent_option_provider_options,
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
 import {
@@ -634,7 +635,17 @@ function GeneralSettingsSection() {
     });
   }, [persist_preferences]);
 
-  const default_model_options = useMemo(() => provider_options.flatMap((provider) => (
+  const selected_default_model = useMemo(() => (
+    decode_default_model_value(default_model_value)
+  ), [default_model_value]);
+
+  const default_model_provider_options = useMemo(() => build_agent_option_provider_options(
+    provider_options,
+    selected_default_model?.provider,
+    selected_default_model?.model,
+  ), [provider_options, selected_default_model]);
+
+  const default_model_options = useMemo(() => default_model_provider_options.flatMap((provider) => (
     provider.models.map((model) => {
       const provider_label = provider.display_name || provider.provider;
       const model_label = model.display_name || model.model_id;
@@ -643,7 +654,7 @@ function GeneralSettingsSection() {
         label: `${provider_label} / ${model_label}`,
       };
     })
-  )), [provider_options]);
+  )), [default_model_provider_options]);
 
   const default_image_model_options = useMemo(() => image_provider_options.flatMap((provider) => (
     provider.models.map((model) => {
@@ -899,6 +910,39 @@ function GeneralSettingsSection() {
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Terminal className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.agent_runtime_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.agent_runtime_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.agent_runtime_label")}
+              </span>
+              <SettingsSegmentedControl
+                aria_label={t("settings.general.agent_runtime_label")}
+                disabled={preferences_loading || preferences_saving || nxs_runtime_checking || nxs_runtime_downloading}
+                on_change={handle_agent_runtime_kind_change}
+                options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.label_key),
+                }))}
+                value={agent_runtime_kind}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
                 <MonitorCog className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
@@ -1045,41 +1089,6 @@ function GeneralSettingsSection() {
               />
             </div>
           </div>
-
-          <div className="border-t border-(--divider-subtle-color)" />
-
-          <div className={SETTINGS_ROW_CLASS_NAME}>
-            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-              <div className={SETTINGS_ICON_CLASS_NAME}>
-                <Terminal className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                  {t("settings.general.agent_runtime_title")}
-                </h3>
-                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                  {t("settings.general.agent_runtime_description")}
-                </p>
-              </div>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-                {t("settings.general.agent_runtime_label")}
-              </span>
-              <SettingsSegmentedControl
-                aria_label={t("settings.general.agent_runtime_label")}
-                disabled={preferences_loading || preferences_saving || nxs_runtime_checking || nxs_runtime_downloading}
-                on_change={handle_agent_runtime_kind_change}
-                options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label_key),
-                }))}
-                value={agent_runtime_kind}
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-(--divider-subtle-color)" />
 
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
