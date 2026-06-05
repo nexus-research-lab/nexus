@@ -248,18 +248,21 @@ func TestBuildAgentClientOptionsRejectsNXSResponsesAPIFormat(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsDeniesClaudeSessionScheduleTools(t *testing.T) {
+func TestBuildAgentClientOptionsDeniesClaudeSessionUnavailableTools(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath:   "/tmp/workspace",
-		DisallowedTools: []string{" ScheduleWakeup ", "Write"},
+		DisallowedTools: []string{" ScheduleWakeup ", "Write", "EnterPlanMode"},
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	for _, tool := range []string{"ScheduleWakeup", "CronCreate", "CronList", "CronDelete", "Write"} {
+	for _, tool := range []string{"EnterPlanMode", "ScheduleWakeup", "CronCreate", "CronList", "CronDelete", "Write"} {
 		if !containsTool(options.Tools.Deny, tool) {
 			t.Fatalf("运行时 deny 工具缺少 %s: %+v", tool, options.Tools.Deny)
 		}
+	}
+	if countTool(options.Tools.Deny, "EnterPlanMode") != 1 {
+		t.Fatalf("EnterPlanMode deny 规则应去重: %+v", options.Tools.Deny)
 	}
 	if countTool(options.Tools.Deny, "ScheduleWakeup") != 1 {
 		t.Fatalf("ScheduleWakeup deny 规则应去重: %+v", options.Tools.Deny)

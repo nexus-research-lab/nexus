@@ -29,7 +29,8 @@ const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
 
-var agentSessionScheduleTools = []string{
+var agentSessionDeniedTools = []string{
+	"EnterPlanMode",
 	"ScheduleWakeup",
 	"CronCreate",
 	"CronList",
@@ -102,7 +103,7 @@ func BuildAgentClientOptions(
 		},
 		Tools: agentclient.ToolOptions{
 			Allow: append([]string(nil), input.AllowedTools...),
-			Deny:  appendDistinctTools(input.DisallowedTools, agentSessionScheduleTools...),
+			Deny:  appendDistinctTools(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
 			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
