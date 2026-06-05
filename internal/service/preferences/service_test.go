@@ -18,16 +18,16 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if len(prefs.DefaultAgentOptions.AllowedTools) != 0 {
 		t.Fatalf("默认不应预授权工具: %+v", prefs.DefaultAgentOptions.AllowedTools)
 	}
-	if prefs.AgentRuntimeKind != "claude" {
-		t.Fatalf("默认 runtime 应为 claude: %+v", prefs)
+	if prefs.AgentRuntimeKind != "nxs" {
+		t.Fatalf("默认 runtime 应为 nxs: %+v", prefs)
 	}
 
 	normalized := normalizePreferences(Preferences{})
 	if normalized.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("空偏好归一化后应为询问模式: %+v", normalized.DefaultAgentOptions)
 	}
-	if normalized.AgentRuntimeKind != "claude" {
-		t.Fatalf("空偏好归一化后 runtime 应为 claude: %+v", normalized)
+	if normalized.AgentRuntimeKind != "nxs" {
+		t.Fatalf("空偏好归一化后 runtime 应为 nxs: %+v", normalized)
 	}
 }
 

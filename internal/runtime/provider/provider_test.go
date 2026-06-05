@@ -44,12 +44,12 @@ func TestNormalizeRuntimeKind(t *testing.T) {
 		runtimeKind string
 		want        string
 	}{
-		{name: "empty defaults claude", runtimeKind: "", want: RuntimeKindClaude},
+		{name: "empty defaults nxs", runtimeKind: "", want: RuntimeKindNXS},
 		{name: "nxs", runtimeKind: "nxs", want: RuntimeKindNXS},
 		{name: "nxs uppercase", runtimeKind: "NXS", want: RuntimeKindNXS},
 		{name: "go native alias", runtimeKind: "go-native", want: RuntimeKindNXS},
 		{name: "claude code alias", runtimeKind: "claude-code", want: RuntimeKindClaude},
-		{name: "unknown defaults claude", runtimeKind: "custom", want: RuntimeKindClaude},
+		{name: "unknown defaults nxs", runtimeKind: "custom", want: RuntimeKindNXS},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

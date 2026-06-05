@@ -114,6 +114,25 @@ func TestResolveRuntimeCommandPathDefersNXSRuntimeKindToBridge(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimeCommandPathDefaultsToNXSRuntimeKind(t *testing.T) {
+	got := resolveRuntimeCommandPathWith(
+		"",
+		"darwin",
+		fakeEnv(nil),
+		func(name string) (string, error) {
+			if name == "claude" {
+				return "/opt/homebrew/bin/claude", nil
+			}
+			return "", os.ErrNotExist
+		},
+		func(string) bool { return false },
+		fakeGlob(nil),
+	)
+	if got != "" {
+		t.Fatalf("空 runtime kind 默认应走 nxs 并交给 bridge 解析: got=%q", got)
+	}
+}
+
 func TestResolveRuntimeCommandPathUsesAppRootNXSRuntime(t *testing.T) {
 	expected := "/opt/app/bin/nxs"
 	got := resolveRuntimeCommandPathWith(

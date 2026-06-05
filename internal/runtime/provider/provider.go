@@ -24,7 +24,7 @@ func NormalizeRuntimeKind(runtimeKind string) string {
 	case RuntimeKindClaude, "claude-code", "claudecode":
 		return RuntimeKindClaude
 	}
-	return RuntimeKindClaude
+	return RuntimeKindNXS
 }
 
 // SupportsAPIFormat 判断指定 runtime 是否原生支持某个 provider API format。

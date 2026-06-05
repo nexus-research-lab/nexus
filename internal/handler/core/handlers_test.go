@@ -173,8 +173,12 @@ func TestHandleProviderOptionsUsesRuntimeKind(t *testing.T) {
 	}
 
 	defaultOptions := requestProviderOptions(t, server, "/nexus/v1/settings/providers/options")
-	if providerOptionsContains(defaultOptions.Items, "openai") {
-		t.Fatalf("默认 Claude runtime 不应返回 OpenAI: %+v", defaultOptions.Items)
+	if !providerOptionsContains(defaultOptions.Items, "openai") {
+		t.Fatalf("默认 nxs runtime 应返回 OpenAI: %+v", defaultOptions.Items)
+	}
+	if defaultOptions.DefaultProvider == nil || *defaultOptions.DefaultProvider != "openai" ||
+		defaultOptions.DefaultModel == nil || *defaultOptions.DefaultModel != "gpt-4o" {
+		t.Fatalf("默认 nxs runtime 默认模型不正确: %+v", defaultOptions)
 	}
 	nxsOptions := requestProviderOptions(t, server, "/nexus/v1/settings/providers/options?agent_runtime_kind=nxs")
 	if !providerOptionsContains(nxsOptions.Items, "openai") {
@@ -183,6 +187,10 @@ func TestHandleProviderOptionsUsesRuntimeKind(t *testing.T) {
 	if nxsOptions.DefaultProvider == nil || *nxsOptions.DefaultProvider != "openai" ||
 		nxsOptions.DefaultModel == nil || *nxsOptions.DefaultModel != "gpt-4o" {
 		t.Fatalf("nxs runtime 默认模型不正确: %+v", nxsOptions)
+	}
+	claudeOptions := requestProviderOptions(t, server, "/nexus/v1/settings/providers/options?agent_runtime_kind=claude")
+	if providerOptionsContains(claudeOptions.Items, "openai") {
+		t.Fatalf("显式 Claude runtime 不应返回 OpenAI: %+v", claudeOptions.Items)
 	}
 }
 

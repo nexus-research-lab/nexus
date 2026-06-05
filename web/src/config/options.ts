@@ -21,7 +21,7 @@ export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
 export let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
-let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "claude";
+let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {

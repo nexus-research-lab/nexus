@@ -83,6 +83,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("空 runtime kind 应默认启用 nxs: %+v", options.Runtime)
+	}
 	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
 	}
@@ -178,7 +181,7 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsUsesNXSChatCompletionsProviderEnv(t *testing.T) {
+func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testing.T) {
 	resolver := &fakeRuntimeConfigForRuntimeResolver{
 		config: &RuntimeConfig{
 			Provider:  "openai",
@@ -188,9 +191,7 @@ func TestBuildAgentClientOptionsUsesNXSChatCompletionsProviderEnv(t *testing.T) 
 			APIFormat: apiFormatChatCompletions,
 		},
 	}
-	options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{
-		RuntimeKind: runtimeKindNXS,
-	})
+	options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
@@ -221,7 +222,7 @@ func TestBuildAgentClientOptionsUsesNXSChatCompletionsProviderEnv(t *testing.T) 
 	}
 }
 
-func TestBuildAgentClientOptionsRejectsNonAnthropicAPIFormat(t *testing.T) {
+func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T) {
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
 			AuthToken: "token-1",
@@ -229,9 +230,11 @@ func TestBuildAgentClientOptionsRejectsNonAnthropicAPIFormat(t *testing.T) {
 			Model:     "gpt-4o",
 			APIFormat: "chat_completions",
 		},
-	}, AgentClientOptionsInput{})
+	}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindClaude,
+	})
 	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
-		t.Fatalf("非 anthropic_messages provider 应被拒绝: %v", err)
+		t.Fatalf("Claude runtime 下非 anthropic_messages provider 应被拒绝: %v", err)
 	}
 }
 
@@ -254,6 +257,7 @@ func TestBuildAgentClientOptionsRejectsNXSResponsesAPIFormat(t *testing.T) {
 func TestBuildAgentClientOptionsDeniesClaudeSessionUnavailableTools(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath:   "/tmp/workspace",
+		RuntimeKind:     runtimeKindClaude,
 		DisallowedTools: []string{" ScheduleWakeup ", "Write", "EnterPlanMode"},
 	})
 	if err != nil {

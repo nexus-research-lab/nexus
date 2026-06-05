@@ -42,7 +42,7 @@ func DefaultAllowedTools() []string {
 func DefaultPreferences() Preferences {
 	return normalizePreferences(Preferences{
 		ChatDefaultDeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-		AgentRuntimeKind:          "claude",
+		AgentRuntimeKind:          "nxs",
 		DefaultAgentOptions: protocol.Options{
 			PermissionMode:  "default",
 			AllowedTools:    DefaultAllowedTools(),

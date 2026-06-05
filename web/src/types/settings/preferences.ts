@@ -10,8 +10,12 @@ export function normalize_agent_runtime_kind(value?: string | null): AgentRuntim
     case "go-native":
     case "gonative":
       return "nxs";
-    default:
+    case "claude":
+    case "claude-code":
+    case "claudecode":
       return "claude";
+    default:
+      return "nxs";
   }
 }
 

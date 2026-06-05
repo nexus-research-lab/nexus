@@ -143,7 +143,7 @@ func resolveRuntimeKind(runtimeKind string, getenv func(string) string) string {
 			continue
 		}
 	}
-	return runtimeKindClaude
+	return runtimeKindNXS
 }
 
 func resolveNXSCommandPathWith(
