@@ -54,10 +54,10 @@ func NewService() *Service {
 // Status 只检查本地已存在的 nxs runtime，不触发下载。
 func (s *Service) Status() RuntimeStatus {
 	service := s.withDefaults()
-	if status, ok := service.statusFromEnv(); ok {
+	if status, ok := service.statusFromAppRoot(); ok {
 		return status
 	}
-	if status, ok := service.statusFromAppRoot(); ok {
+	if status, ok := service.statusFromEnv(); ok {
 		return status
 	}
 	if status, ok := service.statusFromCache(); ok {
@@ -73,6 +73,9 @@ func (s *Service) Status() RuntimeStatus {
 // Download 通过 bridge resolver 下载并缓存 nxs runtime。
 func (s *Service) Download() (RuntimeStatus, error) {
 	service := s.withDefaults()
+	if status, ok := service.statusFromAppRoot(); ok {
+		return status, nil
+	}
 	if status, ok := service.statusFromEnv(); ok {
 		if status.Available {
 			return status, nil

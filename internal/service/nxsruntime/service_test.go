@@ -17,6 +17,7 @@ func TestStatusUsesEnvCommandPath(t *testing.T) {
 		}
 		return ""
 	}
+	service.appRoot = func() string { return t.TempDir() }
 
 	status := service.Status()
 	if !status.Available || status.Path != runtimePath || status.Source != "env" {
@@ -33,6 +34,7 @@ func TestStatusRejectsBrokenEnvCommandPath(t *testing.T) {
 		}
 		return ""
 	}
+	service.appRoot = func() string { return t.TempDir() }
 
 	status := service.Status()
 	if status.Available || status.CanDownload || status.Source != "env" {
@@ -45,6 +47,25 @@ func TestStatusUsesAppRootRuntime(t *testing.T) {
 	runtimePath := writeExecutableForTest(t, filepath.Join(root, "bin"))
 	service := NewService()
 	service.getenv = func(string) string { return "" }
+	service.appRoot = func() string { return root }
+
+	status := service.Status()
+	if !status.Available || status.Path != runtimePath || status.Source != "app_root" {
+		t.Fatalf("Status() = %+v, want app root runtime", status)
+	}
+}
+
+func TestStatusPrefersAppRootRuntimeOverBrokenEnvCommandPath(t *testing.T) {
+	root := t.TempDir()
+	runtimePath := writeExecutableForTest(t, filepath.Join(root, "bin"))
+	brokenPath := filepath.Join(t.TempDir(), executableName())
+	service := NewService()
+	service.getenv = func(key string) string {
+		if key == commandPathEnvName {
+			return brokenPath
+		}
+		return ""
+	}
 	service.appRoot = func() string { return root }
 
 	status := service.Status()

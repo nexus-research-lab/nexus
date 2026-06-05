@@ -131,15 +131,28 @@ final class SidecarSupervisor {
 
   private func applyBundledNXSRuntime(to environment: inout [String: String]) {
     guard locator.projectRoot == nil else {
-      return
-    }
-    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "development",
+      ])
       return
     }
     let nxsURL = locator.appRootURL.appendingPathComponent("bin/nxs")
     if FileManager.default.isExecutableFile(atPath: nxsURL.path) {
       environment["NEXUS_NXS_COMMAND_PATH"] = nxsURL.path
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "bundled",
+      ])
+      return
     }
+    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "override",
+      ])
+      return
+    }
+    startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+      "source": "missing",
+    ])
   }
 
   private func connectorCredentialsKeyMode(environment: [String: String]) -> DesktopKeychainMode {

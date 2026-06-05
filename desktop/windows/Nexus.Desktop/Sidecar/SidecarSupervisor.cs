@@ -152,12 +152,10 @@ internal sealed class SidecarSupervisor : IDisposable
     {
         if (locator.IsDevelopment)
         {
-            return;
-        }
-
-        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
-            !string.IsNullOrWhiteSpace(overridePath))
-        {
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "development",
+            });
             return;
         }
 
@@ -165,7 +163,27 @@ internal sealed class SidecarSupervisor : IDisposable
         if (File.Exists(nxsPath))
         {
             startInfo.Environment["NEXUS_NXS_COMMAND_PATH"] = nxsPath;
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "bundled",
+            });
+            return;
         }
+
+        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
+            !string.IsNullOrWhiteSpace(overridePath))
+        {
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "override",
+            });
+            return;
+        }
+
+        startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+        {
+            ["source"] = "missing",
+        });
     }
 
     private static void PrepareDirectories()

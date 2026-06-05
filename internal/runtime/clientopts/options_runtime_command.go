@@ -151,14 +151,14 @@ func resolveNXSCommandPathWith(
 	getenv func(string) string,
 	fileExists func(string) bool,
 ) string {
-	if override := strings.TrimSpace(getenv(nexusNXSCommandPathEnvName)); override != "" {
-		return override
-	}
 	if appRoot := strings.TrimSpace(getenv(nexusAppRootEnvName)); appRoot != "" {
 		candidate := filepath.Join(appRoot, "bin", nxsExecutableName(goos))
 		if fileExists(candidate) {
 			return candidate
 		}
+	}
+	if override := strings.TrimSpace(getenv(nexusNXSCommandPathEnvName)); override != "" {
+		return override
 	}
 	return ""
 }

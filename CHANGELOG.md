@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Room Goal creation now keeps the remote composer UI while requiring a responsible Agent selection and writing Room Goal lead/collaboration metadata.
 
 ### Fixed
+- Fixed packaged desktop `nxs` runtime selection so bundled macOS/Windows runtimes take precedence over stale `NEXUS_NXS_COMMAND_PATH` overrides.
 - Added native `nxs` runtime support for OpenAI-compatible provider configs so Chat Completions providers can be selected and launched without Anthropic-compatible shims.
 - Hid `EnterPlanMode` from Agent runtime sessions, matching Claude Code's agent tool filtering and avoiding unusable plan-mode tool calls in agent contexts.
 - Moved Settings Agent Runtime selection ahead of the default model selector and preserved current provider/model selections in the menu, so `nxs` OpenAI-compatible defaults remain selectable.

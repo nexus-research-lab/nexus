@@ -159,6 +159,24 @@ func TestResolveRuntimeCommandPathUsesNXSOverride(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimeCommandPathPrefersAppRootNXSRuntimeOverOverride(t *testing.T) {
+	expected := filepath.Join(`C:\Nexus\Resources`, "bin", "nxs.exe")
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindNXS,
+		"windows",
+		fakeEnv(map[string]string{
+			nexusAppRootEnvName:        `C:\Nexus\Resources`,
+			nexusNXSCommandPathEnvName: `C:\Stale\nxs.exe`,
+		}),
+		func(string) (string, error) { return "", os.ErrNotExist },
+		func(path string) bool { return path == expected },
+		fakeGlob(nil),
+	)
+	if got != expected {
+		t.Fatalf("包内 nxs 应优先于 NEXUS_NXS_COMMAND_PATH override: got=%q want=%q", got, expected)
+	}
+}
+
 func TestResolveRuntimeCommandPathIgnoresClaudeOverrideForNXS(t *testing.T) {
 	got := resolveRuntimeCommandPathWith(
 		runtimeKindNXS,
