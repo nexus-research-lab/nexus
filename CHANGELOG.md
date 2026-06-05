@@ -7,22 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-06-05
+
 ### Changed
-- Refined the Goal composer/status UI with a smaller status strip, shared edit dialog, and Codex-aligned add-menu entry.
-- Unified bundled `nxs` runtime discovery around `$NEXUS_APP_ROOT/bin/nxs` so Docker and desktop packages use the same app-root path before falling back to the bridge resolver cache.
-- Room Goal creation now keeps the remote composer UI while requiring a responsible Agent selection and writing Room Goal lead/collaboration metadata.
+- Refined Goal creation and status flows with a smaller composer strip, shared edit dialog, required Room Agent ownership, and Codex-aligned add-menu behavior.
+- Unified `nxs` runtime discovery around app-root bundled runtimes so Docker and desktop packages use the packaged binary before bridge resolver cache fallback.
+- Tightened release packaging validation so desktop assets must declare bundled `nxs` runtime metadata and repeated tag builds replace stale app assets.
 
 ### Fixed
-- Fixed packaged desktop `nxs` runtime selection so bundled macOS/Windows runtimes take precedence over stale `NEXUS_NXS_COMMAND_PATH` overrides.
-- Added native `nxs` runtime support for OpenAI-compatible provider configs so Chat Completions providers can be selected and launched without Anthropic-compatible shims.
-- Hid `EnterPlanMode` from Agent runtime sessions, matching Claude Code's agent tool filtering and avoiding unusable plan-mode tool calls in agent contexts.
-- Moved Settings Agent Runtime selection ahead of the default model selector and preserved current provider/model selections in the menu, so `nxs` OpenAI-compatible defaults remain selectable.
-- Closing a Room conversation tab now interrupts and closes the backing runtime session, and deleting conversations/rooms cleans up runtime clients as well.
-- Stopped the macOS auto-updater from stripping quarantine and added staged app bundle, code-signing, and Gatekeeper trust checks before automatic replacement.
-- Added Docker image build-time `nxs` runtime bundling and Settings runtime checks so switching to `nxs` first verifies local availability and prompts for download when needed.
-- Clarified nxs runtime startup failures in WebSocket chat errors so automatic runtime resolver failures are distinguished from missing local executables.
-- Restored visible Goal creation progress in the new composer UI while objective normalization is running.
-- Fixed Go backend startup after the SDK bridge bump by adding the `v0.1.5` checksum and passing Nexus runtime kind selection through to the bridge.
+- Fixed packaged macOS and Windows `nxs` startup by preferring bundled runtimes over stale `NEXUS_NXS_COMMAND_PATH` overrides.
+- Fixed native `nxs` support for OpenAI-compatible Chat Completions providers, Settings runtime/model selection, clearer startup errors, and SDK bridge checksum startup.
+- Fixed Room conversation runtime cleanup, visible Goal creation progress, macOS updater trust checks, and agent-session tool filtering.
 
 ## [0.1.15] - 2026-06-04
 
