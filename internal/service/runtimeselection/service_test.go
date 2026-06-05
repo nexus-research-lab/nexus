@@ -65,6 +65,23 @@ func TestResolveFallsBackToPreferenceDefaultModel(t *testing.T) {
 	}
 }
 
+func TestResolveNormalizesPreferenceRuntimeKind(t *testing.T) {
+	service := NewService(fakePreferencesService{items: map[string]preferencessvc.Preferences{
+		"owner-1": {
+			AgentRuntimeKind: "GO-native",
+		},
+	}})
+	selection, err := service.Resolve(context.Background(), Request{
+		Agent: &protocol.Agent{OwnerUserID: "owner-1"},
+	})
+	if err != nil {
+		t.Fatalf("Resolve 失败: %v", err)
+	}
+	if selection.RuntimeKind != "nxs" {
+		t.Fatalf("偏好 runtime 别名未归一化: %+v", selection)
+	}
+}
+
 func TestResolvePrefersContextOwnerBeforeRequestOwners(t *testing.T) {
 	service := NewService(fakePreferencesService{items: map[string]preferencessvc.Preferences{
 		"context-owner": {

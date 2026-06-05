@@ -6,6 +6,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimecapability "github.com/nexus-research-lab/nexus/internal/runtime/capability"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
@@ -51,7 +52,7 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 		return Selection{}, err
 	}
 	if ok {
-		selection.RuntimeKind = strings.TrimSpace(prefs.AgentRuntimeKind)
+		selection.RuntimeKind = runtimecapability.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
 		if selection.Provider == "" || selection.Model == "" {
 			defaultProvider := strings.TrimSpace(prefs.DefaultAgentOptions.Provider)
 			defaultModel := strings.TrimSpace(prefs.DefaultAgentOptions.Model)
