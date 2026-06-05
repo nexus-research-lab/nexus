@@ -353,6 +353,27 @@ jobs:
           name: nexus-${{ steps.tag.outputs.tag }}-windows-app
           path: ${{ runner.temp }}/artifacts
 
+      - name: Verify Bundled nxs Runtime Metadata
+        run: |
+          found_metadata=0
+          for metadata in "${RUNNER_TEMP}/artifacts/"*.metadata.json; do
+            if [ ! -f "${metadata}" ]; then
+              continue
+            fi
+            found_metadata=1
+            bundled="$(jq -r '.runtime.nxs.bundled // false' "${metadata}")"
+            relative_path="$(jq -r '.runtime.nxs.relative_path // ""' "${metadata}")"
+            if [ "${bundled}" != "true" ] || [ -z "${relative_path}" ]; then
+              echo "Release metadata is missing bundled nxs runtime: ${metadata}" >&2
+              cat "${metadata}" >&2
+              exit 1
+            fi
+          done
+          if [ "${found_metadata}" != "1" ]; then
+            echo "No release metadata files were downloaded." >&2
+            exit 1
+          fi
+
       - name: Upload Release Assets
         uses: actions/upload-artifact@v7
         with:
@@ -365,6 +386,48 @@ jobs:
             ${{ runner.temp }}/artifacts/Nexus-windows-*.metadata.json
             ${{ runner.temp }}/artifacts/NexusSetup-*.exe
             ${{ runner.temp }}/artifacts/NexusSetup-*.exe.sha256
+
+      - name: Remove Previous App Release Assets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          release_json="$(mktemp)"
+          release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
+          status="$(
+            curl -fsS -o "${release_json}" -w "%{http_code}" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${release_api}" || true
+          )"
+          if [ "${status}" = "404" ]; then
+            exit 0
+          fi
+          if [ "${status}" != "200" ]; then
+            cat "${release_json}" >&2
+            exit 1
+          fi
+
+          jq -r --arg version "${VERSION}" '
+            .assets[]
+            | select(
+              (.name | test("^Nexus-macos-" + $version + "-[0-9]+\\.dmg(\\.sha256|\\.metadata\\.json)?$")) or
+              (.name | test("^Nexus-windows-" + $version + "-[0-9]+\\.metadata\\.json$")) or
+              (.name | test("^NexusSetup-" + $version + "-[0-9]+\\.exe(\\.sha256)?$"))
+            )
+            | [.id, .name]
+            | @tsv
+          ' "${release_json}" | while IFS="$(printf '\t')" read -r asset_id asset_name; do
+            if [ -z "${asset_id}" ]; then
+              continue
+            fi
+            echo "Deleting previous release asset: ${asset_name}"
+            curl -fsS -X DELETE \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >/dev/null
+          done
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
