@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	runtimecapability "github.com/nexus-research-lab/nexus/internal/runtime/capability"
 )
 
 const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
@@ -13,8 +15,8 @@ const nexusNXSCommandPathEnvName = "NEXUS_NXS_COMMAND_PATH"
 const nexusAgentRuntimeKindEnvName = "NEXUS_AGENT_RUNTIME_KIND"
 const nexusAgentRuntimeEnvName = "NEXUS_AGENT_RUNTIME"
 const nexusAppRootEnvName = "NEXUS_APP_ROOT"
-const runtimeKindClaude = "claude"
-const runtimeKindNXS = "nxs"
+const runtimeKindClaude = runtimecapability.RuntimeKindClaude
+const runtimeKindNXS = runtimecapability.RuntimeKindNXS
 
 type runtimeCommandConfig struct {
 	CLIPath          string
@@ -46,14 +48,7 @@ func (p runtimeProfile) isClaude() bool {
 }
 
 func (p runtimeProfile) supportsAPIFormat(apiFormat string) bool {
-	switch strings.TrimSpace(apiFormat) {
-	case "", apiFormatAnthropicMessages:
-		return true
-	case apiFormatChatCompletions:
-		return p.isNXS()
-	default:
-		return false
-	}
+	return runtimecapability.SupportsAPIFormat(p.kind, apiFormat)
 }
 
 func processRuntimeCommandConfig(runtimeKind string) runtimeCommandConfig {
