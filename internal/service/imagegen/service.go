@@ -33,6 +33,7 @@ const (
 )
 
 var safeFileNamePattern = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+var pixelSizePattern = regexp.MustCompile(`^(\d+)\s*[xX*]\s*(\d+)$`)
 
 // ProviderResolver 是图片生成服务依赖的 provider 配置解析子集。
 type ProviderResolver interface {
@@ -83,6 +84,7 @@ func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Resu
 		return nil, nil, err
 	}
 	normalized = applyGenerateProviderDefaults(config, normalized)
+	normalized.Size = normalizeProviderImageSize(config, normalized.Size)
 	payload, revisedPrompt, mimeType, err := s.callGenerateProvider(ctx, config, normalized)
 	if err != nil {
 		return nil, nil, err
@@ -125,6 +127,7 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 	if err != nil {
 		return nil, nil, err
 	}
+	normalized.Size = normalizeProviderImageSize(config, normalized.Size)
 	payload, revisedPrompt, mimeType, err := s.callEditProvider(ctx, config, normalized)
 	if err != nil {
 		return nil, nil, err
@@ -384,6 +387,50 @@ func isSeedreamModel(config *providercfg.ImageConfig) bool {
 	}
 	model := strings.ToLower(strings.TrimSpace(config.Model))
 	return strings.Contains(model, "seedream")
+}
+
+func normalizeProviderImageSize(config *providercfg.ImageConfig, size string) string {
+	size = strings.TrimSpace(size)
+	if size == "" || !isImage2Model(config) {
+		return size
+	}
+	matches := pixelSizePattern.FindStringSubmatch(size)
+	if len(matches) != 3 {
+		return size
+	}
+	width, widthErr := strconv.Atoi(matches[1])
+	height, heightErr := strconv.Atoi(matches[2])
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return size
+	}
+	width = nearestPositiveMultiple(width, 16)
+	height = nearestPositiveMultiple(height, 16)
+	return fmt.Sprintf("%dx%d", width, height)
+}
+
+func isImage2Model(config *providercfg.ImageConfig) bool {
+	if config == nil {
+		return false
+	}
+	model := strings.ToLower(strings.TrimSpace(config.Model))
+	normalized := strings.NewReplacer("-", "", "_", "", ".", "", " ", "").Replace(model)
+	return strings.Contains(normalized, "image2")
+}
+
+func nearestPositiveMultiple(value int, multiple int) int {
+	if multiple <= 0 || value <= 0 {
+		return value
+	}
+	remainder := value % multiple
+	if remainder == 0 {
+		return value
+	}
+	down := value - remainder
+	up := down + multiple
+	if down <= 0 || up-value <= value-down {
+		return up
+	}
+	return down
 }
 
 func validateProviderURL(parsed *url.URL) error {

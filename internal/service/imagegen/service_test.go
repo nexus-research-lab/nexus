@@ -261,6 +261,46 @@ func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
 	}
 }
 
+func TestGenerateImageNormalizesImage2PixelSizeBeforeRequest(t *testing.T) {
+	imageBytes := []byte{0x89, 0x50, 0x4e, 0x47}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body["model"] != "gpt-image-2" {
+			t.Fatalf("unexpected model: %+v", body)
+		}
+		if body["size"] != "1920x1088" {
+			t.Fatalf("image2 请求前应规整到 16 倍数: %+v", body)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"data": []map[string]any{{"b64_json": base64.StdEncoding.EncodeToString(imageBytes)}},
+		})
+	}))
+	defer server.Close()
+
+	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
+		Provider:  "openai",
+		AuthToken: "test-token",
+		BaseURL:   server.URL + "/v1",
+		Model:     "gpt-image-2",
+	}})
+
+	result, _, err := service.GenerateImage(context.Background(), GenerateInput{
+		Prompt:        "cinematic wide scene",
+		WorkspacePath: t.TempDir(),
+		Size:          "1920x1080",
+		FileName:      "wide-scene",
+	})
+	if err != nil {
+		t.Fatalf("GenerateImage returned error: %v", err)
+	}
+	if result.Size != "1920x1088" {
+		t.Fatalf("result size 未同步规整后尺寸: %+v", result)
+	}
+}
+
 func TestGenerateImageCallsDoubaoSeedreamProviderAndWritesFile(t *testing.T) {
 	imageBytes := []byte{
 		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
