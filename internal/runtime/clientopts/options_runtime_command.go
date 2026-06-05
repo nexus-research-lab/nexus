@@ -84,29 +84,6 @@ func resolveRuntimeCommandConfigWith(
 	return runtimeCommandConfig{CLIPath: commandPath}
 }
 
-func resolveClaudeCommandConfigWith(
-	runtimeKind string,
-	goos string,
-	getenv func(string) string,
-	lookPath func(string) (string, error),
-	fileExists func(string) bool,
-	globPaths func(string) ([]string, error),
-) runtimeCommandConfig {
-	return resolveRuntimeCommandConfigWith(
-		runtimeKind, goos, getenv, lookPath, fileExists, globPaths,
-	)
-}
-
-func resolveClaudeCommandPathWith(
-	goos string,
-	getenv func(string) string,
-	lookPath func(string) (string, error),
-	fileExists func(string) bool,
-	globPaths func(string) ([]string, error),
-) string {
-	return resolveRuntimeCommandPathWith(runtimeKindClaude, goos, getenv, lookPath, fileExists, globPaths)
-}
-
 func resolveRuntimeCommandPathWith(
 	runtimeKind string,
 	goos string,

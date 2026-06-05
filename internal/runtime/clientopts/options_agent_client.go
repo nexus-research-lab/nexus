@@ -29,7 +29,7 @@ const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
 
-var claudeSessionScheduleTools = []string{
+var agentSessionScheduleTools = []string{
 	"ScheduleWakeup",
 	"CronCreate",
 	"CronList",
@@ -102,7 +102,7 @@ func BuildAgentClientOptions(
 		},
 		Tools: agentclient.ToolOptions{
 			Allow: append([]string(nil), input.AllowedTools...),
-			Deny:  appendDistinctTools(input.DisallowedTools, claudeSessionScheduleTools...),
+			Deny:  appendDistinctTools(input.DisallowedTools, agentSessionScheduleTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
 			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
@@ -182,23 +182,6 @@ func clonePermissionInput(input map[string]any) map[string]any {
 		result[key] = value
 	}
 	return result
-}
-
-// BuildRuntimeEnv 统一把 provider 配置收口成 Claude SDK 所需环境变量。
-func BuildRuntimeEnv(
-	ctx context.Context,
-	resolver RuntimeConfigResolver,
-	provider string,
-	model string,
-) (map[string]string, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider, model, runtimeKindClaude)
-	if err != nil {
-		return nil, err
-	}
-	if runtimeConfig == nil {
-		return nil, nil
-	}
-	return runtimeEnvFromConfig(runtimeConfig, runtimeKindClaude), nil
 }
 
 func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {

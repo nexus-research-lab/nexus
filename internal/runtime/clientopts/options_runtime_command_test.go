@@ -6,9 +6,10 @@ import (
 	"testing"
 )
 
-func TestResolveClaudeCommandPathUsesOverride(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesClaudeOverride(t *testing.T) {
 	expected := `D:\tools\claude.exe`
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"windows",
 		fakeEnv(map[string]string{nexusClaudeCommandPathEnvName: expected}),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -20,10 +21,11 @@ func TestResolveClaudeCommandPathUsesOverride(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesWindowsNpmShim(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesWindowsNpmShim(t *testing.T) {
 	appData := `C:\Users\lee\AppData\Roaming`
 	expected := filepath.Join(appData, "npm", "claude.cmd")
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"windows",
 		fakeEnv(map[string]string{"APPDATA": appData}),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -35,13 +37,13 @@ func TestResolveClaudeCommandPathUsesWindowsNpmShim(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandConfigBypassesWindowsNpmShim(t *testing.T) {
+func TestResolveRuntimeCommandConfigBypassesWindowsNpmShim(t *testing.T) {
 	appData := `C:\Users\lee\AppData\Roaming`
 	shimPath := filepath.Join(appData, "npm", "claude.cmd")
 	scriptPath := filepath.Clean(filepath.Join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code", "cli.js"))
 	nodePath := `C:\Program Files\nodejs\node.exe`
-	got := resolveClaudeCommandConfigWith(
-		"",
+	got := resolveRuntimeCommandConfigWith(
+		runtimeKindClaude,
 		"windows",
 		fakeEnv(map[string]string{"APPDATA": appData}),
 		func(name string) (string, error) {
@@ -70,11 +72,11 @@ func TestResolveClaudeCommandConfigBypassesWindowsNpmShim(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandConfigFallsBackWhenShimScriptMissing(t *testing.T) {
+func TestResolveRuntimeCommandConfigFallsBackWhenShimScriptMissing(t *testing.T) {
 	appData := `C:\Users\lee\AppData\Roaming`
 	shimPath := filepath.Join(appData, "npm", "claude.cmd")
-	got := resolveClaudeCommandConfigWith(
-		"",
+	got := resolveRuntimeCommandConfigWith(
+		runtimeKindClaude,
 		"windows",
 		fakeEnv(map[string]string{"APPDATA": appData}),
 		func(name string) (string, error) {
@@ -218,9 +220,10 @@ func TestResolveRuntimeCommandPathDefersNXSFallbackToBridge(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathPrefersLookPath(t *testing.T) {
+func TestResolveRuntimeCommandPathPrefersClaudeLookPath(t *testing.T) {
 	expected := `C:\Users\lee\AppData\Roaming\npm\claude.cmd`
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"windows",
 		fakeEnv(nil),
 		func(name string) (string, error) {
@@ -237,9 +240,10 @@ func TestResolveClaudeCommandPathPrefersLookPath(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathNonWindowsUsesLookPath(t *testing.T) {
+func TestResolveRuntimeCommandPathNonWindowsUsesClaudeLookPath(t *testing.T) {
 	expected := "/Users/lee/.local/bin/claude"
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"linux",
 		fakeEnv(nil),
 		func(name string) (string, error) {
@@ -256,9 +260,10 @@ func TestResolveClaudeCommandPathNonWindowsUsesLookPath(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesMacOSHomebrewPath(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesMacOSHomebrewClaudePath(t *testing.T) {
 	expected := "/opt/homebrew/bin/claude"
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"darwin",
 		fakeEnv(nil),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -270,10 +275,11 @@ func TestResolveClaudeCommandPathUsesMacOSHomebrewPath(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesNativeInstallerPath(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesNativeClaudeInstallerPath(t *testing.T) {
 	home := "/Users/lee"
 	expected := filepath.Join(home, ".local", "bin", "claude")
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"darwin",
 		fakeEnv(map[string]string{"HOME": home}),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -285,11 +291,12 @@ func TestResolveClaudeCommandPathUsesNativeInstallerPath(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesNVMGlobalInstall(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesNVMClaudeGlobalInstall(t *testing.T) {
 	home := "/Users/lee"
 	expected := filepath.Join(home, ".nvm", "versions", "node", "v22.11.0", "bin", "claude")
 	pattern := filepath.Join(home, ".nvm", "versions", "node", "*", "bin", "claude")
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"darwin",
 		fakeEnv(map[string]string{"HOME": home}),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -301,10 +308,11 @@ func TestResolveClaudeCommandPathUsesNVMGlobalInstall(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesVoltaShim(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesVoltaClaudeShim(t *testing.T) {
 	home := "/Users/lee"
 	expected := filepath.Join(home, ".volta", "bin", "claude")
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"darwin",
 		fakeEnv(map[string]string{"HOME": home}),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -316,10 +324,11 @@ func TestResolveClaudeCommandPathUsesVoltaShim(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesASDFShim(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesASDFClaudeShim(t *testing.T) {
 	home := "/Users/lee"
 	expected := filepath.Join(home, ".asdf", "shims", "claude")
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"linux",
 		fakeEnv(map[string]string{"HOME": home}),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -331,9 +340,10 @@ func TestResolveClaudeCommandPathUsesASDFShim(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesLinuxPackagePath(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesLinuxPackageClaudePath(t *testing.T) {
 	expected := "/usr/bin/claude"
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"linux",
 		fakeEnv(nil),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -345,9 +355,10 @@ func TestResolveClaudeCommandPathUsesLinuxPackagePath(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathUsesLinuxHomebrewPath(t *testing.T) {
+func TestResolveRuntimeCommandPathUsesLinuxHomebrewClaudePath(t *testing.T) {
 	expected := "/home/linuxbrew/.linuxbrew/bin/claude"
-	got := resolveClaudeCommandPathWith(
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"linux",
 		fakeEnv(nil),
 		func(string) (string, error) { return "", os.ErrNotExist },
@@ -359,8 +370,9 @@ func TestResolveClaudeCommandPathUsesLinuxHomebrewPath(t *testing.T) {
 	}
 }
 
-func TestResolveClaudeCommandPathFallsBackToSDKDefault(t *testing.T) {
-	got := resolveClaudeCommandPathWith(
+func TestResolveRuntimeCommandPathFallsBackToSDKDefault(t *testing.T) {
+	got := resolveRuntimeCommandPathWith(
+		runtimeKindClaude,
 		"linux",
 		fakeEnv(nil),
 		func(string) (string, error) { return "", os.ErrNotExist },
