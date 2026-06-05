@@ -3,7 +3,7 @@ package provider
 import (
 	"strings"
 
-	runtimecapability "github.com/nexus-research-lab/nexus/internal/runtime/capability"
+	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
@@ -335,7 +335,7 @@ func isAgentRuntimeAPIFormat(apiFormat string) bool {
 }
 
 func isAgentRuntimeAPIFormatForRuntime(apiFormat string, runtimeKind string) bool {
-	return runtimecapability.SupportsAPIFormat(runtimeKind, normalizeAPIFormat(apiFormat))
+	return runtimeprovider.SupportsAPIFormat(runtimeKind, normalizeAPIFormat(apiFormat))
 }
 
 func isAgentRuntimeProvider(item providerstore.Entity) bool {
@@ -347,9 +347,9 @@ func isAgentRuntimeProviderForRuntime(item providerstore.Entity, runtimeKind str
 }
 
 func isAnyAgentRuntimeProvider(item providerstore.Entity) bool {
-	return item.ProviderKind == ProviderKindLLM && runtimecapability.SupportsAnyRuntime(normalizeAPIFormat(item.APIFormat))
+	return item.ProviderKind == ProviderKindLLM && runtimeprovider.SupportsAnyRuntime(normalizeAPIFormat(item.APIFormat))
 }
 
 func normalizeRuntimeKind(runtimeKind string) string {
-	return runtimecapability.NormalizeRuntimeKind(runtimeKind)
+	return runtimeprovider.NormalizeRuntimeKind(runtimeKind)
 }

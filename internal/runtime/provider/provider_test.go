@@ -1,4 +1,4 @@
-package capability
+package provider
 
 import "testing"
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	runtimecapability "github.com/nexus-research-lab/nexus/internal/runtime/capability"
+	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -17,8 +17,8 @@ import (
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
-const apiFormatAnthropicMessages = runtimecapability.APIFormatAnthropicMessages
-const apiFormatChatCompletions = runtimecapability.APIFormatChatCompletions
+const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
+const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
