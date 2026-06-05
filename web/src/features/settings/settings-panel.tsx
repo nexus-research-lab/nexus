@@ -82,7 +82,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { ProviderOption } from "@/types/capability/provider";
-import type { AgentRuntimeKind, NXSRuntimeStatus, UserPreferences } from "@/types/settings/preferences";
+import { normalize_agent_runtime_kind, type AgentRuntimeKind, type NXSRuntimeStatus, type UserPreferences } from "@/types/settings/preferences";
 import type { Locale } from "@/shared/i18n/messages";
 
 import { ProviderSettingsPanel } from "./provider-settings-panel";
@@ -235,10 +235,6 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
     ),
     updated_at: preferences?.updated_at,
   };
-}
-
-function normalize_agent_runtime_kind(value?: string | null): AgentRuntimeKind {
-  return value?.trim() === "nxs" ? "nxs" : "claude";
 }
 
 function normalize_model_selection_preference(

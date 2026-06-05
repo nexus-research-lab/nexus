@@ -95,6 +95,21 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateNormalizesRuntimeKindAlias(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+
+	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		AgentRuntimeKind: stringPointer("NXS"),
+	})
+	if err != nil {
+		t.Fatalf("更新 runtime 偏好失败: %v", err)
+	}
+	if prefs.AgentRuntimeKind != "nxs" {
+		t.Fatalf("runtime 别名未归一化: %+v", prefs)
+	}
+}
+
 func TestServiceUpdatePersistsInterruptDefaultDeliveryPolicy(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})

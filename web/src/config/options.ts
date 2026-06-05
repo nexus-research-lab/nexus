@@ -9,7 +9,7 @@ import { request_api } from "@/lib/api/http";
 import { get_desktop_runtime_config } from "@/config/desktop-runtime";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import type { AgentRuntimeKind, UserPreferences } from "@/types/settings/preferences";
+import { normalize_agent_runtime_kind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
 import {
   DEFAULT_AGENT_ALLOWED_TOOLS,
   DEFAULT_AGENT_PERMISSION_MODE,
@@ -210,10 +210,6 @@ function normalize_agent_options(options?: Partial<AgentOptions> | null): Partia
     disallowed_tools: [...(source.disallowed_tools ?? [])],
     setting_sources: [...(source.setting_sources ?? ["project"])],
   };
-}
-
-function normalize_agent_runtime_kind(value?: string | null): AgentRuntimeKind {
-  return value?.trim() === "nxs" ? "nxs" : "claude";
 }
 
 function normalize_model_selection_preference(

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimecapability "github.com/nexus-research-lab/nexus/internal/runtime/capability"
 )
 
 // Preferences 表示当前用户的界面与运行默认偏好。
@@ -88,12 +89,7 @@ func normalizePreferences(item Preferences) Preferences {
 }
 
 func normalizeRuntimeKind(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "nxs":
-		return "nxs"
-	default:
-		return "claude"
-	}
+	return runtimecapability.NormalizeRuntimeKind(value)
 }
 
 func normalizeModelSelection(selection ModelSelection) ModelSelection {

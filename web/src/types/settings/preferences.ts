@@ -3,6 +3,18 @@ import type { AgentOptions } from "@/types/agent/agent";
 
 export type AgentRuntimeKind = "claude" | "nxs";
 
+export function normalize_agent_runtime_kind(value?: string | null): AgentRuntimeKind {
+  switch (value?.trim().toLowerCase()) {
+    case "nxs":
+    case "go":
+    case "go-native":
+    case "gonative":
+      return "nxs";
+    default:
+      return "claude";
+  }
+}
+
 export interface NXSRuntimeStatus {
   available: boolean;
   path?: string;
