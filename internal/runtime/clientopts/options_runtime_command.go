@@ -16,14 +16,48 @@ const nexusAppRootEnvName = "NEXUS_APP_ROOT"
 const runtimeKindClaude = "claude"
 const runtimeKindNXS = "nxs"
 
-type claudeCommandConfig struct {
+type runtimeCommandConfig struct {
 	CLIPath          string
 	Executable       string
 	PathToExecutable string
 }
 
-func processCLICommandConfig(runtimeKind string) claudeCommandConfig {
-	return resolveClaudeCommandConfigWith(
+type runtimeProfile struct {
+	kind string
+}
+
+func resolveRuntimeProfile(runtimeKind string, getenv func(string) string) runtimeProfile {
+	return runtimeProfileForKind(resolveRuntimeKind(runtimeKind, getenv))
+}
+
+func runtimeProfileForKind(runtimeKind string) runtimeProfile {
+	if runtimeKind == runtimeKindNXS {
+		return runtimeProfile{kind: runtimeKindNXS}
+	}
+	return runtimeProfile{kind: runtimeKindClaude}
+}
+
+func (p runtimeProfile) isNXS() bool {
+	return p.kind == runtimeKindNXS
+}
+
+func (p runtimeProfile) isClaude() bool {
+	return p.kind == runtimeKindClaude
+}
+
+func (p runtimeProfile) supportsAPIFormat(apiFormat string) bool {
+	switch strings.TrimSpace(apiFormat) {
+	case "", apiFormatAnthropicMessages:
+		return true
+	case apiFormatChatCompletions:
+		return p.isNXS()
+	default:
+		return false
+	}
+}
+
+func processRuntimeCommandConfig(runtimeKind string) runtimeCommandConfig {
+	return resolveRuntimeCommandConfigWith(
 		runtimeKind,
 		runtime.GOOS,
 		os.Getenv,
@@ -36,6 +70,25 @@ func processCLICommandConfig(runtimeKind string) claudeCommandConfig {
 	)
 }
 
+func resolveRuntimeCommandConfigWith(
+	runtimeKind string,
+	goos string,
+	getenv func(string) string,
+	lookPath func(string) (string, error),
+	fileExists func(string) bool,
+	globPaths func(string) ([]string, error),
+) runtimeCommandConfig {
+	profile := resolveRuntimeProfile(runtimeKind, getenv)
+	commandPath := profile.resolveCommandPath(goos, getenv, lookPath, fileExists, globPaths)
+	if !profile.isClaude() || goos != "windows" || strings.TrimSpace(commandPath) == "" {
+		return runtimeCommandConfig{CLIPath: commandPath}
+	}
+	if config, ok := windowsNodeClaudeCommandConfig(commandPath, lookPath, fileExists); ok {
+		return config
+	}
+	return runtimeCommandConfig{CLIPath: commandPath}
+}
+
 func resolveClaudeCommandConfigWith(
 	runtimeKind string,
 	goos string,
@@ -43,16 +96,10 @@ func resolveClaudeCommandConfigWith(
 	lookPath func(string) (string, error),
 	fileExists func(string) bool,
 	globPaths func(string) ([]string, error),
-) claudeCommandConfig {
-	effectiveKind := resolveRuntimeKind(runtimeKind, getenv)
-	commandPath := resolveRuntimeCommandPathWith(effectiveKind, goos, getenv, lookPath, fileExists, globPaths)
-	if effectiveKind != runtimeKindClaude || goos != "windows" || strings.TrimSpace(commandPath) == "" {
-		return claudeCommandConfig{CLIPath: commandPath}
-	}
-	if config, ok := windowsNodeClaudeCommandConfig(commandPath, lookPath, fileExists); ok {
-		return config
-	}
-	return claudeCommandConfig{CLIPath: commandPath}
+) runtimeCommandConfig {
+	return resolveRuntimeCommandConfigWith(
+		runtimeKind, goos, getenv, lookPath, fileExists, globPaths,
+	)
 }
 
 func resolveClaudeCommandPathWith(
@@ -73,8 +120,18 @@ func resolveRuntimeCommandPathWith(
 	fileExists func(string) bool,
 	globPaths func(string) ([]string, error),
 ) string {
-	runtimeKind = resolveRuntimeKind(runtimeKind, getenv)
-	if runtimeKind == runtimeKindNXS {
+	profile := resolveRuntimeProfile(runtimeKind, getenv)
+	return profile.resolveCommandPath(goos, getenv, lookPath, fileExists, globPaths)
+}
+
+func (p runtimeProfile) resolveCommandPath(
+	goos string,
+	getenv func(string) string,
+	lookPath func(string) (string, error),
+	fileExists func(string) bool,
+	globPaths func(string) ([]string, error),
+) string {
+	if p.isNXS() {
 		return resolveNXSCommandPathWith(goos, getenv, fileExists)
 	}
 	if override := strings.TrimSpace(getenv(nexusClaudeCommandPathEnvName)); override != "" {
@@ -172,16 +229,16 @@ func windowsNodeClaudeCommandConfig(
 	commandPath string,
 	lookPath func(string) (string, error),
 	fileExists func(string) bool,
-) (claudeCommandConfig, bool) {
+) (runtimeCommandConfig, bool) {
 	extension := strings.ToLower(filepath.Ext(commandPath))
 	if extension != ".cmd" && extension != ".bat" && extension != ".ps1" {
-		return claudeCommandConfig{}, false
+		return runtimeCommandConfig{}, false
 	}
 	scriptPath := windowsClaudeScriptPath(commandPath, fileExists)
 	if scriptPath == "" {
-		return claudeCommandConfig{}, false
+		return runtimeCommandConfig{}, false
 	}
-	return claudeCommandConfig{
+	return runtimeCommandConfig{
 		Executable:       windowsNodeExecutable(commandPath, lookPath, fileExists),
 		PathToExecutable: scriptPath,
 	}, true

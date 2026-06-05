@@ -86,7 +86,7 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
-	commandConfig := processCLICommandConfig(effectiveRuntimeKind)
+	commandConfig := processRuntimeCommandConfig(effectiveRuntimeKind)
 
 	options := agentclient.Options{
 		CLIPath:                commandConfig.CLIPath,
@@ -134,7 +134,7 @@ func BuildAgentClientOptions(
 }
 
 func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {
-	if runtimeKind == runtimeKindNXS {
+	if runtimeProfileForKind(runtimeKind).isNXS() {
 		return agentclient.RuntimeNXS
 	}
 	return agentclient.RuntimeClaude
@@ -204,11 +204,12 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 	if runtimeConfig == nil {
 		return nil
 	}
+	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
 	case "", apiFormatAnthropicMessages:
 		return anthropicRuntimeEnvFromConfig(runtimeConfig)
 	case apiFormatChatCompletions:
-		if resolveRuntimeKind(runtimeKind, os.Getenv) == runtimeKindNXS {
+		if profile.isNXS() {
 			return openAIRuntimeEnvFromConfig(runtimeConfig)
 		}
 	}
@@ -304,14 +305,8 @@ func resolveProviderRuntimeConfig(
 }
 
 func runtimeSupportsAPIFormat(runtimeKind string, apiFormat string) bool {
-	apiFormat = strings.TrimSpace(apiFormat)
-	if apiFormat == "" || apiFormat == apiFormatAnthropicMessages {
-		return true
-	}
-	if resolveRuntimeKind(runtimeKind, os.Getenv) != runtimeKindNXS {
-		return false
-	}
-	return apiFormat == apiFormatChatCompletions
+	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
+	return profile.supportsAPIFormat(apiFormat)
 }
 
 func cloneMCPServers(

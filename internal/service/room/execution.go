@@ -196,21 +196,16 @@ func (s *RealtimeService) runSlot(
 	}
 	permissionHandler = roomRuntimePermissionHandler(permissionHandler)
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
-	runtimeProvider, runtimeModel, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
-	if err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-		return
-	}
-	runtimeKind, err := s.preferenceRuntimeKind(slotCtx, roundValue, agentValue)
+	runtimeSelection, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:      agentValue.WorkspacePath,
-		RuntimeKind:        runtimeKind,
-		Provider:           runtimeProvider,
-		Model:              runtimeModel,
+		RuntimeKind:        runtimeSelection.RuntimeKind,
+		Provider:           runtimeSelection.Provider,
+		Model:              runtimeSelection.Model,
 		PermissionMode:     permissionMode,
 		PermissionHandler:  permissionHandler,
 		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
