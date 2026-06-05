@@ -270,6 +270,18 @@ export async function delete_room_conversation(
   return transform_room_context(context);
 }
 
+export async function close_room_conversation_runtime(
+  room_id: string,
+  conversation_id: string,
+): Promise<void> {
+  await request_api<{ closed: boolean }>(
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/close`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export async function add_room_member(
   room_id: string,
   agent_id: string,

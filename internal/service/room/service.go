@@ -48,6 +48,10 @@ type goalCleaner interface {
 	DeleteGoalsForRoomMember(context.Context, string, []string) (int, error)
 }
 
+type runtimeSessionCloser interface {
+	CloseSession(context.Context, string) error
+}
+
 // Service 提供 Room 编排能力。
 type Service struct {
 	config     config.Config
@@ -57,6 +61,7 @@ type Service struct {
 	history    *workspacestore.AgentHistoryStore
 	skills     RoomSkillCatalog
 	goals      goalCleaner
+	runtime    runtimeSessionCloser
 }
 
 // NewService 创建 Room 服务。
@@ -73,6 +78,11 @@ func NewService(cfg config.Config, agents *agentsvc.Service, repository Reposito
 // SetGoalCleaner 注入 Room 删除时的 Goal 级联清理器。
 func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 	s.goals = cleaner
+}
+
+// SetRuntimeManager 注入运行时管理器，用于关闭 Room conversation 对应的后台 client。
+func (s *Service) SetRuntimeManager(runtimeManager runtimeSessionCloser) {
+	s.runtime = runtimeManager
 }
 
 // ListRooms 列出最近房间。
@@ -366,9 +376,10 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 	if contextValue == nil {
 		return nil, ErrRoomNotFound
 	}
+	runtimeErr := s.closeConversationRuntimeSessions(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
 	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
 	goalErr := s.cleanupGoalsForRoomMemberContexts(ctx, roomContexts, normalizedAgentID)
-	return contextValue, errors.Join(artifactErr, goalErr)
+	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
 // DeleteRoom 删除房间。
@@ -384,9 +395,10 @@ func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
 	if !deleted {
 		return ErrRoomNotFound
 	}
+	runtimeErr := s.closeConversationRuntimeSessions(ctx, roomContexts, true, nil)
 	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, true, nil)
 	goalErr := s.cleanupGoalsForRoomContexts(ctx, roomContexts)
-	return errors.Join(artifactErr, goalErr)
+	return errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
 // CreateConversation 创建 room 话题。
@@ -499,9 +511,10 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
+	runtimeErr := s.closeConversationRuntimeSessions(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
 	artifactErr := s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
 	goalErr := s.cleanupGoalsForRoomContexts(ctx, []protocol.ConversationContextAggregate{targetContext})
-	return contextValue, errors.Join(artifactErr, goalErr)
+	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
 // UpdateSessionSDKSessionID 更新房间会话记录中的 Claude session_id。

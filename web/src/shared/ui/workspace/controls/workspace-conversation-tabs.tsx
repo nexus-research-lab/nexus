@@ -13,6 +13,7 @@ interface WorkspaceConversationTabsProps {
   conversation_id: string | null;
   tour_anchor?: string;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation?: (conversation_id: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
 }
 
@@ -117,6 +118,7 @@ export function WorkspaceConversationTabs({
   conversation_id,
   tour_anchor,
   on_select_conversation,
+  on_close_conversation,
   on_create_conversation,
 }: WorkspaceConversationTabsProps) {
   const { t } = useI18n();
@@ -275,6 +277,9 @@ export function WorkspaceConversationTabs({
         commit_optimistic_active_conversation(next_active_id);
         on_select_conversation(next_active_id);
       }
+    }
+    if (on_close_conversation) {
+      void on_close_conversation(target_conversation_id).catch(() => undefined);
     }
   };
 

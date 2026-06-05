@@ -70,6 +70,7 @@ interface RoomSurfaceLayoutProps {
   on_change_surface_tab: (tab: RoomSurfaceTabKey) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
@@ -153,6 +154,7 @@ function RoomSurfaceLayoutInner({
   on_change_surface_tab,
   on_create_conversation,
   on_select_conversation,
+  on_close_conversation,
   on_delete_conversation,
   on_add_room_member,
   on_remove_room_member,
@@ -244,6 +246,7 @@ function RoomSurfaceLayoutInner({
                   current_agent_name={current_agent.name}
                   current_agent_avatar={current_agent.avatar ?? null}
                   on_change_tab={handle_change_surface_tab}
+                  on_close_conversation={on_close_conversation}
                   on_create_conversation={on_create_conversation}
                   on_replay_tour={on_replay_tour}
                   on_select_conversation={on_select_conversation}
@@ -259,6 +262,7 @@ function RoomSurfaceLayoutInner({
                   on_add_room_member={on_add_room_member}
                   on_open_member_manager={on_open_member_manager}
                   on_change_tab={handle_change_surface_tab}
+                  on_close_conversation={on_close_conversation}
                   on_create_conversation={on_create_conversation}
                   on_replay_tour={on_replay_tour}
                   on_remove_room_member={on_remove_room_member}

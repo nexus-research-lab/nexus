@@ -424,3 +424,22 @@ func (h *Handlers) HandleDeleteConversation(writer http.ResponseWriter, request 
 	h.broadcastRoomResync(request.Context(), roomID, conversationID, "conversation_deleted")
 	h.api.WriteSuccess(writer, item)
 }
+
+// HandleCloseConversationRuntime 关闭 conversation 标签页背后的运行态。
+func (h *Handlers) HandleCloseConversationRuntime(writer http.ResponseWriter, request *http.Request) {
+	roomID := chi.URLParam(request, "room_id")
+	conversationID := chi.URLParam(request, "conversation_id")
+	if h.roomRealtime != nil {
+		_ = h.roomRealtime.InterruptConversation(request.Context(), conversationID, "对话标签页已关闭")
+	}
+	err := h.roomService.CloseConversationRuntime(request.Context(), roomID, conversationID)
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrConversationNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]bool{"closed": true})
+}

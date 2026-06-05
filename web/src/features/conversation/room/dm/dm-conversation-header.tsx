@@ -32,6 +32,7 @@ interface DmConversationHeaderProps {
   on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
 }
 
@@ -45,6 +46,7 @@ const DmConversationHeaderView = memo(({
   on_replay_tour,
   on_change_tab,
   on_select_conversation,
+  on_close_conversation,
   on_create_conversation,
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
@@ -64,6 +66,7 @@ const DmConversationHeaderView = memo(({
     <WorkspaceConversationTabs
       conversations={conversations}
       conversation_id={conversation_id}
+      on_close_conversation={on_close_conversation}
       on_create_conversation={on_create_conversation}
       on_select_conversation={on_select_conversation}
       tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}

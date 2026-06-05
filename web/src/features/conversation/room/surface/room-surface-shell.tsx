@@ -41,6 +41,7 @@ interface RoomSurfaceShellProps {
   on_back_to_directory: () => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
@@ -85,6 +86,7 @@ export function RoomSurfaceShell({
   on_back_to_directory,
   on_create_conversation,
   on_select_conversation,
+  on_close_conversation,
   on_delete_conversation,
   on_add_room_member,
   on_remove_room_member,
@@ -183,6 +185,7 @@ export function RoomSurfaceShell({
       on_change_surface_tab={handle_change_surface_tab}
       on_conversation_snapshot_change={on_conversation_snapshot_change}
       on_create_conversation={handle_create_conversation_in_shell}
+      on_close_conversation={on_close_conversation}
       on_delete_conversation={on_delete_conversation}
       on_loading_change={on_loading_change}
       on_open_workspace_file={handle_open_workspace_file_in_shell}

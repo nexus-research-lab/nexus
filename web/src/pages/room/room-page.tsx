@@ -296,6 +296,7 @@ export function RoomPage() {
             on_open_member_manager={controller.handle_prepare_room_agent_catalog}
             on_remove_room_member={controller.handle_remove_room_member}
             on_back_to_directory={handleBackToLauncher}
+            on_close_conversation={controller.handle_close_conversation}
             on_delete_conversation={handleDeleteConversation}
             on_loading_change={controller.set_is_conversation_busy}
             on_create_conversation={handleCreateConversation}

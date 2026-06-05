@@ -166,6 +166,50 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 }
 
+func TestRoomServiceClosesConversationRuntime(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	runtimeCloser := &fakeRoomRuntimeCloser{}
+	roomService.SetRuntimeManager(runtimeCloser)
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
+	agentB := createTestAgent(t, agentService, ctx, "测试助手B")
+	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
+		Name:     "产品讨论",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	topicContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{})
+	if err != nil {
+		t.Fatalf("创建 topic 失败: %v", err)
+	}
+	expectedKeys := []string{
+		protocol.BuildRoomSharedSessionKey(topicContext.Conversation.ID),
+		protocol.BuildRoomAgentSessionKey(topicContext.Conversation.ID, agentA.AgentID, protocol.RoomTypeGroup),
+		protocol.BuildRoomAgentSessionKey(topicContext.Conversation.ID, agentB.AgentID, protocol.RoomTypeGroup),
+	}
+
+	if err = roomService.CloseConversationRuntime(ctx, mainContext.Room.ID, topicContext.Conversation.ID); err != nil {
+		t.Fatalf("关闭 conversation runtime 失败: %v", err)
+	}
+	assertRuntimeClosedKeys(t, runtimeCloser.keys, expectedKeys)
+
+	runtimeCloser.keys = nil
+	if _, err = roomService.DeleteConversation(ctx, mainContext.Room.ID, topicContext.Conversation.ID); err != nil {
+		t.Fatalf("删除 topic 失败: %v", err)
+	}
+	assertRuntimeClosedKeys(t, runtimeCloser.keys, expectedKeys)
+}
+
 func TestRoomServicePersistsRoomSkills(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
@@ -537,6 +581,15 @@ type fakeRoomGoalMemberCleanup struct {
 	conversationIDs []string
 }
 
+type fakeRoomRuntimeCloser struct {
+	keys []string
+}
+
+func (f *fakeRoomRuntimeCloser) CloseSession(_ context.Context, sessionKey string) error {
+	f.keys = append(f.keys, sessionKey)
+	return nil
+}
+
 func (f *fakeRoomGoalCleaner) DeleteGoalsForRoomConversations(_ context.Context, conversationIDs []string) (int, error) {
 	f.conversationCalls = append(f.conversationCalls, append([]string(nil), conversationIDs...))
 	return len(conversationIDs), nil
@@ -721,6 +774,13 @@ func assertRoomGoalMemberCleanup(t *testing.T, cleaner *fakeRoomGoalCleaner, ind
 	call := cleaner.memberCalls[index]
 	if call.agentID != wantAgentID || !sameStringSet(call.conversationIDs, wantConversationIDs) {
 		t.Fatalf("goal member cleanup[%d] = %#v, want agent=%s conversations=%#v", index, call, wantAgentID, wantConversationIDs)
+	}
+}
+
+func assertRuntimeClosedKeys(t *testing.T, got []string, want []string) {
+	t.Helper()
+	if !sameStringSet(got, want) {
+		t.Fatalf("runtime close keys = %#v, want %#v", got, want)
 	}
 }
 

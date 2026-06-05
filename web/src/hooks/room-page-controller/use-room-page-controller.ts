@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { is_main_agent } from "@/config/options";
 import {
   add_room_member,
+  close_room_conversation_runtime,
   create_room_conversation,
   delete_room,
   delete_room_conversation,
@@ -320,6 +321,13 @@ export function useRoomPageController({
     return fallback_context.conversation.id;
   }, [refresh_room_contexts, room_id]);
 
+  const handle_close_conversation = useCallback(async (conversation_id: string) => {
+    if (!room_id) {
+      return;
+    }
+    await close_room_conversation_runtime(room_id, conversation_id);
+  }, [room_id]);
+
   const handle_update_conversation_title = useCallback(async (conversation_id: string, title: string) => {
     if (!room_id) return;
     await update_room_conversation(room_id, conversation_id, { title });
@@ -431,6 +439,7 @@ export function useRoomPageController({
     handle_open_conversation_from_launcher,
     handle_refresh_room_state,
     handle_conversation_snapshot_change,
+    handle_close_conversation,
     handle_delete_conversation,
     handle_update_conversation_title,
     handle_update_room,
@@ -448,7 +457,7 @@ export function useRoomPageController({
     handle_select_conversation, handle_back_to_directory, handle_delete_agent,
     handle_create_conversation, handle_save_agent_options, handle_save_existing_room_member_options, handle_validate_agent_name, handle_validate_agent_name_for_agent,
     handle_open_conversation_from_launcher, handle_refresh_room_state, handle_conversation_snapshot_change,
-    handle_delete_conversation, handle_update_conversation_title, handle_update_room, handle_delete_room,
+    handle_close_conversation, handle_delete_conversation, handle_update_conversation_title, handle_update_room, handle_delete_room,
     handle_add_room_member, handle_remove_room_member, handle_prepare_room_agent_catalog, room_id, workspace,
   ]);
 }

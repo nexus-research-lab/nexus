@@ -42,6 +42,7 @@ interface GroupConversationHeaderProps {
   on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
@@ -107,6 +108,7 @@ const GroupConversationHeaderView = memo(({
   on_replay_tour,
   on_change_tab,
   on_select_conversation,
+  on_close_conversation,
   on_create_conversation,
   on_add_room_member,
   on_remove_room_member,
@@ -144,6 +146,7 @@ const GroupConversationHeaderView = memo(({
     <WorkspaceConversationTabs
       conversations={conversations}
       conversation_id={conversation_id}
+      on_close_conversation={on_close_conversation}
       on_create_conversation={on_create_conversation}
       on_select_conversation={on_select_conversation}
       tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
