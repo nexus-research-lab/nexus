@@ -51,7 +51,8 @@ async function main() {
     release,
   });
   const manifest = JSON.parse((await client.downloadManifest(manifestURL)).toString("utf8"));
-  const asset = selectAsset(manifest, goos, goarch);
+  const selection = selectAsset(manifest, goos, goarch);
+  const asset = selection.asset;
   const archiveBytes = await client.downloadAsset(asset.url, asset.filename);
   verifySHA256(archiveBytes, asset.sha256, asset.filename);
   const executableName = goos === "windows" ? "nxs.exe" : "nxs";
@@ -62,7 +63,7 @@ async function main() {
   fs.chmodSync(args.output, 0o755);
 
   console.log(`nxs runtime: ${args.output}`);
-  console.log(`version: ${manifest.version || release}`);
+  console.log(`version: ${selection.version || manifest.version || release}`);
   console.log(`asset: ${asset.filename}`);
 }
 
@@ -227,18 +228,44 @@ class GitHubReleaseClient {
 }
 
 function selectAsset(manifest, goos, goarch) {
-  const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
-  const asset = assets.find((candidate) => candidate.goos === goos && candidate.goarch === goarch);
-  if (!asset) {
+  const runtime = selectRuntimeAsset(manifest, goos, goarch);
+  if (!runtime) {
     throw new Error(`nxs runtime asset ${goos}-${goarch} is not available`);
   }
+  const { asset } = runtime;
   if (!asset.url) {
     throw new Error(`nxs runtime asset ${asset.filename || `${goos}-${goarch}`} has no url`);
   }
   if (!asset.sha256) {
     throw new Error(`nxs runtime asset ${asset.filename || `${goos}-${goarch}`} has no sha256`);
   }
-  return asset;
+  return runtime;
+}
+
+function selectRuntimeAsset(manifest, goos, goarch) {
+  for (const runtimeManifest of runtimeManifestCandidates(manifest)) {
+    const assets = Array.isArray(runtimeManifest.assets) ? runtimeManifest.assets : [];
+    const asset = assets.find((candidate) => candidate.goos === goos && candidate.goarch === goarch);
+    if (asset) {
+      return {
+        asset,
+        version: runtimeManifest.version,
+        releaseTag: runtimeManifest.release_tag,
+      };
+    }
+  }
+  return null;
+}
+
+function runtimeManifestCandidates(manifest) {
+  const candidates = [];
+  if (Array.isArray(manifest.assets)) {
+    candidates.push(manifest);
+  }
+  if (Array.isArray(manifest.runtimes)) {
+    candidates.push(...manifest.runtimes);
+  }
+  return candidates;
 }
 
 function downloadURL(rawURL, options) {
