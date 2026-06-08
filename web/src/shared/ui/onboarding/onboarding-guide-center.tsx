@@ -4,7 +4,7 @@ import { type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { type LucideIcon, RotateCcw, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 import {
   DIALOG_BACKDROP_CLASS_NAME,
   DIALOG_ICON_BUTTON_CLASS_NAME,

@@ -7,18 +7,12 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { prepareWithSegments } from '@chenglou/pretext';
+import { cn } from "@/shared/ui/class-name";
 
 // ==================== 样式工具 ====================
 
-/**
- * 合并Tailwind CSS类名
- */
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+export { cn };
 
 // ==================== 格式化工具 ====================
 

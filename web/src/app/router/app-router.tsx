@@ -2,10 +2,17 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
-import { AuthenticatedAppSessionRoot } from "@/app/router/authenticated-session-root";
 import { AuthGuard } from "@/app/router/auth-guard";
-import { AppLayout } from "@/shared/ui/layout/app-layout";
 import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
+
+const AuthenticatedAppSessionRoot = lazy(() =>
+  import("@/app/router/authenticated-session-root").then((m) => ({
+    default: m.AuthenticatedAppSessionRoot,
+  })),
+);
+const AppLayout = lazy(() =>
+  import("@/shared/ui/layout/app-layout").then((m) => ({ default: m.AppLayout })),
+);
 
 // 懒加载页面组件 — 首次导航时按需加载
 const LoginPage = lazy(() =>

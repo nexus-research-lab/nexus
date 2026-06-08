@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/ui/class-name";
 
 export type UiButtonTone = "default" | "primary" | "danger";
 export type UiButtonVariant = "surface" | "solid" | "ghost" | "text";
