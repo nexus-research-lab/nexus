@@ -1837,11 +1837,11 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	if options.Env["ANTHROPIC_MODEL"] != "glm-5.1" {
 		t.Fatalf("runtime 未注入 provider model: %+v", options.Env)
 	}
-	if options.Env["ANTHROPIC_AUTH_TOKEN"] != "glm-token" {
-		t.Fatalf("runtime 未注入 provider auth token: %+v", options.Env)
+	if options.Env["ANTHROPIC_API_KEY"] != "glm-token" {
+		t.Fatalf("runtime 未注入 provider API key: %+v", options.Env)
 	}
-	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
-		t.Fatalf("第三方 Anthropic-compatible runtime 不应注入 provider API key: %+v", options.Env)
+	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+		t.Fatalf("runtime 不应把 provider API key 注入 OAuth token env: %+v", options.Env)
 	}
 	if options.Env["ANTHROPIC_DEFAULT_SONNET_MODEL"] != "glm-5.1" {
 		t.Fatalf("runtime 未注入默认 sonnet model: %+v", options.Env)

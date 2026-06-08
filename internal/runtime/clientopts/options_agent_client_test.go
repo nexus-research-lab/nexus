@@ -95,11 +95,11 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
-	if options.Env["ANTHROPIC_AUTH_TOKEN"] != "token-1" {
-		t.Fatalf("Anthropic-compatible auth token 未写入 env: %+v", options.Env)
+	if options.Env["ANTHROPIC_API_KEY"] != "token-1" {
+		t.Fatalf("Anthropic-compatible API key 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
-		t.Fatalf("第三方 Anthropic-compatible runtime 不应写入 ANTHROPIC_API_KEY: %+v", options.Env)
+	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+		t.Fatalf("Anthropic-compatible runtime 不应把 API key 写入 OAuth token env: %+v", options.Env)
 	}
 	if options.Env["NEXUS_API_PROVIDER"] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
@@ -148,7 +148,7 @@ func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
 		t.Fatalf("官方 Anthropic API key 未写入 env: %+v", options.Env)
 	}
 	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
-		t.Fatalf("官方 Anthropic runtime 不应写入 ANTHROPIC_AUTH_TOKEN: %+v", options.Env)
+		t.Fatalf("官方 Anthropic runtime 不应写入 OAuth token env: %+v", options.Env)
 	}
 }
 

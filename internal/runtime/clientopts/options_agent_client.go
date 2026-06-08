@@ -3,7 +3,6 @@ package clientopts
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -214,6 +213,7 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	env := map[string]string{
 		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
+		"ANTHROPIC_API_KEY":              runtimeConfig.AuthToken,
 		"ANTHROPIC_MODEL":                runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
@@ -222,11 +222,6 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 		"NEXUS_API_PROVIDER":             "anthropic-compatible",
 	}
-	if usesOfficialAnthropicAPI(runtimeConfig) {
-		env["ANTHROPIC_API_KEY"] = runtimeConfig.AuthToken
-	} else {
-		env["ANTHROPIC_AUTH_TOKEN"] = runtimeConfig.AuthToken
-	}
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
@@ -234,25 +229,6 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		env["ENABLE_TOOL_SEARCH"] = "false"
 	}
 	return env
-}
-
-func usesOfficialAnthropicAPI(runtimeConfig *RuntimeConfig) bool {
-	if runtimeConfig == nil {
-		return false
-	}
-	provider := strings.ToLower(strings.TrimSpace(runtimeConfig.Provider))
-	if provider == "anthropic" {
-		return true
-	}
-	baseURL := strings.TrimSpace(runtimeConfig.BaseURL)
-	if baseURL == "" {
-		return false
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(parsed.Hostname(), "api.anthropic.com")
 }
 
 func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
