@@ -98,8 +98,8 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[anthropicAuthTokenEnvName] != "token-1" {
 		t.Fatalf("Anthropic-compatible bearer token 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env[anthropicAPIKeyEnvName]; ok {
-		t.Fatalf("Anthropic-compatible 非官方 endpoint 不应写入 API key env: %+v", options.Env)
+	if options.Env[anthropicAPIKeyEnvName] != "" {
+		t.Fatalf("Anthropic-compatible 非官方 endpoint 应清空 API key env，避免继承脏 key: %+v", options.Env)
 	}
 	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
@@ -147,8 +147,8 @@ func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
 	if options.Env[anthropicAPIKeyEnvName] != "official-key" {
 		t.Fatalf("官方 Anthropic API key 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env[anthropicAuthTokenEnvName]; ok {
-		t.Fatalf("官方 Anthropic runtime 不应写入 OAuth token env: %+v", options.Env)
+	if options.Env[anthropicAuthTokenEnvName] != "" {
+		t.Fatalf("官方 Anthropic runtime 应清空 OAuth token env，避免继承脏 token: %+v", options.Env)
 	}
 }
 
@@ -179,6 +179,34 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAuthTokenEnvName, got, tt.wantAuthToken, env)
 			}
 		})
+	}
+}
+
+func TestAnthropicRuntimeEnvClearsConflictingCredentialEnv(t *testing.T) {
+	compatibleEnv := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
+		Provider:  "glm-coding-plan",
+		AuthToken: "bearer-token",
+		BaseURL:   "https://open.bigmodel.cn/api/anthropic",
+		Model:     "glm-4.5-air",
+	})
+	if compatibleEnv[anthropicAuthTokenEnvName] != "bearer-token" {
+		t.Fatalf("兼容 Anthropic endpoint 应使用 bearer token: %+v", compatibleEnv)
+	}
+	if _, ok := compatibleEnv[anthropicAPIKeyEnvName]; !ok || compatibleEnv[anthropicAPIKeyEnvName] != "" {
+		t.Fatalf("兼容 Anthropic endpoint 应显式清空 API key，避免继承系统环境: %+v", compatibleEnv)
+	}
+
+	officialEnv := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
+		Provider:  "anthropic",
+		AuthToken: "api-key",
+		BaseURL:   "https://api.anthropic.com",
+		Model:     "claude-sonnet-4-5",
+	})
+	if officialEnv[anthropicAPIKeyEnvName] != "api-key" {
+		t.Fatalf("官方 Anthropic endpoint 应使用 API key: %+v", officialEnv)
+	}
+	if _, ok := officialEnv[anthropicAuthTokenEnvName]; !ok || officialEnv[anthropicAuthTokenEnvName] != "" {
+		t.Fatalf("官方 Anthropic endpoint 应显式清空 bearer token，避免继承系统环境: %+v", officialEnv)
 	}
 }
 

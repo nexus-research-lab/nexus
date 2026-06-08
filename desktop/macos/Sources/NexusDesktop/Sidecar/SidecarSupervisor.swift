@@ -136,17 +136,19 @@ final class SidecarSupervisor {
       ])
       return
     }
+    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "override",
+        "path": override,
+      ])
+      return
+    }
     let nxsURL = locator.appRootURL.appendingPathComponent("bin/nxs")
     if FileManager.default.isExecutableFile(atPath: nxsURL.path) {
       environment["NEXUS_NXS_COMMAND_PATH"] = nxsURL.path
       startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
         "source": "bundled",
-      ])
-      return
-    }
-    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
-        "source": "override",
+        "path": nxsURL.path,
       ])
       return
     }

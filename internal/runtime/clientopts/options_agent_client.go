@@ -245,9 +245,11 @@ func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeC
 	}
 	if isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
 		env[anthropicAPIKeyEnvName] = token
+		env[anthropicAuthTokenEnvName] = ""
 		return
 	}
 	env[anthropicAuthTokenEnvName] = token
+	env[anthropicAPIKeyEnvName] = ""
 }
 
 func isFirstPartyAnthropicBaseURL(baseURL string) bool {

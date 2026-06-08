@@ -168,21 +168,22 @@ func TestResolveRuntimeCommandPathUsesNXSOverride(t *testing.T) {
 	}
 }
 
-func TestResolveRuntimeCommandPathPrefersAppRootNXSRuntimeOverOverride(t *testing.T) {
-	expected := filepath.Join(`C:\Nexus\Resources`, "bin", "nxs.exe")
+func TestResolveRuntimeCommandPathPrefersNXSOverrideOverAppRootRuntime(t *testing.T) {
+	expected := `C:\Verified\nxs.exe`
+	appRootRuntime := filepath.Join(`C:\Nexus\Resources`, "bin", "nxs.exe")
 	got := resolveRuntimeCommandPathWith(
 		runtimeKindNXS,
 		"windows",
 		fakeEnv(map[string]string{
 			nexusAppRootEnvName:        `C:\Nexus\Resources`,
-			nexusNXSCommandPathEnvName: `C:\Stale\nxs.exe`,
+			nexusNXSCommandPathEnvName: expected,
 		}),
 		func(string) (string, error) { return "", os.ErrNotExist },
-		func(path string) bool { return path == expected },
+		func(path string) bool { return path == appRootRuntime },
 		fakeGlob(nil),
 	)
 	if got != expected {
-		t.Fatalf("包内 nxs 应优先于 NEXUS_NXS_COMMAND_PATH override: got=%q want=%q", got, expected)
+		t.Fatalf("NEXUS_NXS_COMMAND_PATH override 应优先于包内 nxs: got=%q want=%q", got, expected)
 	}
 }
 

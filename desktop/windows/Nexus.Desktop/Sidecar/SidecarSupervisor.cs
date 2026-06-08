@@ -159,6 +159,17 @@ internal sealed class SidecarSupervisor : IDisposable
             return;
         }
 
+        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
+            !string.IsNullOrWhiteSpace(overridePath))
+        {
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "override",
+                ["path"] = overridePath,
+            });
+            return;
+        }
+
         string nxsPath = Path.Combine(locator.AppRoot, "bin", "nxs.exe");
         if (File.Exists(nxsPath))
         {
@@ -166,16 +177,7 @@ internal sealed class SidecarSupervisor : IDisposable
             startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
             {
                 ["source"] = "bundled",
-            });
-            return;
-        }
-
-        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
-            !string.IsNullOrWhiteSpace(overridePath))
-        {
-            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
-            {
-                ["source"] = "override",
+                ["path"] = nxsPath,
             });
             return;
         }
