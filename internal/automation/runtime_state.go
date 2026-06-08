@@ -8,12 +8,17 @@ import (
 
 // JobRuntimeState 是进程内的自动化任务运行态。
 type JobRuntimeState struct {
-	Job           protocol.CronJob
-	Running       bool
-	RunningCount  int
-	NextRunAt     *time.Time
-	LastRunAt     *time.Time
-	FailureStreak int
+	Job                protocol.CronJob
+	Running            bool
+	RunningCount       int
+	NextRunAt          *time.Time
+	RunningRunID       string
+	RunningStartedAt   *time.Time
+	LastRunAt          *time.Time
+	LastRunStatus      string
+	FailureStreak      int
+	LastError          *string
+	LastDeliveryStatus string
 }
 
 // HeartbeatRuntimeState 是进程内的 heartbeat 运行态。

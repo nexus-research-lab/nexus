@@ -42,7 +42,7 @@ export interface AgentOptionsProps {
   initial_vibe_tags?: string[];
 }
 
-/** 中文注释：共享层只保留对话框壳体，真实编辑器和业务状态迁回 feature。 */
+/** 中文注释：共享层只保留对话框骨架，真实编辑器和业务状态迁回 feature。 */
 export function AgentOptions({
   agent_id,
   mode,
@@ -80,8 +80,8 @@ export function AgentOptions({
   }
 
   return createPortal(
-    <div className="dialog-backdrop z-[9999]" role="dialog" aria-modal="true">
-      <div className="dialog-shell radius-shell-xl flex h-[80vh] w-full max-w-[920px] flex-col overflow-hidden">
+    <div className="dialog-backdrop z-[9999]" data-modal-root="true" role="dialog" aria-modal="true">
+      <div className="dialog-shell surface-radius-md flex h-[80vh] w-full max-w-[920px] flex-col overflow-hidden">
         <div className="dialog-header px-5 py-4">
           <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
             <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 rounded-[16px] text-primary")}>

@@ -102,7 +102,7 @@ const SUPPORTED_WORK_FILE_MIME_TYPES = new Set([
 ]);
 
 const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
-const ATTACHMENT_DIRECTORY = ".nexus/attachments";
+const ATTACHMENT_DIRECTORY = "tmp/attachments";
 
 export const COMPOSER_ATTACHMENT_ACCEPT =
   [
@@ -226,7 +226,7 @@ export function get_composer_attachment_kind(file: File): ComposerAttachmentKind
 
 export function get_attachment_rejection_reason(file: File): string | null {
   if (!get_composer_attachment_kind(file)) {
-    return `暂不支持该附件格式，请使用图片、PDF、Office、Markdown、HTML 或常见文本文件：${file.name}`;
+    return `暂不支持该附件格式：${file.name}`;
   }
 
   if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {

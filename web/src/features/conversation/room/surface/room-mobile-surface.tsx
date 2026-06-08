@@ -21,6 +21,8 @@ interface RoomMobileSurfaceProps {
   current_room_type: string;
   room_id: string | null;
   room_members: Agent[];
+  room_host_agent_id?: string | null;
+  room_host_auto_reply_enabled: boolean;
   current_room_title: string;
   current_room_conversation: RoomConversationView | null;
   current_agent_session_identity: AgentConversationIdentity | null;
@@ -41,6 +43,8 @@ export function RoomMobileSurface({
   current_room_type,
   room_id,
   room_members,
+  room_host_agent_id,
+  room_host_auto_reply_enabled,
   current_room_title,
   current_room_conversation,
   current_agent_session_identity,
@@ -91,7 +95,7 @@ export function RoomMobileSurface({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
       <div className="px-2 pb-2 pt-2">
-        <div className="radius-shell-lg flex items-center gap-2 px-2 py-2">
+        <div className="surface-radius-lg flex items-center gap-2 px-2 py-2">
           <button
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
             onClick={on_back_to_directory}
@@ -101,7 +105,7 @@ export function RoomMobileSurface({
           </button>
 
           <button
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-[24px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-[12px] border border-(--divider-subtle-color) px-3 py-2 text-left transition hover:bg-(--interaction-hover-background)"
             onClick={() => setIsConversationSheetOpen(true)}
             type="button"
           >
@@ -143,6 +147,7 @@ export function RoomMobileSurface({
           <DmChatPanel
             current_agent_name={current_agent.name}
             current_agent_avatar={current_agent.avatar ?? null}
+            current_agent_permission_mode={current_agent.options.permission_mode ?? null}
             initial_draft={initial_draft}
             layout="mobile"
             on_conversation_snapshot_change={on_conversation_snapshot_change}
@@ -165,6 +170,8 @@ export function RoomMobileSurface({
               on_initial_draft_consumed={on_initial_draft_consumed}
               on_loading_change={on_loading_change}
               on_room_event={on_room_event}
+              room_host_agent_id={room_host_agent_id}
+              room_host_auto_reply_enabled={room_host_auto_reply_enabled}
               room_id={room_id}
               room_members={room_members}
               session_identity={current_agent_session_identity}
@@ -245,7 +252,7 @@ export function RoomMobileSurface({
                         {conversation.title?.trim() || "未命名会话"}
                       </p>
                       <p className="mt-1 text-xs text-(--text-muted)">
-                        {format_relative_time(conversation.last_activity_at)} · {conversation.message_count ?? 0} 条
+                        {format_relative_time(conversation.last_activity_at)}
                       </p>
                     </div>
                   </button>

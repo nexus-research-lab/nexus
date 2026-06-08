@@ -19,7 +19,11 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -37,15 +41,103 @@ type fakeDMClient struct {
 	sessionID       string
 	messages        chan sdkprotocol.ReceivedMessage
 	interruptCalls  int
+	connectCalls    int
 	disconnectCalls int
 	interruptErrors []error
 	disconnectErrs  []error
 	connectErrors   []error
 	queryErrors     []error
+	queryPrompts    []string
 	sentContents    []string
+	queryOptions    []sdkprotocol.OutboundMessageOptions
 	reconfigureOps  []agentclient.Options
 	onQuery         func(context.Context, string)
 	onInterrupt     func(context.Context)
+}
+
+type fakeTokenUsageRecorder struct {
+	inputs []usagesvc.RecordInput
+}
+
+func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usagesvc.RecordInput) error {
+	r.inputs = append(r.inputs, input)
+	return nil
+}
+
+func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
+	t.Parallel()
+
+	recorder := &fakeTokenUsageRecorder{}
+	runner := &roundRunner{
+		service:     &Service{usage: recorder},
+		ownerUserID: "user-1",
+		sessionKey:  "agent:demo:dm:session",
+		roundID:     "round-1",
+	}
+	result := protocol.Message{
+		"role":        "result",
+		"message_id":  "result-1",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage": map[string]any{
+			"input_tokens": 10,
+		},
+	}
+	assistant := protocol.Message{
+		"role":        "assistant",
+		"message_id":  "assistant-1",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage": map[string]any{
+			"input_tokens": 3,
+		},
+	}
+
+	runner.recordUsage(result)
+	runner.recordTerminalAssistantUsage(assistant)
+
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("usage 记录数量 = %d，期望只记录 result 聚合 usage", len(recorder.inputs))
+	}
+	if recorder.inputs[0].MessageID != "result-1" {
+		t.Fatalf("应记录 result usage，实际=%+v", recorder.inputs[0])
+	}
+}
+
+func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
+	t.Parallel()
+
+	recorder := &fakeTokenUsageRecorder{}
+	runner := &roundRunner{
+		service:     &Service{usage: recorder},
+		ownerUserID: "user-1",
+		sessionKey:  "agent:demo:dm:session",
+		roundID:     "round-1",
+	}
+
+	runner.recordUsage(protocol.Message{
+		"role":        "result",
+		"message_id":  "result-empty",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage":       map[string]any{},
+	})
+	runner.recordTerminalAssistantUsage(protocol.Message{
+		"role":        "assistant",
+		"message_id":  "assistant-1",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage": map[string]any{
+			"input_tokens": 3,
+		},
+	})
+
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("usage 记录数量 = %d，期望 fallback 记录 assistant usage", len(recorder.inputs))
+	}
+	if recorder.inputs[0].MessageID != "assistant-1" {
+		t.Fatalf("应 fallback 记录 assistant usage，实际=%+v", recorder.inputs[0])
+	}
 }
 
 func newFakeDMClient() *fakeDMClient {
@@ -58,6 +150,7 @@ func newFakeDMClient() *fakeDMClient {
 func (c *fakeDMClient) Connect(context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.connectCalls++
 	if len(c.connectErrors) == 0 {
 		return nil
 	}
@@ -67,11 +160,17 @@ func (c *fakeDMClient) Connect(context.Context) error {
 }
 
 func (c *fakeDMClient) Query(ctx context.Context, prompt string) error {
+	return c.QueryWithOptions(ctx, prompt, sdkprotocol.OutboundMessageOptions{})
+}
+
+func (c *fakeDMClient) QueryWithOptions(ctx context.Context, prompt string, options sdkprotocol.OutboundMessageOptions) error {
 	if c.onQuery != nil {
 		c.onQuery(ctx, prompt)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.queryPrompts = append(c.queryPrompts, prompt)
+	c.queryOptions = append(c.queryOptions, options)
 	if len(c.queryErrors) > 0 {
 		err := c.queryErrors[0]
 		c.queryErrors = c.queryErrors[1:]
@@ -175,6 +274,622 @@ func (f *fakeDMFactory) OptionAt(index int) agentclient.Options {
 	return f.options[index]
 }
 
+type fakeDMRoomSessionStore struct {
+	mu      sync.Mutex
+	updates []fakeDMRoomSessionUpdate
+}
+
+type fakeDMRoomSessionUpdate struct {
+	roomSessionID string
+	sdkSessionID  string
+}
+
+func (s *fakeDMRoomSessionStore) GetRoomSessionByKey(
+	context.Context,
+	string,
+	protocol.SessionKey,
+) (*protocol.Session, error) {
+	return nil, nil
+}
+
+func (s *fakeDMRoomSessionStore) UpdateRoomSessionSDKSessionID(
+	_ context.Context,
+	roomSessionID string,
+	sdkSessionID string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updates = append(s.updates, fakeDMRoomSessionUpdate{
+		roomSessionID: strings.TrimSpace(roomSessionID),
+		sdkSessionID:  strings.TrimSpace(sdkSessionID),
+	})
+	return nil
+}
+
+func (s *fakeDMRoomSessionStore) Updates() []fakeDMRoomSessionUpdate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]fakeDMRoomSessionUpdate(nil), s.updates...)
+}
+
+type fakeGoalContextProvider struct {
+	mu               sync.Mutex
+	plan             *protocol.GoalContinuation
+	planCalls        int
+	runtimeContext   string
+	runtimeGoal      *protocol.Goal
+	runtimeCalls     int
+	usage            []protocol.GoalUsage
+	usageLimitReason []string
+	progress         []bool
+	failures         []string
+	completionMisses []string
+	activities       []string
+	current          *bool
+}
+
+func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.runtimeCalls++
+	if p.runtimeGoal == nil {
+		return p.runtimeContext, nil, nil
+	}
+	goal := *p.runtimeGoal
+	return p.runtimeContext, &goal, nil
+}
+
+func (p *fakeGoalContextProvider) RecordUsageForSession(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usage = append(p.usage, usage)
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordUsageForGoal(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usage = append(p.usage, usage)
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) UsageLimitForSession(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.usageLimitReason = append(p.usageLimitReason, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationProgress(_ context.Context, _ string, _ string, progressed bool) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.progress = append(p.progress, progressed)
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationFailure(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failures = append(p.failures, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordCompletionToolMiss(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.completionMisses = append(p.completionMisses, strings.TrimSpace(reason))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordGoalActivity(_ context.Context, _ string, roundID string) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.activities = append(p.activities, strings.TrimSpace(roundID))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.planCalls++
+	if p.planCalls > 1 || p.plan == nil {
+		return nil, nil
+	}
+	plan := *p.plan
+	return &plan, nil
+}
+
+func (p *fakeGoalContextProvider) GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.current == nil {
+		return true, nil
+	}
+	return *p.current, nil
+}
+
+func TestRoundRunnerRecordsGoalUsageAtToolCompletion(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 3))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+			TotalTokens:  15,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want 2", len(usages))
+	}
+	if usages[0].InputTokens != 4 || usages[0].OutputTokens != 3 || usages[0].Total() != 7 {
+		t.Fatalf("first usage = %#v, want 4/3", usages[0])
+	}
+	if usages[1].InputTokens != 6 || usages[1].OutputTokens != 2 || usages[1].Total() != 8 {
+		t.Fatalf("second usage = %#v, want remaining 6/2", usages[1])
+	}
+}
+
+func TestRoundRunnerRecordsAbortGoalUsageFromAssistantSnapshot(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{}, goalAssistantUsageMessage(7, 3))
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want 2", len(usages))
+	}
+	if usages[1].InputTokens != 3 || usages[1].OutputTokens != 2 || usages[1].Total() != 5 {
+		t.Fatalf("abort usage = %#v, want remaining 3/2", usages[1])
+	}
+}
+
+func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  3,
+			OutputTokens: 2,
+			TotalTokens:  5,
+		},
+		UsageLimitReached: true,
+		UsageLimitReason:  "You've hit your usage limit.",
+	}, nil)
+	runner.recordGoalUsageLimit(runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "You've hit your usage limit.",
+	})
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 || usages[0].Total() != 5 {
+		t.Fatalf("usages = %#v, want usage recorded before limit", usages)
+	}
+	reasons := goalProvider.recordedUsageLimitReasons()
+	if len(reasons) != 1 || reasons[0] != "You've hit your usage limit." {
+		t.Fatalf("usage limit reasons = %#v, want runtime reason", reasons)
+	}
+}
+
+func TestRoundRunnerRecordsEmptyGoalContinuationProgress(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || progress[0] {
+		t.Fatalf("progress = %#v, want one false continuation progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsGoalContinuationFailure(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{
+		TerminalStatus: "error",
+		ResultSubtype:  "error",
+		ErrorMessage:   "Failed to authenticate. API Error: 401",
+	})
+
+	failures := goalProvider.recordedFailures()
+	if len(failures) != 1 || failures[0] != "Failed to authenticate. API Error: 401" {
+		t.Fatalf("failures = %#v, want provider error", failures)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want failure path instead of empty progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsGoalContinuationToolProgress(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	progress := goalProvider.recordedProgress()
+	if len(progress) != 1 || !progress[0] {
+		t.Fatalf("progress = %#v, want one true continuation progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsGoalCompletionToolMiss(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+	runner.rememberGoalAssistantMessage(goalCompletionToolMissAssistantMessage())
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	misses := goalProvider.recordedCompletionMisses()
+	if len(misses) != 1 || !strings.Contains(misses[0], "mcp__nexus_goal__update_goal") {
+		t.Fatalf("completion misses = %#v, want one missing update_goal record", misses)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want completion miss path instead of empty progress", progress)
+	}
+}
+
+func TestRoundRunnerRecordsUserGoalActivityInsteadOfContinuationProgress(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-user",
+		goalIDForUsage: "goal-1",
+	}
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	goalProvider.mu.Lock()
+	defer goalProvider.mu.Unlock()
+	if len(goalProvider.activities) != 1 || goalProvider.activities[0] != "round-user" {
+		t.Fatalf("activities = %#v, want explicit goal activity", goalProvider.activities)
+	}
+	if len(goalProvider.progress) != 0 {
+		t.Fatalf("progress = %#v, want no continuation progress for user round", goalProvider.progress)
+	}
+}
+
+func TestRoundRunnerClosesGoalUsageAfterUpdateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "update_goal", false, 10, 2))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+			TotalTokens:  25,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
+		t.Fatalf("usage = %#v, want update_goal usage only", usages[0])
+	}
+}
+
+func TestRoundRunnerClosesGoalUsageAfterMCPUpdateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__update_goal", false, 10, 2))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+			TotalTokens:  25,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 10 || usages[0].OutputTokens != 2 || usages[0].Total() != 12 {
+		t.Fatalf("usage = %#v, want MCP update_goal usage only", usages[0])
+	}
+}
+
+func TestRoundRunnerClearGoalUsageStopsLaterAccounting(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.clearGoalUsage()
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  20,
+			OutputTokens: 5,
+			TotalTokens:  25,
+		},
+	}, nil)
+
+	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
+		t.Fatalf("usages = %#v, want none after clear", usages)
+	}
+}
+
+func TestRoundRunnerActivateGoalUsageRestartsFromCurrentSnapshot(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "round-1",
+		goalIDForUsage: "goal-1",
+		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.clearGoalUsage()
+	runner.rememberGoalAssistantMessage(goalToolResultAssistantMessage("tool-2", "read_file", false, 7, 3))
+	if err := runner.activateGoalUsage(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+			TotalTokens:  15,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 2 {
+		t.Fatalf("len(usages) = %d, want initial usage and post-activate delta", len(usages))
+	}
+	if usages[1].InputTokens != 3 || usages[1].OutputTokens != 2 || usages[1].Total() != 5 {
+		t.Fatalf("post-activate usage = %#v, want 3/2", usages[1])
+	}
+}
+
+func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:    &Service{goals: goalProvider},
+		sessionKey: "agent:nexus:ws:dm:test",
+		roundID:    "round-1",
+		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "create_goal", false, 5, 1))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  8,
+			OutputTokens: 3,
+			TotalTokens:  11,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
+		t.Fatalf("usage = %#v, want post-create delta 3/2", usages[0])
+	}
+}
+
+func TestRoundRunnerResetsGoalUsageAfterMCPCreateGoal(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:    &Service{goals: goalProvider},
+		sessionKey: "agent:nexus:ws:dm:test",
+		roundID:    "round-1",
+		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "mcp__nexus_goal__create_goal", false, 5, 1))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  8,
+			OutputTokens: 3,
+			TotalTokens:  11,
+		},
+	}, nil)
+
+	usages := goalProvider.recordedUsage()
+	if len(usages) != 1 {
+		t.Fatalf("len(usages) = %d, want 1", len(usages))
+	}
+	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
+		t.Fatalf("usage = %#v, want post-MCP-create delta 3/2", usages[0])
+	}
+}
+
+func TestRoundRunnerIgnoresGoalRuntimeInPlanMode(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:          &Service{goals: goalProvider},
+		sessionKey:       "agent:nexus:ws:dm:test-goal-plan-runtime",
+		roundID:          "round-plan",
+		goalIDForUsage:   "goal-plan",
+		goalUsage:        goalsvc.NewRuntimeUsageAccumulator(true),
+		goalUsageStarted: time.Now(),
+		permissionMode:   sdkpermission.ModePlan,
+	}
+
+	runner.recordGoalUsageFromAssistantMessage(goalToolResultAssistantMessage("tool-1", "read_file", false, 4, 1))
+	runner.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{
+		Usage: sdkprotocol.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 2,
+		},
+		ElapsedTimeSeconds: 3,
+	}, protocol.Message{})
+	runner.recordGoalUsageLimit(runtimectx.RoundExecutionResult{
+		UsageLimitReached: true,
+		UsageLimitReason:  "usage limit",
+	})
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
+		t.Fatalf("plan mode recorded goal usage: %#v", usages)
+	}
+	if reasons := goalProvider.recordedUsageLimitReasons(); len(reasons) != 0 {
+		t.Fatalf("plan mode recorded usage limit: %#v", reasons)
+	}
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("plan mode recorded continuation progress: %#v", progress)
+	}
+}
+
+func (p *fakeGoalContextProvider) recordedUsage() []protocol.GoalUsage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]protocol.GoalUsage(nil), p.usage...)
+}
+
+func (p *fakeGoalContextProvider) recordedUsageLimitReasons() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.usageLimitReason...)
+}
+
+func (p *fakeGoalContextProvider) recordedProgress() []bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]bool(nil), p.progress...)
+}
+
+func (p *fakeGoalContextProvider) recordedFailures() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.failures...)
+}
+
+func (p *fakeGoalContextProvider) recordedCompletionMisses() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.completionMisses...)
+}
+
+func (p *fakeGoalContextProvider) runtimeContextCallCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.runtimeCalls
+}
+
+func goalToolResultAssistantMessage(
+	toolUseID string,
+	toolName string,
+	isError bool,
+	inputTokens int64,
+	outputTokens int64,
+) protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
+		},
+		"content": []map[string]any{
+			{"type": "tool_use", "id": toolUseID, "name": toolName},
+			{"type": "tool_result", "tool_use_id": toolUseID, "is_error": isError},
+		},
+	}
+}
+
+func goalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
+		},
+	}
+}
+
+func goalCompletionToolMissAssistantMessage() protocol.Message {
+	return protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "任务已经完成，但我没有看到 mcp__nexus_goal__update_goal 工具，无法调用它来标记完成。"},
+		},
+	}
+}
+
 type dmTestSender struct {
 	key    string
 	events chan protocol.EventMessage
@@ -192,6 +907,34 @@ func (s *dmTestSender) IsClosed() bool { return false }
 func (s *dmTestSender) SendEvent(_ context.Context, event protocol.EventMessage) error {
 	s.events <- event
 	return nil
+}
+
+type fakeDMTitleScheduler struct {
+	mu       sync.Mutex
+	requests []titlegen.Request
+}
+
+func (s *fakeDMTitleScheduler) Schedule(_ context.Context, request titlegen.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requests = append(s.requests, request)
+}
+
+func (s *fakeDMTitleScheduler) LastRequest() titlegen.Request {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.requests) == 0 {
+		return titlegen.Request{}
+	}
+	return s.requests[len(s.requests)-1]
+}
+
+type fakeDMPreferencesService struct {
+	prefs preferencessvc.Preferences
+}
+
+func (s fakeDMPreferencesService) Get(_ context.Context, _ string) (preferencessvc.Preferences, error) {
+	return s.prefs, nil
 }
 
 type blockingDMTestSender struct {
@@ -222,7 +965,7 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 		key:  "slow-sender",
 		done: make(chan struct{}),
 	}
-	permission.BindSession("session-1", sender, "client-1", true)
+	permission.BindSession("session-1", sender)
 	service := &Service{permission: permission}
 
 	startedAt := time.Now()
@@ -259,6 +1002,27 @@ func newDMProviderService(t *testing.T, cfg config.Config) *providercfg.Service 
 		_ = db.Close()
 	})
 	return providercfg.NewServiceWithDB(cfg, db)
+}
+
+func createDMProviderWithModel(
+	t *testing.T,
+	service *providercfg.Service,
+	input providercfg.CreateInput,
+	model string,
+	isDefault bool,
+) *providercfg.Record {
+	t.Helper()
+	record, err := service.Create(context.Background(), input)
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(context.Background(), record.Provider, model, providercfg.UpdateModelInput{
+		Enabled:   true,
+		IsDefault: isDefault,
+	}); err != nil {
+		t.Fatalf("设置 provider 模型失败: %v", err)
+	}
+	return record
 }
 
 func TestServiceHandleChatPersistsMessages(t *testing.T) {
@@ -307,7 +1071,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-chat"
-	permission.BindSession(sessionKey, sender, "client-1", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -329,6 +1093,24 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 		protocol.EventTypeMessage,
 		protocol.EventTypeRoundStatus,
 	})
+	client.mu.Lock()
+	queryPrompts := append([]string(nil), client.queryPrompts...)
+	client.mu.Unlock()
+	if len(queryPrompts) != 1 {
+		t.Fatalf("期望发送 1 条 runtime query，实际 %d", len(queryPrompts))
+	}
+	for _, expected := range []string{
+		"你好",
+		"<nexus_runtime_context>",
+		"## Date Awareness",
+		"## Emotion State",
+		"Context ID: dm:" + sessionKey,
+		"Base: focused",
+	} {
+		if !strings.Contains(queryPrompts[0], expected) {
+			t.Fatalf("runtime query 缺少动态上下文 %q:\n%s", expected, queryPrompts[0])
+		}
+	}
 
 	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
 	transcriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
@@ -375,12 +1157,289 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, prompt string) {
+		go func() {
+			resultID := "result-first"
+			if strings.Contains(prompt, "hidden continuation prompt") {
+				resultID = "result-goal-continuation"
+				client.messages <- sdkprotocol.ReceivedMessage{
+					Type:      sdkprotocol.MessageTypeAssistant,
+					SessionID: client.sessionID,
+					Assistant: &sdkprotocol.AssistantMessage{
+						Message: sdkprotocol.ConversationEnvelope{
+							ID:    "assistant-goal-continuation",
+							Model: "sonnet",
+							Content: []sdkprotocol.ContentBlock{
+								sdkprotocol.TextBlock{Text: "继续推进 Goal"},
+							},
+						},
+					},
+				}
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      resultID,
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:       "success",
+					DurationMS:    1,
+					DurationAPIMS: 1,
+					NumTurns:      1,
+					Result:        "done",
+					Usage: map[string]any{
+						"input_tokens":  int64(2),
+						"output_tokens": int64(3),
+					},
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetGoalContextProvider(&fakeGoalContextProvider{plan: &protocol.GoalContinuation{
+		Goal: protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
+			Objective:  "finish work",
+			Status:     protocol.GoalStatusActive,
+		},
+		RoundID:        "goal_continuation_1",
+		Prompt:         "hidden continuation prompt",
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+		Metadata:       map[string]string{"goal_id": "goal-1"},
+	}})
+	sender := newDMTestSender("sender-goal-continuation")
+	sessionKey := "agent:nexus:ws:dm:test-goal-continuation"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey:           sessionKey,
+		Content:              "开始",
+		RoundID:              "round-1",
+		ReqID:                "round-1",
+		BroadcastUserMessage: true,
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["status"] == "finished"
+	})
+	continuationRunning := false
+	continuationAssistantVisible := false
+	for _, event := range events {
+		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "goal_continuation_1" {
+			t.Fatalf("隐藏 Goal continuation 不应广播 chat ack: %+v", events)
+		}
+		if event.EventType == protocol.EventTypeRoundStatus &&
+			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["status"] == "running" {
+			continuationRunning = true
+		}
+		if event.EventType == protocol.EventTypeMessage &&
+			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["role"] == "assistant" {
+			for _, block := range contentBlocksFromPayload(t, event.Data) {
+				if block["type"] == "text" && block["text"] == "继续推进 Goal" {
+					continuationAssistantVisible = true
+				}
+			}
+		}
+	}
+	if !continuationRunning {
+		t.Fatalf("隐藏 Goal continuation 应广播 running round，避免前端空白运行态: %+v", events)
+	}
+	if !continuationAssistantVisible {
+		t.Fatalf("隐藏 Goal continuation 的 assistant 输出应通过消息事件进入当前会话: %+v", events)
+	}
+
+	client.mu.Lock()
+	queryOptions := append([]sdkprotocol.OutboundMessageOptions(nil), client.queryOptions...)
+	queryPrompts := append([]string(nil), client.queryPrompts...)
+	client.mu.Unlock()
+	if len(queryOptions) < 2 {
+		t.Fatalf("Goal continuation 应发送到 runtime: %+v", queryOptions)
+	}
+	runtimeOptions := queryOptions[1]
+	if runtimeOptions.Meta ||
+		runtimeOptions.HiddenFromUser ||
+		runtimeOptions.Synthetic ||
+		runtimeOptions.Purpose != "" ||
+		runtimeOptions.Priority != "" ||
+		runtimeOptions.Metadata != nil {
+		t.Fatalf("Goal continuation 发给 runtime 时应作为普通可执行输入: %+v", queryOptions)
+	}
+
+	rows := readDMSessionHistory(t, cfg, service, sessionKey)
+	assistantVisible := false
+	for _, row := range rows {
+		if row["role"] == "user" && row["round_id"] == "goal_continuation_1" {
+			t.Fatalf("隐藏 Goal continuation 不应成为可见用户历史: %+v", rows)
+		}
+		if row["role"] == "assistant" && row["round_id"] == "goal_continuation_1" {
+			assistantVisible = true
+		}
+	}
+	if !assistantVisible {
+		t.Fatalf("Goal continuation 的 assistant 输出应进入可见历史: %+v", rows)
+	}
+	if len(queryPrompts) < 2 ||
+		!strings.Contains(queryPrompts[1], "<internal_context source=\"goal\">\nhidden continuation prompt\n</internal_context>") {
+		t.Fatalf("Goal continuation 应作为 internal goal context 注入 runtime: %+v", queryPrompts)
+	}
+}
+
+func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-parallel-tools",
+						Model: "glm-5.1",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolUseBlock{
+								ID:    "tool-connectors",
+								Name:  "mcp__nexus_connectors__connector_list",
+								Input: json.RawMessage(`{}`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-parallel-tools",
+						Model: "glm-5.1",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolUseBlock{
+								ID:    "tool-automation",
+								Name:  "mcp__nexus_automation__list_scheduled_tasks",
+								Input: json.RawMessage(`{}`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeUser,
+				SessionID: client.sessionID,
+				User: &sdkprotocol.UserMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolResultBlock{
+								ToolUseID: "tool-connectors",
+								Content:   json.RawMessage(`[{"type":"text","text":"[]"}]`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeUser,
+				SessionID: client.sessionID,
+				User: &sdkprotocol.UserMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.ToolResultBlock{
+								ToolUseID: "tool-automation",
+								Content:   json.RawMessage(`[{"type":"text","text":"[]"}]`),
+							},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeAssistant,
+				SessionID: client.sessionID,
+				Assistant: &sdkprotocol.AssistantMessage{
+					Message: sdkprotocol.ConversationEnvelope{
+						ID:    "assistant-parallel-final",
+						Model: "glm-5.1",
+						Content: []sdkprotocol.ContentBlock{
+							sdkprotocol.TextBlock{Text: "两个工具都正常调用。"},
+						},
+					},
+				},
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-parallel-tools",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1200,
+					NumTurns:   1,
+					Result:     "两个工具都正常调用。",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-parallel-tools")
+	sessionKey := "agent:nexus:ws:dm:parallel-tools"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "再试一下两个工具",
+		RoundID:    "round-parallel-tools",
+		ReqID:      "round-parallel-tools",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+	assistantPayload := findLatestAssistantMessagePayload(t, events, "assistant-parallel-tools")
+	blocks := contentBlocksFromPayload(t, assistantPayload)
+	assertContentBlockTypes(t, blocks, []string{"tool_use", "tool_use", "tool_result", "tool_result", "text"})
+	assertToolResultIDs(t, blocks, []string{"tool-connectors", "tool-automation"})
+	if assistantPayload["is_complete"] != true || assistantPayload["stop_reason"] != "end_turn" {
+		t.Fatalf("最终实时 assistant 应标记完成: %+v", assistantPayload)
+	}
+	if _, exists := assistantPayload["stream_status"]; exists {
+		t.Fatalf("durable assistant 不应补写 stream_status: %+v", assistantPayload)
+	}
+}
+
 func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
-	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "提示词助手"})
+	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
+		Name:        "提示词助手",
+		Description: "负责执行工作区规则",
+		VibeTags:    []string{"规则优先", "稳健"},
+	})
 	if err != nil {
 		t.Fatalf("创建测试 agent 失败: %v", err)
 	}
@@ -390,21 +1449,6 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		0o644,
 	); err != nil {
 		t.Fatalf("写入 AGENTS.md 失败: %v", err)
-	}
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() {
-		_ = db.Close()
-	}()
-	if _, err = db.Exec(`UPDATE profiles SET headline = ?, profile_markdown = ? WHERE agent_id = ?`,
-		"擅长规则执行",
-		"## 详细档案\n- 运行前先汇总 workspace 规则。",
-		created.AgentID,
-	); err != nil {
-		t.Fatalf("更新 profile 失败: %v", err)
 	}
 
 	agentValue, err := agentService.GetAgent(context.Background(), created.AgentID)
@@ -424,7 +1468,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	if _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	if _, _, _, _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	}); err != nil {
@@ -435,11 +1479,100 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
 		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
 	}
-	if !strings.Contains(appendSystemPrompt, "擅长规则执行") {
-		t.Fatalf("runtime prompt 未注入 Agent headline: %s", appendSystemPrompt)
+	if !strings.Contains(appendSystemPrompt, "Description: 负责执行工作区规则") {
+		t.Fatalf("runtime prompt 未注入 Agent description: %s", appendSystemPrompt)
 	}
-	if !strings.Contains(appendSystemPrompt, "运行前先汇总 workspace 规则") {
-		t.Fatalf("runtime prompt 未注入 Agent profile_markdown: %s", appendSystemPrompt)
+	if !strings.Contains(appendSystemPrompt, "Vibe Tags: 规则优先, 稳健") {
+		t.Fatalf("runtime prompt 未注入 Agent vibe_tags: %s", appendSystemPrompt)
+	}
+}
+
+func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取默认 agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeDMFactory{client: newFakeDMClient()}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	goalProvider := &fakeGoalContextProvider{
+		runtimeContext: "should not enter plan mode",
+		runtimeGoal: &protocol.Goal{
+			ID:         "goal-plan-context",
+			SessionKey: "agent:nexus:ws:dm:test-plan-context",
+			Status:     protocol.GoalStatusActive,
+		},
+	}
+	service.SetGoalContextProvider(goalProvider)
+
+	sessionKey := protocol.BuildAgentSessionKey(cfg.DefaultAgentID, protocol.SessionChannelWebSocketSegment, "dm", "plan-context", "")
+	parsed := protocol.ParseSessionKey(sessionKey)
+	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
+	if err != nil {
+		t.Fatalf("初始化 session 失败: %v", err)
+	}
+	_, _, _, goalID, goalContext, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+		SessionKey:     sessionKey,
+		PermissionMode: sdkpermission.ModePlan,
+	})
+	if err != nil {
+		t.Fatalf("构建 plan mode runtime client 失败: %v", err)
+	}
+	if permissionMode != sdkpermission.ModePlan {
+		t.Fatalf("permissionMode = %q, want plan", permissionMode)
+	}
+	if goalID != "" || goalContext != "" {
+		t.Fatalf("plan mode goal runtime context = (%q, %q), want empty", goalID, goalContext)
+	}
+	if calls := goalProvider.runtimeContextCallCount(); calls != 0 {
+		t.Fatalf("plan mode should not read Goal runtime context, calls = %d", calls)
+	}
+}
+
+func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取默认 agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	factory := &fakeDMFactory{client: newFakeDMClient()}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	goalProvider := &fakeGoalContextProvider{
+		runtimeGoal: &protocol.Goal{
+			ID:         "goal-budget-limited",
+			SessionKey: "agent:nexus:ws:dm:test-budget-limited",
+			Status:     protocol.GoalStatusBudgetLimited,
+		},
+	}
+	service.SetGoalContextProvider(goalProvider)
+
+	sessionKey := protocol.BuildAgentSessionKey(cfg.DefaultAgentID, protocol.SessionChannelWebSocketSegment, "dm", "budget-limited", "")
+	parsed := protocol.ParseSessionKey(sessionKey)
+	sessionItem, err := service.ensureSession(context.Background(), agentValue, parsed, sessionKey)
+	if err != nil {
+		t.Fatalf("初始化 session 失败: %v", err)
+	}
+	_, _, _, goalID, goalContext, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+		SessionKey:     sessionKey,
+		PermissionMode: sdkpermission.ModeDefault,
+	})
+	if err != nil {
+		t.Fatalf("构建 runtime client 失败: %v", err)
+	}
+	if goalID != "goal-budget-limited" || goalContext != "" {
+		t.Fatalf("budget_limited goal runtime = (%q, %q), want usage target without context", goalID, goalContext)
 	}
 }
 
@@ -554,7 +1687,7 @@ func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testin
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-think-stream")
 	sessionKey := "agent:nexus:ws:dm:think-stream"
-	permission.BindSession(sessionKey, sender, "client-think-stream", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -636,17 +1769,13 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	maxThinkingTokens := 2048
 	maxTurns := 6
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建默认 provider 失败: %v", err)
-	}
+	}, "glm-5.1", true)
 	updatedAgent, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
 		Options: &protocol.Options{
 			MaxThinkingTokens: &maxThinkingTokens,
@@ -682,9 +1811,11 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	service.SetProviderResolver(providerService)
+	titleScheduler := &fakeDMTitleScheduler{}
+	service.SetTitleGenerator(titleScheduler)
 	sender := newDMTestSender("sender-no-model")
 	sessionKey := "agent:nexus:ws:dm:no-model"
-	permission.BindSession(sessionKey, sender, "client-no-model", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -723,6 +1854,118 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	}
 	if !options.IncludePartialMessages {
 		t.Fatalf("runtime 未开启 partial messages: %+v", options)
+	}
+	if len(options.Tools.Allow) != 0 {
+		t.Fatalf("runtime 不应在无显式白名单时为了 Goal 收窄 allowed tools: %+v", options.Tools.Allow)
+	}
+	if options.Callbacks.PermissionHandler == nil {
+		t.Fatal("runtime 权限处理器为空")
+	}
+	goalSkillDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "Skill",
+		Input:    map[string]any{"name": "goal-manager"},
+	})
+	if err != nil {
+		t.Fatalf("Goal Skill 权限处理失败: %v", err)
+	}
+	if goalSkillDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Goal Skill 应自动放行: %+v", goalSkillDecision)
+	}
+	goalToolDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_goal__update_goal",
+		Input:    map[string]any{"status": "complete"},
+	})
+	if err != nil {
+		t.Fatalf("Goal 工具权限处理失败: %v", err)
+	}
+	if goalToolDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("Goal 工具应自动放行: %+v", goalToolDecision)
+	}
+	titleRequest := titleScheduler.LastRequest()
+	if titleRequest.Provider != "glm" || titleRequest.Model != "glm-5.1" {
+		t.Fatalf("标题生成未复用本轮 runtime provider/model: %+v", titleRequest)
+	}
+}
+
+func TestServiceHandleChatUsesPreferenceDefaultModelForIncompleteAgentSelection(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "deepseek",
+		DisplayName: "DeepSeek",
+		AuthToken:   "deepseek-token",
+		BaseURL:     "https://api.deepseek.com/anthropic",
+		Enabled:     true,
+	}, "deepseek-v4-flash", true)
+	updatedAgent, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{
+			Provider: "kimi-code",
+		},
+	})
+	if err != nil {
+		t.Fatalf("写入历史 provider-only agent 配置失败: %v", err)
+	}
+	if updatedAgent == nil {
+		t.Fatal("更新 agent 后返回为空")
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-preference-default",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		AgentRuntimeKind: "nxs",
+		DefaultAgentOptions: protocol.Options{
+			Provider: "deepseek",
+			Model:    "deepseek-v4-flash",
+		},
+	}})
+	sender := newDMTestSender("sender-preference-default")
+	sessionKey := "agent:nexus:ws:dm:preference-default"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试常规默认模型",
+		RoundID:    "round-preference-default",
+		ReqID:      "round-preference-default",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Model != "deepseek-v4-flash" {
+		t.Fatalf("runtime 未使用常规设置默认模型: %+v", options)
+	}
+	if options.Env["NEXUS_RUNTIME_PROVIDER"] != "deepseek" {
+		t.Fatalf("runtime 未使用常规设置默认 Provider: %+v", options.Env)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("runtime 未使用常规设置中的 nxs: %+v", options)
 	}
 }
 
@@ -766,7 +2009,7 @@ func TestServiceHandleChatBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-bypass")
 	sessionKey := "agent:nexus:ws:dm:bypass"
-	permission.BindSession(sessionKey, sender, "client-bypass", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -795,33 +2038,26 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建默认 provider 失败: %v", err)
-	}
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	}, "glm-5.1", true)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "kimi",
 		DisplayName: "Kimi",
 		AuthToken:   "kimi-token",
 		BaseURL:     "https://api.moonshot.cn/anthropic",
-		Model:       "kimi-k2.5",
 		Enabled:     true,
-		IsDefault:   false,
-	}); err != nil {
-		t.Fatalf("创建显式 provider 失败: %v", err)
-	}
+	}, "kimi-k2.5", false)
 
 	created, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
 		Name: "显式 Provider 助手",
 		Options: &protocol.Options{
 			Provider: "kimi",
+			Model:    "kimi-k2.5",
 		},
 	})
 	if err != nil {
@@ -852,7 +2088,7 @@ func TestServiceHandleChatUsesExplicitProvider(t *testing.T) {
 	service.SetProviderResolver(providerService)
 	sessionKey := "agent:" + created.AgentID + ":ws:dm:explicit-provider"
 	sender := newDMTestSender("sender-explicit-provider")
-	permission.BindSession(sessionKey, sender, "client-explicit-provider", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -908,7 +2144,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-resume")
 	sessionKey := "agent:nexus:ws:dm:resume-chat"
-	permission.BindSession(sessionKey, sender, "client-resume", true)
+	permission.BindSession(sessionKey, sender)
 
 	resumeID := "sdk-resume-chat-1"
 	now := time.Now().UTC()
@@ -948,23 +2184,134 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	}
 }
 
+func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Enabled:     true,
+	}, "glm-5.1", true)
+
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = "sdk-fresh-after-stale"
+	client.connectErrors = []error{agentclient.ErrNotConnected}
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-stale-resume-retry",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	roomStore := &fakeDMRoomSessionStore{}
+	service.SetRoomSessionStore(roomStore)
+	sender := newDMTestSender("sender-stale-resume-retry")
+	sessionKey := "agent:nexus:ws:dm:stale-resume-retry"
+	permission.BindSession(sessionKey, sender)
+
+	staleResumeID := "sdk-stale-resume-1"
+	roomSessionID := "room-session-stale-resume-1"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+		SessionKey:    sessionKey,
+		AgentID:       cfg.DefaultAgentID,
+		SessionID:     &staleResumeID,
+		RoomSessionID: &roomSessionID,
+		ChannelType:   "websocket",
+		ChatType:      "dm",
+		Status:        "active",
+		CreatedAt:     now,
+		LastActivity:  now,
+		Title:         "Stale Resume Retry",
+		Options: map[string]any{
+			protocol.OptionRuntimeProvider: "glm",
+			protocol.OptionRuntimeModel:    "glm-5.1",
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入 stale resume 会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 stale resume 自动恢复",
+		RoundID:    "round-stale-resume-retry",
+		ReqID:      "round-stale-resume-retry",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	firstOptions := factory.OptionAt(0)
+	if firstOptions.Session.ResumeID != staleResumeID {
+		t.Fatalf("首次 runtime connect 应携带持久化 resume: %+v", firstOptions)
+	}
+	retryOptions := factory.OptionAt(1)
+	if retryOptions.Session.ResumeID != "" {
+		t.Fatalf("stale resume 连接失败后重试不应继续携带 resume: %+v", retryOptions)
+	}
+
+	client.mu.Lock()
+	connectCalls := client.connectCalls
+	disconnectCalls := client.disconnectCalls
+	client.mu.Unlock()
+	if connectCalls != 2 {
+		t.Fatalf("stale resume 应触发一次无 resume 重试，connectCalls=%d", connectCalls)
+	}
+	if disconnectCalls == 0 {
+		t.Fatal("重试前应清理 runtime manager 中的旧 client")
+	}
+
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != client.sessionID {
+		t.Fatalf("新 sdk session_id 未回写: %+v", sessionValue)
+	}
+	updates := roomStore.Updates()
+	if len(updates) != 2 {
+		t.Fatalf("room sdk_session_id 应先清空再回写新值: %+v", updates)
+	}
+	if updates[0].roomSessionID != roomSessionID || updates[0].sdkSessionID != "" {
+		t.Fatalf("首次 room sdk_session_id 更新应清空 stale 值: %+v", updates)
+	}
+	if updates[1].roomSessionID != roomSessionID || updates[1].sdkSessionID != client.sessionID {
+		t.Fatalf("第二次 room sdk_session_id 更新应写入新值: %+v", updates)
+	}
+}
+
 func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissing(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
+	}, "glm-5.1", true)
 
 	resumeID := "sdk-legacy-resume-1"
 	permission := permissionctx.NewContext()
@@ -991,7 +2338,7 @@ func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissi
 	service.SetProviderResolver(providerService)
 	sender := newDMTestSender("sender-legacy-resume")
 	sessionKey := "agent:nexus:ws:dm:legacy-resume-chat"
-	permission.BindSession(sessionKey, sender, "client-legacy-resume", true)
+	permission.BindSession(sessionKey, sender)
 
 	now := time.Now().UTC()
 	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
@@ -1048,17 +2395,13 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 
 	agentService := newDMAgentService(t, cfg)
 	providerService := newDMProviderService(t, cfg)
-	if _, err := providerService.Create(context.Background(), providercfg.CreateInput{
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
 		Provider:    "glm",
 		DisplayName: "GLM",
 		AuthToken:   "glm-token",
 		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
-		Model:       "glm-5.1",
 		Enabled:     true,
-		IsDefault:   true,
-	}); err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
+	}, "glm-5.1", true)
 
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
@@ -1084,7 +2427,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	service.SetProviderResolver(providerService)
 	sender := newDMTestSender("sender-stale-model")
 	sessionKey := "agent:nexus:ws:dm:stale-model"
-	permission.BindSession(sessionKey, sender, "client-stale-model", true)
+	permission.BindSession(sessionKey, sender)
 
 	staleResumeID := "sdk-old-model"
 	now := time.Now().UTC()
@@ -1163,7 +2506,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt"
-	permission.BindSession(sessionKey, sender, "client-1", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1233,7 +2576,7 @@ func TestServiceHandleInterruptCleansStaleRuntimeWhenClientInterruptFails(t *tes
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-interrupt-stale")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-stale"
-	permission.BindSession(sessionKey, sender, "client-interrupt-stale", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1288,7 +2631,7 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-queue")
 	sessionKey := "agent:nexus:ws:dm:test-queue"
-	permission.BindSession(sessionKey, sender, "client-queue", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1319,7 +2662,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	if interruptCalls != 0 {
 		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
 	}
-	if len(sentContents) != 1 || sentContents[0] != "这是补充要求" {
+	if len(sentContents) != 1 ||
+		!strings.Contains(sentContents[0], "这是补充要求") ||
+		!strings.Contains(sentContents[0], "<nexus_runtime_context>") {
 		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
 	}
 	if len(factory.options) != 1 {
@@ -1359,7 +2704,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-guide")
 	sessionKey := "agent:nexus:ws:dm:test-guide"
-	permission.BindSession(sessionKey, sender, "client-guide", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1421,7 +2766,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	rows := readDMSessionHistory(t, cfg, service, sessionKey)
 	for _, row := range rows {
 		if row["message_id"] == "round-guide-2" {
-			t.Fatalf("引导消息不应直接写入 overlay 历史，历史回放应来自 Claude transcript: %+v", rows)
+			t.Fatalf("引导消息不应直接写入 overlay 历史，历史回放应来自 runtime transcript: %+v", rows)
 		}
 	}
 
@@ -1443,7 +2788,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-guide-input-queue")
 	sessionKey := "agent:nexus:ws:dm:test-guide-input-queue"
-	permission.BindSession(sessionKey, sender, "client-guide-input-queue", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1526,6 +2871,91 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}
 }
 
+func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	sentPrompt := make(chan string, 1)
+	client.onQuery = func(_ context.Context, prompt string) {
+		sentPrompt <- prompt
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-goal-defer-queue",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "queued done",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sessionKey := "agent:nexus:ws:dm:test-goal-defer-queue"
+	normalizedSessionKey, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalizedSessionKey != sessionKey {
+		t.Fatalf("normalized session key = %q, want %q", normalizedSessionKey, sessionKey)
+	}
+	if _, err = service.inputQueue.Enqueue(location, protocol.InputQueueItem{
+		Scope:          protocol.InputQueueScopeDM,
+		SessionKey:     sessionKey,
+		AgentID:        cfg.DefaultAgentID,
+		Source:         protocol.InputQueueSourceUser,
+		Content:        "用户排队输入应先执行",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !service.ShouldDeferGoalContinuation(context.Background(), sessionKey, cfg.DefaultAgentID) {
+		t.Fatal("Goal continuation should defer while queued user input exists")
+	}
+	select {
+	case prompt := <-sentPrompt:
+		if !strings.Contains(prompt, "用户排队输入应先执行") {
+			t.Fatalf("prompt = %q, want queued user input", prompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("queued user input was not dispatched before Goal continuation")
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("items = %#v, want queued input dispatched", items)
+	}
+}
+
+func TestServiceGoalContinuationDefersInPlanMode(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	if _, err := agentService.UpdateAgent(context.Background(), cfg.DefaultAgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{PermissionMode: string(sdkpermission.ModePlan)},
+	}); err != nil {
+		t.Fatalf("更新 agent plan mode 失败: %v", err)
+	}
+	service := NewService(cfg, agentService, runtimectx.NewManager(), permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:test-goal-defer-plan"
+
+	if !service.ShouldDeferGoalContinuation(context.Background(), sessionKey, cfg.DefaultAgentID) {
+		t.Fatal("Goal continuation should defer while the target agent is in plan mode")
+	}
+}
+
 func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -1570,7 +3000,7 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-interrupt-policy")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-policy"
-	permission.BindSession(sessionKey, sender, "client-interrupt-policy", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1642,7 +3072,7 @@ func TestServiceHandleInterruptCoercesTerminalErrorIntoInterrupted(t *testing.T)
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-interrupt-error")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-error"
-	permission.BindSession(sessionKey, sender, "client-interrupt-error", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1742,7 +3172,7 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-reconnect")
 	sessionKey := "agent:nexus:ws:dm:test-interrupt-reconnect"
-	permission.BindSession(sessionKey, sender, "client-reconnect", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1827,7 +3257,7 @@ func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-structured")
 	sessionKey := "agent:nexus:tg:group:-100123456:topic:12"
-	permission.BindSession(sessionKey, sender, "client-structured", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -1913,7 +3343,7 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-premature")
 	sessionKey := "agent:nexus:ws:dm:premature-close"
-	permission.BindSession(sessionKey, sender, "client-premature", true)
+	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
@@ -2245,6 +3675,25 @@ func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, m
 	return nil
 }
 
+func findLatestAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {
+	t.Helper()
+	var latest protocol.Message
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
+			continue
+		}
+		if event.Data["role"] != "assistant" {
+			continue
+		}
+		latest = protocol.Message(event.Data)
+	}
+	if latest != nil {
+		return latest
+	}
+	t.Fatalf("未找到 assistant message_id=%s 的最后 durable 消息: %+v", messageID, events)
+	return nil
+}
+
 func contentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string]any {
 	t.Helper()
 	rawBlocks, ok := payload["content"]
@@ -2267,6 +3716,37 @@ func contentBlocksFromPayload(t *testing.T, payload map[string]any) []map[string
 	default:
 		t.Fatalf("content 类型不正确: %+v", payload)
 		return nil
+	}
+}
+
+func assertContentBlockTypes(t *testing.T, blocks []map[string]any, expected []string) {
+	t.Helper()
+	if len(blocks) != len(expected) {
+		t.Fatalf("content block 数量不正确: got=%d want=%d blocks=%+v", len(blocks), len(expected), blocks)
+	}
+	for index, expectedType := range expected {
+		if blocks[index]["type"] != expectedType {
+			t.Fatalf("第 %d 个 content block 类型不正确: got=%v want=%s blocks=%+v", index, blocks[index]["type"], expectedType, blocks)
+		}
+	}
+}
+
+func assertToolResultIDs(t *testing.T, blocks []map[string]any, expected []string) {
+	t.Helper()
+	resultIDs := make([]string, 0, len(expected))
+	for _, block := range blocks {
+		if block["type"] != "tool_result" {
+			continue
+		}
+		resultIDs = append(resultIDs, anyToString(block["tool_use_id"]))
+	}
+	if len(resultIDs) != len(expected) {
+		t.Fatalf("tool_result 数量不正确: got=%+v want=%+v blocks=%+v", resultIDs, expected, blocks)
+	}
+	for index, expectedID := range expected {
+		if resultIDs[index] != expectedID {
+			t.Fatalf("tool_result 顺序不正确: got=%+v want=%+v blocks=%+v", resultIDs, expected, blocks)
+		}
 	}
 }
 

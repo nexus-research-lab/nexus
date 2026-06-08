@@ -5,20 +5,19 @@ import {
   Activity,
   Compass,
   FolderTree,
-  Hash,
   History,
   Info,
   type LucideIcon,
 } from "lucide-react";
 
-import { get_icon_avatar_src, get_initials, get_room_avatar_icon_id } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
   WorkspaceTaskStrip,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
-import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/controls/workspace-conversation-switcher";
+import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { Agent } from "@/types/agent/agent";
 import { RoomConversationView } from "@/types/conversation/conversation";
 import { UpdateRoomParams } from "@/types/conversation/room";
@@ -44,6 +43,7 @@ interface GroupConversationHeaderProps {
   on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
@@ -72,26 +72,16 @@ function MemberAvatarStack({
       type="button"
     >
       <div className="flex items-center -space-x-1.5">
-        {visible_members.map((member) => {
-          const avatar_src = get_icon_avatar_src(member.avatar);
-          return (
-            <span
-              className="flex h-5.5 w-5.5 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)"
-              key={member.agent_id}
-              title={member.name}
-            >
-              {avatar_src ? (
-                <img
-                  alt={member.name}
-                  className="h-full w-full object-cover"
-                  src={avatar_src}
-                />
-              ) : (
-                get_initials(member.name)
-              )}
-            </span>
-          );
-        })}
+        {visible_members.map((member) => (
+          <UiAgentAvatar
+            avatar={member.avatar}
+            class_name="ring-1 ring-(--background)"
+            key={member.agent_id}
+            name={member.name}
+            size="xs"
+            title={member.name}
+          />
+        ))}
         {overflow_count > 0 ? (
           <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
             +{overflow_count}
@@ -119,6 +109,7 @@ const GroupConversationHeaderView = memo(({
   on_replay_tour,
   on_change_tab,
   on_select_conversation,
+  on_close_conversation,
   on_create_conversation,
   on_add_room_member,
   on_remove_room_member,
@@ -140,9 +131,6 @@ const GroupConversationHeaderView = memo(({
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
-  const resolved_room_avatar_id = get_room_avatar_icon_id(room_id, header_title, room_avatar);
-  const room_avatar_src = get_icon_avatar_src(resolved_room_avatar_id, "room");
-
   const member_agent_ids = room_members.map((member) => member.agent_id);
   const all_room_agents = [
     ...room_members,
@@ -156,15 +144,14 @@ const GroupConversationHeaderView = memo(({
     set_is_member_list_open(true);
   };
 
-  const title_trailing = (
-    <WorkspaceConversationSwitcher
+  const conversation_tabs = (
+    <WorkspaceConversationTabs
       conversations={conversations}
       conversation_id={conversation_id}
-      density="compact"
-      trigger_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
+      on_close_conversation={on_close_conversation}
       on_create_conversation={on_create_conversation}
       on_select_conversation={on_select_conversation}
-      on_view_history={() => on_change_tab("history")}
+      tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
 
@@ -193,20 +180,25 @@ const GroupConversationHeaderView = memo(({
       <WorkspaceSurfaceHeader
         active_tab={active_tab}
         density="compact"
-        leading={room_avatar_src ? (
-          <img
-            alt={header_title}
-            className="h-5 w-5 rounded-[6px] object-cover"
-            src={room_avatar_src}
+        leading={(
+          <UiRoomAvatar
+            avatar={room_avatar}
+            class_name="h-full w-full rounded-full border-0 shadow-none"
+            max_members={4}
+            members={room_members.map((member) => ({
+              avatar: member.avatar,
+              id: member.agent_id,
+              name: member.name,
+            }))}
+            room_id={room_id}
+            title={header_title}
           />
-        ) : (
-          <Hash size={14} className="text-(--icon-default)" />
         )}
         on_change_tab={on_change_tab}
         tabs={room_tabs}
+        tabs_leading={conversation_tabs}
         tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
         title={header_title}
-        title_trailing={title_trailing}
         trailing={trailing}
       />
 

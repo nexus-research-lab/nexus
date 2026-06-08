@@ -1,6 +1,7 @@
 export const APP_ROUTE_PATHS = {
+  landing: "/",
   login: "/login",
-  launcher: "/",
+  launcher: "/launcher",
   home: "/app",
   room: "/rooms/:room_id",
   room_conversation: "/rooms/:room_id/conversations/:conversation_id",
@@ -8,6 +9,7 @@ export const APP_ROUTE_PATHS = {
   skills: "/capability/skills",
   skill_detail: "/capability/skills/:skill_name",
   connectors: "/capability/connectors",
+  connector_detail: "/capability/connectors/:connector_id",
   connectors_oauth_callback: "/capability/connectors/oauth/callback",
   scheduled_tasks: "/capability/scheduled-tasks",
   channels: "/capability/channels",
@@ -17,6 +19,7 @@ export const APP_ROUTE_PATHS = {
 } as const;
 
 export const AppRouteBuilders = {
+  landing: () => APP_ROUTE_PATHS.landing,
   login: () => APP_ROUTE_PATHS.login,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
@@ -28,6 +31,7 @@ export const AppRouteBuilders = {
   skills: () => APP_ROUTE_PATHS.skills,
   skill_detail: (skill_name: string) => `/capability/skills/${encodeURIComponent(skill_name)}`,
   connectors: () => APP_ROUTE_PATHS.connectors,
+  connector_detail: (connector_id: string) => `/capability/connectors/${encodeURIComponent(connector_id)}`,
   connectors_oauth_callback: () => APP_ROUTE_PATHS.connectors_oauth_callback,
   scheduled_tasks: () => APP_ROUTE_PATHS.scheduled_tasks,
   channels: () => APP_ROUTE_PATHS.channels,

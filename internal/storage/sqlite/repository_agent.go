@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -35,9 +36,10 @@ func (r *AgentRepository) ListActiveAgents(ctx context.Context, ownerUserID stri
 	    COALESCE(p.display_name, ''),
 	    COALESCE(p.headline, ''),
 	    COALESCE(p.profile_markdown, ''),
-	    a.created_at,
-	    COALESCE(rt.provider, ''),
-	    COALESCE(rt.permission_mode, ''),
+		    a.created_at,
+		    COALESCE(rt.provider, ''),
+		    COALESCE(rt.model, ''),
+		    COALESCE(rt.permission_mode, ''),
 	    COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -72,6 +74,65 @@ ORDER BY a.is_main DESC, a.created_at ASC`
 	return result, rows.Err()
 }
 
+// ListAgentsByIDs 批量返回指定 ID 列表的活跃 Agent。
+func (r *AgentRepository) ListAgentsByIDs(ctx context.Context, ownerUserID string, agentIDs []string) ([]protocol.Agent, error) {
+	if len(agentIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.Repeat("?,", len(agentIDs))
+	placeholders = placeholders[:len(placeholders)-1]
+	query := `
+	SELECT
+	    a.id,
+	    a.name,
+	    a.owner_user_id,
+	    a.workspace_path,
+	    a.status,
+	    a.is_main,
+	    COALESCE(a.avatar, ''),
+	    COALESCE(a.description, ''),
+	    COALESCE(a.vibe_tags, '[]'),
+	    COALESCE(p.display_name, ''),
+	    COALESCE(p.headline, ''),
+	    COALESCE(p.profile_markdown, ''),
+		    a.created_at,
+		    COALESCE(rt.provider, ''),
+		    COALESCE(rt.model, ''),
+		    COALESCE(rt.permission_mode, ''),
+	    COALESCE(rt.allowed_tools_json, '[]'),
+    COALESCE(rt.disallowed_tools_json, '[]'),
+    COALESCE(rt.mcp_servers_json, '{}'),
+    rt.max_turns,
+    rt.max_thinking_tokens,
+    COALESCE(rt.setting_sources_json, '[]')
+FROM agents a
+LEFT JOIN profiles p ON p.agent_id = a.id
+LEFT JOIN runtimes rt ON rt.agent_id = a.id
+WHERE a.status = 'active' AND a.id IN (` + placeholders + `)`
+	args := make([]any, len(agentIDs))
+	for i, id := range agentIDs {
+		args[i] = id
+	}
+	if ownerUserID != "" {
+		query += ` AND a.owner_user_id = ?`
+		args = append(args, ownerUserID)
+	}
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]protocol.Agent, 0, len(agentIDs))
+	for rows.Next() {
+		item, err := agentrepo.ScanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
 // GetAgent 返回指定 Agent。
 func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUserID string) (*protocol.Agent, error) {
 	query := `
@@ -88,9 +149,10 @@ func (r *AgentRepository) GetAgent(ctx context.Context, agentID string, ownerUse
 	    COALESCE(p.display_name, ''),
 	    COALESCE(p.headline, ''),
 	    COALESCE(p.profile_markdown, ''),
-	    a.created_at,
-	    COALESCE(rt.provider, ''),
-	    COALESCE(rt.permission_mode, ''),
+		    a.created_at,
+		    COALESCE(rt.provider, ''),
+		    COALESCE(rt.model, ''),
+		    COALESCE(rt.permission_mode, ''),
 	    COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -137,9 +199,10 @@ SELECT
     COALESCE(p.display_name, ''),
     COALESCE(p.headline, ''),
     COALESCE(p.profile_markdown, ''),
-    a.created_at,
-    COALESCE(rt.provider, ''),
-    COALESCE(rt.permission_mode, ''),
+	    a.created_at,
+	    COALESCE(rt.provider, ''),
+	    COALESCE(rt.model, ''),
+	    COALESCE(rt.permission_mode, ''),
     COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -202,12 +265,13 @@ VALUES (?, ?, ?, NULL, ?, ?)`,
 
 	if _, err = tx.ExecContext(ctx, `
 	INSERT INTO runtimes (
-	    id, agent_id, provider, permission_mode, allowed_tools_json, disallowed_tools_json,
+	    id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
 	    mcp_servers_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		record.RuntimeID,
 		record.AgentID,
 		nullIfEmpty(record.Provider),
+		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
@@ -236,9 +300,8 @@ func (r *AgentRepository) UpdateAgent(ctx context.Context, record agentrepo.Upda
 
 	if _, err = tx.ExecContext(ctx, `
 UPDATE agents
-SET slug = ?, name = ?, workspace_path = ?, avatar = ?, description = ?, vibe_tags = json(?), updated_at = CURRENT_TIMESTAMP
+SET name = ?, workspace_path = ?, avatar = ?, description = ?, vibe_tags = json(?), updated_at = CURRENT_TIMESTAMP
 WHERE id = ? AND owner_user_id = ?`,
-		record.Slug,
 		record.Name,
 		record.WorkspacePath,
 		nullIfEmpty(record.Avatar),
@@ -262,10 +325,11 @@ WHERE agent_id = ?`,
 
 	if _, err = tx.ExecContext(ctx, `
 	UPDATE runtimes
-	SET provider = ?, permission_mode = ?, allowed_tools_json = ?, disallowed_tools_json = ?,
-	    mcp_servers_json = ?, max_turns = ?, max_thinking_tokens = ?, setting_sources_json = ?, updated_at = CURRENT_TIMESTAMP
-	WHERE agent_id = ?`,
+		SET provider = ?, model = ?, permission_mode = ?, allowed_tools_json = ?, disallowed_tools_json = ?,
+		    mcp_servers_json = ?, max_turns = ?, max_thinking_tokens = ?, setting_sources_json = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE agent_id = ?`,
 		nullIfEmpty(record.Provider),
+		nullIfEmpty(record.Model),
 		nullIfEmpty(record.PermissionMode),
 		record.AllowedToolsJSON,
 		record.DisallowedToolsJSON,
@@ -284,35 +348,75 @@ WHERE agent_id = ?`,
 	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
 }
 
-// ArchiveAgent 软删除 Agent。
-func (r *AgentRepository) ArchiveAgent(ctx context.Context, agentID string, ownerUserID string) error {
-	query := `
-UPDATE agents
-SET status = 'archived', updated_at = CURRENT_TIMESTAMP
-WHERE id = ?`
+// DeleteAgent 删除 Agent 及其数据库依赖记录。
+func (r *AgentRepository) DeleteAgent(ctx context.Context, agentID string, ownerUserID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err = deleteAgentDependents(ctx, tx, agentID); err != nil {
+		return err
+	}
+
+	query := `DELETE FROM agents WHERE id = ?`
 	args := []any{agentID}
 	if ownerUserID != "" {
 		query += ` AND owner_user_id = ?`
 		args = append(args, ownerUserID)
 	}
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return err
+	if _, err = tx.ExecContext(ctx, query, args...); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
-// ExistsActiveAgentName 检查活跃名称是否已占用。
-func (r *AgentRepository) ExistsActiveAgentName(ctx context.Context, ownerUserID string, name string, excludeAgentID string) (bool, error) {
-	query := `SELECT COUNT(1) FROM agents WHERE status = 'active' AND owner_user_id = ? AND LOWER(name) = LOWER(?)`
-	args := []any{ownerUserID, name}
-	if excludeAgentID != "" {
-		query += ` AND id <> ?`
-		args = append(args, excludeAgentID)
+func deleteAgentDependents(ctx context.Context, tx *sql.Tx, agentID string) error {
+	statements := []struct {
+		query string
+		args  []any
+	}{
+		{query: `
+DELETE FROM automation_task_events
+WHERE agent_id = ?
+   OR job_id IN (SELECT job_id FROM automation_cron_jobs WHERE agent_id = ?)`, args: []any{agentID, agentID}},
+		{query: `UPDATE automation_task_events SET actor_agent_id = NULL WHERE actor_agent_id = ?`, args: []any{agentID}},
+		{query: `
+DELETE FROM automation_cron_runs
+WHERE job_id IN (SELECT job_id FROM automation_cron_jobs WHERE agent_id = ?)`, args: []any{agentID}},
+		{query: `UPDATE automation_cron_jobs SET source_creator_agent_id = NULL WHERE source_creator_agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM automation_cron_jobs WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM automation_delivery_routes WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM automation_heartbeat_states WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM im_ingress_messages WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM im_pairings WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM im_channel_configs WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM contacts WHERE owner_agent_id = ? OR contact_agent_id = ?`, args: []any{agentID, agentID}},
+		{query: `DELETE FROM members WHERE member_type = 'agent' AND member_agent_id = ?`, args: []any{agentID}},
+		{query: `
+UPDATE rooms
+SET host_agent_id = NULL,
+    host_auto_reply_enabled = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+WHERE host_agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM rounds WHERE session_id IN (SELECT id FROM sessions WHERE agent_id = ?)`, args: []any{agentID}},
+		{query: `
+UPDATE messages
+SET session_id = NULL
+WHERE session_id IN (SELECT id FROM sessions WHERE agent_id = ?)`, args: []any{agentID}},
+		{query: `UPDATE messages SET sender_agent_id = NULL WHERE sender_agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM sessions WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM profiles WHERE agent_id = ?`, args: []any{agentID}},
+		{query: `DELETE FROM runtimes WHERE agent_id = ?`, args: []any{agentID}},
 	}
 
-	var count int
-	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
-		return false, err
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement.query, statement.args...); err != nil {
+			return err
+		}
 	}
-	return count > 0, nil
+	return nil
 }
 
 func nullIfEmpty(value string) any {

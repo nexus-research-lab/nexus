@@ -29,6 +29,17 @@ COMMIT_SHA="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || echo unknown)"
 COMMIT_SHORT="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 SOURCE_DIRTY=false
 
+is_enabled() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    1 | true | yes | on)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 case "${ARTIFACT_FORMAT}" in
   zip | dmg)
     ;;
@@ -48,6 +59,7 @@ fi
 export NEXUS_DESKTOP_VERSION="${APP_VERSION}"
 export NEXUS_DESKTOP_BUILD_NUMBER="${BUILD_NUMBER}"
 export NEXUS_DESKTOP_APP_BUILD_DIR="${APP_BUILD_DIR}"
+export NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}"
 
 if [[ "${NEXUS_DESKTOP_PACKAGE_SKIP_BUILD:-0}" != "1" ]]; then
   "${ROOT_DIR}/scripts/desktop/build-macos-app.sh"
@@ -58,6 +70,12 @@ if [[ ! -d "${APP_BUNDLE}" ]]; then
   exit 1
 fi
 
+NXS_RUNTIME_PATH="${APP_BUNDLE}/Contents/Resources/bin/nxs"
+if is_enabled "${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}" && [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
+  echo "missing bundled nxs runtime: ${NXS_RUNTIME_PATH}" >&2
+  exit 1
+fi
+
 plutil -lint "${APP_BUNDLE}/Contents/Info.plist" >/dev/null
 if command -v codesign >/dev/null 2>&1; then
   codesign --verify --deep --strict "${APP_BUNDLE}" >/dev/null
@@ -65,6 +83,7 @@ fi
 
 if [[ "${NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE:-0}" != "1" ]]; then
   NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-file}" \
+    NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME="${NEXUS_DESKTOP_SMOKE_EXPECT_NXS_RUNTIME:-${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}}" \
     "${ROOT_DIR}/scripts/desktop/smoke-macos-app.sh"
 fi
 
@@ -72,6 +91,10 @@ rm -rf "${STAGING_DIR}" "${DMG_DIR}" "${ARTIFACT_PATH}" "${SHA256_PATH}" "${META
 mkdir -p "${STAGING_DIR}" "${OUTPUT_DIR}"
 
 rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_NAME}.app/"
+NXS_RUNTIME_BUNDLED=false
+if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
+  NXS_RUNTIME_BUNDLED=true
+fi
 
 {
   printf 'Nexus macOS app package\n\n'
@@ -100,6 +123,8 @@ PACKAGE_COMMIT_SHORT="${COMMIT_SHORT}" \
 PACKAGE_SOURCE_DIRTY="${SOURCE_DIRTY}" \
 PACKAGE_DIST_NAME="${DIST_NAME}" \
 PACKAGE_ARTIFACT_FORMAT="${ARTIFACT_FORMAT}" \
+PACKAGE_NXS_RUNTIME_BUNDLED="${NXS_RUNTIME_BUNDLED}" \
+PACKAGE_NXS_RUNTIME_RELEASE="${NEXUS_DESKTOP_NXS_RELEASE:-${NEXUS_NXS_RUNTIME_RELEASE:-nxs-v0.1.1}}" \
 node - "${METADATA_PATH}" <<'NODE'
 const fs = require("fs");
 
@@ -126,6 +151,13 @@ const metadata = {
   keychain: {
     expected_storage: "file",
     expected_reason: "ad_hoc_signature",
+  },
+  runtime: {
+    nxs: {
+      bundled: env.PACKAGE_NXS_RUNTIME_BUNDLED === "true",
+      release: env.PACKAGE_NXS_RUNTIME_RELEASE,
+      relative_path: "Contents/Resources/bin/nxs",
+    },
   },
   artifact: {
     name: env.PACKAGE_DIST_NAME,

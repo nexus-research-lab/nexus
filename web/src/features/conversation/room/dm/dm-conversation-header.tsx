@@ -3,7 +3,6 @@
 import { memo } from "react";
 import {
   Activity,
-  Bot,
   Compass,
   FolderTree,
   History,
@@ -11,14 +10,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { get_icon_avatar_src } from "@/lib/utils";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceTaskStrip,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceConversationSwitcher } from "@/shared/ui/workspace/controls/workspace-conversation-switcher";
+import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -34,6 +33,7 @@ interface DmConversationHeaderProps {
   on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
 }
 
@@ -47,11 +47,11 @@ const DmConversationHeaderView = memo(({
   on_replay_tour,
   on_change_tab,
   on_select_conversation,
+  on_close_conversation,
   on_create_conversation,
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
   const header_title = current_agent_name?.trim() || t("room.untitled_dm");
-  const current_agent_avatar_src = get_icon_avatar_src(current_agent_avatar);
   const dm_tabs: {
     key: RoomSurfaceTabKey;
     label: string;
@@ -64,15 +64,14 @@ const DmConversationHeaderView = memo(({
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
-  const title_trailing = (
-    <WorkspaceConversationSwitcher
+  const conversation_tabs = (
+    <WorkspaceConversationTabs
       conversations={conversations}
       conversation_id={conversation_id}
-      density="compact"
-      trigger_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
-      on_select_conversation={on_select_conversation}
+      on_close_conversation={on_close_conversation}
       on_create_conversation={on_create_conversation}
-      on_view_history={() => on_change_tab("history")}
+      on_select_conversation={on_select_conversation}
+      tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
 
@@ -81,20 +80,12 @@ const DmConversationHeaderView = memo(({
       active_tab={active_tab}
       badge="DM"
       density="compact"
-      leading={current_agent_avatar_src ? (
-        <img
-          alt={header_title}
-          className="h-full w-full rounded-full object-cover"
-          src={current_agent_avatar_src}
-        />
-      ) : (
-        <Bot size={14} className="text-(--icon-default)" />
-      )}
+      leading={<UiAgentAvatar avatar={current_agent_avatar} class_name="h-full w-full border-0 shadow-none" name={header_title} size="sm" />}
       on_change_tab={on_change_tab}
+      tabs_leading={conversation_tabs}
       tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
       tabs={dm_tabs}
       title={header_title}
-      title_trailing={title_trailing}
       trailing={on_replay_tour ? (
         <div className="flex items-center gap-2">
           <WorkspaceSurfaceToolbarAction onClick={on_replay_tour}>

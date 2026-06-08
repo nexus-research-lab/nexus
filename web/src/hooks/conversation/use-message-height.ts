@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { prepare, layout } from "@chenglou/pretext";
-import { Message } from "@/types/conversation/message";
+import { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
+import { ContentBlock, Message } from "@/types/conversation/message";
 
 // Base font matching MarkdownRenderer prose text (text-sm = 14px, leading-7 = 28px)
 const PROSE_FONT = "400 14px ui-sans-serif, system-ui, sans-serif";
@@ -42,12 +43,15 @@ function extract_text_from_messages(messages: Message[]): string {
   const parts: string[] = [];
   for (const msg of messages) {
     if (msg.role === "user" && typeof msg.content === "string") {
+      if (is_automation_trigger_user_message(msg)) {
+        continue;
+      }
       parts.push(msg.content);
     } else if (msg.role === "assistant") {
       if (typeof msg.content === "string") {
         parts.push(msg.content);
       } else if (Array.isArray(msg.content)) {
-        for (const block of msg.content as any[]) {
+        for (const block of msg.content as ContentBlock[]) {
           if (block.type === "text") parts.push(block.text ?? "");
           if (block.type === "task_progress") parts.push(block.description ?? "");
         }
@@ -61,7 +65,7 @@ function count_tool_blocks(messages: Message[]): number {
   let count = 0;
   for (const msg of messages) {
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
-      for (const block of msg.content as any[]) {
+      for (const block of msg.content as ContentBlock[]) {
         if (block.type === "tool_use") count++;
       }
     }

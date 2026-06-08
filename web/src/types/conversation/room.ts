@@ -54,6 +54,7 @@ export interface RoomSessionRecord {
 }
 
 export interface RoomSessionSelection {
+  value: string;
   session_key: string;
   agent_id: string;
   room_id: string;

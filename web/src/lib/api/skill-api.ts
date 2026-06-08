@@ -7,9 +7,11 @@
  */
 
 import { get_agent_api_base_url } from "@/config/options";
-import { request_api } from "@/lib/api/http";
+import { request_api, type RequestApiOptions } from "@/lib/api/http";
 import type {
   AgentSkillEntry,
+  ExternalSkillSourceInfo,
+  ExternalSkillSourceRequest,
   ExternalSkillSearchItem,
   ExternalSkillPreviewResponse,
   SearchExternalSkillsResponse,
@@ -19,6 +21,7 @@ import type {
 } from "@/types/capability/skill";
 
 const AGENT_API_BASE_URL = get_agent_api_base_url();
+const SKILL_GIT_OPERATION_TIMEOUT_MS = 360_000;
 
 interface SkillQueryParams {
   agent_id?: string;
@@ -63,7 +66,7 @@ function normalize_skill_query(
 
 async function request_skill_api<T>(
   path: string,
-  init?: RequestInit,
+  init?: RequestApiOptions,
 ): Promise<T> {
   try {
     return await request_api<T>(`${AGENT_API_BASE_URL}${path}`, init);
@@ -123,32 +126,35 @@ export const import_local_skill_api = async (
 export const import_git_skill_api = async (
   url: string,
   branch?: string,
+  path?: string,
 ): Promise<SkillDetail> => {
   return request_skill_api<SkillDetail>("/skills/import/git", {
     method: "POST",
-    body: JSON.stringify({ url, branch }),
+    timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
+    body: JSON.stringify({ url, branch, path }),
   });
 };
 
-/** 从 skills.sh 搜索外部 Skill */
+/** 从社区来源搜索外部 Skill */
 export const search_external_skills_api = async (
   q: string,
   include_readme: boolean = false,
-): Promise<ExternalSkillSearchItem[]> => {
+  signal?: AbortSignal,
+): Promise<SearchExternalSkillsResponse> => {
   const query = build_query({
     q,
     include_readme: include_readme ? "true" : undefined,
   });
-  const result = await request_skill_api<SearchExternalSkillsResponse>(
+  return request_skill_api<SearchExternalSkillsResponse>(
     `/skills/search/external${query}`,
     {
       method: "GET",
+      signal,
     },
   );
-  return result.results;
 };
 
-/** 获取 skills.sh 技能预览内容 */
+/** 获取社区 Skill 预览内容 */
 export const get_external_skill_preview_api = async (
   detail_url: string,
 ): Promise<ExternalSkillPreviewResponse> => {
@@ -161,15 +167,37 @@ export const get_external_skill_preview_api = async (
   );
 };
 
-/** 从 skills.sh 导入指定 Skill */
-export const import_skills_sh_skill_api = async (
-  package_spec: string,
-  skill_slug: string,
+/** 从社区来源导入指定 Skill */
+export const import_external_skill_api = async (
+  item: ExternalSkillSearchItem,
 ): Promise<SkillDetail> => {
   return request_skill_api<SkillDetail>("/skills/import/skills-sh", {
     method: "POST",
-    body: JSON.stringify({ package_spec, skill_slug }),
+    timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
+    body: JSON.stringify(item),
   });
+};
+
+/** 获取社区 Skill 来源配置 */
+export const list_external_skill_sources_api =
+  async (): Promise<ExternalSkillSourceInfo[]> => {
+    return request_skill_api<ExternalSkillSourceInfo[]>("/skills/sources", {
+      method: "GET",
+    });
+  };
+
+/** 更新社区 Skill 来源配置 */
+export const update_external_skill_source_api = async (
+  source_id: string,
+  payload: Partial<ExternalSkillSourceRequest>,
+): Promise<ExternalSkillSourceInfo> => {
+  return request_skill_api<ExternalSkillSourceInfo>(
+    `/skills/sources/${encodeURIComponent(source_id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
 };
 
 /** 更新全局已导入 Skill */
@@ -179,6 +207,7 @@ export const update_imported_skills_api =
       "/skills/update-imported",
       {
         method: "POST",
+        timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
       },
     );
   };
@@ -191,6 +220,7 @@ export const update_single_skill_api = async (
     `/skills/${encodeURIComponent(skill_name)}/update`,
     {
       method: "POST",
+      timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
     },
   );
 };

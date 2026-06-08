@@ -37,6 +37,24 @@ func TestResolveMentionAgentIDsPreservesTextOrder(t *testing.T) {
 	}
 }
 
+func TestResolveMentionAgentIDsIgnoresBacktickCode(t *testing.T) {
+	aliases := map[string]string{
+		"Amy":   "agent-amy",
+		"Devin": "agent-devin",
+		"Jim":   "agent-jim",
+		"Sam":   "agent-sam",
+	}
+
+	got := ResolveMentionAgentIDs(
+		"首位投票 @Jim，结束用 `@Sam`。\n```text\n@Devin 这里只是示例\n```\n最后交回 @Amy",
+		aliases,
+	)
+	want := []string{"agent-jim", "agent-amy"}
+	if !sameStringSlice(got, want) {
+		t.Fatalf("代码区里的 @ 不应触发 Room 唤醒: got=%v want=%v", got, want)
+	}
+}
+
 func sameStringSet(left []string, right []string) bool {
 	if len(left) != len(right) {
 		return false

@@ -2,6 +2,8 @@
 
 import { Component, ErrorInfo, ReactNode } from "react";
 
+import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+
 interface GroupChatErrorBoundaryProps {
   children: ReactNode;
 }
@@ -36,7 +38,10 @@ export class GroupChatErrorBoundary extends Component<
               当前会话在渲染阶段触发异常，错误详情已经输出到控制台。
             </p>
             <button
-              className="mt-4 inline-flex items-center justify-center rounded-full bg-(--button-primary-background) px-4 py-2 text-sm font-semibold text-(--button-primary-color) transition hover:bg-(--button-primary-hover-background)"
+              className={get_ui_button_class_name(
+                { size: "md", tone: "primary", variant: "solid" },
+                "mt-4 rounded-full px-4 text-sm",
+              )}
               onClick={() => window.location.reload()}
               type="button"
             >

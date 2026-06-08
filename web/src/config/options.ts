@@ -9,16 +9,24 @@ import { request_api } from "@/lib/api/http";
 import { get_desktop_runtime_config } from "@/config/desktop-runtime";
 import type { AgentOptions, AgentProvider } from "@/types/agent/agent";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import type { UserPreferences } from "@/types/settings/preferences";
-import { DEFAULT_AGENT_ALLOWED_TOOLS } from "@/features/agents/options/agent-options-constants";
+import { normalize_agent_runtime_kind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
+import {
+  DEFAULT_AGENT_ALLOWED_TOOLS,
+  DEFAULT_AGENT_PERMISSION_MODE,
+} from "@/features/agents/options/agent-options-constants";
 
 export let DEFAULT_AGENT_ID = "";
 export let DEFAULT_AGENT_AVATAR = "";
 export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
+export let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
+let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
+let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
+let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
+let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
-  permission_mode: "bypassPermissions",
+  permission_mode: DEFAULT_AGENT_PERMISSION_MODE,
   allowed_tools: [...DEFAULT_AGENT_ALLOWED_TOOLS],
   disallowed_tools: [],
   setting_sources: ["project"],
@@ -96,6 +104,10 @@ export function get_default_agent_provider(): AgentProvider {
   return DEFAULT_AGENT_PROVIDER;
 }
 
+export function get_default_agent_model(): string {
+  return DEFAULT_AGENT_MODEL;
+}
+
 export function set_default_agent_avatar(avatar?: string | null): void {
   const normalized_avatar = avatar?.trim();
   DEFAULT_AGENT_AVATAR = normalized_avatar || "";
@@ -106,18 +118,31 @@ export function set_default_agent_provider(provider?: string | null): void {
   DEFAULT_AGENT_PROVIDER = normalized_provider || "";
 }
 
+export function set_default_agent_model(model?: string | null): void {
+  const normalized_model = model?.trim();
+  DEFAULT_AGENT_MODEL = normalized_model || "";
+}
+
 export function get_initial_agent_options(): Partial<AgentOptions> {
   return clone_agent_options(DEFAULT_AGENT_OPTIONS);
 }
 
 export function get_default_chat_delivery_policy(): AgentConversationDefaultDeliveryPolicy {
-  return DEFAULT_CHAT_DELIVERY_POLICY;
+	return DEFAULT_CHAT_DELIVERY_POLICY;
+}
+
+export function get_default_agent_runtime_kind(): AgentRuntimeKind {
+  return DEFAULT_AGENT_RUNTIME_KIND;
 }
 
 export function get_user_preferences(): UserPreferences {
   return {
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
+    agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
+    agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
     default_agent_options: get_initial_agent_options(),
+    default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
+    default_background_model_selection: DEFAULT_BACKGROUND_MODEL_SELECTION,
   };
 }
 
@@ -126,6 +151,14 @@ export function set_user_preferences(preferences?: Partial<UserPreferences> | nu
   if (policy !== undefined) {
     DEFAULT_CHAT_DELIVERY_POLICY = policy;
   }
+  if (preferences?.agent_runtime_kind !== undefined) {
+    DEFAULT_AGENT_RUNTIME_KIND = normalize_agent_runtime_kind(preferences.agent_runtime_kind);
+  }
+  if (preferences !== undefined && preferences !== null) {
+    DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = preferences.agent_sdk_diagnostics_enabled === true;
+  }
+  DEFAULT_IMAGE_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_image_model_selection);
+  DEFAULT_BACKGROUND_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_background_model_selection);
   DEFAULT_AGENT_OPTIONS = normalize_agent_options(preferences?.default_agent_options);
   notify_user_preferences_changed();
 }
@@ -143,6 +176,7 @@ export async function hydrate_runtime_options(): Promise<void> {
     default_agent_id: string;
     default_agent_avatar?: string | null;
     default_agent_provider?: string | null;
+    default_agent_model?: string | null;
     preferences?: UserPreferences | null;
   }>(
     `${get_agent_api_base_url()}/runtime/options`,
@@ -159,6 +193,7 @@ export async function hydrate_runtime_options(): Promise<void> {
   DEFAULT_AGENT_ID = next_default_agent_id;
   set_default_agent_avatar(payload?.default_agent_avatar);
   set_default_agent_provider(payload?.default_agent_provider);
+  set_default_agent_model(payload?.default_agent_model);
   set_user_preferences(payload?.preferences);
 }
 
@@ -175,11 +210,22 @@ function normalize_agent_options(options?: Partial<AgentOptions> | null): Partia
   const source = options ?? {};
   return {
     ...source,
-    permission_mode: source.permission_mode?.trim() || "bypassPermissions",
+    permission_mode: source.permission_mode?.trim() || DEFAULT_AGENT_PERMISSION_MODE,
     allowed_tools: [...(source.allowed_tools ?? DEFAULT_AGENT_ALLOWED_TOOLS)],
     disallowed_tools: [...(source.disallowed_tools ?? [])],
     setting_sources: [...(source.setting_sources ?? ["project"])],
   };
+}
+
+function normalize_model_selection_preference(
+  selection?: UserPreferences["default_image_model_selection"] | null,
+): UserPreferences["default_image_model_selection"] {
+  const provider = selection?.provider?.trim();
+  const model = selection?.model?.trim();
+  if (!provider || !model) {
+    return undefined;
+  }
+  return { provider, model };
 }
 
 function notify_user_preferences_changed(): void {

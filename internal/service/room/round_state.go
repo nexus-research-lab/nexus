@@ -5,12 +5,15 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 type activeRoomSlot struct {
@@ -20,6 +23,15 @@ type activeRoomSlot struct {
 	AgentRoundID       string
 	MsgID              string
 	RuntimeSessionKey  string
+	GoalSessionKey     string
+	GoalContext        string
+	GoalIDForUsage     string
+	GoalRuntimeIgnored bool
+	GoalUsage          *goalsvc.RuntimeUsageAccumulator
+	GoalUsageStartedAt time.Time
+	GoalLastAssistant  protocol.Message
+	GoalToolProgress   bool
+	resultUsageWritten bool
 	WorkspacePath      string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc
@@ -30,13 +42,11 @@ type activeRoomSlot struct {
 	TriggerAttachments []protocol.ChatAttachment
 	PublicCursorID     string
 	PublicCursorTS     int64
-	ActionCursorID     string
-	ActionCursorTS     int64
-	ReplyTarget        protocol.RoomReplyTarget
-	ReplySourceAction  string
+	MessageCursorID    string
+	MessageCursorTS    int64
+	ReplyRoute         protocol.RoomReplyRoute
+	ReplySourceMessage string
 	ReplySourceAgent   string
-	ReplyRequestID     string
-	ReplyAudience      []string
 	InterruptReason    string
 	QueuedInputs       []roomQueuedInput
 	GuidedInputs       []roomQueuedInput
@@ -50,20 +60,26 @@ type activeRoomSlot struct {
 }
 
 type activeRoomRound struct {
-	SessionKey     string
-	RoomID         string
-	ConversationID string
-	RoomType       string
-	Context        *protocol.ConversationContextAggregate
-	RoundID        string
-	RootRoundID    string
-	HopIndex       int
-	OwnerUserID    string
-	Cancel         context.CancelFunc
-	Slots          map[string]*activeRoomSlot
-	PublicMentions []publicMentionWake
-	Done           chan struct{}
-	doneOnce       sync.Once
+	SessionKey        string
+	RoomID            string
+	ConversationID    string
+	RoomType          string
+	Context           *protocol.ConversationContextAggregate
+	RoundID           string
+	RootRoundID       string
+	HopIndex          int
+	OwnerUserID       string
+	Internal          bool
+	InputOptions      sdkprotocol.OutboundMessageOptions
+	Cancel            context.CancelFunc
+	PermissionMode    sdkpermission.Mode
+	PermissionHandler sdkpermission.Handler
+	EventObserver     RoomEventObserver
+	GoalContext       string
+	Slots             map[string]*activeRoomSlot
+	PublicMentions    []publicMentionWake
+	Done              chan struct{}
+	doneOnce          sync.Once
 }
 
 type roomTrigger = roomdomain.Trigger
@@ -75,9 +91,7 @@ type publicMentionWake struct {
 	TargetAgentID string
 	Content       string
 	MessageID     string
-	RequestID     string
-	ReplyTarget   protocol.RoomReplyTarget
-	ReplyAudience []string
+	ReplyRoute    protocol.RoomReplyRoute
 }
 
 type roomQueuedInput struct {
@@ -386,6 +400,24 @@ func (slot *activeRoomSlot) markCancelled() bool {
 	return true
 }
 
+func (slot *activeRoomSlot) rememberGoalAssistantMessage(message protocol.Message) {
+	if slot == nil || protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	slot.stateMu.Lock()
+	slot.GoalLastAssistant = protocol.Clone(message)
+	slot.stateMu.Unlock()
+}
+
+func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
+	if slot == nil {
+		return nil
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return protocol.Clone(slot.GoalLastAssistant)
+}
+
 func (slot *activeRoomSlot) enqueueQueuedInput(roundID string, content string) {
 	if slot == nil || strings.TrimSpace(content) == "" {
 		return
@@ -443,7 +475,7 @@ func normalizeRoomInterruptReason(reason string) string {
 	if reason != "" {
 		return reason
 	}
-	return "请求已停止"
+	return "Request stopped"
 }
 
 func markRoomSlotInterrupted(slot *activeRoomSlot, reason string) {

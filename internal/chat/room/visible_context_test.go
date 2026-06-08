@@ -12,11 +12,12 @@ func TestBuildHistoryLinesFiltersIncompleteAssistant(t *testing.T) {
 		{"role": "user", "content": "你好"},
 		{"role": "assistant", "agent_id": "a1", "content": []map[string]any{{"type": "text", "text": "半成品"}}, "is_complete": false},
 		{"role": "assistant", "agent_id": "a1", "content": []map[string]any{{"type": "text", "text": "已完成但无 result"}}, "is_complete": true},
+		{"role": "result", "agent_id": "a1", "result": "运行结果不属于公区事实"},
 		roomAssistantResult("a1", "已完成"),
 	}
 	lines := buildHistoryLines(history, map[string]string{"a1": "Agent1"})
 	if len(lines) != 3 {
-		t.Fatalf("应保留 user、完整 assistant fallback 和带 result_summary 的 assistant: %+v", lines)
+		t.Fatalf("应保留 user、完整 assistant fallback 和带 result_summary 的 assistant，并跳过 result: %+v", lines)
 	}
 	if lines[0] != "User: 你好" {
 		t.Fatalf("第一行不正确: %s", lines[0])
@@ -26,6 +27,18 @@ func TestBuildHistoryLinesFiltersIncompleteAssistant(t *testing.T) {
 	}
 	if lines[2] != "Assistant(Agent1): 已完成" {
 		t.Fatalf("第三行不正确: %s", lines[2])
+	}
+}
+
+func TestBuildHistoryLinesSkipsRuntimeResultMessages(t *testing.T) {
+	history := []protocol.Message{
+		roomAssistantResult("agent-amy", "公开消息"),
+		{"role": "result", "agent_id": "agent-amy", "result": "工具后总结\n\n<nexus_room_no_reply/>"},
+	}
+
+	lines := buildHistoryLines(history, map[string]string{"agent-amy": "Amy"})
+	if len(lines) != 1 || lines[0] != "Assistant(Amy): 公开消息" {
+		t.Fatalf("Room 公区上下文不应展示 runtime result: %+v", lines)
 	}
 }
 
@@ -121,29 +134,25 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	systemPrompt := BuildSystemPrompt()
 
 	for _, expected := range []string{
-		"# Nexus Room 公区协作规则",
-		"你正在 Nexus 的多人协作 Room 中参与公开协作",
-		"@ 是执行触发",
-		"候选邀请不要多 @",
+		"# Nexus Room",
+		"You are a member in a multi-member Nexus Room",
+		"outside inline code or fenced code is an execution trigger",
+		"Never @ multiple candidates",
 		"<nexus_room_no_reply/>",
-		"目标轮数、当前轮次、下一位成员、停止条件",
-		"直接创建 Room action",
-		`nexusctl --json room action`,
-		`room action private-message --target-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
-		`room action private-message --audience-agent-id <agent_id> --audience-agent-id <agent_id> --wake-policy immediate|none --content "<text>"`,
-		`--wake-policy delayed --delay-seconds <seconds>`,
-		`room action request-reply --target-agent-id <agent_id> --reply-target public_feed|sender_private|target_private|audience|none --wake-policy immediate|none --content "<text>"`,
-		`延迟唤醒后要把最终回复发布到公区`,
-		`request-reply 指向自己并设置 --reply-target public_feed`,
-		"latest_trigger 标注“群主默认接管”",
-		"收到 request_reply 时，优先直接用本轮最终 assistant 回复回答请求",
-		"不要为了回答这个请求再调用 room action 或 CLI",
-		"不要公开复述 private_message、request_reply、private_note 中的正文",
-		`room action private-note --content "<text>"`,
-		`room action marker --visibility public|private --content "<text>"`,
-		"不要调用 Skill 工具",
-		"暗号、密码、密钥",
-		"最终总结不要 @ 任何成员",
+		"target turns, current turn, next member, and stop condition",
+		"create a Room directed message",
+		`nexus_room.publish_public_message`,
+		`nexus_room.send_directed_message`,
+		`recipients: string[]`,
+		`reply_route: { mode: public|private|none`,
+		`next_reply_route`,
+		"Small-group discussion is just a directed message with multiple recipients",
+		`latest_trigger says "room host default takeover"`,
+		"When you receive a directed message, answer in this turn's final reply",
+		"Never restate directed message content",
+		"Do not use Bash, nexusctl, Skill tools, or files",
+		"secrets, codes",
+		"Final summaries must not @ anyone",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
 			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
@@ -162,7 +171,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 
 	memberDirectoryPrompt := BuildMemberDirectoryPrompt(input.AgentNameByID)
 	for _, expected := range []string{
-		"# Nexus Room 成员目录",
+		"# Nexus Room Member Directory",
 		"<room_member_directory>",
 		"- name=Devin agent_id=agent-devin",
 	} {
@@ -182,10 +191,10 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		}
 	}
 	for _, unexpected := range []string{
-		"# Nexus Room 公区协作规则",
+		"# Nexus Room Public Collaboration Rules",
 		"<current_room_member>",
 		"<room_member_directory>",
-		"@ 是执行触发",
+		"@ is an execution trigger",
 		"<nexus_room_no_reply/>",
 		"User: @Devin @sam 谁先来？",
 		"trigger_type",
@@ -205,29 +214,40 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		t.Fatalf("Room 公区 prompt 不应包含未完成 assistant:\n%s", contextValue)
 	}
 	if strings.Contains(contextValue, "private_context") ||
-		strings.Contains(contextValue, "collaboration_actions") ||
-		strings.Contains(contextValue, "request-reply") {
+		strings.Contains(contextValue, "collaboration_actions") {
 		t.Fatalf("Room 公区 prompt 不应注入私聊或协作动作实现:\n%s", contextValue)
 	}
 }
 
-func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
+func TestBuildRoomVisibleContextFormatsRoomDirectedMessageReplyProjection(t *testing.T) {
 	contextValue := BuildVisibleContext(VisibleContextInput{
 		LatestTrigger: Trigger{
-			TriggerType:           "room_action",
-			Content:               "收到一条 Room private_message；请读取 <room_actions> 中投影给你的内容。",
-			SourceAgentID:         "agent-amy",
-			TargetAgentID:         "agent-devin",
-			ReplyTarget:           protocol.RoomReplyTargetAudience,
-			ReplyAudienceAgentIDs: []string{"agent-sam"},
+			TriggerType:   "room_directed_message",
+			Content:       "A Room directed message was delivered to you. Read the content projected in <room_directed_messages>.",
+			SourceAgentID: "agent-amy",
+			TargetAgentID: "agent-devin",
+			ReplyRoute: protocol.RoomReplyRoute{
+				Mode:       protocol.RoomReplyRoutePrivate,
+				Recipients: []string{"agent-sam"},
+				WakePolicy: protocol.RoomWakePolicyImmediate,
+				NextReplyRoute: &protocol.RoomReplyRoute{
+					Mode: protocol.RoomReplyRoutePublic,
+				},
+			},
 		},
-		RoomActions: []protocol.RoomActionRecord{
+		RoomMessages: []protocol.RoomDirectedMessageRecord{
 			{
-				ActionType:    protocol.RoomActionTypePrivateMessage,
 				SourceAgentID: "agent-amy",
-				TargetAgentID: "agent-devin",
+				Recipients:    []string{"agent-devin"},
 				Content:       "只给 Devin 的上下文",
-				ReplyTarget:   protocol.RoomReplyTargetAudience,
+				ReplyRoute: protocol.RoomReplyRoute{
+					Mode:       protocol.RoomReplyRoutePrivate,
+					Recipients: []string{"agent-sam"},
+					WakePolicy: protocol.RoomWakePolicyImmediate,
+					NextReplyRoute: &protocol.RoomReplyRoute{
+						Mode: protocol.RoomReplyRoutePublic,
+					},
+				},
 			},
 		},
 		AgentNameByID: map[string]string{
@@ -240,17 +260,47 @@ func TestBuildRoomVisibleContextFormatsRoomActionReplyProjection(t *testing.T) {
 
 	for _, expected := range []string{
 		"<latest_trigger>",
-		"Amy: 收到一条 Room private_message",
-		"reply_target=audience audience=Sam(agent-sam)",
-		"<room_actions>",
-		"[private_message] Amy -> Devin: 只给 Devin 的上下文",
+		"Amy: A Room directed message was delivered to you",
+		"reply_route=private recipients=Sam(agent-sam) wake=immediate next_reply_route=public",
+		"<room_directed_messages>",
+		"[directed_message recipients=Devin(agent-devin) reply_route=private recipients=Sam(agent-sam) wake=immediate next_reply_route=public",
+		"Amy: 只给 Devin 的上下文",
 	} {
 		if !strings.Contains(contextValue, expected) {
-			t.Fatalf("Room action 动态输入缺少片段 %q:\n%s", expected, contextValue)
+			t.Fatalf("Room directed message 动态输入缺少片段 %q:\n%s", expected, contextValue)
 		}
 	}
 	if strings.Contains(contextValue, "trigger_type") || strings.Contains(contextValue, "message_id") {
-		t.Fatalf("Room action 动态输入不应暴露结构字段:\n%s", contextValue)
+		t.Fatalf("Room directed message 动态输入不应暴露结构字段:\n%s", contextValue)
+	}
+}
+
+func TestBuildRoomVisibleContextUsesGoalContinuationTrigger(t *testing.T) {
+	got := BuildVisibleContext(VisibleContextInput{
+		LatestTrigger: Trigger{
+			TriggerType: "goal_continuation",
+		},
+		AgentNameByID: map[string]string{
+			"agent-devin": "Devin",
+		},
+		TargetAgentID: "agent-devin",
+	})
+
+	for _, expected := range []string{
+		"<latest_trigger>",
+		"Goal continuation: continue the active Room goal",
+		"hidden internal goal context",
+		"room-visible collaborator evidence",
+		"@ exactly one collaborator",
+	} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("Goal continuation trigger missing %q:\n%s", expected, got)
+		}
+	}
+	for _, unexpected := range []string{"User: (No content.)", "room host default takeover"} {
+		if strings.Contains(got, unexpected) {
+			t.Fatalf("Goal continuation trigger should not look like public chat %q:\n%s", unexpected, got)
+		}
 	}
 }
 
@@ -260,6 +310,7 @@ func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 		roomAssistantResultWithID("m2", "agent-amy", "Amy 看过的回复", 2),
 		roomAssistantResultWithID("m3", "agent-devin", "Devin 自己刚说过的话", 3),
 		{"message_id": "m4", "role": "user", "content": "@Devin 你怎么看", "timestamp": int64(4)},
+		{"message_id": "m5", "role": "result", "agent_id": "agent-amy", "result": "运行结果噪声", "timestamp": int64(5)},
 	}
 
 	batch := BuildPublicInputBatch(PublicInputBatchInput{
@@ -275,7 +326,7 @@ func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 		TargetAgentID: "agent-devin",
 	})
 
-	if batch.LastMessageID != "m4" || batch.LastTimestamp != 4 {
+	if batch.LastMessageID != "m5" || batch.LastTimestamp != 5 {
 		t.Fatalf("batch 应推进到最新公区边界: %+v", batch)
 	}
 	if len(batch.Messages) != 1 || normalizeAnyString(batch.Messages[0]["message_id"]) != "m4" {

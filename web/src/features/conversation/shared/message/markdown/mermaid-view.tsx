@@ -23,10 +23,11 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
 import { DIALOG_ICON_BUTTON_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
 import { useMermaidSvg } from "./use-mermaid-svg";
 
-interface MermaidViewProps {
+export interface MermaidViewProps {
   chart: string;
   compact?: boolean;
   class_name?: string;
@@ -226,6 +227,7 @@ function MermaidImagePreviewDialog({
       aria-labelledby="mermaid-image-preview-title"
       aria-modal="true"
       className="dialog-backdrop z-[10000] overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
+      data-modal-root="true"
       onClick={on_close}
       onWheel={(event) => {
         if (event.target === event.currentTarget) {
@@ -235,7 +237,7 @@ function MermaidImagePreviewDialog({
       role="dialog"
     >
       <section
-        className="dialog-shell radius-shell-xl relative flex h-[88vh] w-[94vw] max-w-7xl flex-col overflow-hidden overscroll-contain animate-in zoom-in-95 duration-(--motion-duration-fast)"
+        className="dialog-shell surface-radius-md relative flex h-[88vh] w-[94vw] max-w-7xl flex-col overflow-hidden overscroll-contain animate-in zoom-in-95 duration-(--motion-duration-fast)"
         onClick={(event) => event.stopPropagation()}
       >
         <h2 className="sr-only" id="mermaid-image-preview-title">
@@ -303,9 +305,7 @@ export function MermaidView({
   }, []);
 
   const handle_copy_source = async () => {
-    try {
-      await navigator.clipboard.writeText(chart);
-    } catch {
+    if (!await write_text_to_clipboard(chart)) {
       return;
     }
 

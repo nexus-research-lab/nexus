@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -150,7 +151,15 @@ func (s *RealtimeService) guideActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		slot.enqueueGuidedInput(roundID, runtimeContent)
+		runtimeText := conversationsvc.NewRuntimeTextContent(runtimeContent)
+		if s.agents != nil {
+			agentValue, err := s.agents.GetAgent(ctx, agentID)
+			if err != nil {
+				return guidedAgentIDs, err
+			}
+			runtimeText = s.appendRuntimeUserContext(ctx, conversationID, agentValue, runtimeText)
+		}
+		slot.enqueueGuidedInput(roundID, runtimeText.PlainText())
 		guidanceMessage := buildRoomGuidanceMessage(sessionKey, roomID, conversationID, slot, roundID, content)
 		s.broadcastSlotGuidanceMessage(ctx, sessionKey, roomID, conversationID, roundID, guidanceMessage)
 		guidedAgentIDs[agentID] = struct{}{}

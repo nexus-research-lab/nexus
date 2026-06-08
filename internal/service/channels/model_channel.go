@@ -99,6 +99,10 @@ type DeliveryChannel interface {
 	SendDeliveryText(context.Context, DeliveryTarget, string) error
 }
 
+type agentScopedDeliveryChannel interface {
+	SendAgentDeliveryText(context.Context, string, DeliveryTarget, string) error
+}
+
 func normalizeChannelType(channel string) string {
 	return protocol.NormalizeStoredChannelType(channel)
 }

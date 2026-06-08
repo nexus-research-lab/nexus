@@ -11,6 +11,7 @@ interface GlassSwitchProps {
   disabled?: boolean;
   on_change: (checked: boolean) => void;
   class_name?: string;
+  size?: "xs" | "sm" | "md";
 }
 
 const SOURCE_TRACK_WIDTH = 160;
@@ -29,16 +30,11 @@ const SOURCE_FILTER_SPECULAR_FADE = 0.5;
 const SOURCE_FILTER_DISPLACEMENT_SCALE = 22.26064761799501;
 const LOCAL_DISPLACEMENT_MAP_URL = "/liquid-glass/displacement-map.png";
 const LOCAL_SPECULAR_MAP_URL = "/liquid-glass/specular-map.png";
-const TARGET_TRACK_HEIGHT = 28;
-const SCALE_RATIO = TARGET_TRACK_HEIGHT / SOURCE_TRACK_HEIGHT;
-const TRACK_WIDTH = Math.round(SOURCE_TRACK_WIDTH * SCALE_RATIO);
-const TRACK_HEIGHT = TARGET_TRACK_HEIGHT;
-const THUMB_WIDTH = SOURCE_THUMB_WIDTH * SCALE_RATIO;
-const THUMB_HEIGHT = SOURCE_THUMB_HEIGHT * SCALE_RATIO;
-const THUMB_RADIUS = SOURCE_THUMB_RADIUS * SCALE_RATIO;
-const THUMB_OFFSET_X = SOURCE_THUMB_OFFSET_X * SCALE_RATIO;
-const STATIC_THUMB_TRAVEL_X = SOURCE_STATIC_THUMB_TRAVEL_X * SCALE_RATIO;
-const THUMB_TRAVEL_X = SOURCE_THUMB_TRAVEL_X * SCALE_RATIO;
+const TARGET_TRACK_HEIGHT_BY_SIZE = {
+  xs: 18,
+  sm: 22,
+  md: 28,
+} as const;
 
 /**
  * 中文注释：共享 glass 开关采用 switch 专用折射滤镜，
@@ -49,6 +45,7 @@ export function GlassSwitch({
   disabled = false,
   on_change,
   class_name,
+  size = "md",
 }: GlassSwitchProps) {
   const raw_filter_id = useId();
   const filter_id = `glass-switch-thumb-${raw_filter_id.replace(/:/g, "")}`;
@@ -56,6 +53,16 @@ export function GlassSwitch({
   const [is_pressed, set_is_pressed] = useState(false);
   const [is_transitioning, set_is_transitioning] = useState(false);
   const previous_checked_ref = useRef(checked);
+  const target_track_height = TARGET_TRACK_HEIGHT_BY_SIZE[size];
+  const scale_ratio = target_track_height / SOURCE_TRACK_HEIGHT;
+  const track_width = Math.round(SOURCE_TRACK_WIDTH * scale_ratio);
+  const track_height = target_track_height;
+  const thumb_width = SOURCE_THUMB_WIDTH * scale_ratio;
+  const thumb_height = SOURCE_THUMB_HEIGHT * scale_ratio;
+  const thumb_radius = SOURCE_THUMB_RADIUS * scale_ratio;
+  const thumb_offset_x = SOURCE_THUMB_OFFSET_X * scale_ratio;
+  const static_thumb_travel_x = SOURCE_STATIC_THUMB_TRAVEL_X * scale_ratio;
+  const thumb_travel_x = SOURCE_THUMB_TRAVEL_X * scale_ratio;
 
   useEffect(() => {
     set_can_use_true_glass(supports_true_liquid_glass());
@@ -136,8 +143,8 @@ export function GlassSwitch({
       role="switch"
       type="button"
       style={{
-        width: `${TRACK_WIDTH}px`,
-        height: `${TRACK_HEIGHT}px`,
+        width: `${track_width}px`,
+        height: `${track_height}px`,
         backgroundColor: checked ? "rgba(59,191,78,0.93333)" : "rgba(198,201,210,0.82)",
       }}
     >
@@ -160,8 +167,8 @@ export function GlassSwitch({
                 result="displacement_map"
                 x={0}
                 y={0}
-                width={THUMB_WIDTH}
-                height={THUMB_HEIGHT}
+                width={thumb_width}
+                height={thumb_height}
               />
               <feDisplacementMap
                 in="blurred_source"
@@ -182,8 +189,8 @@ export function GlassSwitch({
                 result="specular_layer"
                 x={0}
                 y={0}
-                width={THUMB_WIDTH}
-                height={THUMB_HEIGHT}
+                width={thumb_width}
+                height={thumb_height}
               />
               <feComposite
                 in="displaced_saturated"
@@ -216,15 +223,15 @@ export function GlassSwitch({
         aria-hidden="true"
         className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
         style={{
-          width: `${THUMB_WIDTH}px`,
-          height: `${THUMB_HEIGHT}px`,
-          marginLeft: `${THUMB_OFFSET_X}px`,
-          top: `${TRACK_HEIGHT / 2}px`,
-          borderRadius: `${THUMB_RADIUS}px`,
+          width: `${thumb_width}px`,
+          height: `${thumb_height}px`,
+          marginLeft: `${thumb_offset_x}px`,
+          top: `${track_height / 2}px`,
+          borderRadius: `${thumb_radius}px`,
           backgroundColor: "rgb(255, 255, 255)",
           boxShadow: "0 4px 22px rgba(0, 0, 0, 0.1)",
           opacity: show_interaction_filter ? 0 : 1,
-          transform: `translateX(${checked ? STATIC_THUMB_TRAVEL_X : 0}px) translateY(-50%) scale(${SOURCE_STATIC_THUMB_SCALE})`,
+          transform: `translateX(${checked ? static_thumb_travel_x : 0}px) translateY(-50%) scale(${SOURCE_STATIC_THUMB_SCALE})`,
         }}
       />
       <div
@@ -236,18 +243,18 @@ export function GlassSwitch({
           }
         }}
         style={{
-          width: `${THUMB_WIDTH}px`,
-          height: `${THUMB_HEIGHT}px`,
-          marginLeft: `${THUMB_OFFSET_X}px`,
-          top: `${TRACK_HEIGHT / 2}px`,
-          borderRadius: `${THUMB_RADIUS}px`,
+          width: `${thumb_width}px`,
+          height: `${thumb_height}px`,
+          marginLeft: `${thumb_offset_x}px`,
+          top: `${track_height / 2}px`,
+          borderRadius: `${thumb_radius}px`,
           backgroundColor: "rgba(255, 255, 255, 0.098)",
           boxShadow:
             "0 4px 22px rgba(0, 0, 0, 0.1), 2px 7px 24px rgba(0, 0, 0, 0.09) inset, -2px -7px 24px rgba(255, 255, 255, 0.09) inset",
           backdropFilter: show_interaction_filter ? `url(#${filter_id})` : undefined,
           WebkitBackdropFilter: show_interaction_filter ? `url(#${filter_id})` : undefined,
           opacity: show_interaction_filter ? 1 : 0,
-          transform: `translateX(${checked ? THUMB_TRAVEL_X : 0}px) translateY(-50%) scale(${SOURCE_THUMB_SCALE})`,
+          transform: `translateX(${checked ? thumb_travel_x : 0}px) translateY(-50%) scale(${SOURCE_THUMB_SCALE})`,
         }}
       />
     </button>

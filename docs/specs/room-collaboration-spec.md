@@ -2,26 +2,37 @@
 
 ## 1. 目标
 
-Room 协作是一套让多个 agent 在同一个共享空间中协同工作的通用机制。
+Room 协作是多个 agent 在同一个共享空间里通信的内核机制。
 
-它需要支持：
+它支持：
 
 - 公区自然发言。
 - 公区 `@成员` 触发目标 agent。
-- Room 内私信。
-- 请求指定 agent 回复。
-- 私密受众组。
-- 协作标记和阶段记录。
-- 延迟唤醒和手动推进。
-- 可解释、可停止、可恢复的协作链路。
+- Room 内私域消息。
+- 单人或多人私域投递。
+- 私域消息要求对方回复，并声明回复投递位置。
+- 私域消息只记录，不要求回复。
+- 延迟唤醒、排队、忙碌恢复和自动链路护栏。
+- 可解释、可停止、可恢复的通信链路。
 
 它不负责：
 
 - 狼人杀、会议、投票、任务分配等业务规则。
 - 判断某个业务动作是否合法。
-- 替业务 skill 计算阶段、胜负、投票结果或发言顺序。
+- 替业务 skill 计算阶段、胜负、投票结果、发言顺序或讨论是否完成。
+- 判断小范围讨论何时结束。
+- 自动把控制权交还给主持人。
 
 业务规则由 Room rule skill 和 agent 自己的决策承担。平台只负责通信、可见性、持久化、上下文、唤醒和护栏。
+
+核心约束：
+
+- 公区只有 `@成员` 一种唤醒语义。
+- 私域只有 directed message 一种协议原语。
+- 小范围讨论只是 directed message 的多人 recipients。
+- “要求回答”和“回答到哪”是 directed message 的参数。
+- 不要求回答的私信只是写入私域上下文。
+- 平台不提供 marker、frame、request lifecycle 等业务流程原语。
 
 ## 2. 核心模型
 
@@ -36,13 +47,15 @@ Room 是协作容器。
 - Room 级配置。
 - 当前启用的 rule skills。
 
-Room 不代表一次业务流程。一次业务流程可能跨多个 conversation，也可能只是一段 conversation 中的协作 frame。
+Room 不代表一次业务流程。一次业务流程可能跨多个 conversation，也可能只是某个 conversation 里的业务上下文。
 
 ### 2.2 Conversation
 
 Conversation 是 Room 内的一条共享对话。
 
-公区消息、私密消息、协作事件、request、wake 和 frame 都归属于某个 conversation。
+公区消息、私域消息、运行时事件、唤醒队列和 checkpoint 都归属于某个 conversation。
+
+Conversation 不包含平台解释的业务阶段、投票、任务状态或讨论完成状态。
 
 ### 2.3 Agent Room Session
 
@@ -64,16 +77,22 @@ Public feed 是 Room 的公共事实层。
 
 - 用户公开消息。
 - agent 公开最终回复。
-- 公开 marker。
-- 明确公开的 action 结果。
+- agent 通过受控工具主动发布的公开消息。
+- 平台可公开展示的轻量状态事件。
 
 它不包含：
 
 - 私信正文。
-- 私密 request。
-- 私密 reply。
+- 私域回复。
 - tool_use / thinking 过程。
 - 未完成、取消或失败的中间输出。
+- runtime result / no-op 等执行收尾记录。
+
+Public feed 的唯一执行触发是 `@成员`。
+
+任何进入 public feed 的文本，只要包含可解析的裸 `@成员`，都走统一公区唤醒规则。行内代码和 fenced code 中的 `@成员` 只是示例，不触发唤醒。唤醒属于 public feed + `@`，不属于某种特殊消息类型。
+
+agent 主动发布公开消息使用内建工具 `nexus_room.publish_public_message`。这是写 public feed 的能力，不是 directed message，也不是 marker。它只表达“当前成员发布了一条公开消息”；平台不从中解释阶段、票型、胜负或业务状态。
 
 ### 2.5 Private Context
 
@@ -81,39 +100,103 @@ Private context 是某个 agent 在当前 Room conversation 中私下可见的�
 
 它可以包含：
 
-- 其他 agent 发给它的私信。
-- 请求它回复的 request。
-- 它自己的私有笔记。
-- 它所在私密受众组的消息。
+- 其他 agent 发给它的 directed message。
+- 多人 recipients directed message 中它可见的内容。
+- 回复投影到它私域的结果。
+- 它自己的私域记录。
 - 它已消费上下文的 checkpoint。
-- 投影结果和工具投递结果。
 
 Private context 不进入 public feed。
 
 `private` 只表示“不进入 public feed”，不表示对 Room owner 或操作者不可见。产品上允许 owner / 操作者通过 inspector 查看 private context。
 
-### 2.6 Private Audience
+### 2.6 Directed Message
 
-Private audience 是 Room conversation 内的一组私密受众。
+Directed message 是 Room 私域通信的唯一协议原语。
 
-它不是新 Room，也不是联系人 DM。
+字段：
 
-同一条私密受众组消息会投递给多个目标 agent 的 private context，并带同一个 audience 标识。目标 agent 被唤醒时，可以看到自己所属 audience 的相关上下文。
+- `recipients[]`：可见成员。单人私信和多人小范围讨论都用这个字段表达。
+- `content`：消息正文。
+- `wake_policy`：是否要求 recipients 处理，取值为 `none`、`immediate`、`delayed`。
+- `reply_route`：recipient 被唤醒后的 final reply 投递位置，以及私域回复是否继续唤醒 route recipients；private route 可声明 handback 后的 `next_reply_route`。
+- `delay_seconds`：延迟唤醒参数，只在 `wake_policy=delayed` 时有效。
+- `correlation_id`：可选、不透明的关联 id，用于观测和 UI 分组，不驱动流程。
 
-### 2.7 Coordination Frame
+平台绑定字段：
 
-Coordination frame 是一段协作活动的边界。
+- 当前 Room。
+- 当前 conversation。
+- source agent。
+- root round。
+- caused-by round。
+- owner user。
+- 创建时间。
 
-它可以表示：
+agent 不能自行伪造平台绑定字段。
 
-- 一轮任务分配。
-- 一次收集请求。
-- 一段私密讨论。
-- 一个阶段。
-- 一个公开发言队列。
-- 一次投票或评审。
+其中 `Room`、`conversation`、`source agent` 和创建时间属于 directed message 记录本身；`root round`、`caused-by round`、`owner user` 属于调度与唤醒链路的 SoT。它们可以通过 active round、input queue、wake event、history cursor 等运行时记录关联回 message，但不要求冗余写入每条 directed message 记录。这样消息记录保持纯投递事实，调度状态仍由调度层负责。
 
-平台不解释 frame 的业务含义。平台只负责把相关 public message、private message、request、reply、wake 和 marker 串起来。
+Directed message 的语义只由三个参数决定：
+
+- `recipients[]` 决定谁能看到。
+- `wake_policy` 决定是否以及何时唤醒。
+- `reply_route` 决定对方 final reply 到哪里，以及私域回复是否触发后续处理。
+
+Directed message 没有 `kind`。
+
+所谓“私信”“请求回复”“私有笔记”“小范围讨论”“记录”都只是 directed message 的不同参数组合，不是新协议原语。
+
+常见组合：
+
+| 用法 | 参数 |
+| --- | --- |
+| 只留私信 | `recipients=[target]`，`wake_policy=none`，`reply_route=none` |
+| 要求对方公开回答 | `recipients=[target]`，`wake_policy=immediate|delayed`，`reply_route=public` |
+| 要求对方私下回复发起者并继续推进 | `recipients=[target]`，`wake_policy=immediate|delayed`，`reply_route=private([source], wake=immediate)` |
+| 要求对方私下回复指定成员并继续推进 | `recipients=[target]`，`wake_policy=immediate|delayed`，`reply_route=private([...], wake=immediate)` |
+| 要求对方私下回复主持人，主持人随后公开推进 | `recipients=[target]`，`wake_policy=immediate|delayed`，`reply_route=private([host], wake=immediate, next_reply_route=public)` |
+| 要求对方私下回复但只归档 | `recipients=[target]`，`wake_policy=immediate|delayed`，`reply_route=private([...], wake=none)` |
+| 自己记一条私域记录 | `recipients=[self]`，`wake_policy=none`，`reply_route=none` |
+| 小范围讨论 | `recipients=[a,b,c]`，`wake_policy=immediate|delayed|none`，`reply_route` 由业务 skill 指定 |
+
+### 2.7 Reply Route
+
+`reply_route` 决定由 directed message 唤醒的 recipient 在本轮 final reply 完成后，结果投递到哪里。
+
+取值：
+
+- `public`：写入 public feed。
+- `private(recipients[], wake=immediate|none, next_reply_route?)`：写入指定成员 private context，并按 wake 参数决定是否唤醒这些成员。
+- `none`：不投递本轮 final reply。
+
+`reply_route` 不使用 `sender_private`、`target_private`、`audience` 这类派生枚举。发给谁必须显式写进 `private(recipients[], wake=...)`。
+
+`reply_route=private([...], wake=immediate)` 会把 final reply 物化为一条新的 directed message，并唤醒 route recipients。这个能力用于明确的“把结果交回给某人继续处理”。
+
+`next_reply_route` 只挂在 `private(..., wake=immediate)` 上，表示 route recipients 被这条私域 handback 唤醒后，他们本轮 final reply 的投影路线。缺省为 `none`。例如 `private([host], wake=immediate, next_reply_route=public)` 表示玩家私下回复 host，host 被唤醒后可以直接自然输出公区公告。
+
+`reply_route=private([...], wake=none)` 只写入 route recipients 的 private context，不触发后续 round。这个能力用于私下归档或稍后查看。
+
+`reply_route=private([...], wake=...)` 可以包含 source、原 target、其他成员或多人。
+
+### 2.8 Correlation ID
+
+`correlation_id` 是可选的不透明字符串。
+
+它用于：
+
+- 把一组 public message、directed message、wake 和 projection 在 UI 或日志中串起来。
+- 帮助用户理解一次业务活动里发生过哪些通信动作。
+
+它不用于：
+
+- 判断阶段开始或结束。
+- 判断请求 pending / resolved / cancelled。
+- 判断投票、任务、讨论或发言顺序是否完成。
+- 驱动自动唤醒或主持人回收。
+
+如果业务 skill 需要阶段、投票、顺序或讨论完成状态，应在 skill 自己的业务状态中维护。
 
 ## 3. 公区协作机制
 
@@ -146,9 +229,11 @@ agent 被公区消息唤醒后，可以直接输出 final assistant reply。
 
 - 用户公开消息里的 `@成员名` 可以唤醒目标 agent。
 - agent 公开 final reply 里的 `@成员名` 可以在当前 round 结束后唤醒目标 agent。
+- 行内代码和 fenced code 中的 `@成员名` 不触发唤醒，用于格式示例。
 - 只有明确转交、请求行动、要求对方公开回复时才使用 `@`。
 - 描述计划、流程、顺序、未来轮到谁时，不使用 `@`。
 - 回报结果、确认收到、总结状态时，不反向 `@` 发起者。
+- 多个 `@` 表示并行唤醒多个成员；是否应该这样做由发言者或业务 skill 决定。
 
 ### 3.3 无需回复
 
@@ -178,250 +263,216 @@ agent final reply 中产生的公区 `@` 不应该在同一个模型执行循环
 
 平台应读取该 agent 的 public cursor，并把 cursor 之后的新公区消息作为一次输入批次发送给它。
 
-示例：
+输入批次包括：
 
-```mermaid
-sequenceDiagram
-  participant Room as Public feed
-  participant Cursor as Agent cursor
-  participant Agent as Target agent
+- cursor 之后的 public feed 消息。
+- latest trigger。
+- 必要的 room / member 元数据。
+- 必要的 private delta。
 
-  Room->>Cursor: 查询目标 agent 上次消费位置
-  Cursor-->>Room: last_public_message_id
-  Room->>Room: 收集 cursor 之后的新公区消息
-  Room->>Agent: 发送 public input batch
-  Agent-->>Room: final reply 或 no-op
-  Room->>Cursor: 成功后推进到本次 batch 末尾
-```
+输入批次不包括：
 
-推进规则：
-
-- round 成功后推进 cursor。
-- no-op 且确认已消费上下文后推进 cursor。
-- cancelled / error 不推进 cursor。
-- agent 自己刚产生的公开回复不需要在下一次输入里重复喂给自己。
+- 目标无权查看的私域消息。
+- 其他 agent 的 thinking / tool_use。
+- 已被当前 agent 消费过且无需重放的旧公区消息。
 
 ### 3.6 队列、引导和打断
 
-队列、引导和打断都围绕同一条 public feed 和同一个 agent cursor 工作。
+如果目标 agent 正在运行，新输入有三种处理方式：
 
-```mermaid
-stateDiagram-v2
-  [*] --> PublicMessage: 公区新消息
-  PublicMessage --> IdleDispatch: 目标空闲
-  PublicMessage --> Queue: 目标忙 + 排队
-  PublicMessage --> GuidePending: 目标忙 + 引导
-  PublicMessage --> Interrupt: 目标忙 + 打断
+- `queue`：排队，目标空闲后再处理。
+- `guide`：作为引导注入当前 running round。
+- `interrupt`：取消当前 round，立即启动新 round。
 
-  IdleDispatch --> Running: 启动新 round
-  Queue --> IdleDispatch: 当前 round 结束后合并触发
-  GuidePending --> Running: PostToolUse 注入成功
-  Interrupt --> Running: 取消旧 round 后重启
+这些是运行时投递策略，不是业务协议原语。
 
-  Running --> CursorAdvance: success / no-op
-  Running --> CursorKeep: cancelled / error
-  GuidePending --> CursorKeep: 未注入
-```
+## 4. 私域消息机制
 
-规则：
+私域消息必须走 directed message。
 
-- 公区消息先进入 public feed。
-- 队列项只表示某个 agent 需要处理某个触发，不保存最终上下文。
-- 目标空闲时，按 cursor 现算 public input batch。
-- 目标忙且选择排队时，队列等目标空闲后再按 cursor 现算 batch。
-- 多条排队触发可以合并成一次 batch，latest trigger 取最新触发。
-- 目标忙且选择引导时，等待当前 round 的工具后置 hook 注入；注入成功才推进对应 cursor。
-- 目标忙且选择打断时，取消旧 round，旧 round 不推进 cursor；新 round 按 cursor 重新读取 batch。
+平台不从自然语言里猜私信、请求、笔记、阶段或讨论完成。
 
-## 4. 私信与请求机制
+### 4.1 只记录
 
-私信、请求回复、私密受众组和 marker 不能靠自然语言解析。
+只记录表示写入 recipients 的 private context，但不唤醒任何人。
 
-这些必须走 Room Action。
+参数：
 
-Room Action 是系统级通信协议。它不是 Connector，不是 MCP 产品能力，也不是业务状态机。
-
-### 4.1 Room Action 的通用要求
-
-每个 action 必须绑定：
-
-- 当前 Room。
-- 当前 conversation。
-- source agent。
-- target agent 或 audience。
-- root round。
-- caused-by round。
-- 可见性。
-- reply target。
-- request id。
-- frame id。
-
-source、Room、conversation、root round 等运行时身份必须由平台绑定，agent 不能自行伪造。
-
-### 4.2 发送私信
-
-发送私信只写入目标 agent 的 private context。
-
-默认不触发目标 agent。
+- `recipients[]` 非空。
+- `wake_policy=none`。
+- `reply_route=none`。
 
 适用于：
 
-- 同步身份、背景、顺序。
-- 私下通知。
+- 同步身份、背景、规则。
 - 给某个 agent 留私有上下文。
-- 给多个 agent 建立 private audience。
+- 给多人小范围同步信息。
+- agent 自己记录后续需要参考的私域信息。
 
-### 4.3 请求回复
+### 4.2 要求回答
 
-请求回复是一条私密消息加回复契约。
+要求回答表示写入 recipients 的 private context，并按 `wake_policy` 唤醒 recipients。
 
-它需要指定：
+参数：
 
-- 目标 agent。
-- 请求内容。
-- 回复位置。
-- 唤醒策略。
-- request id。
-- 可选 frame id。
+- `recipients[]` 非空。
+- `wake_policy=immediate|delayed`。
+- `reply_route=public|private([...], wake=immediate|none, next_reply_route?)|none`。
 
-回复位置包括：
+`reply_route=none` 表示 recipient 可以处理本次唤醒，但 final reply 不投影给任何成员。除非业务 skill 明确需要这种静默处理，否则应优先使用 `public` 或 `private([...], wake=...)`。
 
-- 回复到 public feed。
-- 私下回复给请求方。
-- 私下回复给指定 agent。
-- 只记录，不要求回复。
+### 4.3 小范围讨论
 
-唤醒策略包括：
+小范围讨论就是 `recipients[]` 包含多个成员的 directed message。
 
-- 不唤醒，只落盘。
-- 立即唤醒。
-- 延迟唤醒，等待用户或协调 agent 推进。
+平台只保证：
 
-延迟唤醒必须依赖可持久查询的 action source of truth。
+- 每个 recipient 能看到同一条私域消息。
+- 被唤醒的 recipient 按自己的 Room session 执行。
+- recipient 的 final reply 按 `reply_route` 投影。
+- 忙碌、延迟和恢复走统一 wake queue。
 
-### 4.4 私有笔记
+平台不保证：
 
-agent 可以给自己写 private note。
+- 谁先发言。
+- 谁汇总。
+- 讨论何时结束。
+- 讨论结果是否正确。
+- 是否应该交还主持人。
 
-它只进入当前 agent 的 private context，不触发任何 round。
+如果需要“讨论结束后继续推进”，业务 skill 必须显式指定：
 
-### 4.5 协作标记
+- 哪个成员负责汇总。
+- 汇总结果投递给谁。
+- 汇总使用 `reply_route=private([host], wake=immediate)`、`reply_route=private([host], wake=immediate, next_reply_route=public)` 还是 `reply_route=public`。
+- 没有汇总时如何超时或人工介入。
 
-marker 用于记录协作事实。
+### 4.4 私域转公开
 
-它可以是公开的，也可以是私密的。
+私域消息本身不会泄漏到 public feed。
 
-典型 marker：
+有两种显式方式可以写入 public feed：
 
-- frame 开启。
-- frame 关闭。
-- 阶段变化。
-- 发言顺序。
-- 参与状态。
-- 收集请求状态。
-- 公开结论。
+- recipient 的 final reply 使用 `reply_route=public`。
+- private handback 使用 `next_reply_route=public` 唤醒 route recipient 后，该 recipient 的 final reply 进入 public feed。
+- 当前 agent 调用内建工具 `nexus_room.publish_public_message` 主动发布公开消息。
 
-平台只保存和展示 marker，不解释 marker 的业务含义。
+平台必须保证：
+
+- 原始私域 content 不自动进入 public feed。
+- action / tool result 不自动进入 public feed；只有 `nexus_room.publish_public_message` 的 `content` 是公开消息正文。
+- 公开回复进入 public feed 后，如果包含 `@成员`，再走统一公区 `@` 唤醒规则。
+
+### 4.5 私域转私域
+
+`reply_route=private([...], wake=...)` 会把 recipient 的 final reply 写入指定成员的 private context。
+
+如果 route 的 `wake=immediate`，平台会为 route recipients 创建后续 wake，并把 `next_reply_route` 作为该 wake 的本轮 reply route；未声明时默认为 `none`。如果 route 的 `wake=none`，平台只写入 private context，不能声明 `next_reply_route`。
+
+这仍然是私域投递，不进入 public feed。
 
 ## 5. Visible Context
 
-目标 agent 被唤醒时，平台需要为它构造本轮可见上下文。
+Visible context 是平台传给 target agent 的可见输入。
 
-Visible context 包含：
+它必须表达：
 
-- 当前 Room 激活的 rule skill 名称。
-- 成员目录。
-- public anchor。
-- public delta。
-- private delta。
-- private audience context。
-- coordination frame context。
+- 当前 public anchor。
+- 当前 public delta。
+- 当前 private delta。
 - latest trigger。
+- 本轮 reply_route。
+- 必要的 checkpoint。
+
+它不能混入：
+
+- 目标无权查看的私域消息。
+- 业务流程状态的伪真相源。
+- 平台未验证的阶段、投票或讨论完成判断。
 
 ### 5.1 Public Anchor
 
-Public anchor 是公共历史的压缩锚点。
+Public anchor 是用于压缩上下文的稳定公区摘要或锚点。
 
-第一阶段可以用有界公共历史快照代替。
+它可以来自：
 
-后续可演进为公共事实摘要，但摘要不能包含私信、未完成输出或工具内部过程。
+- 最近 N 条公区消息。
+- 已确认的 public summary。
+- 当前 conversation 元数据。
+
+Public anchor 不替代 public feed source of truth。
 
 ### 5.2 Public Delta
 
-Public delta 是该 agent 上次消费公共上下文之后新增的公开事实。
+Public delta 是当前 agent public cursor 之后的新公区消息。
 
-它只包含：
+它可以包含：
 
-- 已完成公开消息。
-- 公开 marker。
-- 用户公开指令。
-- 明确公开的 action 结果。
+- 用户公开消息。
+- agent 公开 final reply。
+- 平台公开状态事件。
 
-它不包含：
-
-- 未完成 stream。
-- 取消或失败的中间回复。
-- thinking / tool_use 过程。
-- 私密消息。
+Public delta 不包含私域消息。
 
 ### 5.3 Private Delta
 
-Private delta 是该 agent 上次消费私有上下文之后新增的私有事实。
+Private delta 是当前 agent 上次 checkpoint 之后的新私域内容。
 
 它只包含当前 target agent 可见的 private context。
 
 ### 5.4 Latest Trigger
 
-Latest trigger 是本次唤醒的直接原因。
+Latest trigger 解释“为什么这个 agent 现在被唤醒”和“本轮回复应该投到哪里”。
 
-它可以来自：
+常见来源：
 
 - 用户公区 `@`。
-- agent 公区 `@`。
-- 私密 request reply。
-- 手动唤醒。
-- deferred request 推进。
+- agent 公区 final reply 中的 `@`。
+- directed message immediate wake。
+- directed message delayed wake 到期。
 - 系统恢复 pending wake。
+- 用户手动推进排队项。
 
-Latest trigger 必须独立于 public delta 和 private delta。它解释“为什么这个 agent 现在被唤醒”和“应该回复到哪里”。
+Latest trigger 必须独立于 public delta 和 private delta。
+
+Latest trigger 至少包含：
+
+- trigger source。
+- trigger content 或引用。
+- trigger type。
+- reply_route。
+- root round。
+- caused-by round。
+- 可选 correlation_id。
 
 ### 5.5 Checkpoint
 
 Checkpoint 表示某个 agent 已经消费到的 public / private 上下文位置。
 
-checkpoint 写入该 agent 的 private context。
+规则：
 
-写入时机：
-
-- agent round 成功结束。
-- agent no-op 但已消费上下文。
-
-不写入时机：
-
-- round 被取消。
-- round 失败。
-- 只投递私信但没有唤醒目标 agent。
-
-checkpoint 不是业务状态，不进入 public feed。
+- 成功完成的 round 可以推进 checkpoint。
+- no-op 也可以推进 checkpoint。
+- 被取消或失败的 round 不应推进 checkpoint，除非平台能证明输入已安全消费。
+- checkpoint 是上下文构造机制，不是业务流程状态。
 
 ## 6. Projection Policy
 
-Projection policy 决定 final assistant reply 和 action 生成消息投递到哪里。
-
-它必须早于私信和请求回复能力上线。
+Projection policy 决定 final assistant reply 投递到哪里。
 
 规则：
 
-- 公区用户 `@` 触发的 final assistant reply 默认进入 public feed。
-- 公区 agent `@` 触发的 final assistant reply 默认进入 public feed。
-- 私密 request 如果 reply target 是 public，则 final reply 进入 public feed。
-- 私密 request 如果 reply target 是 sender private，则 final reply 写入请求方 private context。
-- 私密 request 如果 reply target 是指定 agent private，则 final reply 写入指定 agent private context。
+- 公区 `@` 触发的 final assistant reply 默认进入 public feed。
+- directed message 触发的 final assistant reply 按 `reply_route` 投递。
+- `reply_route=public` 写入 public feed。
+- `reply_route=private([...], wake=immediate)` 写入指定成员 private context，并唤醒 route recipients。
+- `reply_route=private([...], wake=immediate, next_reply_route=...)` 唤醒 route recipients 时携带下一跳 reply route。
+- `reply_route=private([...], wake=none)` 写入指定成员 private context，不唤醒 route recipients。
+- `reply_route=none` 不投递 final reply。
 - no-op final reply 不进入 public feed。
-- action 的 tool result 只返回给当前 source agent，不自动成为 public message。
-- 只有 action 本身声明公开投递时，才写 public feed。
+- action / tool result 只返回给当前 source agent，不自动成为 public message。
 
-这条规则是防止私聊内容泄露的核心边界。
+这条规则是防止私域内容泄露的核心边界。
 
 ## 7. 持久化机制
 
@@ -434,77 +485,87 @@ Room 协作有两类 source of truth。
 包括：
 
 - Room public history。
+- directed message store。
 - agent private context。
 - transcript reference。
 - runtime session id。
-- round id。
+- public cursor。
+- private cursor。
 - checkpoint。
 
-它们适合做上下文构造和历史展示。
-
-它们不适合做 wake queue、去重、限流和重启恢复。
+它们适合做上下文构造、历史展示和 private inspector。
 
 ### 7.2 调度与队列 source of truth
 
-用于表达“谁在等谁、能否恢复、能否取消、是否超限”。
+用于表达“谁需要在什么时候被唤醒、能否恢复、能否取消、是否超限”。
 
 需要覆盖：
 
-- request pending。
-- request resolved。
-- request cancelled。
+- active round。
+- input queue。
 - wake scheduled。
-- wake blocked。
+- wake queued。
+- wake running。
 - wake skipped。
-- marker recorded。
-- projection result。
+- wake blocked。
+- projection completed。
 - context checkpoint。
+- guardrail counters。
 
-第一阶段不新增 SQL 表，使用 append-only JSONL。
+调度与队列 source of truth 不表达业务 request lifecycle。
+
+平台不维护 request pending / resolved / cancelled 作为协议状态。业务 skill 如需这类状态，应在自己的业务状态中维护，并通过普通公区消息或私域消息告知相关成员。
+
+### 7.3 Append-only 记录
+
+第一阶段可以继续使用 append-only JSONL 记录 directed message、wake、projection 和 checkpoint。
 
 JSONL 是真相源，内存索引只是缓存。
 
 需要依赖 JSONL 的能力：
 
-- deferred request。
-- pending wake 重启恢复。
-- pending request 跨刷新可见。
-- root round 派生 wake 停止收口。
+- delayed wake 重启恢复。
+- pending wake 跨刷新可见。
+- root round 派生 wake 查询和取消。
 - hop guard。
 - 重复 wake 去重。
 - 限流。
 
-## 8. 协作事件
+## 8. 协作事件与可观测性
 
-协作事件用于前端展示和调试，不替代消息持久化和 action JSONL。
+协作事件用于前端展示和调试，不替代消息持久化和队列真相源。
 
 事件应表达：
 
-- action 类型。
+- message id。
 - source agent。
-- target agents。
-- visibility。
-- reply target。
-- request id。
-- frame id。
+- recipients。
+- reply_route。
+- wake_policy。
+- wake 状态。
 - root round。
 - caused-by round。
 - public message id。
 - private message ids。
-- wake 状态。
+- projection result。
+- checkpoint result。
+- 可选 correlation_id。
 - 被拦截原因。
 
 常见事件类型：
 
-- 消息已投递。
-- 请求待回复。
-- 请求已解决。
+- directed message 已投递。
 - wake 已安排。
+- wake 已排队。
+- wake 已启动。
 - wake 被跳过。
 - wake 被护栏拦截。
-- marker 已记录。
 - checkpoint 已写入。
 - projection 已完成。
+
+可观测性可以按 `correlation_id` 分组展示，但不能把分组解释成平台协议状态。
+
+前端可以提供“通信链路视图”，展示某个 correlation 下发生过哪些 message、wake 和 projection。它不是 Frame / Request 状态机。
 
 ## 9. Wake 机制
 
@@ -512,22 +573,20 @@ JSONL 是真相源，内存索引只是缓存。
 
 以下动作默认只落盘：
 
-- 发送私信。
-- 写私有笔记。
-- 记录 marker。
 - 没有 `@` 的普通公开消息。
-- 不要求回复的 request。
-- 延迟唤醒 request。
+- `wake_policy=none` 的 directed message。
+- checkpoint。
+- 运行时观测事件。
 
 ### 9.2 触发 round
 
 以下情况可以唤醒目标 agent：
 
 - 用户公区 `@`。
-- agent 公区 final reply 中 `@`。
-- immediate request reply。
-- 用户手动唤醒。
-- 用户或发起 agent 推进 deferred request。
+- agent 公区 final reply 中的 `@`。
+- directed message `wake_policy=immediate`。
+- directed message `wake_policy=delayed` 到期。
+- 用户手动推进排队项。
 - 系统恢复 pending wake。
 
 ### 9.3 自动链路护栏
@@ -546,206 +605,240 @@ JSONL 是真相源，内存索引只是缓存。
 
 ## 10. 前端交互机制
 
-前端不做新聊天系统，仍围绕 Room surface 扩展。
-
 ### 10.1 Public Feed
 
-Public feed 只展示公开内容。
-
-它可以展示：
+Public feed 展示：
 
 - 用户公开消息。
-- agent 公开回复。
-- 公开 marker。
-- wake 轻量状态。
-- action 产生的公开消息。
+- agent 公开 final reply。
+- 可公开的轻量状态事件。
 
-它不展示私信正文。
+Public feed 不展示：
+
+- directed message 私域正文。
+- private projection 正文。
+- thinking / tool_use。
+- 中间流式内容失败后残留。
 
 ### 10.2 Composer
 
-Composer 支持：
+Composer 支持两类发送：
 
-- 公开发送。
-- 私信。
-- 请求回复。
-- 手动唤醒。
+- 公开消息。
+- directed message。
 
-请求回复需要选择：
+公开消息：
 
-- target agent。
-- reply target。
-- wake policy。
+- 默认进入 public feed。
+- `@成员` 是唯一公开唤醒语义。
+
+Directed message：
+
+- 必须选择 recipients。
+- 可以选择 `wake_policy`。
+- 可以选择 `reply_route`。
+- 可以填写可选 `correlation_id`。
 
 ### 10.3 Thread
 
-Thread 展示单个 agent round 的过程和调试信息。
+Thread 用于解释一次通信链路。
 
 它可以展示：
 
+- root round。
+- caused-by round。
 - latest trigger。
 - visible context 摘要。
-- tool / action 调用。
-- action 投递结果。
-- projection 结果。
+- reply_route。
 - wake 链路。
-- 权限和运行状态。
+- projection 结果。
+
+Thread 不展示业务 request lifecycle，除非该状态来自业务 skill 自己的公开输出或私域消息。
 
 ### 10.4 Member Panel
 
-成员面板展示协作状态。
+成员面板展示：
 
-状态包括：
-
-- idle。
-- running。
-- waiting reply。
-- has private context。
-- error。
-
-可展示：
-
-- 最近公开发言时间。
-- 最近私信时间。
-- 最近 checkpoint 时间。
-- pending request 数量。
-- 所属 private audience。
-- 当前 frame 参与状态。
+- 成员状态。
+- 当前是否 running。
+- 当前 input queue。
+- 最近 checkpoint。
+- 是否有 private context。
+- 最近 directed message 摘要。
+- pending wake 数量。
 
 ### 10.5 Private Inspector
 
 Private inspector 用于 owner / 操作者查看 agent private context。
 
-它和 public feed 分离。
+它必须明确区分：
 
-默认协作视图只提示存在私密上下文，不展示正文。
+- public feed。
+- 当前 agent private context。
+- directed message 投递记录。
+- projection 结果。
+- checkpoint。
 
-### 10.6 Frame / Request View
+### 10.6 通信链路视图
 
-Frame / request 视图用于解释协作链路。
+通信链路视图用于解释平台通信行为。
+
+它可以按 conversation、root round、message id 或 `correlation_id` 过滤。
 
 它展示：
 
-- frame label / kind / state。
-- pending requests。
-- resolved requests。
-- private audience 数量。
-- wake 状态。
-- 可推进或可关闭的 request / frame。
+- directed message 投递。
+- wake scheduled / queued / running / skipped / blocked。
+- projection completed。
+- checkpoint。
 
-它不硬编码业务阶段。
+它不展示平台解释出来的 frame、request pending、request resolved、投票状态、阶段状态或讨论完成状态。
 
 ## 11. 典型机制映射
 
 ### 11.1 开场排序
 
-排序是公开事实。
+开场排序是业务 skill 的规则。
 
 推荐机制：
 
-- 记录公开 marker 或公开消息。
-- 不默认唤醒所有 agent。
-- 后续目标 agent 被唤醒时，从 public context 中看到排序。
+- skill 在公区说明顺序。
+- skill 用公区 `@` 唤醒当前应发言成员。
+- 当前成员完成后，由 skill 或已被授权的协调 agent 决定下一位。
+
+平台不计算顺序，也不判断顺序是否结束。
 
 ### 11.2 私发身份
 
-身份是私有事实。
-
 推荐机制：
 
-- 向目标 agent private context 写私信。
-- 不默认唤醒。
-- 目标 agent 后续被唤醒时从 private delta 中看到身份。
+- 给每个目标 agent 发送 directed message。
+- `recipients=[target]`。
+- `wake_policy=none` 或按业务需要设为 `immediate`。
+- `reply_route=none`。
+
+目标 agent 后续被唤醒时，从 private delta 中看到身份。
 
 ### 11.3 顺序发言
 
-顺序发言是 deferred wake queue。
+顺序发言不是平台原语。
 
 推荐机制：
 
-- 用 marker 记录顺序。
-- 唤醒当前发言者。
-- 当前发言者完成后，由用户或协调 agent 推进下一位。
+- 业务 skill 维护顺序。
+- 公区发言用 `@` 唤醒当前成员。
+- 私域发言用 directed message 唤醒当前成员。
+- 成员完成后，业务 skill 决定是否继续。
 
 ### 11.4 私聊后公开回复
 
 推荐机制：
 
-- source agent 发 request reply 给 target agent。
-- reply target 设为 public。
-- target final reply 投影到 public feed。
-- 原始私信不进入 public feed。
+- source agent 发 directed message 给 target agent。
+- `recipients=[target]`。
+- `wake_policy=immediate|delayed`。
+- `reply_route=public`。
+
+target final reply 投影到 public feed。原始私域消息不进入 public feed。
 
 ### 11.5 私聊后私下回复
 
 推荐机制：
 
-- source agent 发 request reply 给 target agent。
-- reply target 设为 sender private 或指定 agent private。
-- target final reply 写入目标 private context。
-- public feed 不展示正文。
+- source agent 发 directed message 给 target agent。
+- `recipients=[target]`。
+- `wake_policy=immediate|delayed`。
+- `reply_route=private([source], wake=immediate)` 或 `reply_route=private([...], wake=immediate)`。
+- 如果 source 被唤醒后的 natural final reply 要进入 public feed，添加 `next_reply_route=public`。
 
-### 11.6 收集型请求
+target final reply 写入指定成员 private context。
 
-收集型请求不是一次性广播唤醒所有人。
+### 11.6 小范围讨论和收集
+
+小范围讨论和收集不是平台 workflow。
 
 推荐机制：
 
-- 打开 coordination frame。
-- 向多个 agent 写 request。
-- request 可以 immediate，也可以 deferred。
-- 每个 agent 回复绑定 request id。
-- 协调 agent 或用户汇总后公开 marker 或结论。
+- 业务 skill 选择讨论成员。
+- 业务 skill 明确谁负责汇总。
+- 平台发送 directed message，`recipients=[...]`。
+- 如果需要立即讨论，使用 `wake_policy=immediate`。
+- 如果需要稍后处理，使用 `wake_policy=delayed`。
+- 如果需要把结果交回主持人，汇总者使用 `reply_route=private([host], wake=immediate)`。
+- 如果主持人拿到结果后应直接公开推进，汇总者使用 `reply_route=private([host], wake=immediate, next_reply_route=public)`。
+- 如果需要公开结论，汇总者使用 `reply_route=public`。
 
-平台只跟踪 request 状态，不判断内容对错。
+平台只投递、唤醒和投影。平台不判断收集是否完成，也不自动唤醒主持人。
+
+狼人杀夜晚讨论示例：
+
+- 上帝给狼人组发送 directed message。
+- `recipients=[wolf_a,wolf_b,wolf_c]`。
+- 消息内容明确“由 wolf_a 汇总”。
+- `wake_policy=immediate`。
+- `reply_route=private([host], wake=immediate)`。
+
+讨论是否充分、谁投票、谁出局，都是狼人杀 skill 的业务规则。
+
+### 11.7 记录
+
+记录不是独立协议原语。
+
+公开记录就是普通 public message，不带 `@` 时不会唤醒任何成员。
+
+私域记录就是 directed message：
+
+- `recipients=[self]` 或指定成员。
+- `wake_policy=none`。
+- `reply_route=none`。
 
 ## 12. 实施阶段
 
-### Phase 1：上下文与 checkpoint
+### Phase 1：规格收敛
 
 目标：
 
-- visible context 支持 public delta。
-- visible context 支持 private delta。
-- visible context 支持 latest trigger。
-- 写入 context checkpoint。
-- 普通 history 过滤控制行。
-- 保留当前公区 `@` 协作。
+- 将 Room 协议收敛为 public feed + directed message。
+- 删除 marker、coordination frame、request lifecycle 的协议地位。
+- 将 `audience` 降级为 `recipients[]` 的多人场景。
+- 将 `sender_private`、`target_private`、`audience` 收敛为 `reply_route=private([...], wake=...)`。
+- 明确 `correlation_id` 只是可选观测字段。
 
-### Phase 2：Projection-safe action
-
-目标：
-
-- 建立 Room action 机制。
-- 支持私信。
-- 支持 request reply。
-- 支持 private note。
-- 支持 marker。
-- 支持 collaboration event。
-- 同批完成 projection policy。
-- 只开放 none / immediate wake。
-- deferred 先不启用自动推进。
-
-### Phase 3：Action JSONL
+### Phase 2：兼容模型
 
 目标：
 
-- 引入 action JSONL source of truth。
-- 支持 request / wake / marker 状态查询。
-- 支持 deferred request。
-- 支持 root round 派生 wake 查询和取消。
-- 支持启动重放。
-- 支持 hop guard 和去重。
+- 在服务层引入 directed message 内部模型。
+- 兼容读取旧 action 类型。
+- 对外 prompt 和 CLI 不再鼓励使用 `marker`、`private_note`、`request_reply` 等旧原语。
+- 旧枚举只作为迁移兼容层，不作为新协议设计依据。
 
-### Phase 4：前端协作 UI
+### Phase 3：投影路由收敛
 
 目标：
 
-- Composer 增加私信、请求回复和手动唤醒。
-- Thread 展示 trigger、context、action、projection 和 wake。
-- Member panel 展示协作状态。
-- 增加 private inspector。
-- 增加 frame / request view。
+- 使用统一 `reply_route` 表达 public / private / none。
+- 回复到私域时显式写入 private recipients 和 route wake 行为。
+- 小范围讨论结果回交主持人由 skill 指定 route，不由平台推断。
+- 确保私域 content 不因投影泄漏到 public feed。
+
+### Phase 4：wake queue 收敛
+
+目标：
+
+- wake queue 只处理 immediate、delayed、queued、busy、recovery。
+- 不维护 request pending / resolved / cancelled 业务状态。
+- 公区唤醒只由 public feed `@` 触发。
+- 私域唤醒只由 directed message `wake_policy` 触发。
+
+### Phase 5：前端和观测收敛
+
+目标：
+
+- Composer 暴露公开消息和 directed message。
+- Private inspector 展示 private context 和 directed message。
+- 通信链路视图展示 message / wake / projection / checkpoint。
+- 不再提供平台级 Frame / Request 状态机 UI。
 
 ## 13. 非目标
 
@@ -760,17 +853,19 @@ Frame / request 视图用于解释协作链路。
 - 公共 summary 自动生成。
 - 多用户权限细分。
 - conversation 级 rule skill 覆盖。
+- 平台级 frame / request lifecycle。
 
 ## 14. 总结
 
 Room 协作不是业务流程引擎。
 
-它是一套通用通信机制：
+它是一套通用通信内核：
 
 - 公区自然聊天。
 - 公区 `@` 触发公开协作。
-- 私信和请求走可审计 action。
+- 私域 directed message 负责单人私信、小范围讨论、要求回答和只记录。
+- `reply_route` 决定 final reply 投到 public、private recipients 还是 nowhere，并声明私域回复是否继续唤醒 route recipients；`next_reply_route` 只表达 private handback 唤醒后的下一跳回复路线。
 - visible context 决定 agent 看见什么。
-- projection policy 决定回复投到哪里。
-- JSONL action store 承担可恢复调度状态。
+- wake queue 决定什么时候运行。
+- guardrail 限制自动链路。
 - skill 负责业务规则，平台只负责边界和运行时。

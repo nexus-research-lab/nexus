@@ -6,7 +6,18 @@ import (
 	"strings"
 )
 
-var asciiTokenPattern = regexp.MustCompile(`[0-9a-zA-Z_]+`)
+var (
+	asciiTokenPattern = regexp.MustCompile(`[0-9a-zA-Z_]+`)
+	// 高频虚词单字参与相似度计算收益低，过滤后减少误匹配。
+	cjkStopwords = map[rune]struct{}{
+		'的': {}, '了': {}, '是': {}, '在': {}, '和': {},
+		'有': {}, '这': {}, '个': {}, '也': {}, '不': {},
+		'我': {}, '你': {}, '他': {}, '她': {}, '们': {},
+		'以': {}, '为': {}, '但': {}, '而': {}, '就': {},
+		'都': {}, '还': {}, '把': {}, '被': {}, '于': {},
+		'与': {}, '或': {}, '及': {}, '对': {}, '到': {},
+	}
+)
 
 // SimilarityMatcher 负责发现相似条目。
 type SimilarityMatcher struct{}
@@ -56,7 +67,7 @@ func scoreEntry(target *Entry, candidate *Entry) float64 {
 	// 既避免中文短句只靠空格分词失真，也避免英文长句完全靠字符比较。
 	left := normalizeEntryText(target)
 	right := normalizeEntryText(candidate)
-	return maxFloat(tokenOverlap(left, right), levenshteinSimilarity(left, right))
+	return max(tokenOverlap(left, right), levenshteinSimilarity(left, right))
 }
 
 func normalizeEntryText(entry *Entry) string {
@@ -82,11 +93,7 @@ func tokenOverlap(left string, right string) float64 {
 			common++
 		}
 	}
-	denominator := len(leftTokens)
-	if len(rightTokens) < denominator {
-		denominator = len(rightTokens)
-	}
-	return float64(common) / float64(denominator)
+	return float64(common) / float64(min(len(leftTokens), len(rightTokens)))
 }
 
 func tokenizeText(raw string) map[string]struct{} {
@@ -95,8 +102,10 @@ func tokenizeText(raw string) map[string]struct{} {
 		items[token] = struct{}{}
 	}
 	for _, value := range raw {
-		if value >= '\u4e00' && value <= '\u9fff' {
-			items[string(value)] = struct{}{}
+		if value >= '一' && value <= '鿿' {
+			if _, isStop := cjkStopwords[value]; !isStop {
+				items[string(value)] = struct{}{}
+			}
 		}
 	}
 	return items
@@ -120,7 +129,7 @@ func levenshteinSimilarity(left string, right string) float64 {
 			if leftValue != rightValue {
 				cost = 1
 			}
-			current[rightIndex+1] = minInt(
+			current[rightIndex+1] = min(
 				current[rightIndex]+1,
 				previous[rightIndex+1]+1,
 				previous[rightIndex]+cost,
@@ -129,26 +138,5 @@ func levenshteinSimilarity(left string, right string) float64 {
 		copy(previous, current)
 	}
 	distance := previous[len(rightRunes)]
-	maxLength := len(leftRunes)
-	if len(rightRunes) > maxLength {
-		maxLength = len(rightRunes)
-	}
-	return 1 - (float64(distance) / float64(maxLength))
-}
-
-func minInt(values ...int) int {
-	best := values[0]
-	for _, value := range values[1:] {
-		if value < best {
-			best = value
-		}
-	}
-	return best
-}
-
-func maxFloat(left float64, right float64) float64 {
-	if left > right {
-		return left
-	}
-	return right
+	return 1 - (float64(distance) / float64(max(len(leftRunes), len(rightRunes))))
 }

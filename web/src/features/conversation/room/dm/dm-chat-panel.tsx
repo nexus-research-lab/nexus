@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -8,16 +8,17 @@ import { useExtractTodos } from "@/hooks/conversation/use-extract-todos";
 import { useFollowScroll } from "@/hooks/conversation/use-follow-scroll";
 import { useSessionLoader } from "@/hooks/conversation/use-session-loader";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import { create_goal_api } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
   AgentConversationDeliveryPolicy,
-  get_session_control_status_text,
 } from "@/types/agent/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
+import { useOperationProjectionSync } from "@/features/conversation/operation/use-operation-projection-sync";
 import {
   prepare_workspace_attachments,
   type PreparedComposerAttachment,
@@ -25,12 +26,17 @@ import {
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ConversationFeed } from "@/features/conversation/shared/conversation-feed";
+import { goal_continuation_hold_for_permission } from "@/features/conversation/shared/goal-continuation-hold";
+import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { useOperationProjectionSync } from "@/features/conversation/operation/use-operation-projection-sync";
+import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import {
+  build_conversation_activity_snapshot,
   group_messages_by_round,
   get_latest_reply_timestamp,
+  should_emit_conversation_activity,
+  type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
@@ -39,10 +45,12 @@ const HISTORY_LOAD_THRESHOLD_PX = 120;
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
   current_agent_avatar?: string | null;
+  current_agent_permission_mode?: string | null;
   session_identity: AgentConversationIdentity | null;
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
   on_initial_draft_consumed?: () => void;
+  on_open_agent_contact?: (agent_id: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
   on_loading_change?: (is_loading: boolean) => void;
@@ -56,10 +64,12 @@ export interface DmChatPanelProps {
 export function DmChatPanel({
   current_agent_name,
   current_agent_avatar,
+  current_agent_permission_mode,
   session_identity,
   layout = "desktop",
   initial_draft = null,
   on_initial_draft_consumed,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_todos_change,
   on_loading_change,
@@ -71,6 +81,31 @@ export function DmChatPanel({
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
+  const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const refresh_goal_panel = useCallback(() => {
+    set_goal_refresh_seq((value) => value + 1);
+  }, []);
+  const goal_continuation_hold = useMemo(
+    () =>
+      goal_continuation_hold_for_permission(
+        current_agent_name,
+        current_agent_permission_mode,
+      ),
+    [current_agent_name, current_agent_permission_mode],
+  );
+  const can_control_session = true;
+  const handle_conversation_event = useCallback(
+    (
+      event_type: string,
+      data: import("@/types/agent/agent-conversation").RoomEventPayload,
+    ) => {
+      if (event_type.startsWith("goal_")) {
+        refresh_goal_panel();
+      }
+      on_room_event?.(event_type, data);
+    },
+    [on_room_event, refresh_goal_panel],
+  );
 
   const {
     error,
@@ -79,8 +114,6 @@ export function DmChatPanel({
     is_history_loading,
     has_more_history,
     history_prepend_token,
-    session_control_state,
-    session_observer_count,
     pending_permissions,
     send_message,
     stop_generation,
@@ -99,7 +132,7 @@ export function DmChatPanel({
     on_error: (err) => {
       console.error("DM conversation error:", err);
     },
-    on_room_event,
+    on_room_event: handle_conversation_event,
   });
 
   useOperationProjectionSync({
@@ -135,17 +168,8 @@ export function DmChatPanel({
     history_prepend_token,
   });
   const last_snapshot_key_ref = useRef<string | null>(null);
+  const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
   const consumed_initial_draft_ref = useRef<string | null>(null);
-  const can_control_session = session_control_state !== "observer";
-  const observer_read_only_reason = "当前窗口是观察视图，控制权在另一窗口";
-  const session_control_text = useMemo(
-    () =>
-      get_session_control_status_text(
-        session_control_state,
-        session_observer_count,
-      ),
-    [session_control_state, session_observer_count],
-  );
 
   useEffect(() => {
     on_todos_change?.(todos);
@@ -158,26 +182,36 @@ export function DmChatPanel({
     if (!session_key || messages.length === 0) return;
     const last = messages[messages.length - 1];
     const latest_reply_timestamp = get_latest_reply_timestamp(messages);
-    const snapshot = {
+    const should_report_last_activity = should_emit_conversation_activity(
+      last_activity_snapshot_ref.current,
+      session_key,
+      latest_reply_timestamp,
+    );
+    const snapshot: SessionSnapshotPayload = {
       session_key,
       agent_id: session_identity?.agent_id ?? null,
       room_id: session_identity?.room_id ?? null,
       conversation_id: session_identity?.conversation_id ?? null,
       room_session_id: session_identity?.room_session_id ?? null,
-      message_count: messages.length,
-      ...(latest_reply_timestamp
+      ...(should_report_last_activity && latest_reply_timestamp !== null
         ? { last_activity_at: latest_reply_timestamp }
         : {}),
       session_id: last?.session_id ?? null,
     };
     const snapshot_key = JSON.stringify(snapshot);
+    const next_activity_snapshot = build_conversation_activity_snapshot(
+      session_key,
+      latest_reply_timestamp,
+    );
 
     // DM 与 Room 共用流式消息模式，这里同样需要阻断重复快照回写。
     if (last_snapshot_key_ref.current === snapshot_key) {
+      last_activity_snapshot_ref.current = next_activity_snapshot;
       return;
     }
 
     last_snapshot_key_ref.current = snapshot_key;
+    last_activity_snapshot_ref.current = next_activity_snapshot;
     on_conversation_snapshot_change?.(snapshot);
   }, [
     session_identity,
@@ -196,7 +230,10 @@ export function DmChatPanel({
     () => group_messages_by_round(messages),
     [messages],
   );
-  const round_ids = Array.from(message_groups.keys());
+  const round_ids = useMemo(
+    () => build_timeline_round_ids(message_groups, live_round_ids),
+    [live_round_ids, message_groups],
+  );
 
   const maybe_load_older_messages = useCallback(async () => {
     const container = scroll_ref.current;
@@ -269,13 +306,24 @@ export function DmChatPanel({
     return prepare_workspace_attachments(target_agent_id, files);
   };
 
+  const handle_create_goal = useCallback(async (objective: string) => {
+    if (!session_key) {
+      throw new Error("当前会话尚未准备好，暂时无法启动 Goal。");
+    }
+    await create_goal_api({
+      session_key,
+      objective,
+      token_budget: null,
+    });
+    refresh_goal_panel();
+  }, [refresh_goal_panel, session_key]);
+
   useEffect(() => {
     const normalized_draft = initial_draft?.trim() ?? "";
     if (
       !session_key ||
       !normalized_draft ||
-      is_loading ||
-      !can_control_session
+      is_loading
     ) {
       return;
     }
@@ -296,7 +344,6 @@ export function DmChatPanel({
         console.error("Failed to auto send initial DM prompt:", error);
       });
   }, [
-    can_control_session,
     initial_draft,
     is_loading,
     on_initial_draft_consumed,
@@ -342,10 +389,9 @@ export function DmChatPanel({
           live_round_ids={live_round_ids}
           is_mobile_layout={is_mobile_layout}
           message_groups={message_groups}
+          on_open_agent_contact={on_open_agent_contact}
           on_open_workspace_file={on_open_workspace_file}
           on_permission_response={send_permission_response}
-          can_respond_to_permissions={can_control_session}
-          permission_read_only_reason={observer_read_only_reason}
           round_ids={round_ids}
         />
         {system_error ? (
@@ -370,23 +416,33 @@ export function DmChatPanel({
         <ProviderUnavailableBanner compact={is_mobile_layout} />
       ) : null}
 
+      <GoalPanel
+        activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
+        compact={is_mobile_layout}
+        continuation_hold={goal_continuation_hold}
+        disabled={!can_control_session}
+        is_generating={is_loading}
+        session_key={session_key}
+        scope_label="会话 Goal"
+      />
+
       <ComposerPanel
         allow_send_while_loading
         compact={is_mobile_layout}
-        control_status_text={session_control_text}
         default_delivery_policy={default_delivery_policy}
         input_queue_items={input_queue_items}
         is_loading={is_loading}
+        goal_scope_label="会话 Goal"
         runtime_phase={runtime_phase}
         on_delete_queued_message={delete_input_queue_message}
         on_enqueue_message={enqueue_input_queue_message}
+        on_create_goal={session_key && can_control_session ? handle_create_goal : undefined}
         on_guide_queued_message={guide_input_queue_message}
         on_prepare_attachments={handle_prepare_attachments}
         on_reorder_queue_messages={reorder_input_queue_messages}
         on_send_message={handle_send_message}
         on_stop={handle_stop}
         tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
-        disabled={!can_control_session}
       />
     </div>
   );

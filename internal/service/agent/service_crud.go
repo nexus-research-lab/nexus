@@ -3,13 +3,31 @@ package agent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
+
+type nameInvalidError struct {
+	reason string
+}
+
+func (e nameInvalidError) Error() string {
+	return e.reason
+}
+
+func (e nameInvalidError) Is(target error) bool {
+	return target == ErrAgentNameInvalid
+}
+
+func fmtAgentNameInvalid(reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		reason = "名称不合法"
+	}
+	return nameInvalidError{reason: reason}
+}
 
 // ListAgents 返回所有活跃 Agent。
 func (s *Service) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
@@ -21,6 +39,14 @@ func (s *Service) ListAgentRecords(ctx context.Context) ([]protocol.Agent, error
 	return s.listAgents(ctx, false)
 }
 
+// ListAllAgentRecordsForMaintenance 返回全局活跃 Agent 记录，仅供维护任务跨 owner 迁移使用。
+func (s *Service) ListAllAgentRecordsForMaintenance(ctx context.Context) ([]protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	return s.repository.ListActiveAgents(ctx, "")
+}
+
 func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]protocol.Agent, error) {
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
@@ -28,6 +54,9 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	agents, err := s.repository.ListActiveAgents(ctx, ownerUserID)
 	if err != nil {
+		return nil, err
+	}
+	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
 		return nil, err
 	}
 	if includeSkillsCount {
@@ -52,10 +81,29 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+		return nil, err
+	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
+}
+
+// GetAgentsByIDs 批量获取指定 ID 列表的活跃 Agent。
+func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	ownerUserID, _ := scopedOwnerUserID(ctx)
+	agents, err := s.repository.ListAgentsByIDs(ctx, ownerUserID, agentIDs)
+	if err != nil {
+		return nil, err
+	}
+	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
+		return nil, err
+	}
+	return agents, nil
 }
 
 // GetDefaultAgent 返回当前作用域下的主智能体。
@@ -71,26 +119,33 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 	if agent == nil || agent.Status != "active" {
 		return nil, ErrAgentNotFound
 	}
+	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+		return nil, err
+	}
 	if err = enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
 }
 
-// ValidateName 校验名称是否可用。
+func ensureAgentRuntimeEmotionStates(agents []protocol.Agent) error {
+	for _, agentValue := range agents {
+		if err := EnsureRuntimeEmotionState(agentValue.WorkspacePath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateName 校验名称格式。
 func (s *Service) ValidateName(ctx context.Context, name string, excludeAgentID string) (protocol.ValidateNameResponse, error) {
 	if err := s.EnsureReady(ctx); err != nil {
 		return protocol.ValidateNameResponse{}, err
 	}
-	return s.validateName(ctx, effectiveOwnerUserID(ctx), name, excludeAgentID)
+	return validateName(name), nil
 }
 
-func (s *Service) validateName(
-	ctx context.Context,
-	ownerUserID string,
-	name string,
-	excludeAgentID string,
-) (protocol.ValidateNameResponse, error) {
+func validateName(name string) protocol.ValidateNameResponse {
 	normalized := NormalizeName(name)
 	response := protocol.ValidateNameResponse{
 		Name:           name,
@@ -99,22 +154,12 @@ func (s *Service) validateName(
 
 	if reason := ValidateName(name); reason != "" {
 		response.Reason = reason
-		return response, nil
+		return response
 	}
 
 	response.IsValid = true
-
-	exists, err := s.repository.ExistsActiveAgentName(ctx, ownerUserID, normalized, excludeAgentID)
-	if err != nil {
-		return response, err
-	}
-	if exists {
-		response.Reason = "名称已存在，请更换一个名称"
-		return response, nil
-	}
-
 	response.IsAvailable = true
-	return response, nil
+	return response
 }
 
 // CreateAgent 创建普通 Agent。
@@ -124,16 +169,17 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	}
 
 	ownerUserID := effectiveOwnerUserID(ctx)
-	validation, err := s.validateName(ctx, ownerUserID, request.Name, "")
-	if err != nil {
-		return nil, err
-	}
+	validation := validateName(request.Name)
 	if !validation.IsValid || !validation.IsAvailable {
-		return nil, errors.New(validation.Reason)
+		return nil, fmtAgentNameInvalid(validation.Reason)
 	}
 
 	agentID, workspacePath, err := s.createAgentWorkspacePath(ownerUserID)
 	if err != nil {
+		return nil, err
+	}
+	if err = EnsureRuntimeEmotionState(workspacePath); err != nil {
+		_ = os.RemoveAll(workspacePath)
 		return nil, err
 	}
 	record := BuildCreateRecord(
@@ -180,12 +226,9 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 			if existing.IsMain {
 				return nil, errors.New("主智能体名称不可修改")
 			}
-			validation, validateErr := s.validateName(ctx, updateOwnerUserID, candidate, existing.AgentID)
-			if validateErr != nil {
-				return nil, validateErr
-			}
+			validation := validateName(candidate)
 			if !validation.IsValid || !validation.IsAvailable {
-				return nil, errors.New(validation.Reason)
+				return nil, fmtAgentNameInvalid(validation.Reason)
 			}
 			normalizedName = validation.NormalizedName
 		}
@@ -209,21 +252,16 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		vibeTags = append([]string(nil), request.VibeTags...)
 	}
 
-	identitySynced, err := syncWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, existing.Name, normalizedName)
-	if err != nil {
-		return nil, err
-	}
-
 	updated, err := s.repository.UpdateAgent(ctx, agentrepo.UpdateRecord{
 		AgentID:             existing.AgentID,
 		OwnerUserID:         updateOwnerUserID,
-		Slug:                BuildWorkspaceDirName(normalizedName),
 		Name:                normalizedName,
 		WorkspacePath:       existing.WorkspacePath,
 		Avatar:              avatar,
 		Description:         description,
 		VibeTagsJSON:        mustJSONString(vibeTags, "[]"),
 		Provider:            nextOptions.Provider,
+		Model:               nextOptions.Model,
 		PermissionMode:      nextOptions.PermissionMode,
 		AllowedToolsJSON:    mustJSONString(nextOptions.AllowedTools, "[]"),
 		DisallowedToolsJSON: mustJSONString(nextOptions.DisallowedTools, "[]"),
@@ -233,11 +271,6 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources, "[]"),
 	})
 	if err != nil {
-		if identitySynced {
-			if rollbackErr := rollbackWorkspaceAgentIdentity(existing.WorkspacePath, existing.AgentID, normalizedName, existing.Name); rollbackErr != nil {
-				return nil, errors.Join(err, fmt.Errorf("回滚 AGENTS.md 身份标识失败: %w", rollbackErr))
-			}
-		}
 		return nil, err
 	}
 	if updated == nil {
@@ -252,7 +285,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 	return updated, nil
 }
 
-// DeleteAgent 软删除 Agent，并清理 workspace 目录。
+// DeleteAgent 删除 Agent，并清理 workspace 目录与数据库记录。
 func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if err := s.EnsureReady(ctx); err != nil {
 		return err
@@ -269,6 +302,11 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if existing.IsMain {
 		return errors.New("主智能体不可删除")
 	}
+	if s.goals != nil {
+		if _, err = s.goals.DeleteGoalsForAgent(ctx, existing.AgentID); err != nil {
+			return err
+		}
+	}
 	if s.history != nil {
 		if _, err = s.history.DeleteTranscriptProject(existing.WorkspacePath); err != nil {
 			return err
@@ -277,9 +315,9 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if err = os.RemoveAll(existing.WorkspacePath); err != nil {
 		return err
 	}
-	archiveOwnerUserID := existing.OwnerUserID
+	deleteOwnerUserID := existing.OwnerUserID
 	if ownerUserID != "" {
-		archiveOwnerUserID = ownerUserID
+		deleteOwnerUserID = ownerUserID
 	}
-	return s.repository.ArchiveAgent(ctx, existing.AgentID, archiveOwnerUserID)
+	return s.repository.DeleteAgent(ctx, existing.AgentID, deleteOwnerUserID)
 }

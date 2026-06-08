@@ -146,6 +146,43 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     return nil
   }
 
+  func webView(
+    _ webView: WKWebView,
+    runOpenPanelWith parameters: WKOpenPanelParameters,
+    initiatedByFrame frame: WKFrameInfo,
+    completionHandler: @escaping ([URL]?) -> Void
+  ) {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = parameters.allowsDirectories
+    panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+    panel.resolvesAliases = true
+    panel.treatsFilePackagesAsDirectories = false
+    panel.prompt = "选择"
+
+    startupTimeline?.mark("webview.open_panel_begin", metadata: ["surface": surfaceName])
+    let presentResult: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+      if response == .OK {
+        self?.startupTimeline?.mark("webview.open_panel_selected", metadata: [
+          "surface": self?.surfaceName ?? "unknown",
+          "count": String(panel.urls.count),
+        ])
+        completionHandler(panel.urls)
+      } else {
+        self?.startupTimeline?.mark("webview.open_panel_cancelled", metadata: [
+          "surface": self?.surfaceName ?? "unknown",
+        ])
+        completionHandler(nil)
+      }
+    }
+
+    if let window = webView.window {
+      panel.beginSheetModal(for: window, completionHandler: presentResult)
+    } else {
+      presentResult(panel.runModal())
+    }
+  }
+
   func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
     startupTimeline?.mark("webview.navigation_started", metadata: webMetadata(url: lastRequestedURL ?? webView.url))
   }

@@ -124,6 +124,9 @@ func bindServiceLogger(services *serverapp.AppServices, logger *slog.Logger) {
 	if services.Title != nil {
 		services.Title.SetLogger(logger.With("component", "title"))
 	}
+	if services.Provider != nil {
+		services.Provider.SetLogger(logger.With("component", "provider"))
+	}
 	if services.Channels != nil {
 		services.Channels.SetLogger(logger.With("component", "channels"))
 	}

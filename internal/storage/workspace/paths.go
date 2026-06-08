@@ -67,14 +67,14 @@ func (s *Store) RoomConversationOverlayPath(conversationID string) string {
 	return filepath.Join(s.RoomConversationDir(conversationID), "overlay.jsonl")
 }
 
-// RoomConversationActionsPath 返回 Room 对话 action 日志路径。
-func (s *Store) RoomConversationActionsPath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "actions.jsonl")
+// RoomConversationMessagesPath 返回 Room 对话 directed message 日志路径。
+func (s *Store) RoomConversationMessagesPath(conversationID string) string {
+	return filepath.Join(s.RoomConversationDir(conversationID), "directed_messages.jsonl")
 }
 
-// RoomConversationActionCursorsPath 返回 Room action 消费游标路径。
-func (s *Store) RoomConversationActionCursorsPath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "action_cursors.jsonl")
+// RoomConversationMessageCursorsPath 返回 Room directed message 消费游标路径。
+func (s *Store) RoomConversationMessageCursorsPath(conversationID string) string {
+	return filepath.Join(s.RoomConversationDir(conversationID), "directed_message_cursors.jsonl")
 }
 
 func encodeSessionDirName(value string) string {

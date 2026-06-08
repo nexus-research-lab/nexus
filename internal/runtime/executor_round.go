@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -112,6 +113,8 @@ type RoundMapper interface {
 type RoundExecutionRequest struct {
 	Query                  string
 	Content                any
+	ContextualInputs       []ContextualInputBlock
+	InputOptions           sdkprotocol.OutboundMessageOptions
 	Client                 Client
 	Mapper                 RoundMapper
 	IdleTimeout            time.Duration
@@ -128,7 +131,13 @@ type RoundExecutionRequest struct {
 type RoundExecutionResult struct {
 	TerminalStatus       string
 	ResultSubtype        string
+	ErrorMessage         string
+	TerminalCategory     sdkprotocol.TerminalCategory
+	Usage                sdkprotocol.TokenUsage
+	ElapsedTimeSeconds   int64
 	CompletedByAssistant bool
+	UsageLimitReached    bool
+	UsageLimitReason     string
 }
 
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
@@ -142,9 +151,14 @@ func ExecuteRound(
 	if request.Mapper == nil {
 		return RoundExecutionResult{}, errors.New("round mapper is required")
 	}
+	startedAt := time.Now()
 
-	if err := QueryClientContent(ctx, request.Client, roundQueryContent(request)); err != nil {
-		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+	queryContent, err := prepareRoundContentWithContext(ctx, request.Client, roundQueryContent(request), request.ContextualInputs)
+	if err != nil {
+		return RoundExecutionResult{}, err
+	}
+	if err := QueryClientContentWithOptions(ctx, request.Client, queryContent, request.InputOptions); err != nil {
+		if isRoundAbortError(ctx, err) {
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		}
 		return RoundExecutionResult{}, err
@@ -173,7 +187,7 @@ func ExecuteRound(
 		case <-ctx.Done():
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		case <-assistantTerminalTimer:
-			return *assistantTerminalResult, nil
+			return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 		case <-idleTimeoutCh:
 			if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
 				return RoundExecutionResult{}, ErrRoundInterrupted
@@ -186,7 +200,7 @@ func ExecuteRound(
 					return RoundExecutionResult{}, ErrRoundInterrupted
 				}
 				if assistantTerminalResult != nil {
-					return *assistantTerminalResult, nil
+					return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 				}
 				return RoundExecutionResult{}, buildRoundStreamClosedError(request.Client, messagesSeen, lastMessage)
 			}
@@ -236,10 +250,7 @@ func ExecuteRound(
 			}
 
 			if strings.TrimSpace(mapResult.TerminalStatus) != "" {
-				return RoundExecutionResult{
-					TerminalStatus: strings.TrimSpace(mapResult.TerminalStatus),
-					ResultSubtype:  strings.TrimSpace(mapResult.ResultSubtype),
-				}, nil
+				return terminalRoundResult(mapResult, assistantTerminalResult, incoming.Result, startedAt), nil
 			}
 			if assistantResult, ok := terminalAssistantResult(mapResult); ok {
 				assistantTerminalResult = &assistantResult
@@ -251,11 +262,92 @@ func ExecuteRound(
 	}
 }
 
+func terminalRoundResult(
+	mapResult RoundMapResult,
+	assistantTerminalResult *RoundExecutionResult,
+	resultMessage *sdkprotocol.ResultMessage,
+	startedAt time.Time,
+) RoundExecutionResult {
+	result := RoundExecutionResult{
+		TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
+		ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
+		ErrorMessage:     terminalErrorMessage(mapResult),
+		TerminalCategory: sdkprotocol.TerminalCategoryUnknown,
+	}
+	if resultMessage != nil {
+		result.Usage, _ = resultMessage.TokenUsage()
+		result.TerminalCategory = resultMessage.TerminalCategory()
+		result.UsageLimitReached, result.UsageLimitReason = ResultUsageLimitReached(resultMessage)
+	}
+	if !isSuccessfulRoundResult(result) {
+		return roundResultWithElapsed(result, startedAt)
+	}
+	if assistantResult, ok := terminalAssistantResult(mapResult); ok && assistantResult.CompletedByAssistant {
+		result.CompletedByAssistant = true
+		return roundResultWithElapsed(result, startedAt)
+	}
+	if hasSuccessfulResultMessage(mapResult) {
+		result.CompletedByAssistant = true
+		return roundResultWithElapsed(result, startedAt)
+	}
+	if assistantTerminalResult != nil && assistantTerminalResult.CompletedByAssistant {
+		result.CompletedByAssistant = true
+	}
+	return roundResultWithElapsed(result, startedAt)
+}
+
+func isSuccessfulRoundResult(result RoundExecutionResult) bool {
+	return result.TerminalStatus == "finished" &&
+		(result.ResultSubtype == "" || result.ResultSubtype == "success")
+}
+
+func hasSuccessfulResultMessage(mapResult RoundMapResult) bool {
+	for _, messageValue := range mapResult.DurableMessages {
+		if messageValue == nil || protocol.MessageRole(messageValue) != "result" {
+			continue
+		}
+		if messageString(messageValue["subtype"]) == "error" || messageValue["is_error"] == true {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func terminalErrorMessage(mapResult RoundMapResult) string {
+	for _, messageValue := range mapResult.DurableMessages {
+		if messageValue == nil || protocol.MessageRole(messageValue) != "result" {
+			continue
+		}
+		if messageString(messageValue["subtype"]) != "error" && messageValue["is_error"] != true {
+			continue
+		}
+		if resultText := strings.TrimSpace(messageString(messageValue["result"])); resultText != "" {
+			return resultText
+		}
+		if terminalReason := strings.TrimSpace(messageString(messageValue["terminal_reason"])); terminalReason != "" {
+			return terminalReason
+		}
+	}
+	if mapResult.ResultSubtype == "error" || mapResult.TerminalStatus == "error" {
+		return "Runtime request failed"
+	}
+	return ""
+}
+
 func roundQueryContent(request RoundExecutionRequest) any {
 	if request.Content != nil {
 		return request.Content
 	}
 	return request.Query
+}
+
+func roundResultWithElapsed(result RoundExecutionResult, startedAt time.Time) RoundExecutionResult {
+	if result.ElapsedTimeSeconds > 0 || startedAt.IsZero() {
+		return result
+	}
+	result.ElapsedTimeSeconds = int64(time.Since(startedAt).Seconds())
+	return result
 }
 
 func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {
@@ -273,6 +365,12 @@ func normalizeRoundIdleTimeout(timeout time.Duration) time.Duration {
 		return defaultRoundIdleTimeout
 	}
 	return timeout
+}
+
+func isRoundAbortError(ctx context.Context, err error) bool {
+	return ctx.Err() != nil ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, agentclient.ErrAborted)
 }
 
 func resetRoundIdleTimer(timer *time.Timer, timeout time.Duration) {

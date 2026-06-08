@@ -1,9 +1,9 @@
 "use client";
 
-import { Bot, MessageSquareText, Users } from "lucide-react";
+import { MessageSquareText, Users } from "lucide-react";
 
-import { get_icon_avatar_src } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { Agent } from "@/types/agent/agent";
 import { format_provider_label } from "@/types/capability/provider";
 import {
@@ -11,7 +11,6 @@ import {
   WorkspaceCatalogCard,
   WorkspaceCatalogDescription,
   WorkspaceCatalogFooter,
-  WorkspaceIconFrame,
   WorkspaceCatalogTextAction,
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
@@ -49,21 +48,12 @@ export function ContactsAgentCard({
       onClick={on_open_profile}
       size="comfort"
     >
-      <WorkspaceIconFrame
-        class_name="mx-auto h-14 w-14 overflow-hidden transition-all duration-300 hover:scale-110 hover:shadow-lg relative z-10"
-        shape="round"
+      <UiAgentAvatar
+        avatar={agent.avatar}
+        class_name="relative z-10 mx-auto transition-all duration-300 hover:scale-105"
+        name={agent.name}
         size="lg"
-      >
-        {get_icon_avatar_src(agent.avatar) ? (
-          <img
-            alt={agent.name}
-            className="h-full w-full object-cover transition-transform duration-300 hover:scale-105 hover:rotate-3"
-            src={get_icon_avatar_src(agent.avatar) ?? undefined}
-          />
-        ) : (
-          <Bot className="h-6 w-6 text-(--icon-strong) transition-transform duration-300 hover:scale-110 hover:rotate-6" />
-        )}
-      </WorkspaceIconFrame>
+      />
 
       <WorkspaceCatalogBody class_name="mt-3 w-full" grow={false}>
         <WorkspaceCatalogTitle size="lg" truncate>

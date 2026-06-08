@@ -1,5 +1,5 @@
 /**
- * 由 cmd/protocol-tsgen 自动生成，请勿手改。
+ * 由 go generate ./internal/protocol 自动生成，请勿手改。
  */
 
 export type EventType =
@@ -9,6 +9,12 @@ export type EventType =
   | 'input_queue'
   | 'round_status'
   | 'session_status'
+  | 'goal_created'
+  | 'goal_updated'
+  | 'goal_status_changed'
+  | 'goal_progress'
+  | 'goal_continuation'
+  | 'goal_cleared'
   | 'permission_request'
   | 'permission_request_resolved'
   | 'agent_runtime_event'
@@ -16,8 +22,8 @@ export type EventType =
   | 'room_member_added'
   | 'room_member_removed'
   | 'room_deleted'
-  | 'room_action'
-  | 'room_action_consumed'
+  | 'room_directed_message'
+  | 'room_directed_message_consumed'
   | 'session_resync_required'
   | 'room_resync_required'
   | 'stream_start'
@@ -54,7 +60,4 @@ export interface RoundStatusData {
 export interface SessionStatusData {
   is_generating: boolean;
   running_round_ids?: string[];
-  controller_client_id?: string;
-  observer_count?: number;
-  bound_client_count?: number;
 }

@@ -61,7 +61,7 @@ func (p *Processor) workspaceFileArtifactsForToolResult(toolResult map[string]an
 }
 
 func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, toolUseID string, toolName string) *protocol.WorkspaceFileArtifactBlock {
-	if strings.TrimSpace(toolName) != "Bash" {
+	if !isImagegenArtifactTool(toolName) {
 		return nil
 	}
 	payload := firstImagegenPayload(toolResultContentText(toolResult["content"]))
@@ -86,7 +86,7 @@ func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, too
 		Type:             protocol.ContentBlockTypeWorkspaceFileArtifact,
 		Path:             relativePath,
 		DisplayPath:      relativePath,
-		Label:            "生成图片",
+		Label:            imagegenArtifactLabel(payload),
 		Title:            workspaceFileArtifactTitle(relativePath),
 		ArtifactKind:     kind,
 		MIMEType:         mimeType,
@@ -96,6 +96,29 @@ func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, too
 		SourceToolUseID:  toolUseID,
 		SourceToolName:   toolName,
 	}
+}
+
+func imagegenArtifactLabel(payload map[string]any) string {
+	switch strings.TrimSpace(normalizeString(payload["action"])) {
+	case "edit", "edit_image":
+		return "编辑图片"
+	default:
+		return "生成图片"
+	}
+}
+
+func isImagegenArtifactTool(toolName string) bool {
+	normalized := strings.TrimSpace(toolName)
+	if normalized == "" {
+		return false
+	}
+	switch normalized {
+	case "Bash", "generate_image", "edit_image", "nexus_imagegen":
+		return true
+	}
+	return strings.HasPrefix(normalized, "mcp__nexus_imagegen__") ||
+		strings.HasPrefix(normalized, "nexus_imagegen__") ||
+		strings.HasPrefix(normalized, "nexus_imagegen.")
 }
 
 func firstImagegenPayload(content string) map[string]any {

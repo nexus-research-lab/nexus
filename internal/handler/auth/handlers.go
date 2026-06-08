@@ -120,21 +120,10 @@ func (h *Handlers) HandleAuthLogout(writer http.ResponseWriter, request *http.Re
 		Secure:   h.auth.CookieSecure(),
 	})
 
-	state, ok := authsvc.StateFromContext(request.Context())
-	if !ok {
-		var err error
-		state, err = h.auth.GetState(request.Context())
-		if err != nil {
-			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-			return
-		}
+	status, err := h.auth.BuildStatusPayload(request.Context(), request)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
 	}
-	h.api.WriteSuccess(writer, authsvc.StatusPayload{
-		AuthRequired:         state.AuthRequired,
-		PasswordLoginEnabled: state.PasswordLoginEnabled,
-		Authenticated:        !state.AuthRequired && !state.SetupRequired,
-		Username:             nil,
-		SetupRequired:        state.SetupRequired,
-		AccessTokenEnabled:   state.AccessTokenEnabled,
-	})
+	h.api.WriteSuccess(writer, status)
 }

@@ -12,6 +12,7 @@
 import type {
   ChoiceDef,
   EveryUnit,
+  ExecutionKind,
   ExecutionMode,
   ReplyMode,
   ScheduleKind,
@@ -21,6 +22,11 @@ import type {
 export const TARGET_TYPE_OPTIONS: ChoiceDef<TargetType>[] = [
   { key: "agent", label: "智能体" },
   { key: "room", label: "Room" },
+];
+
+export const EXECUTION_KIND_OPTIONS: ChoiceDef<ExecutionKind>[] = [
+  { key: "agent", label: "Agent 执行" },
+  { key: "script", label: "脚本执行" },
 ];
 
 export const SCHEDULE_OPTIONS: ChoiceDef<ScheduleKind>[] = [

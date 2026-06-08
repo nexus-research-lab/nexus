@@ -145,6 +145,10 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     if fileManager.fileExists(atPath: logsDirectory.path) {
       try fileManager.copyItem(at: logsDirectory, to: staging.appendingPathComponent("Logs", isDirectory: true))
     }
+    let debugDirectory = DesktopPaths.debugDirectory
+    if fileManager.fileExists(atPath: debugDirectory.path) {
+      try fileManager.copyItem(at: debugDirectory, to: staging.appendingPathComponent("Debug", isDirectory: true))
+    }
     try DesktopDiagnosticsReport.make(
       runtime: runtime,
       reason: "manual_log_export",

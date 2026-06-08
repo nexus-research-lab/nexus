@@ -1,19 +1,18 @@
 "use client";
 
 import {
-  ChevronRight,
+  Clock3,
   ExternalLink,
   Gamepad2,
+  Loader2,
   MessageCircle,
-  Plus,
   Power,
   RefreshCw,
   Send,
-  Sparkles,
-  X,
+  Settings2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { get_agents } from "@/lib/api/agent-manage-api";
 import {
@@ -24,26 +23,52 @@ import {
   upsert_channel_config_api,
 } from "@/lib/api/channel-api";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiButton } from "@/shared/ui/button";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogFormShell,
+  UiDialogHeader,
+  UiDialogPortal,
+} from "@/shared/ui/dialog/dialog";
+import {
+  get_dialog_note_class_name,
+  get_dialog_note_style,
+} from "@/shared/ui/dialog/dialog-styles";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import { UiField, UiInput } from "@/shared/ui/form-control";
+import { UiListActionButton } from "@/shared/ui/list-action";
+import { UiListRow } from "@/shared/ui/list-row";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { UiStateBlock } from "@/shared/ui/state-block";
+import {
+  CapabilityFilterBar,
+  CapabilityFilterSearchInput,
+  CapabilityFilterSelect,
+  CapabilityPageLayout,
+  CapabilitySectionHeader,
+} from "@/features/capability/shared/capability-page-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import {
-  WorkspaceCatalogAction,
-  WorkspaceCatalogBody,
-  WorkspaceCatalogCard,
-  WorkspaceCatalogDescription,
-  WorkspaceCatalogFooter,
-  WorkspaceCatalogHeader,
-  WorkspaceCatalogTag,
-  WorkspaceCatalogTextAction,
-  WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { Agent } from "@/types/agent/agent";
 
 const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "feishu", "telegram", "discord"];
+type ChannelFilter = "all" | "connected" | "configured" | "unconfigured" | "planned";
+
+const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: TranslationKey }> = [
+  { value: "all", label_key: "capability.channels_filter_all" },
+  { value: "connected", label_key: "capability.channels_filter_connected" },
+  { value: "configured", label_key: "capability.channels_filter_configured" },
+  { value: "unconfigured", label_key: "capability.channels_filter_unconfigured" },
+  { value: "planned", label_key: "capability.channels_filter_planned" },
+];
 
 const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; cnName: string }> = {
   dingtalk: { color: "#1677ff", icon: Send, cnName: "bg-[#1677ff] text-white" },
@@ -65,11 +90,6 @@ function channel_status_text(item: ChannelConfigView) {
   return "已配置";
 }
 
-function channel_hint(item: ChannelConfigView) {
-  if (is_channel_planned(item)) return "未上线";
-  return "设置机器人";
-}
-
 function guide_steps(channel_type: ImChannelType) {
   switch (channel_type) {
   case "dingtalk":
@@ -78,7 +98,7 @@ function guide_steps(channel_type: ImChannelType) {
       <>进入 <b>应用配置</b>，左侧菜单 <b>机器人 → 机器人配置</b>，消息接收模式必须选择 <b>Stream</b> 模式，不要选 Webhook</>,
       <>在 <b>凭证与基础信息</b> 页面复制 <b>Client ID</b> 和 <b>Client Secret</b></>,
       <>先在钉钉侧 <b>发布应用版本</b>，确认应用可见范围包含你的账号</>,
-      <>在钉钉群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对授权</>,
+      <>在钉钉群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对</>,
     ];
   case "wechat":
     return [];
@@ -86,17 +106,16 @@ function guide_steps(channel_type: ImChannelType) {
     return [
       <>登录 <a href="https://open.feishu.cn/" target="_blank" rel="noreferrer">飞书开放平台</a> 创建企业自建应用，在 <b>应用能力</b> 中添加机器人能力</>,
       <>在 <b>凭证与基础信息</b> 页面获取 <b>App ID</b> 和 <b>App Secret</b></>,
-      <>进入 <b>权限管理</b>，批量导入权限，至少包含 <b>im.message.receive_v1</b></>,
-      <>进入 <b>事件与回调 → 事件配置 → 订阅方式</b>，使用 <b>长连接</b> 接收事件</>,
-      <>创建应用版本并发布，确认可用范围包含目标用户或群</>,
-      <>在飞书群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对授权</>,
+      <>进入 <b>权限管理</b>，为机器人添加收发消息所需的 IM 权限，并提交发布</>,
+      <>在 <b>事件订阅</b> 中订阅接收消息事件，把请求地址配置为当前服务的 <b>/nexus/v1/channels/feishu/messages</b></>,
+      <>确认应用可用范围包含目标用户或群，并在飞书群中添加该机器人</>,
     ];
   case "telegram":
     return [
       <>在 Telegram 中搜索 <a href="https://t.me/BotFather" target="_blank" rel="noreferrer">@BotFather</a>，发送 <b>/newbot</b> 创建机器人</>,
       <>按提示设置机器人名称和用户名，成功后 BotFather 会返回 <b>Bot Token</b></>,
       <>将 <b>Bot Token</b> 填入下方表单，完成连接</>,
-      <>在 Telegram 群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对授权</>,
+      <>在 Telegram 群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对</>,
     ];
   case "discord":
     return [
@@ -141,45 +160,10 @@ function ChannelStatePill({
   children: string;
   tone?: "neutral" | "success" | "warning" | "danger" | "info";
 }) {
-  const tone_class_name =
-    tone === "success"
-      ? "border-emerald-200/80 bg-emerald-50/90 text-emerald-700"
-      : tone === "warning"
-        ? "border-amber-200/80 bg-amber-50/88 text-amber-700"
-        : tone === "danger"
-          ? "border-rose-200/80 bg-rose-50/88 text-rose-700"
-          : tone === "info"
-            ? "border-sky-200/80 bg-sky-50/90 text-sky-700"
-            : "border-(--surface-panel-subtle-border) bg-(--surface-panel-subtle-background) text-(--text-soft)";
-
   return (
-    <span
-      className={cn(
-        "inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-medium leading-none tracking-[0.01em]",
-        tone_class_name,
-      )}
-    >
+    <UiBadge tone={tone === "neutral" ? "default" : tone}>
       {children}
-    </span>
-  );
-}
-
-function ChannelMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-[10.5px] font-medium text-(--text-soft)">
-        {label}
-      </div>
-      <div className="mt-1 truncate text-[16px] font-semibold tracking-[-0.02em] text-(--text-strong)">
-        {value}
-      </div>
-    </div>
+    </UiBadge>
   );
 }
 
@@ -189,6 +173,41 @@ interface ChannelDialogProps {
   on_close: () => void;
   on_saved: (item: ChannelConfigView, announce?: boolean) => void;
   on_error: (message: string) => void;
+}
+
+function ChannelGuide({
+  item,
+}: {
+  item: ChannelConfigView;
+}) {
+  const steps = guide_steps(item.channel_type);
+
+  if (steps.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={get_dialog_note_class_name("default")} style={get_dialog_note_style("default")}>
+      <div className="mb-2 text-[13px] font-semibold text-(--text-strong)">如何连接</div>
+      <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-6 text-(--text-default)">
+        {steps.map((step, index) => (
+          <li key={index} className="[&_a]:font-semibold [&_a]:text-(--primary) [&_b]:font-semibold">
+            {step}
+          </li>
+        ))}
+      </ol>
+      {item.channel_type === "dingtalk" ? (
+        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
+          钉钉群中，通常需要 @机器人 发送消息；本通道使用官方 Stream 模式长连接。
+        </div>
+      ) : null}
+      {item.channel_type === "feishu" ? (
+        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
+          本通道使用官方飞书长连接 SDK；请确认应用已启用长连接事件订阅。
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: ChannelDialogProps) {
@@ -240,131 +259,121 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     await save_channel(true);
   };
 
-  const dialog = (
-    <div className="dialog-backdrop z-[9999]" role="dialog" aria-modal="true">
-      <form
-        className="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-[22px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.26)]"
-        onSubmit={handle_submit}
-      >
-        <div className="flex items-center gap-4 px-7 pb-5 pt-7">
-          <ChannelIcon type={current_item.channel_type} size="dialog" />
-          <h2 className="flex-1 text-[22px] font-black tracking-normal text-[#111827]">连接 {current_item.title}</h2>
-          <button
-            aria-label="关闭"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[#8b8f9a] transition hover:bg-[#f3f4f6] hover:text-[#111827]"
-            onClick={on_close}
-            type="button"
-          >
-            <X className="h-[22px] w-[22px]" />
-          </button>
-        </div>
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={on_close}>
+        <UiDialogFormShell
+          class_name="max-h-[86vh]"
+          onSubmit={handle_submit}
+          size="lg"
+        >
+          <UiDialogHeader
+            icon={<ChannelIcon type={current_item.channel_type} size="dialog" />}
+            icon_class_name="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
+            on_close={on_close}
+            title={`连接 ${current_item.title}`}
+            title_id="channel-connect-dialog-title"
+          />
 
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-7 pb-6">
-          {is_planned ? (
-            <div className="rounded-[16px] border border-dashed border-[#d8dce6] bg-[#fafbfc] px-5 py-6 text-center">
-              <div className="text-[15px] font-black text-[#303542]">该消息渠道未上线</div>
-              <div className="mx-auto mt-2 max-w-[460px] text-[13px] leading-6 text-[#7c8390]">
-                消息渠道接入将在后续版本补充，当前版本暂不支持配置机器人或配对授权。
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-[16px] border border-[#f5d45f] bg-[#fff9e8] px-5 py-4 text-[14px] leading-6 text-[#41444d] shadow-[0_10px_24px_rgba(245,190,36,0.14)]">
-                <div className="mb-2 text-[14px] font-black text-[#a83a07]">如何连接：</div>
-                <ol className="list-decimal space-y-1 pl-5">
-                  {guide_steps(current_item.channel_type).map((step, index) => (
-                    <li key={index} className="[&_a]:text-[#1d73ff] [&_b]:font-black">{step}</li>
-                  ))}
-                </ol>
-                {current_item.channel_type === "dingtalk" ? (
-                  <div className="mt-4 border-t border-[#f5d45f] pt-3 text-[13px] font-semibold leading-6 text-[#c44707]">
-                    钉钉群中，通常需要 @机器人 发送消息；本通道使用官方 Stream 模式长连接。
+          <UiDialogBody class_name="space-y-5" scrollable>
+            {is_planned ? (
+              <UiStateBlock
+                description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"
+                size="sm"
+                title="该频道未上线"
+                variant="inset"
+              />
+            ) : (
+              <>
+                <ChannelGuide item={current_item} />
+
+                {current_item.runtime_note ? (
+                  <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3 text-[13px] font-medium leading-5 text-(--text-default)">
+                    {current_item.runtime_note}
                   </div>
                 ) : null}
-                {current_item.channel_type === "feishu" ? (
-                  <div className="mt-4 border-t border-[#f5d45f] pt-3 text-[13px] font-semibold leading-6 text-[#c44707]">
-                    本通道使用官方飞书长连接 SDK；请确认应用已启用长连接事件订阅。
-                  </div>
-                ) : null}
-              </div>
 
-              {current_item.runtime_note ? (
-                <div className="mt-4 rounded-[12px] border border-[#e7eefc] bg-[#f7fbff] px-4 py-3 text-[13px] font-semibold leading-5 text-[#4a5568]">
-                  {current_item.runtime_note}
-                </div>
-              ) : null}
+                <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
+                  <UiSelectMenu
+                    aria_label="选择频道处理智能体"
+                    on_change={set_agent_id}
+                    options={agents.map((agent) => ({
+                      value: agent.agent_id,
+                      label: agent.name,
+                    }))}
+                    size="sm"
+                    value={agent_id}
+                  />
+                </UiField>
 
-              <label className="mt-6 block text-[15px] font-black text-[#3f424b]">
-                处理智能体 <span className="text-[#ff4d4f]">*</span>
-                <select
-                  className="mt-2 h-12 w-full rounded-[14px] border border-[#e2e5ea] bg-white px-4 text-[14px] font-semibold text-[#22252d] outline-none transition focus:border-[#9bdab8] focus:ring-4 focus:ring-[#9bdab8]/35"
-                  onChange={(event) => set_agent_id(event.target.value)}
-                  required
-                  value={agent_id}
-                >
-                  {agents.map((agent) => (
-                    <option key={agent.agent_id} value={agent.agent_id}>{agent.name}</option>
+                <div className="space-y-4">
+                  {current_item.credential_fields.map((field) => (
+                    <UiField
+                      key={field.key}
+                      label={(
+                        <>
+                          {field.label} {field.required ? <span className="text-(--destructive)">*</span> : null}
+                        </>
+                      )}
+                    >
+                      <UiInput
+                        onChange={(event) => handle_field_change(field, event.target.value)}
+                        placeholder={field.placeholder || ""}
+                        required={field.required && !(field.secret && current_item.has_credentials)}
+                        type={field.kind === "password" ? "password" : "text"}
+                        value={field.secret ? credentials[field.key] || "" : config[field.key] || ""}
+                        variant="dialog"
+                      />
+                    </UiField>
                   ))}
-                </select>
-              </label>
-
-              <div className="mt-6 space-y-4">
-                {current_item.credential_fields.map((field) => (
-                  <label key={field.key} className="block text-[15px] font-black text-[#3f424b]">
-                    {field.label} {field.required ? <span className="text-[#ff4d4f]">*</span> : null}
-                    <input
-                      className="mt-2 h-12 w-full rounded-[14px] border border-[#e2e5ea] bg-white px-4 text-[14px] font-semibold text-[#22252d] outline-none transition placeholder:text-[#a5a9b5] focus:border-[#9bdab8] focus:ring-4 focus:ring-[#9bdab8]/35"
-                      onChange={(event) => handle_field_change(field, event.target.value)}
-                      placeholder={field.placeholder || ""}
-                      required={field.required && !(field.secret && current_item.has_credentials)}
-                      type={field.kind === "password" ? "password" : "text"}
-                      value={field.secret ? credentials[field.key] || "" : config[field.key] || ""}
-                    />
-                  </label>
-                ))}
-              </div>
-
-              {current_item.channel_type === "discord" ? (
-                <div className="mt-6">
-                  <div className="mb-2 text-[15px] font-black text-[#3f424b]">授权机器人到服务器</div>
-                  <button
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#2f7df6] text-[15px] font-black text-white transition hover:bg-[#216fe8] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={!discord_oauth_url}
-                    onClick={() => discord_oauth_url && window.open(discord_oauth_url, "_blank", "noopener,noreferrer")}
-                    type="button"
-                  >
-                    <ExternalLink className="h-5 w-5" />
-                    授权机器人
-                  </button>
                 </div>
-              ) : null}
-            </>
-          )}
 
-        </div>
+                {current_item.channel_type === "discord" ? (
+                  <UiField label="授权机器人到服务器">
+                    <UiButton
+                      class_name="w-full"
+                      disabled={!discord_oauth_url}
+                      onClick={() => discord_oauth_url && window.open(discord_oauth_url, "_blank", "noopener,noreferrer")}
+                      size="lg"
+                      tone="primary"
+                      type="button"
+                      variant="solid"
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                      授权机器人
+                    </UiButton>
+                  </UiField>
+                ) : null}
+              </>
+            )}
 
-        <div className="grid grid-cols-2 gap-3 px-7 pb-7">
-          <button
-            className="h-12 rounded-[14px] border border-[#e1e4e9] text-[15px] font-black text-[#4a4d56] transition hover:bg-[#f7f8fa]"
-            onClick={on_close}
-            type="button"
-          >
-            取消
-          </button>
-          <button
-            className="flex h-12 items-center justify-center gap-2 rounded-[14px] bg-[#2f7df6] text-[15px] font-black text-white transition hover:bg-[#216fe8] disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={saving || !agent_id || is_planned}
-            type="submit"
-          >
-            <Power className="h-5 w-5" />
-            {is_planned ? "未上线" : saving ? "连接中..." : "连接"}
-          </button>
-        </div>
-      </form>
-    </div>
+          </UiDialogBody>
+
+          <UiDialogFooter>
+            <UiButton
+              class_name="min-w-[104px]"
+              onClick={on_close}
+              size="lg"
+              type="button"
+            >
+              取消
+            </UiButton>
+            <UiButton
+              class_name="min-w-[124px]"
+              disabled={saving || !agent_id || is_planned}
+              size="lg"
+              tone="primary"
+              type="submit"
+              variant="solid"
+            >
+              <Power className="h-5 w-5" />
+              {is_planned ? "未上线" : saving ? "连接中..." : "连接"}
+            </UiButton>
+          </UiDialogFooter>
+        </UiDialogFormShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
-
-  return createPortal(dialog, document.body);
 }
 
 function ChannelCard({
@@ -388,141 +397,138 @@ function ChannelCard({
             ? "info"
             : "neutral";
   const description = planned
-    ? "该消息渠道将在后续版本补充，目前仅保留入口和信息结构。"
+    ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
     : item.configured
       ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
       : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
+  const meta_items = [
+    item.bot_label,
+    `用户 ${item.stats.paired_user_count}`,
+    `群聊 ${item.supports_group ? item.stats.paired_group_count : "-"}`,
+    `待处理 ${item.stats.pending_count}`,
+    item.configured ? "已绑定智能体" : "待配置",
+    item.supports_group ? null : "仅私聊",
+  ].filter(Boolean);
 
   return (
-    <WorkspaceCatalogCard
-      class_name="group h-full"
-      interactive={!planned}
-      muted={planned}
-      onClick={() => {
-        if (!planned) on_configure(item);
-      }}
-      size="catalog"
-    >
-      <WorkspaceCatalogHeader class_name="items-center gap-3.5">
-        <ChannelIcon type={item.channel_type} />
-        <div className="min-w-0 flex-1">
-          <WorkspaceCatalogTitle class_name="min-w-0" size="sm" truncate>
-            {item.title}
-          </WorkspaceCatalogTitle>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-(--text-soft)">
-            <span className="truncate">{item.bot_label}</span>
-            {item.runtime_status === "external_adapter" ? <span>外部适配器</span> : null}
-          </div>
-        </div>
-        <ChannelStatePill tone={state_tone}>
-          {channel_status_text(item)}
-        </ChannelStatePill>
-      </WorkspaceCatalogHeader>
-
-      <WorkspaceCatalogBody class_name="space-y-4" grow>
-        <WorkspaceCatalogDescription lines={2} min_height>
-          {description}
-        </WorkspaceCatalogDescription>
-
-        <div className="grid grid-cols-3 gap-3 border-y border-(--divider-subtle-color) py-3">
-          <ChannelMetric label="用户" value={item.stats.paired_user_count} />
-          <ChannelMetric label="群聊" value={item.supports_group ? item.stats.paired_group_count : "-"} />
-          <ChannelMetric label="待处理" value={item.stats.pending_count} />
-        </div>
-
-        {item.runtime_note ? (
-          <p className="line-clamp-2 text-[11.5px] leading-5 text-(--text-soft)">
-            {item.runtime_note}
-          </p>
-        ) : null}
-      </WorkspaceCatalogBody>
-
-      <WorkspaceCatalogFooter class_name="items-center">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <WorkspaceCatalogTag class_name="px-2.5 text-[10px] text-(--text-soft)">
-            {item.configured ? "已绑定智能体" : "待配置"}
-          </WorkspaceCatalogTag>
-          {!item.supports_group ? (
-            <WorkspaceCatalogTag class_name="px-2.5 text-[10px] text-(--text-soft)">
-              仅私聊
-            </WorkspaceCatalogTag>
-          ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
+    <UiListRow
+      class_name={cn(
+        "min-h-[72px] rounded-[14px] px-2 py-1.5",
+        planned && "cursor-default opacity-70",
+      )}
+      leading={<ChannelIcon type={item.channel_type} />}
+      on_click={planned ? undefined : () => on_configure(item)}
+      right={(
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ChannelStatePill tone={state_tone}>
+            {channel_status_text(item)}
+          </ChannelStatePill>
           {!planned && item.docs_url ? (
-            <WorkspaceCatalogAction
+            <UiListActionButton
               onClick={() => window.open(item.docs_url, "_blank", "noopener,noreferrer")}
               size="sm"
+              stop_propagation
               title="查看接入文档"
             >
               <ExternalLink className="h-3 w-3" />
-            </WorkspaceCatalogAction>
+            </UiListActionButton>
           ) : null}
           {!planned ? (
-            <WorkspaceCatalogTextAction
+            <UiListActionButton
+              class_name="text-(--primary)"
               onClick={() => on_configure(item)}
-              tone="primary"
+              size="sm"
+              stop_propagation
+              title="设置机器人"
+              visibility="visible"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              {channel_hint(item)}
-              <ChevronRight className="h-3.5 w-3.5" />
-            </WorkspaceCatalogTextAction>
+              <Settings2 className="h-3 w-3" />
+            </UiListActionButton>
           ) : (
-            <WorkspaceCatalogTextAction disabled>
-              <Plus className="h-3.5 w-3.5" />
-              未上线
-            </WorkspaceCatalogTextAction>
+            <span className="flex h-8 w-8 items-center justify-center text-(--icon-muted)">
+              <Clock3 className="h-3.5 w-3.5" />
+            </span>
           )}
         </div>
-      </WorkspaceCatalogFooter>
-    </WorkspaceCatalogCard>
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+            {item.title}
+          </span>
+          {item.runtime_status === "external_adapter" ? (
+            <UiBadge size="xs" tone="warning">外部适配器</UiBadge>
+          ) : null}
+        </div>
+        <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
+          {description}
+        </div>
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-(--text-soft)">
+          {meta_items.map((meta_item, index) => (
+            <span className="min-w-0 truncate" key={`${item.channel_type}-${index}`}>
+              {index > 0 ? "· " : ""}
+              {meta_item}
+            </span>
+          ))}
+        </div>
+        {item.runtime_note ? (
+          <div className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
+            {item.runtime_note}
+          </div>
+        ) : null}
+      </div>
+    </UiListRow>
   );
 }
 
 function ChannelLoadingGrid() {
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-      {Array.from({ length: 5 }, (_, index) => (
-        <div
-          className="surface-card min-h-[190px] rounded-[22px] px-5 py-4"
-          key={index}
-        >
-          <div className="flex items-center gap-3.5">
-            <span className="h-11 w-11 animate-pulse rounded-[16px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
-            <span className="min-w-0 flex-1 space-y-2">
-              <span className="block h-4 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
-              <span className="block h-3 w-32 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
-            </span>
-          </div>
-          <div className="mt-5 space-y-2">
-            <span className="block h-3 w-full animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
-            <span className="block h-3 w-2/3 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_46%,transparent)]" />
-          </div>
-          <div className="mt-5 grid grid-cols-3 gap-3 border-y border-(--divider-subtle-color) py-3">
-            {[0, 1, 2].map((metric) => (
-              <span className="space-y-2" key={metric}>
-                <span className="block h-2.5 w-12 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_50%,transparent)]" />
-                <span className="block h-4 w-8 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)]" />
-              </span>
-            ))}
-          </div>
-        </div>
-      ))}
+    <div className="flex min-h-40 items-center justify-center text-sm text-(--text-muted)">
+      <Loader2 className="h-5 w-5 animate-spin" />
     </div>
   );
 }
 
 export function ChannelsDirectory() {
+  const { t } = useI18n();
   const [channels, set_channels] = useState<ChannelConfigView[]>([]);
   const [agents, set_agents] = useState<Agent[]>([]);
   const [selected, set_selected] = useState<ChannelConfigView | null>(null);
+  const [search_query, set_search_query] = useState("");
+  const [channel_filter, set_channel_filter] = useState<ChannelFilter>("all");
   const [loading, set_loading] = useState(true);
   const [feedback, set_feedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
 
   const sorted_channels = useMemo(() => {
     return [...channels].sort((left, right) => CHANNEL_ORDER.indexOf(left.channel_type) - CHANNEL_ORDER.indexOf(right.channel_type));
   }, [channels]);
+  const visible_channels = useMemo(() => {
+    const query = search_query.trim().toLowerCase();
+    return sorted_channels.filter((item) => {
+      const matches_query = !query
+        || item.title.toLowerCase().includes(query)
+        || item.bot_label.toLowerCase().includes(query)
+        || item.channel_type.toLowerCase().includes(query)
+        || (item.agent_name ?? "").toLowerCase().includes(query);
+      if (!matches_query) {
+        return false;
+      }
+      if (channel_filter === "connected") {
+        return item.connection_state === "connected";
+      }
+      if (channel_filter === "configured") {
+        return item.configured && !is_channel_planned(item);
+      }
+      if (channel_filter === "unconfigured") {
+        return !item.configured && !is_channel_planned(item);
+      }
+      if (channel_filter === "planned") {
+        return is_channel_planned(item);
+      }
+      return true;
+    });
+  }, [channel_filter, search_query, sorted_channels]);
 
   const refresh = async () => {
     set_loading(true);
@@ -531,7 +537,7 @@ export function ChannelsDirectory() {
       set_channels(next_channels);
       set_agents(next_agents);
     } catch (error) {
-      set_feedback({ tone: "error", title: "加载失败", message: error instanceof Error ? error.message : "消息渠道加载失败" });
+      set_feedback({ tone: "error", title: "加载失败", message: error instanceof Error ? error.message : "频道加载失败" });
     } finally {
       set_loading(false);
     }
@@ -564,32 +570,67 @@ export function ChannelsDirectory() {
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={`${channels.length || 5} 个渠道`}
+            badge={t("capability.channels_badge", { count: channels.length || 5 })}
             density="compact"
             leading={<MessageCircle className="h-4 w-4" />}
-            subtitle="统一管理 IM 渠道、机器人凭证与配对授权。"
-            title="消息渠道"
+            subtitle={t("capability.channels_subtitle")}
+            title={t("capability.channels")}
             trailing={(
               <WorkspaceSurfaceToolbarAction onClick={() => void refresh()}>
                 <RefreshCw className="h-3.5 w-3.5" />
-                刷新
+                {t("capability.refresh")}
               </WorkspaceSurfaceToolbarAction>
             )}
           />
         )}
         stable_gutter
       >
-        <div className="mx-auto w-full max-w-[1180px] px-6 py-5">
+        <CapabilityPageLayout
+          description={t("capability.channels_intro_description")}
+          title={t("capability.channels_intro_title")}
+        >
+          <CapabilityFilterBar>
+            <CapabilityFilterSearchInput
+              on_change={set_search_query}
+              placeholder={t("capability.channels_search_placeholder")}
+              value={search_query}
+            />
+            <CapabilityFilterSelect
+              aria_label={t("capability.channels_filter_aria")}
+              label={t("capability.category_label")}
+              leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
+              on_change={(value) => set_channel_filter(value as ChannelFilter)}
+              options={CHANNEL_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label_key),
+              }))}
+              value={channel_filter}
+            />
+          </CapabilityFilterBar>
+
           {loading ? (
             <ChannelLoadingGrid />
+          ) : visible_channels.length === 0 ? (
+            <UiStateBlock
+              description={t("capability.channels_empty_description")}
+              icon={<MessageCircle className="h-6 w-6 text-(--icon-default)" />}
+              size="md"
+              title={t("capability.channels_empty_title")}
+            />
           ) : (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-              {sorted_channels.map((item) => (
-                <ChannelCard item={item} key={item.channel_type} on_configure={set_selected} />
-              ))}
-            </div>
+            <section>
+              <CapabilitySectionHeader
+                count={t("capability.result_count", { count: visible_channels.length })}
+                title={t("capability.channels_section_title")}
+              />
+              <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
+                {visible_channels.map((item) => (
+                  <ChannelCard item={item} key={item.channel_type} on_configure={set_selected} />
+                ))}
+              </div>
+            </section>
           )}
-        </div>
+        </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       {selected ? (

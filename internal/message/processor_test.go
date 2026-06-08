@@ -130,6 +130,43 @@ func TestProcessorAlignsAssistantSequenceWithPythonSemantics(t *testing.T) {
 	}
 }
 
+func TestProcessorPreservesResultPermissionDenials(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-denied",
+		ParentID:   "round-denied",
+	}, "sdk-session-denied")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		UUID: "result-denied",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+			Result:  "无法完成搜索：WebSearch 未被允许",
+			PermissionDenials: []sdkprotocol.PermissionDenial{{
+				ToolName:  "WebSearch",
+				ToolUseID: "tool-1",
+				ToolInput: map[string]any{"query": "AI news"},
+			}},
+		},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("result durable 消息数量不正确: %+v", output.DurableMessages)
+	}
+	denials, ok := output.DurableMessages[0]["permission_denials"].([]map[string]any)
+	if !ok || len(denials) != 1 {
+		t.Fatalf("permission_denials 未保留: %+v", output.DurableMessages[0])
+	}
+	if denials[0]["tool_name"] != "WebSearch" || denials[0]["tool_use_id"] != "tool-1" {
+		t.Fatalf("permission_denials 内容不正确: %+v", denials)
+	}
+	input, ok := denials[0]["tool_input"].(map[string]any)
+	if !ok || input["query"] != "AI news" {
+		t.Fatalf("permission_denials.tool_input 未保留: %+v", denials)
+	}
+}
+
 func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
@@ -185,6 +222,116 @@ func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 	}
 	if blocks[0]["thinking"] != "先想一下" || blocks[1]["text"] != "最终回答" {
 		t.Fatalf("assistant 内容块未正确保留: %+v", blocks)
+	}
+}
+
+func TestProcessorTreatsAssistantAPIErrorAsTerminalErrorResult(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-api-error",
+	}, "sdk-session-api-error")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Error:      "authentication_failed",
+			IsAPIError: true,
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:         "assistant-api-error",
+				Model:      "<synthetic>",
+				StopReason: "stop_sequence",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: "Failed to authenticate. API Error: 401 invalid key"},
+				},
+			},
+		},
+	})
+
+	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
+		t.Fatalf("API error assistant should terminate as error: %+v", output)
+	}
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("expected one durable result message, got %+v", output.DurableMessages)
+	}
+	result := output.DurableMessages[0]
+	if protocol.MessageRole(result) != "result" || result["is_error"] != true {
+		t.Fatalf("API error should be projected as result error: %+v", result)
+	}
+	if result["result"] != "Failed to authenticate. API Error: 401 invalid key" {
+		t.Fatalf("unexpected API error text: %+v", result)
+	}
+	if result["terminal_reason"] != "authentication_failed" {
+		t.Fatalf("missing terminal reason: %+v", result)
+	}
+}
+
+func TestProcessorMergesSequentialAssistantToolUseSnapshots(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-tool-use-merge",
+		ParentID:   "round-tool-use-merge",
+	}, "sdk-session-tool-use-merge")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:    "assistant-tool-use-merge-1",
+				Model: "glm-5-turbo",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: "看看当前权限状态："},
+				},
+			},
+		},
+	})
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:    "assistant-tool-use-merge-1",
+				Model: "glm-5-turbo",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{
+						ID:    "tool-connectors",
+						Name:  "mcp__nexus_connectors__connector_list",
+						Input: json.RawMessage(`{}`),
+					},
+				},
+			},
+		},
+	})
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:    "assistant-tool-use-merge-1",
+				Model: "glm-5-turbo",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{
+						ID:    "tool-automation",
+						Name:  "mcp__nexus_automation__list_scheduled_tasks",
+						Input: json.RawMessage(`{}`),
+					},
+				},
+			},
+		},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("第二个 tool_use 快照未输出 durable 消息: %+v", output)
+	}
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(blocks) != 3 {
+		t.Fatalf("assistant 快照未保留两个 tool_use: %+v", output.DurableMessages[0])
+	}
+	if blocks[1]["type"] != "tool_use" || blocks[1]["id"] != "tool-connectors" {
+		t.Fatalf("第一个 tool_use 被覆盖: %+v", blocks)
+	}
+	if blocks[2]["type"] != "tool_use" || blocks[2]["id"] != "tool-automation" {
+		t.Fatalf("第二个 tool_use 未追加: %+v", blocks)
 	}
 }
 

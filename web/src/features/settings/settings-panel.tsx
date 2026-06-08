@@ -13,11 +13,12 @@
 
 import {
   ArrowLeft,
+  Bug,
   Cable,
-  ChevronDown,
   Compass,
   Download,
   ExternalLink,
+  Image,
   Languages,
   Loader2,
   MessageSquareText,
@@ -26,12 +27,15 @@ import {
   Palette,
   RotateCcw,
   ShieldCheck,
+  Sparkles,
+  Terminal,
   UserRound,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
+import { download_nxs_runtime_api, get_nxs_runtime_status_api } from "@/lib/api/runtime-api";
 import { get_user_preferences_api, update_user_preferences_api } from "@/lib/api/settings-preferences-api";
 import {
   get_system_version_api,
@@ -47,27 +51,47 @@ import {
 import { cn } from "@/lib/utils";
 import {
   get_user_preferences,
+  set_default_agent_model,
+  set_default_agent_provider,
   set_user_preferences,
 } from "@/config/options";
 import {
   AGENT_PERMISSION_MODES,
+  build_agent_option_provider_options,
+  DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
+import {
+  list_provider_options_api,
+} from "@/lib/api/provider-config-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
+import {
+  UiDialogBackdrop,
+  UiDialogBody,
+  UiDialogFooter,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+import { GlassSwitch } from "@/shared/ui/liquid-glass";
+import { UiSelectMenu } from "@/shared/ui/select-menu";
+import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
   WorkspaceSurfaceHeader,
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
-import type { UserPreferences } from "@/types/settings/preferences";
+import type { ProviderOption } from "@/types/capability/provider";
+import { normalize_agent_runtime_kind, type AgentRuntimeKind, type NXSRuntimeStatus, type UserPreferences } from "@/types/settings/preferences";
 import type { Locale } from "@/shared/i18n/messages";
 
 import { ProviderSettingsPanel } from "./provider-settings-panel";
 import { PersonalSettingsPanel } from "./personal-settings-panel";
 
 type SettingsTabKey = "general" | "personal" | "providers";
+type DefaultModelPreferenceRole = "agent_runtime" | "image_generation" | "background_task";
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
@@ -85,6 +109,14 @@ const DELIVERY_POLICY_OPTIONS: ReadonlyArray<{
 }> = [
   { value: "queue", label_key: "settings.general.default_delivery_queue" },
   { value: "interrupt", label_key: "settings.general.default_delivery_interrupt" },
+];
+
+const AGENT_RUNTIME_KIND_OPTIONS: ReadonlyArray<{
+  value: AgentRuntimeKind;
+  label_key: "settings.general.runtime_claude" | "settings.general.runtime_nxs";
+}> = [
+  { value: "claude", label_key: "settings.general.runtime_claude" },
+  { value: "nxs", label_key: "settings.general.runtime_nxs" },
 ];
 
 const THEME_OPTIONS: ReadonlyArray<{
@@ -110,7 +142,7 @@ interface PreferenceFeedback {
 }
 
 const SETTINGS_SECTION_TITLE_CLASS_NAME = "px-1 text-[17px] font-semibold tracking-tight text-(--text-strong)";
-const SETTINGS_CARD_CLASS_NAME = "overflow-hidden rounded-[18px] border border-(--divider-subtle-color) bg-(--surface-card-background)";
+const SETTINGS_CARD_CLASS_NAME = "overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent";
 const SETTINGS_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-center";
 const SETTINGS_TEXT_ROW_CLASS_NAME = "flex min-w-0 items-start gap-3";
 const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center justify-center rounded-[14px] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary";
@@ -119,7 +151,7 @@ const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = "mt-1 max-w-[520px] text-[12px] lea
 const SETTINGS_CONTROL_LABEL_CLASS_NAME = "text-[11px] font-medium text-(--text-soft)";
 const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
 const SETTINGS_CONTROL_TEXT_CLASS_NAME = "text-[11px] font-semibold leading-none";
-const SETTINGS_SELECT_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full appearance-none rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 pr-7 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) outline-none transition-colors focus:border-(--surface-interactive-active-border) disabled:opacity-(--disabled-opacity)`;
+const SETTINGS_SELECT_BUTTON_CLASS_NAME = `${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} w-full rounded-[10px] border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-strong) shadow-none hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-0`;
 const DEFAULT_RELEASE_PAGE_URL = "https://github.com/nexus-research-lab/nexus/releases/latest";
 
 interface SettingsSegmentedControlOption<T extends string> {
@@ -143,7 +175,7 @@ function SettingsSegmentedControl<T extends string>({
   return (
     <div
       aria-label={aria_label}
-      className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-(--surface-inset-background) p-0.5`}
+      className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-transparent p-0.5`}
       role="group"
     >
       {options.map((option) => {
@@ -175,6 +207,12 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
   return {
     chat_default_delivery_policy:
       preferences?.chat_default_delivery_policy ?? fallback.chat_default_delivery_policy,
+    agent_runtime_kind: normalize_agent_runtime_kind(
+      preferences?.agent_runtime_kind ?? fallback.agent_runtime_kind,
+    ),
+    agent_sdk_diagnostics_enabled: preferences === null
+      ? fallback.agent_sdk_diagnostics_enabled === true
+      : preferences.agent_sdk_diagnostics_enabled === true,
     default_agent_options: {
       ...fallback.default_agent_options,
       ...(preferences?.default_agent_options ?? {}),
@@ -194,8 +232,62 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
           ["project"]),
       ],
     },
+    default_image_model_selection: normalize_model_selection_preference(
+      preferences?.default_image_model_selection ?? fallback.default_image_model_selection,
+    ),
+    default_background_model_selection: normalize_model_selection_preference(
+      preferences?.default_background_model_selection ?? fallback.default_background_model_selection,
+    ),
     updated_at: preferences?.updated_at,
   };
+}
+
+function normalize_model_selection_preference(
+  selection: UserPreferences["default_image_model_selection"],
+): UserPreferences["default_image_model_selection"] {
+  const provider = selection?.provider?.trim();
+  const model = selection?.model?.trim();
+  if (!provider || !model) {
+    return undefined;
+  }
+  return { provider, model };
+}
+
+function encode_default_model_value(provider: string, model: string): string {
+  return JSON.stringify([provider, model]);
+}
+
+function decode_default_model_value(value: string): { provider: string; model: string } | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed) || parsed.length !== 2) {
+      return null;
+    }
+    const [provider, model] = parsed;
+    if (typeof provider !== "string" || typeof model !== "string") {
+      return null;
+    }
+    const normalized_provider = provider.trim();
+    const normalized_model = model.trim();
+    if (!normalized_provider || !normalized_model) {
+      return null;
+    }
+    return { provider: normalized_provider, model: normalized_model };
+  } catch {
+    return null;
+  }
+}
+
+function encode_optional_model_selection(
+  provider?: string | null,
+  model?: string | null,
+): string {
+  const normalized_provider = provider?.trim();
+  const normalized_model = model?.trim();
+  if (!normalized_provider || !normalized_model) {
+    return "";
+  }
+  return encode_default_model_value(normalized_provider, normalized_model);
 }
 
 function GeneralSettingsSection() {
@@ -206,18 +298,85 @@ function GeneralSettingsSection() {
   const [preferences_loading, set_preferences_loading] = useState(true);
   const [preferences_saving, set_preferences_saving] = useState(false);
   const [preference_feedback, set_preference_feedback] = useState<PreferenceFeedback | null>(null);
+  const [provider_options, set_provider_options] = useState<ProviderOption[]>([]);
+  const [background_provider_options, set_background_provider_options] = useState<ProviderOption[]>([]);
+  const [image_provider_options, set_image_provider_options] = useState<ProviderOption[]>([]);
+  const [default_model_value, set_default_model_value] = useState("");
+  const [default_image_model_value, set_default_image_model_value] = useState("");
+  const [default_background_model_value, set_default_background_model_value] = useState("");
+  const [provider_options_loading, set_provider_options_loading] = useState(true);
+  const [default_model_saving_role, set_default_model_saving_role] = useState<DefaultModelPreferenceRole | null>(null);
+  const [default_model_feedback, set_default_model_feedback] = useState<PreferenceFeedback | null>(null);
+  const [nxs_runtime_checking, set_nxs_runtime_checking] = useState(false);
+  const [nxs_runtime_downloading, set_nxs_runtime_downloading] = useState(false);
+  const [nxs_download_prompt_status, set_nxs_download_prompt_status] = useState<NXSRuntimeStatus | null>(null);
   const [system_version, set_system_version] = useState<SystemVersionInfo | null>(null);
   const [system_version_loading, set_system_version_loading] = useState(true);
   const [system_version_feedback, set_system_version_feedback] = useState<PreferenceFeedback | null>(null);
   const preferences_ref = useRef(preferences);
   const last_saved_preferences_ref = useRef<UserPreferences | null>(null);
+  const provider_default_selection_ref = useRef({ provider: "", model: "" });
+  const image_default_selection_ref = useRef({ provider: "", model: "" });
   const save_sequence_ref = useRef(0);
-  const permission_mode = preferences.default_agent_options.permission_mode ?? "bypassPermissions";
+  const agent_runtime_kind = normalize_agent_runtime_kind(preferences.agent_runtime_kind);
+  const permission_mode = preferences.default_agent_options.permission_mode ?? DEFAULT_AGENT_PERMISSION_MODE;
   const selected_permission_mode = AGENT_PERMISSION_MODES.find((mode) => mode.value === permission_mode) ?? AGENT_PERMISSION_MODES[0];
   const [desktop_available] = useState(() => is_desktop_bridge_available());
   const [desktop_version, set_desktop_version] = useState<DesktopAppVersion | null>(null);
   const [desktop_feedback, set_desktop_feedback] = useState<PreferenceFeedback | null>(null);
   const [exporting_logs, set_exporting_logs] = useState(false);
+
+  const load_provider_options = useCallback(async (runtime_kind?: AgentRuntimeKind) => {
+    try {
+      set_provider_options_loading(true);
+      const selected_runtime_kind = runtime_kind ?? normalize_agent_runtime_kind(preferences_ref.current.agent_runtime_kind);
+      const result = await list_provider_options_api(selected_runtime_kind);
+      set_provider_options(result.items ?? []);
+      set_background_provider_options(result.background_items ?? result.items ?? []);
+      set_image_provider_options(result.image_items ?? []);
+      provider_default_selection_ref.current = {
+        provider: result.default_provider?.trim() || "",
+        model: result.default_model?.trim() || "",
+      };
+      image_default_selection_ref.current = {
+        provider: result.default_image_provider?.trim() || "",
+        model: result.default_image_model?.trim() || "",
+      };
+      const current_preferences = preferences_ref.current;
+      const agent_provider = current_preferences.default_agent_options.provider?.trim()
+        || provider_default_selection_ref.current.provider;
+      const agent_model = current_preferences.default_agent_options.model?.trim()
+        || provider_default_selection_ref.current.model;
+      set_default_agent_provider(agent_provider);
+      set_default_agent_model(agent_model);
+      set_default_model_value(encode_optional_model_selection(agent_provider, agent_model));
+      set_default_image_model_value(
+        encode_optional_model_selection(
+          current_preferences.default_image_model_selection?.provider
+            || image_default_selection_ref.current.provider,
+          current_preferences.default_image_model_selection?.model
+            || image_default_selection_ref.current.model,
+        ),
+      );
+      set_default_background_model_value(
+        encode_optional_model_selection(
+          current_preferences.default_background_model_selection?.provider,
+          current_preferences.default_background_model_selection?.model,
+        ),
+      );
+      set_default_model_feedback(null);
+    } catch (error) {
+      set_default_model_feedback({
+        message: error instanceof Error ? error.message : "默认对话模型加载失败",
+      });
+    } finally {
+      set_provider_options_loading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load_provider_options(agent_runtime_kind);
+  }, [agent_runtime_kind, load_provider_options]);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +421,27 @@ function GeneralSettingsSection() {
         set_preferences(normalized);
         preferences_ref.current = normalized;
         last_saved_preferences_ref.current = normalized;
+        const agent_provider = normalized.default_agent_options.provider?.trim()
+          || provider_default_selection_ref.current.provider;
+        const agent_model = normalized.default_agent_options.model?.trim()
+          || provider_default_selection_ref.current.model;
+        set_default_agent_provider(agent_provider);
+        set_default_agent_model(agent_model);
+        set_default_model_value(encode_optional_model_selection(agent_provider, agent_model));
+        set_default_image_model_value(
+          encode_optional_model_selection(
+            normalized.default_image_model_selection?.provider
+              || image_default_selection_ref.current.provider,
+            normalized.default_image_model_selection?.model
+              || image_default_selection_ref.current.model,
+          ),
+        );
+        set_default_background_model_value(
+          encode_optional_model_selection(
+            normalized.default_background_model_selection?.provider,
+            normalized.default_background_model_selection?.model,
+          ),
+        );
         set_preference_feedback(null);
       } catch (error) {
         if (!cancelled) {
@@ -320,7 +500,11 @@ function GeneralSettingsSection() {
     try {
       const result = await update_user_preferences_api({
         chat_default_delivery_policy: normalized.chat_default_delivery_policy,
+        agent_runtime_kind: normalized.agent_runtime_kind,
+        agent_sdk_diagnostics_enabled: normalized.agent_sdk_diagnostics_enabled,
         default_agent_options: normalized.default_agent_options,
+        default_image_model_selection: normalized.default_image_model_selection,
+        default_background_model_selection: normalized.default_background_model_selection,
       });
       if (save_sequence_ref.current !== sequence) {
         return;
@@ -358,6 +542,98 @@ function GeneralSettingsSection() {
     });
   }, [persist_preferences]);
 
+  const handle_agent_sdk_diagnostics_change = useCallback((checked: boolean) => {
+    const current_preferences = preferences_ref.current;
+    void persist_preferences({
+      ...current_preferences,
+      agent_sdk_diagnostics_enabled: checked,
+    });
+  }, [persist_preferences]);
+
+  const handle_agent_runtime_kind_change = useCallback((value: AgentRuntimeKind) => {
+    const current_preferences = preferences_ref.current;
+    if (value === normalize_agent_runtime_kind(current_preferences.agent_runtime_kind)) {
+      return;
+    }
+    if (value !== "nxs") {
+      set_nxs_download_prompt_status(null);
+      void (async () => {
+        await persist_preferences({
+          ...current_preferences,
+          agent_runtime_kind: value,
+        });
+        await load_provider_options(value);
+      })();
+      return;
+    }
+    void (async () => {
+      set_nxs_runtime_checking(true);
+      set_preference_feedback(null);
+      try {
+        const status = await get_nxs_runtime_status_api();
+        if (status.available) {
+          await persist_preferences({
+            ...preferences_ref.current,
+            agent_runtime_kind: "nxs",
+          });
+          await load_provider_options("nxs");
+          return;
+        }
+        if (status.can_download) {
+          set_nxs_download_prompt_status(status);
+          return;
+        }
+        set_preference_feedback({
+          message: status.message || t("settings.general.agent_runtime_nxs_unavailable"),
+        });
+      } catch (error) {
+        set_preference_feedback({
+          message: error instanceof Error ? error.message : t("settings.general.agent_runtime_check_failed"),
+        });
+      } finally {
+        set_nxs_runtime_checking(false);
+      }
+    })();
+  }, [load_provider_options, persist_preferences, t]);
+
+  const handle_confirm_nxs_download = useCallback(() => {
+    if (nxs_runtime_downloading) {
+      return;
+    }
+    void (async () => {
+      set_nxs_runtime_downloading(true);
+      set_preference_feedback(null);
+      try {
+        const status = await download_nxs_runtime_api();
+        if (!status.available) {
+          set_nxs_download_prompt_status(status);
+          set_preference_feedback({
+            message: status.message || t("settings.general.agent_runtime_nxs_unavailable"),
+          });
+          return;
+        }
+        set_nxs_download_prompt_status(null);
+        await persist_preferences({
+          ...preferences_ref.current,
+          agent_runtime_kind: "nxs",
+        });
+        await load_provider_options("nxs");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t("settings.general.agent_runtime_download_failed");
+        set_nxs_download_prompt_status({
+          ...(nxs_download_prompt_status ?? {
+            available: false,
+            can_download: true,
+          }),
+          message,
+        });
+        set_preference_feedback({ message });
+      } finally {
+        set_nxs_runtime_downloading(false);
+      }
+    })();
+  }, [load_provider_options, nxs_download_prompt_status, nxs_runtime_downloading, persist_preferences, t]);
+
   const handle_permission_mode_change = useCallback((value: string) => {
     const current_preferences = preferences_ref.current;
     void persist_preferences({
@@ -368,6 +644,139 @@ function GeneralSettingsSection() {
       },
     });
   }, [persist_preferences]);
+
+  const selected_default_model = useMemo(() => (
+    decode_default_model_value(default_model_value)
+  ), [default_model_value]);
+
+  const default_model_provider_options = useMemo(() => build_agent_option_provider_options(
+    provider_options,
+    selected_default_model?.provider,
+    selected_default_model?.model,
+  ), [provider_options, selected_default_model]);
+
+  const default_model_options = useMemo(() => default_model_provider_options.flatMap((provider) => (
+    provider.models.map((model) => {
+      const provider_label = provider.display_name || provider.provider;
+      const model_label = model.display_name || model.model_id;
+      return {
+        value: encode_default_model_value(provider.provider, model.model_id),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })
+  )), [default_model_provider_options]);
+
+  const default_image_model_options = useMemo(() => image_provider_options.flatMap((provider) => (
+    provider.models.map((model) => {
+      const provider_label = provider.display_name || provider.provider;
+      const model_label = model.display_name || model.model_id;
+      return {
+        value: encode_default_model_value(provider.provider, model.model_id),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })
+  )), [image_provider_options]);
+
+  const default_background_model_options = useMemo(() => background_provider_options.flatMap((provider) => (
+    provider.models.map((model) => {
+      const provider_label = provider.display_name || provider.provider;
+      const model_label = model.display_name || model.model_id;
+      return {
+        value: encode_default_model_value(provider.provider, model.model_id),
+        label: `${provider_label} / ${model_label}`,
+      };
+    })
+  )), [background_provider_options]);
+
+  const handle_default_model_change = useCallback((value: string, role: DefaultModelPreferenceRole) => {
+    const selection = decode_default_model_value(value);
+    if (!selection || default_model_saving_role) {
+      return;
+    }
+    void (async () => {
+      set_default_model_saving_role(role);
+      set_default_model_feedback(null);
+      const previous_value = role === "image_generation"
+        ? default_image_model_value
+        : role === "background_task"
+        ? default_background_model_value
+        : default_model_value;
+      if (role === "image_generation") {
+        set_default_image_model_value(value);
+      } else if (role === "background_task") {
+        set_default_background_model_value(value);
+      } else {
+        set_default_model_value(value);
+      }
+      try {
+        const current_preferences = preferences_ref.current;
+        const next_preferences = normalize_preferences({
+          ...current_preferences,
+          default_agent_options: role === "agent_runtime"
+            ? {
+              ...current_preferences.default_agent_options,
+              provider: selection.provider,
+              model: selection.model,
+            }
+            : current_preferences.default_agent_options,
+          default_image_model_selection: role === "image_generation"
+            ? { provider: selection.provider, model: selection.model }
+            : current_preferences.default_image_model_selection,
+          default_background_model_selection: role === "background_task"
+            ? { provider: selection.provider, model: selection.model }
+            : current_preferences.default_background_model_selection,
+        });
+        preferences_ref.current = next_preferences;
+        set_preferences(next_preferences);
+        set_user_preferences(next_preferences);
+        const result = await update_user_preferences_api({
+          chat_default_delivery_policy: next_preferences.chat_default_delivery_policy,
+          agent_runtime_kind: next_preferences.agent_runtime_kind,
+          agent_sdk_diagnostics_enabled: next_preferences.agent_sdk_diagnostics_enabled,
+          default_agent_options: next_preferences.default_agent_options,
+          default_image_model_selection: next_preferences.default_image_model_selection,
+          default_background_model_selection: next_preferences.default_background_model_selection,
+        });
+        const saved = normalize_preferences(result);
+        preferences_ref.current = saved;
+        last_saved_preferences_ref.current = saved;
+        set_preferences(saved);
+        set_user_preferences(saved);
+        if (role === "agent_runtime") {
+          set_default_agent_provider(selection.provider);
+          set_default_agent_model(selection.model);
+        }
+      } catch (error) {
+        const fallback = last_saved_preferences_ref.current;
+        if (fallback) {
+          preferences_ref.current = fallback;
+          set_preferences(fallback);
+          set_user_preferences(fallback);
+          if (role === "agent_runtime") {
+            set_default_agent_provider(fallback.default_agent_options.provider);
+            set_default_agent_model(fallback.default_agent_options.model);
+          }
+        }
+        if (role === "image_generation") {
+          set_default_image_model_value(previous_value);
+        } else if (role === "background_task") {
+          set_default_background_model_value(previous_value);
+        } else {
+          set_default_model_value(previous_value);
+        }
+        set_default_model_feedback({
+          message: error instanceof Error ? error.message : "默认对话模型保存失败",
+        });
+      } finally {
+        set_default_model_saving_role(null);
+      }
+    })();
+  }, [
+    default_background_model_value,
+    default_image_model_value,
+    default_model_saving_role,
+    default_model_value,
+  ]);
 
   const handle_export_logs = useCallback(async () => {
     try {
@@ -401,7 +810,7 @@ function GeneralSettingsSection() {
       : t("settings.system.version_unavailable");
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-1 py-3">
+    <div className={cn("mx-auto flex w-full flex-col gap-5 px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
       <section className="space-y-2.5">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
@@ -429,7 +838,7 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <a
-              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
               href={release_page_url}
               rel="noreferrer"
               target="_blank"
@@ -512,6 +921,187 @@ function GeneralSettingsSection() {
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Terminal className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.agent_runtime_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.agent_runtime_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.agent_runtime_label")}
+              </span>
+              <SettingsSegmentedControl
+                aria_label={t("settings.general.agent_runtime_label")}
+                disabled={preferences_loading || preferences_saving || nxs_runtime_checking || nxs_runtime_downloading}
+                on_change={handle_agent_runtime_kind_change}
+                options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.label_key),
+                }))}
+                value={agent_runtime_kind}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Bug className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.agent_sdk_diagnostics_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.agent_sdk_diagnostics_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.agent_sdk_diagnostics_label")}
+              </span>
+              <GlassSwitch
+                checked={preferences.agent_sdk_diagnostics_enabled === true}
+                disabled={preferences_loading || preferences_saving}
+                on_change={handle_agent_sdk_diagnostics_change}
+                size="sm"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <MonitorCog className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || !!default_model_saving_role || default_model_options.length === 0}
+                leading={default_model_saving_role === "agent_runtime" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={(value) => handle_default_model_change(value, "agent_runtime")}
+                options={default_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_model_empty")}
+                size="xs"
+                value={default_model_value}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Image className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_image_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_image_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_image_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || !!default_model_saving_role || default_image_model_options.length === 0}
+                leading={default_model_saving_role === "image_generation" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={(value) => handle_default_model_change(value, "image_generation")}
+                options={default_image_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_image_model_empty")}
+                size="xs"
+                value={default_image_model_value}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Sparkles className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.default_background_model_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.default_background_model_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.default_model_label")}
+              </span>
+              <UiSelectMenu
+                aria_label={t("settings.general.default_background_model_title")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
+                disabled={provider_options_loading || !!default_model_saving_role || default_background_model_options.length === 0}
+                leading={default_model_saving_role === "background_task" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                menu_class_name="min-w-[260px]"
+                on_change={(value) => handle_default_model_change(value, "background_task")}
+                options={default_background_model_options}
+                placeholder={provider_options_loading
+                  ? t("settings.general.default_model_loading")
+                  : t("settings.general.default_background_model_empty")}
+                size="xs"
+                value={default_background_model_value}
+              />
+              {default_model_feedback ? (
+                <span className="truncate text-[11px] text-(--text-soft)">
+                  {default_model_feedback.message}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
                 <MessageSquareText className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
@@ -540,8 +1130,6 @@ function GeneralSettingsSection() {
             </div>
           </div>
 
-          <div className="border-t border-(--divider-subtle-color)" />
-
           <div className={SETTINGS_ROW_CLASS_NAME}>
             <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
               <div className={SETTINGS_ICON_CLASS_NAME}>
@@ -557,7 +1145,7 @@ function GeneralSettingsSection() {
               </div>
             </div>
             <button
-              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
+              className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
               onClick={reset_all_tours}
               type="button"
             >
@@ -601,7 +1189,7 @@ function GeneralSettingsSection() {
               </div>
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <button
-                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-inset-background) px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
+                  className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
                   disabled={exporting_logs}
                   onClick={handle_export_logs}
                   type="button"
@@ -620,13 +1208,9 @@ function GeneralSettingsSection() {
           <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
             {t("settings.general.section_permissions")}
           </h2>
-          {preferences_saving || preference_feedback ? (
-            <span className={cn(
-              "inline-flex items-center gap-1.5 text-[11px]",
-              preference_feedback ? "text-(--destructive)" : "text-(--text-soft)",
-            )}>
-              {preferences_saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-              {preference_feedback?.message ?? t("settings.general.preferences_saving")}
+          {preference_feedback ? (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-(--destructive)">
+              {preference_feedback.message}
             </span>
           ) : null}
         </div>
@@ -649,20 +1233,22 @@ function GeneralSettingsSection() {
               <label className={SETTINGS_CONTROL_LABEL_CLASS_NAME} htmlFor="default-permission-mode">
                 {t("settings.general.default_permission_mode")}
               </label>
-              <select
-                id="default-permission-mode"
-                className={SETTINGS_SELECT_CLASS_NAME}
+              <UiSelectMenu
+                aria_label={t("settings.general.default_permission_mode")}
+                button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
+                class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
                 disabled={preferences_loading}
-                onChange={(event) => handle_permission_mode_change(event.target.value)}
+                id="default-permission-mode"
+                menu_class_name="rounded-[12px]"
+                on_change={handle_permission_mode_change}
+                options={AGENT_PERMISSION_MODES.map((mode) => ({
+                  value: mode.value,
+                  label: t(mode.label_key),
+                }))}
+                placement="top"
+                size="xs"
                 value={permission_mode}
-              >
-                {AGENT_PERMISSION_MODES.map((mode) => (
-                  <option key={mode.value} value={mode.value}>
-                    {t(mode.label_key)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-[28px] h-3 w-3 text-(--text-soft)" />
+              />
               <p className="text-[11px] leading-4 text-(--text-soft)">
                 {t(selected_permission_mode.description_key)}
               </p>
@@ -670,6 +1256,58 @@ function GeneralSettingsSection() {
           </div>
         </div>
       </section>
+      {nxs_download_prompt_status ? (
+        <UiDialogPortal>
+          <UiDialogBackdrop
+            described_by="nxs-runtime-download-message"
+            labelled_by="nxs-runtime-download-title"
+            on_close={() => {
+              if (!nxs_runtime_downloading) {
+                set_nxs_download_prompt_status(null);
+              }
+            }}
+          >
+            <UiDialogShell size="sm">
+              <UiDialogHeader
+                icon={<Download className="h-4 w-4" />}
+                title={t("settings.general.agent_runtime_download_title")}
+                title_id="nxs-runtime-download-title"
+              />
+              <UiDialogBody class_name="space-y-3">
+                <p id="nxs-runtime-download-message" className="text-[13px] leading-5 text-(--text-default)">
+                  {nxs_download_prompt_status.message || t("settings.general.agent_runtime_download_message")}
+                </p>
+                {nxs_download_prompt_status.path ? (
+                  <p className="break-all rounded-[8px] border border-(--divider-subtle-color) px-2.5 py-2 text-[11px] leading-4 text-(--text-soft)">
+                    {nxs_download_prompt_status.path}
+                  </p>
+                ) : null}
+              </UiDialogBody>
+              <UiDialogFooter>
+                <button
+                  className="inline-flex h-8 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) px-3 text-[12px] font-semibold text-(--text-default) hover:bg-(--surface-interactive-hover-background)"
+                  disabled={nxs_runtime_downloading}
+                  onClick={() => set_nxs_download_prompt_status(null)}
+                  type="button"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] bg-primary px-3 text-[12px] font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={nxs_runtime_downloading}
+                  onClick={handle_confirm_nxs_download}
+                  type="button"
+                >
+                  {nxs_runtime_downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  {nxs_runtime_downloading
+                    ? t("settings.general.agent_runtime_downloading")
+                    : t("settings.general.agent_runtime_download_confirm")}
+                </button>
+              </UiDialogFooter>
+            </UiDialogShell>
+          </UiDialogBackdrop>
+        </UiDialogPortal>
+      ) : null}
     </div>
   );
 }

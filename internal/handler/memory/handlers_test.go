@@ -94,6 +94,75 @@ func TestMemoryHandlersLifecycle(t *testing.T) {
 			t.Fatalf("忽略后的记忆不应继续被召回: %+v", ignoredSearch.Data.Items)
 		}
 	}
+
+	cleanupRecorder := serveJSON(t, server, http.MethodPost, "/nexus/v1/agents/nexus/memory/cleanup", []byte(`{}`))
+	if cleanupRecorder.Code != http.StatusOK {
+		t.Fatalf("清理记忆状态码不正确: got=%d body=%s", cleanupRecorder.Code, cleanupRecorder.Body.String())
+	}
+	var cleanup struct {
+		Data struct {
+			RemovedSessionFiles int `json:"removed_session_files"`
+			RemovedCheckpoints  int `json:"removed_checkpoints"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(cleanupRecorder.Body.Bytes(), &cleanup); err != nil {
+		t.Fatalf("解析清理响应失败: %v", err)
+	}
+	if cleanup.Data.RemovedSessionFiles != 0 || cleanup.Data.RemovedCheckpoints != 0 {
+		t.Fatalf("无孤立数据时不应误清理: %+v", cleanup.Data)
+	}
+}
+
+func TestUserMemoryHandlersUseUserScope(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	cfg.MemoryEnabled = true
+	cfg.MemoryAutoRecall = true
+	cfg.MemoryAutoExtract = true
+	cfg.MemoryMaxResults = 5
+	cfg.MemoryScoreThreshold = 0.08
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	addRecorder := serveJSON(t, server, http.MethodPost, "/nexus/v1/memory/items", []byte(`{
+		"title": "全局用户偏好",
+		"content": "用户全局记忆不属于某个 Agent。",
+		"status": "candidate"
+	}`))
+	if addRecorder.Code != http.StatusOK {
+		t.Fatalf("新增用户记忆状态码不正确: got=%d body=%s", addRecorder.Code, addRecorder.Body.String())
+	}
+	var added struct {
+		Data struct {
+			EntryID string `json:"entry_id"`
+			Scope   string `json:"scope"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(addRecorder.Body.Bytes(), &added); err != nil {
+		t.Fatalf("解析用户记忆响应失败: %v", err)
+	}
+	if added.Data.EntryID == "" || added.Data.Scope != "user:__system__" {
+		t.Fatalf("用户记忆应写入 user scope: %+v", added.Data)
+	}
+
+	statsRecorder := serveJSON(t, server, http.MethodGet, "/nexus/v1/memory/stats", nil)
+	if statsRecorder.Code != http.StatusOK {
+		t.Fatalf("用户记忆统计状态码不正确: got=%d body=%s", statsRecorder.Code, statsRecorder.Body.String())
+	}
+	var stats struct {
+		Data struct {
+			Total int `json:"total"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(statsRecorder.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("解析用户记忆统计失败: %v", err)
+	}
+	if stats.Data.Total != 1 {
+		t.Fatalf("用户记忆统计应只包含 user scope: %+v", stats.Data)
+	}
 }
 
 func serveJSON(t *testing.T, server *serverapp.Server, method string, path string, body []byte) *httptest.ResponseRecorder {

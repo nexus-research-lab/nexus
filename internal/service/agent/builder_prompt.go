@@ -6,66 +6,33 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
-const defaultBaseSystemPrompt = `# Nexus Base System Prompt
-
-你是 Nexus，一个由 Nexus Research Lab 创造的智能助手。
-
-身份要求：
-- 对外自称 "Nexus"。
-- 当用户询问你的身份、来源或开发者时，明确说明你由 Nexus Research Lab 创造。
-
-行为要求：
-- 默认使用中文交流；若用户明确要求其他语言，再切换。
-- 优先给出直接、可执行、可验证的结果，避免空泛措辞。
-- 如果工作区规则与本基础身份设定冲突，以本基础身份设定为准。
-`
-
-const defaultMainAgentSystemPrompt = `# Nexus System Prompt
-
-你是"Nexus"，是整个系统里的唯一系统级组织代理。
-
-你的目标不是代替具体 Room 承载执行，而是：
-- 理解用户要推进的协作目标
-- 判断应该恢复已有协作、创建新协作，还是先去选择成员
-- 把用户快速带到合适的 Room、conversation 或 Contacts
-- 当需要创建 agent、创建 room、邀请成员时，直接执行，不只停留在建议层
-
-你的行为要求：
-- 默认使用中文
-- 回复直接、简洁、少解释
-- 不输出产品说明、系统架构说明或自我介绍型文案
-- 用户意图明确时，优先给出下一步动作
-- 需要创建协作时，优先生成清晰的 Room 标题和组织建议
-- 需要找成员时，优先引导到 Contacts 或明确推荐候选成员
-- 涉及协作编排动作时，优先使用 nexus-manager skill 和对应 CLI
-- 读取工具结果时先看 JSON 里的 ok，失败就明确报错，不要编造已完成
-
-你的边界：
-- 你不是普通成员 agent
-- 你不是独立后台页面
-- 你不长期承载执行型协作
-- 真正的执行协作应回到具体 Room 内完成
-- 不能作为 room 成员
-`
-
-var promptFileNames = []string{
+var defaultWorkspacePromptFiles = []string{
 	"AGENTS.md",
 	"USER.md",
 	"MEMORY.md",
 	"SOUL.md",
 	"TOOLS.md",
-	"RUNBOOK.md",
+}
+
+var mainAgentWorkspacePromptFiles = []string{
+	"USER.md",
+	"MEMORY.md",
 }
 
 type promptBuilder struct {
 	config config.Config
+}
+
+type promptBuildScope struct {
+	isMainAgent   bool
+	workspacePath string
 }
 
 func newPromptBuilder(cfg config.Config) *promptBuilder {
@@ -78,49 +45,112 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 		return "", nil
 	}
 
-	sections := make([]string, 0, 10)
-	staticPrompt := strings.TrimSpace(b.loadStaticPrompt(agentValue))
-	if staticPrompt != "" {
-		sections = append(sections, staticPrompt)
+	scope := b.newBuildScope(agentValue)
+	sections := make([]string, 0, 8)
+	sections = appendPromptSection(sections, b.loadStaticPrompt(scope))
+	sections = appendPromptSection(sections, buildRuntimeScopeSection(ctx))
+	for _, section := range buildAgentProfileSections(agentValue, scope) {
+		sections = appendPromptSection(sections, section)
 	}
+	sections = appendPromptSection(sections, buildManagedSkillUsageSection(scope.workspacePath))
 
-	if scopeSection := buildRuntimeScopeSection(ctx); scopeSection != "" {
-		sections = append(sections, scopeSection)
-	}
-
-	if profileSection := buildAgentProfileSection(agentValue); profileSection != "" {
-		sections = append(sections, profileSection)
-	}
-
-	workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
-	if workspacePath != "" {
-		sections = append(sections, fmt.Sprintf("当前工作区绝对路径: %s", workspacePath))
-	}
-	if skillSection := buildManagedSkillUsageSection(workspacePath); skillSection != "" {
-		sections = append(sections, skillSection)
-	}
-
-	fileSections, err := b.loadWorkspacePromptSections(workspacePath)
+	fileSections, err := loadWorkspacePromptSections(scope)
 	if err != nil {
 		return "", err
 	}
-	sections = append(sections, fileSections...)
-
-	if workspacePath != "" {
-		reviewMarkdown, reviewErr := memorysvc.NewService(workspacePath).BuildReviewMarkdown(3, 6, 1200)
-		if reviewErr != nil {
-			return "", reviewErr
-		}
-		if strings.TrimSpace(reviewMarkdown) != "" {
-			sections = append(sections, "## 最近日记提醒\n"+strings.TrimSpace(reviewMarkdown))
-		}
+	for _, section := range fileSections {
+		sections = appendPromptSection(sections, section)
 	}
-
-	sections = compactPromptSections(sections)
 	if len(sections) == 0 {
 		return "", nil
 	}
 	return strings.Join(sections, "\n\n---\n\n"), nil
+}
+
+func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildScope {
+	workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
+	if workspacePath == "" {
+		workspacePath = ResolveWorkspacePath(b.config, agentValue.OwnerUserID, agentValue.AgentID)
+	}
+	return promptBuildScope{
+		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
+		workspacePath: workspacePath,
+	}
+}
+
+func (b *promptBuilder) loadStaticPrompt(scope promptBuildScope) string {
+	if scope.isMainAgent {
+		return firstNonEmptyPrompt(b.config.MainAgentSystemPrompt, defaultMainAgentSystemPrompt)
+	}
+	return firstNonEmptyPrompt(b.config.BaseSystemPrompt, defaultBaseSystemPrompt)
+}
+
+func (scope promptBuildScope) workspacePromptFiles() []string {
+	if scope.isMainAgent {
+		return mainAgentWorkspacePromptFiles
+	}
+	return defaultWorkspacePromptFiles
+}
+
+func appendPromptSection(sections []string, section string) []string {
+	section = strings.TrimSpace(section)
+	if section == "" {
+		return sections
+	}
+	return append(sections, section)
+}
+
+func buildManagedSkillUsageSection(workspacePath string) string {
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	if trimmedWorkspacePath == "" {
+		return ""
+	}
+	sections := []string{}
+	if hasManagedSkill(trimmedWorkspacePath, "scheduled-task-manager") {
+		sections = append(sections, strings.Join([]string{
+			"## Managed Skill Usage",
+			"- For scheduled tasks, reminders, recurring checks, reports, or delivery work, load scheduled-task-manager first and then call nexus_automation.",
+			"- User-visible reminders and scheduled tasks must be persisted through Nexus scheduled tasks; do not promise user-facing reminders through temporary wakeups.",
+			"- To inspect delivery, recover stuck tasks, retry failed deliveries, change delivery targets, stop tasks, or re-enable paused tasks, follow the scheduled-task-manager tool flow.",
+		}, "\n"))
+	}
+	if hasManagedSkill(trimmedWorkspacePath, "goal-manager") {
+		sections = append(sections, strings.Join([]string{
+			"## Goal Skill 使用要求",
+			"- 用户明确要求启动、设定或继续当前会话 Goal 时，必须先使用 Skill 工具加载 goal-manager，再调用当前工具列表中可见的 Goal MCP 工具。",
+			"- Nexus 中 Goal MCP 工具通常显示为 mcp__nexus_goal__get_goal、mcp__nexus_goal__create_goal、mcp__nexus_goal__update_goal；如果运行时只暴露裸名 get_goal/create_goal/update_goal，它们是同一组能力。",
+			"- 不要使用 /goal 文本命令；Goal 的模型入口是 goal-manager + mcp__nexus_goal__* 工具，用户入口是界面的启动 Goal 按钮。",
+			"- 只有用户或系统/开发者明确要求 Goal 时才创建；普通一次性请求、提醒和定时任务不要自动创建 Goal。",
+			"- token_budget 只有用户明确给出预算时才传；暂停、恢复、清理、预算限制和用量限制由用户或系统控制。",
+			"- 完成目标前必须确认没有剩余必要工作；同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
+		}, "\n"))
+	}
+	if len(sections) == 0 {
+		return ""
+	}
+	return strings.Join(sections, "\n\n")
+}
+
+func hasManagedSkill(workspacePath string, skillName string) bool {
+	skillPath := filepath.Join(workspacePath, ".agents", "skills", skillName, "SKILL.md")
+	_, err := os.Stat(skillPath)
+	return err == nil
+}
+
+func firstNonEmptyPrompt(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func isMainAgentPrompt(agentValue *protocol.Agent, defaultAgentID string) bool {
+	if agentValue == nil {
+		return false
+	}
+	return agentValue.IsMain || strings.TrimSpace(agentValue.AgentID) == strings.TrimSpace(defaultAgentID)
 }
 
 func buildRuntimeScopeSection(ctx context.Context) string {
@@ -128,56 +158,93 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 	state, hasState := authctx.StateFromContext(ctx)
 	userID, hasUserID := authctx.CurrentUserID(ctx)
 
-	lines := []string{"## 当前运行作用域"}
+	lines := []string{"## Runtime Scope"}
 	switch {
 	case hasUserID:
 		lines = append(lines,
-			"运行模式: 多用户用户作用域",
-			"当前 user_id: "+userID,
+			"Mode: multi-user user scope",
+			"Current user_id: "+userID,
 		)
 		if principal != nil && strings.TrimSpace(principal.Username) != "" {
-			lines = append(lines, "当前 username: "+strings.TrimSpace(principal.Username))
+			lines = append(lines, "Current username: "+strings.TrimSpace(principal.Username))
 		}
-		lines = append(lines, "边界要求: 只能读取和操作当前 user_id 作用域内的 agent、room、session、workspace，不要假设可访问其他用户的数据。")
+		lines = append(lines, "Scope: this user only.")
 	case hasState && state.AuthRequired:
-		lines = append(lines, "运行模式: 认证系统作用域", "边界要求: 当前请求未绑定具体用户，不要假设拥有全局用户数据访问权。")
+		lines = append(lines, "Mode: authenticated system scope")
 	default:
 		lines = append(lines,
-			"运行模式: 单用户系统作用域",
-			"当前主体: "+authctx.SystemUserID,
-			"边界要求: 当前实例按单用户模式运行，可以把当前工作区视为系统默认作用域。",
+			"Mode: single-user system scope",
+			"Current principal: "+authctx.SystemUserID,
 		)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (b *promptBuilder) loadStaticPrompt(agentValue *protocol.Agent) string {
-	if agentValue != nil && (agentValue.IsMain || strings.TrimSpace(agentValue.AgentID) == strings.TrimSpace(b.config.DefaultAgentID)) {
-		return firstNonEmptyPrompt(b.config.MainAgentSystemPrompt, defaultMainAgentSystemPrompt)
+func buildAgentProfileSections(agentValue *protocol.Agent, scope promptBuildScope) []string {
+	if agentValue == nil {
+		return nil
 	}
-	return firstNonEmptyPrompt(b.config.BaseSystemPrompt, defaultBaseSystemPrompt)
+	agentID := strings.TrimSpace(agentValue.AgentID)
+	identityName := strings.TrimSpace(agentValue.Name)
+	if identityName == "" {
+		identityName = agentID
+	}
+
+	lines := []string{"## Agent Identity"}
+	if identityName != "" || agentID != "" {
+		lines = append(lines, fmt.Sprintf("Identity: %s (%s)", identityName, agentID))
+	}
+	if strings.TrimSpace(scope.workspacePath) != "" {
+		lines = append(lines, "WORKING DIRECTORY: "+strings.TrimSpace(scope.workspacePath))
+	}
+	sections := []string{strings.Join(lines, "\n")}
+
+	description := strings.TrimSpace(agentValue.Description)
+	vibeTags := compactStringValues(agentValue.VibeTags)
+	if description == "" && len(vibeTags) == 0 {
+		return sections
+	}
+
+	lines = []string{"## Agent Profile"}
+	if description != "" {
+		lines = append(lines, "Description: "+description)
+	}
+	if len(vibeTags) > 0 {
+		lines = append(lines, "Vibe Tags: "+strings.Join(vibeTags, ", "))
+	}
+	return append(sections, strings.Join(lines, "\n"))
 }
 
-func (b *promptBuilder) loadWorkspacePromptSections(workspacePath string) ([]string, error) {
-	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
-	if trimmedWorkspacePath == "" {
+func compactStringValues(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
+}
+
+func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
+	if strings.TrimSpace(scope.workspacePath) == "" {
 		return nil, nil
 	}
-	sections := make([]string, 0, len(promptFileNames))
-	for _, fileName := range promptFileNames {
-		content, err := readOptionalWorkspacePromptFile(trimmedWorkspacePath, fileName)
+	files := scope.workspacePromptFiles()
+	sections := make([]string, 0, len(files))
+	for _, fileName := range files {
+		content, err := readOptionalWorkspacePromptFile(scope.workspacePath, fileName)
 		if err != nil {
 			return nil, err
 		}
-		if content != "" {
-			sections = append(sections, content)
-		}
+		sections = appendPromptSection(sections, content)
 	}
 	return sections, nil
 }
 
 func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (string, error) {
-	targetPath := filepath.Join(workspacePath, fileName)
+	targetPath := filepath.Join(strings.TrimSpace(workspacePath), fileName)
 	content, err := os.ReadFile(targetPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -188,70 +255,86 @@ func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (str
 	return strings.TrimSpace(string(content)), nil
 }
 
-func buildAgentProfileSection(agentValue *protocol.Agent) string {
-	if agentValue == nil {
-		return ""
+// BuildUserMessageSuffix 构建追加到最后一条用户消息后的动态上下文。
+func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *protocol.Agent, emotionContextID string) string {
+	workspacePath := ""
+	if agentValue != nil {
+		scope := b.newBuildScope(agentValue)
+		workspacePath = scope.workspacePath
 	}
-	displayName := strings.TrimSpace(agentValue.DisplayName)
-	if displayName == strings.TrimSpace(agentValue.Name) {
-		displayName = ""
-	}
-	headline := strings.TrimSpace(agentValue.Headline)
-	description := strings.TrimSpace(agentValue.Description)
-	profileMarkdown := strings.TrimSpace(agentValue.ProfileMarkdown)
-	if displayName == "" && headline == "" && description == "" && profileMarkdown == "" {
-		return ""
-	}
-
-	lines := []string{"## Agent Profile"}
-	if displayName != "" {
-		lines = append(lines, "显示名："+displayName)
-	}
-	if headline != "" {
-		lines = append(lines, "一句话简介："+headline)
-	}
-	if description != "" && description != headline {
-		lines = append(lines, "补充描述："+description)
-	}
-	if profileMarkdown != "" {
-		lines = append(lines, "", profileMarkdown)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func buildManagedSkillUsageSection(workspacePath string) string {
-	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
-	if trimmedWorkspacePath == "" {
-		return ""
-	}
-	skillPath := filepath.Join(trimmedWorkspacePath, ".agents", "skills", "scheduled-task-manager", "SKILL.md")
-	if _, err := os.Stat(skillPath); err != nil {
+	emotionView := LoadRuntimeEmotionView(workspacePath, emotionContextID, time.Now())
+	sections := make([]string, 0, 2)
+	sections = appendPromptSection(sections, b.buildRuntimeDateSection())
+	sections = appendPromptSection(sections, buildRuntimeEmotionSection(agentValue, emotionView))
+	if len(sections) == 0 {
 		return ""
 	}
 	return strings.Join([]string{
-		"## 托管 Skill 使用要求",
-		"- 涉及定时任务、提醒、每天/每周/每隔一段时间自动执行时，必须先使用 Skill 工具加载 scheduled-task-manager，再调用 nexus_automation。",
-		"- 创建定时任务时按 scheduled-task-manager 的模板生成参数；短提醒不要猜 execution_mode / reply_mode，复杂任务先向用户确认。",
+		"<nexus_runtime_context>",
+		strings.Join(sections, "\n\n"),
+		"</nexus_runtime_context>",
 	}, "\n")
 }
 
-func compactPromptSections(items []string) []string {
-	result := make([]string, 0, len(items))
-	for _, item := range items {
-		item = strings.TrimSpace(item)
-		if item == "" {
-			continue
-		}
-		result = append(result, item)
+func (b *promptBuilder) buildRuntimeDateSection() string {
+	timezoneName := strings.TrimSpace(b.config.DefaultTimezone)
+	if timezoneName == "" {
+		timezoneName = "Asia/Shanghai"
 	}
-	return result
+	location, err := time.LoadLocation(timezoneName)
+	if err != nil {
+		location = time.Local
+		timezoneName = location.String()
+		if strings.TrimSpace(timezoneName) == "" {
+			timezoneName = "Local"
+		}
+	}
+	now := time.Now().In(location)
+	_, offsetSeconds := now.Zone()
+	return strings.Join([]string{
+		"## Date Awareness",
+		fmt.Sprintf("Authoritative local time: %s (%s, %s, %s)", now.Format("2006-01-02 15:04:05"), now.Format("Monday"), timezoneName, formatUTCOffset(offsetSeconds)),
+		"Relative date rule: interpret today, yesterday, tomorrow, this year, latest, recent, and equivalent phrases in the user's language from the time above. Do not guess or hardcode old years.",
+	}, "\n")
 }
 
-func firstNonEmptyPrompt(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
+func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionView) string {
+	name := strings.TrimSpace(agentValueName(agentValue))
+	if name == "" {
+		name = "Nexus"
 	}
-	return ""
+	lines := []string{
+		"## Emotion State",
+		"Context ID: " + view.ContextID,
+		fmt.Sprintf("Base: %s (energy %d/10, valence %d/10) - %s", view.Base.Mood, view.Base.Energy, view.Base.Valence, view.Base.Description),
+	}
+	if view.Context != nil {
+		lines = append(lines, fmt.Sprintf("Context: %s (valence %d/10) - %s", view.Context.Mood, view.Context.Valence, view.Context.Trigger))
+	}
+	lines = append(lines,
+		fmt.Sprintf("Composite: %s (energy %d/10, valence %d/10) - %s", view.Composite.Mood, view.Composite.Energy, view.Composite.Valence, view.Composite.Description),
+		fmt.Sprintf("Fatigue: %s (%d/100)", view.Fatigue.Status, view.Fatigue.Level),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func agentValueName(agentValue *protocol.Agent) string {
+	if agentValue == nil {
+		return ""
+	}
+	if name := strings.TrimSpace(agentValue.Name); name != "" {
+		return name
+	}
+	return strings.TrimSpace(agentValue.AgentID)
+}
+
+func formatUTCOffset(offsetSeconds int) string {
+	sign := "+"
+	if offsetSeconds < 0 {
+		sign = "-"
+		offsetSeconds = -offsetSeconds
+	}
+	hours := offsetSeconds / 3600
+	minutes := (offsetSeconds % 3600) / 60
+	return fmt.Sprintf("UTC%s%02d:%02d", sign, hours, minutes)
 }

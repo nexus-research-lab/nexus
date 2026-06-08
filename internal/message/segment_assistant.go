@@ -58,11 +58,13 @@ func (s *AssistantSegment) IsStarted() bool {
 // ApplyBlock 按索引设置内容块。
 func (s *AssistantSegment) ApplyBlock(index int, block map[string]any) int {
 	s.EnsureStarted()
-	logicalIndex := s.resolveLogicalIndex(index, normalizeString(block["type"]))
+	clonedBlock := cloneMap(block)
+	logicalIndex := s.resolveLogicalIndex(index, normalizeString(clonedBlock["type"]))
+	logicalIndex = s.resolveStreamBlockConflict(index, logicalIndex, clonedBlock)
 	for len(s.content) <= logicalIndex {
 		s.content = append(s.content, map[string]any{"type": "text", "text": ""})
 	}
-	s.content[logicalIndex] = cloneMap(block)
+	s.content[logicalIndex] = clonedBlock
 	return logicalIndex
 }
 
@@ -298,7 +300,11 @@ func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
 				return
 			}
 		case "text":
-			if rawString(current["text"]) == rawString(block["text"]) {
+			currentText := rawString(current["text"])
+			incomingText := rawString(block["text"])
+			if currentText == incomingText ||
+				strings.HasPrefix(currentText, incomingText) ||
+				strings.HasPrefix(incomingText, currentText) {
 				s.content[index] = block
 				return
 			}
@@ -338,6 +344,33 @@ func (s *AssistantSegment) resolveLogicalIndex(rawIndex int, blockType string) i
 	logicalIndex := len(s.content)
 	s.streamSlot[rawIndex] = logicalIndex
 	return logicalIndex
+}
+
+func (s *AssistantSegment) resolveStreamBlockConflict(rawIndex int, logicalIndex int, block map[string]any) int {
+	if logicalIndex < 0 || logicalIndex >= len(s.content) {
+		return logicalIndex
+	}
+	if !isConflictingStreamToolUse(s.content[logicalIndex], block) {
+		return logicalIndex
+	}
+
+	// 部分 SDK 会在同一段 assistant 中复用 raw index=0 输出多个 tool_use。
+	// 按 tool_use id 拆成独立逻辑块，避免后一个工具调用覆盖前一个。
+	nextIndex := len(s.content)
+	if s.streamSlot == nil {
+		s.streamSlot = make(map[int]int)
+	}
+	s.streamSlot[rawIndex] = nextIndex
+	return nextIndex
+}
+
+func isConflictingStreamToolUse(current map[string]any, incoming map[string]any) bool {
+	if normalizeString(current["type"]) != "tool_use" || normalizeString(incoming["type"]) != "tool_use" {
+		return false
+	}
+	currentID := normalizeString(current["id"])
+	incomingID := normalizeString(incoming["id"])
+	return currentID != "" && incomingID != "" && currentID != incomingID
 }
 
 func (s *AssistantSegment) resolveExistingLogicalIndex(rawIndex int) int {

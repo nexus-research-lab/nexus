@@ -67,12 +67,147 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入连接状态失败: %v", err)
 	}
-	count, err := service.GetConnectedCount(ctx)
+	count, err := service.GetConnectedCount(ctx, auth.SystemUserID)
 	if err != nil {
 		t.Fatalf("读取已连接数量失败: %v", err)
 	}
 	if count != 1 {
 		t.Fatalf("已连接数量不正确: got=%d want=1", count)
+	}
+}
+
+func TestServiceScopesConnectionStateByOwner(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	if err = service.upsertConnection(ctx, connectionRecord{
+		OwnerUserID: "owner-a",
+		ConnectorID: "github",
+		State:       "connected",
+		Credentials: `{"access_token":"owner-a-token"}`,
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入 owner-a 连接状态失败: %v", err)
+	}
+	if err = service.upsertConnection(ctx, connectionRecord{
+		OwnerUserID: "owner-b",
+		ConnectorID: "github",
+		State:       "disconnected",
+		Credentials: "",
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入 owner-b 连接状态失败: %v", err)
+	}
+
+	countA, err := service.GetConnectedCount(ctx, "owner-a")
+	if err != nil {
+		t.Fatalf("读取 owner-a 已连接数量失败: %v", err)
+	}
+	countB, err := service.GetConnectedCount(ctx, "owner-b")
+	if err != nil {
+		t.Fatalf("读取 owner-b 已连接数量失败: %v", err)
+	}
+	if countA != 1 || countB != 0 {
+		t.Fatalf("连接数量应按 owner 隔离: owner-a=%d owner-b=%d", countA, countB)
+	}
+
+	itemsA, err := service.ListConnectors(ctx, "owner-a", "github", "", "")
+	if err != nil {
+		t.Fatalf("列出 owner-a connector 失败: %v", err)
+	}
+	itemsB, err := service.ListConnectors(ctx, "owner-b", "github", "", "")
+	if err != nil {
+		t.Fatalf("列出 owner-b connector 失败: %v", err)
+	}
+	if len(itemsA) != 1 || itemsA[0].ConnectionState != "connected" {
+		t.Fatalf("owner-a 应看到 connected: %+v", itemsA)
+	}
+	if len(itemsB) != 1 || itemsB[0].ConnectionState != "disconnected" {
+		t.Fatalf("owner-b 应看到 disconnected: %+v", itemsB)
+	}
+
+	snapshotA, err := service.LoadActiveConnection(ctx, "owner-a", "github")
+	if err != nil {
+		t.Fatalf("读取 owner-a active connector 失败: %v", err)
+	}
+	snapshotB, err := service.LoadActiveConnection(ctx, "owner-b", "github")
+	if err != nil {
+		t.Fatalf("读取 owner-b active connector 失败: %v", err)
+	}
+	if snapshotA == nil || snapshotA.AccessToken != "owner-a-token" {
+		t.Fatalf("owner-a active connector 不正确: %+v", snapshotA)
+	}
+	if snapshotB != nil {
+		t.Fatalf("owner-b 不应读到 owner-a token: %+v", snapshotB)
+	}
+
+	activeA, err := service.ListActiveConnections(ctx, "owner-a")
+	if err != nil {
+		t.Fatalf("列出 owner-a active connectors 失败: %v", err)
+	}
+	activeB, err := service.ListActiveConnections(ctx, "owner-b")
+	if err != nil {
+		t.Fatalf("列出 owner-b active connectors 失败: %v", err)
+	}
+	if len(activeA) != 1 || activeA[0].ConnectorID != "github" || len(activeB) != 0 {
+		t.Fatalf("active connector 列表未按 owner 隔离: owner-a=%+v owner-b=%+v", activeA, activeB)
+	}
+}
+
+func TestServiceScopesOAuthStateByOwner(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	authA, err := service.GetAuthURL(ctx, "owner-a", "github", "", nil)
+	if err != nil {
+		t.Fatalf("生成 owner-a 授权地址失败: %v", err)
+	}
+	authB, err := service.GetAuthURL(ctx, "owner-b", "github", "", nil)
+	if err != nil {
+		t.Fatalf("生成 owner-b 授权地址失败: %v", err)
+	}
+	if authA.State == authB.State {
+		t.Fatalf("两次 state 不应相同: %q", authA.State)
+	}
+
+	var ownerAStateCount int
+	//goland:noinspection SqlResolve
+	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE owner_user_id = ? AND state = ?", "owner-a", authA.State).Scan(&ownerAStateCount); err != nil {
+		t.Fatalf("查询 owner-a OAuth state 失败: %v", err)
+	}
+	if ownerAStateCount != 1 {
+		t.Fatalf("owner-a OAuth state 应按 owner 落库: got=%d want=1", ownerAStateCount)
+	}
+
+	_, err = service.CompleteOAuthCallback(ctx, "owner-b", OAuthCallbackRequest{
+		Code:  "wrong-owner-code",
+		State: authA.State,
+	})
+	if err == nil || !strings.Contains(err.Error(), "OAuth state 无效") {
+		t.Fatalf("owner-b 不应消费 owner-a OAuth state: %v", err)
+	}
+	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE owner_user_id = ? AND state = ?", "owner-a", authA.State).Scan(&ownerAStateCount); err != nil {
+		t.Fatalf("再次查询 owner-a OAuth state 失败: %v", err)
+	}
+	if ownerAStateCount != 1 {
+		t.Fatalf("跨 owner callback 不应删除 owner-a OAuth state: got=%d want=1", ownerAStateCount)
 	}
 }
 
@@ -122,6 +257,97 @@ func TestServiceOAuthUsesDeploymentCredentialsOnly(t *testing.T) {
 	}
 	if parsedURL.Query().Get("client_id") != "env-client-id" {
 		t.Fatalf("应使用环境变量中的 client_id，实际: %s", authURL.AuthURL)
+	}
+}
+
+func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("读取 token 请求失败: %v", err)
+		}
+		text := string(body)
+		if !strings.Contains(text, `"client_id":"user-feishu-client"`) || !strings.Contains(text, `"client_secret":"user-feishu-secret"`) {
+			t.Fatalf("飞书 token 交换未使用用户自有 OAuth Client: %s", body)
+		}
+		_, _ = writer.Write([]byte(`{"code":0,"data":{"access_token":"feishu-token","refresh_token":"refresh","expires_in":7200}}`))
+	}))
+	defer server.Close()
+	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL", server.URL)
+
+	service := NewService(cfg, db)
+	service.httpClient = server.Client()
+	ctx := context.Background()
+	const ownerUserID = "user-feishu-docx"
+
+	items, err := service.ListConnectors(ctx, ownerUserID, "feishu", "", "")
+	if err != nil {
+		t.Fatalf("列出飞书连接器失败: %v", err)
+	}
+	if len(items) != 1 || items[0].IsConfigured || !items[0].OAuthClientConfigRequired {
+		t.Fatalf("未保存用户 OAuth Client 前应为待配置: %+v", items)
+	}
+	if items[0].ConfigError == nil || !strings.Contains(*items[0].ConfigError, "自己的 OAuth 应用") {
+		t.Fatalf("配置错误应提示用户配置自己的 OAuth 应用: %+v", items[0].ConfigError)
+	}
+	if _, err = service.GetAuthURL(ctx, ownerUserID, "feishu-docx", "", nil); err == nil {
+		t.Fatalf("未保存用户 OAuth Client 前不应生成授权地址")
+	}
+
+	info, err := service.SaveOAuthClientConfig(ctx, ownerUserID, "feishu-docx", OAuthClientConfigRequest{
+		ClientID:     "user-feishu-client",
+		ClientSecret: "user-feishu-secret",
+	})
+	if err != nil {
+		t.Fatalf("保存用户 OAuth Client 失败: %v", err)
+	}
+	if !info.IsConfigured || !info.OAuthClientConfigured {
+		t.Fatalf("保存后应视为已配置: %+v", info)
+	}
+	detail, err := service.GetConnectorDetail(ctx, ownerUserID, "feishu-docx")
+	if err != nil {
+		t.Fatalf("读取飞书详情失败: %v", err)
+	}
+	if detail.OAuthClientID == nil || *detail.OAuthClientID != "user-feishu-client" {
+		t.Fatalf("详情应返回已保存的 Client ID 摘要: %+v", detail.OAuthClientID)
+	}
+	if len(detail.FeatureDetails) != len(detail.Features) {
+		t.Fatalf("详情应返回每个能力的具体说明: features=%v details=%v", detail.Features, detail.FeatureDetails)
+	}
+	if detail.FeatureDetails[0].Name != "阅读文档" || !strings.Contains(detail.FeatureDetails[0].Description, "Markdown") {
+		t.Fatalf("阅读文档能力说明不完整: %+v", detail.FeatureDetails[0])
+	}
+
+	authURL, err := service.GetAuthURL(ctx, ownerUserID, "feishu-docx", "", nil)
+	if err != nil {
+		t.Fatalf("生成飞书授权地址失败: %v", err)
+	}
+	parsedURL, err := url.Parse(authURL.AuthURL)
+	if err != nil {
+		t.Fatalf("解析飞书授权地址失败: %v", err)
+	}
+	if parsedURL.Query().Get("client_id") != "user-feishu-client" {
+		t.Fatalf("飞书授权地址应使用用户 Client ID: %s", authURL.AuthURL)
+	}
+
+	callback, err := service.CompleteOAuthCallback(ctx, ownerUserID, OAuthCallbackRequest{
+		Code:  "callback-code",
+		State: authURL.State,
+	})
+	if err != nil {
+		t.Fatalf("飞书 OAuth callback 失败: %v", err)
+	}
+	if callback == nil || callback.ConnectionState != "connected" {
+		t.Fatalf("飞书 OAuth callback 后应连接成功: %+v", callback)
 	}
 }
 
@@ -438,6 +664,248 @@ func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
 	}
 }
 
+func TestServiceConnectsAmapWithAPIKey(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	items, err := service.ListConnectors(ctx, auth.SystemUserID, "高德", "", "")
+	if err != nil {
+		t.Fatalf("列出高德连接器失败: %v", err)
+	}
+	if len(items) != 1 || items[0].ConnectorID != "amap" || items[0].AuthType != "api_key" || !items[0].IsConfigured {
+		t.Fatalf("高德连接器目录不正确: %+v", items)
+	}
+
+	if _, err = service.Connect(ctx, auth.SystemUserID, "amap", map[string]string{}); err == nil || !strings.Contains(err.Error(), "API Key") {
+		t.Fatalf("缺少高德 API Key 应报错，实际: %v", err)
+	}
+
+	info, err := service.Connect(ctx, auth.SystemUserID, "amap", map[string]string{"api_key": "amap-key"})
+	if err != nil {
+		t.Fatalf("连接高德失败: %v", err)
+	}
+	if info.ConnectionState != "connected" {
+		t.Fatalf("高德连接状态不正确: %+v", info)
+	}
+
+	snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "amap")
+	if err != nil {
+		t.Fatalf("读取高德连接快照失败: %v", err)
+	}
+	if snapshot == nil || snapshot.AccessToken != "amap-key" || snapshot.APIBaseURL != "https://restapi.amap.com" {
+		t.Fatalf("高德连接快照不正确: %+v", snapshot)
+	}
+
+	detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, "amap")
+	if err != nil {
+		t.Fatalf("读取高德详情失败: %v", err)
+	}
+	if detail.MCPServerURL != "https://mcp.amap.com/mcp" {
+		t.Fatalf("高德 MCP server 地址不正确: %s", detail.MCPServerURL)
+	}
+	if len(detail.FeatureDetails) != len(detail.Features) {
+		t.Fatalf("高德能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+	}
+}
+
+func TestServiceConnectsDidiWithMCPKey(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	items, err := service.ListConnectors(ctx, auth.SystemUserID, "滴滴", "", "")
+	if err != nil {
+		t.Fatalf("列出滴滴连接器失败: %v", err)
+	}
+	if len(items) != 1 || items[0].ConnectorID != "didi" || items[0].AuthType != "api_key" || !items[0].IsConfigured {
+		t.Fatalf("滴滴连接器目录不正确: %+v", items)
+	}
+
+	if _, err = service.Connect(ctx, auth.SystemUserID, "didi", map[string]string{}); err == nil || !strings.Contains(err.Error(), "API Key") {
+		t.Fatalf("缺少滴滴 MCP Key 应报错，实际: %v", err)
+	}
+
+	info, err := service.Connect(ctx, auth.SystemUserID, "didi", map[string]string{"api_key": "didi-key"})
+	if err != nil {
+		t.Fatalf("连接滴滴失败: %v", err)
+	}
+	if info.ConnectionState != "connected" {
+		t.Fatalf("滴滴连接状态不正确: %+v", info)
+	}
+
+	snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "didi")
+	if err != nil {
+		t.Fatalf("读取滴滴连接快照失败: %v", err)
+	}
+	if snapshot == nil || snapshot.AccessToken != "didi-key" || snapshot.APIBaseURL != "https://mcp.didichuxing.com" {
+		t.Fatalf("滴滴连接快照不正确: %+v", snapshot)
+	}
+
+	detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, "didi")
+	if err != nil {
+		t.Fatalf("读取滴滴详情失败: %v", err)
+	}
+	if detail.MCPServerURL != "https://mcp.didichuxing.com/mcp-servers" {
+		t.Fatalf("滴滴 MCP server 地址不正确: %s", detail.MCPServerURL)
+	}
+	if len(detail.FeatureDetails) != len(detail.Features) {
+		t.Fatalf("滴滴能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+	}
+}
+
+func TestServiceConnectsOfficeMCPTokenConnectors(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+
+	tests := []struct {
+		connectorID string
+		query       string
+		token       string
+		apiBaseURL  string
+		mcpURL      string
+	}{
+		{
+			connectorID: "dingtalk-ai-table",
+			query:       "钉钉 AI 表格",
+			token:       "https://mcp.dingtalk.com/sse?token=dingtalk-secret",
+			apiBaseURL:  "https://mcp.dingtalk.com",
+			mcpURL:      "https://mcp.dingtalk.com/#/detail?mcpId=9555&detailType=marketMcpDetail",
+		},
+		{
+			connectorID: "tencent-docs",
+			query:       "腾讯文档",
+			token:       "tencent-docs-token",
+			apiBaseURL:  "https://docs.qq.com",
+			mcpURL:      "https://docs.qq.com/openapi/mcp",
+		},
+		{
+			connectorID: "yuque",
+			query:       "语雀",
+			token:       "yuque-token",
+			apiBaseURL:  "https://www.yuque.com/api/v2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.connectorID, func(t *testing.T) {
+			items, err := service.ListConnectors(ctx, auth.SystemUserID, tt.query, "", "")
+			if err != nil {
+				t.Fatalf("列出连接器失败: %v", err)
+			}
+			if len(items) != 1 || items[0].ConnectorID != tt.connectorID || items[0].AuthType != "token" || !items[0].IsConfigured {
+				t.Fatalf("连接器目录不正确: %+v", items)
+			}
+
+			if _, err = service.Connect(ctx, auth.SystemUserID, tt.connectorID, map[string]string{}); err == nil || !strings.Contains(err.Error(), "Token") {
+				t.Fatalf("缺少 Token 应报错，实际: %v", err)
+			}
+
+			info, err := service.Connect(ctx, auth.SystemUserID, tt.connectorID, map[string]string{"token": tt.token})
+			if err != nil {
+				t.Fatalf("连接失败: %v", err)
+			}
+			if info.ConnectionState != "connected" {
+				t.Fatalf("连接状态不正确: %+v", info)
+			}
+
+			snapshot, err := service.LoadActiveConnection(ctx, auth.SystemUserID, tt.connectorID)
+			if err != nil {
+				t.Fatalf("读取连接快照失败: %v", err)
+			}
+			if snapshot == nil || snapshot.AccessToken != tt.token || snapshot.APIBaseURL != tt.apiBaseURL {
+				t.Fatalf("连接快照不正确: %+v", snapshot)
+			}
+
+			detail, err := service.GetConnectorDetail(ctx, auth.SystemUserID, tt.connectorID)
+			if err != nil {
+				t.Fatalf("读取详情失败: %v", err)
+			}
+			if detail.MCPServerURL != tt.mcpURL {
+				t.Fatalf("MCP server 地址不正确: got=%q want=%q", detail.MCPServerURL, tt.mcpURL)
+			}
+			if len(detail.FeatureDetails) != len(detail.Features) {
+				t.Fatalf("能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
+			}
+		})
+	}
+}
+
+func TestServiceScopesAmapAPIKeyByOwner(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	ctx := context.Background()
+	if _, err = service.Connect(ctx, "owner-a", "amap", map[string]string{"api_key": "amap-owner-a"}); err != nil {
+		t.Fatalf("连接 owner-a 高德失败: %v", err)
+	}
+	if _, err = service.Connect(ctx, "owner-b", "amap", map[string]string{"api_key": "amap-owner-b"}); err != nil {
+		t.Fatalf("连接 owner-b 高德失败: %v", err)
+	}
+
+	snapshotA, err := service.LoadActiveConnection(ctx, "owner-a", "amap")
+	if err != nil {
+		t.Fatalf("读取 owner-a 高德连接失败: %v", err)
+	}
+	snapshotB, err := service.LoadActiveConnection(ctx, "owner-b", "amap")
+	if err != nil {
+		t.Fatalf("读取 owner-b 高德连接失败: %v", err)
+	}
+	if snapshotA == nil || snapshotA.AccessToken != "amap-owner-a" {
+		t.Fatalf("owner-a 不应读到其他用户高德 Key: %+v", snapshotA)
+	}
+	if snapshotB == nil || snapshotB.AccessToken != "amap-owner-b" {
+		t.Fatalf("owner-b 不应读到其他用户高德 Key: %+v", snapshotB)
+	}
+
+	if _, err = service.Disconnect(ctx, "owner-b", "amap"); err != nil {
+		t.Fatalf("断开 owner-b 高德失败: %v", err)
+	}
+	snapshotA, err = service.LoadActiveConnection(ctx, "owner-a", "amap")
+	if err != nil {
+		t.Fatalf("再次读取 owner-a 高德连接失败: %v", err)
+	}
+	snapshotB, err = service.LoadActiveConnection(ctx, "owner-b", "amap")
+	if err != nil {
+		t.Fatalf("再次读取 owner-b 高德连接失败: %v", err)
+	}
+	if snapshotA == nil || snapshotA.AccessToken != "amap-owner-a" || snapshotB != nil {
+		t.Fatalf("断开 owner-b 不应影响 owner-a: owner-a=%+v owner-b=%+v", snapshotA, snapshotB)
+	}
+}
+
 func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
@@ -462,6 +930,65 @@ func TestServiceLoadActiveConnectionRequiresAccessToken(t *testing.T) {
 	_, err = service.LoadActiveConnection(ctx, auth.SystemUserID, "github")
 	if err == nil || !strings.Contains(err.Error(), "access token") {
 		t.Fatalf("缺少 access token 应报错，实际: %v", err)
+	}
+}
+
+func TestServiceLoadActiveConnectionRefreshesExpiredFeishuDocxToken(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !strings.Contains(request.Header.Get("Content-Type"), "application/json") {
+			t.Fatalf("飞书 refresh 应使用 JSON: %s", request.Header.Get("Content-Type"))
+		}
+		body, err := io.ReadAll(request.Body)
+		if err != nil {
+			t.Fatalf("读取 refresh 请求失败: %v", err)
+		}
+		if !strings.Contains(string(body), `"refresh_token":"old-refresh"`) {
+			t.Fatalf("refresh 请求未带旧 refresh_token: %s", body)
+		}
+		if !strings.Contains(string(body), `"client_id":"refresh-feishu-client"`) || !strings.Contains(string(body), `"client_secret":"refresh-feishu-secret"`) {
+			t.Fatalf("refresh 请求未使用用户自有 OAuth Client: %s", body)
+		}
+		_, _ = writer.Write([]byte(`{"code":0,"data":{"access_token":"new-feishu-docx-token","refresh_token":"new-refresh","expires_in":7200}}`))
+	}))
+	defer server.Close()
+	t.Setenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL", server.URL)
+
+	service := NewService(cfg, db)
+	service.httpClient = server.Client()
+	ctx := context.Background()
+	if _, err = service.SaveOAuthClientConfig(ctx, auth.SystemUserID, "feishu-docx", OAuthClientConfigRequest{
+		ClientID:     "refresh-feishu-client",
+		ClientSecret: "refresh-feishu-secret",
+	}); err != nil {
+		t.Fatalf("保存飞书 OAuth Client 失败: %v", err)
+	}
+	if err = service.upsertConnection(ctx, connectionRecord{
+		ConnectorID: "feishu-docx",
+		State:       "connected",
+		Credentials: `{"access_token":"old-feishu-docx-token","refresh_token":"old-refresh","expires_at":"1","scope":"docx:document"}`,
+		AuthType:    "oauth2",
+	}); err != nil {
+		t.Fatalf("写入飞书连接状态失败: %v", err)
+	}
+
+	item, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "feishu-docx")
+	if err != nil {
+		t.Fatalf("读取飞书连接快照失败: %v", err)
+	}
+	if item == nil || item.AccessToken != "new-feishu-docx-token" {
+		t.Fatalf("飞书 token 未刷新: %+v", item)
+	}
+	if item.Extra["refresh_token"] != "new-refresh" || item.Extra["scope"] != "docx:document" {
+		t.Fatalf("飞书 refresh_token 或旧 extra 未保留: %+v", item.Extra)
 	}
 }
 

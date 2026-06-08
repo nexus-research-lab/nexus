@@ -7,4 +7,6 @@ type RuntimeConfig struct {
 	AuthToken   string
 	BaseURL     string
 	Model       string
+	APIFormat   string
+	Reasoning   bool
 }

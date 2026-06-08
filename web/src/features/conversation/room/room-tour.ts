@@ -62,7 +62,7 @@ export function build_dm_conversation_tour(
         title: t("room.tour_tab_about_title"),
         description: t("room.tour_tab_about_description"),
         target: CONVERSATION_TOUR_ANCHORS.tab_about,
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
@@ -135,7 +135,7 @@ export function build_room_conversation_tour(
         title: t("room.tour_tab_about_title"),
         description: t("room.tour_tab_about_description"),
         target: CONVERSATION_TOUR_ANCHORS.tab_about,
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
@@ -208,7 +208,7 @@ export function build_room_empty_conversation_tour(
         title: t("room.tour_tab_about_title"),
         description: t("room.tour_tab_about_description"),
         target: CONVERSATION_TOUR_ANCHORS.tab_about,
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
         placement: "bottom",
       },
       {
@@ -216,7 +216,7 @@ export function build_room_empty_conversation_tour(
         title: t("room.tour_group_empty_create_title"),
         description: t("room.tour_group_empty_create_description"),
         target: CONVERSATION_TOUR_ANCHORS.empty_create,
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
         placement: "right",
       },
     ],

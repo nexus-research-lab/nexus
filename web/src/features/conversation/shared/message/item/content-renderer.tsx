@@ -14,7 +14,6 @@ import {
 import { PendingPermission, PermissionDecisionPayload } from "@/types/conversation/permission";
 
 import { AskUserQuestionBlock } from "../blocks/ask-user-question-block";
-import { CodeBlock } from "../blocks/code-block";
 import { ImageBlock } from "../blocks/image-block";
 import { ThinkingBlock } from "../blocks/thinking-block";
 import { ToolBlock } from "../blocks/tool-block";
@@ -101,7 +100,7 @@ function TimelineBlock({
   }, [children]);
 
   return (
-    <div className="relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] gap-3 items-start">
+    <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
       <div className="relative">
         <span
           className={cn(
@@ -204,7 +203,7 @@ export function ContentRenderer(
     : null;
 
   return (
-    <div className={cn("min-w-0 space-y-2.5", class_name, show_timeline_dots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
+    <div className={cn("nexus-chat-block-stack min-w-0 space-y-2.5", class_name, show_timeline_dots ? "relative before:absolute before:bottom-0 before:left-[5.5px] before:top-0 before:w-px before:bg-(--divider-subtle-color)" : null)}>
       {content.map((block, index) => {
         const blockIsStreaming = streaming_block_indexes?.has(index) ?? false;
 
@@ -232,6 +231,9 @@ export function ContentRenderer(
         };
 
         if (block.type === 'text') {
+          if (!block.text.trim()) {
+            return null;
+          }
           return wrap_block(
             index,
             <ContentRenderer
@@ -249,6 +251,9 @@ export function ContentRenderer(
         }
 
         if (block.type === 'thinking') {
+          if (!block.thinking.trim()) {
+            return null;
+          }
           return wrap_block(
             index,
             <ThinkingBlock

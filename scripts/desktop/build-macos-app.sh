@@ -45,11 +45,25 @@ MACOS_CONTENTS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 SIDECAR_BUILD_DIR="${APP_BUILD_DIR}/.intermediates"
 SIDECAR_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-server"
+NEXUSCTL_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexusctl"
 SWIFT_PRODUCT="NexusDesktop"
+BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
+NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
+
+is_enabled() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    1 | true | yes | on)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --prefer-offline
 NEXUS_DESKTOP_BUILD=1 pnpm build
 
 echo "==> Building Go sidecar"
@@ -61,6 +75,13 @@ CGO_ENABLED="${CGO_ENABLED:-1}" go build \
   -o "${SIDECAR_BUILD_PATH}" \
   ./cmd/nexus-server
 
+echo "==> Building nexusctl"
+CGO_ENABLED="${CGO_ENABLED:-1}" go build \
+  -trimpath \
+  -ldflags="-s -w" \
+  -o "${NEXUSCTL_BUILD_PATH}" \
+  ./cmd/nexusctl
+
 echo "==> Building Swift shell"
 swift build --package-path "${MACOS_DIR}" -c release
 SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --show-bin-path)"
@@ -68,13 +89,39 @@ SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --show-bi
 echo "==> Assembling ${APP_BUNDLE}"
 rm -rf "${APP_BUNDLE}"
 rm -f "${APP_BUILD_DIR}/nexus-server" "${APP_BUILD_DIR}/.DS_Store"
-mkdir -p "${MACOS_CONTENTS_DIR}" "${RESOURCES_DIR}"
+mkdir -p "${MACOS_CONTENTS_DIR}" "${RESOURCES_DIR}/bin"
 
 cp "${SWIFT_BIN_PATH}/${SWIFT_PRODUCT}" "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
 cp "${SIDECAR_BUILD_PATH}" "${MACOS_CONTENTS_DIR}/nexus-server"
+cp "${NEXUSCTL_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexusctl"
 cp "${MACOS_DIR}/Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
+
+if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
+  nxs_output_path="${RESOURCES_DIR}/bin/nxs"
+  NXS_GOOS="${NEXUS_DESKTOP_NXS_GOOS:-darwin}"
+  NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-$(go env GOARCH)}"
+  if [[ -n "${NXS_RUNTIME_PATH}" ]]; then
+    if [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
+      echo "missing cached nxs runtime: ${NXS_RUNTIME_PATH}" >&2
+      exit 1
+    fi
+    echo "==> Using cached bundled nxs runtime"
+    cp "${NXS_RUNTIME_PATH}" "${nxs_output_path}"
+  else
+    echo "==> Downloading bundled nxs runtime"
+    node "${ROOT_DIR}/scripts/desktop/fetch-nxs-runtime.js" \
+      --goos "${NXS_GOOS}" \
+      --goarch "${NXS_GOARCH}" \
+      --output "${nxs_output_path}"
+  fi
+fi
+
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
-  "${MACOS_CONTENTS_DIR}/nexus-server"
+  "${MACOS_CONTENTS_DIR}/nexus-server" \
+  "${RESOURCES_DIR}/bin/nexusctl"
+if [[ -f "${RESOURCES_DIR}/bin/nxs" ]]; then
+  chmod 0755 "${RESOURCES_DIR}/bin/nxs"
+fi
 
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/web/dist/" "${RESOURCES_DIR}/Web/"
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/db/migrations/" "${RESOURCES_DIR}/db/migrations/"
@@ -102,6 +149,10 @@ printf 'APPL????' > "${CONTENTS_DIR}/PkgInfo"
 if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev/null 2>&1; then
   echo "==> Applying ad-hoc signature"
   codesign --force --sign - "${MACOS_CONTENTS_DIR}/nexus-server" >/dev/null
+  codesign --force --sign - "${RESOURCES_DIR}/bin/nexusctl" >/dev/null
+  if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
+    codesign --force --sign - "${RESOURCES_DIR}/bin/nxs" >/dev/null
+  fi
   codesign --force --sign - "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" >/dev/null
   codesign --force --deep --sign - "${APP_BUNDLE}" >/dev/null
 fi

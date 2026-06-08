@@ -12,6 +12,7 @@ import { type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Reac
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiListActionButton } from "@/shared/ui/list-action";
 import { useSidebarStore } from "@/store/sidebar";
 
 const SIDEBAR_LIST_ITEM_CLASS_NAME =
@@ -20,10 +21,6 @@ const SIDEBAR_SECTION_TRIGGER_CLASS_NAME =
   "flex flex-1 items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.12em] text-(--text-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)";
 const SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME =
   "flex h-6 w-6 shrink-0 items-center justify-center";
-const SIDEBAR_SECTION_ACTION_CLASS_NAME =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)";
-const SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME =
-  "flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-transparent text-(--icon-muted) transition-[background,color,border-color,opacity,transform] duration-(--motion-duration-fast) focus-visible:opacity-100 focus-visible:outline-none";
 
 interface CollapsibleSectionProps {
   section_id: string;
@@ -157,43 +154,32 @@ export function SidebarListItem({
       {has_actions ? (
         <div className="flex shrink-0 items-center gap-1">
           {on_rename ? (
-            <button
+            <UiListActionButton
               aria-label={t("home.rename")}
-              className={cn(
-                SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME,
-                is_active
-                  ? "opacity-100 hover:-translate-y-[1px] hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-                  : "opacity-60 hover:-translate-y-[1px] hover:opacity-100 hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)",
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 on_rename();
               }}
+              stop_propagation
               title={t("home.rename")}
-              type="button"
+              visibility={is_active ? "visible" : "subtle"}
             >
               <Pencil className="h-3.5 w-3.5" />
-            </button>
+            </UiListActionButton>
           ) : null}
 
           {on_delete ? (
-            <button
+            <UiListActionButton
               aria-label={t("common.delete")}
-              className={cn(
-                SIDEBAR_LIST_ACTION_BUTTON_CLASS_NAME,
-                is_active
-                  ? "opacity-100 hover:-translate-y-[1px] hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)"
-                  : "opacity-60 hover:-translate-y-[1px] hover:opacity-100 hover:border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)",
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 on_delete();
               }}
+              stop_propagation
               title={t("common.delete")}
-              type="button"
+              tone="danger"
+              visibility={is_active ? "visible" : "subtle"}
             >
               <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            </UiListActionButton>
           ) : null}
         </div>
       ) : null}
@@ -277,14 +263,16 @@ export function CollapsibleSection({
 
         {/* 右侧操作按钮，固定宽度占位保证对齐 */}
         {on_action ? (
-          <button
-            className={SIDEBAR_SECTION_ACTION_CLASS_NAME}
-            onClick={(e) => { e.stopPropagation(); on_action(); }}
+          <UiListActionButton
+            onClick={on_action}
+            shape="round"
+            size="md"
+            stop_propagation
             title={action_title}
-            type="button"
+            visibility="visible"
           >
             {action_icon}
-          </button>
+          </UiListActionButton>
         ) : (
           <span className="flex h-5 w-5 shrink-0" />
         )}

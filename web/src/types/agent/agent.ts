@@ -9,11 +9,12 @@
 
 // ==================== Agent 配置 ====================
 
-/** Agent 级别配置选项（映射 ClaudeAgentOptions 的 Agent 层字段） */
+/** Agent 级别配置选项（映射 SDK Agent 层字段） */
 export type AgentProvider = string;
 
 export interface AgentOptions {
     provider?: AgentProvider;
+    model?: string;
     permission_mode?: string;
     allowed_tools?: string[];
     disallowed_tools?: string[];

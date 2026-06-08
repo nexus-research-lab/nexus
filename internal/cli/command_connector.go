@@ -90,7 +90,7 @@ func newConnectorCommand(services *cliServiceProvider) *cobra.Command {
 				return err
 			}
 			service := appServices.Connectors
-			item, err := service.Disconnect(commandContext(cmd), args[0])
+			item, err := service.Disconnect(commandContext(cmd), currentCLIUserID(cmd), args[0])
 			if err != nil {
 				return err
 			}

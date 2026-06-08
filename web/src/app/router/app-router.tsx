@@ -11,6 +11,9 @@ import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
 const LoginPage = lazy(() =>
   import("@/pages/login/login-page").then((m) => ({ default: m.LoginPage })),
 );
+const LandingPage = lazy(() =>
+  import("@/pages/landing/landing-page").then((m) => ({ default: m.LandingPage })),
+);
 const LauncherPage = lazy(() =>
   import("@/pages/launcher/launcher-page").then((m) => ({ default: m.LauncherPage })),
 );
@@ -65,6 +68,7 @@ export function AppRouter() {
       <OnboardingTourProvider>
         <Suspense fallback={<PageFallback />}>
           <Routes>
+            <Route element={<LandingPage />} path={APP_ROUTE_PATHS.landing} />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
 
             <Route element={<AuthGuard />}>
@@ -99,6 +103,7 @@ export function AppRouter() {
 
                   {/* 能力子路由 */}
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
+                  <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connector_detail} />
                   <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />
                   <Route element={<ChannelsPage />} path={APP_ROUTE_PATHS.channels} />
                   <Route element={<PairingsPage />} path={APP_ROUTE_PATHS.pairings} />
@@ -111,7 +116,7 @@ export function AppRouter() {
             </Route>
 
             {/* 兜底重定向 */}
-            <Route element={<Navigate replace to={APP_ROUTE_PATHS.launcher} />} path="*" />
+            <Route element={<Navigate replace to={APP_ROUTE_PATHS.landing} />} path="*" />
           </Routes>
         </Suspense>
       </OnboardingTourProvider>

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { Loader2 } from "lucide-react";
 
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
@@ -11,6 +10,7 @@ import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboarding-tour";
+import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { RoomRouteParams } from "@/types/app/route";
 import { UpdateRoomParams } from "@/types/conversation/room";
@@ -103,8 +103,12 @@ export function RoomPage() {
 
   const handleDeleteConversation = useCallback(async (conversation_id: string) => {
     const route_room_id = params.room_id;
+    const is_deleting_active_conversation = conversation_id === controller.conversation_id;
     const next_conversation_id = await controller.handle_delete_conversation(conversation_id);
     if (!route_room_id) {
+      return next_conversation_id;
+    }
+    if (!is_deleting_active_conversation) {
       return next_conversation_id;
     }
     if (next_conversation_id) {
@@ -131,33 +135,33 @@ export function RoomPage() {
       return;
     }
 
-    if (event_type === "room_action") {
-      console.debug("[Room] room_action", {
-        action_id: data.action_id,
+    if (event_type === "room_directed_message") {
+      console.debug("[Room] room_directed_message", {
+        message_id: data.message_id,
         event_kind: data.event_kind,
-        action_type: data.action_type,
         room_id: data.room_id,
         conversation_id: data.conversation_id,
         source_agent_id: data.source_agent_id,
+        recipients: data.recipients,
         target_agent_id: data.target_agent_id,
-        visibility: data.visibility,
-        reply_target: data.reply_target,
+        reply_route: data.reply_route,
         wake_policy: data.wake_policy,
         delay_seconds: data.delay_seconds,
+        correlation_id: data.correlation_id,
         content_chars: data.content_chars,
         has_content: typeof data.content === "string" && data.content.length > 0,
       });
       return;
     }
 
-    if (event_type === "room_action_consumed") {
-      console.debug("[Room] room_action_consumed", {
+    if (event_type === "room_directed_message_consumed") {
+      console.debug("[Room] room_directed_message_consumed", {
         room_id: data.room_id,
         conversation_id: data.conversation_id,
         agent_id: data.agent_id,
         round_id: data.round_id,
-        last_action_id: data.last_action_id,
-        last_action_timestamp: data.last_action_timestamp,
+        last_message_id: data.last_message_id,
+        last_message_timestamp: data.last_message_timestamp,
       });
       return;
     }
@@ -254,12 +258,7 @@ export function RoomPage() {
   if (!controller.is_hydrated) {
     return (
       <WorkspacePageFrame content_padding_class_name="p-0">
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-(--text-soft)" />
-            <span className="text-sm text-(--text-soft)">加载对话...</span>
-          </div>
-        </div>
+        <WorkspaceLoadingState label="加载对话..." />
       </WorkspacePageFrame>
     );
   }
@@ -297,6 +296,7 @@ export function RoomPage() {
             on_open_member_manager={controller.handle_prepare_room_agent_catalog}
             on_remove_room_member={controller.handle_remove_room_member}
             on_back_to_directory={handleBackToLauncher}
+            on_close_conversation={controller.handle_close_conversation}
             on_delete_conversation={handleDeleteConversation}
             on_loading_change={controller.set_is_conversation_busy}
             on_create_conversation={handleCreateConversation}

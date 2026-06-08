@@ -241,7 +241,6 @@ export const useAgentStore = create<AgentStoreState>()(
       name: "agent-ui-agents",
       storage: create_browser_json_storage(),
       partialize: (state) => ({
-        agents: state.agents,
         current_agent_id: state.current_agent_id,
       }),
     },

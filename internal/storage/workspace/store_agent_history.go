@@ -55,6 +55,20 @@ type transcriptRoundMarker struct {
 	Attachments    []protocol.ChatAttachment
 	Timestamp      int64
 	DeliveryPolicy string
+	HiddenFromUser bool
+	Synthetic      bool
+	Purpose        string
+	Metadata       map[string]string
+}
+
+// RoundMarkerOptions 描述 Nexus overlay round marker 的展示和调度语义。
+type RoundMarkerOptions struct {
+	DeliveryPolicy string
+	Attachments    []protocol.ChatAttachment
+	HiddenFromUser bool
+	Synthetic      bool
+	Purpose        string
+	Metadata       map[string]string
 }
 
 // RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。
@@ -86,7 +100,7 @@ func NewAgentHistoryStore(root string) *AgentHistoryStore {
 	}
 }
 
-// DeleteTranscriptSession 删除单个 Claude transcript 文件。
+// DeleteTranscriptSession 删除单个 SDK transcript 文件。
 func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessionID string) (bool, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return false, nil
@@ -164,17 +178,52 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithAttachments(
 	deliveryPolicy string,
 	attachments []protocol.ChatAttachment,
 ) error {
+	return s.AppendRoundMarkerWithOptions(workspacePath, sessionKey, roundID, content, timestamp, RoundMarkerOptions{
+		DeliveryPolicy: deliveryPolicy,
+		Attachments:    attachments,
+	})
+}
+
+// AppendRoundMarkerWithOptions 记录一条带展示语义的 transcript round 对齐标记。
+func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
+	workspacePath string,
+	sessionKey string,
+	roundID string,
+	content string,
+	timestamp int64,
+	options RoundMarkerOptions,
+) error {
 	row := map[string]any{
 		overlayKindField: overlayKindRoundMarker,
 		"round_id":       strings.TrimSpace(roundID),
 		"content":        strings.TrimSpace(content),
 		"timestamp":      timestamp,
 	}
-	if deliveryPolicy != "" {
-		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(deliveryPolicy))
+	if options.DeliveryPolicy != "" {
+		row["delivery_policy"] = string(protocol.NormalizeChatDeliveryPolicy(options.DeliveryPolicy))
 	}
-	if normalizedAttachments := protocol.NormalizeChatAttachments(attachments, ""); len(normalizedAttachments) > 0 {
+	if normalizedAttachments := protocol.NormalizeChatAttachments(options.Attachments, ""); len(normalizedAttachments) > 0 {
 		row["attachments"] = normalizedAttachments
+	}
+	if options.HiddenFromUser {
+		row["hidden_from_user"] = true
+	}
+	if options.Synthetic {
+		row["is_synthetic"] = true
+	}
+	if purpose := strings.TrimSpace(options.Purpose); purpose != "" {
+		row["purpose"] = purpose
+	}
+	if len(options.Metadata) > 0 {
+		metadata := make(map[string]string, len(options.Metadata))
+		for key, value := range options.Metadata {
+			if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
+				metadata[trimmedKey] = strings.TrimSpace(value)
+			}
+		}
+		if len(metadata) > 0 {
+			row["metadata"] = metadata
+		}
 	}
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
@@ -346,6 +395,10 @@ func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
 				Attachments:    protocol.ChatAttachmentsFromAny(row["attachments"]),
 				Timestamp:      messageTimestamp(protocol.Message(row)),
 				DeliveryPolicy: stringFromAny(row["delivery_policy"]),
+				HiddenFromUser: boolValueAny(row["hidden_from_user"]),
+				Synthetic:      boolValueAny(row["is_synthetic"]),
+				Purpose:        stringFromAny(row["purpose"]),
+				Metadata:       stringMapFromAny(row["metadata"]),
 			})
 			continue
 		}
@@ -401,7 +454,7 @@ func materializeRoundMarkerMessages(
 	rows := make([]protocol.Message, 0, len(roundMarkers))
 	for _, marker := range roundMarkers {
 		roundID := strings.TrimSpace(marker.RoundID)
-		if roundID == "" {
+		if roundID == "" || marker.HiddenFromUser {
 			continue
 		}
 		row := protocol.Message{
@@ -488,7 +541,7 @@ func (s *AgentHistoryStore) readTranscriptEntries(path string) ([]transcriptEntr
 }
 
 func normalizeTranscriptEntryShape(entry map[string]any) {
-	// Claude transcript 使用 camelCase 字段，这里统一转成 SDK 解码需要的 snake_case。
+	// 旧版 transcript 可能使用 camelCase 字段，这里统一转成 SDK 解码需要的 snake_case。
 	if entry["session_id"] == nil && entry["sessionId"] != nil {
 		entry["session_id"] = entry["sessionId"]
 	}
@@ -608,6 +661,12 @@ func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) str
 		builder.WriteString(strconv.FormatInt(marker.Timestamp, 10))
 		builder.WriteString("|")
 		builder.WriteString(marker.DeliveryPolicy)
+		builder.WriteString("|")
+		builder.WriteString(strconv.FormatBool(marker.HiddenFromUser))
+		builder.WriteString("|")
+		builder.WriteString(strconv.FormatBool(marker.Synthetic))
+		builder.WriteString("|")
+		builder.WriteString(marker.Purpose)
 		builder.WriteString("\n")
 	}
 	return builder.String()
@@ -738,7 +797,7 @@ func buildPrimaryTranscriptChain(entries []transcriptEntry) []transcriptEntry {
 	for left, right := 0, len(chain)-1; left < right; left, right = left+1, right-1 {
 		chain[left], chain[right] = chain[right], chain[left]
 	}
-	return chain
+	return includeParallelTranscriptToolResults(entries, chain)
 }
 
 func shouldSkipTranscriptEntry(entry map[string]any) bool {
@@ -746,6 +805,121 @@ func shouldSkipTranscriptEntry(entry map[string]any) bool {
 		return true
 	}
 	return stringFromAny(entry["teamName"]) != ""
+}
+
+func includeParallelTranscriptToolResults(
+	entries []transcriptEntry,
+	chain []transcriptEntry,
+) []transcriptEntry {
+	if len(chain) == 0 {
+		return chain
+	}
+
+	chainUUIDs := make(map[string]struct{}, len(chain))
+	toolUseIDs := make(map[string]struct{})
+	seenToolResultIDs := make(map[string]struct{})
+	for _, entry := range chain {
+		if uuid := stringFromAny(entry.Data["uuid"]); uuid != "" {
+			chainUUIDs[uuid] = struct{}{}
+		}
+		for _, toolUseID := range transcriptToolUseIDs(entry.Data) {
+			toolUseIDs[toolUseID] = struct{}{}
+		}
+		for _, toolResultID := range transcriptToolResultIDs(entry.Data) {
+			seenToolResultIDs[toolResultID] = struct{}{}
+		}
+	}
+	if len(toolUseIDs) == 0 {
+		return chain
+	}
+
+	next := append([]transcriptEntry(nil), chain...)
+	for _, entry := range entries {
+		uuid := stringFromAny(entry.Data["uuid"])
+		if uuid == "" {
+			continue
+		}
+		if _, exists := chainUUIDs[uuid]; exists {
+			continue
+		}
+		if shouldSkipTranscriptEntry(entry.Data) {
+			continue
+		}
+		parentUUID := stringFromAny(entry.Data["parentUuid"])
+		if _, parentInChain := chainUUIDs[parentUUID]; !parentInChain {
+			continue
+		}
+
+		matched := false
+		for _, toolResultID := range transcriptToolResultIDs(entry.Data) {
+			if _, exists := toolUseIDs[toolResultID]; !exists {
+				continue
+			}
+			if _, exists := seenToolResultIDs[toolResultID]; exists {
+				continue
+			}
+			seenToolResultIDs[toolResultID] = struct{}{}
+			matched = true
+		}
+		if !matched {
+			continue
+		}
+		next = append(next, entry)
+		chainUUIDs[uuid] = struct{}{}
+	}
+
+	sort.SliceStable(next, func(i int, j int) bool {
+		return next[i].Index < next[j].Index
+	})
+	return next
+}
+
+func transcriptToolUseIDs(entry map[string]any) []string {
+	ids := make([]string, 0)
+	for _, block := range transcriptContentBlocks(entry) {
+		if stringFromAny(block["type"]) != "tool_use" {
+			continue
+		}
+		if toolUseID := stringFromAny(block["id"]); toolUseID != "" {
+			ids = append(ids, toolUseID)
+		}
+	}
+	return ids
+}
+
+func transcriptToolResultIDs(entry map[string]any) []string {
+	ids := make([]string, 0)
+	for _, block := range transcriptContentBlocks(entry) {
+		if stringFromAny(block["type"]) != "tool_result" {
+			continue
+		}
+		if toolUseID := stringFromAny(block["tool_use_id"]); toolUseID != "" {
+			ids = append(ids, toolUseID)
+		}
+	}
+	return ids
+}
+
+func transcriptContentBlocks(entry map[string]any) []map[string]any {
+	messageValue, ok := entry["message"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	switch contentValue := messageValue["content"].(type) {
+	case []any:
+		blocks := make([]map[string]any, 0, len(contentValue))
+		for _, item := range contentValue {
+			block, ok := item.(map[string]any)
+			if ok {
+				blocks = append(blocks, block)
+			}
+		}
+		return blocks
+	case []map[string]any:
+		return contentValue
+	default:
+		return nil
+	}
 }
 
 func projectTranscriptChain(
@@ -797,7 +971,7 @@ func projectTranscriptChain(
 				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 				continue
 			}
-			// 中文注释：Claude transcript 会夹杂一类“空 user turn”，
+			// 中文注释：runtime transcript 会夹杂一类“空 user turn”，
 			// 它们不是前端真实输入，不能消费 Nexus 的 round marker。
 			// 否则后续真实 assistant 会挂错 round，result 也就无法并回同一轮。
 			if !shouldMaterializeTranscriptUserTurn(entry.Data) {
@@ -806,6 +980,9 @@ func projectTranscriptChain(
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
+			if marker.HiddenFromUser || isTranscriptGoalContextOnlyUserTurn(entry.Data) {
+				continue
+			}
 			userMessage := buildTranscriptUserMessage(
 				sessionKey,
 				agentID,
@@ -823,7 +1000,7 @@ func projectTranscriptChain(
 			projected = append(projected, *userMessage)
 		case sdkprotocol.MessageTypeAssistant,
 			sdkprotocol.MessageTypeSystem,
-			sdkprotocol.MessageTypeToolProgress:
+			sdkprotocol.MessageTypeTaskProgress:
 			if processor == nil {
 				currentRoundID = buildTranscriptRoundID(decoded.UUID)
 				processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, decoded.SessionID)
@@ -1088,7 +1265,8 @@ func markerAlreadyAligned(aligned []transcriptRoundMarker, candidate transcriptR
 		if marker.RoundID == candidate.RoundID &&
 			marker.Content == candidate.Content &&
 			marker.Timestamp == candidate.Timestamp &&
-			marker.DeliveryPolicy == candidate.DeliveryPolicy {
+			marker.DeliveryPolicy == candidate.DeliveryPolicy &&
+			marker.HiddenFromUser == candidate.HiddenFromUser {
 			return true
 		}
 	}
@@ -1097,6 +1275,18 @@ func markerAlreadyAligned(aligned []transcriptRoundMarker, candidate transcriptR
 
 func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {
 	return sanitizeTranscriptUserContent(transcriptUserContent(entry)) != ""
+}
+
+func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {
+	content := strings.TrimSpace(transcriptUserContent(entry))
+	if strings.HasPrefix(content, "<goal_context>") &&
+		strings.HasSuffix(content, "</goal_context>") {
+		return true
+	}
+	return (strings.HasPrefix(content, "<internal_context source=\"goal\">") &&
+		strings.HasSuffix(content, "</internal_context>")) ||
+		(strings.HasPrefix(content, "<codex_internal_context source=\"goal\">") &&
+			strings.HasSuffix(content, "</codex_internal_context>"))
 }
 
 func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) transcriptRoundMarker {
@@ -1389,4 +1579,21 @@ func stringPointerValue(value *string) string {
 func boolValueAny(value any) bool {
 	typed, ok := value.(bool)
 	return ok && typed
+}
+
+func stringMapFromAny(value any) map[string]string {
+	typed, ok := value.(map[string]any)
+	if !ok || len(typed) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(typed))
+	for key, rawValue := range typed {
+		if trimmedKey := strings.TrimSpace(key); trimmedKey != "" {
+			result[trimmedKey] = strings.TrimSpace(stringFromAny(rawValue))
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }

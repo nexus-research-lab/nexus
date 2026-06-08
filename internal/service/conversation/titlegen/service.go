@@ -1,12 +1,8 @@
 package titlegen
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -18,6 +14,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	"github.com/nexus-research-lab/nexus/internal/service/llm"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 const (
@@ -25,17 +23,27 @@ const (
 	titleAttemptTimeout = 20 * time.Second
 	titleMaxTokens      = 32
 	titleMaxAttempts    = 2
+	titleSystemPrompt   = `你是会话标题生成器。
+请根据用户的第一条消息生成一个简短标题。
+要求：
+1. 用自己的话概括核心意图，不要原样复述。
+2. 中文控制在 2 到 12 个字；英文控制在 2 到 6 个单词。
+3. 不要使用引号、句号、冒号、emoji。
+4. 只返回标题文本。`
 )
 
 var (
+	errEmptyGeneratedTitle     = errors.New("标题生成返回空结果")
 	defaultConversationPattern = regexp.MustCompile(`^.+\s·\s对话\s+\d+$`)
 	whitespacePattern          = regexp.MustCompile(`\s+`)
 )
 
 // Request 描述一次标题生成请求。
 type Request struct {
+	OwnerUserID              string
 	SessionKey               string
 	Provider                 string
+	Model                    string
 	Content                  string
 	SessionTitle             string
 	SessionMessageCount      int
@@ -47,7 +55,7 @@ type Request struct {
 }
 
 type providerResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*clientopts.RuntimeConfig, error)
+	ResolveLLMConfig(context.Context, string, string) (*clientopts.RuntimeConfig, error)
 }
 
 type sessionService interface {
@@ -64,14 +72,19 @@ type eventBroadcaster interface {
 	BroadcastEvent(context.Context, string, protocol.EventMessage) []error
 }
 
+type preferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
 // Service 负责按首条用户消息异步生成会话标题。
 type Service struct {
 	providers providerResolver
+	prefs     preferencesService
 	sessions  sessionService
 	rooms     roomService
 	events    eventBroadcaster
 	logger    *slog.Logger
-	client    *http.Client
+	llmClient *llm.Client
 
 	runAsync func(func())
 
@@ -85,16 +98,22 @@ func NewService(
 	sessions sessionService,
 	rooms roomService,
 	events eventBroadcaster,
+	prefs ...preferencesService,
 ) *Service {
+	var preferenceService preferencesService
+	if len(prefs) > 0 {
+		preferenceService = prefs[0]
+	}
 	return &Service{
 		providers: providers,
+		prefs:     preferenceService,
 		sessions:  sessions,
 		rooms:     rooms,
 		events:    events,
 		logger:    logx.NewDiscardLogger(),
-		client: &http.Client{
+		llmClient: llm.NewClient(&http.Client{
 			Timeout: titleRequestTimeout,
-		},
+		}),
 		runAsync: func(job func()) { go job() },
 		inflight: make(map[string]struct{}),
 	}
@@ -111,7 +130,7 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 
 // Schedule 异步调度一次标题生成。
 func (s *Service) Schedule(ctx context.Context, request Request) {
-	if s == nil || s.providers == nil || s.client == nil {
+	if s == nil || s.providers == nil || s.llmClient == nil {
 		return
 	}
 	if strings.TrimSpace(request.Content) == "" || !request.hasTarget() || !request.shouldGenerateTitle() {
@@ -131,6 +150,62 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 		defer s.clearInflight(targetKey)
 		s.generateAndApply(asyncCtx, request)
 	})
+}
+
+// FillEmptyPreviewFromGoal 用 Goal objective 填充仍为空/默认值的会话预览。
+// 这条路径不调用模型，语义对齐 Codex create_goal 的 set_thread_preview_if_empty。
+func (s *Service) FillEmptyPreviewFromGoal(ctx context.Context, sessionKey string, title string) error {
+	if s == nil {
+		return nil
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	nextTitle := strings.TrimSpace(title)
+	if sessionKey == "" || nextTitle == "" {
+		return nil
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	updated := false
+	resolvedRoomID := ""
+	switch parsed.Kind {
+	case protocol.SessionKeyKindRoom:
+		if s.rooms == nil || strings.TrimSpace(parsed.ConversationID) == "" {
+			return nil
+		}
+		current, err := s.rooms.GetConversationContext(ctx, parsed.ConversationID)
+		if err != nil {
+			return err
+		}
+		if current != nil && isDefaultConversationTitle(current.Conversation.Title, current.Room.Name) {
+			resolvedRoomID = current.Room.ID
+			if _, err = s.rooms.UpdateConversationTitle(ctx, current.Room.ID, current.Conversation.ID, nextTitle); err != nil {
+				return err
+			}
+			updated = true
+		}
+	default:
+		if s.sessions == nil {
+			return nil
+		}
+		current, err := s.sessions.GetSession(ctx, sessionKey)
+		if err != nil {
+			return err
+		}
+		if current != nil && isDefaultSessionTitle(current.Title) {
+			if _, err = s.sessions.UpdateSessionTitle(ctx, sessionKey, nextTitle); err != nil {
+				return err
+			}
+			updated = true
+		}
+	}
+	if updated {
+		s.broadcastResync(ctx, Request{
+			SessionKey:           sessionKey,
+			ConversationID:       parsed.ConversationID,
+			ConversationRoomID:   resolvedRoomID,
+			ConversationRoomName: "",
+		})
+	}
+	return nil
 }
 
 func (s *Service) generateAndApply(ctx context.Context, request Request) {
@@ -174,8 +249,16 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 		return
 	}
 
-	title, err := s.generateTitle(ctx, request.Provider, request.Content)
+	title, err := s.generateTitle(ctx, request, request.Content)
 	if err != nil {
+		if errors.Is(err, errEmptyGeneratedTitle) {
+			s.logger.Debug("生成会话标题返回空结果",
+				"session_key", request.SessionKey,
+				"conversation_id", request.ConversationID,
+				"provider", strings.TrimSpace(request.Provider),
+			)
+			return
+		}
 		s.logger.Warn("生成会话标题失败",
 			"session_key", request.SessionKey,
 			"conversation_id", request.ConversationID,
@@ -227,52 +310,25 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 
 func (s *Service) generateTitle(
 	ctx context.Context,
-	provider string,
+	request Request,
 	content string,
 ) (string, error) {
-	runtimeConfig, err := s.providers.ResolveRuntimeConfig(ctx, provider)
+	runtimeConfig, err := s.resolveLLMConfig(ctx, request)
 	if err != nil {
 		return "", err
 	}
-	endpoint, err := buildMessagesEndpoint(runtimeConfig.BaseURL)
-	if err != nil {
-		return "", err
-	}
-	requestPayload := anthropicMessagesRequest{
-		Model:       runtimeConfig.Model,
+	llmRequest := llm.GenerateTextRequest{
+		Config:      runtimeConfig,
+		System:      titleSystemPrompt,
+		Messages:    []llm.Message{{Role: "user", Content: truncatePromptContent(content, 400)}},
 		MaxTokens:   titleMaxTokens,
 		Temperature: 0,
-		System: strings.TrimSpace(`你是会话标题生成器。
-请根据用户的第一条消息生成一个简短标题。
-要求：
-1. 用自己的话概括核心意图，不要原样复述。
-2. 中文控制在 2 到 12 个字；英文控制在 2 到 6 个单词。
-3. 不要使用引号、句号、冒号、emoji。
-4. 只返回标题文本。`),
-		Messages: []anthropicMessage{
-			{
-				Role:    "user",
-				Content: truncatePromptContent(content, 400),
-			},
-		},
 	}
-	body, err := json.Marshal(requestPayload)
-	if err != nil {
-		return "", err
-	}
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("Accept", "application/json")
-	httpRequest.Header.Set("x-api-key", runtimeConfig.AuthToken)
-	httpRequest.Header.Set("anthropic-version", "2023-06-01")
 
 	var lastErr error
 	for attempt := 1; attempt <= titleMaxAttempts; attempt++ {
 		attemptCtx, cancel := context.WithTimeout(ctx, titleAttemptTimeout)
-		title, err := s.doGenerateTitle(attemptCtx, httpRequest)
+		title, err := s.doGenerateTitle(attemptCtx, llmRequest)
 		cancel()
 		if err == nil {
 			return title, nil
@@ -290,39 +346,37 @@ func (s *Service) generateTitle(
 	return "", lastErr
 }
 
+func (s *Service) resolveLLMConfig(
+	ctx context.Context,
+	request Request,
+) (*clientopts.RuntimeConfig, error) {
+	if s.prefs != nil {
+		ownerUserID := strings.TrimSpace(request.OwnerUserID)
+		if ownerUserID != "" {
+			prefs, err := s.prefs.Get(ctx, ownerUserID)
+			if err != nil {
+				return nil, err
+			}
+			selection := prefs.DefaultBackgroundModelSelection
+			if strings.TrimSpace(selection.Provider) != "" && strings.TrimSpace(selection.Model) != "" {
+				return s.providers.ResolveLLMConfig(ctx, selection.Provider, selection.Model)
+			}
+		}
+	}
+	return s.providers.ResolveLLMConfig(ctx, request.Provider, request.Model)
+}
+
 func (s *Service) doGenerateTitle(
 	ctx context.Context,
-	templateRequest *http.Request,
+	request llm.GenerateTextRequest,
 ) (string, error) {
-	httpRequest := templateRequest.Clone(ctx)
-	if templateRequest.GetBody != nil {
-		bodyReader, err := templateRequest.GetBody()
-		if err != nil {
-			return "", err
-		}
-		httpRequest.Body = bodyReader
-	}
-
-	response, err := s.client.Do(httpRequest)
+	text, err := s.llmClient.GenerateText(ctx, request)
 	if err != nil {
 		return "", err
 	}
-	defer response.Body.Close()
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return "", err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("title api 返回异常状态: %d %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
-	}
-
-	var payload anthropicMessagesResponse
-	if err = json.Unmarshal(responseBody, &payload); err != nil {
-		return "", err
-	}
-	title := sanitizeGeneratedTitle(payload.firstText())
+	title := sanitizeGeneratedTitle(text)
 	if title == "" {
-		return "", errors.New("标题生成返回空结果")
+		return "", errEmptyGeneratedTitle
 	}
 	return title, nil
 }
@@ -530,21 +584,6 @@ func sanitizeGeneratedTitle(raw string) string {
 	return strings.TrimSpace(normalized)
 }
 
-func buildMessagesEndpoint(baseURL string) (string, error) {
-	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if trimmed == "" {
-		return "", errors.New("provider base_url 不能为空")
-	}
-	switch {
-	case strings.HasSuffix(trimmed, "/v1/messages"):
-		return trimmed, nil
-	case strings.HasSuffix(trimmed, "/v1"):
-		return trimmed + "/messages", nil
-	default:
-		return trimmed + "/v1/messages", nil
-	}
-}
-
 func shouldRetryTitleRequest(err error) bool {
 	if err == nil {
 		return false
@@ -557,35 +596,4 @@ func shouldRetryTitleRequest(err error) bool {
 		strings.Contains(message, "timeout") ||
 		strings.Contains(message, "connection reset") ||
 		strings.Contains(message, "unexpected eof")
-}
-
-type anthropicMessagesRequest struct {
-	Model       string             `json:"model"`
-	MaxTokens   int                `json:"max_tokens"`
-	Temperature float64            `json:"temperature,omitempty"`
-	System      string             `json:"system,omitempty"`
-	Messages    []anthropicMessage `json:"messages"`
-}
-
-type anthropicMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type anthropicMessagesResponse struct {
-	Content []anthropicContentBlock `json:"content"`
-}
-
-type anthropicContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-func (r anthropicMessagesResponse) firstText() string {
-	for _, item := range r.Content {
-		if strings.TrimSpace(item.Type) == "text" && strings.TrimSpace(item.Text) != "" {
-			return item.Text
-		}
-	}
-	return ""
 }

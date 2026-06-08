@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
@@ -35,7 +36,12 @@ func (r *Repository) bind(index int) string {
 
 func (r *Repository) LoadState(ctx context.Context, accessTokenEnabled bool) (State, error) {
 	state := State{}
-	userCount, err := r.scalarCount(ctx, "SELECT COUNT(*) FROM users WHERE status = "+r.bind(1), UserStatusActive)
+	userCount, err := r.scalarCount(
+		ctx,
+		"SELECT COUNT(*) FROM users WHERE status = "+r.bind(1)+" AND user_id <> "+r.bind(2),
+		UserStatusActive,
+		authctx.SystemUserID,
+	)
 	if err != nil {
 		return state, err
 	}
@@ -44,8 +50,9 @@ func (r *Repository) LoadState(ctx context.Context, accessTokenEnabled bool) (St
 		`SELECT COUNT(*)
 FROM auth_password_credentials c
 INNER JOIN users u ON u.user_id = c.user_id
-WHERE u.status = `+r.bind(1),
+WHERE u.status = `+r.bind(1)+` AND u.user_id <> `+r.bind(2),
 		UserStatusActive,
+		authctx.SystemUserID,
 	)
 	if err != nil {
 		return state, err
@@ -217,7 +224,9 @@ func (r *Repository) ListUsers(ctx context.Context) ([]UserRecord, error) {
 		ctx,
 		`SELECT user_id, username, display_name, role, status, avatar, last_login_at, created_at, updated_at
 FROM users
+WHERE user_id <> `+r.bind(1)+`
 ORDER BY created_at ASC`,
+		authctx.SystemUserID,
 	)
 	if err != nil {
 		return nil, err
@@ -251,6 +260,48 @@ ORDER BY created_at ASC`,
 		items = append(items, user)
 	}
 	return items, rows.Err()
+}
+
+func (r *Repository) UpsertLocalUser(ctx context.Context, user UserRecord) error {
+	if strings.TrimSpace(user.UserID) != authctx.SystemUserID {
+		return fmt.Errorf("local user upsert only supports %s", authctx.SystemUserID)
+	}
+	existing, err := r.GetUserByID(ctx, user.UserID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		_, err = r.db.ExecContext(
+			ctx,
+			`INSERT INTO users (
+    user_id, username, display_name, role, status, avatar, last_login_at, created_at, updated_at
+) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`)`,
+			user.UserID,
+			user.Username,
+			user.DisplayName,
+			user.Role,
+			user.Status,
+			nullableString(user.Avatar),
+			nil,
+			user.CreatedAt,
+			user.UpdatedAt,
+		)
+		return err
+	}
+	_, err = r.db.ExecContext(
+		ctx,
+		`UPDATE users
+SET username = `+r.bind(1)+`, display_name = `+r.bind(2)+`, role = `+r.bind(3)+`, status = `+r.bind(4)+`, avatar = `+r.bind(5)+`, updated_at = `+r.bind(6)+`
+WHERE user_id = `+r.bind(7),
+		user.Username,
+		user.DisplayName,
+		user.Role,
+		user.Status,
+		nullableString(user.Avatar),
+		user.UpdatedAt,
+		user.UserID,
+	)
+	return err
 }
 
 func (r *Repository) CreateUserWithPassword(

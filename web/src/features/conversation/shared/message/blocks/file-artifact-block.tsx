@@ -2,7 +2,10 @@
 
 import { Download, FileText, FolderOpen } from "lucide-react";
 
-import { get_workspace_file_download_url } from "@/lib/api/agent-manage-api";
+import {
+  download_workspace_file_api,
+} from "@/lib/api/agent-manage-api";
+import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { useAgentStore } from "@/store/agent";
 
@@ -46,7 +49,15 @@ export function FileArtifactBlock({
   const can_open = Boolean(on_open_workspace_file);
   const download_agent_id = workspace_agent_id?.trim() || current_agent_id || "";
   const can_download = Boolean(download_agent_id && path.trim());
-  const download_url = can_download ? get_workspace_file_download_url(download_agent_id, path) : "";
+  const file_action_copy = get_workspace_file_external_action_copy(file_name);
+  const handle_external_action = () => {
+    if (!can_download) {
+      return;
+    }
+    void download_workspace_file_api(download_agent_id, path, file_name).catch((error) => {
+      console.error(`[FileArtifactBlock] ${file_action_copy.label} workspace 文件失败:`, error);
+    });
+  };
 
   return (
     <div className={cn(compact ? "my-0" : "my-2", "min-w-0", class_name)}>
@@ -95,21 +106,23 @@ export function FileArtifactBlock({
           ) : null}
         </button>
         {can_download ? (
-          <a
-            aria-label={`下载 ${file_name}`}
+          <button
+            aria-label={file_action_copy.aria_label}
             className={cn(
               "inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary",
               compact ? "px-1.5 py-1 text-[10px]" : "px-2 py-1 text-[11px]",
             )}
-            download={file_name}
-            href={download_url}
-            rel="noopener noreferrer"
-            target="_blank"
-            title={`下载 ${file_name}`}
+            onClick={handle_external_action}
+            title={file_action_copy.title}
+            type="button"
           >
-            <Download className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
-            <span>下载</span>
-          </a>
+            {file_action_copy.mode === "reveal" ? (
+              <FolderOpen className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+            ) : (
+              <Download className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
+            )}
+            <span>{file_action_copy.label}</span>
+          </button>
         ) : null}
       </div>
     </div>

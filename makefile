@@ -5,25 +5,31 @@ include $(ENV_FILE)
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 
-TAG ?= 0.1.8
+TAG ?= 0.1.17
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
-DEV_BACKEND_WAIT_SECONDS ?= 90
 AGENT_UID ?= 1001
 AGENT_GID ?= 1001
 HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
+NXS_DEV_GOOS ?= $(shell go env GOOS)
+NXS_DEV_GOARCH ?= $(shell go env GOARCH)
+NXS_DEV_BINARY_NAME := nxs
+ifeq ($(NXS_DEV_GOOS),windows)
+NXS_DEV_BINARY_NAME := nxs.exe
+endif
+NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 
 # Default target
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
-	dev wait-backend run-web-after-backend install db-init gen-protocol-types lint-web typecheck-web prepare-host-data \
+	dev dev-nxs install gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-smoke app-win-package \
-	up down log reboot
+	pull deploy start-no-build
 
 # Show help
 help: ## Show this help message
@@ -35,29 +41,11 @@ help: ## Show this help message
 run-web: ## Run frontend in development mode
 	cd web && pnpm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
-wait-backend:
-	@echo "Waiting for backend on http://localhost:$(BACKEND_PORT) ..."
-	@deadline=$$(( $$(date +%s) + $(DEV_BACKEND_WAIT_SECONDS) )); \
-	while ! lsof -nP -iTCP:$(BACKEND_PORT) -sTCP:LISTEN >/dev/null 2>&1; do \
-		if [ $$(date +%s) -ge $$deadline ]; then \
-			echo "Error: backend did not start listening on port $(BACKEND_PORT) within $(DEV_BACKEND_WAIT_SECONDS)s."; \
-			exit 1; \
-		fi; \
-		sleep 1; \
-	done; \
-	echo "Backend is ready on http://localhost:$(BACKEND_PORT)"
-
-run-web-after-backend: wait-backend
-	$(MAKE) run-web WEB_PORT=$(WEB_PORT)
-
-db-init: ## Run Goose migrations for local database
-	go run ./cmd/nexus-migrate up
-
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
-	go run ./cmd/protocol-tsgen
+	go generate ./internal/protocol
 
-run-backend: db-init ## Run Go backend in development mode
-	PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
+run-backend: ## Run Go backend in development mode
+	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
 
@@ -76,7 +64,15 @@ dev: ## Run both frontend and backend in development mode
 	@if lsof -nP -iTCP:$(WEB_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
 		echo "Warning: frontend port $(WEB_PORT) is already in use, Vite will choose another available port."; \
 	fi
-	@make -j2 run-backend run-web-after-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
+	@make -j2 run-web run-backend BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
+
+dev-nxs: ## Run dev servers with local Go SDK nxs runtime
+	@if [ -z "$$NEXUS_NXS_COMMAND_PATH" ] && [ ! -x "$(NXS_DEV_RUNTIME_PATH)" ]; then \
+		echo "Error: dev nxs runtime not found: $(NXS_DEV_RUNTIME_PATH)"; \
+		echo "Hint: run 'make -C ../nexus-agent-sdk/nexus-agent-sdk-go build-nxs' first."; \
+		exit 1; \
+	fi
+	NEXUS_AGENT_RUNTIME_KIND=nxs NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" $(MAKE) dev BACKEND_PORT=$(BACKEND_PORT) WEB_PORT=$(WEB_PORT)
 
 install: ## Install all dependencies
 	@echo "Installing Go dependencies..."
@@ -141,7 +137,7 @@ app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1
 
-app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app zip、installer、sha256 和 metadata
+app-win-package: ## 构建、烟测并打包 Windows WPF/WebView2 桌面 app installer、sha256 和 metadata
 	pwsh scripts/desktop/package-windows-app.ps1
 
 # Docker commands
@@ -189,6 +185,14 @@ start: prepare-host-data ## Start all services with Docker
 	@echo "📋 Backend logs: run 'make logs'"
 	@echo "📋 All service logs: run 'make logs-all'"
 
+start-no-build: prepare-host-data
+	TAG=$(TAG) $(COMPOSE_CMD) up -d --force-recreate
+	@echo ""
+	@echo "✅ Nexus Core is running!"
+	@echo "🌐 Web UI: http://localhost"
+	@echo "📋 Backend logs: run 'make logs'"
+	@echo "📋 All service logs: run 'make logs-all'"
+
 stop: ## Stop all Docker services
 	TAG=$(TAG) $(COMPOSE_CMD) down
 
@@ -215,10 +219,8 @@ clean: ## Clean up Docker resources
 pull:
 	git pull origin main
 
-deploy: pull restart
-
-# Legacy commands (for backward compatibility)
-up: start ## Legacy alias for start
-down: stop ## Legacy alias for stop
-log: logs ## Legacy alias for logs
-reboot: restart ## Legacy alias for restart
+deploy:
+	$(MAKE) pull
+	$(MAKE) build
+	$(MAKE) stop
+	$(MAKE) start-no-build

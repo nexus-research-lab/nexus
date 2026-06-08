@@ -31,10 +31,16 @@ func (s *Service) ensureReady(ctx context.Context) error {
 		if err = os.MkdirAll(record.WorkspacePath, 0o755); err != nil {
 			return err
 		}
+		if err = EnsureRuntimeEmotionState(record.WorkspacePath); err != nil {
+			return err
+		}
 		agent, err = s.repository.CreateAgent(ctx, record)
 		if err != nil {
 			return err
 		}
 	}
-	return os.MkdirAll(agent.WorkspacePath, 0o755)
+	if err = os.MkdirAll(agent.WorkspacePath, 0o755); err != nil {
+		return err
+	}
+	return EnsureRuntimeEmotionState(agent.WorkspacePath)
 }

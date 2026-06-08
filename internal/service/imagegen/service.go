@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
@@ -31,15 +33,25 @@ const (
 )
 
 var safeFileNamePattern = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+var pixelSizePattern = regexp.MustCompile(`^(\d+)\s*[xX*]\s*(\d+)$`)
 
 // ProviderResolver 是图片生成服务依赖的 provider 配置解析子集。
 type ProviderResolver interface {
 	ResolveImageConfig(ctx context.Context, provider string) (*providercfg.ImageConfig, error)
 }
 
+type providerModelResolver interface {
+	ResolveImageModelConfig(ctx context.Context, provider string, model string) (*providercfg.ImageConfig, error)
+}
+
+type preferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
 // Service 提供 Provider 驱动的图片生成能力。
 type Service struct {
 	providers ProviderResolver
+	prefs     preferencesService
 	now       func() time.Time
 	client    *http.Client
 }
@@ -53,6 +65,11 @@ func NewService(providers ProviderResolver) *Service {
 	}
 }
 
+// SetPreferences 注入用户偏好服务，用于解析默认生图模型。
+func (s *Service) SetPreferences(prefs preferencesService) {
+	s.prefs = prefs
+}
+
 // GenerateImage 调用图片生成 Provider 并保存图片。
 func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Result, []byte, error) {
 	if s == nil || s.providers == nil {
@@ -62,10 +79,12 @@ func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Resu
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := s.providers.ResolveImageConfig(ctx, normalized.Provider)
+	config, err := s.resolveImageConfig(ctx, normalized.Provider, normalized.Model)
 	if err != nil {
 		return nil, nil, err
 	}
+	normalized = applyGenerateProviderDefaults(config, normalized)
+	normalized.Size = normalizeProviderImageSize(config, normalized.Size)
 	payload, revisedPrompt, mimeType, err := s.callGenerateProvider(ctx, config, normalized)
 	if err != nil {
 		return nil, nil, err
@@ -104,10 +123,11 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 	if err != nil {
 		return nil, nil, err
 	}
-	config, err := s.providers.ResolveImageConfig(ctx, normalized.Provider)
+	config, err := s.resolveImageConfig(ctx, normalized.Provider, normalized.Model)
 	if err != nil {
 		return nil, nil, err
 	}
+	normalized.Size = normalizeProviderImageSize(config, normalized.Size)
 	payload, revisedPrompt, mimeType, err := s.callEditProvider(ctx, config, normalized)
 	if err != nil {
 		return nil, nil, err
@@ -143,20 +163,74 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 	return result, payload, nil
 }
 
+func (s *Service) resolveImageConfig(ctx context.Context, provider string, model string) (*providercfg.ImageConfig, error) {
+	if strings.TrimSpace(provider) != "" || strings.TrimSpace(model) != "" || s.prefs == nil {
+		if strings.TrimSpace(model) != "" {
+			if resolver, ok := s.providers.(providerModelResolver); ok {
+				return resolver.ResolveImageModelConfig(ctx, provider, model)
+			}
+			return nil, errors.New("图片生成 Provider 不支持显式 model 选择")
+		}
+		return s.providers.ResolveImageConfig(ctx, provider)
+	}
+	prefs, err := s.prefs.Get(ctx, authctx.OwnerUserID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	selection := prefs.DefaultImageModelSelection
+	if strings.TrimSpace(selection.Provider) == "" || strings.TrimSpace(selection.Model) == "" {
+		return s.providers.ResolveImageConfig(ctx, "")
+	}
+	if resolver, ok := s.providers.(providerModelResolver); ok {
+		return resolver.ResolveImageModelConfig(ctx, selection.Provider, selection.Model)
+	}
+	return s.providers.ResolveImageConfig(ctx, selection.Provider)
+}
+
 func (s *Service) callGenerateProvider(
 	ctx context.Context,
 	config *providercfg.ImageConfig,
 	input GenerateInput,
 ) ([]byte, string, string, error) {
+	if config != nil {
+		switch strings.TrimSpace(config.APIFormat) {
+		case providercfg.APIFormatDashScopeImageGeneration:
+			return s.callDashScopeGenerateProvider(ctx, config, input)
+		case providercfg.APIFormatModelScopeImageGeneration:
+			return s.callModelScopeGenerateProvider(ctx, config, input)
+		}
+	}
 	endpoint, err := endpointURL(config.BaseURL, "generations")
 	if err != nil {
 		return nil, "", "", err
 	}
-	fields := map[string]any{
-		"prompt": input.Prompt,
-		"n":      1,
+	fields := openAICompatibleGeneratePayload(config, input, endpoint)
+	if isSeedreamModel(config) {
+		if _, exists := fields["watermark"]; !exists {
+			fields["watermark"] = false
+		}
 	}
-	if !isAzureDeployment(endpoint) {
+
+	var response imageResponse
+	if err := s.postJSONWithRetries(ctx, endpoint, config.AuthToken, fields, &response); err != nil {
+		return nil, "", "", err
+	}
+	return s.extractImage(ctx, response, input.OutputFormat)
+}
+
+func openAICompatibleGeneratePayload(
+	config *providercfg.ImageConfig,
+	input GenerateInput,
+	endpoint string,
+) map[string]any {
+	var providerOptions map[string]any
+	if config != nil {
+		providerOptions = config.ProviderOptions
+	}
+	fields := cloneProviderOptions(providerOptions)
+	fields["prompt"] = input.Prompt
+	fields["n"] = 1
+	if config != nil && !isAzureDeployment(endpoint) {
 		fields["model"] = config.Model
 	}
 	if input.Size != "" {
@@ -174,12 +248,7 @@ func (s *Service) callGenerateProvider(
 	if input.Background != "" {
 		fields["background"] = input.Background
 	}
-
-	var response imageResponse
-	if err := s.postJSONWithRetries(ctx, endpoint, config.AuthToken, fields, &response); err != nil {
-		return nil, "", "", err
-	}
-	return s.extractImage(ctx, response, input.OutputFormat)
+	return fields
 }
 
 func (s *Service) callEditProvider(
@@ -187,6 +256,14 @@ func (s *Service) callEditProvider(
 	config *providercfg.ImageConfig,
 	input EditInput,
 ) ([]byte, string, string, error) {
+	if config != nil {
+		switch strings.TrimSpace(config.APIFormat) {
+		case providercfg.APIFormatDashScopeImageGeneration:
+			return s.callDashScopeEditProvider(ctx, config, input)
+		case providercfg.APIFormatModelScopeImageGeneration:
+			return nil, "", "", errors.New("ModelScope 图片生成分支暂不支持 edit 操作")
+		}
+	}
 	endpoint, err := endpointURL(config.BaseURL, "edits")
 	if err != nil {
 		return nil, "", "", err
@@ -265,6 +342,95 @@ func isAzureDeployment(rawURL string) bool {
 		return false
 	}
 	return strings.Contains(strings.ToLower(parsed.Path), "/openai/deployments/")
+}
+
+func applyGenerateProviderDefaults(config *providercfg.ImageConfig, input GenerateInput) GenerateInput {
+	if input.Size == defaultSize {
+		if config != nil {
+			if size := stringProviderOption(config.ProviderOptions, "size"); size != "" {
+				input.Size = size
+				return input
+			}
+		}
+		if isSeedreamModel(config) {
+			input.Size = "2K"
+		}
+	}
+	return input
+}
+
+func cloneProviderOptions(options map[string]any) map[string]any {
+	fields := map[string]any{}
+	for key, value := range options {
+		if strings.TrimSpace(key) != "" {
+			fields[key] = value
+		}
+	}
+	return fields
+}
+
+func stringProviderOption(options map[string]any, key string) string {
+	value, ok := options[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func isSeedreamModel(config *providercfg.ImageConfig) bool {
+	if config == nil {
+		return false
+	}
+	model := strings.ToLower(strings.TrimSpace(config.Model))
+	return strings.Contains(model, "seedream")
+}
+
+func normalizeProviderImageSize(config *providercfg.ImageConfig, size string) string {
+	size = strings.TrimSpace(size)
+	if size == "" || !isImage2Model(config) {
+		return size
+	}
+	matches := pixelSizePattern.FindStringSubmatch(size)
+	if len(matches) != 3 {
+		return size
+	}
+	width, widthErr := strconv.Atoi(matches[1])
+	height, heightErr := strconv.Atoi(matches[2])
+	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
+		return size
+	}
+	width = nearestPositiveMultiple(width, 16)
+	height = nearestPositiveMultiple(height, 16)
+	return fmt.Sprintf("%dx%d", width, height)
+}
+
+func isImage2Model(config *providercfg.ImageConfig) bool {
+	if config == nil {
+		return false
+	}
+	model := strings.ToLower(strings.TrimSpace(config.Model))
+	normalized := strings.NewReplacer("-", "", "_", "", ".", "", " ", "").Replace(model)
+	return strings.Contains(normalized, "image2")
+}
+
+func nearestPositiveMultiple(value int, multiple int) int {
+	if multiple <= 0 || value <= 0 {
+		return value
+	}
+	remainder := value % multiple
+	if remainder == 0 {
+		return value
+	}
+	down := value - remainder
+	up := down + multiple
+	if down <= 0 || up-value <= value-down {
+		return up
+	}
+	return down
 }
 
 func validateProviderURL(parsed *url.URL) error {
@@ -481,6 +647,7 @@ func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType strin
 
 func normalizeInput(input GenerateInput) (GenerateInput, error) {
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.WorkspacePath = strings.TrimSpace(input.WorkspacePath)
 	input.Size = strings.TrimSpace(input.Size)
@@ -518,6 +685,7 @@ func normalizeInput(input GenerateInput) (GenerateInput, error) {
 
 func normalizeEditInput(input EditInput) (EditInput, error) {
 	input.Provider = strings.TrimSpace(input.Provider)
+	input.Model = strings.TrimSpace(input.Model)
 	input.Prompt = strings.TrimSpace(input.Prompt)
 	input.WorkspacePath = strings.TrimSpace(input.WorkspacePath)
 	input.ImagePath = strings.TrimSpace(input.ImagePath)

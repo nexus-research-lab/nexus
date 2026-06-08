@@ -6,21 +6,21 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"time"
 	"unicode/utf8"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -32,6 +32,7 @@ func (s *RealtimeService) runRound(
 	agentNameByID map[string]string,
 	agentByID map[string]*protocol.Agent,
 ) {
+	ctx = contextWithQueueOwner(ctx, roundValue.OwnerUserID)
 	logger := s.loggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
@@ -70,12 +71,7 @@ func (s *RealtimeService) runRound(
 	if finalStatus == "finished" {
 		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
 	}
-	go s.dispatchNextInputQueueItem(
-		contextWithQueueOwner(context.Background(), roundValue.OwnerUserID),
-		roundValue.SessionKey,
-		roundValue.RoomID,
-		roundValue.ConversationID,
-	)
+	go s.dispatchPostRoundWork(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
 }
 
 func appendPromptSection(base string, section string) string {
@@ -168,38 +164,69 @@ func (s *RealtimeService) runSlot(
 	}
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomSkillPrompt)
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildMemberDirectoryPrompt(agentNameByID))
-	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
+	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
+	if roundValue.PermissionMode != "" {
+		permissionMode = roundValue.PermissionMode
+	}
+	slot.GoalRuntimeIgnored = goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode))
+	if !slot.GoalRuntimeIgnored {
+		appendSystemPrompt, slot.GoalContext, slot.GoalIDForUsage, slot.GoalSessionKey = s.resolveGoalRuntimeContextForSlot(slotCtx, roundValue, slot, appendSystemPrompt)
+	}
+	if override := strings.TrimSpace(roundValue.GoalContext); roundValue.Internal && override != "" {
+		slot.GoalContext = override
+	}
+	beginGoalUsageForSlot(slot)
+	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
+	defer cleanupGoalRuntime()
+	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
 		mcpServers = s.mcpServers(
 			agentValue.AgentID,
-			slot.RuntimeSessionKey,
+			roundValue.SessionKey,
+			slot.AgentRoundID,
 			"room",
 			roundValue.RoomID,
 			roomSourceContextLabel(roundValue),
 		)
 	}
-	permissionMode := sdkpermission.Mode(agentValue.Options.PermissionMode)
-	permissionHandler := func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+	permissionHandler := roundValue.PermissionHandler
+	if permissionHandler == nil {
+		permissionHandler = func(permissionCtx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
+		}
+	}
+	permissionHandler = roomRuntimePermissionHandler(permissionHandler)
+	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	runtimeSelection, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
 	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:      agentValue.WorkspacePath,
-		Provider:           agentValue.Options.Provider,
-		PermissionMode:     permissionMode,
-		PermissionHandler:  permissionHandler,
-		AllowedTools:       agentValue.Options.AllowedTools,
-		DisallowedTools:    agentValue.Options.DisallowedTools,
-		SettingSources:     agentValue.Options.SettingSources,
-		AppendSystemPrompt: appendSystemPrompt,
-		ResumeSessionID:    slot.getSDKSessionID(),
-		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
-		MaxTurns:           agentValue.Options.MaxTurns,
-		MCPServers:         mcpServers,
-		ExtraEnv:           s.roomRuntimeEnv(roundValue, slot),
+		WorkspacePath:              agentValue.WorkspacePath,
+		RuntimeKind:                runtimeSelection.RuntimeKind,
+		Provider:                   runtimeSelection.Provider,
+		Model:                      runtimeSelection.Model,
+		PermissionMode:             permissionMode,
+		PermissionHandler:          permissionHandler,
+		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
+		DisallowedTools:            roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
+		SettingSources:             agentValue.Options.SettingSources,
+		AppendSystemPrompt:         appendSystemPrompt,
+		ResumeSessionID:            slot.getSDKSessionID(),
+		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
+		MaxTurns:                   agentValue.Options.MaxTurns,
+		MCPServers:                 mcpServers,
+		ExtraEnv:                   s.roomRuntimeEnv(roundValue, slot),
+		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 	})
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
+	}
+	options = s.runtime.WithGuidanceHook(options, slot.RuntimeSessionKey)
+	if goalSessionKey := goalSessionKeyForSlot(slot); goalSessionKey != "" && goalSessionKey != slot.RuntimeSessionKey {
+		options = s.runtime.WithGuidanceHook(options, goalSessionKey)
 	}
 	options = runtimectx.WithPostToolUseGuidanceHook(options, s.roomSlotGuidanceHook(roundValue, slot, workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
@@ -208,13 +235,7 @@ func (s *RealtimeService) runSlot(
 		RoomID:         roundValue.RoomID,
 		ConversationID: roundValue.ConversationID,
 	}))
-	previousStderr := options.Callbacks.Stderr
-	options.Callbacks.Stderr = func(line string) {
-		if previousStderr != nil {
-			previousStderr(line)
-		}
-		logger.Warn("Agent SDK stderr", "stderr", runtimectx.RedactSensitiveText(line))
-	}
+	options = withRoomRuntimeDiagnosticsLogger(options, logger.With("agent_id", slot.AgentID, "round_id", slot.AgentRoundID))
 	client := s.factory.New(options)
 	slot.setClient(client)
 
@@ -247,7 +268,7 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	if err := s.recordPrivateRoundMarker(slot, dispatchPrompt); err != nil {
+	if err := s.recordPrivateRoundMarker(roundValue, slot, dispatchPrompt); err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
@@ -256,11 +277,14 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	dispatchRuntimeContent = s.appendRuntimeUserContext(slotCtx, roundValue.ConversationID, agentValue, dispatchRuntimeContent)
 	slot.beginNoReplyCandidate()
 	result, err := runtimectx.ExecuteRound(slotCtx, runtimectx.RoundExecutionRequest{
-		Content: dispatchRuntimeContent.Payload(),
-		Client:  client,
-		Mapper:  roomRoundMapperAdapter{mapper: mapper},
+		Content:          dispatchRuntimeContent.Payload(),
+		ContextualInputs: goalContextualInputs(slot.GoalContext, slot.GoalIDForUsage, goalSessionKeyForSlot(slot)),
+		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation"),
+		Client:           client,
+		Mapper:           roomRoundMapperAdapter{mapper: mapper},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
 		},
@@ -301,7 +325,10 @@ func (s *RealtimeService) runSlot(
 			messageRole := protocol.MessageRole(messageValue)
 			if messageRole == "result" {
 				slot.setStatus(resultStatus(messageValue["subtype"]))
-				s.recordUsage(roundValue, messageValue)
+				s.recordUsage(roundValue, slot, messageValue)
+			}
+			if messageRole == "assistant" {
+				slot.rememberGoalAssistantMessage(messageValue)
 			}
 			if messageRole == "assistant" && roomdomain.IsNoReplyAssistantMessage(messageValue) {
 				slot.suppressOutput()
@@ -316,6 +343,7 @@ func (s *RealtimeService) runSlot(
 						return err
 					}
 				}
+				s.recordGoalUsageFromSlotAssistantMessage(slotCtx, slot, messageValue)
 				return nil
 			}
 			if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
@@ -326,6 +354,7 @@ func (s *RealtimeService) runSlot(
 					return err
 				}
 			}
+			s.recordGoalUsageFromSlotAssistantMessage(slotCtx, slot, messageValue)
 			return nil
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
@@ -348,13 +377,16 @@ func (s *RealtimeService) runSlot(
 	}
 
 	if result.CompletedByAssistant {
-		s.recordTerminalAssistantUsage(roundValue, mapper.LastAssistantMessage())
+		s.recordTerminalAssistantUsage(roundValue, slot, mapper.LastAssistantMessage())
 	}
+	s.recordGoalUsageForSlot(slotCtx, slot, result, mapper.LastAssistantMessage())
+	s.recordGoalUsageLimitForSlot(slotCtx, slot, result)
+	s.recordGoalContinuationProgressForSlot(slotCtx, slot, roundValue, result, mapper.LastAssistantMessage())
 	if slot.getStatus() == "running" {
 		slot.setStatus(resultStatus(result.ResultSubtype))
 	}
 	if !slot.shouldSuppressOutput() {
-		if err := s.recordRoomActionReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
+		if err := s.recordRoomDirectedMessageReply(slotCtx, roundValue, slot, mapper.LastAssistantMessage()); err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
@@ -370,17 +402,17 @@ func (s *RealtimeService) runSlot(
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		actionCursor, actionCursorRecorded, err := s.recordRoomActionCursor(slot, roundValue)
+		messageCursor, messageCursorRecorded, err := s.recordRoomDirectedMessageCursor(slot, roundValue)
 		if err != nil {
 			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 			return
 		}
-		if actionCursorRecorded {
+		if messageCursorRecorded {
 			s.broadcastSharedEventWithTimeout(
 				slotCtx,
 				roundValue.SessionKey,
 				roundValue.RoomID,
-				newRoomActionConsumedEvent(actionCursor),
+				newRoomDirectedMessageConsumedEvent(messageCursor),
 			)
 		}
 	}
@@ -399,6 +431,39 @@ func (s *RealtimeService) runSlot(
 	logger.Info("Room slot 结束", "status", slot.getStatus())
 }
 
+func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {
+	previousStderr := options.Callbacks.Stderr
+	options.Callbacks.Stderr = func(line string) {
+		normalizedLine := normalizeRuntimeStderrLine(line)
+		if previousStderr != nil {
+			previousStderr(normalizedLine)
+		}
+		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
+	}
+	previousDiagnostics := options.Callbacks.Diagnostics
+	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
+		if previousDiagnostics == nil {
+			options.Callbacks.Diagnostics = func(agentclient.DiagnosticEvent) {}
+		}
+		return options
+	}
+	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
+		if previousDiagnostics != nil {
+			previousDiagnostics(event)
+		}
+		logger.Info("Agent SDK diagnostics",
+			"component", strings.TrimSpace(event.Component),
+			"event", strings.TrimSpace(event.Event),
+			"attrs", event.Attributes,
+		)
+	}
+	logger.Info("Agent SDK diagnostics 已启用",
+		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
+		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
+	)
+	return options
+}
+
 func roomSourceContextLabel(roundValue *activeRoomRound) string {
 	if roundValue == nil || roundValue.Context == nil {
 		return ""
@@ -409,282 +474,57 @@ func roomSourceContextLabel(roundValue *activeRoomRound) string {
 	return strings.TrimSpace(roundValue.Context.Conversation.Title)
 }
 
-func (s *RealtimeService) recordUsage(roundValue *activeRoomRound, message protocol.Message) {
-	if s.usage == nil || roundValue == nil || protocol.MessageRole(message) != "result" {
-		return
+func roomRuntimeAllowedTools(values []string) []string {
+	if len(toolpolicy.NormalizeSet(values)) == 0 {
+		return values
 	}
-	s.writeUsage(roundValue, message)
+	return appendDistinctRoomRuntimeTools(values, "nexus_room")
 }
 
-func (s *RealtimeService) recordTerminalAssistantUsage(roundValue *activeRoomRound, message protocol.Message) {
-	if s.usage == nil || roundValue == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	s.writeUsage(roundValue, message)
-}
-
-func (s *RealtimeService) writeUsage(roundValue *activeRoomRound, message protocol.Message) {
-	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
-	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
-		s.loggerFor(context.Background()).Error("Room token usage 写入失败",
-			"s", roundValue.SessionKey,
-			"r", roundValue.RoomID,
-			"c", roundValue.ConversationID,
-			"err", err,
-		)
-	}
-}
-
-func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" || sessionID == slot.getSDKSessionID() {
-		return nil
-	}
-	slot.setSDKSessionID(sessionID)
-	if s.rooms == nil {
-		return nil
-	}
-	return s.rooms.UpdateSessionSDKSessionID(ctx, slot.RoomSessionID, sessionID)
-}
-
-func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {
-	fields := []any{
-		"session_key", roundValue.SessionKey,
-		"room_id", roundValue.RoomID,
-		"conversation_id", roundValue.ConversationID,
-		"agent_id", slot.AgentID,
-		"round_id", slot.AgentRoundID,
-		"msg_id", slot.MsgID,
-		"err", err,
-	}
-	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
-	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
-	slot.setStatus("error")
-	resultMessage := protocol.Message{
-		"message_id":      "result_" + slot.AgentRoundID,
-		"session_key":     roundValue.SessionKey,
-		"room_id":         roundValue.RoomID,
-		"conversation_id": roundValue.ConversationID,
-		"agent_id":        slot.AgentID,
-		"round_id":        slot.AgentRoundID,
-		"parent_id":       slot.MsgID,
-		"role":            "result",
-		"subtype":         "error",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"result":          err.Error(),
-		"is_error":        true,
-		"timestamp":       time.Now().UnixMilli(),
-	}
-	_ = s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey))
-	if roomSlotPublishesPublicOutput(slot) {
-		_ = s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage)
-		projectedMessage := message.ProjectResultMessage(nil, resultMessage)
-		if mapper != nil {
-			projectedMessage = mapper.ProjectResultMessage(resultMessage)
+func roomRuntimeDisallowedTools(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if isRoomRuntimeTool(value) {
+			continue
 		}
-		s.broadcastSharedEventWithTimeout(
-			ctx,
-			roundValue.SessionKey,
-			roundValue.RoomID,
-			roomdomain.WrapMessageEvent(
-				roundValue.RoomID,
-				roundValue.ConversationID,
-				projectedMessage,
-				slot.AgentRoundID,
-			),
-		)
-		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), slot.AgentRoundID))
-	}
-	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
-		protocol.EventTypeStreamEnd,
-		roundValue.SessionKey,
-		roundValue.RoomID,
-		roundValue.ConversationID,
-		slot.AgentID,
-		slot.MsgID,
-		slot.AgentRoundID,
-	))
-}
-
-func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper) []any {
-	fields := make([]any, 0, 16)
-	var streamClosed *runtimectx.RoundStreamClosedError
-	if errors.As(err, &streamClosed) {
-		fields = append(fields,
-			"stream_messages_seen", streamClosed.MessagesSeen,
-			"stream_last_type", streamClosed.LastMessageType,
-			"stream_last_session_id", streamClosed.LastSessionID,
-			"stream_last_message_id", streamClosed.LastMessageID,
-			"stream_read_error", streamClosed.ReadError,
-			"stream_wait_error", streamClosed.WaitError,
-		)
-	}
-	if mapper != nil {
-		lastAssistant := mapper.LastAssistantMessage()
-		fields = append(fields,
-			"sdk_session_id", mapper.SessionID(),
-			"current_message_id", mapper.CurrentMessageID(),
-			"last_assistant_message_id", anyString(lastAssistant["message_id"]),
-			"last_assistant_complete", lastAssistant["is_complete"],
-			"last_assistant_chars", utf8.RuneCountInString(strings.TrimSpace(roomdomain.ExtractHistoryText(lastAssistant))),
-		)
-	}
-	if client := slot.getClient(); client != nil {
-		fields = append(fields, "client_session_id", client.SessionID())
-	}
-	return fields
-}
-
-func (s *RealtimeService) handleSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper) {
-	if !s.markSlotCancelled(slot) {
-		return
-	}
-	s.loggerFor(ctx).Warn("Room slot 已取消",
-		"session_key", roundValue.SessionKey,
-		"room_id", roundValue.RoomID,
-		"conversation_id", roundValue.ConversationID,
-		"agent_id", slot.AgentID,
-		"round_id", slot.AgentRoundID,
-		"msg_id", slot.MsgID,
-		"reason", roomSlotInterruptReason(slot),
-	)
-	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
-	s.broadcastSlotCancelled(ctx, roundValue, slot)
-}
-
-func (s *RealtimeService) markSlotCancelled(slot *activeRoomSlot) bool {
-	if slot == nil {
-		return false
-	}
-	return slot.markCancelled()
-}
-
-func (s *RealtimeService) broadcastSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot) {
-	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
-		protocol.EventTypeStreamCancelled,
-		roundValue.SessionKey,
-		roundValue.RoomID,
-		roundValue.ConversationID,
-		slot.AgentID,
-		slot.MsgID,
-		slot.AgentRoundID,
-	))
-}
-
-func (s *RealtimeService) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, resultText string) {
-	if roundValue == nil || slot == nil {
-		return
-	}
-	resultMessage := protocol.Message{
-		"message_id":      "result_" + slot.AgentRoundID,
-		"session_key":     roundValue.SessionKey,
-		"room_id":         roundValue.RoomID,
-		"conversation_id": roundValue.ConversationID,
-		"agent_id":        slot.AgentID,
-		"round_id":        slot.AgentRoundID,
-		"parent_id":       slot.MsgID,
-		"role":            "result",
-		"subtype":         "interrupted",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"is_error":        false,
-		"timestamp":       time.Now().UnixMilli(),
-	}
-	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
-		resultMessage["result"] = trimmedResult
-	}
-	if client := slot.getClient(); client != nil {
-		if sessionID := strings.TrimSpace(client.SessionID()); sessionID != "" {
-			resultMessage["session_id"] = sessionID
-		}
-	}
-	if roomSlotPublishesPublicOutput(slot) {
-		if err := s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage); err != nil {
-			s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
-				"s", roundValue.SessionKey,
-				"r", roundValue.RoomID,
-				"c", roundValue.ConversationID,
-				"err", err,
-			)
-		} else {
-			projectedMessage := message.ProjectResultMessage(nil, resultMessage)
-			if mapper != nil {
-				projectedMessage = mapper.ProjectResultMessage(resultMessage)
-			}
-			s.broadcastSharedEvent(
-				context.Background(),
-				roundValue.SessionKey,
-				roundValue.RoomID,
-				roomdomain.WrapMessageEvent(
-					roundValue.RoomID,
-					roundValue.ConversationID,
-					projectedMessage,
-					slot.AgentRoundID,
-				),
-			)
-		}
-	}
-	if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey)); err != nil {
-		s.loggerFor(context.Background()).Error("Room interrupted 私有结果持久化失败",
-			"s", roundValue.SessionKey,
-			"r", roundValue.RoomID,
-			"c", roundValue.ConversationID,
-			"err", err,
-		)
-	}
-}
-
-func (s *RealtimeService) recordPrivateRoundMarker(slot *activeRoomSlot, dispatchPrompt string) error {
-	if s.history == nil {
-		return nil
-	}
-	return s.history.AppendRoundMarker(
-		slot.WorkspacePath,
-		slot.RuntimeSessionKey,
-		slot.AgentRoundID,
-		strings.TrimSpace(dispatchPrompt),
-		time.Now().UnixMilli(),
-	)
-}
-
-func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, message protocol.Message) error {
-	if s.history == nil {
-		return nil
-	}
-	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
-	privateMessage["session_key"] = slot.RuntimeSessionKey
-	if sessionID := firstNonEmpty(strings.TrimSpace(anyString(privateMessage["session_id"])), slot.getSDKSessionID()); sessionID != "" {
-		privateMessage["session_id"] = sessionID
-	}
-	if strings.TrimSpace(anyString(privateMessage["message_id"])) == "" {
-		privateMessage["message_id"] = "overlay_" + slot.AgentRoundID
-	}
-	privateMessage["metadata"] = mergePrivateOverlayMetadata(privateMessage["metadata"], map[string]any{
-		"overlay_source":  "room_runtime",
-		"room_session_id": slot.RoomSessionID,
-	})
-	return s.history.AppendOverlayMessage(slot.WorkspacePath, slot.RuntimeSessionKey, privateMessage)
-}
-
-func normalizePrivateOverlayMessage(message protocol.Message) protocol.Message {
-	normalized := cloneMessageWithSessionKey(message, anyString(message["session_key"]))
-	delete(normalized, "stream_status")
-	delete(normalized, "is_complete")
-	return normalized
-}
-
-func mergePrivateOverlayMetadata(current any, extra map[string]any) map[string]any {
-	result := map[string]any{}
-	if payload, ok := current.(map[string]any); ok {
-		for key, value := range payload {
-			result[key] = value
-		}
-	}
-	for key, value := range extra {
-		result[key] = value
+		result = append(result, value)
 	}
 	return result
+}
+
+func appendDistinctRoomRuntimeTools(values []string, extra ...string) []string {
+	result := make([]string, 0, len(values)+len(extra))
+	seen := make(map[string]struct{}, len(values)+len(extra))
+	for _, value := range append(append([]string(nil), values...), extra...) {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
+}
+
+func roomRuntimePermissionHandler(next sdkpermission.Handler) sdkpermission.Handler {
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if isRoomRuntimeTool(request.ToolName) {
+			return sdkpermission.Allow(request.Input, nil), nil
+		}
+		if next == nil {
+			return sdkpermission.Allow(request.Input, nil), nil
+		}
+		return next(ctx, request)
+	}
+}
+
+func isRoomRuntimeTool(toolName string) bool {
+	normalized := strings.TrimSpace(toolName)
+	return normalized == "nexus_room" ||
+		strings.HasPrefix(normalized, "mcp__nexus_room__") ||
+		strings.HasPrefix(normalized, "nexus_room__") ||
+		strings.HasPrefix(normalized, "nexus_room.")
 }

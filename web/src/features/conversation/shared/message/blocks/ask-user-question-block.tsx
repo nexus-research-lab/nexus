@@ -1,7 +1,7 @@
 /**
  * AskUserQuestion Block Component - 用户问答交互组件
  *
- * 渲染 Claude 的问题，支持单选/多选，用户提交答案后返回给 Agent
+ * 渲染 Agent 的问题，支持单选/多选，用户提交答案后返回给 Agent
  *
  * [INPUT]: 依赖 @/types/conversation/ask-user-question、@/types/conversation/message、@/lib/utils
  * [OUTPUT]: 对外提供 AskUserQuestionBlock 组件
@@ -519,10 +519,10 @@ export function AskUserQuestionBlock({
             : "text-primary";
     const headerLabel = isTimedOut
         ? "提问已超时"
-        : isFailed
-            ? "提问未完成"
+            : isFailed
+                ? "提问未完成"
             : isObserverReadOnly
-                ? "等待另一窗口回应"
+                ? "等待回应"
                 : isSubmitted
                     ? "已收到你的回应"
                     : "需要你的回应";
@@ -616,7 +616,7 @@ export function AskUserQuestionBlock({
                         {!is_ready
                             ? '等待提问就绪'
                             : isObserverReadOnly
-                                ? (interaction_disabled_reason || '当前窗口是观察视图')
+                                ? (interaction_disabled_reason || '当前暂不可操作')
                                 : canSubmit
                                     ? '✓ 所有问题都已回应'
                                     : '每个问题至少回应一次'}

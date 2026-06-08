@@ -1,6 +1,11 @@
-import { cn } from "@/lib/utils";
+import { Search, SlidersHorizontal } from "lucide-react";
+import { useRef, type KeyboardEvent } from "react";
 
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  CapabilityFilterSearchInput,
+  CapabilityFilterSelect,
+} from "@/features/capability/shared/capability-page-layout";
 import type { SkillMarketplaceController } from "./skills-view-model";
 import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
 
@@ -9,52 +14,75 @@ interface SkillsSearchBarProps {
 }
 
 export function SkillsSearchBar({ ctrl }: SkillsSearchBarProps) {
+  const { t } = useI18n();
+  const composing_ref = useRef(false);
+  const search_label = t("capability.skills_tour_search_title");
+
+  const handle_key_down = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (ctrl.discovery_mode !== "external") return;
+    if (event.key !== "Enter") return;
+    if (composing_ref.current || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    ctrl.submit_external_search();
+  };
+
+  const external_search_action = ctrl.discovery_mode === "external" ? (
+    <button
+      aria-label={search_label}
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) text-(--text-muted) transition hover:border-(--primary) hover:text-(--primary) disabled:pointer-events-none disabled:opacity-45"
+      disabled={!ctrl.external_query.trim() || ctrl.external_loading}
+      onClick={(event) => {
+        event.preventDefault();
+        ctrl.submit_external_search();
+      }}
+      onMouseDown={(event) => event.preventDefault()}
+      title={search_label}
+      type="button"
+    >
+      <Search className="h-3.5 w-3.5" />
+    </button>
+  ) : null;
+
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-3">
-      <div className="w-full max-w-[34rem] shrink-0">
-        <WorkspaceSearchInput
-          class_name="h-11 w-full px-3.5 py-2"
-          input_class_name="text-[15px]"
-          on_change={(value) => {
-            if (ctrl.discovery_mode === "catalog") {
-              ctrl.set_search_query(value);
-              return;
-            }
-            ctrl.set_external_query(value);
-          }}
-          placeholder={
-            ctrl.discovery_mode === "catalog"
-              ? "搜索技能名称、标签或场景..."
-              : "搜索社区共享技能..."
+    <div className="mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
+      <CapabilityFilterSearchInput
+        action={external_search_action}
+        on_change={(value) => {
+          if (ctrl.discovery_mode === "catalog") {
+            ctrl.set_search_query(value);
+            return;
           }
-          value={ctrl.discovery_mode === "catalog" ? ctrl.search_query : ctrl.external_query}
-        />
-      </div>
+          ctrl.set_external_query(value);
+        }}
+        on_composition_end={() => {
+          composing_ref.current = false;
+        }}
+        on_composition_start={() => {
+          composing_ref.current = true;
+        }}
+        on_key_down={handle_key_down}
+        placeholder={
+          ctrl.discovery_mode === "catalog"
+            ? t("capability.skills_search_catalog")
+            : t("capability.skills_search_external")
+        }
+        value={ctrl.discovery_mode === "catalog" ? ctrl.search_query : ctrl.external_query}
+      />
 
       {ctrl.discovery_mode === "catalog" ? (
-        <div
-          className="soft-scrollbar scrollbar-hide flex min-w-0 flex-1 items-center gap-5 overflow-x-auto"
-          data-tour-anchor={SKILLS_TOUR_ANCHORS.categories}
-        >
-          {ctrl.categories.map((category) => {
-            const is_active = ctrl.active_category === category.key;
-            return (
-              <button
-                key={category.key}
-                className={cn(
-                  "inline-flex h-9 shrink-0 items-center border-b-2 border-transparent px-0 py-1 text-[12px] font-semibold transition-[color,border-color] duration-(--motion-duration-fast)",
-                  is_active
-                    ? "border-(--surface-interactive-active-border) text-(--text-strong)"
-                    : "text-(--text-default) hover:text-(--text-strong)",
-                )}
-                onClick={() => ctrl.set_active_category(category.key)}
-                type="button"
-              >
-                {category.label}
-              </button>
-            );
-          })}
-        </div>
+        <CapabilityFilterSelect
+          aria_label={t("capability.skills_filter_aria")}
+          label={t("capability.category_label")}
+          leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
+          on_change={ctrl.set_active_category}
+          options={ctrl.categories.map((category) => ({
+            label: category.label,
+            value: category.key,
+          }))}
+          placeholder={t("capability.category_all")}
+          tour_anchor={SKILLS_TOUR_ANCHORS.categories}
+          value={ctrl.active_category}
+        />
       ) : null}
     </div>
   );

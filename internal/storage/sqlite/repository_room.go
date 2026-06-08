@@ -679,7 +679,7 @@ WHERE id = ? AND room_id = ? AND EXISTS (
 	return r.getContextByConversation(ctx, ownerUserID, roomID, conversationID)
 }
 
-// UpdateSessionSDKSessionID 更新房间会话记录上的 Claude session_id。
+// UpdateSessionSDKSessionID 更新房间会话记录上的 SDK session_id。
 func (r *RoomRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
 	result, err := r.db.ExecContext(ctx, `
 UPDATE sessions
@@ -1003,10 +1003,11 @@ SELECT
     a.is_main,
     COALESCE(a.avatar, ''),
     COALESCE(a.description, ''),
-    COALESCE(a.vibe_tags, '[]'),
-    a.created_at,
-    COALESCE(rt.provider, ''),
-    COALESCE(rt.permission_mode, ''),
+	    COALESCE(a.vibe_tags, '[]'),
+	    a.created_at,
+	    COALESCE(rt.provider, ''),
+	    COALESCE(rt.model, ''),
+	    COALESCE(rt.permission_mode, ''),
     COALESCE(rt.allowed_tools_json, '[]'),
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
@@ -1193,6 +1194,7 @@ func scanRoomMemberAgent(scanner interface{ Scan(...any) error }) (protocol.Agen
 		&vibeTagsJSON,
 		&createdAt,
 		&item.Options.Provider,
+		&item.Options.Model,
 		&item.Options.PermissionMode,
 		&allowedToolsJSON,
 		&disallowedToolsJSON,

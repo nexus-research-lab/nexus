@@ -13,6 +13,9 @@ interface WorkspaceTaskStripProps {
   density?: "default" | "compact";
 }
 
+const TASK_PANEL_SURFACE_CLASS_NAME =
+  "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_16px_36px_rgba(15,23,42,0.14)]";
+
 export function WorkspaceTaskStrip({
   todos,
   density = "compact",
@@ -38,8 +41,8 @@ export function WorkspaceTaskStrip({
   };
   const trigger_style = is_open
     ? {
-      background: "var(--surface-popover-background)",
-      border: "1px solid var(--surface-popover-border)",
+      background: "color-mix(in srgb, var(--background) 94%, white)",
+      border: "1px solid color-mix(in srgb, var(--divider-subtle-color) 84%, transparent)",
     }
     : {
       background: "var(--chip-default-background)",
@@ -127,17 +130,20 @@ export function WorkspaceTaskStrip({
 
         {is_open ? (
           <div
-            className="surface-popover absolute right-0 top-[calc(100%+8px)] z-40 w-[min(520px,calc(100vw-44px))] overflow-hidden rounded-[16px]"
+            className={cn(
+              "absolute right-0 top-[calc(100%+8px)] z-40 w-[min(520px,calc(100vw-44px))] overflow-hidden rounded-[16px]",
+              TASK_PANEL_SURFACE_CLASS_NAME,
+            )}
           >
-            <div className="max-h-[18.5rem] overflow-y-auto px-3">
+            <div className="soft-scrollbar max-h-[18.5rem] overflow-y-auto p-2">
               <div
-                className="grid grid-cols-[36px_88px_minmax(0,1fr)_20px] items-center gap-3 border-b divider-subtle px-2 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
+                className="grid grid-cols-[36px_88px_minmax(0,1fr)_20px] items-center gap-3 rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_64%,transparent)] px-2 py-1.5 text-[9.5px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
                 <span className="text-center">{t("tasks.id")}</span>
                 <span className="text-center">{t("tasks.status")}</span>
                 <span className="text-center">{t("tasks.subject")}</span>
                 <button
                   aria-label={t("tasks.close_panel")}
-                  className="ml-1 inline-flex h-5 w-5 items-center justify-center text-(--icon-muted) transition-colors hover:text-(--icon-default)"
+                  className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color] hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] hover:text-(--icon-default)"
                   onClick={() => {
                     set_expanded_task_index(null);
                     set_is_open(false);
@@ -149,7 +155,7 @@ export function WorkspaceTaskStrip({
               </div>
 
               {todos.length ? (
-                <div className="divide-y divider-subtle">
+                <div className="mt-1.5 space-y-1.5">
                   {todos.map((todo, index) => {
                     const is_completed = todo.status === "completed";
                     const is_running = todo.status === "in_progress";
@@ -159,16 +165,15 @@ export function WorkspaceTaskStrip({
                     return (
                       <div
                         key={`${todo.content}-${index}`}
-                        className="py-0.5"
+                        className="rounded-[12px]"
                       >
                         <button
                           className={cn(
-                            "grid w-full grid-cols-[36px_88px_minmax(0,1fr)_20px] gap-3 rounded-[10px] px-2 py-1.5 text-left transition-colors",
-                            is_expanded && has_detail ? "" : "hover:bg-(--surface-interactive-hover-background)",
+                            "grid w-full grid-cols-[36px_88px_minmax(0,1fr)_20px] gap-3 rounded-[12px] border px-2 py-1.5 text-left transition-[background,border-color]",
+                            is_expanded && has_detail
+                              ? "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]"
+                              : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_16%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
                           )}
-                          style={is_expanded && has_detail ? {
-                            background: "var(--surface-interactive-active-background)",
-                          } : undefined}
                           onClick={() => {
                             if (!has_detail) {
                               return;
@@ -235,7 +240,7 @@ export function WorkspaceTaskStrip({
                   })}
                 </div>
               ) : (
-                <p className="px-1 py-4 text-xs text-(--text-soft)">
+                <p className="mt-1.5 rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] px-2.5 py-4 text-xs text-(--text-soft)">
                   {t("tasks.no_active")}
                 </p>
               )}

@@ -1,6 +1,6 @@
 import { ConnectorsDirectory } from "@/features/capability/connectors/connectors-directory";
 
-/** Connectors 页面 — 应用授权卡片网格 + 详情弹窗 */
+/** 连接器页面 — 连接器目录 + 路由详情页 */
 export function ConnectorsPage() {
   return <ConnectorsDirectory />;
 }

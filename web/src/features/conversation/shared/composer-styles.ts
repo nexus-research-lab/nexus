@@ -8,6 +8,7 @@
  */
 
 import { cn } from "@/lib/utils";
+import { get_ui_icon_button_class_name } from "@/shared/ui/button-styles";
 
 export const COMPOSER_ATTACHMENT_CLASS_NAME =
   "chip-default group relative inline-flex items-center gap-2 rounded-[14px] px-3 py-[0.45rem]";
@@ -19,13 +20,13 @@ export const COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME =
   "ml-1 rounded-full p-0.5 text-red-500/76 opacity-60 transition-[background,opacity] duration-(--motion-duration-fast) hover:bg-red-50/90 focus-visible:ring-2 focus-visible:ring-primary/50";
 
 export const COMPOSER_ACTION_BUTTON_CLASS_NAME =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-transparent text-(--icon-default) transition-[background,border-color,color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+  get_ui_icon_button_class_name({ size: "lg", variant: "surface" }, "shrink-0");
 
 export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-(--button-primary-border) bg-(--button-primary-background) text-(--button-primary-color) transition-[background,border-color,color] duration-(--motion-duration-fast) hover:bg-(--button-primary-hover-background) hover:border-(--button-primary-hover-border) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+  get_ui_icon_button_class_name({ size: "lg", tone: "primary", variant: "solid" }, "shrink-0");
 
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-[color-mix(in_srgb,var(--destructive)_28%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] text-[color-mix(in_srgb,var(--destructive)_86%,var(--foreground)_14%)] transition-[background,border-color,color] duration-(--motion-duration-fast) hover:bg-[color-mix(in_srgb,var(--destructive)_14%,transparent)] hover:border-[color-mix(in_srgb,var(--destructive)_36%,transparent)] disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)";
+  get_ui_icon_button_class_name({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
 
 export function get_composer_shell_class_name(disabled: boolean) {
   return cn(

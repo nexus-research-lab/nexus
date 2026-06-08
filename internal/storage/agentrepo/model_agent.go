@@ -18,6 +18,7 @@ type CreateRecord struct {
 	RuntimeID           string
 	ProfileID           string
 	Provider            string
+	Model               string
 	PermissionMode      string
 	AllowedToolsJSON    string
 	DisallowedToolsJSON string
@@ -32,13 +33,13 @@ type CreateRecord struct {
 type UpdateRecord struct {
 	AgentID             string
 	OwnerUserID         string
-	Slug                string
 	Name                string
 	WorkspacePath       string
 	Avatar              string
 	Description         string
 	VibeTagsJSON        string
 	Provider            string
+	Model               string
 	PermissionMode      string
 	AllowedToolsJSON    string
 	DisallowedToolsJSON string

@@ -1,0 +1,41 @@
+name: Windows Desktop Build
+
+on:
+  pull_request:
+    paths:
+      - "desktop/windows/**"
+      - "scripts/desktop/**"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "desktop/windows/**"
+      - "scripts/desktop/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: Validate Windows desktop build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build Windows desktop shell
+        shell: pwsh
+        run: |
+          dotnet build desktop/windows/Nexus.Desktop/Nexus.Desktop.csproj `
+            -c Release

@@ -35,6 +35,14 @@ type TokenRequest struct {
 	Extra        map[string]string
 }
 
+// TokenRefreshRequest 是 Provider 刷新 token 时需要的上下文。
+type TokenRefreshRequest struct {
+	ClientID     string
+	ClientSecret string
+	RefreshToken string
+	Extra        map[string]string
+}
+
 // DeviceCodeRequest 是 OAuth Device Flow 获取用户码时需要的上下文。
 type DeviceCodeRequest struct {
 	ClientID string
@@ -71,6 +79,11 @@ type Provider interface {
 type DeviceProvider interface {
 	RequestDeviceCode(ctx context.Context, httpClient *http.Client, req DeviceCodeRequest) (*DeviceCodeResponse, error)
 	ExchangeDeviceToken(ctx context.Context, httpClient *http.Client, req DeviceTokenRequest) ([]byte, error)
+}
+
+// RefreshTokenProvider 定义支持 refresh_token 续期的供应商。
+type RefreshTokenProvider interface {
+	RefreshToken(ctx context.Context, httpClient *http.Client, req TokenRefreshRequest) ([]byte, error)
 }
 
 // GeneratePKCE 返回 verifier 和 S256 challenge。

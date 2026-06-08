@@ -31,7 +31,10 @@ type Repository struct {
 	parser        Parser
 }
 
-var rootMemoryFiles = []string{"MEMORY.md", "SOUL.md", "TOOLS.md", "AGENTS.md", "RUNBOOK.md"}
+var (
+	rootMemoryFiles  = []string{"MEMORY.md", "SOUL.md", "TOOLS.md", "AGENTS.md", "RUNBOOK.md"}
+	errEntryNotFound = errors.New("条目未找到")
+)
 
 // NewRepository 创建记忆仓储。
 func NewRepository(workspacePath string) *Repository {
@@ -41,11 +44,11 @@ func NewRepository(workspacePath string) *Repository {
 	}
 }
 
-// Search 在记忆文件中做关键词检索。
+// Search 在记忆文件中做关键词检索，以条目块为单位匹配，支持跨字段搜索。
 func (r *Repository) Search(query string, limit int) ([]SearchMatch, error) {
 	terms := tokenizeQuery(query)
 	if len(terms) == 0 {
-		return nil, errors.New("query 不能为空")
+		return nil, newClientError("query 不能为空")
 	}
 	if limit <= 0 {
 		limit = 20
@@ -56,16 +59,15 @@ func (r *Repository) Search(query string, limit int) ([]SearchMatch, error) {
 		if err != nil {
 			return nil, err
 		}
-		lines := strings.Split(string(content), "\n")
-		for index, line := range lines {
-			lower := strings.ToLower(line)
-			if !containsAllTerms(lower, terms) {
+		relPath := toRelative(r.workspacePath, path)
+		for _, block := range splitIntoBlocks(string(content)) {
+			if !containsAllTerms(strings.ToLower(block.content), terms) {
 				continue
 			}
 			items = append(items, SearchMatch{
-				Path:    toRelative(r.workspacePath, path),
-				Line:    index + 1,
-				Content: strings.TrimSpace(line),
+				Path:    relPath,
+				Line:    block.startLine,
+				Content: block.headline,
 			})
 			if len(items) >= limit {
 				return items, nil
@@ -164,30 +166,51 @@ func (r *Repository) AppendEntry(entry *Entry) (string, error) {
 	return entry.Path, nil
 }
 
-// UpdateEntry 更新指定条目。
+// UpdateEntry 更新指定条目，优先从 ID 中解出日期直接定位文件，兜底全量扫描兼容旧格式。
 func (r *Repository) UpdateEntry(entryID string, updater func(*Entry)) (*Entry, error) {
-	for _, path := range r.iterDiaryFiles() {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		relativePath := toRelative(r.workspacePath, path)
-		entries, err := r.parser.Parse(string(content), relativePath)
-		if err != nil {
-			return nil, err
-		}
-		for _, entry := range entries {
-			if entry.ID != entryID {
-				continue
-			}
-			updater(entry)
-			if err = os.WriteFile(path, []byte(renderEntries(entries)), 0o644); err != nil {
-				return nil, err
-			}
+	if t, ok := parseDateFromEntryID(entryID); ok {
+		path := filepath.Join(r.workspacePath, "memory", t.Format("2006-01-02")+".md")
+		entry, err := r.updateEntryInFile(path, entryID, updater)
+		if err == nil {
 			return entry, nil
 		}
+		if !errors.Is(err, errEntryNotFound) && !os.IsNotExist(err) {
+			return nil, err
+		}
 	}
-	return nil, fmt.Errorf("未找到条目: %s", entryID)
+	for _, path := range r.iterDiaryFiles() {
+		entry, err := r.updateEntryInFile(path, entryID, updater)
+		if err == nil {
+			return entry, nil
+		}
+		if !errors.Is(err, errEntryNotFound) {
+			return nil, err
+		}
+	}
+	return nil, newClientError("未找到条目: %s", entryID)
+}
+
+func (r *Repository) updateEntryInFile(path string, entryID string, updater func(*Entry)) (*Entry, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	relativePath := toRelative(r.workspacePath, path)
+	entries, err := r.parser.Parse(string(content), relativePath)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.ID != entryID {
+			continue
+		}
+		updater(entry)
+		if err = os.WriteFile(path, []byte(renderEntries(entries)), 0o644); err != nil {
+			return nil, err
+		}
+		return entry, nil
+	}
+	return nil, errEntryNotFound
 }
 
 // AppendToMemorySection 向长期文件追加规则。
@@ -284,21 +307,87 @@ func (r *Repository) resolveWorkspaceFile(relativePath string) (string, string, 
 	normalized := strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/"))
 	normalized = strings.TrimPrefix(normalized, "/")
 	if normalized == "" {
-		return "", "", errors.New("path 不能为空")
+		return "", "", newClientError("path 不能为空")
 	}
 	targetPath := filepath.Clean(filepath.Join(r.workspacePath, normalized))
 	workspaceRoot := filepath.Clean(r.workspacePath)
 	if targetPath != workspaceRoot && !strings.HasPrefix(targetPath, workspaceRoot+string(os.PathSeparator)) {
-		return "", "", errors.New("path 超出 workspace 范围")
+		return "", "", newClientError("path 超出 workspace 范围")
 	}
 	info, err := os.Stat(targetPath)
 	if err != nil {
 		return "", "", err
 	}
 	if info.IsDir() {
-		return "", "", errors.New("不能直接读取目录")
+		return "", "", newClientError("不能直接读取目录")
 	}
 	return targetPath, filepath.ToSlash(normalized), nil
+}
+
+// searchBlock 表示一个可检索的文件块。
+type searchBlock struct {
+	startLine int
+	headline  string
+	content   string
+}
+
+// splitIntoBlocks 按 markdown 标题把文件内容分割成可检索的块。
+// 标题前的非空行以单行为单位加入结果，供检索 MEMORY.md 等无条目结构的文件。
+func splitIntoBlocks(content string) []searchBlock {
+	lines := strings.Split(content, "\n")
+	var blocks []searchBlock
+	blockStart := -1
+	var blockLines []string
+
+	flush := func() {
+		if blockStart < 0 || len(blockLines) == 0 {
+			return
+		}
+		blocks = append(blocks, searchBlock{
+			startLine: blockStart + 1,
+			headline:  strings.TrimSpace(blockLines[0]),
+			content:   strings.Join(blockLines, "\n"),
+		})
+	}
+
+	for i, line := range lines {
+		if isMarkdownHeading(line) {
+			flush()
+			blockStart = i
+			blockLines = []string{line}
+		} else if blockStart >= 0 {
+			blockLines = append(blockLines, line)
+		} else {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				blocks = append(blocks, searchBlock{startLine: i + 1, headline: trimmed, content: line})
+			}
+		}
+	}
+	flush()
+	return blocks
+}
+
+func isMarkdownHeading(line string) bool {
+	i := 0
+	for i < len(line) && line[i] == '#' {
+		i++
+	}
+	return i > 0 && i <= 6 && i < len(line) && line[i] == ' '
+}
+
+// parseDateFromEntryID 从 entry ID 中解出日期，用于快速定位日记文件。
+// 支持 KIND-YYYYMMDD-... 格式（新）和 KIND-YYYYMMDD-HHMM-... 格式（旧）。
+func parseDateFromEntryID(entryID string) (time.Time, bool) {
+	parts := strings.SplitN(entryID, "-", 3)
+	if len(parts) < 2 || len(parts[1]) != 8 {
+		return time.Time{}, false
+	}
+	t, err := time.ParseInLocation("20060102", parts[1], time.Local)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 func tokenizeQuery(query string) []string {

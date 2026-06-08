@@ -71,7 +71,12 @@ export function MarkdownRendererContent({
       ),
     [current_agent_id, mermaid_show_header, on_open_workspace_file, resolve_file_path, variant],
   );
-  const normalized_content = normalize_markdown_content(displayed_content, resolve_file_path, on_open_workspace_file);
+  const normalized_content = normalize_markdown_content(
+    displayed_content,
+    resolve_file_path,
+    on_open_workspace_file,
+    { is_streaming: should_stream },
+  );
   const shared_props = {
     components: markdown_components,
     content: normalized_content,

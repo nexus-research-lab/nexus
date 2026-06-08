@@ -216,6 +216,34 @@ func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, reque
 	http.ServeFile(writer, request, filePath)
 }
 
+// HandleRevealWorkspaceFile 在桌面端文件管理器中定位工作区文件。
+func (h *Handlers) HandleRevealWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
+	var payload struct {
+		Path string `json:"path"`
+	}
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	filePath, err := h.workspace.RevealFileInFolder(request.Context(), chi.URLParam(request, "agent_id"), payload.Path)
+	if errors.Is(err, agentpkg.ErrAgentNotFound) || errors.Is(err, workspacepkg.ErrFileNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, workspacepkg.ErrLocalFileRevealUnavailable) {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "仅桌面端支持在文件夹中显示")
+		return
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "路径") || strings.Contains(err.Error(), "目录") {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]string{"path": filePath})
+}
+
 // HandleRawWorkspaceFile 以内联方式输出工作区文件，供舞台 iframe 和预览窗口使用。
 func (h *Handlers) HandleRawWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
 	rawFile, err := h.workspace.GetRawFile(

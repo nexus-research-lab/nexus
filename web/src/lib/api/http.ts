@@ -24,7 +24,7 @@ interface ApiErrorPayload {
   };
 }
 
-interface RequestApiOptions extends Omit<RequestInit, "body"> {
+export interface RequestApiOptions extends Omit<RequestInit, "body"> {
   body?: BodyInit | JsonRequestBody | null;
   notify_on_401?: boolean;
   timeout_ms?: number;

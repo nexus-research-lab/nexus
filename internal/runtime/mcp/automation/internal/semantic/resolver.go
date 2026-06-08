@@ -29,7 +29,7 @@ func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMo
 	case "existing":
 		bound := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
 		if bound == "" {
-			return protocol.SessionTarget{}, errors.New("execution_mode=existing requires selected_session_key (or an active current session). Pick a session via AskUserQuestion if unsure")
+			return protocol.SessionTarget{}, errors.New("execution_mode=existing requires selected_session_key (or an active current session). Ask the user in the current conversation to confirm the target session, then retry")
 		}
 		target := protocol.SessionTarget{Kind: protocol.SessionTargetBound, BoundSessionKey: bound}.Normalized()
 		if err := target.Validate(); err != nil {
@@ -41,7 +41,7 @@ func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMo
 	case "dedicated":
 		name := argx.String(args, "named_session_key")
 		if name == "" {
-			return protocol.SessionTarget{}, errors.New("execution_mode=dedicated requires named_session_key. Use AskUserQuestion to confirm a dedicated session name first")
+			return protocol.SessionTarget{}, errors.New("execution_mode=dedicated requires named_session_key. Ask the user in the current conversation to confirm a dedicated session name first")
 		}
 		target := protocol.SessionTarget{Kind: protocol.SessionTargetNamed, NamedSessionKey: name}.Normalized()
 		if err := target.Validate(); err != nil {
@@ -54,10 +54,10 @@ func SessionTarget(args map[string]any, sctx contract.ServerContext, executionMo
 }
 
 // Delivery 按 reply_mode 推导出底层 DeliveryTarget。
-func Delivery(args map[string]any, sctx contract.ServerContext, executionMode, replyMode string, sessionTarget protocol.SessionTarget) (protocol.DeliveryTarget, error) {
+func Delivery(args map[string]any, sctx contract.ServerContext, targetAgentID, executionMode, replyMode string, sessionTarget protocol.SessionTarget) (protocol.DeliveryTarget, error) {
 	switch replyMode {
 	case "":
-		return protocol.DeliveryTarget{}, errors.New("reply_mode is required (none / execution / selected)")
+		return protocol.DeliveryTarget{}, errors.New("reply_mode is required (none / execution / selected / agent / channel)")
 	case "none":
 		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeNone}.Normalized(), nil
 	case "execution":
@@ -65,12 +65,144 @@ func Delivery(args map[string]any, sctx contract.ServerContext, executionMode, r
 	case "selected":
 		to := argx.String(args, "selected_reply_session_key")
 		if to == "" {
-			return protocol.DeliveryTarget{}, errors.New("reply_mode=selected requires selected_reply_session_key. Use AskUserQuestion to confirm which existing session should receive the result")
+			return protocol.DeliveryTarget{}, errors.New("reply_mode=selected requires selected_reply_session_key. Ask the user in the current conversation to confirm which existing session should receive the result")
 		}
-		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: to}.Normalized(), nil
+		return deliveryFromSessionKey(to), nil
+	case "agent":
+		return agentReply(args, sctx, targetAgentID)
+	case "channel":
+		return channelReply(args, sctx)
 	default:
-		return protocol.DeliveryTarget{}, fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected)", replyMode)
+		return protocol.DeliveryTarget{}, fmt.Errorf("unsupported reply_mode: %s (allowed: none / execution / selected / agent / channel)", replyMode)
 	}
+}
+
+func agentReply(args map[string]any, sctx contract.ServerContext, targetAgentID string) (protocol.DeliveryTarget, error) {
+	agentID := argx.FirstNonEmpty(argx.String(args, "reply_agent_id"), targetAgentID, sctx.CurrentAgentID)
+	if strings.TrimSpace(agentID) == "" {
+		return protocol.DeliveryTarget{}, errors.New("reply_mode=agent requires reply_agent_id or an active target agent")
+	}
+	sessionKey := protocol.BuildAgentSessionKey(
+		strings.TrimSpace(agentID),
+		protocol.SessionChannelInternalSegment,
+		"dm",
+		protocol.AutomationInboxSessionRef,
+		"",
+	)
+	return protocol.DeliveryTarget{
+		Mode:    protocol.DeliveryModeExplicit,
+		Channel: protocol.SessionChannelInternalSegment,
+		To:      sessionKey,
+	}.Normalized(), nil
+}
+
+func channelReply(args map[string]any, sctx contract.ServerContext) (protocol.DeliveryTarget, error) {
+	sessionKey := argx.FirstNonEmpty(argx.String(args, "reply_session_key"), argx.String(args, "selected_reply_session_key"))
+	if sessionKey != "" {
+		return deliveryFromSessionKey(sessionKey), nil
+	}
+	if !hasExplicitChannelReplyTarget(args) && currentSessionKeyCanDeliverToExternalChannel(sctx.CurrentSessionKey) {
+		return deliveryFromSessionKey(sctx.CurrentSessionKey), nil
+	}
+	delivery := protocol.DeliveryTarget{
+		Mode:      protocol.DeliveryModeExplicit,
+		Channel:   argx.FirstNonEmpty(argx.String(args, "reply_channel"), argx.String(args, "delivery_channel")),
+		To:        argx.FirstNonEmpty(argx.String(args, "reply_to"), argx.String(args, "delivery_to")),
+		AccountID: argx.FirstNonEmpty(argx.String(args, "reply_account_id"), argx.String(args, "delivery_account_id")),
+		ThreadID:  argx.FirstNonEmpty(argx.String(args, "reply_thread_id"), argx.String(args, "delivery_thread_id")),
+	}
+	if strings.TrimSpace(delivery.To) == "" {
+		if filled, ok := fillChannelReplyTargetFromCurrentSession(delivery, sctx.CurrentSessionKey); ok {
+			return filled.Normalized(), nil
+		}
+	}
+	if strings.TrimSpace(delivery.Channel) == "" {
+		return protocol.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_channel or reply_session_key")
+	}
+	if strings.TrimSpace(delivery.To) == "" {
+		return protocol.DeliveryTarget{}, errors.New("reply_mode=channel requires reply_to or reply_session_key")
+	}
+	return delivery.Normalized(), nil
+}
+
+func hasExplicitChannelReplyTarget(args map[string]any) bool {
+	for _, key := range []string{
+		"reply_channel", "delivery_channel",
+		"reply_to", "delivery_to",
+		"reply_account_id", "delivery_account_id",
+		"reply_thread_id", "delivery_thread_id",
+	} {
+		if strings.TrimSpace(argx.String(args, key)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func fillChannelReplyTargetFromCurrentSession(
+	delivery protocol.DeliveryTarget,
+	currentSessionKey string,
+) (protocol.DeliveryTarget, bool) {
+	if !currentSessionKeyCanDeliverToExternalChannel(currentSessionKey) {
+		return protocol.DeliveryTarget{}, false
+	}
+	current := deliveryFromSessionKey(currentSessionKey)
+	currentChannel := protocol.NormalizeStoredChannelType(current.Channel)
+	requestedChannel := protocol.NormalizeStoredChannelType(delivery.Channel)
+	if requestedChannel != "" && requestedChannel != currentChannel {
+		return protocol.DeliveryTarget{}, false
+	}
+	result := delivery
+	result.Mode = protocol.DeliveryModeExplicit
+	if strings.TrimSpace(result.Channel) == "" {
+		result.Channel = currentChannel
+	}
+	if strings.TrimSpace(result.To) == "" {
+		result.To = strings.TrimSpace(current.To)
+	}
+	if strings.TrimSpace(result.ThreadID) == "" {
+		result.ThreadID = strings.TrimSpace(current.ThreadID)
+	}
+	if strings.TrimSpace(result.AccountID) == "" {
+		result.AccountID = strings.TrimSpace(current.AccountID)
+	}
+	return result, true
+}
+
+func currentSessionKeyCanDeliverToExternalChannel(sessionKey string) bool {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent {
+		return false
+	}
+	switch protocol.NormalizeStoredChannelType(parsed.Channel) {
+	case protocol.SessionChannelDiscord, protocol.SessionChannelTelegram, protocol.SessionChannelDingTalk, protocol.SessionChannelWeChat, protocol.SessionChannelFeishu:
+		return strings.TrimSpace(parsed.Ref) != ""
+	default:
+		return false
+	}
+}
+
+func deliveryFromSessionKey(sessionKey string) protocol.DeliveryTarget {
+	normalized := strings.TrimSpace(sessionKey)
+	parsed := protocol.ParseSessionKey(normalized)
+	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent || channel == "" {
+		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
+	}
+	if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment {
+		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: channel, To: normalized}.Normalized()
+	}
+	switch channel {
+	case protocol.SessionChannelDiscord, protocol.SessionChannelTelegram, protocol.SessionChannelDingTalk, protocol.SessionChannelWeChat, protocol.SessionChannelFeishu:
+	default:
+		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
+	}
+	return protocol.DeliveryTarget{
+		Mode:     protocol.DeliveryModeExplicit,
+		Channel:  channel,
+		To:       parsed.Ref,
+		ThreadID: parsed.ThreadID,
+	}.Normalized()
 }
 
 // executionReply 处理 reply_mode=execution 的复杂分支：
@@ -88,9 +220,9 @@ func executionReply(executionMode string, args map[string]any, sctx contract.Ser
 	}
 	to := argx.FirstNonEmpty(argx.String(args, "selected_session_key"), sctx.CurrentSessionKey)
 	if to == "" {
-		return protocol.DeliveryTarget{}, errors.New("reply_mode=execution requires selected_session_key or an active current session. Use AskUserQuestion to confirm which execution session should receive the result")
+		return protocol.DeliveryTarget{}, errors.New("reply_mode=execution requires selected_session_key or an active current session. Ask the user in the current conversation to confirm which execution session should receive the result")
 	}
-	return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: to}.Normalized(), nil
+	return deliveryFromSessionKey(to), nil
 }
 
 func isInteractiveSourceContext(sourceContextType string) bool {

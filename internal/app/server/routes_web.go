@@ -170,16 +170,25 @@ func logWebStaticRequest(
 	if logger == nil {
 		return
 	}
-	logger.Info("桌面 Web 静态资源请求",
+	status := recorder.status()
+	fields := []any{
 		"method", request.Method,
 		"path", request.URL.Path,
 		"relative_path", relativePath,
 		"kind", webStaticRequestKind(relativePath, targetPath, usedFallback),
 		"target", filepath.Base(targetPath),
-		"status", recorder.status(),
+		"status", status,
 		"bytes", recorder.bytesWritten,
-		"duration_ms", float64(duration.Microseconds())/1000,
-	)
+		"duration_ms", float64(duration.Microseconds()) / 1000,
+	}
+	switch {
+	case status >= http.StatusInternalServerError:
+		logger.Error("桌面 Web 静态资源请求", fields...)
+	case status >= http.StatusBadRequest:
+		logger.Warn("桌面 Web 静态资源请求", fields...)
+	default:
+		logger.Debug("桌面 Web 静态资源请求", fields...)
+	}
 }
 
 func webStaticRequestKind(relativePath string, targetPath string, usedFallback bool) string {

@@ -158,6 +158,7 @@ internal static class DesktopDiagnosticsReport
             ["workspace_dir"] = DesktopPaths.WorkspaceDirectory,
             ["cache_dir"] = DesktopPaths.CacheDirectory,
             ["logs_dir"] = DesktopPaths.LogsDirectory,
+            ["debug_dir"] = DesktopPaths.DebugDirectory,
             ["connector_credentials_dpapi"] = Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.dpapi"),
             ["connector_credentials_fallback_key"] = Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.key"),
         };
@@ -170,10 +171,13 @@ internal static class DesktopDiagnosticsReport
         {
             ["application_data_exists"] = Directory.Exists(DesktopPaths.ApplicationDataDirectory),
             ["logs_dir_exists"] = Directory.Exists(DesktopPaths.LogsDirectory),
+            ["debug_dir_exists"] = Directory.Exists(DesktopPaths.DebugDirectory),
             ["bundled_web_app_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "app.html")),
             ["bundled_web_settings_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "settings.html")),
             ["bundled_web_oauth_callback_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "oauth-callback.html")),
             ["bundled_sidecar_exists"] = File.Exists(Path.Combine(resourceDirectory, "nexus-server.exe")),
+            ["bundled_nexusctl_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nexusctl.exe")),
+            ["bundled_nxs_exists"] = File.Exists(Path.Combine(resourceDirectory, "bin", "nxs.exe")),
             ["connector_credentials_dpapi_exists"] = File.Exists(Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.dpapi")),
             ["connector_credentials_fallback_key_exists"] = File.Exists(Path.Combine(DesktopPaths.ConfigDirectory, "connector-credentials.key")),
             ["nexus_url_scheme_registered"] = NexusUrlSchemeRegistered(),

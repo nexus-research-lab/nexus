@@ -151,7 +151,7 @@ func newMemoryCommand() *cobra.Command {
 				})
 			},
 		}
-		addCommand.Flags().StringVar(&input.Kind, "kind", "LRN", "LRN | ERR | FEAT | REF")
+		addCommand.Flags().StringVar(&input.Kind, "kind", "LRN", "LRN | ERR | FEAT")
 		addCommand.Flags().StringVar(&input.Category, "category", "preference", "optional category")
 		addCommand.Flags().StringVar(&input.Title, "title", "", "entry title")
 		addCommand.Flags().StringVar(&input.Content, "content", "", "entry content")
@@ -257,6 +257,25 @@ func newMemoryCommand() *cobra.Command {
 	}())
 
 	command.AddCommand(func() *cobra.Command {
+		cleanupCommand := &cobra.Command{
+			Use:   "cleanup",
+			Short: "清理孤立的 session 摘要和 checkpoint",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				result, err := engineFromFlags().Cleanup(context.Background())
+				if err != nil {
+					return err
+				}
+				return emitJSON(map[string]any{
+					"domain": "memory",
+					"action": "cleanup",
+					"result": result,
+				})
+			},
+		}
+		return cleanupCommand
+	}())
+
+	command.AddCommand(func() *cobra.Command {
 		var sessionKey string
 		summaryCommand := &cobra.Command{
 			Use:   "session-summary",
@@ -328,7 +347,7 @@ func newMemoryCommand() *cobra.Command {
 				})
 			},
 		}
-		logCommand.Flags().StringVar(&kind, "kind", "", "LRN | ERR | FEAT | REF")
+		logCommand.Flags().StringVar(&kind, "kind", "", "LRN | ERR | FEAT")
 		logCommand.Flags().StringVar(&title, "title", "", "entry title")
 		logCommand.Flags().StringVar(&category, "category", "", "optional category")
 		logCommand.Flags().StringVar(&promoteTarget, "promote-target", "", "memory|soul|tools|agents")

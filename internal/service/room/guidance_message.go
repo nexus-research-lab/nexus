@@ -2,7 +2,6 @@ package room
 
 import (
 	"context"
-	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -32,17 +31,12 @@ func buildRoomGuidanceMessage(
 }
 
 func (s *RealtimeService) broadcastSlotGuidanceMessage(
-	ctx context.Context,
-	sessionKey string,
-	roomID string,
-	conversationID string,
-	sourceRoundID string,
-	message protocol.Message,
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	_ string,
+	_ protocol.Message,
 ) {
-	if len(message) == 0 {
-		return
-	}
-	event := roomdomain.WrapMessageEvent(roomID, conversationID, message, strings.TrimSpace(sourceRoundID))
-	event.DeliveryMode = "ephemeral"
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, event)
+	// 引导消息只进入运行中 slot 的执行链路，不能作为公区输出事件展示。
 }

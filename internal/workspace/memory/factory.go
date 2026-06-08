@@ -28,7 +28,7 @@ var (
 			{Key: "错误", Value: ""},
 			{Key: "上下文", Value: ""},
 			{Key: "修复", Value: ""},
-			{Key: "可复现", Value: "unknown"},
+			{Key: "可复现", Value: ""},
 			{Key: "次数", Value: "1"},
 			{Key: "标签", Value: ""},
 			{Key: "关联", Value: ""},
@@ -44,13 +44,6 @@ var (
 			{Key: "频率", Value: "first_time"},
 			{Key: "状态", Value: "pending"},
 		},
-		"REF": {
-			{Key: "做了什么", Value: ""},
-			{Key: "结果", Value: "success"},
-			{Key: "反思", Value: ""},
-			{Key: "经验", Value: ""},
-			{Key: "状态", Value: "pending"},
-		},
 	}
 	confirmationCategories = map[string]struct{}{
 		"correction":    {},
@@ -64,7 +57,7 @@ func (f Factory) Create(kind string, title string, category string, fields []Fie
 	normalizedKind := strings.ToUpper(strings.TrimSpace(kind))
 	defaultFields, ok := defaultFieldsByKind[normalizedKind]
 	if !ok {
-		return nil, fmt.Errorf("不支持的日记类型: %s", kind)
+		return nil, newClientError("不支持的日记类型: %s", kind)
 	}
 	timestamp := now
 	if timestamp.IsZero() {
@@ -83,17 +76,6 @@ func (f Factory) Create(kind string, title string, category string, fields []Fie
 	}
 	f.applyRelatedContext(entry, relatedEntries)
 	return entry, nil
-}
-
-// InferAutoPromotionTarget 推断自动提升目标。
-func (Factory) InferAutoPromotionTarget(entry *Entry) string {
-	if entry == nil {
-		return ""
-	}
-	if entry.Kind == "LRN" && entry.Category == "preference" {
-		return "soul"
-	}
-	return ""
 }
 
 func (Factory) applyRelatedContext(entry *Entry, relatedEntries []*Entry) {
@@ -134,11 +116,4 @@ func cloneFields(values []Field) []Field {
 		items = append(items, value)
 	}
 	return items
-}
-
-func min(left int, right int) int {
-	if left < right {
-		return left
-	}
-	return right
 }

@@ -54,7 +54,7 @@ func (h *Handlers) HandlePersonalProfile(writer http.ResponseWriter, request *ht
 		User:              buildPersonalUserPayload(principal),
 		TokenUsage:        usage,
 		CanChangePassword: principal != nil && principal.AuthMethod == authsvc.AuthMethodPassword,
-		CanUpdateProfile:  principal != nil && principal.AuthMethod == authsvc.AuthMethodPassword,
+		CanUpdateProfile:  canUpdatePersonalProfile(principal),
 	})
 }
 
@@ -65,7 +65,7 @@ func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, reque
 		return
 	}
 	principal := authsvc.PrincipalFromContext(request.Context())
-	if principal == nil || principal.AuthMethod != authsvc.AuthMethodPassword {
+	if !canUpdatePersonalProfile(principal) {
 		h.api.WriteFailure(writer, http.StatusUnauthorized, "当前登录方式不支持修改个人资料")
 		return
 	}
@@ -99,10 +99,10 @@ func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, reque
 		return
 	}
 	h.api.WriteSuccess(writer, personalProfilePayload{
-		User:              buildPersonalUserPayload(buildPrincipalFromUser(updatedUser, authsvc.AuthMethodPassword)),
+		User:              buildPersonalUserPayload(buildPrincipalFromUser(updatedUser, principal.AuthMethod)),
 		TokenUsage:        usage,
-		CanChangePassword: true,
-		CanUpdateProfile:  true,
+		CanChangePassword: principal.AuthMethod == authsvc.AuthMethodPassword,
+		CanUpdateProfile:  canUpdatePersonalProfile(principal),
 	})
 }
 
@@ -113,8 +113,8 @@ func (h *Handlers) HandleChangePassword(writer http.ResponseWriter, request *htt
 		return
 	}
 	principal := authsvc.PrincipalFromContext(request.Context())
-	if principal == nil {
-		h.api.WriteFailure(writer, http.StatusUnauthorized, "未登录或登录状态已过期")
+	if principal == nil || principal.AuthMethod != authsvc.AuthMethodPassword {
+		h.api.WriteFailure(writer, http.StatusUnauthorized, "当前登录方式不支持修改密码")
 		return
 	}
 
@@ -167,6 +167,13 @@ func buildPersonalUserPayload(principal *authsvc.Principal) personalUserPayload 
 		Avatar:      strings.TrimSpace(principal.Avatar),
 		AuthMethod:  strings.TrimSpace(principal.AuthMethod),
 	}
+}
+
+func canUpdatePersonalProfile(principal *authsvc.Principal) bool {
+	if principal == nil {
+		return false
+	}
+	return principal.AuthMethod == authsvc.AuthMethodPassword || principal.AuthMethod == authsvc.AuthMethodLocal
 }
 
 func buildPrincipalFromUser(user *authsvc.User, authMethod string) *authsvc.Principal {

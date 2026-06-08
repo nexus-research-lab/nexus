@@ -14,6 +14,12 @@ import {
 } from "@/types/agent/agent-conversation";
 import { WorkspaceEventPayload } from "@/types/app/workspace-live";
 
+function is_event_message(data: unknown): data is EventMessage {
+  if (typeof data !== "object" || data === null) return false;
+  const msg = data as Record<string, unknown>;
+  return typeof msg.event_type === "string" && typeof msg.protocol_version === "number";
+}
+
 import {
   apply_stream_message,
   normalize_assistant_message,
@@ -41,7 +47,11 @@ export function handle_agent_conversation_web_socket_message({
   track_chat_ack,
   track_assistant_message,
 }: HandleAgentConversationWebSocketMessageParams): void {
-  const event = backend_message as EventMessage;
+  if (!is_event_message(backend_message)) {
+    console.warn("[websocket-event-handler] Received unexpected message shape:", backend_message);
+    return;
+  }
+  const event = backend_message;
   const incoming_session_key = event.session_key || null;
 
   if (event.event_type === "error") {
@@ -118,8 +128,8 @@ export function handle_agent_conversation_web_socket_message({
     event.event_type === "room_member_added" ||
     event.event_type === "room_member_removed" ||
     event.event_type === "room_deleted" ||
-    event.event_type === "room_action" ||
-    event.event_type === "room_action_consumed" ||
+    event.event_type === "room_directed_message" ||
+    event.event_type === "room_directed_message_consumed" ||
     event.event_type === "room_resync_required" ||
     event.event_type === "session_resync_required"
   ) {
@@ -147,6 +157,14 @@ export function handle_agent_conversation_web_socket_message({
     const payload = (event.data ?? {}) as InputQueueEventPayload;
     const items = Array.isArray(payload.items) ? payload.items : [];
     set_input_queue_items?.(items);
+    return;
+  }
+
+  if (is_goal_event(event.event_type)) {
+    if (!is_current_session_event(incoming_session_key)) {
+      return;
+    }
+    on_room_event?.(event.event_type, (event.data ?? {}) as RoomEventPayload);
     return;
   }
 
@@ -274,4 +292,15 @@ export function handle_agent_conversation_web_socket_message({
   if (normalized_payload.role === "assistant") {
     track_assistant_message?.(normalized_payload as AssistantMessage);
   }
+}
+
+function is_goal_event(event_type: string): boolean {
+  return (
+    event_type === "goal_created" ||
+    event_type === "goal_updated" ||
+    event_type === "goal_status_changed" ||
+    event_type === "goal_progress" ||
+    event_type === "goal_continuation" ||
+    event_type === "goal_cleared"
+  );
 }

@@ -112,6 +112,7 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["TELEGRAM_ENABLED"] = "false";
         startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback";
         ApplyPackagedConnectorConfig(startInfo);
+        ApplyBundledNXSRuntime(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = $"{runtime.WebBaseUrl.TrimEnd('/')},nexus://connectors";
         return startInfo;
     }
@@ -147,6 +148,44 @@ internal sealed class SidecarSupervisor : IDisposable
         }
     }
 
+    private void ApplyBundledNXSRuntime(ProcessStartInfo startInfo)
+    {
+        if (locator.IsDevelopment)
+        {
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "development",
+            });
+            return;
+        }
+
+        string nxsPath = Path.Combine(locator.AppRoot, "bin", "nxs.exe");
+        if (File.Exists(nxsPath))
+        {
+            startInfo.Environment["NEXUS_NXS_COMMAND_PATH"] = nxsPath;
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "bundled",
+            });
+            return;
+        }
+
+        if (startInfo.Environment.TryGetValue("NEXUS_NXS_COMMAND_PATH", out string? overridePath) &&
+            !string.IsNullOrWhiteSpace(overridePath))
+        {
+            startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "override",
+            });
+            return;
+        }
+
+        startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+        {
+            ["source"] = "missing",
+        });
+    }
+
     private static void PrepareDirectories()
     {
         Directory.CreateDirectory(DesktopPaths.ApplicationDataDirectory);
@@ -155,6 +194,7 @@ internal sealed class SidecarSupervisor : IDisposable
         Directory.CreateDirectory(DesktopPaths.WorkspaceDirectory);
         Directory.CreateDirectory(DesktopPaths.CacheDirectory);
         Directory.CreateDirectory(DesktopPaths.LogsDirectory);
+        Directory.CreateDirectory(DesktopPaths.DebugDirectory);
     }
 
     private async Task WaitUntilHealthyAsync()

@@ -16,6 +16,7 @@ import (
 type fakeRoundExecutionClient struct {
 	sessionID    string
 	queryErr     error
+	contextErr   error
 	streamErr    error
 	waitErr      error
 	messages     chan sdkprotocol.ReceivedMessage
@@ -23,6 +24,7 @@ type fakeRoundExecutionClient struct {
 	disconnects  int
 	queryPrompts []string
 	queryContent []any
+	contextInput []ContextualInputBlock
 }
 
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
@@ -35,6 +37,11 @@ func (c *fakeRoundExecutionClient) Query(_ context.Context, prompt string) error
 func (c *fakeRoundExecutionClient) QueryContent(_ context.Context, content any) error {
 	c.queryContent = append(c.queryContent, content)
 	return c.queryErr
+}
+
+func (c *fakeRoundExecutionClient) SetNextTurnContext(_ context.Context, blocks []ContextualInputBlock) error {
+	c.contextInput = append([]ContextualInputBlock(nil), blocks...)
+	return c.contextErr
 }
 
 func (c *fakeRoundExecutionClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
@@ -167,6 +174,46 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 	}
 }
 
+func TestExecuteRoundReturnsTerminalErrorMessage(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-error",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
+	close(client.messages)
+
+	mapper := &fakeRoundExecutionMapper{
+		results: []RoundMapResult{{
+			DurableMessages: []protocol.Message{
+				{
+					"message_id": "result-error",
+					"role":       "result",
+					"subtype":    "error",
+					"is_error":   true,
+					"result":     "Failed to authenticate. API Error: 401",
+				},
+			},
+			TerminalStatus: "error",
+			ResultSubtype:  "error",
+		}},
+	}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "continue",
+		Client: client,
+		Mapper: mapper,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if result.TerminalStatus != "error" || result.ResultSubtype != "error" {
+		t.Fatalf("result = %+v, want terminal error", result)
+	}
+	if result.ErrorMessage != "Failed to authenticate. API Error: 401" {
+		t.Fatalf("ErrorMessage = %q", result.ErrorMessage)
+	}
+}
+
 func TestExecuteRoundUsesStructuredContent(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-structured",
@@ -214,6 +261,154 @@ func TestExecuteRoundUsesStructuredContent(t *testing.T) {
 	}
 }
 
+func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-context",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "用户输入",
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "Continue." {
+		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
+	}
+	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "用户输入" {
+		t.Fatalf("queryPrompts = %#v, want unmodified user input", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundInlinesContextOnlyInternalTurn(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-context-only",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-only",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "",
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal", "Continue.", 0, map[string]string{"goal_id": "goal-1"}),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.contextInput) != 0 {
+		t.Fatalf("contextInput = %#v, want context-only turn inlined", client.contextInput)
+	}
+	wantPrompt := "<internal_context source=\"goal\">\nContinue.\n</internal_context>"
+	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != wantPrompt {
+		t.Fatalf("queryPrompts = %#v, want inlined internal context", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:  "sdk-session-context-fallback",
+		contextErr: agentclient.ErrUnsupportedCapability,
+		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-fallback",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: "用户输入",
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal", "Continue.", 0, nil),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.queryPrompts) != 1 ||
+		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nContinue.\n</internal_context>\n\n") ||
+		!strings.Contains(client.queryPrompts[0], "用户输入") {
+		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
+	}
+}
+
+func TestExecuteRoundFallsBackToStructuredContentPrefixWhenInternalContextUnsupported(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:  "sdk-session-context-structured",
+		contextErr: agentclient.ErrUnsupportedCapability,
+		messages:   make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		UUID:      "result-context-structured",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+		},
+	}
+	close(client.messages)
+	content := []map[string]any{{"type": "text", "text": "描述图片"}}
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content: content,
+		ContextualInputs: []ContextualInputBlock{
+			NewContextualInputBlock("goal", "Continue.", 0, nil),
+		},
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteRound 失败: %v", err)
+	}
+	if len(client.queryContent) != 1 {
+		t.Fatalf("queryContent = %#v, want one structured payload", client.queryContent)
+	}
+	blocks, ok := client.queryContent[0].([]map[string]any)
+	if !ok || len(blocks) != 2 || blocks[0]["text"] != "<internal_context source=\"goal\">\nContinue.\n</internal_context>" {
+		t.Fatalf("queryContent[0] = %#v, want prepended context text block", client.queryContent[0])
+	}
+}
+
 func TestExecuteRoundCompletesFromTerminalAssistantWhenResultMissing(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",
@@ -247,6 +442,78 @@ func TestExecuteRoundCompletesFromTerminalAssistantWhenResultMissing(t *testing.
 	}
 	if result.TerminalStatus != "finished" || result.ResultSubtype != "success" || !result.CompletedByAssistant {
 		t.Fatalf("terminal assistant 终态不正确: %+v", result)
+	}
+}
+
+func TestExecuteRoundKeepsAssistantCompletionWhenResultArrives(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 2),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{
+				{
+					DurableMessages: []protocol.Message{{
+						"message_id":  "assistant-1",
+						"role":        "assistant",
+						"is_complete": true,
+						"stop_reason": "end_turn",
+					}},
+				},
+				{
+					DurableMessages: []protocol.Message{{
+						"message_id": "result-1",
+						"role":       "result",
+						"subtype":    "success",
+					}},
+					TerminalStatus: "finished",
+					ResultSubtype:  "success",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("result 到达后不应失败: %v", err)
+	}
+	if result.TerminalStatus != "finished" || result.ResultSubtype != "success" || !result.CompletedByAssistant {
+		t.Fatalf("result 到达后应保留 assistant 完成状态: %+v", result)
+	}
+}
+
+func TestExecuteRoundTreatsSuccessfulResultAsAssistantCompletion(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-result-only",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
+
+	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{
+				DurableMessages: []protocol.Message{{
+					"message_id": "result-1",
+					"role":       "result",
+					"subtype":    "success",
+					"result":     "完成",
+				}},
+				TerminalStatus: "finished",
+				ResultSubtype:  "success",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("result-only 成功终态不应失败: %v", err)
+	}
+	if result.TerminalStatus != "finished" || result.ResultSubtype != "success" || !result.CompletedByAssistant {
+		t.Fatalf("result-only 成功终态应触发 assistant 完成: %+v", result)
 	}
 }
 
@@ -295,6 +562,23 @@ func TestExecuteRoundReturnsInterruptedWhenContextCancelled(t *testing.T) {
 		Query:  "你好",
 		Client: client,
 		Mapper: mapper,
+	})
+	if !errors.Is(err, ErrRoundInterrupted) {
+		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
+	}
+}
+
+func TestExecuteRoundReturnsInterruptedWhenSDKAborted(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		queryErr:  agentclient.ErrAborted,
+		messages:  make(chan sdkprotocol.ReceivedMessage),
+	}
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "你好",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{},
 	})
 	if !errors.Is(err, ErrRoundInterrupted) {
 		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)

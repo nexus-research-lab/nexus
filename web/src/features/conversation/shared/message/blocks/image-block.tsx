@@ -1,8 +1,12 @@
 "use client";
 
-import { Download, ImageIcon } from "lucide-react";
+import { Download, FolderOpen, ImageIcon } from "lucide-react";
 
-import { get_workspace_file_download_url, get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
+import {
+  download_workspace_file_api,
+  get_workspace_file_preview_url,
+} from "@/lib/api/agent-manage-api";
+import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { type ImageContent } from "@/types/conversation/message";
 
@@ -78,9 +82,20 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
   const current_agent_id = useMarkdownCurrentAgentID(workspace_agent_id);
   const { src, workspace_path } = resolve_image_source(block, resolve_file_path, current_agent_id);
   const can_open = Boolean(workspace_path && on_open_workspace_file);
-  const download_url = workspace_path && current_agent_id
-    ? get_workspace_file_download_url(current_agent_id, workspace_path)
-    : "";
+  const can_download = Boolean(workspace_path && current_agent_id);
+  const file_action_copy = get_workspace_file_external_action_copy(workspace_path?.split("/").at(-1) || "image");
+  const handle_external_action = () => {
+    if (!workspace_path || !current_agent_id) {
+      return;
+    }
+    void download_workspace_file_api(
+      current_agent_id,
+      workspace_path,
+      workspace_path.split("/").at(-1) || "image",
+    ).catch((error) => {
+      console.error(`[ImageBlock] ${file_action_copy.label} workspace 图片失败:`, error);
+    });
+  };
 
   if (!src) {
     return (
@@ -95,7 +110,7 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
     <figure className="my-3 min-w-0 max-w-full">
       <button
         className={cn(
-          "block max-w-full rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1 text-left shadow-[0_1px_0_rgba(0,0,0,0.03)]",
+          "block w-fit max-w-full rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1 text-left shadow-[0_1px_0_rgba(0,0,0,0.03)]",
           can_open ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5" : "cursor-default",
         )}
         disabled={!can_open}
@@ -105,7 +120,7 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
       >
         <img
           alt={block.alt || "generated image"}
-          className="max-h-[520px] max-w-full rounded-[6px] object-contain"
+          className="max-h-[420px] w-auto max-w-full rounded-[6px] object-contain sm:max-w-[560px]"
           loading="lazy"
           src={src}
         />
@@ -115,17 +130,21 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
           {block.alt}
         </figcaption>
       ) : null}
-      {download_url ? (
-        <a
+      {can_download ? (
+        <button
+          aria-label={file_action_copy.aria_label}
           className="mt-2 inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary"
-          download={workspace_path?.split("/").at(-1) || "image"}
-          href={download_url}
-          rel="noopener noreferrer"
-          target="_blank"
+          onClick={handle_external_action}
+          title={file_action_copy.title}
+          type="button"
         >
-          <Download className="h-3.5 w-3.5" />
-          下载
-        </a>
+          {file_action_copy.mode === "reveal" ? (
+            <FolderOpen className="h-3.5 w-3.5" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          {file_action_copy.label}
+        </button>
       ) : null}
     </figure>
   );

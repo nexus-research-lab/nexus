@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
@@ -17,14 +16,26 @@ type RuntimeSnapshot struct {
 	Status           string `json:"status"`
 }
 
+type workspaceEventSender interface {
+	Key() string
+	IsClosed() bool
+	SendEvent(context.Context, protocol.EventMessage) error
+}
+
 type runtimeSnapshotProvider func(string) RuntimeSnapshot
+
+type workspaceSenderSubscription struct {
+	refCount          int
+	token             string
+	watchFileRefCount int
+}
 
 type workspaceSubscriptionRegistry struct {
 	mu              sync.Mutex
 	workspace       *workspacesvc.Service
 	runtimeProvider runtimeSnapshotProvider
-	senderTokens    map[string]map[string]string
-	agentSenders    map[string]map[string]*handlershared.WebSocketSender
+	senderTokens    map[string]map[string]workspaceSenderSubscription
+	agentSenders    map[string]map[string]workspaceEventSender
 	lastSnapshots   map[string]RuntimeSnapshot
 	pollerCancel    context.CancelFunc
 }
@@ -36,44 +47,68 @@ func newWorkspaceSubscriptionRegistry(
 	return &workspaceSubscriptionRegistry{
 		workspace:       workspaceService,
 		runtimeProvider: runtimeProvider,
-		senderTokens:    make(map[string]map[string]string),
-		agentSenders:    make(map[string]map[string]*handlershared.WebSocketSender),
+		senderTokens:    make(map[string]map[string]workspaceSenderSubscription),
+		agentSenders:    make(map[string]map[string]workspaceEventSender),
 		lastSnapshots:   make(map[string]RuntimeSnapshot),
 	}
 }
 
-func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender *handlershared.WebSocketSender, agentID string) error {
-	if r == nil || r.workspace == nil || sender == nil || sender.IsClosed() {
+func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender workspaceEventSender, agentID string, watchFiles bool) error {
+	if r == nil || sender == nil || sender.IsClosed() {
 		return nil
 	}
 
 	r.mu.Lock()
-	if r.senderTokens[sender.Key()] != nil && r.senderTokens[sender.Key()][agentID] != "" {
-		r.mu.Unlock()
-		r.sendRuntimeSnapshot(sender, agentID)
-		return nil
+	if r.senderTokens[sender.Key()] != nil {
+		if subscription, exists := r.senderTokens[sender.Key()][agentID]; exists {
+			subscription.refCount++
+			needsLiveUpgrade := watchFiles && subscription.token == "" && r.workspace != nil
+			if watchFiles {
+				subscription.watchFileRefCount++
+			}
+			r.senderTokens[sender.Key()][agentID] = subscription
+			r.mu.Unlock()
+			if needsLiveUpgrade {
+				token, err := r.subscribeWorkspaceLive(ctx, sender, agentID)
+				if err != nil {
+					r.Unsubscribe(sender, agentID, watchFiles)
+					return err
+				}
+				r.attachLiveToken(sender.Key(), agentID, token)
+			}
+			r.sendRuntimeSnapshot(sender, agentID)
+			return nil
+		}
 	}
 	r.mu.Unlock()
 
-	token, err := r.workspace.SubscribeLive(ctx, agentID, func(event workspacesvc.LiveEvent) {
-		_ = sender.SendEvent(context.Background(), workspaceEventMessage(event))
-	})
-	if err != nil {
-		return err
+	token := ""
+	if watchFiles && r.workspace != nil {
+		liveToken, err := r.subscribeWorkspaceLive(ctx, sender, agentID)
+		if err != nil {
+			return err
+		}
+		token = liveToken
 	}
 
 	r.mu.Lock()
 	if sender.IsClosed() {
 		r.mu.Unlock()
-		r.workspace.UnsubscribeLive(token)
+		if token != "" && r.workspace != nil {
+			r.workspace.UnsubscribeLive(token)
+		}
 		return nil
 	}
 	if r.senderTokens[sender.Key()] == nil {
-		r.senderTokens[sender.Key()] = make(map[string]string)
+		r.senderTokens[sender.Key()] = make(map[string]workspaceSenderSubscription)
 	}
-	r.senderTokens[sender.Key()][agentID] = token
+	r.senderTokens[sender.Key()][agentID] = workspaceSenderSubscription{
+		refCount:          1,
+		token:             token,
+		watchFileRefCount: boolToInt(watchFiles),
+	}
 	if r.agentSenders[agentID] == nil {
-		r.agentSenders[agentID] = make(map[string]*handlershared.WebSocketSender)
+		r.agentSenders[agentID] = make(map[string]workspaceEventSender)
 	}
 	r.agentSenders[agentID][sender.Key()] = sender
 	r.ensurePollerLocked()
@@ -83,14 +118,44 @@ func (r *workspaceSubscriptionRegistry) Subscribe(ctx context.Context, sender *h
 	return nil
 }
 
-func (r *workspaceSubscriptionRegistry) Unsubscribe(sender *handlershared.WebSocketSender, agentID string) {
+func (r *workspaceSubscriptionRegistry) subscribeWorkspaceLive(ctx context.Context, sender workspaceEventSender, agentID string) (string, error) {
+	if r.workspace == nil {
+		return "", nil
+	}
+	return r.workspace.SubscribeLive(ctx, agentID, func(event workspacesvc.LiveEvent) {
+		_ = sender.SendEvent(context.Background(), workspaceEventMessage(event))
+	})
+}
+
+func (r *workspaceSubscriptionRegistry) attachLiveToken(senderKey string, agentID string, token string) {
+	if token == "" || r.workspace == nil {
+		return
+	}
+
+	shouldRelease := false
+	r.mu.Lock()
+	subscription, exists := r.senderTokens[senderKey][agentID]
+	if !exists || subscription.token != "" || subscription.watchFileRefCount == 0 {
+		shouldRelease = true
+	} else {
+		subscription.token = token
+		r.senderTokens[senderKey][agentID] = subscription
+	}
+	r.mu.Unlock()
+
+	if shouldRelease {
+		r.workspace.UnsubscribeLive(token)
+	}
+}
+
+func (r *workspaceSubscriptionRegistry) Unsubscribe(sender workspaceEventSender, agentID string, watchFiles bool) {
 	if r == nil || sender == nil {
 		return
 	}
-	r.unsubscribe(sender.Key(), agentID)
+	r.unsubscribe(sender.Key(), agentID, watchFiles)
 }
 
-func (r *workspaceSubscriptionRegistry) UnregisterSender(sender *handlershared.WebSocketSender) {
+func (r *workspaceSubscriptionRegistry) UnregisterSender(sender workspaceEventSender) {
 	if r == nil || sender == nil {
 		return
 	}
@@ -103,18 +168,35 @@ func (r *workspaceSubscriptionRegistry) UnregisterSender(sender *handlershared.W
 	r.mu.Unlock()
 
 	for _, agentID := range agentIDs {
-		r.unsubscribe(sender.Key(), agentID)
+		r.remove(sender.Key(), agentID)
 	}
 }
 
-func (r *workspaceSubscriptionRegistry) unsubscribe(senderKey string, agentID string) {
+func (r *workspaceSubscriptionRegistry) unsubscribe(senderKey string, agentID string, watchFiles bool) {
 	r.mu.Lock()
 	agentTokens := r.senderTokens[senderKey]
 	if agentTokens == nil {
 		r.mu.Unlock()
 		return
 	}
-	token := agentTokens[agentID]
+	subscription := agentTokens[agentID]
+	tokenToRelease := ""
+	if watchFiles && subscription.watchFileRefCount > 0 {
+		subscription.watchFileRefCount--
+		if subscription.watchFileRefCount == 0 && subscription.refCount > 1 {
+			tokenToRelease = subscription.token
+			subscription.token = ""
+		}
+	}
+	if subscription.refCount > 1 {
+		subscription.refCount--
+		agentTokens[agentID] = subscription
+		r.mu.Unlock()
+		if tokenToRelease != "" && r.workspace != nil {
+			r.workspace.UnsubscribeLive(tokenToRelease)
+		}
+		return
+	}
 	delete(agentTokens, agentID)
 	if len(agentTokens) == 0 {
 		delete(r.senderTokens, senderKey)
@@ -132,8 +214,45 @@ func (r *workspaceSubscriptionRegistry) unsubscribe(senderKey string, agentID st
 	}
 	r.mu.Unlock()
 
-	if token != "" {
-		r.workspace.UnsubscribeLive(token)
+	if tokenToRelease != "" && tokenToRelease != subscription.token && r.workspace != nil {
+		r.workspace.UnsubscribeLive(tokenToRelease)
+	}
+	if subscription.token != "" && r.workspace != nil {
+		r.workspace.UnsubscribeLive(subscription.token)
+	}
+}
+
+func (r *workspaceSubscriptionRegistry) remove(senderKey string, agentID string) {
+	r.mu.Lock()
+	agentTokens := r.senderTokens[senderKey]
+	if agentTokens == nil {
+		r.mu.Unlock()
+		return
+	}
+	subscription, exists := agentTokens[agentID]
+	if !exists {
+		r.mu.Unlock()
+		return
+	}
+	delete(agentTokens, agentID)
+	if len(agentTokens) == 0 {
+		delete(r.senderTokens, senderKey)
+	}
+	if senders := r.agentSenders[agentID]; senders != nil {
+		delete(senders, senderKey)
+		if len(senders) == 0 {
+			delete(r.agentSenders, agentID)
+			delete(r.lastSnapshots, agentID)
+		}
+	}
+	if len(r.agentSenders) == 0 && r.pollerCancel != nil {
+		r.pollerCancel()
+		r.pollerCancel = nil
+	}
+	r.mu.Unlock()
+
+	if subscription.token != "" && r.workspace != nil {
+		r.workspace.UnsubscribeLive(subscription.token)
 	}
 }
 
@@ -166,7 +285,7 @@ func (r *workspaceSubscriptionRegistry) broadcastRuntimeChanges() {
 	}
 
 	type broadcast struct {
-		senders []*handlershared.WebSocketSender
+		senders []workspaceEventSender
 		event   protocol.EventMessage
 	}
 
@@ -180,7 +299,7 @@ func (r *workspaceSubscriptionRegistry) broadcastRuntimeChanges() {
 			continue
 		}
 		r.lastSnapshots[agentID] = snapshot
-		targets := make([]*handlershared.WebSocketSender, 0, len(senders))
+		targets := make([]workspaceEventSender, 0, len(senders))
 		for _, sender := range senders {
 			if sender != nil && !sender.IsClosed() {
 				targets = append(targets, sender)
@@ -212,11 +331,18 @@ func (r *workspaceSubscriptionRegistry) broadcastRuntimeChanges() {
 	}
 }
 
-func (r *workspaceSubscriptionRegistry) sendRuntimeSnapshot(sender *handlershared.WebSocketSender, agentID string) {
+func (r *workspaceSubscriptionRegistry) sendRuntimeSnapshot(sender workspaceEventSender, agentID string) {
 	if r == nil || r.runtimeProvider == nil || sender == nil || sender.IsClosed() {
 		return
 	}
 	_ = sender.SendEvent(context.Background(), runtimeSnapshotEvent(r.runtimeProvider(agentID)))
+}
+
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func runtimeSnapshotEvent(snapshot RuntimeSnapshot) protocol.EventMessage {

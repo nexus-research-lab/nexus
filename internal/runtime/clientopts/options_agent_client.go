@@ -2,12 +2,13 @@ package clientopts
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -15,6 +16,20 @@ import (
 )
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
+const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
+const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
+const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
+const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
+const defaultClaudeAutoCompactPctOverride = "70"
+const thinkingCapabilityName = "thinking"
+const nxsCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
+const nxsAPIClearToolResultsEnvName = "NEXUS_API_CLEAR_TOOL_RESULTS"
+const nxsAPIClearToolUsesEnvName = "NEXUS_API_CLEAR_TOOL_USES"
+const nxsPromptCache1hEligibleEnvName = "NEXUS_PROMPT_CACHE_1H_ELIGIBLE"
+const nxsPromptCache1hAllowlistEnvName = "NEXUS_PROMPT_CACHE_1H_ALLOWLIST"
+const nxsAgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
+const nxsAgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
+const nxsAgentSDKProviderDebugBodyEnvName = "NEXUS_AGENT_SDK_PROVIDER_DEBUG_BODY"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -22,26 +37,42 @@ const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
 const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
 
+var agentSessionDeniedTools = []string{
+	"EnterPlanMode",
+	"ScheduleWakeup",
+	"CronCreate",
+	"CronList",
+	"CronDelete",
+}
+
 // RuntimeConfigResolver 负责解析 Agent 运行时环境。
 type RuntimeConfigResolver interface {
-	ResolveRuntimeConfig(context.Context, string) (*RuntimeConfig, error)
+	ResolveRuntimeConfig(context.Context, string, string) (*RuntimeConfig, error)
+}
+
+// RuntimeConfigForRuntimeResolver 可按 Agent runtime 类型解析 Provider 配置。
+type RuntimeConfigForRuntimeResolver interface {
+	ResolveRuntimeConfigForRuntime(context.Context, string, string, string) (*RuntimeConfig, error)
 }
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
-	WorkspacePath      string
-	Provider           string
-	PermissionMode     sdkpermission.Mode
-	PermissionHandler  sdkpermission.Handler
-	AllowedTools       []string
-	DisallowedTools    []string
-	SettingSources     []string
-	AppendSystemPrompt string
-	ResumeSessionID    string
-	MaxThinkingTokens  *int
-	MaxTurns           *int
-	MCPServers         map[string]sdkmcp.SDKMCPServer
-	ExtraEnv           map[string]string
+	WorkspacePath              string
+	RuntimeKind                string
+	Provider                   string
+	Model                      string
+	PermissionMode             sdkpermission.Mode
+	PermissionHandler          sdkpermission.Handler
+	AllowedTools               []string
+	DisallowedTools            []string
+	SettingSources             []string
+	AppendSystemPrompt         string
+	ResumeSessionID            string
+	MaxThinkingTokens          *int
+	MaxTurns                   *int
+	MCPServers                 map[string]sdkmcp.ServerConfig
+	ExtraEnv                   map[string]string
+	AgentSDKDiagnosticsEnabled bool
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -50,11 +81,13 @@ func BuildAgentClientOptions(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider)
+	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
+	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
 		return agentclient.Options{}, err
 	}
-	runtimeEnv := runtimeEnvFromConfig(runtimeConfig)
+	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled)
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
@@ -64,22 +97,27 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
+	commandConfig := processRuntimeCommandConfig(effectiveRuntimeKind)
 
 	options := agentclient.Options{
-		Backend:                agentclient.ProcessBackend(processBackendOptions()),
+		CLIPath:                commandConfig.CLIPath,
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
+		Executable:             commandConfig.Executable,
+		PathToExecutable:       commandConfig.PathToExecutable,
 		System: agentclient.SystemOptions{
 			Append: input.AppendSystemPrompt,
 		},
 		Tools: agentclient.ToolOptions{
 			Allow: append([]string(nil), input.AllowedTools...),
-			Deny:  append([]string(nil), input.DisallowedTools...),
+			Deny:  appendDistinctTools(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
-			PermissionMode: permissionMode,
+			Kind:                            agentRuntimeKind(effectiveRuntimeKind),
+			PermissionMode:                  permissionMode,
+			AllowDangerouslySkipPermissions: true,
 		},
 		Callbacks: agentclient.CallbackOptions{
 			PermissionHandler: permissionHandler,
@@ -98,9 +136,36 @@ func BuildAgentClientOptions(
 		options.Runtime.MaxTurns = *input.MaxTurns
 	}
 	if len(input.MCPServers) > 0 {
-		options.MCP.SDKServers = cloneMCPServers(input.MCPServers)
+		options.MCP.Servers = cloneMCPServers(input.MCPServers)
+	}
+	if err := materializeProcessArgFiles(&options); err != nil {
+		return agentclient.Options{}, err
 	}
 	return options, nil
+}
+
+func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {
+	if runtimeProfileForKind(runtimeKind).isNXS() {
+		return agentclient.RuntimeNXS
+	}
+	return agentclient.RuntimeClaude
+}
+
+func appendDistinctTools(base []string, extra ...string) []string {
+	result := make([]string, 0, len(base)+len(extra))
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	for _, tool := range append(append([]string(nil), base...), extra...) {
+		normalized := strings.TrimSpace(tool)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 func permissionHandlerForMode(
@@ -129,26 +194,23 @@ func clonePermissionInput(input map[string]any) map[string]any {
 	return result
 }
 
-// BuildRuntimeEnv 统一把 provider 配置收口成 Claude SDK 所需环境变量。
-func BuildRuntimeEnv(
-	ctx context.Context,
-	resolver RuntimeConfigResolver,
-	provider string,
-) (map[string]string, error) {
-	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, provider)
-	if err != nil {
-		return nil, err
-	}
-	if runtimeConfig == nil {
-		return nil, nil
-	}
-	return runtimeEnvFromConfig(runtimeConfig), nil
-}
-
-func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
 	if runtimeConfig == nil {
 		return nil
 	}
+	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
+	switch strings.TrimSpace(runtimeConfig.APIFormat) {
+	case "", apiFormatAnthropicMessages:
+		return anthropicRuntimeEnvFromConfig(runtimeConfig)
+	case apiFormatChatCompletions:
+		if profile.isNXS() {
+			return openAIRuntimeEnvFromConfig(runtimeConfig)
+		}
+	}
+	return nil
+}
+
+func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	env := map[string]string{
 		"ANTHROPIC_AUTH_TOKEN":           runtimeConfig.AuthToken,
 		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
@@ -158,6 +220,10 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
 		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
+		"NEXUS_API_PROVIDER":             "anthropic-compatible",
+	}
+	if runtimeConfig.Reasoning {
+		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
 	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
 		env["ENABLE_TOOL_SEARCH"] = "false"
@@ -165,24 +231,104 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	return env
 }
 
+func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+	return map[string]string{
+		"OPENAI_API_KEY":             runtimeConfig.AuthToken,
+		"OPENAI_BASE_URL":            runtimeConfig.BaseURL,
+		"OPENAI_MODEL":               runtimeConfig.Model,
+		"CLAUDE_CODE_SUBAGENT_MODEL": runtimeConfig.Model,
+		NexusRuntimeProviderEnvName:  runtimeConfig.Provider,
+		"NEXUS_API_PROVIDER":         "openai",
+	}
+}
+
+func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...string) {
+	capabilityValue := strings.Join(capabilities, ",")
+	for _, key := range []string{
+		"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
+	} {
+		env[key] = capabilityValue
+	}
+}
+
+func defaultRuntimeEnv(runtimeKind string, agentSDKDiagnosticsEnabled bool) map[string]string {
+	env := map[string]string{
+		claudeAutoCompactPctOverrideEnvName: defaultClaudeAutoCompactPctOverride,
+	}
+	if runtimeProfileForKind(runtimeKind).isNXS() {
+		env[nxsCachedMicrocompactEnvName] = "1"
+		env[nxsAPIClearToolResultsEnvName] = "1"
+		env[nxsAPIClearToolUsesEnvName] = "1"
+		env[nxsPromptCache1hEligibleEnvName] = "1"
+		env[nxsPromptCache1hAllowlistEnvName] = "sdk"
+		applyNXSAgentSDKDiagnosticsEnv(env, agentSDKDiagnosticsEnabled)
+	}
+	return env
+}
+
+func applyNXSAgentSDKDiagnosticsEnv(env map[string]string, enabled bool) {
+	if enabled {
+		env[nxsAgentSDKDiagnosticsEnvName] = "stderr"
+		return
+	}
+	env[nxsAgentSDKDiagnosticsEnvName] = ""
+	env[nxsAgentSDKDebugEnvName] = ""
+	env[nxsAgentSDKProviderDebugBodyEnvName] = ""
+}
+
 func resolveRuntimeConfig(
 	ctx context.Context,
 	resolver RuntimeConfigResolver,
 	provider string,
+	model string,
+	runtimeKind string,
 ) (*RuntimeConfig, error) {
 	if resolver == nil {
 		return nil, nil
 	}
-	return resolver.ResolveRuntimeConfig(ctx, strings.TrimSpace(provider))
+	runtimeConfig, err := resolveProviderRuntimeConfig(ctx, resolver, provider, model, runtimeKind)
+	if err != nil {
+		return nil, err
+	}
+	if runtimeConfig == nil {
+		return nil, nil
+	}
+	apiFormat := strings.TrimSpace(runtimeConfig.APIFormat)
+	if !runtimeSupportsAPIFormat(runtimeKind, apiFormat) {
+		return nil, fmt.Errorf("api_format=%s 暂不可用于 Agent runtime", apiFormat)
+	}
+	return runtimeConfig, nil
+}
+
+func resolveProviderRuntimeConfig(
+	ctx context.Context,
+	resolver RuntimeConfigResolver,
+	provider string,
+	model string,
+	runtimeKind string,
+) (*RuntimeConfig, error) {
+	provider = strings.TrimSpace(provider)
+	model = strings.TrimSpace(model)
+	if runtimeResolver, ok := resolver.(RuntimeConfigForRuntimeResolver); ok {
+		return runtimeResolver.ResolveRuntimeConfigForRuntime(ctx, provider, model, runtimeKind)
+	}
+	return resolver.ResolveRuntimeConfig(ctx, provider, model)
+}
+
+func runtimeSupportsAPIFormat(runtimeKind string, apiFormat string) bool {
+	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
+	return profile.supportsAPIFormat(apiFormat)
 }
 
 func cloneMCPServers(
-	current map[string]sdkmcp.SDKMCPServer,
-) map[string]sdkmcp.SDKMCPServer {
+	current map[string]sdkmcp.ServerConfig,
+) map[string]sdkmcp.ServerConfig {
 	if len(current) == 0 {
 		return nil
 	}
-	result := make(map[string]sdkmcp.SDKMCPServer, len(current))
+	result := make(map[string]sdkmcp.ServerConfig, len(current))
 	for key, value := range current {
 		result[key] = value
 	}
@@ -218,9 +364,10 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 	if trimmedWorkspacePath == "" {
 		return nil
 	}
-	binDir := filepath.Join(trimmedWorkspacePath, ".agents", "bin")
+	binDir := appfs.AgentRuntimeBinDir()
 	env := map[string]string{
-		"NEXUS_PROJECT_ROOT": strings.TrimSpace(appfs.Root()),
+		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
+		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,
 	}
 	currentPath := strings.TrimSpace(os.Getenv("PATH"))
 	if currentPath == "" {

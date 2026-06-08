@@ -25,6 +25,7 @@ function MessageItemInner({
   workspace_agent_id,
   current_user_avatar,
   on_edit_user_message,
+  on_open_agent_contact,
   on_open_workspace_file,
   on_permission_response,
   can_respond_to_permissions = true,
@@ -54,7 +55,8 @@ function MessageItemInner({
   return (
     <MessageShell
       class_name={cn(
-        "animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
+        "nexus-chat-message-round animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
+        compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
         class_name,
       )}
       separated={!compact}
@@ -79,6 +81,7 @@ function MessageItemInner({
         can_respond_to_permissions={can_respond_to_permissions}
         permission_read_only_reason={permission_read_only_reason}
         on_permission_response={on_permission_response}
+        on_open_agent_contact={on_open_agent_contact}
         on_open_workspace_file={on_open_workspace_file}
         workspace_agent_id={workspace_agent_id}
         hidden_tool_names={hidden_tool_names}
@@ -104,6 +107,7 @@ export const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.pending_permissions !== next.pending_permissions) return false;
   if (prev.can_respond_to_permissions !== next.can_respond_to_permissions) return false;
   if (prev.permission_read_only_reason !== next.permission_read_only_reason) return false;
+  if (prev.on_open_agent_contact !== next.on_open_agent_contact) return false;
   if (prev.assistant_header_action !== next.assistant_header_action) return false;
   if (prev.assistant_content_mode !== next.assistant_content_mode) return false;
   if (prev.class_name !== next.class_name) return false;

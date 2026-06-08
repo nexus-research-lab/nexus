@@ -96,7 +96,7 @@ export function IconPicker({
                                 layout === "row" && "shrink-0",
                                 is_selected
                                     ? "bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] border border-(--primary) shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_16%,transparent)]"
-                                    : "bg-(--surface-inset-background) border border-(--surface-inset-border) hover:bg-(--surface-card-background) hover:-translate-y-[1px]",
+                                    : "border border-(--surface-inset-border) bg-transparent hover:bg-(--surface-interactive-hover-background) hover:-translate-y-[1px]",
                                 disabled && "cursor-not-allowed opacity-50",
                             )}
                             onClick={() => !disabled && on_select(icon_id)}

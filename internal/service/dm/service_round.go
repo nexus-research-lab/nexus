@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -12,6 +13,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -44,22 +46,32 @@ func (a dmRoundMapperAdapter) SessionID() string {
 }
 
 type roundRunner struct {
-	service           *Service
-	workspacePath     string
-	session           protocol.Session
-	agent             *protocol.Agent
-	sessionKey        string
-	roundID           string
-	reqID             string
-	content           string
-	runtimeContent    conversationsvc.RuntimeContent
-	client            runtimectx.Client
-	runtimeProvider   string
-	runtimeModel      string
-	ownerUserID       string
-	mapper            *dmdomain.MessageMapper
-	permissionMode    sdkpermission.Mode
-	permissionHandler sdkpermission.Handler
+	service            *Service
+	workspacePath      string
+	session            protocol.Session
+	agent              *protocol.Agent
+	sessionKey         string
+	roundID            string
+	reqID              string
+	content            string
+	runtimeContent     conversationsvc.RuntimeContent
+	client             runtimectx.Client
+	runtimeProvider    string
+	runtimeModel       string
+	ownerUserID        string
+	mapper             *dmdomain.MessageMapper
+	inputOptions       sdkprotocol.OutboundMessageOptions
+	internal           bool
+	goalContext        string
+	goalIDForUsage     string
+	goalUsage          *goalsvc.RuntimeUsageAccumulator
+	goalUsageStarted   time.Time
+	goalUsageMu        sync.Mutex
+	goalLastAssistant  protocol.Message
+	goalToolProgress   bool
+	permissionMode     sdkpermission.Mode
+	permissionHandler  sdkpermission.Handler
+	resultUsageWritten bool
 }
 
 func (r *roundRunner) run(ctx context.Context) {
@@ -86,6 +98,9 @@ func (r *roundRunner) run(ctx context.Context) {
 		"status", result.TerminalStatus,
 		"result_subtype", result.ResultSubtype,
 	)
+	r.recordGoalUsage(context.Background(), result, r.mapper.LastAssistantMessage())
+	r.recordGoalUsageLimit(result)
+	r.recordGoalContinuationProgress(result)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
 		go r.commitMemoryTurn()
@@ -98,7 +113,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	r.dispatchNextInputQueueItem()
+	r.dispatchPostRoundWork()
 }
 
 func (r *roundRunner) executeRound(
@@ -106,9 +121,11 @@ func (r *roundRunner) executeRound(
 	logger *slog.Logger,
 ) (runtimectx.RoundExecutionResult, error) {
 	return runtimectx.ExecuteRound(ctx, runtimectx.RoundExecutionRequest{
-		Content: r.runtimeContent.Payload(),
-		Client:  r.client,
-		Mapper:  dmRoundMapperAdapter{mapper: r.mapper},
+		Content:          r.runtimeContent.Payload(),
+		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
+		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
+		Client:           r.client,
+		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
 		InterruptReason: func() string {
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
@@ -146,6 +163,8 @@ func (r *roundRunner) executeRound(
 			if err := r.persistMessage(message); err != nil {
 				return err
 			}
+			r.rememberGoalAssistantMessage(message)
+			r.recordGoalUsageFromAssistantMessage(message)
 			if message["role"] == "assistant" {
 				r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
 					DispatchSessionKey: r.sessionKey,
@@ -176,6 +195,10 @@ func (r *roundRunner) failRound(err error) {
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
+	r.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{
+		TerminalStatus: "error",
+		ErrorMessage:   err.Error(),
+	})
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
@@ -276,6 +299,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
+	r.recordGoalUsage(context.Background(), runtimectx.RoundExecutionResult{}, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
@@ -348,6 +372,21 @@ func (r *roundRunner) dispatchNextInputQueueItem() {
 	)
 }
 
+func (r *roundRunner) dispatchPostRoundWork() {
+	location := workspacestore.InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: r.workspacePath,
+		SessionKey:    r.sessionKey,
+	}
+	go func() {
+		ctx := contextWithQueueOwner(context.Background(), r.ownerUserID)
+		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
+			return
+		}
+		r.dispatchGoalContinuation(ctx)
+	}()
+}
+
 func (r *roundRunner) persistMessage(message protocol.Message) error {
 	if err := r.service.appendRuntimeHistoryMessage(r.workspacePath, r.session, message); err != nil {
 		return err
@@ -383,17 +422,25 @@ func (r *roundRunner) recordUsage(message protocol.Message) {
 	if r.service.usage == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
-	r.writeUsage(message)
+	if !usagesvc.MessageHasUsage(message) {
+		return
+	}
+	if r.writeUsage(message) {
+		r.resultUsageWritten = true
+	}
 }
 
 func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 	if r.service.usage == nil || protocol.MessageRole(message) != "assistant" {
 		return
 	}
+	if r.resultUsageWritten || !usagesvc.MessageHasUsage(message) {
+		return
+	}
 	r.writeUsage(message)
 }
 
-func (r *roundRunner) writeUsage(message protocol.Message) {
+func (r *roundRunner) writeUsage(message protocol.Message) bool {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
 	if err := r.service.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		r.service.loggerFor(context.Background()).Error("DM token usage 写入失败",
@@ -402,5 +449,7 @@ func (r *roundRunner) writeUsage(message protocol.Message) {
 			"round_id", r.roundID,
 			"err", err,
 		)
+		return false
 	}
+	return true
 }

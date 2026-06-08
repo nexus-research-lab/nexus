@@ -90,7 +90,7 @@ Shopify: create a public app in the Partner dashboard and add the callback under
 - Redirect URIs must match `CONNECTOR_OAUTH_ALLOWED_ORIGINS` by scheme, host, and path prefix. The default allows local web development at `http://localhost:3000`.
 - Only provider-declared extra keys are persisted in `extra_json`; unknown query parameters are ignored.
 - Connector credentials are encrypted with AES-GCM into `connector_connections.credentials_encrypted` when `CONNECTOR_CREDENTIALS_KEY` is configured. The key must be a 32-byte base64 value.
-- Desktop GitHub packages only `CONNECTOR_GITHUB_CLIENT_ID`. `client_secret` must not be embedded in `.app` resources, Windows resources, zip, DMG, or installer assets.
+- Desktop GitHub packages only `CONNECTOR_GITHUB_CLIENT_ID`. `client_secret` must not be embedded in `.app` resources, Windows resources, DMG, installer assets, or service archives.
 
 ## OAuth client configuration
 
@@ -119,7 +119,7 @@ If the backend reports `is_configured=false`, the frontend shows a backend-not-c
 
 调用约定：
 
-- Runtime 构建 MCP server 时携带 `owner_user_id`。当前 `connector_connections` 仍是全局表，查询方法保留 owner 参数并留有 `TODO(connector-user-scope)`，后续 PR 加表级 user scope 时不改 MCP 契约。
+- Runtime 构建 MCP server 时携带 `owner_user_id`，只加载当前用户在 `connector_connections` 中的 active connection。
 - `connector_call` 自动设置 `Authorization: Bearer <access_token>`；用户传入的 headers 不能覆盖 Authorization。
 - 出站 base URL 仅允许 `https`，本地调试允许 `http://localhost` / loopback。
 - 响应体超过 256KB 会被截断，并返回 `"_truncated": true`。

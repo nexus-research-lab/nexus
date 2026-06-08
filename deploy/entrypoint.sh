@@ -4,7 +4,7 @@ set -euo pipefail
 
 : "${DATABASE_DRIVER:=sqlite}"
 : "${DATABASE_URL:=sqlite:////home/agent/.nexus/data/nexus.db}"
-: "${PNPM_REGISTRY:=https://registry.npmmirror.com/}"
+: "${PNPM_REGISTRY:=https://registry.npmjs.org/}"
 : "${BUN_CONFIG_REGISTRY:=${PNPM_REGISTRY}}"
 : "${PIP_INDEX_URL:=https://pypi.tuna.tsinghua.edu.cn/simple}"
 : "${PIP_BREAK_SYSTEM_PACKAGES:=1}"
@@ -162,7 +162,7 @@ prepare_database_path() {
         sqlite|sqlite3)
             DB_PATH="$(resolve_sqlite_database_path "${DATABASE_URL}")"
             if [[ -n "${DB_PATH}" ]]; then
-                # 中文注释：SQLite 文件型数据库需要先确保父目录存在，否则迁移命令会直接失败。
+                # 中文注释：SQLite 文件型数据库需要先确保父目录存在，否则 server migration 会直接失败。
                 mkdir -p "$(dirname "${DB_PATH}")"
             fi
             ;;
@@ -172,97 +172,9 @@ prepare_database_path() {
     esac
 }
 
-run_database_migrations() {
-    echo "Applying database migrations..."
-    /usr/local/bin/nexus-migrate up
-    echo "Database migration completed."
-}
-
-run_nexusctl_with_password() {
-    local password="$1"
-    shift
-    printf '%s\n' "${password}" | "$@" --password-stdin
-}
-
-ensure_owner_account() {
-    local owner_username="${AUTH_INIT_OWNER_USERNAME:-admin}"
-    local owner_display_name="${AUTH_INIT_OWNER_DISPLAY_NAME:-}"
-    local owner_password="${AUTH_INIT_OWNER_PASSWORD:-}"
-    local users_payload
-    local user_count
-    local admin_count
-    local target_user_role
-    local init_output
-    local create_output
-    local -a init_owner_args
-    local -a create_owner_args
-
-    if [[ -z "${owner_password}" ]]; then
-        if [[ -n "${AUTH_INIT_OWNER_USERNAME:-}" ]] || [[ -n "${AUTH_INIT_OWNER_DISPLAY_NAME:-}" ]]; then
-            echo "ERROR: AUTH_INIT_OWNER_PASSWORD is required when AUTH_INIT_OWNER_USERNAME or AUTH_INIT_OWNER_DISPLAY_NAME is set."
-            exit 1
-        fi
-        echo "AUTH_INIT_OWNER_PASSWORD is empty, skipping owner bootstrap."
-        return
-    fi
-
-    echo "Checking whether an active owner/admin account already exists..."
-    if ! users_payload="$(/usr/local/bin/nexusctl user list 2>&1)"; then
-        echo "${users_payload}" >&2
-        exit 1
-    fi
-    if ! echo "${users_payload}" | jq -e '.items | type == "array"' >/dev/null; then
-        echo "ERROR: unexpected nexusctl user list payload: ${users_payload}" >&2
-        exit 1
-    fi
-
-    user_count="$(echo "${users_payload}" | jq -r '.items | length')"
-    admin_count="$(echo "${users_payload}" | jq -r '[.items[]? | select((.status // "") == "active" and (((.role // "") == "owner") or ((.role // "") == "admin")))] | length')"
-    if [[ "${admin_count}" != "0" ]]; then
-        echo "Owner/admin account already exists, skipping bootstrap."
-        return
-    fi
-
-    target_user_role="$(echo "${users_payload}" | jq -r --arg username "${owner_username}" '.items[]? | select((.username // "") == $username) | .role // ""' | head -n 1)"
-    if [[ "${user_count}" == "0" ]]; then
-        echo "No users found, bootstrapping the first owner account..."
-        init_owner_args=(/usr/local/bin/nexusctl auth init-owner --username "${owner_username}")
-        if [[ -n "${owner_display_name}" ]]; then
-            init_owner_args+=(--display-name "${owner_display_name}")
-        fi
-        if ! init_output="$(run_nexusctl_with_password "${owner_password}" "${init_owner_args[@]}" 2>&1)"; then
-            echo "${init_output}" >&2
-            exit 1
-        fi
-        echo "${init_output}"
-        echo "Owner bootstrap completed."
-        return
-    fi
-
-    if [[ -n "${target_user_role}" ]]; then
-        echo "ERROR: bootstrap username ${owner_username} already exists with role ${target_user_role}, but no active owner/admin account was found." >&2
-        echo "Please fix the existing auth data manually before restarting deployment." >&2
-        exit 1
-    fi
-
-    echo "Users already exist but no active owner/admin account was found, creating an owner user..."
-    create_owner_args=(/usr/local/bin/nexusctl user create --username "${owner_username}" --role owner)
-    if [[ -n "${owner_display_name}" ]]; then
-        create_owner_args+=(--display-name "${owner_display_name}")
-    fi
-    if ! create_output="$(run_nexusctl_with_password "${owner_password}" "${create_owner_args[@]}" 2>&1)"; then
-        echo "${create_output}" >&2
-        exit 1
-    fi
-    echo "${create_output}"
-    echo "Owner account created."
-}
-
 print_environment_summary
 prepare_runtime_toolchain_config
 prepare_claude_settings
 prepare_database_path
-run_database_migrations
-ensure_owner_account
 
 exec "$@"

@@ -26,6 +26,8 @@ const (
 	AuthMethodPassword = authctx.AuthMethodPassword
 	// AuthMethodBearer 表示 ACCESS_TOKEN 的 Bearer 身份。
 	AuthMethodBearer = authctx.AuthMethodBearer
+	// AuthMethodLocal 表示桌面端本地免登录身份。
+	AuthMethodLocal = authctx.AuthMethodLocal
 )
 
 // User 表示认证域中的用户实体。

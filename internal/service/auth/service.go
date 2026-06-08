@@ -31,6 +31,11 @@ var (
 	ErrUsernameAlreadyExists = errors.New("用户名已存在")
 )
 
+const (
+	localDesktopUsername    = "local"
+	localDesktopDisplayName = "Local User"
+)
+
 // Service 提供统一认证能力。
 type Service struct {
 	config       config.Config
@@ -387,6 +392,9 @@ func (s *Service) UpdateProfile(ctx context.Context, input UpdateProfileInput) (
 	if userID == "" {
 		return nil, errors.New("user_id 不能为空")
 	}
+	if userID == SystemUserID && s.desktopAuthBypassEnabled() {
+		return s.updateDesktopLocalProfile(ctx, input)
+	}
 
 	user, err := s.repository.GetUserByID(ctx, userID)
 	if err != nil {
@@ -515,6 +523,9 @@ func (s *Service) resolveRequestPrincipal(ctx context.Context, request *http.Req
 	if request == nil {
 		return nil, nil
 	}
+	if s.desktopAuthBypassEnabled() {
+		return s.desktopLocalPrincipal(ctx)
+	}
 	sessionToken := s.ExtractSessionToken(request)
 	if sessionToken != "" {
 		principal, err := s.resolveSessionPrincipal(ctx, sessionToken)
@@ -578,6 +589,80 @@ func (s *Service) resolveBearerPrincipal(request *http.Request) *Principal {
 		Role:        RoleOwner,
 		AuthMethod:  AuthMethodBearer,
 	}
+}
+
+func (s *Service) desktopLocalPrincipal(ctx context.Context) (*Principal, error) {
+	user, err := s.localDesktopUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Principal{
+		UserID:      user.UserID,
+		Username:    user.Username,
+		DisplayName: user.DisplayName,
+		Role:        user.Role,
+		Avatar:      user.Avatar,
+		AuthMethod:  AuthMethodLocal,
+	}, nil
+}
+
+func (s *Service) localDesktopUser(ctx context.Context) (*User, error) {
+	now := s.now()
+	user := User{
+		UserID:      SystemUserID,
+		Username:    localDesktopUsername,
+		DisplayName: localDesktopDisplayName,
+		Role:        RoleOwner,
+		Status:      UserStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	record, err := s.repository.GetUserByID(ctx, SystemUserID)
+	if err != nil || record == nil {
+		return &user, err
+	}
+	if record.Status != UserStatusActive {
+		return &user, nil
+	}
+	user.Avatar = strings.TrimSpace(record.Avatar)
+	user.CreatedAt = record.CreatedAt
+	user.UpdatedAt = record.UpdatedAt
+	if displayName := strings.TrimSpace(record.DisplayName); displayName != "" {
+		user.DisplayName = displayName
+	}
+	return &user, nil
+}
+
+func (s *Service) updateDesktopLocalProfile(ctx context.Context, input UpdateProfileInput) (*User, error) {
+	user, err := s.localDesktopUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if input.Avatar != nil {
+		avatar, avatarErr := normalizeAvatar(*input.Avatar)
+		if avatarErr != nil {
+			return nil, avatarErr
+		}
+		user.Avatar = avatar
+	}
+	now := s.now()
+	createdAt := user.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now
+	}
+	if err = s.repository.UpsertLocalUser(ctx, authstore.UserRecord{
+		UserID:      SystemUserID,
+		Username:    SystemUserID,
+		DisplayName: localDesktopDisplayName,
+		Role:        RoleOwner,
+		Status:      UserStatusActive,
+		Avatar:      user.Avatar,
+		CreatedAt:   createdAt,
+		UpdatedAt:   now,
+	}); err != nil {
+		return nil, err
+	}
+	return s.localDesktopUser(ctx)
 }
 
 func (s *Service) accessTokenEnabled() bool {

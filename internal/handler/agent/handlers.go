@@ -134,7 +134,7 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 
 	created, err := h.agents.CreateAgent(request.Context(), payload)
 	if err != nil {
-		if strings.Contains(err.Error(), "名称") {
+		if errors.Is(err, agentpkg.ErrAgentNameInvalid) || strings.Contains(err.Error(), "名称") {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -160,7 +160,10 @@ func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.R
 		return
 	}
 	if err != nil {
-		if strings.Contains(err.Error(), "名称") || strings.Contains(err.Error(), "不可") || strings.Contains(err.Error(), "目录") {
+		if errors.Is(err, agentpkg.ErrAgentNameInvalid) ||
+			strings.Contains(err.Error(), "名称") ||
+			strings.Contains(err.Error(), "不可") ||
+			strings.Contains(err.Error(), "目录") {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 			return
 		}

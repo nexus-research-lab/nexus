@@ -15,6 +15,8 @@ const (
 	AuthMethodPassword = "password"
 	// AuthMethodBearer 表示 ACCESS_TOKEN 的 Bearer 身份。
 	AuthMethodBearer = "bearer"
+	// AuthMethodLocal 表示桌面端本地免登录身份。
+	AuthMethodLocal = "local"
 )
 
 // Principal 表示一次已解析的请求身份。

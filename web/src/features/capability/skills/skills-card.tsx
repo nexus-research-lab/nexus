@@ -3,18 +3,10 @@
 import { Lock, Puzzle, RefreshCw, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import {
-  WorkspaceCatalogAction,
-  WorkspaceCatalogBody,
-  WorkspaceCatalogCard,
-  WorkspaceCatalogDescription,
-  WorkspaceCatalogFooter,
-  WorkspaceCatalogHeader,
-  WorkspaceIconFrame,
-  WorkspaceCatalogTag,
-  WorkspaceCatalogTitle,
-} from "@/shared/ui/workspace/catalog/workspace-catalog-card";
-import { SkillInfo } from "@/types/capability/skill";
+import { UiBadge } from "@/shared/ui/badge";
+import { UiListActionButton } from "@/shared/ui/list-action";
+import { UiListRow } from "@/shared/ui/list-row";
+import type { SkillInfo } from "@/types/capability/skill";
 import { SkillStatePill } from "./skill-state-pill";
 
 interface SkillsCardProps {
@@ -26,7 +18,7 @@ interface SkillsCardProps {
   on_delete?: () => void;
 }
 
-/** Skill 卡片 — 清晰的三段式布局 */
+/** Skill 行 —— 与连接器目录保持一致的轻量列表结构。 */
 export function SkillsCard({
   skill,
   busy = false,
@@ -52,86 +44,72 @@ export function SkillsCard({
   const state_tone = locked ? "warning" : source_type === "external" ? "success" : "neutral";
 
   return (
-    <WorkspaceCatalogCard
+    <UiListRow
       class_name={cn(
-        "group h-full",
+        "min-h-[72px] rounded-[14px] px-2 py-1.5",
         busy && "opacity-60",
         class_name,
       )}
-      interactive
-      onClick={on_select}
-      size="catalog"
-    >
-      <WorkspaceCatalogHeader class_name="items-center gap-3.5">
-        <WorkspaceIconFrame
-          class_name={cn("shrink-0", source_type === "external" && "text-sky-600")}
-          size="sm"
-          tone={locked ? "warning" : source_type === "external" ? "primary" : "default"}
+      leading={(
+        <span
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+            locked && "text-amber-700",
+            source_type === "external" && "text-sky-600",
+          )}
         >
           {locked ? <Lock className="h-4 w-4" /> : <Puzzle className="h-4 w-4" />}
-        </WorkspaceIconFrame>
-        <div className="min-w-0 flex-1">
-          <div className="min-w-0">
-            <WorkspaceCatalogTitle class_name="min-w-0" size="sm" truncate>
-              {title}
-            </WorkspaceCatalogTitle>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-(--text-soft)">
-              <span>{source_label}</span>
-              {has_update ? (
-                <>
-                  <span className="opacity-35">·</span>
-                  <span>有更新</span>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </WorkspaceCatalogHeader>
-
-      <WorkspaceCatalogBody grow>
-        <WorkspaceCatalogDescription min_height>
-          {description || "暂无描述"}
-        </WorkspaceCatalogDescription>
-      </WorkspaceCatalogBody>
-
-      <WorkspaceCatalogFooter justify={visible_tags.length ? "between" : "end"}>
-        {visible_tags.length ? (
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {visible_tags.map((tag) => (
-              <WorkspaceCatalogTag key={tag} class_name="max-w-full px-2.5 text-[10px] text-(--text-soft)">
-                {tag}
-              </WorkspaceCatalogTag>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <SkillStatePill tone={state_tone}>
-            {state_label}
-          </SkillStatePill>
+        </span>
+      )}
+      on_click={on_select}
+      right={(
+        <div className="flex shrink-0 items-center gap-1.5">
+          <SkillStatePill tone={state_tone}>{state_label}</SkillStatePill>
           {has_update ? (
-            <WorkspaceCatalogAction
+            <UiListActionButton
               disabled={busy}
               onClick={on_update}
               size="sm"
+              stop_propagation
               title="更新"
             >
               <RefreshCw className="h-3 w-3" />
-            </WorkspaceCatalogAction>
+            </UiListActionButton>
           ) : null}
           {deletable ? (
-            <WorkspaceCatalogAction
+            <UiListActionButton
               disabled={busy}
               onClick={on_delete}
               size="sm"
+              stop_propagation
               title="从技能库删除"
               tone="danger"
             >
               <Trash2 className="h-3 w-3" />
-            </WorkspaceCatalogAction>
+            </UiListActionButton>
           ) : null}
         </div>
-      </WorkspaceCatalogFooter>
-    </WorkspaceCatalogCard>
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-[15px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+            {title}
+          </span>
+          {has_update ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
+        </div>
+        <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
+          {description || "暂无描述"}
+        </div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-(--text-soft)">
+          <span className="shrink-0">{source_label}</span>
+          {visible_tags.map((tag) => (
+            <span key={tag} className="truncate">
+              · {tag}
+            </span>
+          ))}
+        </div>
+      </div>
+    </UiListRow>
   );
 }

@@ -11,7 +11,7 @@ export type WebSocketState =
 
 export interface WebSocketMessage {
   type: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type WebSocketSendDisposition = "sent" | "queued" | "dropped";
@@ -33,7 +33,7 @@ export interface WebSocketConfig {
 
 export interface WebSocketClientCallbacks {
   on_open?: (event: Event) => void;
-  on_message?: (data: any) => void;
+  on_message?: (data: unknown) => void;
   on_close?: (event: CloseEvent) => void;
   on_error?: (event: Event) => void;
   on_reconnecting?: (attempt: number) => void;

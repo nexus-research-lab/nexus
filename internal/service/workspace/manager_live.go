@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -318,7 +319,7 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if info == nil || info.IsDir() {
+		if info == nil {
 			return nil
 		}
 		relativePath, err := filepath.Rel(state.Root, path)
@@ -326,6 +327,12 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 			return err
 		}
 		normalizedPath := normalizeLivePath(relativePath)
+		if info.IsDir() {
+			if normalizedPath != "" && normalizedPath != "." && shouldHideWorkspaceEntry(normalizedPath) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if shouldHideWorkspaceEntry(normalizedPath) {
 			return nil
 		}
@@ -358,7 +365,11 @@ func (m *liveManager) runWatcher(ctx context.Context, agentID string) {
 				return
 			}
 			m.handleFSEvent(agentID, event)
-		case <-state.Watcher.Errors:
+		case watchErr, ok := <-state.Watcher.Errors:
+			if !ok {
+				return
+			}
+			slog.Warn("workspace watcher 错误", "agent_id", agentID, "err", watchErr)
 		case <-ticker.C:
 			m.flushSettledWrites(agentID)
 		}

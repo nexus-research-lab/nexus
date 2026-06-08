@@ -1,0 +1,500 @@
+package room_test
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+)
+
+type roomDirectedMessageBroadcaster struct {
+	mu     sync.Mutex
+	events []protocol.EventMessage
+}
+
+func (b *roomDirectedMessageBroadcaster) Broadcast(_ context.Context, _ string, event protocol.EventMessage) []error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.events = append(b.events, event)
+	return nil
+}
+
+func (b *roomDirectedMessageBroadcaster) Events() []protocol.EventMessage {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	events := make([]protocol.EventMessage, len(b.events))
+	copy(events, b.events)
+	return events
+}
+
+func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-directed-message",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	service := roomsvc.NewRealtimeService(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+	)
+	broadcaster := &roomDirectedMessageBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	message, err := service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		Content:       "只给 Devin 的提醒",
+		ReplyRoute: protocol.RoomReplyRoute{
+			Mode:       protocol.RoomReplyRoutePrivate,
+			Recipients: []string{amy.AgentID},
+			WakePolicy: protocol.RoomWakePolicyNone,
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 directed message 失败: %v", err)
+	}
+	if message.WakePolicy != protocol.RoomWakePolicyNone ||
+		message.ReplyRoute.Mode != protocol.RoomReplyRoutePrivate ||
+		len(message.Recipients) != 1 ||
+		message.Recipients[0] != devin.AgentID {
+		t.Fatalf("directed message 默认路由不正确: %+v", message)
+	}
+
+	event := waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomDirectedMessage)
+	if event.RoomID != roomContext.Room.ID || event.ConversationID != roomContext.Conversation.ID {
+		t.Fatalf("directed message 事件上下文不正确: %+v", event)
+	}
+	if event.Data["message_id"] != message.MessageID || event.Data["event_kind"] != "created" {
+		t.Fatalf("directed message 创建事件不正确: %+v", event.Data)
+	}
+	if _, ok := event.Data["content"]; ok {
+		t.Fatalf("directed message 事件不应泄漏正文: %+v", event.Data)
+	}
+	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
+	devinMessages, err := messageStore.ReadContextMessages(roomContext.Conversation.ID, devin.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Devin directed message 失败: %v", err)
+	}
+	if len(devinMessages) != 1 || devinMessages[0].Content != "只给 Devin 的提醒" {
+		t.Fatalf("目标成员未读到 directed message: %+v", devinMessages)
+	}
+
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取公区历史失败: %v", err)
+	}
+	for _, publicMessage := range messages {
+		if strings.Contains(fmt.Sprint(publicMessage), "只给 Devin 的提醒") {
+			t.Fatalf("directed message 正文不应写入公区 feed: %+v", messages)
+		}
+	}
+}
+
+func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-directed-message-reply",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	client := newFakeRoomClient()
+	var seenDirectedMessage atomic.Bool
+	client.onQuery = func(_ context.Context, prompt string) error {
+		seenDirectedMessage.Store(strings.Contains(prompt, "<room_directed_messages>") &&
+			strings.Contains(prompt, "帮我汇总这段私下结论") &&
+			strings.Contains(prompt, "reply_route=private recipients=Amy"))
+		sendFakeAssistantResult(client, "assistant-directed-message-reply", "这是给 Amy 的私下回复")
+		return nil
+	}
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{client}},
+	)
+	broadcaster := &roomDirectedMessageBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	message, err := service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		Content:       "帮我汇总这段私下结论",
+		WakePolicy:    protocol.RoomWakePolicyImmediate,
+		ReplyRoute: protocol.RoomReplyRoute{
+			Mode:       protocol.RoomReplyRoutePrivate,
+			Recipients: []string{amy.AgentID},
+			WakePolicy: protocol.RoomWakePolicyNone,
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 immediate directed message 失败: %v", err)
+	}
+	waitForRoomBroadcastEventMatching(t, broadcaster, protocol.EventTypeRoomDirectedMessage, func(event protocol.EventMessage) bool {
+		return event.Data["event_kind"] == "wake_started" && event.Data["message_id"] == message.MessageID
+	})
+	waitForRoomBroadcastEvent(t, broadcaster, protocol.EventTypeRoomDirectedMessageConsumed)
+
+	deadline := time.After(3 * time.Second)
+	for !seenDirectedMessage.Load() {
+		select {
+		case <-deadline:
+			t.Fatal("目标成员未看到 directed message 上下文")
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
+	amyMessages := waitForRoomDirectedMessageContent(t, messageStore, roomContext.Conversation.ID, amy.AgentID, "这是给 Amy 的私下回复")
+	if !roomDirectedMessageContentsContain(amyMessages, "帮我汇总这段私下结论") {
+		t.Fatalf("reply_route 接收方应能看到原始请求与私下回复: %+v", amyMessages)
+	}
+	devinMessages, err := messageStore.ReadContextMessages(roomContext.Conversation.ID, devin.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Devin directed message 失败: %v", err)
+	}
+	if roomDirectedMessageContentsContain(devinMessages, "这是给 Amy 的私下回复") {
+		t.Fatalf("私下回复不应再次投影给原目标成员: %+v", devinMessages)
+	}
+
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	publicMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取公区历史失败: %v", err)
+	}
+	if strings.Contains(fmt.Sprint(publicMessages), "这是给 Amy 的私下回复") {
+		t.Fatalf("reply_route=private 的回复不应进入公区 feed: %+v", publicMessages)
+	}
+}
+
+func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-public-message-handback",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "狼人杀测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	witchClient := newFakeRoomClient()
+	var witchSawPrompt atomic.Bool
+	witchClient.onQuery = func(_ context.Context, prompt string) error {
+		witchSawPrompt.Store(strings.Contains(prompt, "今晚被刀的是 Lucy") &&
+			strings.Contains(prompt, "reply_route=private recipients=Amy"))
+		sendFakeAssistantResult(witchClient, "devin-witch-reply", "救:Lucy；不毒")
+		return nil
+	}
+
+	var service *roomsvc.RealtimeService
+	hostClient := newFakeRoomClient()
+	var hostSawHandback atomic.Bool
+	hostClient.onQuery = func(_ context.Context, prompt string) error {
+		hostSawHandback.Store(strings.Contains(prompt, "救:Lucy；不毒") &&
+			strings.Contains(prompt, "reply_route=public"))
+		sendFakeAssistantResult(hostClient, "amy-after-private-handback", "<nexus_room_no_reply/>")
+		return nil
+	}
+
+	service = roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{clients: []*fakeRoomClient{witchClient, hostClient}},
+	)
+	broadcaster := &roomDirectedMessageBroadcaster{}
+	service.SetRoomBroadcaster(broadcaster)
+
+	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		Content:       "今晚被刀的是 Lucy。是否用解药救？是否用毒药毒谁？格式：救:<名字>|不救；毒:<名字>|不毒。",
+		WakePolicy:    protocol.RoomWakePolicyImmediate,
+		ReplyRoute: protocol.RoomReplyRoute{
+			Mode:       protocol.RoomReplyRoutePrivate,
+			Recipients: []string{amy.AgentID},
+			WakePolicy: protocol.RoomWakePolicyImmediate,
+			NextReplyRoute: &protocol.RoomReplyRoute{
+				Mode: protocol.RoomReplyRoutePublic,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建女巫 directed message 失败: %v", err)
+	}
+
+	waitForAtomicBool(t, &witchSawPrompt, "女巫未看到私信问题")
+	waitForAtomicBool(t, &hostSawHandback, "主持人未收到私域回交")
+	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
+	amyMessages := waitForRoomDirectedMessageContent(t, messageStore, roomContext.Conversation.ID, amy.AgentID, "救:Lucy；不毒")
+	if !roomDirectedMessageContentHasReplyRoute(amyMessages, "救:Lucy；不毒", protocol.RoomReplyRoutePublic) {
+		t.Fatalf("私域回交应携带主持人下一跳公区路线: %+v", amyMessages)
+	}
+	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
+	publicMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	if err != nil {
+		t.Fatalf("读取公区历史失败: %v", err)
+	}
+	publicText := fmt.Sprint(publicMessages)
+	if strings.Contains(publicText, "救:Lucy") {
+		t.Fatalf("女巫私下回复不应泄漏到公区 feed: %+v", publicMessages)
+	}
+}
+
+func TestRealtimeServiceRejectsInvalidDirectedMessageRoute(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-directed-message-invalid",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		Name:     "测试 Room",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	service := roomsvc.NewRealtimeService(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+	)
+	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{"agent-not-member"},
+		Content:       "非法目标",
+	})
+	if err == nil {
+		t.Fatal("非 Room 成员不应成为 directed message recipient")
+	}
+
+	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		Content:       "非法 reply route",
+		ReplyRoute: protocol.RoomReplyRoute{
+			Mode: protocol.RoomReplyRoutePrivate,
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "reply_route private requires recipients") {
+		t.Fatalf("reply_route=private 缺少 recipients 错误不正确: %v", err)
+	}
+
+	_, err = service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		Content:       "非法 next reply route",
+		ReplyRoute: protocol.RoomReplyRoute{
+			Mode:       protocol.RoomReplyRoutePrivate,
+			Recipients: []string{amy.AgentID},
+			WakePolicy: protocol.RoomWakePolicyNone,
+			NextReplyRoute: &protocol.RoomReplyRoute{
+				Mode: protocol.RoomReplyRoutePublic,
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "next_reply_route requires reply_route private wake_policy=immediate") {
+		t.Fatalf("reply_route=private wake=none 不应接受 next_reply_route: %v", err)
+	}
+}
+
+func waitForAtomicBool(t *testing.T, value *atomic.Bool, message string) {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for !value.Load() {
+		select {
+		case <-deadline:
+			t.Fatal(message)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func waitForRoomPublicHistoryContent(
+	t *testing.T,
+	store *workspacestore.RoomHistoryStore,
+	conversationID string,
+	content string,
+) []protocol.Message {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		messages, err := store.ReadMessages(conversationID, nil)
+		if err != nil {
+			t.Fatalf("读取公区历史失败: %v", err)
+		}
+		if strings.Contains(fmt.Sprint(messages), content) {
+			return messages
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("公区历史未出现内容 %q: %+v", content, messages)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func roomDirectedMessageContentsContain(messages []protocol.RoomDirectedMessageRecord, content string) bool {
+	for _, message := range messages {
+		if message.Content == content {
+			return true
+		}
+	}
+	return false
+}
+
+func roomDirectedMessageContentHasReplyRoute(
+	messages []protocol.RoomDirectedMessageRecord,
+	content string,
+	mode protocol.RoomReplyRouteMode,
+) bool {
+	for _, message := range messages {
+		if message.Content == content && message.ReplyRoute.Mode == mode {
+			return true
+		}
+	}
+	return false
+}
+
+func waitForRoomDirectedMessageContent(
+	t *testing.T,
+	store *workspacestore.RoomDirectedMessageStore,
+	conversationID string,
+	agentID string,
+	content string,
+) []protocol.RoomDirectedMessageRecord {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		messages, err := store.ReadContextMessages(conversationID, agentID)
+		if err != nil {
+			t.Fatalf("读取 Room directed message 失败: %v", err)
+		}
+		if roomDirectedMessageContentsContain(messages, content) {
+			return messages
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("Room directed message 未投影给目标成员: agent=%s content=%q messages=%+v", agentID, content, messages)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func waitForRoomBroadcastEvent(
+	t *testing.T,
+	broadcaster *roomDirectedMessageBroadcaster,
+	eventType protocol.EventType,
+) protocol.EventMessage {
+	t.Helper()
+	return waitForRoomBroadcastEventMatching(t, broadcaster, eventType, func(protocol.EventMessage) bool {
+		return true
+	})
+}
+
+func waitForRoomBroadcastEventMatching(
+	t *testing.T,
+	broadcaster *roomDirectedMessageBroadcaster,
+	eventType protocol.EventType,
+	matches func(protocol.EventMessage) bool,
+) protocol.EventMessage {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		for _, event := range broadcaster.Events() {
+			if event.EventType == eventType && matches(event) {
+				return event
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("未广播 Room 事件: %s", eventType)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}

@@ -1,16 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   clamp_home_editor_width_percent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/layout/home-layout";
+import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { TodoItem } from "@/types/conversation/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/app/workspace";
 
 export function useHomeWorkspaceController({
   current_agent_id,
+  workspace_agent_ids,
 }: HomeWorkspaceControllerOptions) {
   const [active_workspace_path, setActiveWorkspacePath] = useState<string | null>(null);
   const [is_editor_open, setIsEditorOpen] = useState(false);
@@ -19,6 +21,22 @@ export function useHomeWorkspaceController({
   const [current_todos, setCurrentTodos] = useState<TodoItem[]>([]);
   const [is_conversation_busy, setIsConversationBusy] = useState(false);
   const workspace_split_ref = useRef<HTMLElement | null>(null);
+  const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
+  const refresh_files = useWorkspaceFilesStore((state) => state.refresh_files);
+
+  const preload_workspace_agent_ids = useMemo(() => {
+    const agent_ids = new Set<string>();
+    if (current_agent_id) {
+      agent_ids.add(current_agent_id);
+    }
+    for (const agent_id of workspace_agent_ids ?? []) {
+      const normalized_agent_id = agent_id.trim();
+      if (normalized_agent_id) {
+        agent_ids.add(normalized_agent_id);
+      }
+    }
+    return Array.from(agent_ids);
+  }, [current_agent_id, workspace_agent_ids]);
 
   useEffect(() => {
     if (current_agent_id) {
@@ -30,6 +48,27 @@ export function useHomeWorkspaceController({
     setCurrentTodos([]);
     setIsConversationBusy(false);
   }, [current_agent_id]);
+
+  useEffect(() => {
+    if (preload_workspace_agent_ids.length === 0) {
+      return;
+    }
+
+    const load_workspace_files = async () => {
+      const missing_agent_ids = preload_workspace_agent_ids.filter(
+        (agent_id) => !files_by_agent[agent_id],
+      );
+      await Promise.all(
+        missing_agent_ids.map(async (agent_id) => {
+          // 中文注释：消息区的文件按钮依赖这份缓存做路径解析；
+          // 预加载失败时保留 workspace 面板自身的错误展示，不阻断聊天。
+          await refresh_files(agent_id).catch(() => undefined);
+        }),
+      );
+    };
+
+    void load_workspace_files();
+  }, [files_by_agent, preload_workspace_agent_ids, refresh_files]);
 
   const handle_open_workspace_file = useCallback((path: string | null) => {
     // 对话区点击文件引用的语义应当始终是“打开这个文件”，

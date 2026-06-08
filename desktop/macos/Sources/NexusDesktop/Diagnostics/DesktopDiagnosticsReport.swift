@@ -126,6 +126,7 @@ enum DesktopDiagnosticsReport {
       "root_dir": DesktopPaths.rootDirectory.path,
       "data_dir": DesktopPaths.dataDirectory.path,
       "logs_dir": logsDirectory().path,
+      "debug_dir": DesktopPaths.debugDirectory.path,
       "config_dir": DesktopPaths.configDirectory.path,
       "workspace_dir": DesktopPaths.workspaceDirectory.path,
       "cache_dir": DesktopPaths.cacheDirectory.path,
@@ -140,6 +141,7 @@ enum DesktopDiagnosticsReport {
       "root_dir_exists": fileManager.fileExists(atPath: DesktopPaths.rootDirectory.path),
       "data_dir_exists": fileManager.fileExists(atPath: DesktopPaths.dataDirectory.path),
       "logs_dir_exists": fileManager.fileExists(atPath: logsDirectory().path),
+      "debug_dir_exists": fileManager.fileExists(atPath: DesktopPaths.debugDirectory.path),
       "sidecar_pid_record_exists": fileManager.fileExists(
         atPath: DesktopPaths.sidecarPIDFileURL.path
       ),
@@ -148,6 +150,8 @@ enum DesktopDiagnosticsReport {
       ),
       "bundled_web_index_exists": bundledResourceExists(relativePath: "Web/index.html"),
       "bundled_sidecar_exists": bundledExecutableExists(name: "nexus-server"),
+      "bundled_nexusctl_exists": bundledResourceExecutableExists(relativePath: "bin/nexusctl"),
+      "bundled_nxs_exists": bundledResourceExecutableExists(relativePath: "bin/nxs"),
       "nexus_url_scheme_declared": declaredURLSchemes(bundle: Bundle.main).contains("nexus"),
     ]
   }
@@ -164,6 +168,15 @@ enum DesktopDiagnosticsReport {
       return false
     }
     return FileManager.default.isExecutableFile(atPath: executableDir.appendingPathComponent(name).path)
+  }
+
+  private static func bundledResourceExecutableExists(relativePath: String) -> Bool {
+    guard let resourceURL = Bundle.main.resourceURL else {
+      return false
+    }
+    return FileManager.default.isExecutableFile(
+      atPath: resourceURL.appendingPathComponent(relativePath).path
+    )
   }
 
   private static func timestampString() -> String {

@@ -10,11 +10,16 @@
 "use client";
 
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task";
+import {
+  build_room_shared_session_key,
+  parse_session_key,
+} from "@/lib/conversation/session-key";
 
 import {
   get_default_timezone,
 } from "./scheduled-task-dialog-options";
 import {
+  build_room_executor_selection_key,
   isoToZonedLocalInput,
   parse_daily_cron_expression,
 } from "./scheduled-task-dialog-time";
@@ -22,6 +27,26 @@ import type {
   ScheduledTaskDialogInitialState,
   ScheduledTaskDialogScheduleSnapshot,
 } from "./scheduled-task-dialog-types";
+
+function build_room_executor_selection_from_session_key(session_key: string, agent_id: string): string {
+  const parsed = parse_session_key(session_key);
+  const shared_session_key = parsed.kind === "room"
+    ? session_key
+    : parsed.kind === "agent" && parsed.ref
+      ? build_room_shared_session_key(parsed.ref)
+      : session_key;
+  if (!shared_session_key.trim() || !agent_id.trim()) {
+    return "";
+  }
+  return build_room_executor_selection_key(shared_session_key, agent_id);
+}
+
+function build_room_task_executor_selection_key(task: ScheduledTaskItem): string {
+  const execution_session_key = task.session_target.kind === "bound"
+    ? task.session_target.bound_session_key
+    : task.source?.session_key || "";
+  return build_room_executor_selection_from_session_key(execution_session_key, task.agent_id);
+}
 
 function build_default_schedule_snapshot(): ScheduledTaskDialogScheduleSnapshot {
   return {
@@ -35,6 +60,7 @@ export function build_default_dialog_initial_state(agent_id: string): ScheduledT
   return {
     task_name: "",
     target_type: "agent",
+    execution_kind: "agent",
     selected_agent_id: agent_id,
     selected_room_id: "",
     execution_mode: "existing",
@@ -91,10 +117,10 @@ function build_task_schedule_snapshot(task: ScheduledTaskItem): ScheduledTaskDia
 }
 
 export function build_task_dialog_initial_state(
-  agent_id: string,
   task: ScheduledTaskItem,
 ): ScheduledTaskDialogInitialState {
   const source_context_type = task.source?.context_type === "room" ? "room" : "agent";
+  const execution_kind = task.execution_kind === "script" ? "script" : "agent";
   const execution_delivery_target = task.session_target.kind === "bound"
     ? task.session_target.bound_session_key
     : source_context_type === "room"
@@ -103,11 +129,14 @@ export function build_task_dialog_initial_state(
 
   return {
     task_name: task.name,
-    target_type: source_context_type,
-    selected_agent_id: source_context_type === "agent"
+    target_type: execution_kind === "script" ? "agent" : source_context_type,
+    execution_kind,
+    selected_agent_id: execution_kind === "script"
+      ? task.agent_id
+      : source_context_type === "agent"
       ? (task.source?.context_id || task.agent_id)
       : task.agent_id,
-    selected_room_id: source_context_type === "room" ? (task.source?.context_id || "") : "",
+    selected_room_id: execution_kind === "script" ? "" : source_context_type === "room" ? (task.source?.context_id || "") : "",
     execution_mode: task.session_target.kind === "main"
       ? "main"
       : task.session_target.kind === "named"
@@ -115,12 +144,14 @@ export function build_task_dialog_initial_state(
         : task.session_target.kind === "isolated"
           ? "temporary"
           : "existing",
-    selected_session_key: task.session_target.kind === "bound"
-      ? task.session_target.bound_session_key
-      : source_context_type === "room"
-        ? (task.source?.session_key || "")
+    selected_session_key: source_context_type === "room"
+      ? build_room_task_executor_selection_key(task)
+      : task.session_target.kind === "bound"
+        ? task.session_target.bound_session_key
         : "",
-    reply_mode: task.delivery.mode === "none"
+    reply_mode: execution_kind === "script"
+      ? "none"
+      : task.delivery.mode === "none"
       ? "none"
       : task.delivery.mode === "explicit"
         && task.delivery.to
@@ -133,7 +164,9 @@ export function build_task_dialog_initial_state(
     selected_reply_session_key: task.delivery.mode === "explicit"
       && task.delivery.to
       && task.delivery.to !== execution_delivery_target
-      ? task.delivery.to
+      ? source_context_type === "room"
+        ? build_room_executor_selection_from_session_key(task.delivery.to, task.agent_id)
+        : task.delivery.to
       : "",
     dedicated_session_key: task.session_target.kind === "named" ? task.session_target.named_session_key : "",
     timezone: task.schedule.timezone?.trim() || get_default_timezone(),

@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	httpReadTimeout       = 30 * time.Second
+	// Git 导入和外部 skill 更新会同步等待网络传输与重试，写超时需要覆盖完整操作窗口。
+	httpWriteTimeout = 6 * time.Minute
+	httpIdleTimeout  = 60 * time.Second
+)
+
 // ListenAndServe 启动后台服务与 HTTP 服务。
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	stopBackground, err := s.startBackgroundServices(ctx)
@@ -18,10 +26,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	httpServer := &http.Server{
 		Addr:              s.config.Address(),
 		Handler:           s.router,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		ReadTimeout:       httpReadTimeout,
+		WriteTimeout:      httpWriteTimeout,
+		IdleTimeout:       httpIdleTimeout,
 	}
 
 	go func() {
@@ -80,5 +88,60 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		stops = append(stops, s.services.Automation.Stop)
 	}
 
+	if s.services != nil && s.services.Goal != nil {
+		s.api.BaseLogger().Info("启动 Goal durable resume")
+		stopGoalResume, err := s.services.Goal.StartAutoResume(ctx, newGoalContinuationDispatcher(s.services.Runtime, s.services.DM, s.services.RoomRealtime))
+		if err != nil {
+			s.api.BaseLogger().Error("启动 Goal durable resume 失败", "err", err)
+			stopAll()
+			return nil, err
+		}
+		stops = append(stops, stopGoalResume)
+	}
+
+	if stopRuntimeIdleReclaimer := s.startRuntimeIdleSessionReclaimer(ctx); stopRuntimeIdleReclaimer != nil {
+		stops = append(stops, stopRuntimeIdleReclaimer)
+	}
+
 	return stopAll, nil
+}
+
+func (s *Server) startRuntimeIdleSessionReclaimer(ctx context.Context) func() {
+	if s.services == nil || s.services.Runtime == nil {
+		return nil
+	}
+	idleFor := s.config.RuntimeIdleSessionTTL()
+	sweepInterval := s.config.RuntimeIdleSessionSweepInterval()
+	if idleFor <= 0 || sweepInterval <= 0 {
+		return nil
+	}
+
+	runCtx, stop := context.WithCancel(ctx)
+	s.api.BaseLogger().Info("启动 runtime 空闲 session 回收器",
+		"idle_ttl_seconds", int64(idleFor.Seconds()),
+		"sweep_interval_seconds", int64(sweepInterval.Seconds()),
+	)
+	go s.runRuntimeIdleSessionReclaimer(runCtx, sweepInterval, idleFor)
+	return stop
+}
+
+func (s *Server) runRuntimeIdleSessionReclaimer(ctx context.Context, sweepInterval time.Duration, idleFor time.Duration) {
+	ticker := time.NewTicker(sweepInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			closed, err := s.services.Runtime.CloseIdleSessions(ctx, idleFor)
+			if err != nil {
+				s.api.BaseLogger().Warn("runtime 空闲 session 回收失败", "closed", closed, "err", err)
+				continue
+			}
+			if closed > 0 {
+				s.api.BaseLogger().Info("runtime 空闲 session 已回收", "closed", closed)
+			}
+		}
+	}
 }

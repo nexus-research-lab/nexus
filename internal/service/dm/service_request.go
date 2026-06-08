@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -11,15 +12,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // HandleChat 处理一条 DM 写请求。
@@ -50,7 +45,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	initialMessageCount := sessionItem.MessageCount
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 
-	if protocol.ShouldGuideRunningRound(deliveryPolicy) {
+	if !request.Internal && protocol.ShouldGuideRunningRound(deliveryPolicy) {
 		delivered, guideErr := s.guideRunningInput(ctx, sessionKey, agentValue, sessionItem, request)
 		if guideErr != nil && !errors.Is(guideErr, runtimectx.ErrNoRunningRound) {
 			return guideErr
@@ -62,7 +57,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
 
-	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
+	if !request.Internal && protocol.ShouldQueueRunningRound(deliveryPolicy) {
 		delivered, queueErr := s.queueRunningInput(ctx, sessionKey, agentValue, sessionItem, request, initialMessageCount)
 		if queueErr != nil && !errors.Is(queueErr, runtimectx.ErrNoRunningRound) {
 			return queueErr
@@ -72,7 +67,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		}
 	}
 
-	if deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
+	if !request.Internal && deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
 		if err = s.interruptSession(ctx, sessionKey, "收到新的用户消息，上一轮已停止"); err != nil {
 			return err
 		}
@@ -82,8 +77,9 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
+	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 
-	client, runtimeProvider, runtimeModel, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
+	client, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, permissionMode, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM runtime client 初始化失败",
 			"session_key", sessionKey,
@@ -92,6 +88,9 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 			"err", err,
 		)
 		return err
+	}
+	if override := strings.TrimSpace(request.GoalContext); request.Internal && override != "" {
+		goalContext = override
 	}
 	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID(), runtimeProvider, runtimeModel); syncErr != nil {
 		return syncErr
@@ -122,9 +121,18 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runtimeModel:      runtimeModel,
 		ownerUserID:       authctx.OwnerUserID(ctx),
 		mapper:            dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
-		permissionMode:    request.PermissionMode,
+		inputOptions:      request.InputOptions,
+		internal:          request.Internal,
+		goalContext:       goalContext,
+		goalIDForUsage:    goalIDForUsage,
+		goalUsage:         goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(goalIDForUsage) != ""),
+		goalUsageStarted:  time.Now(),
+		permissionMode:    permissionMode,
 		permissionHandler: request.PermissionHandler,
 	}
+	s.runtime.RegisterGoalAccountingFlush(sessionKey, request.RoundID, runner.flushGoalUsage)
+	s.runtime.RegisterGoalAccountingClear(sessionKey, request.RoundID, runner.clearGoalUsage)
+	s.runtime.RegisterGoalAccountingActivate(sessionKey, request.RoundID, runner.activateGoalUsage)
 
 	s.loggerFor(ctx).Info("受理 DM 会话消息",
 		"session_key", sessionKey,
@@ -136,7 +144,18 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		"attachment_count", len(request.Attachments),
 	)
 
-	if err = s.recordRoundMarker(runner.workspacePath, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments); err != nil {
+	markerOptions := workspacestore.RoundMarkerOptions{
+		DeliveryPolicy: string(deliveryPolicy),
+		Attachments:    request.Attachments,
+		HiddenFromUser: request.Internal || request.InputOptions.HiddenFromUser,
+		Synthetic:      request.InputOptions.Synthetic,
+		Purpose:        request.InputOptions.Purpose,
+		Metadata:       request.InputOptions.Metadata,
+	}
+	if request.Internal {
+		markerOptions.Synthetic = true
+	}
+	if err = s.recordRoundMarkerWithOptions(runner.workspacePath, runner.session, runner.roundID, runner.content, markerOptions); err != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
 			s.loggerFor(ctx).Warn("DM 轮次标记失败后刷新 session meta 失败",
@@ -156,7 +175,14 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		return err
 	}
 
-	if updatedSession, syncErr := s.refreshSessionMetaAfterRoundMarker(runner.workspacePath, runner.session); syncErr != nil {
+	var (
+		updatedSession *protocol.Session
+		syncErr        error
+	)
+	if !request.Internal {
+		updatedSession, syncErr = s.refreshSessionMetaAfterRoundMarker(runner.workspacePath, runner.session)
+	}
+	if syncErr != nil {
 		s.runtime.MarkRoundFinished(sessionKey, request.RoundID)
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
 			s.loggerFor(ctx).Warn("DM 轮次元数据失败后刷新 session meta 失败",
@@ -178,9 +204,13 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 		runner.session = *updatedSession
 	}
 
-	s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount)
+	if !request.Internal {
+		s.scheduleTitleGeneration(ctx, parsed, runner.session, runner.content, initialMessageCount, runtimeProvider, runtimeModel)
+	}
 
-	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+	if !request.Internal {
+		s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, runner.reqID, request.RoundID, []map[string]any{}))
+	}
 	if request.BroadcastUserMessage {
 		s.broadcastUserRoundMarker(ctx, runner.session, runner.roundID, runner.content, deliveryPolicy, request.Attachments)
 	}
@@ -191,354 +221,13 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	return nil
 }
 
-func (s *Service) queueRunningInput(
-	ctx context.Context,
-	sessionKey string,
-	agentValue *protocol.Agent,
-	sessionItem protocol.Session,
-	request Request,
-	initialMessageCount int,
-) (bool, error) {
-	content := strings.TrimSpace(request.Content)
-	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
-	if len(runningRoundIDs) == 0 {
-		return false, runtimectx.ErrNoRunningRound
-	}
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
-	if err != nil {
-		return false, err
-	}
-	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
-		return false, err
-	}
-	if err := s.recordRoundMarker(agentValue.WorkspacePath, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments); err != nil {
-		s.loggerFor(ctx).Error("DM 排队消息持久化失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	if _, err := s.refreshSessionMetaAfterRoundMarker(agentValue.WorkspacePath, sessionItem); err != nil {
-		s.loggerFor(ctx).Error("DM 排队消息刷新 session meta 失败",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"round_id", request.RoundID,
-			"err", err,
-		)
-		return false, err
-	}
-	s.scheduleTitleGeneration(ctx, protocol.ParseSessionKey(sessionKey), sessionItem, content, initialMessageCount)
-	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
-	if request.BroadcastUserMessage {
-		s.broadcastUserRoundMarker(ctx, sessionItem, request.RoundID, content, protocol.ChatDeliveryPolicyQueue, attachments)
-	}
-	s.broadcastSessionStatus(ctx, sessionKey)
-	s.loggerFor(ctx).Info("排队 DM 消息到运行中 round",
-		"session_key", sessionKey,
-		"agent_id", agentValue.AgentID,
-		"round_id", request.RoundID,
-		"running_round_ids", runningRoundIDs,
-		"content_chars", utf8.RuneCountInString(content),
-		"content_preview", logx.PreviewText(content, 240),
-	)
-	return true, nil
-}
-
-func (s *Service) guideRunningInput(
-	ctx context.Context,
-	sessionKey string,
-	agentValue *protocol.Agent,
-	sessionItem protocol.Session,
-	request Request,
-) (bool, error) {
-	content := strings.TrimSpace(request.Content)
-	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	runtimeContent, err := s.renderRuntimeContentWithAttachments(ctx, content, attachments)
-	if err != nil {
-		return false, err
-	}
-	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent.PlainText())
-	if err != nil {
-		return false, err
-	}
-	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(sessionKey, dmdomain.FirstNonEmpty(request.ReqID, request.RoundID), request.RoundID, []map[string]any{}))
-	if request.BroadcastUserMessage {
-		for _, targetRoundID := range runningRoundIDs {
-			s.broadcastGuidanceMessage(ctx, sessionItem, targetRoundID, request.RoundID, content)
-		}
-	}
-	s.broadcastSessionStatus(ctx, sessionKey)
-	s.loggerFor(ctx).Info("登记 DM 引导消息等待 PostToolUse 注入",
-		"session_key", sessionKey,
-		"agent_id", agentValue.AgentID,
-		"round_id", request.RoundID,
-		"running_round_ids", runningRoundIDs,
-		"content_chars", utf8.RuneCountInString(content),
-		"content_preview", logx.PreviewText(content, 240),
-	)
-	return true, nil
-}
-
-func (s *Service) scheduleTitleGeneration(
-	ctx context.Context,
-	parsed protocol.SessionKey,
-	sessionItem protocol.Session,
-	content string,
-	initialMessageCount int,
-) {
-	if s.titles == nil {
-		return
-	}
-	conversationID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
-	if conversationID == "" && parsed.ChatType == "dm" {
-		conversationID = strings.TrimSpace(parsed.Ref)
-	}
-	roomID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.RoomID))
-	conversationMessageCount := 0
-	if conversationID == "" {
-		conversationMessageCount = -1
-	}
-	s.titles.Schedule(ctx, titlegen.Request{
-		SessionKey:               sessionItem.SessionKey,
-		Provider:                 "",
-		Content:                  content,
-		SessionTitle:             sessionItem.Title,
-		SessionMessageCount:      initialMessageCount,
-		ConversationID:           conversationID,
-		ConversationRoomID:       roomID,
-		ConversationMessageCount: conversationMessageCount,
-	})
-}
-
-// HandleInterrupt 处理中断请求。
-func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest) error {
-	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
-	if err != nil {
-		return err
-	}
-	return s.interruptSession(ctx, sessionKey, "")
-}
-
-func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
-	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey, resultText)
-	if err != nil {
-		if len(roundIDs) == 0 {
-			return err
-		}
-		s.loggerFor(ctx).Warn("DM 中断运行态失败，按失效进程清理",
-			"session_key", sessionKey,
-			"round_ids", roundIDs,
-			"err", err,
-		)
-		if closeErr := s.runtime.CloseSession(context.Background(), sessionKey); closeErr != nil {
-			s.loggerFor(ctx).Warn("DM 清理失效运行态 client 失败",
-				"session_key", sessionKey,
-				"err", closeErr,
-			)
-		}
-		s.permission.CancelRequestsForSession(sessionKey, resultText)
-		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-			s.loggerFor(ctx).Warn("DM 中断失败后刷新 session meta 失败",
-				"session_key", sessionKey,
-				"err", closeErr,
-			)
-		}
-		s.broadcastSessionStatus(ctx, sessionKey)
-		return nil
-	}
-	if len(roundIDs) == 0 {
-		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-			s.loggerFor(ctx).Warn("DM 中断空闲会话后刷新 session meta 失败",
-				"session_key", sessionKey,
-				"err", closeErr,
-			)
-		}
-		s.broadcastSessionStatus(ctx, sessionKey)
-		return nil
-	}
-	s.loggerFor(ctx).Warn("中断 DM 会话运行轮次",
-		"session_key", sessionKey,
-		"round_count", len(roundIDs),
-		"reason", resultText,
-	)
-	s.permission.CancelRequestsForSession(sessionKey, resultText)
-	if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-		s.loggerFor(ctx).Warn("DM 中断后刷新 session meta 失败",
-			"session_key", sessionKey,
-			"err", closeErr,
-		)
-	}
-	s.broadcastSessionStatus(ctx, sessionKey)
-	return nil
-}
-
-func (s *Service) ensureClient(
-	ctx context.Context,
-	sessionKey string,
-	agentValue *protocol.Agent,
-	sessionItem protocol.Session,
-	request Request,
-) (runtimectx.Client, string, string, error) {
-	permissionMode := request.PermissionMode
-	if permissionMode == "" {
-		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
-	}
-	if permissionMode == "" {
-		permissionMode = sdkpermission.ModeDefault
-	}
-	permissionHandler := request.PermissionHandler
-	if permissionHandler == nil {
-		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
-			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
-		}
-	}
-	if err := workspacepkg.EnsureInitialized(
-		agentValue.AgentID,
-		agentValue.Name,
-		agentValue.WorkspacePath,
-		agentValue.IsMain,
-		agentValue.CreatedAt,
-	); err != nil {
-		return nil, "", "", err
-	}
-	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
-	if err != nil {
-		return nil, "", "", err
-	}
-	mcpServers := map[string]sdkmcp.SDKMCPServer(nil)
-	if s.mcpServers != nil {
-		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, "agent", agentValue.AgentID, agentValue.Name)
-	}
-	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:      agentValue.WorkspacePath,
-		Provider:           agentValue.Options.Provider,
-		PermissionMode:     permissionMode,
-		PermissionHandler:  permissionHandler,
-		AllowedTools:       agentValue.Options.AllowedTools,
-		DisallowedTools:    agentValue.Options.DisallowedTools,
-		SettingSources:     agentValue.Options.SettingSources,
-		AppendSystemPrompt: appendSystemPrompt,
-		ResumeSessionID:    dmdomain.StringPointerValue(sessionItem.SessionID),
-		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
-		MaxTurns:           agentValue.Options.MaxTurns,
-		MCPServers:         mcpServers,
-	})
-	if err != nil {
-		return nil, "", "", err
-	}
-	options = s.runtime.WithGuidanceHook(options, sessionKey)
-	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: agentValue.WorkspacePath,
-		SessionKey:    sessionKey,
-	}, sessionItem)
-	runtimeProvider := resolvedRuntimeProvider(agentValue.Options.Provider, options)
-	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
-	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
-	if err != nil {
-		return nil, "", "", err
-	}
-	return client, runtimeProvider, strings.TrimSpace(options.Model), nil
-}
-
-func resolvedRuntimeProvider(provider string, options agentclient.Options) string {
-	if options.Env != nil {
-		if resolved := strings.TrimSpace(options.Env[clientopts.NexusRuntimeProviderEnvName]); resolved != "" {
-			return resolved
-		}
-	}
-	return strings.TrimSpace(provider)
-}
-
-func (s *Service) resolveReusableSDKSessionID(
-	ctx context.Context,
-	workspacePath string,
-	sessionItem protocol.Session,
-	provider string,
-	options agentclient.Options,
-) string {
-	resumeID := strings.TrimSpace(options.Session.ResumeID)
-	if resumeID == "" {
-		return ""
-	}
-	expectedProvider := strings.TrimSpace(provider)
-	expectedModel := strings.TrimSpace(options.Model)
-	actualProvider, hasProviderFingerprint := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
-	actualModel, hasModelFingerprint := sessionItem.Options[protocol.OptionRuntimeModel].(string)
-	actualProvider = strings.TrimSpace(actualProvider)
-	actualModel = strings.TrimSpace(actualModel)
-	hasFingerprint := hasProviderFingerprint || hasModelFingerprint
-	if hasFingerprint &&
-		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
-		(!hasModelFingerprint || actualModel == expectedModel) {
-		if !hasProviderFingerprint || !hasModelFingerprint {
-			s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedProvider, expectedModel)
-		}
-		return resumeID
-	}
-	if !hasFingerprint {
-		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedProvider, expectedModel)
-		return resumeID
-	}
-	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过过期 SDK session resume",
-		"session_key", sessionItem.SessionKey,
-		"old_provider", actualProvider,
-		"new_provider", expectedProvider,
-		"old_model", actualModel,
-		"new_model", expectedModel,
-	)
-	s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedProvider, expectedModel)
-	return ""
-}
-
-func (s *Service) persistSDKSessionFingerprint(
-	ctx context.Context,
-	workspacePath string,
-	sessionItem protocol.Session,
-	clearSessionID bool,
-	provider string,
-	model string,
-) {
-	if clearSessionID {
-		sessionItem.SessionID = nil
-	}
-	if sessionItem.Options == nil {
-		sessionItem.Options = map[string]any{}
-	}
-	sessionItem.Options[protocol.OptionRuntimeProvider] = strings.TrimSpace(provider)
-	sessionItem.Options[protocol.OptionRuntimeModel] = strings.TrimSpace(model)
-	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
-		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
-			"session_key", sessionItem.SessionKey,
-			"err", err,
-		)
-	}
-}
-
-func (s *Service) acquireRuntimeClient(
-	ctx context.Context,
-	sessionKey string,
-	options agentclient.Options,
-) (runtimectx.Client, error) {
-	client, err := s.runtime.GetOrCreate(ctx, sessionKey, options)
-	if err != nil {
-		return nil, err
-	}
-	if err := client.Connect(ctx); err != nil {
-		return nil, err
-	}
-	return client, nil
-}
-
 func (s *Service) validateRequest(request Request) (string, protocol.SessionKey, error) {
 	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
 	if err != nil {
 		return "", protocol.SessionKey{}, err
 	}
-	if !protocol.HasChatInput(request.Content, request.Attachments) {
+	if !protocol.HasChatInput(request.Content, request.Attachments) &&
+		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", protocol.SessionKey{}, errors.New("content is required")
 	}
 	if strings.TrimSpace(request.RoundID) == "" {

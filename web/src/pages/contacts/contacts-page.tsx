@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
@@ -9,6 +8,7 @@ import { validate_agent_name_api } from "@/lib/api/agent-manage-api";
 import { create_room, ensure_direct_room } from "@/lib/api/room-api";
 import { AgentOptions } from "@/shared/ui/dialog/agent-options";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { useAgentStore } from "@/store/agent";
 import {
@@ -16,6 +16,7 @@ import {
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
 import { get_initial_agent_options, is_main_agent } from "@/config/options";
+import { build_agent_options_save_payload } from "@/features/agents/options/agent-options-constants";
 
 export function ContactsPage() {
   const navigate = useNavigate();
@@ -67,11 +68,13 @@ export function ContactsPage() {
 
     return {
       provider: editing_agent.options.provider,
+      model: editing_agent.options.model,
       permission_mode: editing_agent.options.permission_mode,
       allowed_tools: editing_agent.options.allowed_tools,
       disallowed_tools: editing_agent.options.disallowed_tools,
       max_turns: editing_agent.options.max_turns,
       max_thinking_tokens: editing_agent.options.max_thinking_tokens,
+      mcp_servers: editing_agent.options.mcp_servers,
       setting_sources: editing_agent.options.setting_sources,
     };
   }, [dialog_mode, editing_agent]);
@@ -135,13 +138,7 @@ export function ContactsPage() {
       options: AgentConfigOptions,
       identity: AgentIdentityDraft,
     ) => {
-      const next_options = {
-        provider: options.provider,
-        permission_mode: options.permission_mode,
-        allowed_tools: options.allowed_tools,
-        disallowed_tools: options.disallowed_tools,
-        setting_sources: options.setting_sources,
-      };
+      const next_options = build_agent_options_save_payload(options);
 
       if (dialog_mode === "create") {
         await create_agent({
@@ -176,13 +173,7 @@ export function ContactsPage() {
     ) => {
       await update_agent(agent_id, {
         name: title,
-        options: {
-          provider: options.provider,
-          permission_mode: options.permission_mode,
-          allowed_tools: options.allowed_tools,
-          disallowed_tools: options.disallowed_tools,
-          setting_sources: options.setting_sources,
-        },
+        options: build_agent_options_save_payload(options),
         avatar: identity.avatar,
         description: identity.description,
         vibe_tags: identity.vibe_tags,
@@ -243,12 +234,7 @@ export function ContactsPage() {
   if (loading && !regular_agents.length) {
     return (
       <WorkspacePageFrame content_padding_class_name="p-0">
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-(--text-soft)" />
-            <span className="text-sm text-(--text-soft)">加载成员...</span>
-          </div>
-        </div>
+        <WorkspaceLoadingState label="加载成员..." />
       </WorkspacePageFrame>
     );
   }

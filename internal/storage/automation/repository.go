@@ -34,6 +34,7 @@ INSERT INTO automation_cron_jobs (
     cron_expression,
     timezone,
     instruction,
+    execution_kind,
     session_target_kind,
     bound_session_key,
     named_session_key,
@@ -67,6 +68,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     cron_expression = EXCLUDED.cron_expression,
     timezone = EXCLUDED.timezone,
     instruction = EXCLUDED.instruction,
+    execution_kind = EXCLUDED.execution_kind,
     session_target_kind = EXCLUDED.session_target_kind,
     bound_session_key = EXCLUDED.bound_session_key,
     named_session_key = EXCLUDED.named_session_key,
@@ -93,7 +95,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		db:         db,
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 	}
-	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(28))
+	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(29))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_cron_runs (
     run_id,
@@ -105,12 +107,13 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
     round_id,
     delivery_mode,
     delivery_to,
+    delivery_status,
     scheduled_for,
     attempts,
     created_at,
     updated_at
 ) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(11),
+		repository.bindList(12),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
 		`UPDATE automation_cron_runs
@@ -129,9 +132,19 @@ SET status = %s,
     session_id = %s,
     message_count = %s,
     result_summary = %s,
+    assistant_text = %s,
+    result_text = %s,
+    artifact_path = %s,
+    delivery_to = COALESCE(%s, delivery_to),
+    delivery_status = %s,
+    delivery_error = %s,
+    delivered_at = %s,
+    delivery_attempts = delivery_attempts + CASE WHEN %s THEN 1 ELSE 0 END,
+    delivery_next_attempt_at = %s,
+    delivery_dead_letter_at = %s,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
-		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7),
+		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7), repository.bind(8), repository.bind(9), repository.bind(10), repository.bind(11), repository.bind(12), repository.bind(13), repository.bind(14), repository.bind(15), repository.bind(16), repository.bind(17),
 	)
 	repository.upsertHeartbeatStateQuery = fmt.Sprintf(
 		`INSERT INTO automation_heartbeat_states (

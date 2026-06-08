@@ -43,6 +43,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		&item.ProfileMarkdown,
 		&createdAt,
 		&item.Options.Provider,
+		&item.Options.Model,
 		&item.Options.PermissionMode,
 		&allowedToolsJSON,
 		&disallowedToolsJSON,

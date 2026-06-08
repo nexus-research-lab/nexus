@@ -9,6 +9,8 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
@@ -21,11 +23,39 @@ type fakeRuntimeConfigResolver struct {
 func (r fakeRuntimeConfigResolver) ResolveRuntimeConfig(
 	context.Context,
 	string,
+	string,
 ) (*RuntimeConfig, error) {
 	if r.calls != nil {
 		*r.calls = *r.calls + 1
 	}
 	return r.config, r.err
+}
+
+type fakeRuntimeConfigForRuntimeResolver struct {
+	config      *RuntimeConfig
+	runtimeKind string
+	calls       int
+	legacyCalls int
+}
+
+func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfig(
+	context.Context,
+	string,
+	string,
+) (*RuntimeConfig, error) {
+	r.legacyCalls++
+	return r.config, nil
+}
+
+func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfigForRuntime(
+	_ context.Context,
+	_ string,
+	_ string,
+	runtimeKind string,
+) (*RuntimeConfig, error) {
+	r.calls++
+	r.runtimeKind = runtimeKind
+	return r.config, nil
 }
 
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
@@ -53,11 +83,26 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("空 runtime kind 应默认启用 nxs: %+v", options.Runtime)
+	}
 	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
 	}
+	if !options.Runtime.AllowDangerouslySkipPermissions {
+		t.Fatalf("运行时应允许后续切换到 bypassPermissions，避免复用 session 时发送失败")
+	}
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
+	}
+	if options.Env["ANTHROPIC_AUTH_TOKEN"] != "token-1" {
+		t.Fatalf("Anthropic auth token 未写入 env: %+v", options.Env)
+	}
+	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
+		t.Fatalf("Agent API runtime 不应写入 ANTHROPIC_API_KEY: %+v", options.Env)
+	}
+	if options.Env["NEXUS_API_PROVIDER"] != "anthropic-compatible" {
+		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
 	}
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
@@ -65,19 +110,249 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env["ENABLE_TOOL_SEARCH"] != "false" {
 		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
 	}
+	if options.Env[claudeAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
+		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
+	}
 	if options.Session.ResumeID != "sdk-session-1" {
 		t.Fatalf("resume session_id 不正确: %+v", options)
 	}
 	if options.Runtime.MaxThinkingTokens != 2048 || options.Runtime.MaxTurns != 8 {
 		t.Fatalf("思考/轮次限制未透传: %+v", options)
 	}
+	for _, tool := range []string{"Edit", "ScheduleWakeup", "CronCreate", "CronList", "CronDelete"} {
+		if !containsTool(options.Tools.Deny, tool) {
+			t.Fatalf("运行时 deny 工具缺少 %s: %+v", tool, options.Tools.Deny)
+		}
+	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
 	}
 }
 
+func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		ExtraEnv: map[string]string{
+			claudeAutoCompactPctOverrideEnvName: "80",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
+		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsAllowsExtraEnvOverrideNXSCacheDefaults(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+		ExtraEnv: map[string]string{
+			nxsCachedMicrocompactEnvName:     "0",
+			nxsAPIClearToolResultsEnvName:    "",
+			nxsPromptCache1hEligibleEnvName:  "0",
+			nxsPromptCache1hAllowlistEnvName: "agent:*",
+			nxsAgentSDKDiagnosticsEnvName:    "",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nxsCachedMicrocompactEnvName] != "0" ||
+		options.Env[nxsAPIClearToolResultsEnvName] != "" ||
+		options.Env[nxsPromptCache1hEligibleEnvName] != "0" ||
+		options.Env[nxsPromptCache1hAllowlistEnvName] != "agent:*" ||
+		options.Env[nxsAgentSDKDiagnosticsEnvName] != "" {
+		t.Fatalf("ExtraEnv 应覆盖 nxs cache 默认值: %+v", options.Env)
+	}
+	if options.Env[nxsAPIClearToolUsesEnvName] != "1" {
+		t.Fatalf("nxs tool use 清理默认值丢失: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com",
+			Model:     "glm-5.1",
+			Reasoning: true,
+		},
+	}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for _, key := range []string{
+		"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
+	} {
+		if options.Env[key] != "thinking" {
+			t.Fatalf("%s = %q, want thinking; env=%+v", key, options.Env[key], options.Env)
+		}
+	}
+}
+
+func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
+	t.Setenv(nexusAppRootEnvName, "")
+	t.Setenv(nexusNXSCommandPathEnvName, "")
+	t.Setenv(nxsAgentSDKDiagnosticsEnvName, "stderr")
+	t.Setenv(nxsAgentSDKDebugEnvName, "1")
+	t.Setenv(nxsAgentSDKProviderDebugBodyEnvName, "full")
+
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("未把 nxs runtime kind 交给 bridge: %+v", options.Runtime)
+	}
+	if strings.TrimSpace(options.CLIPath) != "" {
+		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
+	}
+	for _, key := range []string{
+		nxsCachedMicrocompactEnvName,
+		nxsAPIClearToolResultsEnvName,
+		nxsAPIClearToolUsesEnvName,
+		nxsPromptCache1hEligibleEnvName,
+	} {
+		if options.Env[key] != "1" {
+			t.Fatalf("%s = %q, want 1; env=%+v", key, options.Env[key], options.Env)
+		}
+	}
+	if options.Env[nxsPromptCache1hAllowlistEnvName] != "sdk" {
+		t.Fatalf("%s = %q, want sdk; env=%+v", nxsPromptCache1hAllowlistEnvName, options.Env[nxsPromptCache1hAllowlistEnvName], options.Env)
+	}
+	for _, key := range []string{
+		nxsAgentSDKDiagnosticsEnvName,
+		nxsAgentSDKDebugEnvName,
+		nxsAgentSDKProviderDebugBodyEnvName,
+	} {
+		if options.Env[key] != "" {
+			t.Fatalf("%s = %q, want empty; env=%+v", key, options.Env[key], options.Env)
+		}
+	}
+}
+
+func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:                runtimeKindNXS,
+		AgentSDKDiagnosticsEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nxsAgentSDKDiagnosticsEnvName] != "stderr" {
+		t.Fatalf("%s = %q, want stderr; env=%+v", nxsAgentSDKDiagnosticsEnvName, options.Env[nxsAgentSDKDiagnosticsEnvName], options.Env)
+	}
+	if _, ok := options.Env[nxsAgentSDKProviderDebugBodyEnvName]; ok {
+		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testing.T) {
+	resolver := &fakeRuntimeConfigForRuntimeResolver{
+		config: &RuntimeConfig{
+			Provider:  "openai",
+			AuthToken: "openai-token",
+			BaseURL:   "https://api.openai.com/v1",
+			Model:     "gpt-4o",
+			APIFormat: apiFormatChatCompletions,
+		},
+	}
+	options, err := BuildAgentClientOptions(context.Background(), resolver, AgentClientOptionsInput{})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if resolver.calls != 1 || resolver.legacyCalls != 0 || resolver.runtimeKind != runtimeKindNXS {
+		t.Fatalf("未按 runtime kind 解析 provider: calls=%d legacy=%d kind=%q", resolver.calls, resolver.legacyCalls, resolver.runtimeKind)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		t.Fatalf("未启用 nxs runtime: %+v", options.Runtime)
+	}
+	wantEnv := map[string]string{
+		"OPENAI_API_KEY":             "openai-token",
+		"OPENAI_BASE_URL":            "https://api.openai.com/v1",
+		"OPENAI_MODEL":               "gpt-4o",
+		"CLAUDE_CODE_SUBAGENT_MODEL": "gpt-4o",
+		NexusRuntimeProviderEnvName:  "openai",
+		"NEXUS_API_PROVIDER":         "openai",
+	}
+	for key, want := range wantEnv {
+		if options.Env[key] != want {
+			t.Fatalf("%s=%q, want %q; env=%+v", key, options.Env[key], want, options.Env)
+		}
+	}
+	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+		t.Fatalf("nxs chat_completions 不应注入 Anthropic token: %+v", options.Env)
+	}
+	if options.Model != "gpt-4o" {
+		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
+	}
+}
+
+func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T) {
+	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com",
+			Model:     "gpt-4o",
+			APIFormat: "chat_completions",
+		},
+	}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindClaude,
+	})
+	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+		t.Fatalf("Claude runtime 下非 anthropic_messages provider 应被拒绝: %v", err)
+	}
+}
+
+func TestBuildAgentClientOptionsRejectsNXSResponsesAPIFormat(t *testing.T) {
+	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			AuthToken: "token-1",
+			BaseURL:   "https://provider.example.com/v1",
+			Model:     "gpt-4.1",
+			APIFormat: "responses",
+		},
+	}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err == nil || !strings.Contains(err.Error(), "暂不可用于 Agent runtime") {
+		t.Fatalf("nxs responses provider 应被拒绝: %v", err)
+	}
+}
+
+func TestBuildAgentClientOptionsDeniesClaudeSessionUnavailableTools(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath:   "/tmp/workspace",
+		RuntimeKind:     runtimeKindClaude,
+		DisallowedTools: []string{" ScheduleWakeup ", "Write", "EnterPlanMode"},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for _, tool := range []string{"EnterPlanMode", "ScheduleWakeup", "CronCreate", "CronList", "CronDelete", "Write"} {
+		if !containsTool(options.Tools.Deny, tool) {
+			t.Fatalf("运行时 deny 工具缺少 %s: %+v", tool, options.Tools.Deny)
+		}
+	}
+	if countTool(options.Tools.Deny, "EnterPlanMode") != 1 {
+		t.Fatalf("EnterPlanMode deny 规则应去重: %+v", options.Tools.Deny)
+	}
+	if countTool(options.Tools.Deny, "ScheduleWakeup") != 1 {
+		t.Fatalf("ScheduleWakeup deny 规则应去重: %+v", options.Tools.Deny)
+	}
+}
+
 func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
-	workspacePath := "/tmp/workspace"
+	configDir := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: workspacePath,
 	})
@@ -85,11 +360,33 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
 	pathItems := strings.Split(options.Env["PATH"], string(os.PathListSeparator))
-	if len(pathItems) == 0 || pathItems[0] != filepath.Join(workspacePath, ".agents", "bin") {
-		t.Fatalf("运行时 PATH 未优先注入 workspace bin: %q", options.Env["PATH"])
+	expectedBinDir := filepath.Join(configDir, ".agents", "bin")
+	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
+		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
 	}
 	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
 		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
+	}
+	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
+		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsInjectsMCPServerConfigs(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		MCPServers: map[string]sdkmcp.ServerConfig{
+			"amap_maps": sdkmcp.HTTPServerConfig{URL: "https://mcp.amap.com/mcp?key=test-key"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if len(options.MCP.Servers) != 1 {
+		t.Fatalf("MCP server config 未注入: %+v", options.MCP)
+	}
+	if _, ok := options.MCP.Servers["amap_maps"].(sdkmcp.HTTPServerConfig); !ok {
+		t.Fatalf("MCP server 类型不正确: %+v", options.MCP.Servers["amap_maps"])
 	}
 }
 
@@ -164,6 +461,9 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 	if options.Callbacks.PermissionHandler == nil {
 		t.Fatalf("bypass 模式应保留 AskUserQuestion 交互通道")
 	}
+	if !options.Runtime.AllowDangerouslySkipPermissions {
+		t.Fatalf("bypass 模式应在 session 启动时显式启用 allowDangerouslySkipPermissions")
+	}
 
 	questionDecision, err := options.Callbacks.PermissionHandler(context.Background(), sdkpermission.Request{
 		ToolName: " AskUserQuestion ",
@@ -199,4 +499,18 @@ func TestBuildAgentClientOptionsBypassKeepsQuestionChannel(t *testing.T) {
 	if bypassDecision.UpdatedInput["command"] != "pwd" {
 		t.Fatalf("bypass 工具输入未原样保留: %+v", bypassDecision.UpdatedInput)
 	}
+}
+
+func containsTool(tools []string, expected string) bool {
+	return countTool(tools, expected) > 0
+}
+
+func countTool(tools []string, expected string) int {
+	count := 0
+	for _, tool := range tools {
+		if tool == expected {
+			count++
+		}
+	}
+	return count
 }

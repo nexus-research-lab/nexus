@@ -150,6 +150,267 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	}
 }
 
+func TestAgentHistoryStoreUsesHiddenRoundMarkerForTranscriptAlignment(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "hidden-goal-session"
+	if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, "goal_continuation_1", "hidden continuation prompt", 1000, RoundMarkerOptions{
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+	}); err != nil {
+		t.Fatalf("写入隐藏 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-hidden",
+			"sessionId": sessionID,
+			"timestamp": "2026-05-22T10:00:00.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "hidden continuation prompt",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-hidden",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-hidden",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "继续推进 Goal。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	for _, row := range rows {
+		if row["role"] == "user" && row["round_id"] == "goal_continuation_1" {
+			t.Fatalf("隐藏 Goal continuation 不应展示成用户消息: %+v", rows)
+		}
+	}
+	if len(rows) != 1 || rows[0]["role"] != "assistant" || rows[0]["round_id"] != "goal_continuation_1" {
+		t.Fatalf("隐藏 marker 应只用于 assistant round 对齐: %+v", rows)
+	}
+}
+
+func TestAgentHistoryStoreHidesGoalContextOnlyTranscriptTurn(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "hidden-goal-context-session"
+	if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, "goal_continuation_1", "", 1000, RoundMarkerOptions{
+		HiddenFromUser: true,
+		Synthetic:      true,
+		Purpose:        "goal_continuation",
+	}); err != nil {
+		t.Fatalf("写入隐藏 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-hidden-context",
+			"sessionId": sessionID,
+			"timestamp": "2026-05-22T10:00:00.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "<goal_context>\nContinue working toward the active thread goal.\n</goal_context>",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-hidden-context",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-hidden-context",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "继续推进 Goal。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	for _, row := range rows {
+		if row["role"] == "user" {
+			t.Fatalf("GoalContext-only continuation 不应展示成用户消息: %+v", rows)
+		}
+	}
+	if len(rows) != 1 || rows[0]["role"] != "assistant" || rows[0]["round_id"] != "goal_continuation_1" {
+		t.Fatalf("隐藏 GoalContext marker 应只用于 assistant round 对齐: %+v", rows)
+	}
+}
+
+func TestAgentHistoryStoreHidesGoalContextTranscriptTurnWithoutMarker(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "hidden-goal-context-no-marker-session"
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-hidden-context",
+			"sessionId": sessionID,
+			"timestamp": "2026-05-22T10:00:00.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "<goal_context>\nContinue working toward the active thread goal.\n</goal_context>",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-hidden-context",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-hidden-context",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "继续推进 Goal。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	for _, row := range rows {
+		if row["role"] == "user" {
+			t.Fatalf("缺失 marker 时 GoalContext transcript 也不应展示成用户消息: %+v", rows)
+		}
+	}
+	if len(rows) != 1 || rows[0]["role"] != "assistant" {
+		t.Fatalf("缺失 marker 时应保留 assistant 输出并隐藏 GoalContext 输入: %+v", rows)
+	}
+}
+
+func TestAgentHistoryStoreHidesCodexInternalGoalContextTranscriptTurnWithoutMarker(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:a731e54f7af5"
+	sessionID := "hidden-codex-internal-goal-context-no-marker-session"
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-hidden-codex-internal-context",
+			"sessionId": sessionID,
+			"timestamp": "2026-05-22T10:00:00.000Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "<codex_internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</codex_internal_context>",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "transcript-assistant-hidden-codex-internal-context",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-hidden-codex-internal-context",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "继续推进 Goal。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	for _, row := range rows {
+		if row["role"] == "user" {
+			t.Fatalf("缺失 marker 时 Codex internal goal context 也不应展示成用户消息: %+v", rows)
+		}
+	}
+	if len(rows) != 1 || rows[0]["role"] != "assistant" {
+		t.Fatalf("缺失 marker 时应保留 assistant 输出并隐藏 Codex internal goal context 输入: %+v", rows)
+	}
+}
+
+func TestTranscriptGoalContextOnlyUserTurnRecognizesInternalContextTags(t *testing.T) {
+	for name, content := range map[string]string{
+		"internal": "<internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</internal_context>",
+		"legacy":   "<codex_internal_context source=\"goal\">\nContinue working toward the active thread goal.\n</codex_internal_context>",
+	} {
+		entry := map[string]any{
+			"message": map[string]any{
+				"role":    "user",
+				"content": content,
+			},
+		}
+		if !isTranscriptGoalContextOnlyUserTurn(entry) {
+			t.Fatalf("%s Goal context turn was not recognized: %#v", name, entry)
+		}
+	}
+}
+
 func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")
@@ -210,7 +471,7 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 		}
 	}
 	if guidance == nil {
-		t.Fatalf("Claude hook additionalContext 应投影成引导系统消息: %+v", rows)
+		t.Fatalf("runtime hook additionalContext 应投影成引导系统消息: %+v", rows)
 	}
 	if (*guidance)["role"] != "system" || (*guidance)["round_id"] != "round-1" {
 		t.Fatalf("引导系统消息应归入当前 round: %+v", *guidance)
@@ -346,6 +607,176 @@ func TestAgentHistoryStoreProjectsWorkspaceFileArtifactFromTranscriptToolResult(
 		}
 	}
 	t.Fatalf("transcript tool_result 应投影出 workspace_file_artifact: %+v", rows)
+}
+
+func TestAgentHistoryStorePreservesParallelToolResultsFromTranscriptBranches(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:c5740009ac97:ws:dm:parallel-tools"
+	sessionID := "d758d942-aced-4952-a2cb-ff2835e22cfc"
+	if err := history.AppendRoundMarker(workspacePath, sessionKey, "round-parallel", "再试一下刚才两个工具", 1000); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "transcript-user-parallel",
+			"sessionId": sessionID,
+			"timestamp": "2026-06-02T10:13:43.870Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "再试一下刚才两个工具",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-tool-connectors",
+			"sessionId":  sessionID,
+			"parentUuid": "transcript-user-parallel",
+			"timestamp":  "2026-06-02T10:13:48.717Z",
+			"message": map[string]any{
+				"id":          "msg_parallel_tools",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       "glm-5.1",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type":  "tool_use",
+						"id":    "call-connectors",
+						"name":  "mcp__nexus_connectors__connector_list",
+						"input": map[string]any{},
+					},
+				},
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-tool-automation",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-tool-connectors",
+			"timestamp":  "2026-06-02T10:13:48.722Z",
+			"message": map[string]any{
+				"id":          "msg_parallel_tools",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       "glm-5.1",
+				"stop_reason": "tool_use",
+				"content": []map[string]any{
+					{
+						"type":  "tool_use",
+						"id":    "call-automation",
+						"name":  "mcp__nexus_automation__list_scheduled_tasks",
+						"input": map[string]any{},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "tool-result-connectors",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-tool-connectors",
+			"timestamp":  "2026-06-02T10:14:19.799Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "call-connectors",
+						"content": []map[string]any{
+							{"type": "text", "text": "[]"},
+						},
+					},
+				},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "tool-result-automation",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-tool-automation",
+			"timestamp":  "2026-06-02T10:14:20.927Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": []map[string]any{
+					{
+						"type":        "tool_result",
+						"tool_use_id": "call-automation",
+						"content": []map[string]any{
+							{"type": "text", "text": "[]"},
+						},
+					},
+				},
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-final",
+			"sessionId":  sessionID,
+			"parentUuid": "tool-result-automation",
+			"timestamp":  "2026-06-02T10:14:31.746Z",
+			"message": map[string]any{
+				"id":          "msg_parallel_final",
+				"type":        "message",
+				"role":        "assistant",
+				"model":       "glm-5.1",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "两个工具调用都正常返回。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Amy",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+
+	var toolAssistant protocol.Message
+	for _, row := range rows {
+		if row["message_id"] == "msg_parallel_tools" {
+			toolAssistant = row
+			break
+		}
+	}
+	if toolAssistant == nil {
+		t.Fatalf("历史缺少并行工具 assistant: %+v", rows)
+	}
+
+	blocks, _ := toolAssistant["content"].([]map[string]any)
+	toolUseIDs := make(map[string]struct{})
+	toolResultIDs := make(map[string]struct{})
+	for _, block := range blocks {
+		switch block["type"] {
+		case "tool_use":
+			toolUseIDs[stringFromAny(block["id"])] = struct{}{}
+		case "tool_result":
+			toolResultIDs[stringFromAny(block["tool_use_id"])] = struct{}{}
+		}
+	}
+	for _, id := range []string{"call-connectors", "call-automation"} {
+		if _, exists := toolUseIDs[id]; !exists {
+			t.Fatalf("历史缺少 tool_use %s: %+v", id, blocks)
+		}
+		if _, exists := toolResultIDs[id]; !exists {
+			t.Fatalf("历史缺少 tool_result %s: %+v", id, blocks)
+		}
+	}
 }
 
 func TestAgentHistoryStoreRoomPublicCursorIsControlRow(t *testing.T) {

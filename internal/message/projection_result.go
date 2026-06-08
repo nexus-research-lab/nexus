@@ -24,6 +24,12 @@ func AttachResultSummary(assistant protocol.Message, result protocol.Message) (p
 	}
 	merged := protocol.Clone(assistant)
 	merged["result_summary"] = summary
+	// result 是 round 终态信号，挂载摘要时也要同步 assistant 终态，
+	// 否则实时前端会继续把该 assistant 当作 streaming 消息。
+	merged["is_complete"] = true
+	if stopReason := stopReasonFromResult(result); stopReason != "" {
+		merged["stop_reason"] = stopReason
+	}
 	return merged, true
 }
 
@@ -56,6 +62,10 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 	if usage, ok := result["usage"].(map[string]any); ok && len(usage) > 0 {
 		summary["usage"] = usage
 	}
+	copyNonEmptyResultField(summary, result, "permission_denials")
+	copyNonEmptyResultField(summary, result, "errors")
+	copyNonEmptyResultField(summary, result, "terminal_reason")
+	copyNonEmptyResultField(summary, result, "stop_reason")
 
 	resultText := NormalizeDisplayText(resultValue)
 	if resultText != "" {
@@ -64,6 +74,36 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 		}
 	}
 	return summary
+}
+
+func copyNonEmptyResultField(target map[string]any, source protocol.Message, key string) {
+	value, exists := source[key]
+	if !exists || value == nil {
+		return
+	}
+	switch typed := value.(type) {
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return
+		}
+	case []string:
+		if len(typed) == 0 {
+			return
+		}
+	case []any:
+		if len(typed) == 0 {
+			return
+		}
+	case []map[string]any:
+		if len(typed) == 0 {
+			return
+		}
+	case map[string]any:
+		if len(typed) == 0 {
+			return
+		}
+	}
+	target[key] = value
 }
 
 // ExtractAssistantDisplayText 提取 assistant 主正文文本，用于去重 result 文本。
@@ -134,12 +174,9 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 	if parentID := normalizeString(result["parent_id"]); parentID != "" {
 		synthetic["parent_id"] = parentID
 	}
-	switch NormalizeResultSubtype(normalizeString(result["subtype"])) {
-	case "interrupted":
-		synthetic["stop_reason"] = "cancelled"
-	case "error":
-		synthetic["stop_reason"] = "error"
-	default:
+	if stopReason := stopReasonFromResult(result); stopReason != "" {
+		synthetic["stop_reason"] = stopReason
+	} else {
 		synthetic["stop_reason"] = "end_turn"
 	}
 	if resultText := normalizeString(result["result"]); resultText != "" {
@@ -154,6 +191,22 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 		return summary
 	}
 	return synthetic
+}
+
+func stopReasonFromResult(result protocol.Message) string {
+	if stopReason := normalizeString(result["stop_reason"]); stopReason != "" {
+		return stopReason
+	}
+	switch NormalizeResultSubtype(normalizeString(result["subtype"])) {
+	case "interrupted":
+		return "cancelled"
+	case "error":
+		return "error"
+	case "success":
+		return "end_turn"
+	default:
+		return ""
+	}
 }
 
 func intFromAny(value any) int {

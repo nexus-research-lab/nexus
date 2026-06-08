@@ -11,6 +11,7 @@ import {
 } from "./picker-types";
 import {
   get_picker_column_button_class_name,
+  get_picker_date_button_class_name,
   PICKER_TRIGGER_CLASS_NAME,
 } from "./picker-styles";
 
@@ -103,16 +104,10 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                 const is_disabled = is_date_disabled(day.value);
                 return (
                   <button
-                    className={[
-                      "flex h-8 items-center justify-center rounded-[10px] text-xs font-semibold transition-[background,color] duration-(--motion-duration-fast)",
-                      is_selected
-                        ? "bg-[color:color-mix(in_srgb,var(--primary)_90%,white)] text-white"
-                        : is_disabled
-                          ? "cursor-not-allowed text-(--text-soft) opacity-40"
-                          : day.muted
-                              ? "text-(--text-soft)"
-                              : "text-(--text-default) hover:bg-(--surface-interactive-hover-background)",
-                    ].join(" ")}
+                    className={get_picker_date_button_class_name(is_selected, {
+                      disabled: is_disabled,
+                      muted: day.muted,
+                    })}
                     disabled={is_disabled}
                     key={day.value}
                     onClick={() => on_date_select(day.value)}
@@ -131,7 +126,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const is_disabled = is_meridiem_disabled(option.key);
                   return (
                   <button
-                    className={get_picker_column_button_class_name(meridiem === option.key)}
+                    className={get_picker_column_button_class_name(meridiem === option.key, is_disabled)}
                     disabled={is_disabled}
                     key={option.key}
                     onClick={() => on_meridiem_select(option.key)}
@@ -149,7 +144,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const is_disabled = is_hour_disabled(option);
                   return (
                 <button
-                  className={get_picker_column_button_class_name(hour12 === option)}
+                  className={get_picker_column_button_class_name(hour12 === option, is_disabled)}
                   disabled={is_disabled}
                   key={option}
                   onClick={() => on_hour_select(option)}
@@ -167,7 +162,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const is_disabled = is_minute_disabled(option);
                   return (
                 <button
-                  className={get_picker_column_button_class_name(minute === option)}
+                  className={get_picker_column_button_class_name(minute === option, is_disabled)}
                   disabled={is_disabled}
                   key={option}
                   onClick={() => on_minute_select(option)}
@@ -185,7 +180,7 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
                   const is_disabled = is_second_disabled(option);
                   return (
                 <button
-                  className={get_picker_column_button_class_name(second === option)}
+                  className={get_picker_column_button_class_name(second === option, is_disabled)}
                   disabled={is_disabled}
                   key={option}
                   onClick={() => on_second_select(option)}

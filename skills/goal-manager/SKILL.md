@@ -1,0 +1,164 @@
+---
+name: goal-manager
+description: 当用户明确要求启动、设定、创建、继续、完成或阻塞当前会话的 Goal，或系统/开发者明确要求启用 Goal 长程执行时使用。先加载本 skill，再调用 mcp__nexus_goal__get_goal/create_goal/update_goal；不要用 /goal 文本命令。
+---
+
+# goal-manager
+
+你负责把用户对当前会话的长程目标需求稳定转换成 `nexus_goal` MCP 工具调用。Goal 是会话级长程目标，不是普通待办、定时提醒或 Room action。
+
+Skill 只负责加载这份使用说明，不会替你读取、创建、完成或阻塞 Goal。加载本 skill 后，必须继续调用当前模型工具列表中可见的 Goal MCP 工具；不要把“skill 文档里没有工具面板”误判成 Goal MCP 工具不可用。
+
+## 工具名
+
+Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前缀：
+
+- `mcp__nexus_goal__get_goal`
+- `mcp__nexus_goal__create_goal`
+- `mcp__nexus_goal__update_goal`
+
+如果运行时暴露的是 Codex/plain-tool 裸名 `get_goal`、`create_goal`、`update_goal`，它们是同一组 Goal 工具。优先调用当前工具列表中实际可见的名字；不要因为裸 `update_goal` 不存在就放弃，先找 `mcp__nexus_goal__update_goal`。
+
+判断工具是否可用，只看当前模型可见工具列表，不看 skill 文档本身。完成目标时，如果 `mcp__nexus_goal__update_goal` 可见，下一步必须调用它；只有运行时实际暴露为裸名时才调用裸 `update_goal`。
+
+## 必须遵守
+
+1. 用户明确要求“启动 Goal、设定目标、开启长期目标、持续完成 X、把 X 作为本轮目标”时，先调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）判断当前会话是否已有 Goal，再按需调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
+2. 只有用户或系统/开发者明确要求 Goal 时才创建；不要从普通问题、一次性任务、闲聊、自动标题或常规协作里推断 Goal。
+3. 不再使用 `/goal`、`/goal pause`、`/goal resume` 这类文本命令；产品入口是 UI 的“启动 Goal”和 `mcp__nexus_goal__*` 工具。
+4. Goal 属于当前会话。`mcp__nexus_goal__*` 工具会自动绑定当前 session，不要向用户索要 session_key，也不要自己拼 session_key。
+5. `token_budget` 只有在用户明确给出预算时才传；用户没有说预算就不要设置。
+6. 当前会话已有未结束 Goal 时，不要创建第二个 Goal；先说明已有目标，必要时让用户在面板清理/完成后再创建新的。
+7. 只有目标确实完成且没有剩余必要工作时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `complete`。
+8. 只有同一个阻塞条件在连续 Goal 续跑中重复出现，且没有用户输入或外部状态变化就无法推进时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `blocked`；不要因为一次不确定、需要澄清或暂时停顿就标记阻塞。
+9. 暂停、恢复、清理、预算限制和用量限制由用户或系统控制，不要用模型工具模拟这些状态。
+10. 用户要“提醒我、每天/每周、定时做某事”时，使用 `scheduled-task-manager` 和 `nexus_automation`，不要把定时任务创建成 Goal。
+
+## Room Goal 负责人
+
+当运行时明确告诉你当前 Goal 是 Room Goal，且你是负责人 Agent 时：
+
+- Goal 属于整个 Room，不是你的私人会话目标；你负责推进、协调、验收和最终标记完成。
+- 多成员 Room Goal 的可见协作是完成条件，不是可选优化；如果房间可见历史中还没有非负责人成员对当前 Goal 的实质贡献，负责人本轮必须先公开 `@成员名` 分派一个具体交付物。
+- 普通协作分派发公开 Room 消息，并在消息中 `@成员名` 指定一个要立刻行动的 Agent，让用户能看到负责人如何调度。
+- 公开 `@` 必须说明清楚交付物；不要用 `@` 描述计划、候选人或后续可能动作。
+- 首次公开分派时不要在同一轮调用 Goal 完成工具；等待被 `@` 成员在房间可见地回复后，再基于证据继续推进或验收。
+- 只有涉及隐私、密钥、隐藏收集、私下提醒或用户明确要求私下协作时，才使用 Room directed message。
+- 如果本轮最合适的动作是分派给其他成员，公开 `@` 后保持 Goal active；不要在等待成员回复前标记 complete。
+- 被分派结果返回后，负责人基于房间可见证据继续推进或完成审计；只有完整 Room 目标已验证，且已有非负责人协作证据时，才调用 Goal 更新工具标记 `complete`。
+
+## 工具顺序
+
+### 查看当前 Goal
+
+当用户问“现在目标是什么、进展如何、有没有 Goal”时：
+
+工具：`mcp__nexus_goal__get_goal`（或裸名 `get_goal`）
+
+```json
+{}
+```
+
+调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）后，用工具结果里的 `goal`、`remainingTokens` 回答；没有 Goal 时直接说明当前会话未启动 Goal。
+
+### 创建 Goal
+
+适用：
+
+- 用户说“启动 Goal：完成 X”
+- 用户说“接下来持续帮我完成 X”
+- 系统/开发者明确要求本会话进入 Goal 模式
+
+流程：
+
+1. 调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）。
+2. 如果 `goal` 为 `null`，调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
+3. 如果已有 Goal，说明当前目标，不创建新 Goal。
+
+示例：
+
+工具：`mcp__nexus_goal__create_goal`（或裸名 `create_goal`）
+
+```json
+{
+  "objective": "完成 Nexus Goal 功能与 Codex 行为对齐，并验证关键路径",
+  "token_budget": 200000
+}
+```
+
+没有明确预算时：
+
+```json
+{
+  "objective": "完成 Nexus Goal 功能与 Codex 行为对齐，并验证关键路径"
+}
+```
+
+### 完成 Goal
+
+适用：
+
+- 目标已完成
+- 所有必要验证已做完
+- 没有剩余必须继续处理的问题
+
+完成前先做一次简短但真实的完成审计：从 objective 和用户最新要求中提取必须满足的范围、交付物、验证命令、文件或运行状态，用当前事实逐项确认。不要因为已有进展、测试看起来相关、预算接近耗尽或准备停止而标记完成；只有当前证据证明完整目标成立时才调用工具。
+
+调用 Goal MCP 更新工具，不是只回复文字：
+
+工具：`mcp__nexus_goal__update_goal`（或裸名 `update_goal`）
+
+```json
+{
+  "status": "complete"
+}
+```
+
+工具成功后只发送一条简短最终回复，然后停止并等待用户输入；不要继续调用工具或开启新工作。最终回复应明确说当前 Goal 已完成、可以清理，不要描述成暂停；简短总结完成了什么，并包含工具结果 `completionBudgetReport` 给出的最终用量与耗时行。
+
+### 阻塞 Goal
+
+适用：
+
+- 同一个阻塞条件已经连续出现
+- 没有用户输入、权限、外部系统修复或外部状态变化就无法继续
+- 继续自动重试没有意义
+
+调用：
+
+```json
+{
+  "status": "blocked"
+}
+```
+
+阻塞前应先把具体缺口告诉用户。一次性澄清问题优先直接问用户，不要立刻把 Goal 置为 blocked。
+
+工具：`mcp__nexus_goal__update_goal`（或裸名 `update_goal`）
+
+## 判断边界
+
+创建 Goal：
+
+- “把修复发送失败作为当前 Goal”
+- “接下来持续检查并改到通过为止”
+- “启动一个目标：完成这个分支的 Goal 对齐”
+- “继续这个 Goal，直到和 Codex 几乎一致”
+
+不创建 Goal：
+
+- “帮我看一下这个报错”
+- “写个函数”
+- “明天提醒我开会”
+- “每天发新闻给我”
+- “总结一下这段对话”
+- “创建一个 Room”
+
+需要定时任务时转用 `scheduled-task-manager`；需要 Room 协作时转用 `nexus-manager` 或 Room skill。
+
+## 回复要求
+
+- 创建成功后，用一句话确认当前 Goal，不解释底层工具。
+- 已有 Goal 时，说明已有目标并给出下一步选择。
+- 完成或阻塞后，按工具结果简短说明状态。
+- 不向用户展示 JSON 参数，除非用户明确要求看调用细节。

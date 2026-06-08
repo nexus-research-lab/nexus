@@ -48,7 +48,6 @@ export interface UpdateConversationParams {
 }
 
 interface BaseSnapshotPayload {
-  message_count: number;
   last_activity_at?: number;
   session_id: string | null;
 }
@@ -79,7 +78,7 @@ export interface ConversationStoreState {
   error: string | null;
   sync_conversation_snapshot: (
     key: string,
-    patch: Partial<Pick<Conversation, "message_count" | "last_activity_at" | "session_id">>,
+    patch: Partial<Pick<Conversation, "last_activity_at" | "session_id">>,
   ) => void;
   load_conversations_from_server: () => Promise<void>;
   clear_all_conversations: () => void;

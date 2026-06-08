@@ -5,9 +5,9 @@ import { ReactNode } from "react";
 import { WorkspaceActionBar } from "../controls/workspace-action-bar";
 
 const EMPTY_STATE_SHELL_CLASS_NAME =
-  "surface-card mx-auto max-w-[40rem] rounded-[32px] px-6 py-7 text-center sm:px-8";
+  "mx-auto max-w-[40rem] border-y border-(--divider-subtle-color) px-6 py-7 text-center sm:px-8";
 const EMPTY_STATE_ICON_CLASS_NAME =
-  "chip-default mx-auto flex h-14 w-14 items-center justify-center rounded-[20px]";
+  "chip-default mx-auto flex h-14 w-14 items-center justify-center rounded-[14px]";
 
 interface WorkspaceEmptyStateProps {
   icon: ReactNode;

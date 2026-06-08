@@ -1,5 +1,5 @@
 /**
- * Claude Agent SDK 类型定义
+ * Agent SDK 类型定义
  *
  * [INPUT]: 无
  * [OUTPUT]: 对外提供 UUID, SessionId, ToolInput, ToolOutput
@@ -11,7 +11,7 @@
 
 export type UUID = string;
 
-/** SDK Session ID — Claude SDK 生成的 session 标识 */
+/** SDK Session ID — Agent SDK 生成的 session 标识 */
 export type SessionId = string;
 
 export type ToolInput = Record<string, any>;

@@ -9,6 +9,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) ensureSession(
@@ -183,6 +184,23 @@ func (s *Service) recordRoundMarker(
 	)
 }
 
+func (s *Service) recordRoundMarkerWithOptions(
+	workspacePath string,
+	sessionValue protocol.Session,
+	roundID string,
+	content string,
+	options workspacestore.RoundMarkerOptions,
+) error {
+	return s.history.AppendRoundMarkerWithOptions(
+		workspacePath,
+		sessionValue.SessionKey,
+		roundID,
+		content,
+		time.Now().UnixMilli(),
+		options,
+	)
+}
+
 func (s *Service) syncSDKSessionID(
 	ctx context.Context,
 	workspacePath string,
@@ -225,4 +243,35 @@ func (s *Service) syncSDKSessionID(
 		}
 	}
 	return *updated, nil
+}
+
+func (s *Service) clearReusableSDKSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+) (protocol.Session, error) {
+	current.SessionID = nil
+	current = closePersistedSessionMeta(current)
+	updated, err := s.files.UpsertSession(workspacePath, current)
+	if err != nil {
+		return protocol.Session{}, err
+	}
+	if updated != nil {
+		current = *updated
+	}
+	if err := s.clearRoomSDKSessionID(ctx, current); err != nil {
+		return protocol.Session{}, err
+	}
+	return current, nil
+}
+
+func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Session) error {
+	if s.roomStore == nil || current.RoomSessionID == nil {
+		return nil
+	}
+	roomSessionID := strings.TrimSpace(*current.RoomSessionID)
+	if roomSessionID == "" {
+		return nil
+	}
+	return s.roomStore.UpdateRoomSessionSDKSessionID(ctx, roomSessionID, "")
 }

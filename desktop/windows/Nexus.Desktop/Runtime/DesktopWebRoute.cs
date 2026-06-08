@@ -6,7 +6,7 @@ public sealed record DesktopWebRoute(string Path, string Entry)
 {
     private const string OAuthCallbackPath = "/capability/connectors/oauth/callback";
 
-    public static DesktopWebRoute Launcher { get; } = new("/", "app");
+    public static DesktopWebRoute Launcher { get; } = new("/launcher", "app");
     public static DesktopWebRoute App { get; } = new("/app", "app");
     public static DesktopWebRoute Settings { get; } = new("/settings", "settings");
 

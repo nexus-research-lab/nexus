@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { is_main_agent } from "@/config/options";
 import {
   add_room_member,
+  close_room_conversation_runtime,
   create_room_conversation,
   delete_room,
   delete_room_conversation,
@@ -91,6 +92,10 @@ export function useRoomPageController({
     return resolve_room_member_agents(scoped_room_contexts);
   }, [scoped_room_contexts]);
 
+  const workspace_agent_ids = useMemo(() => {
+    return room_member_agents.map((agent) => agent.agent_id);
+  }, [room_member_agents]);
+
   const room_conversations = useMemo<RoomConversationView[]>(() => {
     return build_room_conversation_views(scoped_room_contexts);
   }, [scoped_room_contexts]);
@@ -170,6 +175,7 @@ export function useRoomPageController({
 
   const workspace = useHomeWorkspaceController({
     current_agent_id: current_agent?.agent_id ?? null,
+    workspace_agent_ids,
   });
 
   const handle_select_agent = useCallback((agent_id: string) => {
@@ -200,7 +206,6 @@ export function useRoomPageController({
       : undefined;
 
     const next_snapshot = {
-      message_count: snapshot.message_count,
       ...(snapshot.last_activity_at ? { last_activity_at: snapshot.last_activity_at } : {}),
       session_id: snapshot.session_id,
     };
@@ -219,10 +224,8 @@ export function useRoomPageController({
 
         let context_changed = false;
         const next_conversation_updated_at = next_last_activity_at ?? context.conversation.updated_at;
-        const next_conversation_message_count = snapshot.message_count;
         const conversation_changed =
-          context.conversation.updated_at !== next_conversation_updated_at ||
-          (context.conversation.message_count ?? 0) !== next_conversation_message_count;
+          context.conversation.updated_at !== next_conversation_updated_at;
 
         const next_sessions = context.sessions.map((session) => {
           if (!snapshot_room_session_id || session.id !== snapshot_room_session_id) {
@@ -259,7 +262,6 @@ export function useRoomPageController({
           ...context,
           conversation: {
             ...context.conversation,
-            message_count: next_conversation_message_count,
             updated_at: next_conversation_updated_at,
           },
           sessions: next_sessions,
@@ -318,6 +320,13 @@ export function useRoomPageController({
     await refresh_room_contexts(room_id);
     return fallback_context.conversation.id;
   }, [refresh_room_contexts, room_id]);
+
+  const handle_close_conversation = useCallback(async (conversation_id: string) => {
+    if (!room_id) {
+      return;
+    }
+    await close_room_conversation_runtime(room_id, conversation_id);
+  }, [room_id]);
 
   const handle_update_conversation_title = useCallback(async (conversation_id: string, title: string) => {
     if (!room_id) return;
@@ -430,6 +439,7 @@ export function useRoomPageController({
     handle_open_conversation_from_launcher,
     handle_refresh_room_state,
     handle_conversation_snapshot_change,
+    handle_close_conversation,
     handle_delete_conversation,
     handle_update_conversation_title,
     handle_update_room,
@@ -447,7 +457,7 @@ export function useRoomPageController({
     handle_select_conversation, handle_back_to_directory, handle_delete_agent,
     handle_create_conversation, handle_save_agent_options, handle_save_existing_room_member_options, handle_validate_agent_name, handle_validate_agent_name_for_agent,
     handle_open_conversation_from_launcher, handle_refresh_room_state, handle_conversation_snapshot_change,
-    handle_delete_conversation, handle_update_conversation_title, handle_update_room, handle_delete_room,
+    handle_close_conversation, handle_delete_conversation, handle_update_conversation_title, handle_update_room, handle_delete_room,
     handle_add_room_member, handle_remove_room_member, handle_prepare_room_agent_catalog, room_id, workspace,
   ]);
 }

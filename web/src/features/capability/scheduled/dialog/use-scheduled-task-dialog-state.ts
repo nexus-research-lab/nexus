@@ -26,6 +26,7 @@ import {
   type ScheduledTaskDialogSubmitState,
 } from "./scheduled-task-dialog-submit";
 import type {
+  ExecutionKind,
   ExecutionMode,
   ReplyMode,
   TargetType,
@@ -51,6 +52,7 @@ export function useScheduledTaskDialogState({
   const name_ref = useRef<HTMLInputElement>(null);
   const [task_name, set_task_name] = useState("");
   const [target_type, set_target_type_state] = useState<TargetType>("agent");
+  const [execution_kind, set_execution_kind_state] = useState<ExecutionKind>("agent");
   const [selected_agent_id, set_selected_agent_id_state] = useState(agent_id);
   const [selected_room_id, set_selected_room_id_state] = useState("");
   const [execution_mode, set_execution_mode_state] = useState<ExecutionMode>("existing");
@@ -77,9 +79,26 @@ export function useScheduledTaskDialogState({
   }, []);
 
   const set_target_type = useCallback((value: TargetType) => {
+    if (execution_kind === "script") {
+      set_target_type_state("agent");
+      return;
+    }
     set_target_type_state(value);
     reset_context_selection();
-  }, [reset_context_selection]);
+  }, [execution_kind, reset_context_selection]);
+
+  const set_execution_kind = useCallback((value: ExecutionKind) => {
+    set_execution_kind_state(value);
+    if (value === "script") {
+      set_target_type_state("agent");
+      set_execution_mode_state("temporary");
+      set_reply_mode("none");
+      set_selected_session_key_state("");
+      set_selected_reply_session_key_state("");
+      set_dedicated_session_key("");
+    }
+    set_error_message(null);
+  }, []);
 
   const set_selected_agent_id = useCallback((value: string) => {
     set_selected_agent_id_state(value);
@@ -117,16 +136,17 @@ export function useScheduledTaskDialogState({
     selected_room_id,
   });
 
-  const selected_session = data.session_options.find((option) => option.session_key === selected_session_key) ?? null;
-  const selected_reply_session = data.session_options.find((option) => option.session_key === selected_reply_session_key) ?? null;
+  const selected_session = data.session_options.find((option) => option.value === selected_session_key) ?? null;
+  const selected_reply_session = data.session_options.find((option) => option.value === selected_reply_session_key) ?? null;
 
   const apply_dialog_initial_state = useCallback(() => {
     const next_state = initial_task
-      ? build_task_dialog_initial_state(agent_id, initial_task)
+      ? build_task_dialog_initial_state(initial_task)
       : build_default_dialog_initial_state(agent_id);
 
     set_task_name(next_state.task_name);
     set_target_type_state(next_state.target_type);
+    set_execution_kind_state(next_state.execution_kind);
     set_selected_agent_id_state(next_state.selected_agent_id);
     set_selected_room_id_state(next_state.selected_room_id);
     set_execution_mode_state(next_state.execution_mode);
@@ -151,6 +171,7 @@ export function useScheduledTaskDialogState({
     return {
       task_name,
       target_type,
+      execution_kind,
       selected_agent_id,
       selected_room_id,
       execution_mode,
@@ -175,7 +196,7 @@ export function useScheduledTaskDialogState({
   }
 
   function is_room_executor_selection_required() {
-    return target_type === "room" && execution_mode !== "existing";
+    return execution_kind !== "script" && target_type === "room" && execution_mode !== "existing";
   }
 
   async function handle_submit() {
@@ -237,6 +258,8 @@ export function useScheduledTaskDialogState({
     set_task_name,
     target_type,
     set_target_type,
+    execution_kind,
+    set_execution_kind,
     selected_agent_id,
     set_selected_agent_id,
     selected_room_id,

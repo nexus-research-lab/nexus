@@ -11,6 +11,7 @@ export type ScheduledTaskDeliveryMode = "none" | "last" | "explicit";
 export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
 export type ScheduledTaskSourceContextType = "agent" | "room" | "chat";
 export type ScheduledTaskOverlapPolicy = "skip" | "allow";
+export type ScheduledTaskExecutionKind = "agent" | "script";
 export type ScheduledTaskRunLedgerStatus =
   | "pending"
   | "running"
@@ -20,6 +21,13 @@ export type ScheduledTaskRunLedgerStatus =
   | "queued_to_main_session"
   | "skipped";
 export type ScheduledTaskExecutionStatus = ScheduledTaskRunLedgerStatus;
+export type ScheduledTaskDeliveryStatus =
+  | "not_required"
+  | "skipped"
+  | "succeeded"
+  | "failed"
+  | "not_attempted"
+  | "pending";
 
 export type ScheduledTaskSchedule =
   | {
@@ -94,6 +102,7 @@ export interface ApiScheduledTask {
   agent_id: string;
   schedule: ScheduledTaskSchedule;
   instruction: string;
+  execution_kind?: ScheduledTaskExecutionKind | null;
   session_target: ScheduledTaskSessionTarget;
   delivery: ScheduledTaskDeliveryTarget;
   source: ScheduledTaskSource;
@@ -101,12 +110,20 @@ export interface ApiScheduledTask {
   enabled: boolean;
   next_run_at?: string | null;
   running: boolean;
+  running_run_id?: string | null;
+  running_started_at?: string | null;
   last_run_at?: string | null;
+  last_run_status?: ScheduledTaskRunLedgerStatus | string | null;
+  failure_streak?: number | null;
+  last_error?: string | null;
+  last_delivery_status?: string | null;
 }
 
-export interface ScheduledTaskItem extends Omit<ApiScheduledTask, "next_run_at" | "last_run_at"> {
+export interface ScheduledTaskItem extends Omit<ApiScheduledTask, "next_run_at" | "running_started_at" | "last_run_at" | "failure_streak"> {
   next_run_at: number | null;
+  running_started_at: number | null;
   last_run_at: number | null;
+  failure_streak: number;
 }
 
 export interface ListScheduledTasksParams {
@@ -119,6 +136,7 @@ export interface CreateScheduledTaskParams {
   schedule: ScheduledTaskSchedule;
   session_target?: ScheduledTaskSessionTarget;
   instruction: string;
+  execution_kind?: ScheduledTaskExecutionKind;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
   overlap_policy?: ScheduledTaskOverlapPolicy;
@@ -130,6 +148,7 @@ export interface UpdateScheduledTaskParams {
   agent_id?: string;
   schedule?: ScheduledTaskSchedule;
   instruction?: string;
+  execution_kind?: ScheduledTaskExecutionKind;
   session_target?: ScheduledTaskSessionTarget;
   delivery?: ScheduledTaskDeliveryTarget;
   source?: ScheduledTaskSource;
@@ -141,8 +160,17 @@ export interface UpdateScheduledTaskStatusParams {
   enabled: boolean;
 }
 
+export interface RecoverScheduledTaskRunParams {
+  run_id?: string;
+}
+
 export interface DeleteScheduledTaskResponse {
   job_id: string;
+  agent_id?: string | null;
+  deleted?: boolean;
+  active_run_id?: string | null;
+  cancelled_run_id?: string | null;
+  cancelled_active_run?: boolean;
 }
 
 export interface ApiScheduledTaskRun {
@@ -156,18 +184,168 @@ export interface ApiScheduledTaskRun {
   message_count?: number | null;
   delivery_mode?: ScheduledTaskDeliveryMode | string | null;
   delivery_to?: string | null;
+  delivery_status?: ScheduledTaskDeliveryStatus | string | null;
+  delivery_error?: string | null;
+  delivered_at?: string | null;
+  delivery_attempts?: number | null;
+  delivery_next_attempt_at?: string | null;
+  delivery_dead_letter_at?: string | null;
   scheduled_for?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
   attempts: number;
   error_message?: string | null;
   result_summary?: string | null;
+  assistant_text?: string | null;
+  result_text?: string | null;
+  artifact_path?: string | null;
 }
 
-export interface ScheduledTaskRunItem extends Omit<ApiScheduledTaskRun, "scheduled_for" | "started_at" | "finished_at"> {
+export interface ScheduledTaskRunItem extends Omit<ApiScheduledTaskRun, "scheduled_for" | "started_at" | "finished_at" | "delivered_at" | "delivery_next_attempt_at" | "delivery_dead_letter_at"> {
   scheduled_for: number | null;
   started_at: number | null;
   finished_at: number | null;
+  delivered_at: number | null;
+  delivery_next_attempt_at: number | null;
+  delivery_dead_letter_at: number | null;
+}
+
+export interface ApiScheduledTaskEvent {
+  event_id: string;
+  job_id: string;
+  agent_id: string;
+  action: string;
+  actor_user_id?: string | null;
+  actor_agent_id?: string | null;
+  run_id?: string | null;
+  detail?: Record<string, unknown> | null;
+  created_at?: string | null;
+}
+
+export interface ScheduledTaskEventItem extends Omit<ApiScheduledTaskEvent, "created_at"> {
+  created_at: number | null;
+}
+
+export interface ScheduledTaskHealth {
+  state: string;
+  signals?: string[];
+  suggested_tools?: string[];
+  recovery_available: boolean;
+  recovery_run_id?: string;
+  manual_redelivery_available: boolean;
+  manual_redelivery_run_ids?: string[];
+  delivery_failed_run_count?: number;
+  delivery_pending_run_count?: number;
+  delivery_pending_run_ids?: string[];
+  delivery_skipped_run_count?: number;
+  delivery_skipped_run_ids?: string[];
+  delivery_dead_letter_count?: number;
+  delivery_dead_letter_run_ids?: string[];
+  failed_run_count?: number;
+  execution_failed_run_ids?: string[];
+  latest_execution_error?: string | null;
+  latest_delivery_error?: string | null;
+  running_for_seconds?: number;
+}
+
+export interface ApiScheduledTaskStatus {
+  job: ApiScheduledTask;
+  health: ScheduledTaskHealth;
+  recent_runs: ApiScheduledTaskRun[];
+  recent_events: ApiScheduledTaskEvent[];
+}
+
+export interface ScheduledTaskStatusItem {
+  job: ScheduledTaskItem;
+  health: ScheduledTaskHealth;
+  recent_runs: ScheduledTaskRunItem[];
+  recent_events: ScheduledTaskEventItem[];
+}
+
+export interface ScheduledTaskDailyReportTotals {
+  task_count: number;
+  enabled_task_count: number;
+  running_task_count: number;
+  run_count: number;
+  succeeded_run_count: number;
+  failed_run_count: number;
+  cancelled_run_count: number;
+  skipped_run_count: number;
+  delivered_run_count: number;
+  delivery_failed_run_count: number;
+  delivery_pending_run_count: number;
+  delivery_skipped_run_count: number;
+  delivery_dead_letter_run_count: number;
+  delivery_not_needed_count: number;
+  delivery_not_attempted_count: number;
+}
+
+export interface ApiScheduledTaskDailyReportTask {
+  job_id: string;
+  name: string;
+  agent_id: string;
+  deleted?: boolean;
+  enabled: boolean;
+  running: boolean;
+  running_run_id?: string | null;
+  recovery_run_id?: string | null;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  last_run_status?: ScheduledTaskRunLedgerStatus | string | null;
+  last_delivery_status?: string | null;
+  failure_streak?: number | null;
+  last_error?: string | null;
+  latest_execution_error?: string | null;
+  latest_delivery_error?: string | null;
+  signals?: string[];
+  suggested_tools?: string[];
+  execution_failed_run_ids?: string[];
+  manual_redelivery_run_ids?: string[];
+  delivery_pending_run_ids?: string[];
+  delivery_skipped_run_ids?: string[];
+  delivery_dead_letter_run_ids?: string[];
+  runs: ApiScheduledTaskRun[];
+  totals: ScheduledTaskDailyReportTotals;
+}
+
+export interface ScheduledTaskDailyReportTask extends Omit<ApiScheduledTaskDailyReportTask, "next_run_at" | "last_run_at" | "failure_streak" | "runs"> {
+  next_run_at: number | null;
+  last_run_at: number | null;
+  failure_streak: number;
+  runs: ScheduledTaskRunItem[];
+}
+
+export interface ApiScheduledTaskDailyReport {
+  date: string;
+  timezone: string;
+  agent_id?: string | null;
+  job_id?: string | null;
+  start_at: string;
+  end_at: string;
+  totals: ScheduledTaskDailyReportTotals;
+  tasks: ApiScheduledTaskDailyReportTask[];
+}
+
+export interface ScheduledTaskDailyReport extends Omit<ApiScheduledTaskDailyReport, "start_at" | "end_at" | "tasks"> {
+  start_at: number | null;
+  end_at: number | null;
+  tasks: ScheduledTaskDailyReportTask[];
+}
+
+export interface GetScheduledTaskStatusParams {
+  run_limit?: number;
+  event_limit?: number;
+}
+
+export interface ListScheduledTaskEventsParams {
+  limit?: number;
+}
+
+export interface GetScheduledTaskDailyReportParams {
+  date?: string;
+  timezone?: string;
+  agent_id?: string;
+  job_id?: string;
 }
 
 export interface ApiScheduledTaskExecutionResult {

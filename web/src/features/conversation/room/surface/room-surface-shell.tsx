@@ -42,6 +42,7 @@ interface RoomSurfaceShellProps {
   on_back_to_directory: () => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
   on_select_conversation: (conversation_id: string) => void;
+  on_close_conversation: (conversation_id: string) => Promise<void>;
   on_delete_conversation: (conversation_id: string) => Promise<string | null>;
   on_add_room_member: (agent_id: string) => Promise<void>;
   on_remove_room_member: (agent_id: string) => Promise<void>;
@@ -86,6 +87,7 @@ export function RoomSurfaceShell({
   on_back_to_directory,
   on_create_conversation,
   on_select_conversation,
+  on_close_conversation,
   on_delete_conversation,
   on_add_room_member,
   on_remove_room_member,
@@ -120,12 +122,7 @@ export function RoomSurfaceShell({
   }, [on_select_conversation]);
 
   const handle_change_surface_tab = useCallback((next_tab: RoomSurfaceTabKey) => {
-    set_active_surface_tab((current_tab) => {
-      if (next_tab === "chat") {
-        return "chat";
-      }
-      return next_tab;
-    });
+    set_active_surface_tab(next_tab);
   }, []);
 
   const handle_create_conversation_in_shell = useCallback(async (title?: string) => {
@@ -148,6 +145,8 @@ export function RoomSurfaceShell({
         current_room_type={current_room_type}
         room_id={room_id}
         room_members={room_members}
+        room_host_agent_id={room_host_agent_id}
+        room_host_auto_reply_enabled={room_host_auto_reply_enabled}
         current_room_conversation={current_room_conversation}
         current_agent_session_identity={current_agent_session_identity}
         conversation_id={conversation_id}
@@ -198,6 +197,7 @@ export function RoomSurfaceShell({
       on_change_surface_tab={handle_change_surface_tab}
       on_conversation_snapshot_change={on_conversation_snapshot_change}
       on_create_conversation={handle_create_conversation_in_shell}
+      on_close_conversation={on_close_conversation}
       on_delete_conversation={on_delete_conversation}
       on_loading_change={on_loading_change}
       on_open_workspace_file={handle_open_workspace_file_in_shell}

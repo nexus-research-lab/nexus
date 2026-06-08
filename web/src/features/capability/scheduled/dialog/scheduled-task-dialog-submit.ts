@@ -25,6 +25,7 @@ import {
 } from "./scheduled-task-dialog-time";
 import type {
   EveryUnit,
+  ExecutionKind,
   ExecutionMode,
   ReplyMode,
   ScheduledTaskDialogLabelOption,
@@ -36,6 +37,7 @@ import type { Weekday } from "../pickers/picker-types";
 export interface ScheduledTaskDialogSubmitState {
   task_name: string;
   target_type: TargetType;
+  execution_kind: ExecutionKind;
   selected_agent_id: string;
   selected_room_id: string;
   execution_mode: ExecutionMode;
@@ -59,6 +61,16 @@ export interface ScheduledTaskDialogSubmitState {
 }
 
 function build_session_target(state: ScheduledTaskDialogSubmitState): ScheduledTaskSessionTarget {
+  if (state.target_type === "room") {
+    if (!state.selected_session) {
+      throw new Error("请选择执行成员");
+    }
+    return {
+      kind: "bound",
+      bound_session_key: state.selected_session.session_key,
+      wake_mode: "next-heartbeat",
+    };
+  }
   if (state.execution_mode === "main") {
     return { kind: "main", wake_mode: "next-heartbeat" };
   }
@@ -88,7 +100,7 @@ function build_delivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDel
     }
     if (state.execution_mode === "existing" || state.target_type === "room") {
       if (!state.selected_session) {
-        throw new Error(state.target_type === "room" ? "请选择一个 Room 会话作为回传目标" : "请选择执行会话");
+        throw new Error(state.target_type === "room" ? "请选择执行成员" : "请选择执行会话");
       }
       return { mode: "explicit", channel: "websocket", to: state.selected_session.session_key };
     }
@@ -101,11 +113,14 @@ function build_delivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDel
 }
 
 function resolve_agent_id_for_task(state: ScheduledTaskDialogSubmitState): string {
+  if (state.execution_kind === "script") {
+    return state.selected_agent_id.trim();
+  }
   if (state.target_type === "agent") {
     return state.selected_agent_id.trim();
   }
   if (!state.selected_session) {
-    throw new Error("请选择一个 Room 会话来确定执行智能体");
+    throw new Error("请选择执行成员");
   }
   return state.selected_session.agent_id;
 }
@@ -135,6 +150,17 @@ function build_source_snapshot(
 ): ScheduledTaskSource {
   const selected_agent = state.agent_options.find((option) => option.value === state.selected_agent_id);
   const selected_room = state.room_options.find((option) => option.value === state.selected_room_id);
+  if (state.execution_kind === "script") {
+    return {
+      kind: (original_source?.kind || "user_page") as ScheduledTaskSourceKind,
+      creator_agent_id: original_source?.creator_agent_id ?? null,
+      context_type: "agent",
+      context_id: state.selected_agent_id.trim(),
+      context_label: selected_agent?.label || state.selected_agent_id.trim(),
+      session_key: null,
+      session_label: null,
+    };
+  }
   return {
     kind: (original_source?.kind || "user_page") as ScheduledTaskSourceKind,
     creator_agent_id: original_source?.creator_agent_id ?? null,
@@ -153,26 +179,32 @@ export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSu
     return "请输入任务名称";
   }
   if (!state.instruction.trim()) {
-    return "请输入任务指令";
+    return state.execution_kind === "script" ? "请输入脚本内容" : "请输入任务指令";
   }
-  if (state.target_type === "agent") {
+  if (state.execution_kind === "script") {
+    if (!state.selected_agent_id.trim()) {
+      return "请选择智能体";
+    }
+  } else if (state.target_type === "agent") {
     if (!state.selected_agent_id.trim()) {
       return "请选择智能体";
     }
   } else if (!state.selected_room_id.trim()) {
     return "请选择 Room";
   }
-  if (state.execution_mode === "existing" && !state.selected_session_key.trim()) {
-    return "请选择执行会话";
-  }
-  if (state.target_type === "room" && state.execution_mode !== "existing" && !state.selected_session_key.trim()) {
-    return "请选择一个 Room 会话来确定执行智能体";
-  }
-  if (state.execution_mode === "dedicated" && !state.dedicated_session_key.trim()) {
-    return "请输入专用长期会话名称";
-  }
-  if (state.reply_mode === "selected" && !state.selected_reply_session_key.trim()) {
-    return "请选择回复会话";
+  if (state.execution_kind !== "script") {
+    if (state.target_type === "room" && !state.selected_session_key.trim()) {
+      return "请选择执行成员";
+    }
+    if (state.execution_mode === "existing" && !state.selected_session_key.trim()) {
+      return "请选择执行会话";
+    }
+    if (state.execution_mode === "dedicated" && !state.dedicated_session_key.trim()) {
+      return "请输入专用长期会话名称";
+    }
+    if (state.reply_mode === "selected" && !state.selected_reply_session_key.trim()) {
+      return "请选择回复会话";
+    }
   }
   if (state.schedule_kind === "every" && to_interval_seconds(state.every_value, state.every_unit) === null) {
     return "循环间隔必须是大于 0 的整数";
@@ -192,7 +224,7 @@ export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSu
       return "单次执行时间必须晚于当前时间";
     }
   }
-  if (state.execution_mode === "main" && state.reply_mode !== "none") {
+  if (state.execution_kind !== "script" && state.execution_mode === "main" && state.reply_mode !== "none") {
     return "主会话任务暂不支持额外结果回传";
   }
   return null;
@@ -203,10 +235,24 @@ export function build_scheduled_task_payload(
   original_source?: ScheduledTaskSource | null,
 ): CreateScheduledTaskParams {
   const resolved_agent_id = resolve_agent_id_for_task(state);
+  if (state.execution_kind === "script") {
+    return {
+      name: state.task_name.trim(),
+      schedule: build_schedule(state),
+      instruction: state.instruction.trim(),
+      execution_kind: "script",
+      session_target: { kind: "isolated", wake_mode: "next-heartbeat" },
+      delivery: { mode: "none" },
+      source: build_source_snapshot(state, original_source),
+      enabled: state.enabled,
+      agent_id: resolved_agent_id,
+    };
+  }
   return {
     name: state.task_name.trim(),
     schedule: build_schedule(state),
     instruction: state.instruction.trim(),
+    execution_kind: "agent",
     session_target: build_session_target(state),
     delivery: build_delivery(state),
     source: build_source_snapshot(state, original_source),

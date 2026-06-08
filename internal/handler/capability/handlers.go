@@ -49,13 +49,14 @@ func New(
 
 // HandleCapabilitySummary 返回能力摘要。
 func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *http.Request) {
+	ownerUserID := authsvc.OwnerUserID(request.Context())
 	skillCount, err := h.skills.CountSkills(request.Context(), skillspkg.Query{})
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	connectorCount, err := h.connectors.GetConnectedCount(request.Context())
+	connectorCount, err := h.connectors.GetConnectedCount(request.Context(), ownerUserID)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
@@ -69,7 +70,6 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 	configuredChannelCount := 0
 	activePairingCount := 0
 	if h.channels != nil {
-		ownerUserID := authsvc.OwnerUserID(request.Context())
 		configuredChannelCount, err = h.channels.CountConfiguredChannels(request.Context(), ownerUserID)
 		if err != nil {
 			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())

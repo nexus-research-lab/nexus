@@ -84,6 +84,35 @@ export const disconnect_connector_api = async (
   );
 };
 
+/** 保存用户自有 OAuth Client 配置 */
+export const save_connector_oauth_client_api = async (
+  connector_id: string,
+  body: {
+    client_id: string;
+    client_secret: string;
+  },
+): Promise<ConnectorInfo> => {
+  return request_api<ConnectorInfo>(
+    `${BASE}/connectors/${connector_id}/oauth-client`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+  );
+};
+
+/** 删除用户自有 OAuth Client 配置 */
+export const delete_connector_oauth_client_api = async (
+  connector_id: string,
+): Promise<ConnectorInfo> => {
+  return request_api<ConnectorInfo>(
+    `${BASE}/connectors/${connector_id}/oauth-client`,
+    {
+      method: "DELETE",
+    },
+  );
+};
+
 /** 获取 OAuth 授权 URL */
 export const get_connector_auth_url_api = async (
   connector_id: string,

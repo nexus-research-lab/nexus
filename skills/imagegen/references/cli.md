@@ -1,6 +1,6 @@
 # CLI Reference
 
-本文件只描述 `nexusctl imagegen` 的 Agent 调用方式。Provider 配置、鉴权、接口兼容和响应解析都由 Nexus Go 服务处理，不属于 skill 的判断职责。
+本文件只描述 `nexusctl imagegen` 的兜底调用方式。普通生成/编辑应优先使用内置 `nexus_imagegen` 工具；只有用户明确要求 CLI、Provider/模型覆盖，或排查工具链问题时才使用这里的命令。Provider 配置、鉴权、接口兼容和响应解析都由 Nexus Go 服务处理，不属于 skill 的判断职责。
 
 ## 命令
 
@@ -50,8 +50,9 @@ nexusctl imagegen edit \
 ## 常用参数
 
 - `--prompt` / `--prompt-file`：二选一。
-- `--provider`：可选；不传则使用默认图片 Provider。
-- `--workspace-path`：可选；不传则使用当前目录。
+- `--provider`：可选；不传则使用默认生图模型。
+- `--model`：可选；指定时需同时指定 `--provider`，用于覆盖默认生图模型。
+- `--workspace-path`：可选；Agent 运行时不传则使用注入的 workspace，手工终端调用时回退到当前目录。
 - `--size`：例如 `1024x1024`。
 - `--quality`：由 Provider 支持情况决定，常用 `low` 做草稿。
 - `--output-format`：常用 `png`，透明后处理资产优先 `png` 或 `webp`。

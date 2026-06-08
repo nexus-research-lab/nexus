@@ -1,0 +1,70 @@
+"use client";
+
+import { type HTMLAttributes, type ReactNode } from "react";
+
+import { cn } from "@/lib/utils";
+import {
+  get_ui_state_block_class_name,
+  type UiStateBlockSize,
+  type UiStateBlockTone,
+  type UiStateBlockVariant,
+} from "@/shared/ui/state-block-styles";
+
+interface UiStateBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+  actions?: ReactNode;
+  class_name?: string;
+  description?: ReactNode;
+  icon?: ReactNode;
+  size?: UiStateBlockSize;
+  title?: ReactNode;
+  tone?: UiStateBlockTone;
+  variant?: UiStateBlockVariant;
+}
+
+export function UiStateBlock({
+  actions,
+  children,
+  class_name,
+  className,
+  description,
+  icon,
+  size,
+  title,
+  tone = "default",
+  variant,
+  ...props
+}: UiStateBlockProps) {
+  return (
+    <div
+      className={get_ui_state_block_class_name(
+        { size, tone, variant },
+        cn(className, class_name),
+      )}
+      {...props}
+    >
+      {icon ? (
+        <div className="chip-default flex h-14 w-14 items-center justify-center rounded-[20px]">
+          {icon}
+        </div>
+      ) : null}
+      {title ? (
+        <h3
+          className={cn(
+            "mt-5 text-lg font-bold tracking-[-0.03em]",
+            tone === "danger" ? "text-(--destructive)" : "text-(--text-strong)",
+            !icon && "mt-0",
+          )}
+        >
+          {title}
+        </h3>
+      ) : null}
+      {description ? (
+        <p className="mt-2 max-w-md text-sm leading-6 text-(--text-default)">
+          {description}
+        </p>
+      ) : null}
+      {children}
+      {actions ? <div className="mt-4 flex flex-wrap items-center justify-center gap-3">{actions}</div> : null}
+    </div>
+  );
+}

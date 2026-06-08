@@ -15,17 +15,23 @@ internal sealed class WebViewHost : IDisposable
     private readonly WebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
+    private readonly Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
+    private bool resumeCheckInFlight;
+    private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
+    private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
 
     public WebViewHost(
         WebView2 webView,
         SidecarRuntimeConfig runtime,
-        DesktopStartupTimeline startupTimeline)
+        DesktopStartupTimeline startupTimeline,
+        Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
+        this.recreateAfterProcessFailureAsync = recreateAfterProcessFailureAsync;
     }
 
     public async Task InitializeAsync()
@@ -37,7 +43,12 @@ internal sealed class WebViewHost : IDisposable
 
         var options = new CoreWebView2EnvironmentOptions
         {
-            AdditionalBrowserArguments = "--disable-renderer-backgrounding --disable-background-timer-throttling --disable-backgrounding-occluded-windows",
+            AdditionalBrowserArguments = string.Join(
+                " ",
+                "--disable-renderer-backgrounding",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-features=CalculateNativeWinOcclusion"),
         };
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder, options);
         await webView.EnsureCoreWebView2Async(environment);
@@ -61,11 +72,12 @@ internal sealed class WebViewHost : IDisposable
         core.NewWindowRequested += HandleNewWindowRequested;
         core.ProcessFailed += (_, args) =>
         {
-            startupTimeline.Mark("webview.process_failed", new Dictionary<string, string>
+            Dictionary<string, string> metadata = new()
             {
                 ["kind"] = args.ProcessFailedKind.ToString(),
-            });
-            DesktopDiagnosticsReport.WriteRuntimeIssue(
+                ["path"] = lastRoute.Path,
+            };
+            string? diagnosticsPath = DesktopDiagnosticsReport.WriteRuntimeIssue(
                 prefix: "webview-process-failed",
                 reason: args.ProcessFailedKind.ToString(),
                 runtime: runtime,
@@ -73,7 +85,14 @@ internal sealed class WebViewHost : IDisposable
                 details: new Dictionary<string, object?>
                 {
                     ["process_failed_kind"] = args.ProcessFailedKind.ToString(),
+                    ["route_path"] = lastRoute.Path,
                 });
+            if (!string.IsNullOrWhiteSpace(diagnosticsPath))
+            {
+                metadata["diagnostics_path"] = diagnosticsPath;
+            }
+            startupTimeline.Mark("webview.process_failed", metadata);
+            _ = recreateAfterProcessFailureAsync(lastRoute, args.ProcessFailedKind.ToString());
         };
         startupTimeline.Mark("webview.initialize_ready");
     }
@@ -82,12 +101,81 @@ internal sealed class WebViewHost : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         Uri url = route.ToUri(runtime);
+        lastRoute = route;
         startupTimeline.Mark("main_window.route_load", new Dictionary<string, string>
         {
             ["path"] = route.Path,
         });
         webView.Source = url;
         return Task.CompletedTask;
+    }
+
+    public async Task RecoverAfterWindowShownAsync(string reason)
+    {
+        if (disposed || resumeCheckInFlight || webView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (now - lastResumeCheckAt < TimeSpan.FromSeconds(5))
+        {
+            return;
+        }
+
+        lastResumeCheckAt = now;
+        resumeCheckInFlight = true;
+        try
+        {
+            webView.InvalidateVisual();
+            webView.UpdateLayout();
+            await Task.Delay(150);
+            if (disposed || webView.CoreWebView2 is null)
+            {
+                return;
+            }
+
+            string result = await webView.CoreWebView2.ExecuteScriptAsync(
+                """
+                (() => {
+                  window.dispatchEvent(new Event("resize"));
+                  document.documentElement.style.setProperty("--nexus-webview-resume", String(Date.now()));
+                  if (document.body) {
+                    document.body.getBoundingClientRect();
+                  }
+                  const root = document.getElementById("root");
+                  return Boolean(root && root.childElementCount > 0 && document.readyState !== "loading");
+                })();
+                """);
+            if (IsTruthyScriptResult(result))
+            {
+                startupTimeline.Mark("webview.resume_check_ready", new Dictionary<string, string>
+                {
+                    ["path"] = lastRoute.Path,
+                    ["reason"] = reason,
+                });
+                return;
+            }
+
+            ReloadAfterResumeProbe(reason, "empty_or_loading_root");
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            startupTimeline.Mark("webview.resume_check_skipped", new Dictionary<string, string>
+            {
+                ["error"] = TrimMetadata(exception.Message),
+                ["path"] = lastRoute.Path,
+                ["reason"] = reason,
+            });
+        }
+        catch (Exception exception)
+        {
+            ReloadAfterResumeProbe(reason, exception.GetType().Name);
+        }
+        finally
+        {
+            resumeCheckInFlight = false;
+        }
     }
 
     public void Dispose()
@@ -105,6 +193,22 @@ internal sealed class WebViewHost : IDisposable
         {
         }
         webView.Dispose();
+    }
+
+    private void ReloadAfterResumeProbe(string reason, string probeResult)
+    {
+        if (disposed || webView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        startupTimeline.Mark("webview.resume_reload", new Dictionary<string, string>
+        {
+            ["path"] = lastRoute.Path,
+            ["probe"] = TrimMetadata(probeResult),
+            ["reason"] = reason,
+        });
+        webView.CoreWebView2.Reload();
     }
 
     private async Task HandleWebMessageAsync(CoreWebView2WebMessageReceivedEventArgs args)
@@ -165,8 +269,26 @@ internal sealed class WebViewHost : IDisposable
 
     private Task OpenRouteAsync(string route)
     {
-        webView.Source = DesktopWebRoute.FromPath(route).ToUri(runtime);
+        DesktopWebRoute nextRoute = DesktopWebRoute.FromPath(route);
+        lastRoute = nextRoute;
+        webView.Source = nextRoute.ToUri(runtime);
         return Task.CompletedTask;
+    }
+
+    private static string TrimMetadata(string value)
+    {
+        string normalized = value.Trim();
+        const int maxLength = 240;
+        if (normalized.Length <= maxLength)
+        {
+            return normalized;
+        }
+        return normalized[..maxLength] + "...";
+    }
+
+    private static bool IsTruthyScriptResult(string value)
+    {
+        return string.Equals(value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private void InstallDesktopSessionCookie(CoreWebView2 core)

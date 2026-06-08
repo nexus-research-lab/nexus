@@ -43,6 +43,15 @@ type Repository interface {
 	UpdateSessionSDKSessionID(context.Context, string, string) error
 }
 
+type goalCleaner interface {
+	DeleteGoalsForRoomConversations(context.Context, []string) (int, error)
+	DeleteGoalsForRoomMember(context.Context, string, []string) (int, error)
+}
+
+type runtimeSessionCloser interface {
+	CloseSession(context.Context, string) error
+}
+
 // Service 提供 Room 编排能力。
 type Service struct {
 	config     config.Config
@@ -51,6 +60,8 @@ type Service struct {
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 	skills     RoomSkillCatalog
+	goals      goalCleaner
+	runtime    runtimeSessionCloser
 }
 
 // NewService 创建 Room 服务。
@@ -62,6 +73,16 @@ func NewService(cfg config.Config, agents *agentsvc.Service, repository Reposito
 		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
 		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 	}
+}
+
+// SetGoalCleaner 注入 Room 删除时的 Goal 级联清理器。
+func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
+	s.goals = cleaner
+}
+
+// SetRuntimeManager 注入运行时管理器，用于关闭 Room conversation 对应的后台 client。
+func (s *Service) SetRuntimeManager(runtimeManager runtimeSessionCloser) {
+	s.runtime = runtimeManager
 }
 
 // ListRooms 列出最近房间。
@@ -355,10 +376,10 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 	if contextValue == nil {
 		return nil, ErrRoomNotFound
 	}
-	if err = s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}}); err != nil {
-		return nil, err
-	}
-	return contextValue, nil
+	runtimeErr := s.closeConversationRuntimeSessions(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
+	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
+	goalErr := s.cleanupGoalsForRoomMemberContexts(ctx, roomContexts, normalizedAgentID)
+	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
 // DeleteRoom 删除房间。
@@ -374,10 +395,10 @@ func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
 	if !deleted {
 		return ErrRoomNotFound
 	}
-	if err = s.cleanupConversationArtifacts(ctx, roomContexts, true, nil); err != nil {
-		return err
-	}
-	return nil
+	runtimeErr := s.closeConversationRuntimeSessions(ctx, roomContexts, true, nil)
+	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, true, nil)
+	goalErr := s.cleanupGoalsForRoomContexts(ctx, roomContexts)
+	return errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
 // CreateConversation 创建 room 话题。
@@ -490,13 +511,13 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	if err = s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil); err != nil {
-		return nil, err
-	}
-	return contextValue, nil
+	runtimeErr := s.closeConversationRuntimeSessions(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
+	artifactErr := s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
+	goalErr := s.cleanupGoalsForRoomContexts(ctx, []protocol.ConversationContextAggregate{targetContext})
+	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
 }
 
-// UpdateSessionSDKSessionID 更新房间会话记录中的 Claude session_id。
+// UpdateSessionSDKSessionID 更新房间会话记录中的 SDK session_id。
 func (s *Service) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(sdkSessionID) == "" {
 		return nil
@@ -561,6 +582,47 @@ func (s *Service) cleanupConversationArtifacts(
 	return errors.Join(errs...)
 }
 
+func (s *Service) cleanupGoalsForRoomContexts(ctx context.Context, contexts []protocol.ConversationContextAggregate) error {
+	if s == nil || s.goals == nil {
+		return nil
+	}
+	conversationIDs := roomContextConversationIDs(contexts)
+	if len(conversationIDs) == 0 {
+		return nil
+	}
+	_, err := s.goals.DeleteGoalsForRoomConversations(ctx, conversationIDs)
+	return err
+}
+
+func (s *Service) cleanupGoalsForRoomMemberContexts(ctx context.Context, contexts []protocol.ConversationContextAggregate, agentID string) error {
+	if s == nil || s.goals == nil {
+		return nil
+	}
+	conversationIDs := roomContextConversationIDs(contexts)
+	if len(conversationIDs) == 0 {
+		return nil
+	}
+	_, err := s.goals.DeleteGoalsForRoomMember(ctx, agentID, conversationIDs)
+	return err
+}
+
+func roomContextConversationIDs(contexts []protocol.ConversationContextAggregate) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(contexts))
+	for _, contextValue := range contexts {
+		conversationID := strings.TrimSpace(contextValue.Conversation.ID)
+		if conversationID == "" {
+			continue
+		}
+		if _, ok := seen[conversationID]; ok {
+			continue
+		}
+		seen[conversationID] = struct{}{}
+		result = append(result, conversationID)
+	}
+	return result
+}
+
 func (s *Service) resolveAgentWorkspacePath(ctx context.Context, agentID string) (string, error) {
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
 	if err != nil {
@@ -593,15 +655,40 @@ func (s *Service) normalizeDirectAgentIDs(ctx context.Context, agentIDs []string
 }
 
 func (s *Service) normalizeGroupAgentIDs(ctx context.Context, agentIDs []string) ([]string, error) {
-	normalizedIDs := make([]string, 0, len(agentIDs))
-	for _, agentID := range agentIDs {
-		agentValue, err := s.ensureGroupMemberAgent(ctx, agentID)
-		if err != nil {
-			return nil, err
+	if len(agentIDs) == 0 {
+		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")
+	}
+	// Deduplicate and trim input IDs before batch fetch.
+	seen := make(map[string]struct{}, len(agentIDs))
+	cleaned := make([]string, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return nil, errors.New("agent_id 不能为空")
 		}
-		if !roomdomain.ContainsString(normalizedIDs, agentValue.AgentID) {
-			normalizedIDs = append(normalizedIDs, agentValue.AgentID)
+		if _, dup := seen[id]; !dup {
+			seen[id] = struct{}{}
+			cleaned = append(cleaned, id)
 		}
+	}
+	fetched, err := s.agents.GetAgentsByIDs(ctx, cleaned)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]protocol.Agent, len(fetched))
+	for _, a := range fetched {
+		byID[a.AgentID] = a
+	}
+	normalizedIDs := make([]string, 0, len(cleaned))
+	for _, id := range cleaned {
+		agentValue, ok := byID[id]
+		if !ok || agentValue.Status != "active" {
+			return nil, fmt.Errorf("%w: %s", agentsvc.ErrAgentNotFound, id)
+		}
+		if agentValue.IsMain {
+			return nil, fmt.Errorf("主智能体（%s）不能作为 room 成员", agentValue.Name)
+		}
+		normalizedIDs = append(normalizedIDs, agentValue.AgentID)
 	}
 	if len(normalizedIDs) == 0 {
 		return nil, errors.New("room 至少需要一个普通成员 agent，主智能体不能作为 room 成员")

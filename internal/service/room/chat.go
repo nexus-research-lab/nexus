@@ -38,8 +38,10 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
-	targetResolution := roomTargetResolution(targetAgentIDs)
+	targetAgentIDs, targetResolution, err := resolveChatTargetAgentIDs(request, contextValue, agentNameByID)
+	if err != nil {
+		return err
+	}
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 	if len(targetAgentIDs) == 0 && len(agentNameByID) == 1 {
 		// 单成员直聊 Room 再强制 @mention 只会制造额外交互噪音，
@@ -88,14 +90,22 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if len(attachments) > 0 {
 		userMessage["attachments"] = attachments
 	}
-	if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
-		return err
+	if !request.Internal || request.BroadcastUserMessage {
+		if err = s.persistSharedInlineMessage(conversationID, userMessage); err != nil {
+			return err
+		}
+		history = append(history, userMessage)
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
 	}
-	history = append(history, userMessage)
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapMessageEvent(roomID, conversationID, userMessage, request.RoundID))
-	s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content))
+	if !request.Internal {
+		titleProvider, titleModel := resolveTitleRuntimeTarget(targetAgentIDs, agentByID)
+		s.scheduleTitleGeneration(ctx, sessionKey, contextValue, strings.TrimSpace(request.Content), titleProvider, titleModel)
+	}
 
 	if len(targetAgentIDs) == 0 {
+		if request.Internal {
+			return errors.New("room internal continuation has no target agent")
+		}
 		s.loggerFor(ctx).Warn("Room 消息未命中任何目标成员",
 			"session_key", sessionKey,
 			"room_id", roomID,
@@ -143,7 +153,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "finished", "success"))
 		return nil
 	}
-	if protocol.ShouldQueueRunningRound(deliveryPolicy) {
+	if !request.Internal && protocol.ShouldQueueRunningRound(deliveryPolicy) {
 		queuedAgentIDs, queueErr := s.enqueueForActiveAgentSlots(
 			ctx,
 			sessionKey,
@@ -178,7 +188,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		}
 	}
 
-	if protocol.ShouldGuideRunningRound(deliveryPolicy) && len(targetAgentIDs) > 0 {
+	if !request.Internal && protocol.ShouldGuideRunningRound(deliveryPolicy) && len(targetAgentIDs) > 0 {
 		guidedAgentIDs, guideErr := s.guideActiveAgentSlots(
 			ctx,
 			sessionKey,
@@ -208,7 +218,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
 
-	if deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
+	if !request.Internal && deliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
 		if err = s.interruptAgentSlots(ctx, sessionKey, targetAgentIDs, "收到新的用户消息，上一轮已停止", true); err != nil {
 			return err
 		}
@@ -219,26 +229,29 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		sessionsByAgent[item.AgentID] = item
 	}
 
-	initialTriggerType := "public_chat"
-	if targetResolution == "room_host_default" {
-		initialTriggerType = "room_host_default"
-	}
+	initialTriggerType := initialRoomTriggerType(request, targetResolution)
 	initialTrigger := roomTrigger{
 		TriggerType: initialTriggerType,
 		Content:     strings.TrimSpace(request.Content),
 		MessageID:   request.RoundID,
 	}
 	activeRound := &activeRoomRound{
-		SessionKey:     sessionKey,
-		RoomID:         roomID,
-		ConversationID: conversationID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        request.RoundID,
-		RootRoundID:    request.RoundID,
-		OwnerUserID:    authctx.OwnerUserID(ctx),
-		Slots:          make(map[string]*activeRoomSlot),
-		Done:           make(chan struct{}),
+		SessionKey:        sessionKey,
+		RoomID:            roomID,
+		ConversationID:    conversationID,
+		RoomType:          contextValue.Room.RoomType,
+		Context:           contextValue,
+		RoundID:           request.RoundID,
+		RootRoundID:       request.RoundID,
+		OwnerUserID:       authctx.OwnerUserID(ctx),
+		Internal:          request.Internal,
+		InputOptions:      request.InputOptions,
+		PermissionMode:    request.PermissionMode,
+		PermissionHandler: request.PermissionHandler,
+		EventObserver:     request.EventObserver,
+		GoalContext:       strings.TrimSpace(request.GoalContext),
+		Slots:             make(map[string]*activeRoomSlot),
+		Done:              make(chan struct{}),
 	}
 
 	pending := make([]map[string]any, 0, len(targetAgentIDs))
@@ -273,7 +286,6 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			TriggerAttachments: attachments,
 			Done:               make(chan struct{}),
 		}
-		_ = sessionRecord
 		pending = append(pending, map[string]any{
 			"agent_id":  agentID,
 			"msg_id":    msgID,
@@ -309,7 +321,16 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapRoundStatusEvent(sessionKey, roomID, conversationID, request.RoundID, "running", ""))
-	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(sessionKey, roomID, conversationID, firstNonEmpty(request.ReqID, request.RoundID), request.RoundID, pending))
+	if shouldBroadcastRoomChatAck(request) {
+		s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.WrapChatAckEvent(
+			sessionKey,
+			roomID,
+			conversationID,
+			firstNonEmpty(request.ReqID, request.RoundID),
+			request.RoundID,
+			pending,
+		))
+	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)
@@ -333,25 +354,61 @@ func resolveRoomHostDefaultTarget(
 	return hostAgentID, true
 }
 
+func initialRoomTriggerType(request ChatRequest, targetResolution string) string {
+	if request.Internal && strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" {
+		return "goal_continuation"
+	}
+	if targetResolution == "room_host_default" {
+		return "room_host_default"
+	}
+	return "public_chat"
+}
+
+func shouldBroadcastRoomChatAck(request ChatRequest) bool {
+	if !request.Internal {
+		return true
+	}
+	return strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation"
+}
+
 func (s *RealtimeService) scheduleTitleGeneration(
 	ctx context.Context,
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 	content string,
+	provider string,
+	model string,
 ) {
 	if s.titles == nil || contextValue == nil {
 		return
 	}
 	s.titles.Schedule(ctx, titlegen.Request{
+		OwnerUserID:              authctx.OwnerUserID(ctx),
 		SessionKey:               sessionKey,
-		Provider:                 "",
+		Provider:                 strings.TrimSpace(provider),
+		Model:                    strings.TrimSpace(model),
 		Content:                  content,
+		SessionMessageCount:      -1,
 		ConversationID:           contextValue.Conversation.ID,
 		ConversationRoomID:       contextValue.Room.ID,
 		ConversationTitle:        contextValue.Conversation.Title,
 		ConversationRoomName:     contextValue.Room.Name,
 		ConversationMessageCount: contextValue.Conversation.MessageCount,
 	})
+}
+
+func resolveTitleRuntimeTarget(
+	targetAgentIDs []string,
+	agentByID map[string]*protocol.Agent,
+) (string, string) {
+	for _, agentID := range targetAgentIDs {
+		agentValue := agentByID[strings.TrimSpace(agentID)]
+		if agentValue == nil {
+			continue
+		}
+		return strings.TrimSpace(agentValue.Options.Provider), strings.TrimSpace(agentValue.Options.Model)
+	}
+	return "", ""
 }
 
 // HandleInterrupt 处理中断请求。
@@ -374,7 +431,8 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 	if strings.TrimSpace(request.RoundID) == "" {
 		return "", "", errors.New("round_id is required")
 	}
-	if !protocol.HasChatInput(request.Content, request.Attachments) {
+	if !protocol.HasChatInput(request.Content, request.Attachments) &&
+		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", "", errors.New("content is required")
 	}
 	conversationID := firstNonEmpty(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))
@@ -382,6 +440,44 @@ func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, stri
 		return "", "", errors.New("conversation_id is required")
 	}
 	return sessionKey, conversationID, nil
+}
+
+func resolveChatTargetAgentIDs(
+	request ChatRequest,
+	contextValue *protocol.ConversationContextAggregate,
+	agentNameByID map[string]string,
+) ([]string, string, error) {
+	if len(request.TargetAgentIDs) > 0 {
+		targetAgentIDs := normalizeExplicitTargetAgentIDs(request.TargetAgentIDs)
+		if len(targetAgentIDs) == 0 {
+			return nil, "", errors.New("target_agent_ids must not be empty")
+		}
+		for _, agentID := range targetAgentIDs {
+			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
+				return nil, "", fmt.Errorf("target_agent_id is not a room member: %s", agentID)
+			}
+		}
+		return targetAgentIDs, "explicit_target", nil
+	}
+	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
+	return targetAgentIDs, roomTargetResolution(targetAgentIDs), nil
+}
+
+func normalizeExplicitTargetAgentIDs(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		agentID := strings.TrimSpace(value)
+		if agentID == "" {
+			continue
+		}
+		if _, ok := seen[agentID]; ok {
+			continue
+		}
+		seen[agentID] = struct{}{}
+		result = append(result, agentID)
+	}
+	return result
 }
 
 func (s *RealtimeService) buildAgentDirectory(

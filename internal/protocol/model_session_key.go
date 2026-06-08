@@ -34,6 +34,9 @@ const (
 	SessionChannelWeChat = "wechat"
 	// SessionChannelFeishu 表示持久化后的飞书通道类型。
 	SessionChannelFeishu = "feishu"
+
+	// AutomationInboxSessionRef 表示定时任务投递到 Agent 时使用的固定内部会话。
+	AutomationInboxSessionRef = "automation-inbox"
 )
 
 // SessionKeyKind 表示协议族。

@@ -174,8 +174,8 @@ function TourStepIllustration({
   is_center_step: boolean;
 }) {
   return (
-    <div className="mb-3 rounded-[18px] border border-[color:color-mix(in_srgb,var(--primary)_10%,white)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,248,255,0.94)),radial-gradient(circle_at_top_left,rgba(132,146,255,0.12),transparent_54%)] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.66),0_10px_28px_color-mix(in_srgb,var(--shadow-color)_7%,transparent)]">
-      <div className="relative overflow-hidden rounded-[14px] border border-white/80 bg-[linear-gradient(180deg,#f6f5fb,#efedf8)]">
+    <div className="mb-3 rounded-[12px] border border-(--divider-subtle-color) bg-transparent p-2.5">
+      <div className="relative overflow-hidden rounded-[10px] border border-(--divider-subtle-color) bg-transparent">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.76),transparent_36%),radial-gradient(circle_at_82%_84%,rgba(132,146,255,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.18),transparent_68%)]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-[linear-gradient(180deg,transparent,rgba(132,146,255,0.06))]" />
         <img
@@ -401,7 +401,7 @@ function OnboardingTourOverlay({
 
       {target_rect ? (
         <div
-          className="pointer-events-none absolute rounded-[22px] border border-[color:color-mix(in_srgb,var(--primary)_34%,white)] shadow-[0_0_0_9999px_rgba(11,16,24,0.22),0_24px_64px_color-mix(in_srgb,var(--primary)_18%,transparent)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
+          className="pointer-events-none absolute rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_34%,white)] shadow-[0_0_0_9999px_rgba(11,16,24,0.22),0_18px_42px_color-mix(in_srgb,var(--primary)_14%,transparent)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
           style={{
             top: target_rect.top - 6,
             left: target_rect.left - 6,
@@ -423,7 +423,7 @@ function OnboardingTourOverlay({
           <div
             ref={card_ref}
             className={cn(
-              "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[24px] border px-4 py-3.5 shadow-[0_22px_58px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)]",
+              "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[12px] border px-4 py-3.5 shadow-[0_14px_32px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]",
             )}
           >
             {step.image ? (

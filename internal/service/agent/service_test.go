@@ -46,6 +46,13 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].Options.Provider != "" {
 		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
 	}
+	if items[0].Options.PermissionMode != "default" {
+		t.Fatalf("主智能体默认权限应为询问模式: %+v", items[0].Options)
+	}
+	if len(items[0].Options.AllowedTools) != 0 {
+		t.Fatalf("主智能体默认不应预授权工具: %+v", items[0].Options.AllowedTools)
+	}
+	assertRuntimeEmotionStateFile(t, items[0].WorkspacePath)
 
 	validation, err := service.ValidateName(ctx, "测试助手", "")
 	if err != nil {
@@ -68,11 +75,18 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if _, err = os.Stat(created.WorkspacePath); err != nil {
 		t.Fatalf("workspace 目录未创建: %v", err)
 	}
+	assertRuntimeEmotionStateFile(t, created.WorkspacePath)
 	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-a 失败: %v", err)
 	}
-	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-b"), 0o755); err != nil {
+	if err = os.WriteFile(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a", "SKILL.md"), []byte("# skill-a\n"), 0o644); err != nil {
+		t.Fatalf("写入测试 skill-a 失败: %v", err)
+	}
+	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".claude", "skills", "skill-b"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-b 失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(created.WorkspacePath, ".claude", "skills", "skill-b", "SKILL.md"), []byte("# skill-b\n"), 0o644); err != nil {
+		t.Fatalf("写入测试 skill-b 失败: %v", err)
 	}
 
 	loaded, err := service.GetAgent(ctx, created.AgentID)
@@ -100,8 +114,70 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("重复名称校验失败: %v", err)
 	}
-	if validation.IsAvailable {
-		t.Fatalf("重复名称不应可用: %+v", validation)
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("重复名称应只作为展示名并允许复用: %+v", validation)
+	}
+}
+
+func TestServicePersistsAgentRuntimeProviderModel(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	maxTurns := 6
+	maxThinkingTokens := 2048
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "runtime-agent",
+		Options: &protocol.Options{
+			Provider:          "glm",
+			Model:             "glm-5.1",
+			PermissionMode:    "default",
+			AllowedTools:      []string{"Read"},
+			DisallowedTools:   []string{"Write"},
+			MaxTurns:          &maxTurns,
+			MaxThinkingTokens: &maxThinkingTokens,
+			MCPServers:        map[string]any{"local": map[string]any{"command": "nexus-mcp"}},
+			SettingSources:    []string{"project"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if created.Options.Provider != "glm" || created.Options.Model != "glm-5.1" {
+		t.Fatalf("runtime provider/model 未持久化: %+v", created.Options)
+	}
+
+	nextName := "runtime-agent"
+	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{
+		Name: &nextName,
+		Options: &protocol.Options{
+			Provider:        "kimi-code",
+			Model:           "kimi-for-coding",
+			PermissionMode:  "bypassPermissions",
+			AllowedTools:    []string{"Read", "Edit"},
+			DisallowedTools: []string{},
+			SettingSources:  []string{"project"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("更新 agent runtime 失败: %v", err)
+	}
+	if updated.Options.Provider != "kimi-code" || updated.Options.Model != "kimi-for-coding" {
+		t.Fatalf("runtime provider/model 更新后未持久化: %+v", updated.Options)
+	}
+	if updated.Options.MaxTurns == nil || *updated.Options.MaxTurns != maxTurns {
+		t.Fatalf("未提交 max_turns 时应保留原值: %+v", updated.Options)
+	}
+	if updated.Options.MaxThinkingTokens == nil || *updated.Options.MaxThinkingTokens != maxThinkingTokens {
+		t.Fatalf("未提交 max_thinking_tokens 时应保留原值: %+v", updated.Options)
+	}
+	if _, ok := updated.Options.MCPServers["local"]; !ok {
+		t.Fatalf("未提交 mcp_servers 时应保留原值: %+v", updated.Options.MCPServers)
 	}
 }
 
@@ -138,7 +214,98 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	}
 }
 
-func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T) {
+func TestServiceAllowsDuplicateAndSlugCollidingAgentNames(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	first, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
+	if err != nil {
+		t.Fatalf("创建基准 agent 失败: %v", err)
+	}
+
+	validation, err := service.ValidateName(ctx, "a_b", "")
+	if err != nil {
+		t.Fatalf("校验 slug 冲突名称失败: %v", err)
+	}
+	if !validation.IsValid || !validation.IsAvailable {
+		t.Fatalf("名称派生 slug 冲突不应阻断创建: %+v", validation)
+	}
+
+	second, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a_b"})
+	if err != nil {
+		t.Fatalf("创建名称派生 slug 冲突 agent 不应失败: %v", err)
+	}
+	third, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
+	if err != nil {
+		t.Fatalf("重复展示名不应阻断创建: %v", err)
+	}
+	if first.AgentID == second.AgentID || first.AgentID == third.AgentID || second.AgentID == third.AgentID {
+		t.Fatalf("重复展示名应创建独立 agent_id: first=%s second=%s third=%s", first.AgentID, second.AgentID, third.AgentID)
+	}
+	if slug := agentSlug(t, db, first.AgentID); slug != first.AgentID {
+		t.Fatalf("新建 agent slug 应绑定 agent_id: got=%s want=%s", slug, first.AgentID)
+	}
+	if slug := agentSlug(t, db, second.AgentID); slug != second.AgentID {
+		t.Fatalf("新建 agent slug 应绑定 agent_id: got=%s want=%s", slug, second.AgentID)
+	}
+
+	nextName := "a_b"
+	updated, err := service.UpdateAgent(ctx, first.AgentID, protocol.UpdateRequest{Name: &nextName})
+	if err != nil {
+		t.Fatalf("改成其他 agent 的展示名不应失败: %v", err)
+	}
+	if updated.Name != "a_b" {
+		t.Fatalf("展示名改名未生效: %+v", updated)
+	}
+	if slug := agentSlug(t, db, first.AgentID); slug != first.AgentID {
+		t.Fatalf("改名不应改变 agent slug: got=%s want=%s", slug, first.AgentID)
+	}
+}
+
+func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
+		t.Fatalf("删除 agent 失败: %v", err)
+	}
+
+	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
+	assertNoRowsForAgent(t, db, "profiles", "agent_id", created.AgentID)
+	assertNoRowsForAgent(t, db, "runtimes", "agent_id", created.AgentID)
+
+	if _, err = service.GetAgent(ctx, created.AgentID); !errors.Is(err, agentpkg.ErrAgentNotFound) {
+		t.Fatalf("硬删除后读取 agent 应返回不存在: %v", err)
+	}
+
+	recreated, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
+	if err != nil {
+		t.Fatalf("删除后应允许复用名称: %v", err)
+	}
+	if recreated.AgentID == created.AgentID {
+		t.Fatalf("复用名称应创建新的 agent_id: old=%s new=%s", created.AgentID, recreated.AgentID)
+	}
+}
+
+func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
@@ -160,8 +327,8 @@ func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T)
 		t.Fatalf("写入 workspace 标记失败: %v", err)
 	}
 	agentsFile := filepath.Join(created.WorkspacePath, "AGENTS.md")
-	oldIdentity := agentIdentityLine("chatbuddy", created.AgentID)
-	if err = os.WriteFile(agentsFile, []byte("# AGENTS.md\n\n"+oldIdentity+"\n"), 0o644); err != nil {
+	customAgentsContent := "# AGENTS.md\n\n用户自定义规则\n"
+	if err = os.WriteFile(agentsFile, []byte(customAgentsContent), 0o644); err != nil {
 		t.Fatalf("写入 AGENTS.md 失败: %v", err)
 	}
 	if err = os.MkdirAll(filepath.Join(cfg.WorkspacePath, "chat"), 0o755); err != nil {
@@ -194,17 +361,9 @@ func TestServiceUsesAgentIDWorkspacePathAndRenameSyncsIdentityFile(t *testing.T)
 	if err != nil {
 		t.Fatalf("读取 AGENTS.md 失败: %v", err)
 	}
-	newIdentity := agentIdentityLine("chat", created.AgentID)
-	if !strings.Contains(string(agentsContent), newIdentity) {
-		t.Fatalf("AGENTS.md 未同步新名称: got=%s want=%s", string(agentsContent), newIdentity)
+	if string(agentsContent) != customAgentsContent {
+		t.Fatalf("改名不应重写 AGENTS.md 系统身份字段: %s", agentsContent)
 	}
-	if strings.Contains(string(agentsContent), oldIdentity) {
-		t.Fatalf("AGENTS.md 不应保留旧身份行: %s", string(agentsContent))
-	}
-}
-
-func agentIdentityLine(agentName string, agentID string) string {
-	return "当前 Agent 标识：" + agentName + "（" + agentID + "）"
 }
 
 func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
@@ -215,6 +374,8 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 service 失败: %v", err)
 	}
+	goalCleaner := &fakeAgentGoalCleaner{}
+	service.SetGoalCleaner(goalCleaner)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "删除助手"})
@@ -250,6 +411,18 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	if _, err = os.Stat(projectDir); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("删除 agent 后 transcript 项目目录仍残留: %v", err)
 	}
+	if len(goalCleaner.agentIDs) != 1 || goalCleaner.agentIDs[0] != created.AgentID {
+		t.Fatalf("goal cleaner agent IDs = %#v, want deleted agent", goalCleaner.agentIDs)
+	}
+}
+
+type fakeAgentGoalCleaner struct {
+	agentIDs []string
+}
+
+func (f *fakeAgentGoalCleaner) DeleteGoalsForAgent(_ context.Context, agentID string) (int, error) {
+	f.agentIDs = append(f.agentIDs, agentID)
+	return 1, nil
 }
 
 func newTestConfig(t *testing.T) config.Config {
@@ -278,6 +451,44 @@ func agentTranscriptProjectDir(workspacePath string) string {
 		"projects",
 		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
 	)
+}
+
+func assertRuntimeEmotionStateFile(t *testing.T, workspacePath string) {
+	t.Helper()
+	statePath := filepath.Join(workspacePath, ".agents", "emotion.json")
+	info, err := os.Stat(statePath)
+	if err != nil {
+		t.Fatalf("emotion state 未初始化: %v", err)
+	}
+	if info.IsDir() {
+		t.Fatalf("emotion state 应为文件: %s", statePath)
+	}
+	if info.Size() != 0 {
+		t.Fatalf("emotion state 初始文件应为空: size=%d", info.Size())
+	}
+}
+
+func assertNoRowsForAgent(t *testing.T, db *sql.DB, table string, column string, value string) {
+	t.Helper()
+
+	var count int
+	query := "SELECT COUNT(1) FROM " + table + " WHERE " + column + " = ?"
+	if err := db.QueryRow(query, value).Scan(&count); err != nil {
+		t.Fatalf("查询 %s.%s 失败: %v", table, column, err)
+	}
+	if count != 0 {
+		t.Fatalf("删除 agent 后 %s 仍有残留: %d", table, count)
+	}
+}
+
+func agentSlug(t *testing.T, db *sql.DB, agentID string) string {
+	t.Helper()
+
+	var slug string
+	if err := db.QueryRow(`SELECT slug FROM agents WHERE id = ?`, agentID).Scan(&slug); err != nil {
+		t.Fatalf("查询 agent slug 失败: %v", err)
+	}
+	return slug
 }
 
 func canonicalizeAgentTranscriptPath(path string) string {

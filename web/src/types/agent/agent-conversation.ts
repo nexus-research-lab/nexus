@@ -31,11 +31,6 @@ export type AgentConversationRuntimePhase =
   | 'running'
   | 'streaming'
   | 'awaiting_permission';
-export type AgentConversationSessionControlState =
-  | 'unknown'
-  | 'controller'
-  | 'observer';
-
 export interface AgentConversationIdentity {
   session_key: string | null;
   agent_id?: string | null;
@@ -64,23 +59,6 @@ export function get_agent_conversation_identity_key(
   return session_identity ? `session:${session_identity}` : null;
 }
 
-export function get_session_control_status_text(
-  session_control_state: AgentConversationSessionControlState,
-  observer_count: number,
-): string {
-  if (session_control_state === 'controller') {
-    return observer_count > 0
-      ? `当前窗口是主理人，另有 ${observer_count} 个观察窗口`
-      : '当前窗口是主理人';
-  }
-
-  if (session_control_state === 'observer') {
-    return '当前窗口是观察视图';
-  }
-
-  return '正在同步控制权状态';
-}
-
 export interface UseAgentConversationOptions {
   ws_url?: string;
   identity?: AgentConversationIdentity | null;
@@ -100,10 +78,6 @@ export interface UseAgentConversationReturn {
   has_more_history: boolean;
   history_prepend_token: number;
   runtime_phase: AgentConversationRuntimePhase;
-  session_control_state: AgentConversationSessionControlState;
-  is_session_controller: boolean;
-  session_controller_client_id: string | null;
-  session_observer_count: number;
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];
   input_queue_items: InputQueueItem[];
@@ -134,7 +108,16 @@ export type AgentConversationDeliveryPolicy = 'queue' | 'guide' | 'interrupt' | 
 export type AgentConversationDefaultDeliveryPolicy = 'queue' | 'interrupt';
 
 export type InputQueueScope = 'dm' | 'room';
-export type InputQueueSource = 'user' | 'agent_public_mention' | 'agent_room_action';
+export type InputQueueSource = 'user' | 'agent_public_mention' | 'agent_room_directed_message';
+export type RoomWakePolicy = 'none' | 'immediate' | 'delayed';
+export type RoomReplyRouteMode = 'public' | 'private' | 'none';
+
+export interface RoomReplyRoute {
+  mode: RoomReplyRouteMode;
+  recipients?: string[];
+  wake_policy?: RoomWakePolicy;
+  next_reply_route?: RoomReplyRoute;
+}
 
 export interface InputQueueItem {
   id: string;
@@ -153,6 +136,7 @@ export interface InputQueueItem {
   owner_user_id?: string;
   root_round_id?: string;
   hop_index?: number;
+  reply_route?: RoomReplyRoute;
   created_at: number;
   updated_at: number;
 }
@@ -178,7 +162,6 @@ export interface AgentConversationActionContext {
   identity: AgentConversationIdentity | null;
   session_key: string | null;
   ws_state: WebSocketState;
-  session_control_state: AgentConversationSessionControlState;
   ws_send: (message: WebSocketMessage) => WebSocketSendResult;
   active_session_key_ref: RefObject<string | null>;
   pending_permissions: PendingPermission[];
@@ -225,22 +208,20 @@ export interface RoomEventPayload {
   conversation_id?: string;
   agent_id?: string;
   agent_name?: string;
-  action_id?: string;
+  message_id?: string;
   event_kind?: "created" | "wake_scheduled" | "wake_started" | "wake_queued";
-  action_type?: "private_message" | "request_reply" | "private_note" | "marker";
-  request_id?: string;
   source_agent_id?: string;
   target_agent_id?: string;
-  audience_agent_ids?: string[];
-  visibility?: "public" | "private";
-  reply_target?: "public_feed" | "sender_private" | "target_private" | "audience" | "none";
-  wake_policy?: "none" | "immediate" | "delayed";
+  recipients?: string[];
+  reply_route?: RoomReplyRoute;
+  wake_policy?: RoomWakePolicy;
   delay_seconds?: number;
   content_chars?: number;
   content?: string;
+  correlation_id?: string;
   round_id?: string;
-  last_action_id?: string;
-  last_action_timestamp?: number;
+  last_message_id?: string;
+  last_message_timestamp?: number;
   last_seen_room_seq?: number;
   latest_room_seq?: number;
   buffer_start_room_seq?: number | null;

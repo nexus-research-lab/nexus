@@ -3,11 +3,14 @@ package runtime
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -16,6 +19,8 @@ type fakeRuntimeClient struct {
 	reconfigureCalls int
 	lastOptions      agentclient.Options
 	sentContents     []string
+	reconfigureErr   error
+	disconnectCalls  int
 }
 
 func (c *fakeRuntimeClient) Connect(context.Context) error { return nil }
@@ -35,15 +40,27 @@ func (c *fakeRuntimeClient) SendContent(_ context.Context, content any, _ *strin
 
 func (c *fakeRuntimeClient) Interrupt(context.Context) error { return nil }
 
-func (c *fakeRuntimeClient) Disconnect(context.Context) error { return nil }
+func (c *fakeRuntimeClient) Disconnect(context.Context) error {
+	c.disconnectCalls++
+	return nil
+}
 
 func (c *fakeRuntimeClient) Reconfigure(_ context.Context, options agentclient.Options) error {
 	c.reconfigureCalls++
 	c.lastOptions = options
+	if c.reconfigureErr != nil {
+		return c.reconfigureErr
+	}
 	return nil
 }
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
+
+type fakeSDKMCPServer struct{}
+
+func (fakeSDKMCPServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
+	return map[string]any{"ok": true}, nil
+}
 
 type fakeRuntimeFactory struct {
 	client  *fakeRuntimeClient
@@ -94,6 +111,256 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 }
 
+func TestRuntimeMCPControlDetectsServerChanges(t *testing.T) {
+	currentOptions := agentclient.Options{}
+	nextOptions := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	}
+
+	if !shouldSyncMCPServersForRuntimeControl(currentOptions, nextOptions) {
+		t.Fatal("新增 MCP server 时应同步运行中 SDK client")
+	}
+	if shouldSyncMCPServersForRuntimeControl(nextOptions, nextOptions) {
+		t.Fatal("MCP server 配置未变化时不应重复同步")
+	}
+}
+
+func TestRuntimeMCPControlResolvesLegacySDKServers(t *testing.T) {
+	options := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_goal": sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
+			},
+			SDKServers: map[string]sdkmcp.SDKMCPServer{
+				"nexus_goal":       fakeSDKMCPServer{},
+				"nexus_automation": fakeSDKMCPServer{},
+			},
+		},
+	}
+
+	servers := resolvedMCPServersForRuntimeControl(options)
+	if len(servers) != 2 {
+		t.Fatalf("resolved servers = %+v, want 2", servers)
+	}
+	if _, ok := servers["nexus_goal"].(sdkmcp.HTTPServerConfig); !ok {
+		t.Fatalf("显式 MCP.Servers 应优先于旧式 SDKServers: %+v", servers["nexus_goal"])
+	}
+	if _, ok := servers["nexus_automation"].(sdkmcp.SDKServerConfig); !ok {
+		t.Fatalf("旧式 SDKServers 应合并为 SDKServerConfig: %+v", servers["nexus_automation"])
+	}
+}
+
+func TestRuntimeRestartsWhenManagedGoalMCPServerSetChanges(t *testing.T) {
+	currentOptions := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	}
+	nextOptions := agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_automation": sdkmcp.SDKServerConfig{Name: "nexus_automation", Instance: fakeSDKMCPServer{}},
+				"nexus_goal":       sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	}
+
+	if !shouldRestartForManagedGoalMCPServerSetChange(currentOptions, nextOptions) {
+		t.Fatal("新增托管 Goal MCP server 时应重建 SDK client")
+	}
+	if shouldRestartForManagedGoalMCPServerSetChange(nextOptions, nextOptions) {
+		t.Fatal("Goal MCP server 集合未变化时不应重建 SDK client")
+	}
+	if !shouldReplaceRuntimeClientAfterReconfigureError(errManagedGoalMCPServerSetChanged) {
+		t.Fatal("托管 Goal MCP server 集合变化错误应触发 client 替换")
+	}
+}
+
+func TestRuntimeRestartsWhenToolPolicyChanges(t *testing.T) {
+	currentOptions := agentclient.Options{
+		Tools: agentclient.ToolOptions{
+			Allow: []string{"Read", "create_goal"},
+			Deny:  []string{"ScheduleWakeup"},
+		},
+	}
+	nextOptions := agentclient.Options{
+		Tools: agentclient.ToolOptions{
+			Allow: []string{"Read", "create_goal", "mcp__nexus_goal__update_goal"},
+			Deny:  []string{"ScheduleWakeup"},
+		},
+	}
+
+	if !shouldRestartForToolPolicyChange(currentOptions, nextOptions) {
+		t.Fatal("工具白名单变化时应重建 SDK client")
+	}
+	if shouldRestartForToolPolicyChange(nextOptions, nextOptions) {
+		t.Fatal("工具策略未变化时不应重建 SDK client")
+	}
+	if !shouldReplaceRuntimeClientAfterReconfigureError(errRuntimeToolPolicyChanged) {
+		t.Fatal("工具策略变化错误应触发 client 替换")
+	}
+}
+
+func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: errors.New("client: send control request failed: process: write payload failed: write |1: The pipe has been ended"),
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:stale-client"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		CWD: "/tmp/a",
+	})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		CWD: "/tmp/b",
+	})
+	if err != nil {
+		t.Fatalf("transport 断开后应创建新 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("transport 断开后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerGetOrCreateReplacesClientWhenBypassSwitchRequiresLaunchFlag(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: agentclient.ErrBypassPermissionsNotAllowed,
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:bypass-switch"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{PermissionMode: sdkpermission.ModeDefault},
+	})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{
+			PermissionMode:                  sdkpermission.ModeBypassPermissions,
+			AllowDangerouslySkipPermissions: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("bypass 切换受限时应创建新 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("bypass 切换受限后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerGetOrCreateReplacesClientWhenMCPControlUnsupported(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: errors.New("unsupported control request subtype: mcp_set_servers"),
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:mcp-control"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		MCP: agentclient.MCPOptions{
+			Servers: map[string]sdkmcp.ServerConfig{
+				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("MCP 控制面不支持时应重建 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("MCP 控制面不支持后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerGetOrCreateKeepsNonTransportReconfigureError(t *testing.T) {
+	expectedErr := errors.New("permission mode is not supported")
+	stale := &fakeRuntimeClient{reconfigureErr: expectedErr}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, &fakeRuntimeClient{}}})
+	sessionKey := "agent:nexus:ws:dm:reconfigure-error"
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	_, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("非 transport 错误不应被吞掉: %v", err)
+	}
+	if stale.disconnectCalls != 0 {
+		t.Fatalf("非 transport 错误不应关闭旧 client: %d", stale.disconnectCalls)
+	}
+}
+
+func TestIsRuntimeTransportClosedError(t *testing.T) {
+	cases := []error{
+		agentclient.ErrNotConnected,
+		io.ErrClosedPipe,
+		errors.New("process: write payload failed: write |1: The pipe has been ended"),
+		errors.New("write payload failed: file already closed"),
+		errors.New("broken pipe"),
+		errors.New("Error in hook callback hook_1: Stream closed"),
+	}
+	for _, err := range cases {
+		if !IsRuntimeTransportClosedError(err) {
+			t.Fatalf("应识别为 transport 断开: %v", err)
+		}
+	}
+	if IsRuntimeTransportClosedError(errors.New("permission mode is not supported")) {
+		t.Fatal("普通控制错误不应识别为 transport 断开")
+	}
+}
+
+func TestIsRuntimeControlRestartRequiredError(t *testing.T) {
+	cases := []error{
+		errors.New("unsupported control request subtype: mcp_set_servers"),
+		errors.New("MCP set servers is not supported by this runtime"),
+		errors.New("unknown mcp_set_servers control"),
+	}
+	for _, err := range cases {
+		if !IsRuntimeControlRestartRequiredError(err) {
+			t.Fatalf("应识别为需要重启的控制面错误: %v", err)
+		}
+	}
+	if IsRuntimeControlRestartRequiredError(errors.New("mcp_set_servers failed: invalid url")) {
+		t.Fatal("配置错误不应识别为必须重启")
+	}
+}
+
 func TestManagerSendContentToRunningRound(t *testing.T) {
 	client := &fakeRuntimeClient{}
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
@@ -121,6 +388,114 @@ func TestManagerSendContentWithoutRunningRound(t *testing.T) {
 	_, err := manager.SendContentToRunningRound(context.Background(), "agent:nexus:ws:dm:missing", "补充信息")
 	if !errors.Is(err, ErrNoRunningRound) {
 		t.Fatalf("期望 ErrNoRunningRound，实际 %v", err)
+	}
+}
+
+func TestManagerFlushGoalAccounting(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-flush"
+	calls := []string{}
+	manager.RegisterGoalAccountingFlush(sessionKey, "round-b", func(context.Context) error {
+		calls = append(calls, "round-b")
+		return nil
+	})
+	manager.RegisterGoalAccountingFlush(sessionKey, "round-a", func(context.Context) error {
+		calls = append(calls, "round-a")
+		return nil
+	})
+
+	roundIDs, err := manager.FlushGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("FlushGoalAccounting() error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	}
+	if strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
+	}
+
+	manager.RegisterGoalAccountingFlush(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs, err = manager.FlushGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("FlushGoalAccounting() after unregister error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+}
+
+func TestManagerClearGoalAccounting(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-clear"
+	calls := []string{}
+	manager.RegisterGoalAccountingClear(sessionKey, "round-b", func() {
+		calls = append(calls, "round-b")
+	})
+	manager.RegisterGoalAccountingClear(sessionKey, "round-a", func() {
+		calls = append(calls, "round-a")
+	})
+
+	roundIDs := manager.ClearGoalAccounting(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	}
+	if strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
+	}
+
+	manager.RegisterGoalAccountingClear(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs = manager.ClearGoalAccounting(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	if roundIDs = manager.ClearGoalAccounting(sessionKey); len(roundIDs) != 0 {
+		t.Fatalf("after round finished roundIDs=%#v, want empty", roundIDs)
+	}
+}
+
+func TestManagerActivateGoalAccounting(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-activate"
+	calls := []string{}
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(context.Context) error {
+		calls = append(calls, "round-b")
+		return nil
+	})
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(context.Context) error {
+		calls = append(calls, "round-a")
+		return nil
+	})
+
+	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("ActivateGoalAccounting() error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	}
+	if strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
+	}
+
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("ActivateGoalAccounting() after unregister error = %v", err)
+	}
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	if err != nil || len(roundIDs) != 0 {
+		t.Fatalf("after round finished roundIDs=%#v err=%v, want empty nil", roundIDs, err)
 	}
 }
 
@@ -160,5 +535,122 @@ func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 	}
 	if count := manager.PendingGuidanceCount(sessionKey); count != 0 {
 		t.Fatalf("PendingGuidanceCount = %d, want 0", count)
+	}
+}
+
+func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-guide"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 client 失败: %v", err)
+	}
+	manager.StartRound(sessionKey, "round-guide", func() {})
+
+	if _, err := manager.QueueContextualGuidanceInput(context.Background(), sessionKey, "goal-event-1", "goal", "Budget reached."); err != nil {
+		t.Fatalf("登记 Goal 上下文失败: %v", err)
+	}
+
+	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
+	output, err := options.Hooks.Matchers[sdkhook.EventPostToolUse][0].Hooks[0](
+		context.Background(),
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-1",
+	)
+	if err != nil {
+		t.Fatalf("执行 PostToolUse hook 失败: %v", err)
+	}
+	additionalContext := output.SpecificOutput.AdditionalContext
+	if !strings.Contains(additionalContext, "<internal_context source=\"goal\">\nBudget reached.\n</internal_context>") {
+		t.Fatalf("additionalContext 未包含 Goal context: %q", additionalContext)
+	}
+	if strings.Contains(additionalContext, "<nexus_guidance>") {
+		t.Fatalf("Goal context 不应包在 nexus_guidance 中: %q", additionalContext)
+	}
+}
+
+func TestManagerCloseIdleSessionsClosesOnlyIdleClients(t *testing.T) {
+	now := time.Date(2026, 6, 2, 15, 0, 0, 0, time.UTC)
+	idleClient := &fakeRuntimeClient{}
+	activeClient := &fakeRuntimeClient{}
+	recentClient := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{
+		idleClient,
+		activeClient,
+		recentClient,
+	}})
+	manager.now = func() time.Time { return now }
+
+	idleKey := "agent:nexus:ws:dm:idle"
+	activeKey := "agent:nexus:ws:dm:active"
+	recentKey := "agent:nexus:ws:dm:recent"
+	if _, err := manager.GetOrCreate(context.Background(), idleKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 idle client 失败: %v", err)
+	}
+	if _, err := manager.GetOrCreate(context.Background(), activeKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 active client 失败: %v", err)
+	}
+	if _, err := manager.GetOrCreate(context.Background(), recentKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 recent client 失败: %v", err)
+	}
+	manager.StartRound(activeKey, "round-active", nil)
+
+	manager.mu.Lock()
+	manager.sessions[idleKey].LastUsedAt = now.Add(-20 * time.Minute)
+	manager.sessions[activeKey].LastUsedAt = now.Add(-20 * time.Minute)
+	manager.sessions[recentKey].LastUsedAt = now.Add(-2 * time.Minute)
+	manager.mu.Unlock()
+
+	closed, err := manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil {
+		t.Fatalf("回收空闲 session 失败: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("回收数量 = %d, want 1", closed)
+	}
+	if idleClient.disconnectCalls != 1 {
+		t.Fatalf("idle client 应关闭一次: %d", idleClient.disconnectCalls)
+	}
+	if activeClient.disconnectCalls != 0 {
+		t.Fatalf("active client 不应关闭: %d", activeClient.disconnectCalls)
+	}
+	if recentClient.disconnectCalls != 0 {
+		t.Fatalf("recent client 不应关闭: %d", recentClient.disconnectCalls)
+	}
+	if got := manager.GetRunningRoundIDs(activeKey); len(got) != 1 || got[0] != "round-active" {
+		t.Fatalf("active round 不应被清理: %+v", got)
+	}
+}
+
+func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
+	now := time.Date(2026, 6, 2, 15, 0, 0, 0, time.UTC)
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	manager.now = func() time.Time { return now }
+	sessionKey := "agent:nexus:ws:dm:finish-idle"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 client 失败: %v", err)
+	}
+	manager.StartRound(sessionKey, "round-finish", nil)
+
+	now = now.Add(20 * time.Minute)
+	manager.MarkRoundFinished(sessionKey, "round-finish")
+	closed, err := manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil {
+		t.Fatalf("回收空闲 session 失败: %v", err)
+	}
+	if closed != 0 {
+		t.Fatalf("round 刚结束不应立即回收: %d", closed)
+	}
+
+	now = now.Add(11 * time.Minute)
+	closed, err = manager.CloseIdleSessions(context.Background(), 10*time.Minute)
+	if err != nil {
+		t.Fatalf("第二次回收空闲 session 失败: %v", err)
+	}
+	if closed != 1 {
+		t.Fatalf("超过结束后 TTL 应回收: %d", closed)
+	}
+	if client.disconnectCalls != 1 {
+		t.Fatalf("client 应关闭一次: %d", client.disconnectCalls)
 	}
 }

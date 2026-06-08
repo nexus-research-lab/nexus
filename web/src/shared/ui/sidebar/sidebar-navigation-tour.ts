@@ -50,7 +50,7 @@ export function build_sidebar_navigation_tour(
         description: t("sidebar.tour_launcher_description"),
         target: SIDEBAR_TOUR_ANCHORS.launcher,
         placement: "right",
-        image: "/nexus/pointing.png",
+        image: "/nexus/stickers/pointing.png",
       },
       {
         id: "chat",

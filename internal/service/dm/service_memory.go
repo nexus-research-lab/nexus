@@ -56,6 +56,18 @@ func (s *Service) injectMemoryContext(
 	return runtimeContent.PrependText(injection.DynamicUserContext)
 }
 
+func (s *Service) appendRuntimeUserContext(
+	ctx context.Context,
+	sessionKey string,
+	agentValue *protocol.Agent,
+	runtimeContent conversationsvc.RuntimeContent,
+) conversationsvc.RuntimeContent {
+	if agentValue == nil || runtimeContent.IsEmpty() {
+		return runtimeContent
+	}
+	return runtimeContent.AppendText(s.agents.BuildRuntimeUserMessageSuffixForContext(ctx, agentValue, "dm:"+strings.TrimSpace(sessionKey)))
+}
+
 func (r *roundRunner) commitMemoryTurn() {
 	if r == nil || r.agent == nil {
 		return

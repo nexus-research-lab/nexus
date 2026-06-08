@@ -39,7 +39,13 @@ type Service interface {
 	CreateTask(ctx context.Context, input protocol.CreateJobInput) (*protocol.CronJob, error)
 	UpdateTask(ctx context.Context, jobID string, input protocol.UpdateJobInput) (*protocol.CronJob, error)
 	UpdateTaskStatus(ctx context.Context, jobID string, enabled bool) (*protocol.CronJob, error)
-	DeleteTask(ctx context.Context, jobID string) error
+	DeleteTask(ctx context.Context, jobID string) (*protocol.DeleteJobResult, error)
 	RunTaskNow(ctx context.Context, jobID string) (*protocol.ExecutionResult, error)
 	ListTaskRuns(ctx context.Context, jobID string) ([]protocol.CronRun, error)
+	ListTaskEvents(ctx context.Context, jobID string, limit int) ([]protocol.CronTaskEvent, error)
+	SearchTaskHistory(ctx context.Context, input protocol.CronTaskHistorySearchInput) ([]protocol.CronTaskHistoryItem, error)
+	GetTaskStatus(ctx context.Context, jobID string, runLimit int, eventLimit int) (*protocol.CronTaskStatus, error)
+	GetDailyReport(ctx context.Context, input protocol.CronDailyReportInput) (*protocol.CronDailyReport, error)
+	RetryRunDelivery(ctx context.Context, jobID string, runID string) (*protocol.CronRun, error)
+	RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*protocol.CronJob, error)
 }

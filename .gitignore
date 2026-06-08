@@ -47,7 +47,11 @@ alembic/
 docs/system
 docs/plans
 docs/patents
-
+docs/articles
 
 # log
 logs
+
+# dev
+skills/werewolf-6p
+skills/room-playbook

@@ -13,11 +13,13 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 var (
@@ -30,11 +32,14 @@ type Request struct {
 	SessionKey           string
 	AgentID              string
 	Content              string
+	GoalContext          string
 	Attachments          []protocol.ChatAttachment
 	RoundID              string
 	ReqID                string
 	DeliveryPolicy       protocol.ChatDeliveryPolicy
 	BroadcastUserMessage bool
+	Internal             bool
+	InputOptions         sdkprotocol.OutboundMessageOptions
 	PermissionMode       sdkpermission.Mode
 	PermissionHandler    sdkpermission.Handler
 }
@@ -45,15 +50,16 @@ type InterruptRequest struct {
 	RoundID    string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组进程内 MCP server。
+// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
 // 用 string 形参避免 dm 包反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(
 	agentID string,
 	sessionKey string,
+	roundID string,
 	sourceContextType string,
 	sourceContextID string,
 	sourceContextLabel string,
-) map[string]sdkmcp.SDKMCPServer
+) map[string]sdkmcp.ServerConfig
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
@@ -63,10 +69,12 @@ type Service struct {
 	permission *permissionctx.Context
 	roomStore  roomSessionStore
 	providers  clientopts.RuntimeConfigResolver
+	prefs      runtimePreferencesService
 	files      *workspacestore.SessionFileStore
 	history    *workspacestore.AgentHistoryStore
 	inputQueue *workspacestore.InputQueueStore
 	usage      usageRecorder
+	goals      goalContextProvider
 	logger     *slog.Logger
 	mcpServers MCPServerBuilder
 	titles     titleScheduler
@@ -81,8 +89,29 @@ type titleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
 }
 
+type runtimePreferencesService interface {
+	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
 type usageRecorder interface {
 	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
+}
+
+type goalContextProvider interface {
+	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
+	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordContinuationProgress(context.Context, string, string, bool) (*protocol.Goal, error)
+	RecordContinuationFailure(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordCompletionToolMiss(context.Context, string, string, string) (*protocol.Goal, error)
+	RecordGoalActivity(context.Context, string, string) (*protocol.Goal, error)
+	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
+	GoalContinuationStillCurrent(context.Context, protocol.GoalContinuation) (bool, error)
+}
+
+type goalContinuationPlanReleaser interface {
+	ReleaseContinuationPlan(context.Context, protocol.GoalContinuation, string) (*protocol.Goal, error)
 }
 
 // NewService 创建 DM 会话编排服务。
@@ -113,7 +142,7 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 	s.logger = logger
 }
 
-// SetMCPServerBuilder 注入按会话上下文构造进程内 MCP server 的工厂。
+// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 // 由 server app 在构造定时任务服务后注入，避免 dm 包反向依赖 automation 子包。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
@@ -124,9 +153,19 @@ func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver)
 	s.providers = resolver
 }
 
+// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
+func (s *Service) SetPreferences(prefs runtimePreferencesService) {
+	s.prefs = prefs
+}
+
 // SetUsageRecorder 注入 token usage 持久化 ledger。
 func (s *Service) SetUsageRecorder(recorder usageRecorder) {
 	s.usage = recorder
+}
+
+// SetGoalContextProvider 注入 Goal runtime context provider。
+func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
+	s.goals = provider
 }
 
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。

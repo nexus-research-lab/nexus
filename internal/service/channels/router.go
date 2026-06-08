@@ -318,7 +318,7 @@ func (r *Router) RememberRoute(ctx context.Context, agentID string, target Deliv
 		)
 		return nil, err
 	}
-	r.loggerFor(ctx).Info("记录最近投递目标",
+	r.loggerFor(ctx).Debug("记录最近投递目标",
 		"agent_id", strings.TrimSpace(agentID),
 		"channel", normalized.Channel,
 		"mode", normalized.Mode,
@@ -381,15 +381,21 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 		)
 		return DeliveryTarget{}, err
 	}
-	if err := channel.SendDeliveryText(ctx, normalized, text); err != nil {
+	var deliveryErr error
+	if scoped, ok := channel.(agentScopedDeliveryChannel); ok {
+		deliveryErr = scoped.SendAgentDeliveryText(ctx, agentID, normalized, text)
+	} else {
+		deliveryErr = channel.SendDeliveryText(ctx, normalized, text)
+	}
+	if deliveryErr != nil {
 		r.loggerFor(ctx).Error("文本投递失败",
 			"agent_id", agentID,
 			"channel", normalized.Channel,
 			"to", normalized.To,
 			"thread_id", normalized.ThreadID,
-			"err", err,
+			"err", deliveryErr,
 		)
-		return DeliveryTarget{}, err
+		return DeliveryTarget{}, deliveryErr
 	}
 	if strings.TrimSpace(agentID) != "" {
 		if _, err := r.RememberRoute(ctx, agentID, normalized); err != nil {

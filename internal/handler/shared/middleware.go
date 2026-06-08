@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -141,18 +142,41 @@ func AccessLogMiddleware() func(http.Handler) http.Handler {
 				"path", request.URL.Path,
 			}
 			if rawQuery := strings.TrimSpace(request.URL.RawQuery); rawQuery != "" {
-				fields = append(fields, "query", rawQuery)
+				fields = append(fields, "query", sanitizeQueryForLog(rawQuery))
 			}
 
-			switch {
-			case recorder.status >= http.StatusInternalServerError:
+			switch accessLogLevel(request, recorder.status, duration) {
+			case slog.LevelError:
 				requestLogger.Error("HTTP 请求完成", fields...)
-			case recorder.status >= http.StatusBadRequest:
+			case slog.LevelWarn:
 				requestLogger.Warn("HTTP 请求完成", fields...)
-			default:
+			case slog.LevelInfo:
 				requestLogger.Info("HTTP 请求完成", fields...)
+			default:
+				requestLogger.Debug("HTTP 请求完成", fields...)
 			}
 		})
+	}
+}
+
+func accessLogLevel(request *http.Request, status int, duration time.Duration) slog.Level {
+	if status >= http.StatusInternalServerError {
+		return slog.LevelError
+	}
+	if status >= http.StatusBadRequest {
+		return slog.LevelWarn
+	}
+	if status == http.StatusSwitchingProtocols {
+		return slog.LevelDebug
+	}
+	if duration >= time.Second {
+		return slog.LevelInfo
+	}
+	switch request.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return slog.LevelDebug
+	default:
+		return slog.LevelInfo
 	}
 }
 
@@ -315,6 +339,20 @@ func ClientIP(request *http.Request) string {
 		return host
 	}
 	return strings.TrimSpace(request.RemoteAddr)
+}
+
+// sanitizeQueryForLog 脱敏 URL 查询字符串中的 token 类参数，防止凭证写入访问日志。
+func sanitizeQueryForLog(rawQuery string) string {
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "[unparseable]"
+	}
+	for _, key := range []string{"access_token", "token", "api_key", "secret", "password"} {
+		if values.Has(key) {
+			values.Set(key, "[redacted]")
+		}
+	}
+	return values.Encode()
 }
 
 func generateRequestID() string {

@@ -1,13 +1,20 @@
 "use client";
 
-import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
+import { useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
+import { AppRouteBuilders } from "@/app/router/route-paths";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
+import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { useSkillMarketplace } from "@/hooks/capability/use-skill-marketplace";
 
 import { ExternalSkillPreviewDialog } from "./external-skill-preview-dialog";
-import { SkillDetailDialog } from "./skill-detail-dialog";
+import { SkillDetailView } from "./skill-detail-view";
+import { SkillImportDialog } from "./skill-import-dialog";
+import { SkillSourceManagerDialog } from "./skill-source-manager-dialog";
 import { SkillsCatalogGrid } from "./skills-catalog-grid";
 import { SkillsExternalResults } from "./skills-external-results";
 import { SkillsHeader } from "./skills-header";
@@ -21,7 +28,24 @@ interface SkillsDirectoryProps {
 }
 
 export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
+  const { t } = useI18n();
   const ctrl = useSkillMarketplace();
+  const navigate = useNavigate();
+  const { skill_name } = useParams<{ skill_name?: string }>();
+  const open_skill_page = useCallback(
+    (name: string) => {
+      navigate(AppRouteBuilders.skill_detail(name));
+    },
+    [navigate],
+  );
+  const back_to_skills = useCallback(() => {
+    navigate(AppRouteBuilders.skills());
+  }, [navigate]);
+  const handle_skill_deleted = useCallback(async () => {
+    await ctrl.refresh_marketplace();
+    navigate(AppRouteBuilders.skills());
+  }, [ctrl, navigate]);
+
   const feedback_items: FeedbackBannerItem[] = [];
   if (ctrl.status_message) {
     feedback_items.push({
@@ -66,39 +90,41 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
         )}
         stable_gutter
       >
-        <div className="mx-auto w-full max-w-[1180px] px-5 py-5 xl:px-6">
-          <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
-            <SkillsSearchBar ctrl={ctrl} />
-          </div>
+        {skill_name ? (
+          <SkillDetailView
+            skill_name={skill_name}
+            on_back={back_to_skills}
+            on_deleted={handle_skill_deleted}
+            on_refreshed={ctrl.refresh_marketplace}
+          />
+        ) : (
+          <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+            <div className="mb-5">
+              <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
+                {t("capability.skills_intro_title")}
+              </h1>
+              <p className="mt-1 max-w-[680px] text-[13px] leading-6 text-(--text-muted)">
+                {t("capability.skills_intro_description")}
+              </p>
+            </div>
 
-          <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
-            {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
-            {ctrl.discovery_mode === "catalog" && <SkillsCatalogGrid ctrl={ctrl} />}
+            <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
+              <SkillsSearchBar ctrl={ctrl} />
+            </div>
+
+            <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
+              {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
+              {ctrl.discovery_mode === "catalog" && (
+                <SkillsCatalogGrid ctrl={ctrl} on_open_skill={open_skill_page} />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </WorkspaceSurfaceScaffold>
 
       <FeedbackBannerStack items={feedback_items} />
 
-      {/* 弹窗 */}
-      {ctrl.selected_skill && (
-        <SkillDetailDialog
-          is_open={!!ctrl.selected_skill}
-          on_close={() => ctrl.set_selected_skill(null)}
-          on_refresh={ctrl.refresh_marketplace}
-          skill_name={ctrl.selected_skill}
-        />
-      )}
-
-      <PromptDialog
-        default_value=""
-        is_open={ctrl.git_prompt_open}
-        message="输入包含 SKILL.md 的 Git 仓库地址"
-        on_cancel={() => ctrl.set_git_prompt_open(false)}
-        on_confirm={(value) => void ctrl.handle_git_import(value)}
-        placeholder="https://github.com/owner/repo.git"
-        title="通过 Git 导入"
-      />
+      <SkillImportDialog ctrl={ctrl} />
 
       <ExternalSkillPreviewDialog
         already_imported={
@@ -116,7 +142,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
         }
         busy={
           !!ctrl.preview_external_item &&
-          ctrl.busy_external_key === `${ctrl.preview_external_item.package_spec}@@${ctrl.preview_external_item.skill_slug}`
+          ctrl.busy_external_key === `${ctrl.preview_external_item.source_key || ctrl.preview_external_item.package_spec}@@${ctrl.preview_external_item.skill_slug}`
         }
         is_open={!!ctrl.preview_external_item}
         item={ctrl.preview_external_item}
@@ -126,6 +152,8 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
           if (ctrl.preview_external_item) void ctrl.handle_import_external(ctrl.preview_external_item);
         }}
       />
+
+      <SkillSourceManagerDialog ctrl={ctrl} />
     </>
   );
 }

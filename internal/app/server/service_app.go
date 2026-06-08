@@ -15,6 +15,8 @@ import (
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	operationsvc "github.com/nexus-research-lab/nexus/internal/service/operation"
@@ -24,6 +26,7 @@ import (
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 )
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
@@ -39,7 +42,6 @@ type AppServices struct {
 	Title          *titlegen.Service
 	Usage          *usagesvc.Service
 	Preferences    *preferencessvc.Service
-	Operation      *operationsvc.Service
 	Permission     *permissionctx.Context
 	Runtime        *runtimectx.Manager
 	Channels       *channels.Router
@@ -49,6 +51,8 @@ type AppServices struct {
 	RoomRealtime   *roomsvc.RealtimeService
 	Automation     *automationsvc.Service
 	Imagegen       *imagegensvc.Service
+	Goal           *goalsvc.Service
+	Operation      *operationsvc.Service
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -69,18 +73,31 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	authService := authsvc.NewServiceWithDB(cfg, db)
 	usageService := usagesvc.NewServiceWithDB(cfg, db)
 	providerService := providercfg.NewServiceWithDB(cfg, db)
-	imagegenService := imagegensvc.NewService(providerService)
+	providerService.SetLogger(logger.With("component", "provider"))
+	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	preferencesService := preferencessvc.NewService(cfg)
 	operationService := operationsvc.NewService(cfg)
+	imagegenService := imagegensvc.NewService(providerService)
+	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
-	skillService := skillsvc.NewService(cfg, core.Agent, workspaceService)
+	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
 	core.Room.SetSkillCatalog(skillService)
 	connectorService := connectorsvc.NewService(cfg, db)
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
 	permission := permissionctx.NewContext()
-	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission)
+	goalService.SetEventBroadcaster(permission)
+	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	goalService.SetPreviewFiller(titleService)
+	goalObjectiveService := goalobjectivesvc.NewService(providerService, preferencesService)
+	goalObjectiveService.SetConversationResolvers(core.Agent, core.Room)
+	goalService.SetObjectiveRewriter(goalObjectiveService)
+	goalService.SetGuidanceDispatcher(runtimeManager)
+	goalService.SetExternalMutationAccountant(runtimeManager)
+	core.Agent.SetGoalCleaner(goalService)
+	core.Room.SetGoalCleaner(goalService)
+	core.Room.SetRuntimeManager(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
 	channelRouter.SetLogger(logger.With("component", "channels"))
@@ -88,7 +105,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService := dmsvc.NewService(cfg, core.Agent, runtimeManager, permission)
 	dmService.SetLogger(logger.With("component", "dm"))
 	dmService.SetProviderResolver(providerService)
+	dmService.SetPreferences(preferencesService)
 	dmService.SetUsageRecorder(usageService)
+	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetTitleGenerator(titleService)
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
@@ -98,8 +117,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime := roomsvc.NewRealtimeService(cfg, core.Room, core.Agent, runtimeManager, permission)
 	roomRealtime.SetLogger(logger.With("component", "room"))
 	roomRealtime.SetProviderResolver(providerService)
+	roomRealtime.SetPreferences(preferencesService)
 	roomRealtime.SetUsageRecorder(usageService)
+	roomRealtime.SetGoalContextProvider(goalService)
 	roomRealtime.SetTitleGenerator(titleService)
+	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
 	automationService := automationsvc.NewService(
 		cfg,
 		db,
@@ -113,10 +135,19 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	automationService.SetRuntimeSessionCloser(runtimeManager)
 	automationService.SetLogger(logger.With("component", "automation"))
 
-	// 把内置自动化与连接器 MCP server 注入 DM/Room runtime。
+	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
-	mcpBuilder := combinedMCPBuilder(automationBuilder, connectorBuilder)
+	goalBuilder := newGoalMCPBuilder(cfg, goalService)
+	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
+	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent)
+	mcpBuilder := combinedMCPBuilder(
+		automationBuilder,
+		connectorBuilder,
+		goalBuilder,
+		contextOnlyMCPBuilder(imagegenBuilder),
+		contextOnlyMCPBuilder(roomBuilder),
+	)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
 
@@ -128,7 +159,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Auth:           authService,
 		Provider:       providerService,
 		Preferences:    preferencesService,
-		Operation:      operationService,
 		Workspace:      workspaceService,
 		Skills:         skillService,
 		Connectors:     connectorService,
@@ -144,6 +174,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		RoomRealtime:   roomRealtime,
 		Automation:     automationService,
 		Imagegen:       imagegenService,
+		Goal:           goalService,
+		Operation:      operationService,
 	}
 }
 

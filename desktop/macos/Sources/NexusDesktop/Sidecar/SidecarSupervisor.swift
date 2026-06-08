@@ -6,8 +6,8 @@ final class SidecarSupervisor {
   private let runtimeConfig: SidecarRuntimeConfig
   private let orphanReaper: SidecarOrphanReaper
   private let startupTimeline: DesktopStartupTimeline?
-  private let stdoutPipe = SidecarLogPipe(label: "stdout")
-  private let stderrPipe = SidecarLogPipe(label: "stderr")
+  private let stdoutPipe = SidecarLogPipe()
+  private let stderrPipe = SidecarLogPipe(label: "sidecar stderr")
   private var process: Process?
 
   init(startupTimeline: DesktopStartupTimeline? = nil) throws {
@@ -101,6 +101,7 @@ final class SidecarSupervisor {
     environment["TELEGRAM_ENABLED"] = "false"
     environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback"
     applyPackagedConnectorConfig(to: &environment)
+    applyBundledNXSRuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = "\(webOrigin),nexus://connectors"
     return environment
@@ -126,6 +127,32 @@ final class SidecarSupervisor {
         environment[key] = value
       }
     }
+  }
+
+  private func applyBundledNXSRuntime(to environment: inout [String: String]) {
+    guard locator.projectRoot == nil else {
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "development",
+      ])
+      return
+    }
+    let nxsURL = locator.appRootURL.appendingPathComponent("bin/nxs")
+    if FileManager.default.isExecutableFile(atPath: nxsURL.path) {
+      environment["NEXUS_NXS_COMMAND_PATH"] = nxsURL.path
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "bundled",
+      ])
+      return
+    }
+    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "override",
+      ])
+      return
+    }
+    startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+      "source": "missing",
+    ])
   }
 
   private func connectorCredentialsKeyMode(environment: [String: String]) -> DesktopKeychainMode {

@@ -87,7 +87,7 @@ export function RoomAgentSwitcher({
             className="fixed inset-0 z-40"
             onClick={() => set_is_open(false)}
           />
-          <div className="surface-panel radius-shell-lg absolute left-0 top-[calc(100%+8px)] z-50 w-[min(18.5rem,calc(100vw-24px))] overflow-hidden">
+          <div className="surface-panel surface-radius-lg absolute left-0 top-[calc(100%+8px)] z-50 w-[min(18.5rem,calc(100vw-24px))] overflow-hidden">
             <div className="p-1.5">
               {members.map((member) => {
                 const is_active = member.agent_id === selected_id;

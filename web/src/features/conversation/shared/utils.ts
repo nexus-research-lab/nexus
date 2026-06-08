@@ -5,6 +5,8 @@ import {
   RoomPendingAgentSlotState,
 } from "@/types/conversation/message";
 import { PendingPermission } from "@/types/conversation/permission";
+import { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
+export { is_automation_trigger_user_message } from "@/types/conversation/automation-message";
 
 /** 将消息按 round_id 分组 */
 export function group_messages_by_round(messages: Message[]): Map<string, Message[]> {
@@ -317,7 +319,7 @@ export function group_room_pending_slots_by_round(
 /** 过滤出 Thread 需要展示的用户消息和目标 Agent 的执行链。 */
 export function get_room_thread_messages(messages: Message[], agent_id: string): Message[] {
   return messages.filter((message) => (
-    message.role === "user" ||
+    (message.role === "user" && !is_automation_trigger_user_message(message)) ||
     (
       message.role === "system" &&
       message.agent_id === agent_id &&
@@ -385,4 +387,32 @@ export function get_latest_reply_timestamp(messages: Message[]): number | null {
   const last = messages[messages.length - 1];
   if (last && Number.isFinite(last.timestamp) && last.timestamp > 0) return last.timestamp;
   return null;
+}
+
+export interface ConversationActivitySnapshot {
+  scope_key: string;
+  latest_reply_timestamp: number | null;
+}
+
+export function build_conversation_activity_snapshot(
+  scope_key: string,
+  latest_reply_timestamp: number | null,
+): ConversationActivitySnapshot {
+  return {
+    scope_key,
+    latest_reply_timestamp,
+  };
+}
+
+/** 历史加载只建立基线；只有同一会话出现更新回复时才刷新活跃时间。 */
+export function should_emit_conversation_activity(
+  previous: ConversationActivitySnapshot | null,
+  scope_key: string,
+  latest_reply_timestamp: number | null,
+): boolean {
+  return Boolean(
+    latest_reply_timestamp &&
+      previous?.scope_key === scope_key &&
+      latest_reply_timestamp > (previous.latest_reply_timestamp ?? 0),
+  );
 }

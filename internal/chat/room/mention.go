@@ -19,6 +19,7 @@ func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []s
 	if strings.TrimSpace(content) == "" || len(agentNameToID) == 0 {
 		return nil
 	}
+	content = maskBacktickCodeRegions(content)
 
 	names := make([]string, 0, len(agentNameToID))
 	for name := range agentNameToID {
@@ -69,6 +70,35 @@ func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []s
 		result = append(result, match.agentID)
 	}
 	return result
+}
+
+// maskBacktickCodeRegions 保留原始字节位置，把反引号代码区替换为空格，避免示例里的 @ 触发执行。
+func maskBacktickCodeRegions(content string) string {
+	if !strings.Contains(content, "`") {
+		return content
+	}
+	masked := []byte(content)
+	for index := 0; index < len(masked); {
+		if masked[index] != '`' {
+			index++
+			continue
+		}
+		start := index
+		for index < len(masked) && masked[index] == '`' {
+			index++
+		}
+		tickCount := index - start
+		closing := strings.Index(string(masked[index:]), strings.Repeat("`", tickCount))
+		end := len(masked)
+		if closing >= 0 {
+			end = index + closing + tickCount
+		}
+		for cursor := start; cursor < end; cursor++ {
+			masked[cursor] = ' '
+		}
+		index = end
+	}
+	return string(masked)
 }
 
 // BuildMentionAliases 构建 Room 成员可被 @ 命中的别名表。

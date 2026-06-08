@@ -4,8 +4,11 @@
 
 import { format_provider_label, type ProviderOption } from "@/types/capability/provider";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import type { AgentOptions } from "@/types/agent/agent";
 
 export const DEFAULT_AGENT_OPTION_PROVIDER = "";
+export const DEFAULT_AGENT_OPTION_MODEL = "";
+export const DEFAULT_AGENT_PERMISSION_MODE = "default";
 
 export const AGENT_PERMISSION_MODES: ReadonlyArray<{
   value: string;
@@ -55,10 +58,10 @@ export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
   { name: "KillShell", description_key: "agent_options.advanced.tool.kill_shell" },
   { name: "AskUserQuestion", description_key: "agent_options.advanced.tool.ask_user_question" },
   { name: "Skill", description_key: "agent_options.advanced.tool.skill" },
-  { name: "EnterPlanMode", description_key: "agent_options.advanced.tool.enter_plan_mode" },
+  { name: "nexus_imagegen", description_key: "agent_options.advanced.tool.nexus_imagegen" },
 ] as const;
 
-export const DEFAULT_AGENT_ALLOWED_TOOLS = AVAILABLE_AGENT_TOOLS.map((tool) => tool.name);
+export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
 
 export function normalize_agent_option_provider(provider?: string | null): string {
   const normalized_provider = provider?.trim();
@@ -68,17 +71,50 @@ export function normalize_agent_option_provider(provider?: string | null): strin
 export function build_agent_option_provider_options(
   provider_options: ProviderOption[],
   current_provider?: string,
+  current_model?: string,
 ): ProviderOption[] {
   const normalized_provider = current_provider?.trim();
-  if (!normalized_provider || provider_options.some((item) => item.provider === normalized_provider)) {
+  const normalized_model = current_model?.trim();
+  if (!normalized_provider) {
     return provider_options;
+  }
+  const existing_index = provider_options.findIndex((item) => item.provider === normalized_provider);
+  if (existing_index >= 0) {
+    if (!normalized_model || provider_options[existing_index].models.some((item) => item.model_id === normalized_model)) {
+      return provider_options;
+    }
+    return provider_options.map((item, index) => index === existing_index
+      ? {
+        ...item,
+        models: [
+          ...item.models,
+          { model_id: normalized_model, display_name: normalized_model, is_default: false },
+        ],
+      }
+      : item);
   }
   return [
     ...provider_options,
     {
       provider: normalized_provider,
       display_name: format_provider_label(normalized_provider),
-      is_default: false,
+      models: normalized_model
+        ? [{ model_id: normalized_model, display_name: normalized_model, is_default: false }]
+        : [],
     },
   ];
+}
+
+export function build_agent_options_save_payload(options: AgentOptions): AgentOptions {
+  return {
+    provider: options.provider,
+    model: options.model,
+    permission_mode: options.permission_mode,
+    allowed_tools: options.allowed_tools,
+    disallowed_tools: options.disallowed_tools,
+    max_turns: options.max_turns,
+    max_thinking_tokens: options.max_thinking_tokens,
+    mcp_servers: options.mcp_servers,
+    setting_sources: options.setting_sources,
+  };
 }

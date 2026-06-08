@@ -1,0 +1,37 @@
+package tool
+
+func objectSchema(properties map[string]any, required ...string) map[string]any {
+	if properties == nil {
+		properties = map[string]any{}
+	}
+	requiredList := append([]string{}, required...)
+	schema := map[string]any{
+		"type":                 "object",
+		"properties":           properties,
+		"additionalProperties": false,
+		"required":             requiredList,
+	}
+	return schema
+}
+
+func stringProperty(description string) map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"description": description,
+	}
+}
+
+func integerProperty(description string) map[string]any {
+	return map[string]any{
+		"type":        "integer",
+		"description": description,
+	}
+}
+
+func enumStringProperty(description string, values ...string) map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"description": description,
+		"enum":        values,
+	}
+}

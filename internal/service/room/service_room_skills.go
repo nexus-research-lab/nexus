@@ -70,7 +70,7 @@ func (s *Service) BuildRoomSkillPrompt(ctx context.Context, skillNames []string)
 
 	var builder strings.Builder
 	builder.WriteString("# Room Skills\n\n")
-	builder.WriteString("以下规则来自当前房间启用的 Room Skill，适用于本房间所有成员。")
+	builder.WriteString("These rules come from Room Skills enabled for the current Room and apply to every Room member.")
 	for _, detail := range details {
 		builder.WriteString("\n\n## ")
 		builder.WriteString(detail.Title)

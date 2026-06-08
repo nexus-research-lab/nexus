@@ -2,11 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
-import mermaid from "mermaid";
 
 import { postProcessMermaidSvg } from "./mermaid-svg-postprocess";
 
 const MERMAID_STREAM_RENDER_DELAY = 300;
+
+type MermaidModule = typeof import("mermaid")["default"];
+
+let mermaid_module_promise: Promise<MermaidModule> | null = null;
+
+function loadMermaidModule(): Promise<MermaidModule> {
+  mermaid_module_promise ??= import("mermaid").then((module) => module.default);
+  return mermaid_module_promise;
+}
 
 const MERMAID_CONFIG = {
   htmlLabels: false,
@@ -71,6 +79,7 @@ export function useMermaidSvg(
 
     const render = async () => {
       try {
+        const mermaid = await loadMermaidModule();
         mermaid.initialize(MERMAID_CONFIG);
         const parse_result = await mermaid.parse(normalized_chart, { suppressErrors: true });
         if (!parse_result) {
