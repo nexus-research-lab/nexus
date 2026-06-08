@@ -46,31 +46,32 @@ func (a dmRoundMapperAdapter) SessionID() string {
 }
 
 type roundRunner struct {
-	service           *Service
-	workspacePath     string
-	session           protocol.Session
-	agent             *protocol.Agent
-	sessionKey        string
-	roundID           string
-	reqID             string
-	content           string
-	runtimeContent    conversationsvc.RuntimeContent
-	client            runtimectx.Client
-	runtimeProvider   string
-	runtimeModel      string
-	ownerUserID       string
-	mapper            *dmdomain.MessageMapper
-	inputOptions      sdkprotocol.OutboundMessageOptions
-	internal          bool
-	goalContext       string
-	goalIDForUsage    string
-	goalUsage         *goalsvc.RuntimeUsageAccumulator
-	goalUsageStarted  time.Time
-	goalUsageMu       sync.Mutex
-	goalLastAssistant protocol.Message
-	goalToolProgress  bool
-	permissionMode    sdkpermission.Mode
-	permissionHandler sdkpermission.Handler
+	service            *Service
+	workspacePath      string
+	session            protocol.Session
+	agent              *protocol.Agent
+	sessionKey         string
+	roundID            string
+	reqID              string
+	content            string
+	runtimeContent     conversationsvc.RuntimeContent
+	client             runtimectx.Client
+	runtimeProvider    string
+	runtimeModel       string
+	ownerUserID        string
+	mapper             *dmdomain.MessageMapper
+	inputOptions       sdkprotocol.OutboundMessageOptions
+	internal           bool
+	goalContext        string
+	goalIDForUsage     string
+	goalUsage          *goalsvc.RuntimeUsageAccumulator
+	goalUsageStarted   time.Time
+	goalUsageMu        sync.Mutex
+	goalLastAssistant  protocol.Message
+	goalToolProgress   bool
+	permissionMode     sdkpermission.Mode
+	permissionHandler  sdkpermission.Handler
+	resultUsageWritten bool
 }
 
 func (r *roundRunner) run(ctx context.Context) {
@@ -421,17 +422,25 @@ func (r *roundRunner) recordUsage(message protocol.Message) {
 	if r.service.usage == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
-	r.writeUsage(message)
+	if !usagesvc.MessageHasUsage(message) {
+		return
+	}
+	if r.writeUsage(message) {
+		r.resultUsageWritten = true
+	}
 }
 
 func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 	if r.service.usage == nil || protocol.MessageRole(message) != "assistant" {
 		return
 	}
+	if r.resultUsageWritten || !usagesvc.MessageHasUsage(message) {
+		return
+	}
 	r.writeUsage(message)
 }
 
-func (r *roundRunner) writeUsage(message protocol.Message) {
+func (r *roundRunner) writeUsage(message protocol.Message) bool {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
 	if err := r.service.usage.RecordMessageUsage(context.Background(), input); err != nil {
 		r.service.loggerFor(context.Background()).Error("DM token usage 写入失败",
@@ -440,5 +449,7 @@ func (r *roundRunner) writeUsage(message protocol.Message) {
 			"round_id", r.roundID,
 			"err", err,
 		)
+		return false
 	}
+	return true
 }

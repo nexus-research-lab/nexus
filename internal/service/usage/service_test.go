@@ -91,6 +91,21 @@ func TestServiceRecordsJSONNumberUsage(t *testing.T) {
 	}
 }
 
+func TestMessageHasUsage(t *testing.T) {
+	t.Parallel()
+
+	if MessageHasUsage(map[string]any{"usage": map[string]any{}}) {
+		t.Fatal("空 usage 不应被判定为可入账")
+	}
+	if !MessageHasUsage(map[string]any{
+		"usage": map[string]any{
+			"cache_read_input_tokens": json.Number("59072"),
+		},
+	}) {
+		t.Fatal("cache read usage 应被判定为可入账")
+	}
+}
+
 func newUsageTestDB(t *testing.T) (config.Config, *sql.DB) {
 	t.Helper()
 

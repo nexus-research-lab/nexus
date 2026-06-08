@@ -8,6 +8,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -202,21 +203,22 @@ func (s *RealtimeService) runSlot(
 		return
 	}
 	options, err := clientopts.BuildAgentClientOptions(slotCtx, s.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:      agentValue.WorkspacePath,
-		RuntimeKind:        runtimeSelection.RuntimeKind,
-		Provider:           runtimeSelection.Provider,
-		Model:              runtimeSelection.Model,
-		PermissionMode:     permissionMode,
-		PermissionHandler:  permissionHandler,
-		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
-		DisallowedTools:    roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
-		SettingSources:     agentValue.Options.SettingSources,
-		AppendSystemPrompt: appendSystemPrompt,
-		ResumeSessionID:    slot.getSDKSessionID(),
-		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
-		MaxTurns:           agentValue.Options.MaxTurns,
-		MCPServers:         mcpServers,
-		ExtraEnv:           s.roomRuntimeEnv(roundValue, slot),
+		WorkspacePath:              agentValue.WorkspacePath,
+		RuntimeKind:                runtimeSelection.RuntimeKind,
+		Provider:                   runtimeSelection.Provider,
+		Model:                      runtimeSelection.Model,
+		PermissionMode:             permissionMode,
+		PermissionHandler:          permissionHandler,
+		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
+		DisallowedTools:            roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
+		SettingSources:             agentValue.Options.SettingSources,
+		AppendSystemPrompt:         appendSystemPrompt,
+		ResumeSessionID:            slot.getSDKSessionID(),
+		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
+		MaxTurns:                   agentValue.Options.MaxTurns,
+		MCPServers:                 mcpServers,
+		ExtraEnv:                   s.roomRuntimeEnv(roundValue, slot),
+		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 	})
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
@@ -233,14 +235,7 @@ func (s *RealtimeService) runSlot(
 		RoomID:         roundValue.RoomID,
 		ConversationID: roundValue.ConversationID,
 	}))
-	previousStderr := options.Callbacks.Stderr
-	options.Callbacks.Stderr = func(line string) {
-		normalizedLine := normalizeRuntimeStderrLine(line)
-		if previousStderr != nil {
-			previousStderr(normalizedLine)
-		}
-		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
-	}
+	options = withRoomRuntimeDiagnosticsLogger(options, logger.With("agent_id", slot.AgentID, "round_id", slot.AgentRoundID))
 	client := s.factory.New(options)
 	slot.setClient(client)
 
@@ -330,7 +325,7 @@ func (s *RealtimeService) runSlot(
 			messageRole := protocol.MessageRole(messageValue)
 			if messageRole == "result" {
 				slot.setStatus(resultStatus(messageValue["subtype"]))
-				s.recordUsage(roundValue, messageValue)
+				s.recordUsage(roundValue, slot, messageValue)
 			}
 			if messageRole == "assistant" {
 				slot.rememberGoalAssistantMessage(messageValue)
@@ -382,7 +377,7 @@ func (s *RealtimeService) runSlot(
 	}
 
 	if result.CompletedByAssistant {
-		s.recordTerminalAssistantUsage(roundValue, mapper.LastAssistantMessage())
+		s.recordTerminalAssistantUsage(roundValue, slot, mapper.LastAssistantMessage())
 	}
 	s.recordGoalUsageForSlot(slotCtx, slot, result, mapper.LastAssistantMessage())
 	s.recordGoalUsageLimitForSlot(slotCtx, slot, result)
@@ -434,6 +429,39 @@ func (s *RealtimeService) runSlot(
 		slot.AgentRoundID,
 	))
 	logger.Info("Room slot 结束", "status", slot.getStatus())
+}
+
+func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {
+	previousStderr := options.Callbacks.Stderr
+	options.Callbacks.Stderr = func(line string) {
+		normalizedLine := normalizeRuntimeStderrLine(line)
+		if previousStderr != nil {
+			previousStderr(normalizedLine)
+		}
+		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
+	}
+	previousDiagnostics := options.Callbacks.Diagnostics
+	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
+		if previousDiagnostics == nil {
+			options.Callbacks.Diagnostics = func(agentclient.DiagnosticEvent) {}
+		}
+		return options
+	}
+	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
+		if previousDiagnostics != nil {
+			previousDiagnostics(event)
+		}
+		logger.Info("Agent SDK diagnostics",
+			"component", strings.TrimSpace(event.Component),
+			"event", strings.TrimSpace(event.Event),
+			"attrs", event.Attributes,
+		)
+	}
+	logger.Info("Agent SDK diagnostics 已启用",
+		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
+		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
+	)
+	return options
 }
 
 func roomSourceContextLabel(roundValue *activeRoomRound) string {

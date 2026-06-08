@@ -194,6 +194,7 @@ internal sealed class SidecarSupervisor : IDisposable
         Directory.CreateDirectory(DesktopPaths.WorkspaceDirectory);
         Directory.CreateDirectory(DesktopPaths.CacheDirectory);
         Directory.CreateDirectory(DesktopPaths.LogsDirectory);
+        Directory.CreateDirectory(DesktopPaths.DebugDirectory);
     }
 
     private async Task WaitUntilHealthyAsync()

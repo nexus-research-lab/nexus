@@ -129,6 +129,7 @@ internal sealed class DesktopBridgeHandler
         }
         using ZipArchive archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         AddDirectoryToArchive(archive, DesktopPaths.LogsDirectory, "logs");
+        AddDirectoryToArchive(archive, DesktopPaths.DebugDirectory, "debug");
         ZipArchiveEntry runtimeEntry = archive.CreateEntry("desktop-runtime.txt");
         using (StreamWriter writer = new(runtimeEntry.Open()))
         {

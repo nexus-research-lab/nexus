@@ -25,6 +25,10 @@ enum DesktopPaths {
     rootDirectory.appendingPathComponent("logs", isDirectory: true)
   }
 
+  static var debugDirectory: URL {
+    rootDirectory.appendingPathComponent("debug", isDirectory: true)
+  }
+
   static var sidecarPIDFileURL: URL {
     rootDirectory.appendingPathComponent("NexusSidecar.pid.json")
   }
@@ -34,7 +38,7 @@ enum DesktopPaths {
   }
 
   static func createRuntimeDirectories() throws {
-    for directory in [rootDirectory, dataDirectory, configDirectory, workspaceDirectory, cacheDirectory, logsDirectory] {
+    for directory in [rootDirectory, dataDirectory, configDirectory, workspaceDirectory, cacheDirectory, logsDirectory, debugDirectory] {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
   }

@@ -22,6 +22,7 @@ export let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
+let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
 let DEFAULT_IMAGE_MODEL_SELECTION: UserPreferences["default_image_model_selection"];
 let DEFAULT_BACKGROUND_MODEL_SELECTION: UserPreferences["default_background_model_selection"];
 let DEFAULT_AGENT_OPTIONS: Partial<AgentOptions> = {
@@ -138,6 +139,7 @@ export function get_user_preferences(): UserPreferences {
   return {
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
     agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
+    agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
     default_agent_options: get_initial_agent_options(),
     default_image_model_selection: DEFAULT_IMAGE_MODEL_SELECTION,
     default_background_model_selection: DEFAULT_BACKGROUND_MODEL_SELECTION,
@@ -151,6 +153,9 @@ export function set_user_preferences(preferences?: Partial<UserPreferences> | nu
   }
   if (preferences?.agent_runtime_kind !== undefined) {
     DEFAULT_AGENT_RUNTIME_KIND = normalize_agent_runtime_kind(preferences.agent_runtime_kind);
+  }
+  if (preferences !== undefined && preferences !== null) {
+    DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = preferences.agent_sdk_diagnostics_enabled === true;
   }
   DEFAULT_IMAGE_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_image_model_selection);
   DEFAULT_BACKGROUND_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_background_model_selection);

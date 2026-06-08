@@ -201,6 +201,19 @@ func MessageRecordInput(ownerUserID string, source string, message map[string]an
 	}
 }
 
+// MessageHasUsage 判断消息是否携带可入账的 token usage。
+func MessageHasUsage(message map[string]any) bool {
+	usage, _ := message["usage"].(map[string]any)
+	if len(usage) == 0 {
+		return false
+	}
+	return int64FromAny(usage["input_tokens"]) > 0 ||
+		int64FromAny(usage["output_tokens"]) > 0 ||
+		int64FromAny(usage["cache_creation_input_tokens"]) > 0 ||
+		int64FromAny(usage["cache_read_input_tokens"]) > 0 ||
+		int64FromAny(usage["total_tokens"]) > 0
+}
+
 func stringValue(value any) string {
 	typed, ok := value.(string)
 	if !ok {

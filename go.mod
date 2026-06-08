@@ -9,7 +9,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.2
-	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.6
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.8
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2

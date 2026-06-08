@@ -12,6 +12,7 @@ import (
 type Preferences struct {
 	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
 	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
+	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
 	DefaultImageModelSelection      ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultBackgroundModelSelection ModelSelection              `json:"default_background_model_selection,omitempty"`
@@ -22,6 +23,7 @@ type Preferences struct {
 type UpdateRequest struct {
 	ChatDefaultDeliveryPolicy       *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
 	AgentRuntimeKind                *string                      `json:"agent_runtime_kind,omitempty"`
+	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	DefaultAgentOptions             *protocol.Options            `json:"default_agent_options,omitempty"`
 	DefaultImageModelSelection      *ModelSelection              `json:"default_image_model_selection,omitempty"`
 	DefaultBackgroundModelSelection *ModelSelection              `json:"default_background_model_selection,omitempty"`
@@ -81,6 +83,7 @@ func normalizePreferences(item Preferences) Preferences {
 	return Preferences{
 		ChatDefaultDeliveryPolicy:       policy,
 		AgentRuntimeKind:                runtimeKind,
+		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
 		DefaultAgentOptions:             options,
 		DefaultImageModelSelection:      normalizeModelSelection(item.DefaultImageModelSelection),
 		DefaultBackgroundModelSelection: normalizeModelSelection(item.DefaultBackgroundModelSelection),

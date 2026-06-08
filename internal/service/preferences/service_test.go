@@ -21,6 +21,9 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if prefs.AgentRuntimeKind != "nxs" {
 		t.Fatalf("默认 runtime 应为 nxs: %+v", prefs)
 	}
+	if prefs.AgentSDKDiagnosticsEnabled {
+		t.Fatalf("Agent SDK diagnostics 默认应关闭: %+v", prefs)
+	}
 
 	normalized := normalizePreferences(Preferences{})
 	if normalized.DefaultAgentOptions.PermissionMode != "default" {
@@ -29,6 +32,9 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	if normalized.AgentRuntimeKind != "nxs" {
 		t.Fatalf("空偏好归一化后 runtime 应为 nxs: %+v", normalized)
 	}
+	if normalized.AgentSDKDiagnosticsEnabled {
+		t.Fatalf("空偏好归一化后 Agent SDK diagnostics 应关闭: %+v", normalized)
+	}
 }
 
 func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
@@ -36,8 +42,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
 
 	prefs, err := service.Update(context.Background(), "user/1", UpdateRequest{
-		ChatDefaultDeliveryPolicy: policyPointer(protocol.ChatDeliveryPolicyQueue),
-		AgentRuntimeKind:          stringPointer("nxs"),
+		ChatDefaultDeliveryPolicy:  policyPointer(protocol.ChatDeliveryPolicyQueue),
+		AgentRuntimeKind:           stringPointer("nxs"),
+		AgentSDKDiagnosticsEnabled: boolPointer(true),
 		DefaultAgentOptions: &protocol.Options{
 			PermissionMode: "default",
 			Provider:       "glm-coding-plan",
@@ -62,6 +69,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if prefs.AgentRuntimeKind != "nxs" {
 		t.Fatalf("runtime 偏好未持久化: %+v", prefs)
 	}
+	if !prefs.AgentSDKDiagnosticsEnabled {
+		t.Fatalf("Agent SDK diagnostics 偏好未持久化: %+v", prefs)
+	}
 	if prefs.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("权限模式未持久化: %+v", prefs.DefaultAgentOptions)
 	}
@@ -84,6 +94,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	}
 	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
 		loaded.AgentRuntimeKind != "nxs" ||
+		!loaded.AgentSDKDiagnosticsEnabled ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}
@@ -130,5 +141,9 @@ func policyPointer(value protocol.ChatDeliveryPolicy) *protocol.ChatDeliveryPoli
 }
 
 func stringPointer(value string) *string {
+	return &value
+}
+
+func boolPointer(value bool) *bool {
 	return &value
 }

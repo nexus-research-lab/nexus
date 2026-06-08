@@ -23,6 +23,7 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	sqliterepo "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -52,6 +53,91 @@ type fakeDMClient struct {
 	reconfigureOps  []agentclient.Options
 	onQuery         func(context.Context, string)
 	onInterrupt     func(context.Context)
+}
+
+type fakeTokenUsageRecorder struct {
+	inputs []usagesvc.RecordInput
+}
+
+func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usagesvc.RecordInput) error {
+	r.inputs = append(r.inputs, input)
+	return nil
+}
+
+func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
+	t.Parallel()
+
+	recorder := &fakeTokenUsageRecorder{}
+	runner := &roundRunner{
+		service:     &Service{usage: recorder},
+		ownerUserID: "user-1",
+		sessionKey:  "agent:demo:dm:session",
+		roundID:     "round-1",
+	}
+	result := protocol.Message{
+		"role":        "result",
+		"message_id":  "result-1",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage": map[string]any{
+			"input_tokens": 10,
+		},
+	}
+	assistant := protocol.Message{
+		"role":        "assistant",
+		"message_id":  "assistant-1",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage": map[string]any{
+			"input_tokens": 3,
+		},
+	}
+
+	runner.recordUsage(result)
+	runner.recordTerminalAssistantUsage(assistant)
+
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("usage 记录数量 = %d，期望只记录 result 聚合 usage", len(recorder.inputs))
+	}
+	if recorder.inputs[0].MessageID != "result-1" {
+		t.Fatalf("应记录 result usage，实际=%+v", recorder.inputs[0])
+	}
+}
+
+func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
+	t.Parallel()
+
+	recorder := &fakeTokenUsageRecorder{}
+	runner := &roundRunner{
+		service:     &Service{usage: recorder},
+		ownerUserID: "user-1",
+		sessionKey:  "agent:demo:dm:session",
+		roundID:     "round-1",
+	}
+
+	runner.recordUsage(protocol.Message{
+		"role":        "result",
+		"message_id":  "result-empty",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage":       map[string]any{},
+	})
+	runner.recordTerminalAssistantUsage(protocol.Message{
+		"role":        "assistant",
+		"message_id":  "assistant-1",
+		"session_key": "agent:demo:dm:session",
+		"round_id":    "round-1",
+		"usage": map[string]any{
+			"input_tokens": 3,
+		},
+	})
+
+	if len(recorder.inputs) != 1 {
+		t.Fatalf("usage 记录数量 = %d，期望 fallback 记录 assistant usage", len(recorder.inputs))
+	}
+	if recorder.inputs[0].MessageID != "assistant-1" {
+		t.Fatalf("应 fallback 记录 assistant usage，实际=%+v", recorder.inputs[0])
+	}
 }
 
 func newFakeDMClient() *fakeDMClient {

@@ -22,9 +22,10 @@ type Service struct {
 
 // Selection 表示启动 runtime 前已经合并完成的选择。
 type Selection struct {
-	RuntimeKind string
-	Provider    string
-	Model       string
+	RuntimeKind                string
+	Provider                   string
+	Model                      string
+	AgentSDKDiagnosticsEnabled bool
 }
 
 // Request 表示一次 Agent runtime 选择请求。
@@ -53,6 +54,7 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 	}
 	if ok {
 		selection.RuntimeKind = runtimeprovider.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
+		selection.AgentSDKDiagnosticsEnabled = prefs.AgentSDKDiagnosticsEnabled
 		if selection.Provider == "" || selection.Model == "" {
 			defaultProvider := strings.TrimSpace(prefs.DefaultAgentOptions.Provider)
 			defaultModel := strings.TrimSpace(prefs.DefaultAgentOptions.Model)

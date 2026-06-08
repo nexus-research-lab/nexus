@@ -95,6 +95,12 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
+	if options.Env["ANTHROPIC_AUTH_TOKEN"] != "token-1" {
+		t.Fatalf("Anthropic auth token 未写入 env: %+v", options.Env)
+	}
+	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
+		t.Fatalf("Agent API runtime 不应写入 ANTHROPIC_API_KEY: %+v", options.Env)
+	}
 	if options.Env["NEXUS_API_PROVIDER"] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
 	}
@@ -138,6 +144,32 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsAllowsExtraEnvOverrideNXSCacheDefaults(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+		ExtraEnv: map[string]string{
+			nxsCachedMicrocompactEnvName:     "0",
+			nxsAPIClearToolResultsEnvName:    "",
+			nxsPromptCache1hEligibleEnvName:  "0",
+			nxsPromptCache1hAllowlistEnvName: "agent:*",
+			nxsAgentSDKDiagnosticsEnvName:    "",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nxsCachedMicrocompactEnvName] != "0" ||
+		options.Env[nxsAPIClearToolResultsEnvName] != "" ||
+		options.Env[nxsPromptCache1hEligibleEnvName] != "0" ||
+		options.Env[nxsPromptCache1hAllowlistEnvName] != "agent:*" ||
+		options.Env[nxsAgentSDKDiagnosticsEnvName] != "" {
+		t.Fatalf("ExtraEnv 应覆盖 nxs cache 默认值: %+v", options.Env)
+	}
+	if options.Env[nxsAPIClearToolUsesEnvName] != "1" {
+		t.Fatalf("nxs tool use 清理默认值丢失: %+v", options.Env)
+	}
+}
+
 func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
@@ -166,6 +198,9 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	t.Setenv(nexusAppRootEnvName, "")
 	t.Setenv(nexusNXSCommandPathEnvName, "")
+	t.Setenv(nxsAgentSDKDiagnosticsEnvName, "stderr")
+	t.Setenv(nxsAgentSDKDebugEnvName, "1")
+	t.Setenv(nxsAgentSDKProviderDebugBodyEnvName, "full")
 
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
@@ -178,6 +213,44 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	}
 	if strings.TrimSpace(options.CLIPath) != "" {
 		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
+	}
+	for _, key := range []string{
+		nxsCachedMicrocompactEnvName,
+		nxsAPIClearToolResultsEnvName,
+		nxsAPIClearToolUsesEnvName,
+		nxsPromptCache1hEligibleEnvName,
+	} {
+		if options.Env[key] != "1" {
+			t.Fatalf("%s = %q, want 1; env=%+v", key, options.Env[key], options.Env)
+		}
+	}
+	if options.Env[nxsPromptCache1hAllowlistEnvName] != "sdk" {
+		t.Fatalf("%s = %q, want sdk; env=%+v", nxsPromptCache1hAllowlistEnvName, options.Env[nxsPromptCache1hAllowlistEnvName], options.Env)
+	}
+	for _, key := range []string{
+		nxsAgentSDKDiagnosticsEnvName,
+		nxsAgentSDKDebugEnvName,
+		nxsAgentSDKProviderDebugBodyEnvName,
+	} {
+		if options.Env[key] != "" {
+			t.Fatalf("%s = %q, want empty; env=%+v", key, options.Env[key], options.Env)
+		}
+	}
+}
+
+func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:                runtimeKindNXS,
+		AgentSDKDiagnosticsEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nxsAgentSDKDiagnosticsEnvName] != "stderr" {
+		t.Fatalf("%s = %q, want stderr; env=%+v", nxsAgentSDKDiagnosticsEnvName, options.Env[nxsAgentSDKDiagnosticsEnvName], options.Env)
+	}
+	if _, ok := options.Env[nxsAgentSDKProviderDebugBodyEnvName]; ok {
+		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)
 	}
 }
 

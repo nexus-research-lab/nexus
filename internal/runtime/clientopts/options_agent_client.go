@@ -22,6 +22,14 @@ const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
+const nxsCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
+const nxsAPIClearToolResultsEnvName = "NEXUS_API_CLEAR_TOOL_RESULTS"
+const nxsAPIClearToolUsesEnvName = "NEXUS_API_CLEAR_TOOL_USES"
+const nxsPromptCache1hEligibleEnvName = "NEXUS_PROMPT_CACHE_1H_ELIGIBLE"
+const nxsPromptCache1hAllowlistEnvName = "NEXUS_PROMPT_CACHE_1H_ALLOWLIST"
+const nxsAgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
+const nxsAgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
+const nxsAgentSDKProviderDebugBodyEnvName = "NEXUS_AGENT_SDK_PROVIDER_DEBUG_BODY"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -49,21 +57,22 @@ type RuntimeConfigForRuntimeResolver interface {
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
-	WorkspacePath      string
-	RuntimeKind        string
-	Provider           string
-	Model              string
-	PermissionMode     sdkpermission.Mode
-	PermissionHandler  sdkpermission.Handler
-	AllowedTools       []string
-	DisallowedTools    []string
-	SettingSources     []string
-	AppendSystemPrompt string
-	ResumeSessionID    string
-	MaxThinkingTokens  *int
-	MaxTurns           *int
-	MCPServers         map[string]sdkmcp.ServerConfig
-	ExtraEnv           map[string]string
+	WorkspacePath              string
+	RuntimeKind                string
+	Provider                   string
+	Model                      string
+	PermissionMode             sdkpermission.Mode
+	PermissionHandler          sdkpermission.Handler
+	AllowedTools               []string
+	DisallowedTools            []string
+	SettingSources             []string
+	AppendSystemPrompt         string
+	ResumeSessionID            string
+	MaxThinkingTokens          *int
+	MaxTurns                   *int
+	MCPServers                 map[string]sdkmcp.ServerConfig
+	ExtraEnv                   map[string]string
+	AgentSDKDiagnosticsEnabled bool
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -77,7 +86,7 @@ func BuildAgentClientOptions(
 	if err != nil {
 		return agentclient.Options{}, err
 	}
-	runtimeEnv := defaultRuntimeEnv()
+	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled)
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
@@ -244,10 +253,29 @@ func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...str
 	}
 }
 
-func defaultRuntimeEnv() map[string]string {
-	return map[string]string{
+func defaultRuntimeEnv(runtimeKind string, agentSDKDiagnosticsEnabled bool) map[string]string {
+	env := map[string]string{
 		claudeAutoCompactPctOverrideEnvName: defaultClaudeAutoCompactPctOverride,
 	}
+	if runtimeProfileForKind(runtimeKind).isNXS() {
+		env[nxsCachedMicrocompactEnvName] = "1"
+		env[nxsAPIClearToolResultsEnvName] = "1"
+		env[nxsAPIClearToolUsesEnvName] = "1"
+		env[nxsPromptCache1hEligibleEnvName] = "1"
+		env[nxsPromptCache1hAllowlistEnvName] = "sdk"
+		applyNXSAgentSDKDiagnosticsEnv(env, agentSDKDiagnosticsEnabled)
+	}
+	return env
+}
+
+func applyNXSAgentSDKDiagnosticsEnv(env map[string]string, enabled bool) {
+	if enabled {
+		env[nxsAgentSDKDiagnosticsEnvName] = "stderr"
+		return
+	}
+	env[nxsAgentSDKDiagnosticsEnvName] = ""
+	env[nxsAgentSDKDebugEnvName] = ""
+	env[nxsAgentSDKProviderDebugBodyEnvName] = ""
 }
 
 func resolveRuntimeConfig(

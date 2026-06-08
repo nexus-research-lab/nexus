@@ -31,6 +31,7 @@ type activeRoomSlot struct {
 	GoalUsageStartedAt time.Time
 	GoalLastAssistant  protocol.Message
 	GoalToolProgress   bool
+	resultUsageWritten bool
 	WorkspacePath      string
 	Client             runtimectx.Client
 	Cancel             context.CancelFunc

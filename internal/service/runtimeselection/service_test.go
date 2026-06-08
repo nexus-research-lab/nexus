@@ -20,7 +20,8 @@ func (s fakePreferencesService) Get(_ context.Context, ownerUserID string) (pref
 func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 	service := NewService(fakePreferencesService{items: map[string]preferencessvc.Preferences{
 		"owner-1": {
-			AgentRuntimeKind: "nxs",
+			AgentRuntimeKind:           "nxs",
+			AgentSDKDiagnosticsEnabled: true,
 			DefaultAgentOptions: protocol.Options{
 				Provider: "openai",
 				Model:    "gpt-4o",
@@ -42,6 +43,9 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 	if selection.RuntimeKind != "nxs" || selection.Provider != "anthropic" || selection.Model != "claude-sonnet-4-5" {
 		t.Fatalf("显式 Agent 模型应优先，同时保留偏好 runtime: %+v", selection)
 	}
+	if !selection.AgentSDKDiagnosticsEnabled {
+		t.Fatalf("Agent SDK diagnostics 偏好应透传: %+v", selection)
+	}
 }
 
 func TestResolveFallsBackToPreferenceDefaultModel(t *testing.T) {
@@ -62,6 +66,9 @@ func TestResolveFallsBackToPreferenceDefaultModel(t *testing.T) {
 	}
 	if selection.RuntimeKind != "nxs" || selection.Provider != "openai" || selection.Model != "gpt-4o" {
 		t.Fatalf("未显式配置模型时应使用用户默认模型: %+v", selection)
+	}
+	if selection.AgentSDKDiagnosticsEnabled {
+		t.Fatalf("Agent SDK diagnostics 默认应保持关闭: %+v", selection)
 	}
 }
 

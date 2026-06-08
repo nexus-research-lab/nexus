@@ -67,20 +67,21 @@ func (s *Service) ensureClient(
 		return nil, "", "", "", "", permissionMode, err
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:      agentValue.WorkspacePath,
-		RuntimeKind:        runtimeSelection.RuntimeKind,
-		Provider:           runtimeSelection.Provider,
-		Model:              runtimeSelection.Model,
-		PermissionMode:     permissionMode,
-		PermissionHandler:  permissionHandler,
-		AllowedTools:       toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
-		DisallowedTools:    agentValue.Options.DisallowedTools,
-		SettingSources:     agentValue.Options.SettingSources,
-		AppendSystemPrompt: appendSystemPrompt,
-		ResumeSessionID:    dmdomain.StringPointerValue(sessionItem.SessionID),
-		MaxThinkingTokens:  agentValue.Options.MaxThinkingTokens,
-		MaxTurns:           agentValue.Options.MaxTurns,
-		MCPServers:         mcpServers,
+		WorkspacePath:              agentValue.WorkspacePath,
+		RuntimeKind:                runtimeSelection.RuntimeKind,
+		Provider:                   runtimeSelection.Provider,
+		Model:                      runtimeSelection.Model,
+		PermissionMode:             permissionMode,
+		PermissionHandler:          permissionHandler,
+		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
+		DisallowedTools:            agentValue.Options.DisallowedTools,
+		SettingSources:             agentValue.Options.SettingSources,
+		AppendSystemPrompt:         appendSystemPrompt,
+		ResumeSessionID:            dmdomain.StringPointerValue(sessionItem.SessionID),
+		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
+		MaxTurns:                   agentValue.Options.MaxTurns,
+		MCPServers:                 mcpServers,
+		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 	})
 	if err != nil {
 		return nil, "", "", "", "", permissionMode, err
@@ -91,6 +92,7 @@ func (s *Service) ensureClient(
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
 	}, sessionItem)
+	options = s.withRuntimeDiagnosticsLogger(options, sessionKey, agentValue.AgentID)
 	runtimeProvider := resolvedRuntimeProvider(runtimeSelection.Provider, options)
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
@@ -241,6 +243,47 @@ func (s *Service) acquireRuntimeClient(
 		return nil, err
 	}
 	return client, nil
+}
+
+func (s *Service) withRuntimeDiagnosticsLogger(
+	options agentclient.Options,
+	sessionKey string,
+	agentID string,
+) agentclient.Options {
+	logger := s.loggerFor(context.Background()).With(
+		"session_key", sessionKey,
+		"agent_id", agentID,
+	)
+	previousStderr := options.Callbacks.Stderr
+	options.Callbacks.Stderr = func(line string) {
+		normalizedLine := runtimectx.NormalizeRuntimeStderrLine(line)
+		if previousStderr != nil {
+			previousStderr(normalizedLine)
+		}
+		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
+	}
+	previousDiagnostics := options.Callbacks.Diagnostics
+	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
+		if previousDiagnostics == nil {
+			options.Callbacks.Diagnostics = func(agentclient.DiagnosticEvent) {}
+		}
+		return options
+	}
+	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
+		if previousDiagnostics != nil {
+			previousDiagnostics(event)
+		}
+		logger.Info("Agent SDK diagnostics",
+			"component", strings.TrimSpace(event.Component),
+			"event", strings.TrimSpace(event.Event),
+			"attrs", event.Attributes,
+		)
+	}
+	logger.Info("Agent SDK diagnostics 已启用",
+		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
+		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
+	)
+	return options
 }
 
 func shouldRetryDMClientWithoutResume(resumeID string, err error) bool {

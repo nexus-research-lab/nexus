@@ -13,6 +13,7 @@
 
 import {
   ArrowLeft,
+  Bug,
   Cable,
   Compass,
   Download,
@@ -73,6 +74,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import {
@@ -208,6 +210,9 @@ function normalize_preferences(preferences: UserPreferences | null): UserPrefere
     agent_runtime_kind: normalize_agent_runtime_kind(
       preferences?.agent_runtime_kind ?? fallback.agent_runtime_kind,
     ),
+    agent_sdk_diagnostics_enabled: preferences === null
+      ? fallback.agent_sdk_diagnostics_enabled === true
+      : preferences.agent_sdk_diagnostics_enabled === true,
     default_agent_options: {
       ...fallback.default_agent_options,
       ...(preferences?.default_agent_options ?? {}),
@@ -496,6 +501,7 @@ function GeneralSettingsSection() {
       const result = await update_user_preferences_api({
         chat_default_delivery_policy: normalized.chat_default_delivery_policy,
         agent_runtime_kind: normalized.agent_runtime_kind,
+        agent_sdk_diagnostics_enabled: normalized.agent_sdk_diagnostics_enabled,
         default_agent_options: normalized.default_agent_options,
         default_image_model_selection: normalized.default_image_model_selection,
         default_background_model_selection: normalized.default_background_model_selection,
@@ -533,6 +539,14 @@ function GeneralSettingsSection() {
     void persist_preferences({
       ...current_preferences,
       chat_default_delivery_policy: value,
+    });
+  }, [persist_preferences]);
+
+  const handle_agent_sdk_diagnostics_change = useCallback((checked: boolean) => {
+    const current_preferences = preferences_ref.current;
+    void persist_preferences({
+      ...current_preferences,
+      agent_sdk_diagnostics_enabled: checked,
     });
   }, [persist_preferences]);
 
@@ -718,6 +732,7 @@ function GeneralSettingsSection() {
         const result = await update_user_preferences_api({
           chat_default_delivery_policy: next_preferences.chat_default_delivery_policy,
           agent_runtime_kind: next_preferences.agent_runtime_kind,
+          agent_sdk_diagnostics_enabled: next_preferences.agent_sdk_diagnostics_enabled,
           default_agent_options: next_preferences.default_agent_options,
           default_image_model_selection: next_preferences.default_image_model_selection,
           default_background_model_selection: next_preferences.default_background_model_selection,
@@ -930,6 +945,35 @@ function GeneralSettingsSection() {
                   label: t(option.label_key),
                 }))}
                 value={agent_runtime_kind}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-(--divider-subtle-color)" />
+
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <Bug className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.general.agent_sdk_diagnostics_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.general.agent_sdk_diagnostics_description")}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                {t("settings.general.agent_sdk_diagnostics_label")}
+              </span>
+              <GlassSwitch
+                checked={preferences.agent_sdk_diagnostics_enabled === true}
+                disabled={preferences_loading || preferences_saving}
+                on_change={handle_agent_sdk_diagnostics_change}
+                size="sm"
               />
             </div>
           </div>

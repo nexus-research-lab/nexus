@@ -35,6 +35,7 @@ export interface ModelSelectionPreference {
 export interface UserPreferences {
   chat_default_delivery_policy: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
+  agent_sdk_diagnostics_enabled?: boolean;
   default_agent_options: Partial<AgentOptions>;
   default_image_model_selection?: ModelSelectionPreference;
   default_background_model_selection?: ModelSelectionPreference;
@@ -44,6 +45,7 @@ export interface UserPreferences {
 export interface UpdateUserPreferencesParams {
   chat_default_delivery_policy?: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
+  agent_sdk_diagnostics_enabled?: boolean;
   default_agent_options?: Partial<AgentOptions>;
   default_image_model_selection?: ModelSelectionPreference;
   default_background_model_selection?: ModelSelectionPreference;

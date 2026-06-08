@@ -46,6 +46,9 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if request.AgentRuntimeKind != nil {
 		current.AgentRuntimeKind = *request.AgentRuntimeKind
 	}
+	if request.AgentSDKDiagnosticsEnabled != nil {
+		current.AgentSDKDiagnosticsEnabled = *request.AgentSDKDiagnosticsEnabled
+	}
 	if request.DefaultAgentOptions != nil {
 		current.DefaultAgentOptions = *request.DefaultAgentOptions
 	}
