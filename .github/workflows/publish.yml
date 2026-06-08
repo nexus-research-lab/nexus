@@ -413,6 +413,42 @@ jobs:
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >/dev/null
           done
 
+      - name: Update Existing Release Notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          release_json="$(mktemp)"
+          release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
+          status="$(
+            curl -fsS -o "${release_json}" -w "%{http_code}" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${release_api}" || true
+          )"
+          if [ "${status}" = "404" ]; then
+            exit 0
+          fi
+          if [ "${status}" != "200" ]; then
+            cat "${release_json}" >&2
+            exit 1
+          fi
+
+          release_id="$(jq -r '.id' "${release_json}")"
+          if [ -z "${release_id}" ] || [ "${release_id}" = "null" ]; then
+            echo "Release id is missing for ${TAG}" >&2
+            cat "${release_json}" >&2
+            exit 1
+          fi
+
+          payload="$(jq -n --rawfile body release_notes.md --arg name "${TAG}" '{name: $name, body: $body}')"
+          curl -fsS -X PATCH \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            -d "${payload}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}" >/dev/null
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
