@@ -460,7 +460,11 @@ func (s *RealtimeService) runSlot(
 		slot.MsgID,
 		slot.AgentRoundID,
 	))
-	logger.Info("Room slot 结束", "status", slot.getStatus())
+	logger.Info("Room slot 结束",
+		"status", slot.getStatus(),
+		"result_subtype", strings.TrimSpace(result.ResultSubtype),
+		"error_message", strings.TrimSpace(result.ErrorMessage),
+	)
 }
 
 func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {

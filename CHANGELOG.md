@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated desktop release packaging to bundle `nxs` from the `nxs-stable` runtime channel instead of pinning an older runtime release.
 - Kept Windows Claude runtime launches on the installed Claude CLI shim and added safe DM/Room runtime startup diagnostics for `claude` and `nxs`.
 - Split Anthropic runtime credentials so official Anthropic uses `ANTHROPIC_API_KEY` while third-party Anthropic-compatible providers continue to use `ANTHROPIC_AUTH_TOKEN`.
+- Logged terminal runtime error messages for DM and Room rounds so API/auth failures are visible in desktop diagnostics.
 
 ## [0.1.16] - 2026-06-05
 
