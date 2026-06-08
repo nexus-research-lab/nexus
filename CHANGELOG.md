@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kept Anthropic-compatible runtime credentials on `ANTHROPIC_API_KEY` for Claude Code and `nxs` compatibility, with `NEXUS_API_PROVIDER` carrying the provider mode.
 - Logged terminal runtime error messages for DM and Room rounds so API/auth failures are visible in desktop diagnostics.
 - Refreshed existing GitHub release notes during repeated tag publishing so re-released desktop packages match the current changelog.
-- Fixed Anthropic-compatible Agent runtime authentication by passing non-Anthropic provider tokens through `ANTHROPIC_AUTH_TOKEN` as well as `ANTHROPIC_API_KEY`, allowing Claude Code and `nxs` runtimes to send Bearer credentials to compatible gateways.
+- Fixed Anthropic-compatible Agent runtime authentication by routing non-Anthropic provider tokens through `ANTHROPIC_AUTH_TOKEN` instead of `ANTHROPIC_API_KEY`, matching GLM Coding Plan's Claude Code bearer-token setup.
 
 ## [0.1.16] - 2026-06-05
 

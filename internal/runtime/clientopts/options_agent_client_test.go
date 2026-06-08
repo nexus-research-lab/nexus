@@ -95,8 +95,11 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[anthropicModelEnvName] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
-	if options.Env[anthropicAPIKeyEnvName] != "token-1" {
-		t.Fatalf("Anthropic-compatible API key 未写入 env: %+v", options.Env)
+	if options.Env[anthropicAuthTokenEnvName] != "token-1" {
+		t.Fatalf("Anthropic-compatible bearer token 未写入 env: %+v", options.Env)
+	}
+	if _, ok := options.Env[anthropicAPIKeyEnvName]; ok {
+		t.Fatalf("Anthropic-compatible 非官方 endpoint 不应写入 API key env: %+v", options.Env)
 	}
 	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
@@ -149,16 +152,17 @@ func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
 	}
 }
 
-func TestAnthropicRuntimeEnvUsesBearerTokenForCompatibleGateways(t *testing.T) {
+func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	tests := []struct {
-		name      string
-		baseURL   string
-		authToken string
-		wantToken string
+		name          string
+		baseURL       string
+		authToken     string
+		wantAPIKey    string
+		wantAuthToken string
 	}{
-		{name: "compatible gateway", baseURL: "https://provider.example.com/anthropic", authToken: "token-1", wantToken: "token-1"},
-		{name: "first party anthropic", baseURL: "https://api.anthropic.com", authToken: "token-1"},
-		{name: "empty base url defaults first party", baseURL: "", authToken: "token-1"},
+		{name: "compatible gateway", baseURL: "https://provider.example.com/anthropic", authToken: "token-1", wantAuthToken: "token-1"},
+		{name: "first party anthropic", baseURL: "https://api.anthropic.com", authToken: "token-1", wantAPIKey: "token-1"},
+		{name: "empty base url defaults first party", baseURL: "", authToken: "token-1", wantAPIKey: "token-1"},
 		{name: "empty token", baseURL: "https://provider.example.com/anthropic", authToken: ""},
 	}
 	for _, tt := range tests {
@@ -168,11 +172,11 @@ func TestAnthropicRuntimeEnvUsesBearerTokenForCompatibleGateways(t *testing.T) {
 				BaseURL:   tt.baseURL,
 				Model:     "model-1",
 			})
-			if got := env[anthropicAuthTokenEnvName]; got != tt.wantToken {
-				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAuthTokenEnvName, got, tt.wantToken, env)
+			if got := env[anthropicAPIKeyEnvName]; got != tt.wantAPIKey {
+				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAPIKeyEnvName, got, tt.wantAPIKey, env)
 			}
-			if tt.authToken != "" && env[anthropicAPIKeyEnvName] != tt.authToken {
-				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAPIKeyEnvName, env[anthropicAPIKeyEnvName], tt.authToken, env)
+			if got := env[anthropicAuthTokenEnvName]; got != tt.wantAuthToken {
+				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAuthTokenEnvName, got, tt.wantAuthToken, env)
 			}
 		})
 	}
