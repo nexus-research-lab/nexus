@@ -2,125 +2,101 @@ package nxsruntime
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
+
+	bridgenxs "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs"
 )
 
-func TestStatusUsesEnvCommandPath(t *testing.T) {
-	runtimePath := writeExecutableForTest(t, t.TempDir())
+func TestStatusMapsBridgeRuntimeStatus(t *testing.T) {
 	service := NewService()
-	service.getenv = func(key string) string {
-		if key == commandPathEnvName {
-			return runtimePath
+	service.inspector = func() runtimeInspector {
+		return fakeRuntimeInspector{
+			status: bridgenxs.Status{
+				Available:   true,
+				Path:        "/tmp/nxs",
+				Source:      bridgenxs.RuntimeSourceEnv,
+				CanDownload: false,
+			},
 		}
-		return ""
 	}
-	service.appRoot = func() string { return t.TempDir() }
 
 	status := service.Status()
-	if !status.Available || status.Path != runtimePath || status.Source != "env" {
-		t.Fatalf("Status() = %+v, want env runtime", status)
+	if !status.Available || status.Path != "/tmp/nxs" || status.Source != "env" || status.Message != "" {
+		t.Fatalf("Status() = %+v, want mapped bridge runtime", status)
 	}
 }
 
-func TestStatusRejectsBrokenEnvCommandPath(t *testing.T) {
-	brokenPath := filepath.Join(t.TempDir(), executableName())
+func TestStatusAddsProductMessageForMissingRuntime(t *testing.T) {
 	service := NewService()
-	service.getenv = func(key string) string {
-		if key == commandPathEnvName {
-			return brokenPath
+	service.inspector = func() runtimeInspector {
+		return fakeRuntimeInspector{
+			status: bridgenxs.Status{
+				CanDownload: true,
+				Error:       bridgenxs.StatusErrorNotFound,
+			},
 		}
-		return ""
 	}
-	service.appRoot = func() string { return t.TempDir() }
 
 	status := service.Status()
-	if status.Available || status.CanDownload || status.Source != "env" {
-		t.Fatalf("Status() = %+v, want broken env without download", status)
+	if status.Available || !status.CanDownload || status.Message == "" {
+		t.Fatalf("Status() = %+v, want downloadable missing runtime message", status)
 	}
 }
 
-func TestStatusUsesAppRootRuntime(t *testing.T) {
-	root := t.TempDir()
-	runtimePath := writeExecutableForTest(t, filepath.Join(root, "bin"))
+func TestDownloadReturnsBridgeRuntimeStatus(t *testing.T) {
 	service := NewService()
-	service.getenv = func(string) string { return "" }
-	service.appRoot = func() string { return root }
-
-	status := service.Status()
-	if !status.Available || status.Path != runtimePath || status.Source != "app_root" {
-		t.Fatalf("Status() = %+v, want app root runtime", status)
-	}
-}
-
-func TestStatusPrefersAppRootRuntimeOverBrokenEnvCommandPath(t *testing.T) {
-	root := t.TempDir()
-	runtimePath := writeExecutableForTest(t, filepath.Join(root, "bin"))
-	brokenPath := filepath.Join(t.TempDir(), executableName())
-	service := NewService()
-	service.getenv = func(key string) string {
-		if key == commandPathEnvName {
-			return brokenPath
+	service.inspector = func() runtimeInspector {
+		return fakeRuntimeInspector{
+			ensureStatus: bridgenxs.Status{
+				Available:   true,
+				Path:        "/tmp/nxs",
+				Source:      bridgenxs.RuntimeSourceCache,
+				CanDownload: false,
+			},
 		}
-		return ""
-	}
-	service.appRoot = func() string { return root }
-
-	status := service.Status()
-	if !status.Available || status.Path != runtimePath || status.Source != "app_root" {
-		t.Fatalf("Status() = %+v, want app root runtime", status)
-	}
-}
-
-func TestStatusUsesCachedRuntime(t *testing.T) {
-	cacheRoot := t.TempDir()
-	runtimePath := writeExecutableForTest(t, filepath.Join(cacheRoot, "0.1.1", runtime.GOOS+"-"+runtime.GOARCH, "digest"))
-	service := NewService()
-	service.getenv = func(key string) string {
-		if key == cacheDirEnvName {
-			return cacheRoot
-		}
-		return ""
-	}
-	service.appRoot = func() string { return t.TempDir() }
-
-	status := service.Status()
-	if !status.Available || status.Path != runtimePath || status.Source != "cache" {
-		t.Fatalf("Status() = %+v, want cached runtime", status)
-	}
-}
-
-func TestDownloadUsesBridgeResolver(t *testing.T) {
-	runtimePath := writeExecutableForTest(t, t.TempDir())
-	service := NewService()
-	service.getenv = func(string) string { return "" }
-	service.appRoot = func() string { return t.TempDir() }
-	service.userCache = func() (string, error) {
-		return "", errors.New("no cache")
-	}
-	service.runtimePath = func() (string, error) {
-		return runtimePath, nil
 	}
 
 	status, err := service.Download()
 	if err != nil {
 		t.Fatalf("Download() error = %v", err)
 	}
-	if !status.Available || status.Path != runtimePath || status.Source != "cache" {
+	if !status.Available || status.Path != "/tmp/nxs" || status.Source != "cache" {
 		t.Fatalf("Download() = %+v, want downloaded runtime", status)
 	}
 }
 
-func writeExecutableForTest(t *testing.T, directory string) string {
-	t.Helper()
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatalf("创建目录失败: %v", err)
+func TestDownloadMapsBridgeFailureMessage(t *testing.T) {
+	downloadErr := errors.New("manifest unavailable")
+	service := NewService()
+	service.inspector = func() runtimeInspector {
+		return fakeRuntimeInspector{
+			ensureStatus: bridgenxs.Status{
+				CanDownload: true,
+				Error:       bridgenxs.StatusErrorDownloadFailed,
+			},
+			ensureErr: downloadErr,
+		}
 	}
-	path := filepath.Join(directory, executableName())
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("写入 runtime 失败: %v", err)
+
+	status, err := service.Download()
+	if !errors.Is(err, downloadErr) {
+		t.Fatalf("Download() error = %v, want %v", err, downloadErr)
 	}
-	return path
+	if status.Message == "" {
+		t.Fatalf("Download() = %+v, want failure message", status)
+	}
+}
+
+type fakeRuntimeInspector struct {
+	status       bridgenxs.Status
+	ensureStatus bridgenxs.Status
+	ensureErr    error
+}
+
+func (i fakeRuntimeInspector) Status() bridgenxs.Status {
+	return i.status
+}
+
+func (i fakeRuntimeInspector) Ensure() (bridgenxs.Status, error) {
+	return i.ensureStatus, i.ensureErr
 }
