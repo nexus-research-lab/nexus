@@ -37,11 +37,9 @@ func TestResolveRuntimeCommandPathUsesWindowsNpmShim(t *testing.T) {
 	}
 }
 
-func TestResolveRuntimeCommandConfigBypassesWindowsNpmShim(t *testing.T) {
+func TestResolveRuntimeCommandConfigKeepsWindowsNpmShim(t *testing.T) {
 	appData := `C:\Users\lee\AppData\Roaming`
 	shimPath := filepath.Join(appData, "npm", "claude.cmd")
-	scriptPath := filepath.Clean(filepath.Join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code", "cli.js"))
-	nodePath := `C:\Program Files\nodejs\node.exe`
 	got := resolveRuntimeCommandConfigWith(
 		runtimeKindClaude,
 		"windows",
@@ -50,29 +48,21 @@ func TestResolveRuntimeCommandConfigBypassesWindowsNpmShim(t *testing.T) {
 			switch name {
 			case "claude.cmd":
 				return shimPath, nil
-			case "node.exe":
-				return nodePath, nil
 			default:
 				return "", os.ErrNotExist
 			}
 		},
 		func(path string) bool {
-			return path == shimPath || path == scriptPath
+			return path == shimPath
 		},
 		fakeGlob(nil),
 	)
-	if got.CLIPath != "" {
-		t.Fatalf("Windows npm shim 应切换到 node 启动，不应继续走 CLIPath: %+v", got)
-	}
-	if got.Executable != nodePath {
-		t.Fatalf("node executable 不正确: got=%q want=%q", got.Executable, nodePath)
-	}
-	if got.PathToExecutable != scriptPath {
-		t.Fatalf("Claude Code script path 不正确: got=%q want=%q", got.PathToExecutable, scriptPath)
+	if got.CLIPath != shimPath || got.Executable != "" || got.PathToExecutable != "" {
+		t.Fatalf("Windows npm shim 应按官方入口原样启动: %+v", got)
 	}
 }
 
-func TestResolveRuntimeCommandConfigFallsBackWhenShimScriptMissing(t *testing.T) {
+func TestResolveRuntimeCommandConfigKeepsWindowsNpmShimWhenScriptMissing(t *testing.T) {
 	appData := `C:\Users\lee\AppData\Roaming`
 	shimPath := filepath.Join(appData, "npm", "claude.cmd")
 	got := resolveRuntimeCommandConfigWith(

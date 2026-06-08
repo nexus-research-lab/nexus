@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -235,14 +236,45 @@ func (s *RealtimeService) runSlot(
 		RoomID:         roundValue.RoomID,
 		ConversationID: roundValue.ConversationID,
 	}))
-	options = withRoomRuntimeDiagnosticsLogger(options, logger.With("agent_id", slot.AgentID, "round_id", slot.AgentRoundID))
+	options = withRoomRuntimeDiagnosticsLogger(options, logger.With("agent_id", slot.AgentID, "agent_round_id", slot.AgentRoundID))
+	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
+	logger.Info("准备启动 Room runtime",
+		append(clientopts.RuntimeStartupLogFields(options),
+			"agent_id", slot.AgentID,
+			"agent_round_id", slot.AgentRoundID,
+			"runtime_session_key", slot.RuntimeSessionKey,
+			"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
+			"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
+			"requested_model", strings.TrimSpace(runtimeSelection.Model),
+			"runtime_provider", runtimeProvider,
+		)...,
+	)
 	client := s.factory.New(options)
 	slot.setClient(client)
 
 	if err := client.Connect(slotCtx); err != nil {
+		logger.Error("Room runtime 启动失败",
+			append(clientopts.RuntimeStartupLogFields(options),
+				"agent_id", slot.AgentID,
+				"agent_round_id", slot.AgentRoundID,
+				"runtime_session_key", slot.RuntimeSessionKey,
+				"stage", "connect",
+				"err", err,
+				"error_type", fmt.Sprintf("%T", err),
+				"transport_closed", runtimectx.IsRuntimeTransportClosedError(err),
+			)...,
+		)
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
+	logger.Info("Room runtime 启动成功",
+		append(clientopts.RuntimeStartupLogFields(options),
+			"agent_id", slot.AgentID,
+			"agent_round_id", slot.AgentRoundID,
+			"runtime_session_key", slot.RuntimeSessionKey,
+			"sdk_session_id", strings.TrimSpace(client.SessionID()),
+		)...,
+	)
 	defer func() {
 		if err := client.Disconnect(context.Background()); err != nil {
 			logger.Warn("Agent SDK disconnect 返回错误", "err", err)
@@ -441,21 +473,37 @@ func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.
 		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
-	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
-		if previousDiagnostics == nil {
-			options.Callbacks.Diagnostics = func(agentclient.DiagnosticEvent) {}
-		}
-		return options
-	}
+	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)
 		}
-		logger.Info("Agent SDK diagnostics",
-			"component", strings.TrimSpace(event.Component),
-			"event", strings.TrimSpace(event.Event),
-			"attrs", event.Attributes,
-		)
+		if diagnosticsEnabled {
+			logger.Info("Agent SDK diagnostics",
+				"component", strings.TrimSpace(event.Component),
+				"event", strings.TrimSpace(event.Event),
+				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
+			)
+			return
+		}
+		if clientopts.ShouldLogRuntimeStartupDiagnostic(event) {
+			logger.Info("Agent SDK startup diagnostics",
+				"component", strings.TrimSpace(event.Component),
+				"event", strings.TrimSpace(event.Event),
+				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
+			)
+			return
+		}
+		if clientopts.ShouldWarnRuntimeStartupDiagnostic(event) {
+			logger.Warn("Agent SDK startup diagnostics",
+				"component", strings.TrimSpace(event.Component),
+				"event", strings.TrimSpace(event.Event),
+				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
+			)
+		}
+	}
+	if !diagnosticsEnabled {
+		return options
 	}
 	logger.Info("Agent SDK diagnostics 已启用",
 		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),

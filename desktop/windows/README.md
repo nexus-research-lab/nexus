@@ -48,7 +48,7 @@ pwsh scripts/desktop/smoke-windows-app.ps1
 pwsh scripts/desktop/package-windows-app.ps1
 ```
 
-package 脚本默认从 bridge runtime release 下载并预置当前平台的 `nxs` runtime。默认版本为 `nxs-v0.1.1`，可通过 `NEXUS_DESKTOP_NXS_RELEASE` 覆盖。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`。
+package 脚本默认从 bridge runtime release 的 `nxs-stable` 通道下载并预置当前平台的 `nxs` runtime。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`。
 
 package 脚本默认用 self-contained .NET 发布 shell，当前只构建 `win-x64`；安装器允许在 x64-compatible Windows 上运行，也就是 x64 Windows 和支持 x64 仿真的 Windows 11 ARM64。
 

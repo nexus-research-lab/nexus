@@ -22,7 +22,7 @@ jobs:
     runs-on: macos-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
 
     steps:
       - name: Checkout
@@ -84,12 +84,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-swiftpm-
 
-      - name: Cache nxs Runtime
-        uses: actions/cache@v5
-        with:
-          path: ${{ runner.temp }}/macos-runtime-cache
-          key: ${{ runner.os }}-${{ env.NEXUS_DESKTOP_NXS_RELEASE }}-darwin-${{ runner.arch }}
-
       - name: Resolve nxs Runtime
         env:
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
@@ -98,12 +92,10 @@ jobs:
           goarch="$(go env GOARCH)"
           nxs_path="${cache_dir}/nxs-${goarch}"
           mkdir -p "${cache_dir}"
-          if [ ! -x "${nxs_path}" ]; then
-            node scripts/desktop/fetch-nxs-runtime.js \
-              --goos darwin \
-              --goarch "${goarch}" \
-              --output "${nxs_path}"
-          fi
+          node scripts/desktop/fetch-nxs-runtime.js \
+            --goos darwin \
+            --goarch "${goarch}" \
+            --output "${nxs_path}"
           echo "NEXUS_DESKTOP_NXS_RUNTIME_PATH=${nxs_path}" >> "${GITHUB_ENV}"
 
       - name: Build macOS DMG
@@ -134,7 +126,7 @@ jobs:
     runs-on: windows-latest
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
-      NEXUS_DESKTOP_NXS_RELEASE: "nxs-v0.1.1"
+      NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
 
     steps:
       - name: Checkout
@@ -242,12 +234,6 @@ jobs:
           }
           "NEXUS_WEBVIEW2_BOOTSTRAPPER_PATH=$bootstrapperPath" >> $env:GITHUB_ENV
 
-      - name: Cache nxs Runtime
-        uses: actions/cache@v5
-        with:
-          path: ${{ runner.temp }}\windows-runtime-cache\nxs.exe
-          key: ${{ runner.os }}-${{ env.NEXUS_DESKTOP_NXS_RELEASE }}-windows-amd64
-
       - name: Resolve nxs Runtime
         shell: pwsh
         env:
@@ -256,11 +242,9 @@ jobs:
           $cacheDir = Join-Path "${{ runner.temp }}" "windows-runtime-cache"
           $nxsPath = Join-Path $cacheDir "nxs.exe"
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          if (-not (Test-Path -LiteralPath $nxsPath)) {
-            node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to download cached nxs runtime"
-            }
+          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to download nxs runtime"
           }
           "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 

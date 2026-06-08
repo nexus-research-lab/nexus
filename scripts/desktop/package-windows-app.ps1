@@ -510,7 +510,7 @@ $nxsRuntimeRelease = if ($env:NEXUS_DESKTOP_NXS_RELEASE) {
 } elseif ($env:NEXUS_NXS_RUNTIME_RELEASE) {
   $env:NEXUS_NXS_RUNTIME_RELEASE
 } else {
-  "nxs-v0.1.1"
+  "nxs-stable"
 }
 $signingKind = "unsigned"
 $signingTimestampServer = $null

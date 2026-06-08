@@ -96,10 +96,10 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
 	if options.Env["ANTHROPIC_AUTH_TOKEN"] != "token-1" {
-		t.Fatalf("Anthropic auth token 未写入 env: %+v", options.Env)
+		t.Fatalf("Anthropic-compatible auth token 未写入 env: %+v", options.Env)
 	}
 	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
-		t.Fatalf("Agent API runtime 不应写入 ANTHROPIC_API_KEY: %+v", options.Env)
+		t.Fatalf("第三方 Anthropic-compatible runtime 不应写入 ANTHROPIC_API_KEY: %+v", options.Env)
 	}
 	if options.Env["NEXUS_API_PROVIDER"] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
@@ -126,6 +126,29 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 	if resolveCalls != 1 {
 		t.Fatalf("provider runtime config 解析次数不正确: got=%d want=1", resolveCalls)
+	}
+}
+
+func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{
+			Provider:  "anthropic",
+			AuthToken: "official-key",
+			BaseURL:   "https://api.anthropic.com",
+			Model:     "claude-sonnet-4-5",
+		},
+	}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		Provider:      "anthropic",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env["ANTHROPIC_API_KEY"] != "official-key" {
+		t.Fatalf("官方 Anthropic API key 未写入 env: %+v", options.Env)
+	}
+	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+		t.Fatalf("官方 Anthropic runtime 不应写入 ANTHROPIC_AUTH_TOKEN: %+v", options.Env)
 	}
 }
 
@@ -289,6 +312,9 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 	}
 	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
 		t.Fatalf("nxs chat_completions 不应注入 Anthropic token: %+v", options.Env)
+	}
+	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
+		t.Fatalf("nxs chat_completions 不应注入 Anthropic API key: %+v", options.Env)
 	}
 	if options.Model != "gpt-4o" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
