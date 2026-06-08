@@ -1,5 +1,10 @@
 import type { NexusOperationEvent } from "./operation-types";
-import { resolve_operation_tool_profile } from "./operation-tool-catalog";
+import type { OperationRuntimeEvent } from "./operation-runtime-types";
+import {
+  DEFAULT_TARGET_KEYS,
+  resolve_operation_tool_profile,
+} from "./operation-tool-catalog";
+import { resolve_operation_tool_visual_contract } from "./operation-tool-visual-contract";
 
 export type StageDesktopIntent =
   | { app: "finder"; action: "inspect_files"; event_id: string; target?: string | null }
@@ -9,6 +14,7 @@ export type StageDesktopIntent =
   | { app: "preview"; action: "preview_artifact"; event_id: string; target?: string | null }
   | { app: "handoff"; action: "summarize_delivery"; event_id: string; target?: string | null }
   | { app: "activity"; action: "track_task"; event_id: string; target?: string | null }
+  | { app: "system"; action: "request_confirmation"; event_id: string; target?: string | null }
   | { app: "nexus"; action: "run_tool"; event_id: string; target?: string | null };
 
 export interface BrowserOpenTarget {
@@ -17,31 +23,31 @@ export interface BrowserOpenTarget {
 }
 
 export function derive_stage_desktop_intents(event: NexusOperationEvent): StageDesktopIntent[] {
-  const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+  const visual_contract = resolve_operation_tool_visual_contract(event);
   const intents: StageDesktopIntent[] = [];
 
-  if (profile.action === "list" || profile.action === "search") {
+  if (visual_contract.group === "workspace_navigation") {
     intents.push({
       app: "finder",
       action: "inspect_files",
       event_id: event.id,
       target: event.target,
     });
-  } else if (profile.action === "read") {
+  } else if (visual_contract.group === "workspace_reader") {
     intents.push({
       app: "code",
       action: "inspect_file",
       event_id: event.id,
       target: event.target,
     });
-  } else if (profile.action === "create" || profile.action === "edit") {
+  } else if (visual_contract.group === "workspace_writer") {
     intents.push({
       app: "code",
       action: "edit_file",
       event_id: event.id,
       target: event.target,
     });
-  } else if (profile.action === "run" || profile.action === "stop") {
+  } else if (visual_contract.group === "command_runner") {
     const command = read_stage_input_string(event.input_preview, ["command", "cmd", "description"]) ?? event.target;
     intents.push({
       app: "terminal",
@@ -61,7 +67,7 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
         url: open_target.url,
       });
     }
-  } else if (profile.action === "web_search" || profile.action === "web_fetch") {
+  } else if (visual_contract.group === "web_browser") {
     const query = read_stage_browser_query(event);
     intents.push({
       app: "browser",
@@ -71,28 +77,35 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
       target: event.target,
       url: query && looks_like_url(query) ? query : null,
     });
-  } else if (profile.action === "task" || profile.action === "task_progress") {
+  } else if (visual_contract.group === "task_planner") {
     intents.push({
       app: "activity",
       action: "track_task",
       event_id: event.id,
       target: event.target,
     });
-  } else if (profile.action === "summary" || event.kind === "round_summary") {
+  } else if (visual_contract.group === "human_gate") {
+    intents.push({
+      app: "system",
+      action: "request_confirmation",
+      event_id: event.id,
+      target: event.target,
+    });
+  } else if (visual_contract.group === "handoff") {
     intents.push({
       app: "handoff",
       action: "summarize_delivery",
       event_id: event.id,
       target: event.target,
     });
-  } else if (event.surface === "knowledge") {
+  } else if (visual_contract.group === "knowledge_tool") {
     intents.push({
       app: "preview",
       action: "preview_artifact",
       event_id: event.id,
       target: event.target,
     });
-  } else if (event.surface === "fallback") {
+  } else if (visual_contract.group === "generic_tool") {
     intents.push({
       app: "nexus",
       action: "run_tool",
@@ -101,7 +114,81 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
     });
   }
 
+  if (
+    (event.phase === "waiting" || event.permission_request_id) &&
+    !intents.some((intent) => intent.app === "system")
+  ) {
+    intents.push({
+      app: "system",
+      action: "request_confirmation",
+      event_id: event.id,
+      target: event.target,
+    });
+  }
+
   return intents;
+}
+
+export function derive_stage_desktop_intents_from_runtime_event(
+  runtime_event: OperationRuntimeEvent,
+): StageDesktopIntent[] {
+  return derive_stage_desktop_intents(operation_event_from_runtime_event(runtime_event));
+}
+
+export function operation_event_from_runtime_event(
+  runtime_event: OperationRuntimeEvent,
+): NexusOperationEvent {
+  const profile = resolve_operation_tool_profile(runtime_event.tool_name);
+  const target = runtime_event.artifact?.path
+    ?? read_stage_input_string(runtime_event.input, profile.target_keys)
+    ?? read_stage_input_string(runtime_event.input, DEFAULT_TARGET_KEYS)
+    ?? runtime_event.tool_name
+    ?? runtime_event.event_type;
+  const is_permission = runtime_event.event_type === "permission_request" ||
+    runtime_event.event_type === "permission_resolved";
+  const is_handoff = runtime_event.event_type === "round_handoff";
+  const is_artifact = runtime_event.event_type === "artifact_update";
+
+  return {
+    id: runtime_event.source_event_id ?? runtime_event.id,
+    session_key: runtime_event.session_key ?? "",
+    round_id: runtime_event.round_id,
+    agent_id: runtime_event.agent_id,
+    message_id: runtime_event.message_id,
+    tool_use_id: runtime_event.tool_use_id,
+    tool_name: runtime_event.tool_name,
+    kind: is_handoff
+      ? "round_summary"
+      : is_permission
+        ? "human_gate"
+        : is_artifact
+          ? "artifact_update"
+          : profile.kind,
+    surface: is_handoff
+      ? "summary"
+      : is_permission
+        ? "conversation"
+        : is_artifact
+          ? "editor"
+          : profile.surface,
+    phase: runtime_event.phase,
+    title: is_handoff
+      ? "运行交付"
+      : is_permission
+        ? "等待用户确认"
+        : profile.title,
+    target,
+    summary: summarize_runtime_label(runtime_event.delta) ?? summarize_runtime_label(runtime_event.result),
+    input_preview: runtime_event.input,
+    result_preview: runtime_event.result ?? runtime_event.artifact?.preview ?? null,
+    evidence: runtime_event.artifact?.path
+      ? [{ type: "artifact", label: runtime_event.artifact.status ?? "artifact", value: runtime_event.artifact.path }]
+      : undefined,
+    permission_request_id: runtime_event.permission_request_id ?? null,
+    permission_decision: runtime_event.permission_decision ?? null,
+    permission_interaction_mode: runtime_event.permission_interaction_mode ?? null,
+    updated_at: runtime_event.timestamp,
+  };
 }
 
 export function stage_app_session_id_for_intent(
@@ -126,6 +213,9 @@ export function stage_app_session_id_for_intent(
   }
   if (intent.app === "activity") {
     return `${round_id}:task-board`;
+  }
+  if (intent.app === "system") {
+    return `${round_id}:system-gate`;
   }
   if (intent.app === "handoff") {
     return `${round_id}:handoff`;
@@ -184,7 +274,7 @@ function extract_open_command_target(command: string): string | null {
 
 function read_stage_input_string(
   input: Record<string, unknown> | null | undefined,
-  keys: string[],
+  keys: readonly string[],
 ): string | null {
   if (!input) {
     return null;
@@ -196,6 +286,28 @@ function read_stage_input_string(
     }
     if (typeof value === "number" || typeof value === "boolean") {
       return String(value);
+    }
+  }
+  return null;
+}
+
+function summarize_runtime_label(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim().slice(0, 160);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => summarize_runtime_label(item)).find(Boolean) ?? null;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["summary", "status", "content", "stdout", "stderr", "message", "error"]) {
+      const label = summarize_runtime_label(record[key]);
+      if (label) {
+        return label;
+      }
     }
   }
   return null;

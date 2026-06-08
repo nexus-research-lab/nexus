@@ -1,6 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
 import {
   Blocks,
   Braces,
+  FilePenLine,
+  FilePlus2,
+  FileSearch,
   FileSpreadsheet,
   FileText,
   GitBranch,
@@ -14,7 +18,13 @@ import {
   basename,
   detect_preview_kind,
   get_preview_lines,
+  safe_json_stringify,
 } from "../operation-preview";
+import { resolve_operation_tool_visual_contract } from "../operation-tool-visual-contract";
+import type {
+  NexusOperationEvent,
+  OperationPhase,
+} from "../operation-types";
 import { build_code_editor_session_view } from "./code-editor-session";
 
 export function DocumentPreview({
@@ -23,15 +33,19 @@ export function DocumentPreview({
   value,
   fallback_lines,
   diff_stats,
+  operation_event,
 }: {
   target?: string | null;
   summary?: string | null;
   value: unknown;
   fallback_lines?: string[];
   diff_stats?: { additions: number; deletions: number } | null;
+  operation_event?: NexusOperationEvent;
 }) {
   const kind = detect_preview_kind(target);
-  const raw_lines = get_preview_lines(value, 18);
+  const raw_lines = get_document_preview_lines(value, kind === "code" || kind === "text" ? 80 : 18, {
+    preserve_blank_lines: kind === "code" || kind === "text",
+  });
   const lines = raw_lines.length ? raw_lines : (fallback_lines ?? []);
   const display_title = basename(target) || summary || "未命名";
 
@@ -188,6 +202,7 @@ export function DocumentPreview({
     <EditorSurface
       diff_stats={diff_stats}
       lines={lines.length ? lines : (fallback_lines ?? [summary ?? "暂无预览"])}
+      operation_event={operation_event}
       phase_label={summary ?? "预览"}
       title={display_title}
     />
@@ -199,13 +214,24 @@ function EditorSurface({
   phase_label,
   title,
   lines,
+  operation_event,
 }: {
   diff_stats?: { additions: number; deletions: number } | null;
   phase_label: string;
   title: string;
   lines: string[];
+  operation_event?: NexusOperationEvent;
 }) {
   const session = build_code_editor_session_view({ diff_stats, lines, title });
+  const activity = build_editor_activity(operation_event);
+  const ActivityIcon = activity.Icon;
+  const visual_lines = lines.length ? lines : [""];
+  const display_lines = useEditorTypewriterLines({
+    enabled: activity.type_lines,
+    event_key: operation_event?.id ?? title,
+    lines: visual_lines,
+  });
+  const last_line_index = Math.max(display_lines.length - 1, 0);
   return (
     <div className="flex h-full min-h-[240px] flex-col overflow-hidden bg-[#101820] text-[#dce8ee]">
       <div className="border-b border-white/10 bg-[#151f29]">
@@ -213,14 +239,22 @@ function EditorSurface({
           <div className="flex min-w-0 max-w-[68%] items-center gap-1.5 rounded-t-[9px] border border-b-0 border-white/10 bg-[#101820] px-3 py-1.5 text-[10px] font-semibold text-[#dce8ee]">
             {session.is_code ? <Braces className="h-3 w-3 shrink-0 text-[#8de0ad]" /> : <FileText className="h-3 w-3 shrink-0 text-[#8aa0ad]" />}
             <span className="truncate">{session.tab_title}</span>
-            <span className="shrink-0 text-[#526879]">●</span>
+            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", activity.dot_class)} />
           </div>
           <span className="mb-1 hidden min-w-0 truncate text-[9px] font-semibold text-[#7f94a3] md:block">
-            {phase_label}
+            {activity.chrome_label}
           </span>
           <span className="mb-1 ml-auto shrink-0 rounded bg-white/[0.06] px-1.5 py-px text-[9px] font-bold text-[#8aa0ad]">
             {session.extension_label}
           </span>
+          {activity.save_label ? (
+            <span className={cn(
+              "mb-1 shrink-0 rounded px-1.5 py-px text-[9px] font-black",
+              activity.save_tone === "saved" ? "bg-[#10271e] text-[#8de0ad]" : "bg-[#2a2412] text-[#ffd27a]",
+            )}>
+              {activity.save_label}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="flex min-h-0 flex-1">
@@ -238,7 +272,13 @@ function EditorSurface({
         <div className="hidden w-[136px] shrink-0 border-r border-white/10 bg-[#0c141c] p-2 text-[10px] text-[#7f94a3] sm:block">
           <div className="mb-2 truncate rounded-md bg-white/[0.06] px-2 py-1.5 font-bold text-[#dce8ee]">资源管理器</div>
           <div className="space-y-1">
-            <div className="truncate rounded bg-white/[0.06] px-2 py-1 text-[#dce8ee]">{title}</div>
+            <div className={cn(
+              "operation-editor-file-activity flex min-w-0 items-center gap-1.5 truncate rounded px-2 py-1 text-[#dce8ee]",
+              activity.sidebar_class,
+            )}>
+              <ActivityIcon className="h-3 w-3 shrink-0" />
+              <span className="truncate">{title}</span>
+            </div>
             <div className="flex items-center gap-1.5 truncate rounded px-2 py-1">
               <Package className="h-3 w-3 shrink-0" />
               <span className="truncate">workspace</span>
@@ -246,35 +286,246 @@ function EditorSurface({
             <div className="truncate rounded px-2 py-1">时间线</div>
           </div>
         </div>
-        <div className="soft-scrollbar min-w-0 flex-1 overflow-auto p-3 font-mono text-[11px] leading-5">
+        <div className="soft-scrollbar relative min-w-0 flex-1 overflow-auto p-3 font-mono text-[11px] leading-5">
+          {activity.show_scan ? <span className="operation-scan-line" /> : null}
           <div className="mb-2 flex min-w-0 items-center gap-2 border-b border-white/10 pb-2 text-[10px] text-[rgba(220,232,238,0.52)]">
-            <span className="truncate">{phase_label}</span>
+            <span className="truncate">{activity.status_label ?? phase_label}</span>
             {diff_stats ? (
               <span className="shrink-0 rounded bg-[#10271e] px-1.5 py-px text-[#8de0ad]">
                 +{diff_stats.additions} -{diff_stats.deletions}
               </span>
             ) : null}
           </div>
-          {lines.map((line, index) => (
-            <div className="flex min-w-0 gap-3" key={`${line}:${index}`}>
+          {activity.show_progress ? (
+            <div className="mb-2 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className={cn(
+                "h-full rounded-full transition-all duration-500",
+                activity.progress_done ? "w-full bg-[#8de0ad]" : "w-2/3 bg-[#ffd27a]",
+              )} />
+            </div>
+          ) : null}
+          {display_lines.map((line, index) => (
+            <div
+              className={cn(
+                "operation-editor-line flex min-w-0 gap-3 rounded-[4px] px-1",
+                activity.active_line && index === last_line_index && "bg-white/[0.045]",
+              )}
+              key={`${line}:${index}`}
+            >
               <span className="w-8 shrink-0 select-none text-right text-[rgba(220,232,238,0.35)]">{index + 1}</span>
               <span className={cn(
                 "min-w-0 whitespace-pre-wrap break-words",
                 line.startsWith("+") && "text-[#8de0ad]",
                 line.startsWith("-") && "text-[#ff9d9d]",
               )}>
-                {line || " "}
+                <span>{line || " "}</span>
+                {activity.show_caret && index === last_line_index ? (
+                  <span className="operation-editor-caret" />
+                ) : null}
               </span>
             </div>
           ))}
         </div>
       </div>
       <div className="flex min-w-0 items-center justify-between gap-3 border-t border-white/10 bg-[#0c141c] px-3 py-1.5 text-[10px] text-[#7f94a3]">
-        <span className="truncate">{session.status_label}</span>
+        <span className="truncate">{activity.footer_label ?? session.status_label}</span>
         <span className="shrink-0">{session.cursor_label}</span>
       </div>
     </div>
   );
+}
+
+function build_editor_activity(event?: NexusOperationEvent): {
+  active_line: boolean;
+  chrome_label: string;
+  dot_class: string;
+  footer_label: string | null;
+  Icon: typeof FileText;
+  progress_done: boolean;
+  save_label: string | null;
+  save_tone: "saving" | "saved";
+  show_caret: boolean;
+  show_progress: boolean;
+  show_scan: boolean;
+  sidebar_class: string;
+  status_label: string | null;
+  type_lines: boolean;
+} {
+  if (!event) {
+    return {
+      active_line: false,
+      chrome_label: "预览",
+      dot_class: "bg-[#526879]",
+      footer_label: null,
+      Icon: FileText,
+      progress_done: false,
+      save_label: null,
+      save_tone: "saved",
+      show_caret: false,
+      show_progress: false,
+      show_scan: false,
+      sidebar_class: "bg-white/[0.06]",
+      status_label: null,
+      type_lines: false,
+    };
+  }
+
+  const visual_contract = resolve_operation_tool_visual_contract(event);
+  const is_live = event.phase === "running" || event.phase === "queued" || event.phase === "waiting";
+  if (visual_contract.group === "workspace_writer" && visual_contract.action === "create") {
+    return {
+      active_line: true,
+      chrome_label: phase_editor_label(event.phase, "新建文件", "写入文件"),
+      dot_class: "bg-[#8de0ad] shadow-[0_0_10px_rgba(141,224,173,0.55)]",
+      footer_label: is_live ? "正在写入文件内容" : "文件已写入",
+      Icon: FilePlus2,
+      progress_done: !is_live,
+      save_label: is_live ? "保存中" : "已保存",
+      save_tone: is_live ? "saving" : "saved",
+      show_caret: true,
+      show_progress: true,
+      show_scan: false,
+      sidebar_class: "bg-[#8de0ad]/10 text-[#dce8ee]",
+      status_label: is_live ? "光标正在输入" : "内容已落盘",
+      type_lines: true,
+    };
+  }
+  if (visual_contract.group === "workspace_writer") {
+    return {
+      active_line: true,
+      chrome_label: phase_editor_label(event.phase, "编辑文件", "更新文件"),
+      dot_class: "bg-[#ffd27a] shadow-[0_0_10px_rgba(255,210,122,0.45)]",
+      footer_label: is_live ? "正在更新文件内容" : "修改已写入",
+      Icon: FilePenLine,
+      progress_done: !is_live,
+      save_label: is_live ? "保存中" : "已保存",
+      save_tone: is_live ? "saving" : "saved",
+      show_caret: true,
+      show_progress: true,
+      show_scan: false,
+      sidebar_class: "bg-[#ffd27a]/10 text-[#dce8ee]",
+      status_label: is_live ? "正在修改当前文件" : "修改完成",
+      type_lines: true,
+    };
+  }
+  if (visual_contract.group === "workspace_reader") {
+    return {
+      active_line: false,
+      chrome_label: phase_editor_label(event.phase, "打开文件", "读取文件"),
+      dot_class: "bg-[#7fb5ff] shadow-[0_0_10px_rgba(127,181,255,0.45)]",
+      footer_label: is_live ? "正在读取文件" : "文件已打开",
+      Icon: FileSearch,
+      progress_done: !is_live,
+      save_label: null,
+      save_tone: "saved",
+      show_caret: false,
+      show_progress: false,
+      show_scan: is_live,
+      sidebar_class: "bg-[#7fb5ff]/10 text-[#dce8ee]",
+      status_label: is_live ? "正在扫描文件内容" : "读取完成",
+      type_lines: false,
+    };
+  }
+
+  return {
+    active_line: false,
+    chrome_label: visual_contract.interaction_label,
+    dot_class: "bg-[#526879]",
+    footer_label: null,
+    Icon: FileText,
+    progress_done: false,
+    save_label: null,
+    save_tone: "saved",
+    show_caret: false,
+    show_progress: false,
+    show_scan: false,
+    sidebar_class: "bg-white/[0.06]",
+    status_label: null,
+    type_lines: false,
+  };
+}
+
+function get_document_preview_lines(
+  value: unknown,
+  max_lines: number,
+  options?: { preserve_blank_lines?: boolean },
+): string[] {
+  if (value == null) {
+    return [];
+  }
+
+  if (!options?.preserve_blank_lines) {
+    return get_preview_lines(value, max_lines);
+  }
+
+  const text = typeof value === "string"
+    ? value
+    : safe_json_stringify(value);
+
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .slice(0, max_lines);
+}
+
+function phase_editor_label(phase: OperationPhase, live_label: string, done_label: string): string {
+  if (phase === "error" || phase === "cancelled") {
+    return "操作中断";
+  }
+  if (phase === "done") {
+    return done_label;
+  }
+  return live_label;
+}
+
+function useEditorTypewriterLines({
+  enabled,
+  event_key,
+  lines,
+}: {
+  enabled: boolean;
+  event_key: string;
+  lines: string[];
+}): string[] {
+  const text = useMemo(() => lines.join("\n"), [lines]);
+  const [visible_text, set_visible_text] = useState(enabled ? "" : text);
+
+  useEffect(() => {
+    if (!enabled || prefers_reduced_motion()) {
+      set_visible_text(text);
+      return;
+    }
+
+    let cancelled = false;
+    let visible_length = 0;
+    const chunk_size = Math.max(18, Math.ceil(Math.max(text.length, 1) / 72));
+    set_visible_text("");
+
+    const tick = () => {
+      if (cancelled) {
+        return;
+      }
+      visible_length = Math.min(text.length, visible_length + chunk_size);
+      set_visible_text(text.slice(0, visible_length));
+      if (visible_length < text.length) {
+        window.setTimeout(tick, 24);
+      }
+    };
+
+    const timeout = window.setTimeout(tick, 90);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [enabled, event_key, text]);
+
+  const rendered_text = enabled ? visible_text : text;
+  const rendered_lines = rendered_text.split("\n");
+  return rendered_lines.length ? rendered_lines : [""];
+}
+
+function prefers_reduced_motion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function MarkdownLine({ line }: { line: string }) {

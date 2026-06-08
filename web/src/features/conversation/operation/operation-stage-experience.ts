@@ -276,11 +276,17 @@ export function merge_operation_stage_snapshots_for_restore(
   ]
     .sort((left, right) => left.updated_at - right.updated_at)
     .slice(-MAX_MERGED_EVENTS);
+  const merged_runtime_events = merge_runtime_events_for_round(
+    current.runtime_events ?? [],
+    next.runtime_events ?? [],
+    active_round_id,
+  );
 
   return {
     ...next,
     active_event: next.active_event ?? current.active_event,
     events: merged_events,
+    runtime_events: merged_runtime_events,
     recent_evidence: merge_operation_evidence(current.recent_evidence, next.recent_evidence),
     workspace_events: merge_workspace_events_for_round(
       current.workspace_events,
@@ -289,6 +295,20 @@ export function merge_operation_stage_snapshots_for_restore(
     ),
     updated_at: Math.max(current.updated_at, next.updated_at),
   };
+}
+
+function merge_runtime_events_for_round(
+  current: NexusOperationSnapshot["runtime_events"],
+  next: NexusOperationSnapshot["runtime_events"],
+  round_id: string,
+): NexusOperationSnapshot["runtime_events"] {
+  const next_ids = new Set(next.map((event) => event.id));
+  return [
+    ...current.filter((event) => event.round_id === round_id && !next_ids.has(event.id)),
+    ...next,
+  ]
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .slice(-MAX_MERGED_EVENTS);
 }
 
 function collect_continuation_workspace_items(

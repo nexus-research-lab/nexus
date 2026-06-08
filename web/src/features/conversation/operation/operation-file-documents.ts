@@ -110,9 +110,18 @@ function find_latest_workspace_item(
     return null;
   }
   const target_item = event.target
-    ? items.find((item) => item.path === event.target)
+    ? latest_workspace_item(items.filter((item) => item.path === event.target))
     : null;
-  return target_item ?? items[0] ?? null;
+  return target_item ?? latest_workspace_item(items);
+}
+
+function latest_workspace_item(
+  items: NexusOperationSnapshot["workspace_events"],
+): NexusOperationSnapshot["workspace_events"][number] | null {
+  return items
+    .slice()
+    .sort((left, right) => right.updated_at - left.updated_at)
+    .at(0) ?? null;
 }
 
 function collect_round_workspace_items(

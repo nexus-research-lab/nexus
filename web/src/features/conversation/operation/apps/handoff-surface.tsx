@@ -57,6 +57,10 @@ export function HandoffSurface({
     type: "status" as const,
   };
   const PrimaryArtifactIcon = icon_for_manifest_artifact(primary_artifact.type, primary_artifact.value);
+  const primary_related_event = source_events.find((item) => item.target === primary_artifact.value)
+    ?? tool_events.find((item) => item.target === primary_artifact.value)
+    ?? null;
+  const replay_event = tool_events.at(-1) ?? source_events.at(-1) ?? event;
 
   return (
     <div className="grid h-full min-h-[320px] grid-cols-[214px_minmax(0,1fr)] overflow-hidden bg-[#f5f7fa] text-(--text-default) max-md:grid-cols-1">
@@ -183,13 +187,23 @@ export function HandoffSurface({
 
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-t border-(--divider-subtle-color) bg-white/66 px-4 py-2 text-[10.5px] font-bold text-(--text-soft)">
           <span className="truncate">现场已收束，历史应用保留在左侧缩略片与 Dock 中。</span>
-          <button className="inline-flex h-7 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-white/62 px-3 text-(--text-strong)" type="button">
+          <button
+            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-white/62 px-3 text-(--text-strong) transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!on_focus_event || !replay_event}
+            onClick={() => on_focus_event?.(replay_event)}
+            type="button"
+          >
             <RotateCcw className="h-3.5 w-3.5" />
-            回看
+            回看工具
           </button>
-          <button className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[color:var(--primary)] px-3 text-white" type="button">
+          <button
+            className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[color:var(--primary)] px-3 text-white transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!on_focus_event || !primary_related_event}
+            onClick={() => primary_related_event && on_focus_event?.(primary_related_event)}
+            type="button"
+          >
             <FileText className="h-3.5 w-3.5" />
-            继续
+            打开产物
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>

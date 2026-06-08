@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -17,6 +18,12 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type {
+  AskUserQuestionInput,
+  UserQuestion,
+  UserQuestionAnswer,
+} from "@/types/conversation/ask-user-question";
+import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
 import {
   build_operation_input_rows,
@@ -34,11 +41,13 @@ export function PermissionCheckpointPanel({
   compact = false,
   event,
   evidence: payload_evidence,
+  on_permission_response,
   snapshot,
 }: {
   compact?: boolean;
   event: NexusOperationEvent;
   evidence?: OperationEvidence[];
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
   const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
@@ -50,6 +59,75 @@ export function PermissionCheckpointPanel({
   ]).slice(0, compact ? 4 : 7);
   const lead = event.summary ?? event.target ?? event.title ?? event.tool_name ?? "等待用户确认";
   const request_target = event.target ?? rows[0]?.value ?? event.tool_name ?? "待确认请求";
+  const request_id = event.permission_request_id ?? null;
+  const is_question = event.permission_interaction_mode === "question";
+  const question_input = useMemo(
+    () => parse_ask_user_question_input(event.input_preview),
+    [event.input_preview],
+  );
+  const questions = question_input?.questions ?? [];
+  const [submitted_decision, set_submitted_decision] = useState<PermissionDecisionPayload["decision"] | null>(null);
+  const [question_answers, set_question_answers] = useState<Record<number, string[]>>({});
+  const can_send_response = Boolean(request_id && on_permission_response);
+  const can_allow = can_send_response && !is_question && !submitted_decision;
+  const can_deny = can_send_response && !submitted_decision;
+  const can_submit_question_answer = Boolean(
+    is_question &&
+    can_send_response &&
+    !submitted_decision &&
+    questions.length > 0 &&
+    questions.every((_, index) => (question_answers[index] ?? []).length > 0),
+  );
+  const response_state_label = !request_id
+    ? "缺少请求"
+    : submitted_decision === "allow"
+        ? is_question ? "已提交" : "已允许"
+        : submitted_decision === "deny"
+          ? "已拒绝"
+          : !on_permission_response
+            ? "等待连接"
+            : is_question
+              ? "需回答"
+              : "待确认";
+  const header_state_label = submitted_decision ? response_state_label : PHASE_LABELS[event.phase];
+
+  useEffect(() => {
+    set_submitted_decision(null);
+    set_question_answers({});
+  }, [request_id]);
+
+  const submit_permission_response = (decision: PermissionDecisionPayload["decision"]) => {
+    if (!request_id || !on_permission_response) {
+      return false;
+    }
+    const submitted = on_permission_response({
+      request_id,
+      decision,
+      message: decision === "deny" ? "User denied permission from Operation Stage" : undefined,
+    });
+    if (submitted) {
+      set_submitted_decision(decision);
+    }
+    return submitted;
+  };
+  const submit_question_answers = () => {
+    if (!request_id || !on_permission_response || !can_submit_question_answer) {
+      return false;
+    }
+    const user_answers: UserQuestionAnswer[] = questions.map((_, index) => ({
+      question_index: index,
+      selected_options: question_answers[index] ?? [],
+    }));
+    const submitted = on_permission_response({
+      request_id,
+      decision: "allow",
+      user_answers,
+    });
+    if (submitted) {
+      set_submitted_decision("allow");
+    }
+    return submitted;
+  };
 
   return (
     <div className="flex h-full min-h-[320px] min-w-0 max-w-full flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))]">
@@ -69,7 +147,7 @@ export function PermissionCheckpointPanel({
             </div>
           </div>
           <span className="shrink-0 rounded-full bg-[rgba(223,157,46,0.12)] px-2.5 py-1 text-[10px] font-black text-[color:var(--warning)]">
-            {PHASE_LABELS[event.phase]}
+            {header_state_label}
           </span>
         </div>
       </div>
@@ -122,7 +200,7 @@ export function PermissionCheckpointPanel({
                   <p className="truncate text-[10px] text-(--text-soft)">{request_target}</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-[rgba(223,157,46,0.12)] px-2 py-1 text-[10px] font-black text-[color:var(--warning)]">
-                  待确认
+                  {response_state_label}
                 </span>
               </div>
               <div className="mt-3 rounded-[10px] border border-(--divider-subtle-color) bg-white/76 px-3 py-2">
@@ -130,19 +208,57 @@ export function PermissionCheckpointPanel({
                 <p className="mt-1 break-words font-mono text-[11px] leading-5 text-(--text-strong)">{request_target}</p>
                 <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-(--text-muted)">{lead}</p>
               </div>
+              {is_question ? (
+                questions.length ? (
+                  <StageQuestionAnswerList
+                    disabled={Boolean(submitted_decision)}
+                    on_change={set_question_answers}
+                    questions={questions}
+                    selections={question_answers}
+                  />
+                ) : (
+                  <div className="mt-3 rounded-[10px] border border-(--divider-subtle-color) bg-white/72 px-3 py-2 text-[10px] leading-4 text-(--text-muted)">
+                    舞台没有收到可渲染的问题选项，请回到聊天输入区处理这个请求。
+                  </div>
+                )
+              ) : null}
               <div className="mt-3 flex items-center justify-end gap-2 border-t border-(--divider-subtle-color) pt-3">
                 <button
-                  className="h-7 rounded-[7px] border border-(--divider-subtle-color) bg-white/80 px-3 text-[11px] font-semibold text-(--text-strong) shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] transition hover:bg-white"
+                  className={cn(
+                    "h-7 rounded-[7px] border border-(--divider-subtle-color) bg-white/80 px-3 text-[11px] font-semibold text-(--text-strong) shadow-[inset_0_1px_0_rgba(255,255,255,0.82)] transition hover:bg-white",
+                    !can_deny && "cursor-not-allowed opacity-45 hover:bg-white/80",
+                  )}
+                  disabled={!can_deny}
+                  onClick={() => submit_permission_response("deny")}
                   type="button"
                 >
-                  拒绝
+                  {is_question ? "取消请求" : "拒绝"}
                 </button>
-                <button
-                  className="h-7 rounded-[7px] border border-[rgba(91,114,255,0.28)] bg-[rgba(91,114,255,0.92)] px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(91,114,255,0.20)] transition hover:bg-[color:var(--primary)]"
-                  type="button"
-                >
-                  允许
-                </button>
+                {is_question ? (
+                  <button
+                    className={cn(
+                      "h-7 rounded-[7px] border border-[rgba(91,114,255,0.28)] bg-[rgba(91,114,255,0.92)] px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(91,114,255,0.20)] transition hover:bg-[color:var(--primary)]",
+                      !can_submit_question_answer && "cursor-not-allowed opacity-45 hover:bg-[rgba(91,114,255,0.92)]",
+                    )}
+                    disabled={!can_submit_question_answer}
+                    onClick={submit_question_answers}
+                    type="button"
+                  >
+                    提交回答
+                  </button>
+                ) : (
+                  <button
+                    className={cn(
+                      "h-7 rounded-[7px] border border-[rgba(91,114,255,0.28)] bg-[rgba(91,114,255,0.92)] px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(91,114,255,0.20)] transition hover:bg-[color:var(--primary)]",
+                      !can_allow && "cursor-not-allowed opacity-45 hover:bg-[rgba(91,114,255,0.92)]",
+                    )}
+                    disabled={!can_allow}
+                    onClick={() => submit_permission_response("allow")}
+                    type="button"
+                  >
+                    允许
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -203,6 +319,105 @@ export function PermissionCheckpointPanel({
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function StageQuestionAnswerList({
+  disabled,
+  on_change,
+  questions,
+  selections,
+}: {
+  disabled: boolean;
+  on_change: (next: Record<number, string[]>) => void;
+  questions: UserQuestion[];
+  selections: Record<number, string[]>;
+}) {
+  const toggle_option = (question: UserQuestion, question_index: number, option_label: string) => {
+    if (disabled) {
+      return;
+    }
+    const selected = selections[question_index] ?? [];
+    const multi_select = question.multi_select ?? question.multiSelect ?? false;
+    const next_selected = multi_select
+      ? selected.includes(option_label)
+        ? selected.filter((item) => item !== option_label)
+        : [...selected, option_label]
+      : [option_label];
+    on_change({
+      ...selections,
+      [question_index]: next_selected,
+    });
+  };
+
+  return (
+    <div className="mt-3 space-y-2">
+      {questions.map((question, question_index) => {
+        const selected = selections[question_index] ?? [];
+        const multi_select = question.multi_select ?? question.multiSelect ?? false;
+        return (
+          <div
+            className="rounded-[11px] border border-(--divider-subtle-color) bg-white/74 px-3 py-2"
+            key={`${question_index}:${question.question}`}
+          >
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                {question.header ? (
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[color:var(--primary)]">
+                    {question.header}
+                  </p>
+                ) : null}
+                <p className="mt-0.5 break-words text-[11px] font-black leading-4 text-(--text-strong)">
+                  {question.question}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[rgba(91,114,255,0.08)] px-2 py-1 text-[9px] font-black text-[color:var(--primary)]">
+                {multi_select ? "多选" : "单选"}
+              </span>
+            </div>
+            <div className="mt-2 grid gap-1.5">
+              {question.options.map((option) => {
+                const is_selected = selected.includes(option.label);
+                return (
+                  <button
+                    className={cn(
+                      "min-h-8 rounded-[9px] border px-2.5 py-1.5 text-left text-[10px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]",
+                      is_selected
+                        ? "border-[rgba(91,114,255,0.32)] bg-[rgba(91,114,255,0.10)] text-(--text-strong)"
+                        : "border-white/70 bg-white/64 text-(--text-muted) hover:bg-white",
+                      disabled && "cursor-not-allowed opacity-60",
+                    )}
+                    disabled={disabled}
+                    key={option.label}
+                    onClick={() => toggle_option(question, question_index, option.label)}
+                    type="button"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className={cn(
+                        "grid h-4 w-4 shrink-0 place-items-center rounded-full border text-[8px] font-black",
+                        is_selected
+                          ? "border-[rgba(91,114,255,0.44)] bg-[rgba(91,114,255,0.92)] text-white"
+                          : "border-(--divider-subtle-color) bg-white/70 text-transparent",
+                      )}>
+                        {multi_select ? "✓" : "•"}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block break-words font-black">{option.label}</span>
+                        {option.description ? (
+                          <span className="mt-0.5 block break-words leading-4 text-(--text-soft)">
+                            {option.description}
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -329,6 +544,47 @@ export function OperationReviewPanel({
       </div>
     </div>
   );
+}
+
+function parse_ask_user_question_input(value: unknown): AskUserQuestionInput | null {
+  if (!is_record(value) || !Array.isArray(value.questions)) {
+    return null;
+  }
+  const questions = value.questions.flatMap((item) => {
+    const question = parse_user_question(item);
+    return question ? [question] : [];
+  });
+  return questions.length ? { questions } : null;
+}
+
+function parse_user_question(value: unknown): UserQuestion | null {
+  if (!is_record(value) || typeof value.question !== "string") {
+    return null;
+  }
+  const options_source = Array.isArray(value.options) ? value.options : [];
+  const options = options_source.flatMap((item) => {
+    if (!is_record(item) || typeof item.label !== "string") {
+      return [];
+    }
+    return [{
+      label: item.label,
+      description: typeof item.description === "string" ? item.description : undefined,
+    }];
+  });
+  if (!options.length) {
+    return null;
+  }
+  return {
+    question: value.question,
+    header: typeof value.header === "string" ? value.header : undefined,
+    multi_select: typeof value.multi_select === "boolean" ? value.multi_select : undefined,
+    multiSelect: typeof value.multiSelect === "boolean" ? value.multiSelect : undefined,
+    options,
+  };
+}
+
+function is_record(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function dedupe_evidence(items: OperationEvidence[]): OperationEvidence[] {

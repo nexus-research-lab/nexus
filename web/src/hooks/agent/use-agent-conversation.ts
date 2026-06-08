@@ -531,8 +531,6 @@ export function useAgentConversation(
     Map<
       string,
       {
-        reject: (error: Error) => void;
-        resolve: () => void;
         timeout_id: number;
       }
     >
@@ -705,17 +703,16 @@ export function useAgentConversation(
     }
     window.clearTimeout(pending_request.timeout_id);
     pending_chat_ack_ref.current.delete(round_id);
-    pending_request.resolve();
     return true;
   }, []);
 
   const cancel_pending_chat_acks = useCallback((reason: string) => {
+    void reason;
     for (const [
       round_id,
       pending_request,
     ] of pending_chat_ack_ref.current.entries()) {
       window.clearTimeout(pending_request.timeout_id);
-      pending_request.reject(new Error(reason));
       pending_chat_ack_ref.current.delete(round_id);
     }
   }, []);
@@ -728,44 +725,9 @@ export function useAgentConversation(
       }
       window.clearTimeout(pending_request.timeout_id);
       pending_chat_ack_ref.current.delete(round_id);
-      pending_request.reject(new Error(message));
-      apply_runtime_transition((machine) => {
-        machine.clear_round(round_id, chat_type === "group");
-      });
-      set_pending_agent_slots((prev) =>
-        prev.filter(
-          (slot) => !matches_round_lifecycle(slot.round_id, round_id),
-        ),
-      );
-      set_pending_permissions((prev) =>
-        prev.filter(
-          (permission) =>
-            !permission.caused_by ||
-            !matches_round_lifecycle(permission.caused_by, round_id),
-        ),
-      );
-      set_messages((prev) =>
-        prev.filter(
-          (message) =>
-            !(
-              message.role === "user" &&
-              message.message_id === round_id &&
-              message.round_id === round_id
-            ),
-        ),
-      );
       set_error(message);
-      if (ws_state_ref.current === "connected") {
-        ws_reconnect_ref.current();
-      }
     },
-    [
-      apply_runtime_transition,
-      chat_type,
-      set_messages,
-      set_pending_agent_slots,
-      set_pending_permissions,
-    ],
+    [],
   );
 
   const reset_runtime_machine = useCallback(() => {
@@ -1652,15 +1614,11 @@ export function useAgentConversation(
         machine.track_outbound_round(round_id);
       });
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout_id = window.setTimeout(() => {
-          fail_pending_chat_ack(round_id, "消息未送达后端，请重试");
-        }, get_message_send_ack_timeout_ms());
-        pending_chat_ack_ref.current.set(round_id, {
-          resolve,
-          reject,
-          timeout_id,
-        });
+      const timeout_id = window.setTimeout(() => {
+        fail_pending_chat_ack(round_id, "消息送达确认较慢，已保留消息并继续等待后端响应");
+      }, get_message_send_ack_timeout_ms());
+      pending_chat_ack_ref.current.set(round_id, {
+        timeout_id,
       });
     },
     [action_context, apply_runtime_transition, fail_pending_chat_ack],

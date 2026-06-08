@@ -20,6 +20,11 @@ import {
   resolve_workspace_event_round_id,
 } from "./operation-projection-timeline";
 import {
+  build_operation_message_runtime_events,
+  build_workspace_runtime_event,
+  sort_operation_runtime_events,
+} from "./operation-runtime-event-stream";
+import {
   DEFAULT_TARGET_KEYS,
   extract_operation_input_value,
   resolve_operation_tool_profile,
@@ -186,6 +191,21 @@ export function project_operation_snapshot({
   const sorted_events = events
     .sort((left, right) => (left.updated_at || 0) - (right.updated_at || 0))
     .slice(-MAX_EVENTS);
+  const runtime_events = sort_operation_runtime_events([
+    ...build_operation_message_runtime_events({
+      agent_id,
+      live_round_ids: live_round_id_set,
+      messages: projected_messages,
+      pending_permission_matches,
+      session_key,
+      tool_results,
+    }),
+    ...relevant_workspace_events.map((workspace_event) => build_workspace_runtime_event({
+      round_id: resolve_workspace_event_round_id(workspace_event, events),
+      session_key,
+      workspace_event,
+    })),
+  ]);
   const active_event = pick_operation_active_event(sorted_events);
   const recent_evidence = collect_recent_operation_evidence(sorted_events, MAX_EVIDENCE);
 
@@ -194,6 +214,7 @@ export function project_operation_snapshot({
     session_key,
     active_event,
     events: sorted_events,
+    runtime_events,
     recent_evidence,
     workspace_events: relevant_workspace_events.slice(0, 8),
     updated_at: Date.now(),
@@ -362,6 +383,8 @@ function project_tool_use({
     input_preview,
     result_preview: build_tool_result_preview(result, projection.kind),
     evidence,
+    permission_request_id: pending_permission?.request_id ?? null,
+    permission_interaction_mode: pending_permission?.interaction_mode ?? null,
     started_at: message.timestamp,
     updated_at: message.timestamp,
     ended_at: result ? message.timestamp : null,
@@ -461,6 +484,10 @@ function project_unmatched_permission(
     evidence: [
       { type: "permission", label: permission.risk_label || "waiting", value: permission.summary ?? permission.tool_name },
     ],
+    permission_request_id: permission.request_id,
+    permission_interaction_mode: permission.interaction_mode ?? (
+      permission.tool_name === "AskUserQuestion" ? "question" : "permission"
+    ),
     updated_at: Date.now(),
   };
 }
@@ -475,10 +502,10 @@ function project_workspace_event(
 
   return {
     id: `workspace:${event.id}`,
-    session_key: session_key ?? "",
+    session_key: session_key ?? event.session_key ?? "",
     round_id,
     agent_id: event.agent_id,
-    tool_use_id: null,
+    tool_use_id: event.tool_use_id ?? null,
     tool_name: "workspace_event",
     kind: is_deleted ? "workspace_edit" : "workspace_edit",
     surface: "editor",

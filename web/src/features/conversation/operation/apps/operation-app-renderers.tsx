@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
 import type { StageWindowState } from "../operation-desktop-types";
 import type {
@@ -32,9 +33,11 @@ import { WorkspaceFinder } from "./workspace-finder-surface";
 export function StageWindowContent({
   window,
   on_focus_event,
+  on_permission_response,
 }: {
   window: StageWindowState;
   on_focus_event?: (event: NexusOperationEvent) => void;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
 }) {
   const { event, snapshot } = window.payload;
   const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
@@ -90,6 +93,7 @@ export function StageWindowContent({
       <ActivityMonitorSurface
         event={event}
         lines={window.payload.lines ?? []}
+        on_focus_event={on_focus_event}
         snapshot={snapshot}
       />
     );
@@ -128,6 +132,7 @@ export function StageWindowContent({
           compact={window.phase === "minimized"}
           event={event}
           evidence={window.payload.evidence}
+          on_permission_response={on_permission_response}
           snapshot={snapshot}
         />
       );
@@ -174,6 +179,7 @@ export function StageWindowContent({
       <DocumentPreview
         diff_stats={window.payload.diff_stats}
         fallback_lines={build_editor_preview_lines(event, get_preview_lines(window.payload.preview, 12))}
+        operation_event={event}
         summary={window.payload.summary ?? event.summary ?? event.title}
         target={window.payload.target ?? window.target ?? event.target}
         value={resolve_file_preview_value(event, window.payload.preview)}
@@ -192,6 +198,7 @@ export function StageWindowContent({
         <DocumentPreview
           diff_stats={window.payload.diff_stats}
           fallback_lines={build_editor_preview_lines(event, get_preview_lines(window.payload.preview, 12))}
+          operation_event={event}
           summary={window.payload.summary ?? event.summary ?? event.title}
           target={window.payload.target ?? window.target ?? event.target}
           value={resolve_file_preview_value(event, window.payload.preview)}

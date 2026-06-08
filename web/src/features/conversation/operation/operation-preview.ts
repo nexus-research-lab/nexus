@@ -85,24 +85,11 @@ export function build_editor_preview_lines(
   event: NexusOperationEvent,
   lines: string[],
 ): string[] {
-  if (lines.length >= 4) {
+  if (lines.length) {
     return lines;
   }
 
-  const file_name = basename(event.target);
-  const message = lines[0] ?? event.summary ?? "Waiting for diff payload";
-
-  return [
-    `// ${event.title}`,
-    `const target = "${file_name}";`,
-    `const phase = "${event.phase}";`,
-    "",
-    message,
-    "",
-    "await requestWritePermission(target);",
-    "applyProjectedChange(target);",
-    "persistWorkspaceArtifact(target);",
-  ].filter(Boolean);
+  return [""];
 }
 
 export function basename(value?: string | null): string {

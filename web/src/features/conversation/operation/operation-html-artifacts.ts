@@ -2,6 +2,7 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "./operation-types";
+import { read_browser_open_target_from_terminal_command } from "./operation-desktop-intents";
 
 export interface OperationHtmlArtifact {
   path: string;
@@ -13,26 +14,35 @@ export function find_operation_html_artifact(
   events: NexusOperationEvent[],
 ): OperationHtmlArtifact | null {
   const html_targets = new Set<string>();
+  const round_tool_use_ids = new Set<string>();
   let candidate_path: string | null = null;
   for (const event of [...events].reverse()) {
-    if (!event.target || !looks_like_html_path(event.target)) {
+    if (event.tool_use_id) {
+      round_tool_use_ids.add(event.tool_use_id);
+    }
+    const html_target = read_event_html_target(event);
+    if (!html_target) {
       continue;
     }
-    html_targets.add(event.target);
-    candidate_path ??= event.target;
+    html_targets.add(html_target);
+    candidate_path ??= html_target;
     const content = read_event_html_content(event);
     if (content) {
       return {
-        path: event.target,
+        path: html_target,
         live_content: content,
       };
     }
   }
 
-  const workspace_artifact = snapshot?.workspace_events.find((item) => (
+  const workspace_items = [...(snapshot?.workspace_events ?? [])].reverse();
+  const workspace_artifact = workspace_items.find((item) => (
     html_targets.has(item.path) &&
     looks_like_html_path(item.path)
-  ));
+  )) ?? workspace_items.find((item) => (
+    Boolean(item.tool_use_id && round_tool_use_ids.has(item.tool_use_id)) &&
+    looks_like_html_path(item.path)
+  )) ?? (!candidate_path ? workspace_items.find((item) => looks_like_html_path(item.path)) : null);
   if (workspace_artifact) {
     return {
       path: workspace_artifact.path,
@@ -47,6 +57,17 @@ export function find_operation_html_artifact(
     };
   }
 
+  return null;
+}
+
+function read_event_html_target(event: NexusOperationEvent): string | null {
+  const open_target = read_browser_open_target_from_terminal_command(event);
+  if (open_target?.target && looks_like_html_path(open_target.target)) {
+    return open_target.target;
+  }
+  if (event.target && looks_like_html_path(event.target)) {
+    return event.target;
+  }
   return null;
 }
 

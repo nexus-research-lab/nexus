@@ -206,6 +206,7 @@ export function GroupChatPanel({
     messages,
     pending_permissions,
     live_round_ids,
+    on_permission_response: send_permission_response,
   });
 
   const todos = useExtractTodos(messages, session_key);

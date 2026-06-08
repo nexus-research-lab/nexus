@@ -61,6 +61,9 @@ copyFileSync(join(operation_dir, "operation-stage-key.js"), join(operation_dir, 
 copyFileSync(join(operation_dir, "operation-terminal-lines.js"), join(operation_dir, "operation-terminal-lines"));
 copyFileSync(join(operation_dir, "operation-summary-events.js"), join(operation_dir, "operation-summary-events"));
 copyFileSync(join(operation_dir, "operation-event-io.js"), join(operation_dir, "operation-event-io"));
+copyFileSync(join(operation_dir, "operation-runtime-event-stream.js"), join(operation_dir, "operation-runtime-event-stream"));
+copyFileSync(join(operation_dir, "operation-runtime-types.js"), join(operation_dir, "operation-runtime-types"));
+copyFileSync(join(operation_dir, "operation-tool-visual-contract.js"), join(operation_dir, "operation-tool-visual-contract"));
 mkdirSync(join(operation_dir, "stage"), { recursive: true });
 copyFileSync(join(operation_dir, "stage/operation-stage-window-kinds.js"), join(operation_dir, "stage/operation-stage-window-kinds"));
 copyFileSync(join(operation_dir, "stage/operation-stage-event-sequence.js"), join(operation_dir, "stage/operation-stage-event-sequence"));
@@ -103,6 +106,7 @@ const {
 } = await import(pathToFileURL(join(operation_dir, "operation-scene-planner.js")));
 const {
   derive_stage_desktop_intents,
+  derive_stage_desktop_intents_from_runtime_event,
   read_browser_open_target_from_terminal_command,
   stage_app_session_id_for_intent,
 } = await import(pathToFileURL(join(operation_dir, "operation-desktop-intents.js")));
@@ -120,6 +124,10 @@ const {
   fallback_stage_event_target_label,
   is_low_signal_stage_label,
 } = await import(pathToFileURL(join(operation_dir, "operation-stage-labels.js")));
+const {
+  OPERATION_TOOL_VISUAL_GROUPS,
+  resolve_operation_tool_visual_contract,
+} = await import(pathToFileURL(join(operation_dir, "operation-tool-visual-contract.js")));
 const {
   is_stage_desktop_window_kind,
   window_content_mode_for_kind,
@@ -242,9 +250,13 @@ verify_hidden_stage_uses_desktop_state_instead_of_mission_control();
 verify_unclassified_tool_activity_opens_nexus_app_window(now);
 verify_current_unclassified_tool_opens_beside_existing_app_window(now);
 verify_recent_unclassified_tools_remain_as_mac_app_windows(now);
+verify_task_planner_opens_activity_monitor(now);
 verify_desktop_intents_drive_app_session_windows(now);
+verify_runtime_events_drive_app_session_windows(now);
+verify_runtime_event_projection(now);
 verify_generic_tool_uses_nexus_tool_surface();
 verify_tool_app_intent_map();
+verify_tool_visual_contract_inventory(now);
 verify_nexus_tool_session_view(now);
 verify_nexus_tool_app_has_own_desktop_identity();
 verify_window_focus_moves_to_next_visible_window();
@@ -267,6 +279,7 @@ verify_error_summary_settles_live_handoff(now);
 verify_stage_restore_merge_preserves_round_context(now);
 verify_workspace_live_stays_in_tool_round(now);
 verify_multi_file_windows_keep_event_identity(now);
+verify_code_writer_preview_uses_real_content(now);
 verify_extensionless_workspace_file_opens_code_app(now);
 verify_code_editor_session_view();
 verify_terminal_result_envelope(now);
@@ -453,19 +466,20 @@ function verify_hidden_stage_uses_desktop_state_instead_of_mission_control() {
 
 function verify_unclassified_tool_activity_opens_nexus_app_window(now) {
   const event = {
-    id: "tool-plan-update",
+    id: "tool-context-docs",
     session_key: "session:stage",
     round_id: "round-generic-tool",
     agent_id: "agent-stage",
-    tool_use_id: "tool-plan",
-    tool_name: "TodoWrite",
-    kind: "plan_update",
-    surface: "summary",
+    tool_use_id: "tool-context",
+    tool_name: "Context7",
+    kind: "unknown",
+    surface: "fallback",
     phase: "running",
-    title: "更新计划",
-    target: "todos",
+    title: "查询文档",
+    target: "React cleanup",
     input_preview: {
-      todos: [{ content: "打开 Safari 预览", status: "pending" }],
+      library: "react",
+      query: "useEffect cleanup",
     },
     updated_at: now,
   };
@@ -476,6 +490,7 @@ function verify_unclassified_tool_activity_opens_nexus_app_window(now) {
       session_key: "session:stage",
       active_event: event,
       events: [event],
+      runtime_events: [],
       recent_evidence: [],
       workspace_events: [],
       updated_at: now,
@@ -484,7 +499,7 @@ function verify_unclassified_tool_activity_opens_nexus_app_window(now) {
   assert(desktop.windows.length === 1, `Unclassified tool activity should still open one app window, got ${desktop.windows.length}`);
   assert(desktop.windows[0].kind === "generic_tool", `Unclassified tool activity should open a Nexus app window, got ${desktop.windows[0].kind}`);
   assert(desktop.active_window_id === desktop.windows[0].id, "Unclassified tool app window should become the active desktop window");
-  assert(desktop.windows[0].payload.related_events?.[0]?.tool_name === "TodoWrite", "Generic app window should keep original tool identity");
+  assert(desktop.windows[0].payload.related_events?.[0]?.tool_name === "Context7", "Generic app window should keep original tool identity");
 }
 
 function verify_current_unclassified_tool_opens_beside_existing_app_window(now) {
@@ -506,30 +521,32 @@ function verify_current_unclassified_tool_opens_beside_existing_app_window(now) 
     result_preview: "export const app = true;",
     updated_at: now - 10,
   };
-  const plan_event = {
-    id: "tool-plan-update",
+  const generic_event = {
+    id: "tool-context-docs",
     session_key: "session:stage",
     round_id: "round-mixed-tools",
     agent_id: "agent-stage",
-    tool_use_id: "tool-plan",
-    tool_name: "TodoWrite",
-    kind: "plan_update",
-    surface: "summary",
+    tool_use_id: "tool-context",
+    tool_name: "Context7",
+    kind: "unknown",
+    surface: "fallback",
     phase: "running",
-    title: "更新计划",
-    target: "todos",
+    title: "查询文档",
+    target: "React cleanup",
     input_preview: {
-      todos: [{ content: "打开 Safari 预览", status: "pending" }],
+      library: "react",
+      query: "useEffect cleanup",
     },
     updated_at: now,
   };
   const desktop = plan_operation_desktop({
-    event: plan_event,
+    event: generic_event,
     snapshot: {
       key: "session:stage",
       session_key: "session:stage",
-      active_event: plan_event,
-      events: [read_event, plan_event],
+      active_event: generic_event,
+      events: [read_event, generic_event],
+      runtime_events: [],
       recent_evidence: [],
       workspace_events: [],
       updated_at: now,
@@ -537,7 +554,7 @@ function verify_current_unclassified_tool_opens_beside_existing_app_window(now) 
   });
   const generic_window = desktop.windows.find((window) => window.kind === "generic_tool");
   assert(generic_window, "Current unclassified tool should open its own Nexus app window even when prior app windows exist");
-  assert(generic_window.payload.event.id === plan_event.id, "Nexus app window should belong to the current unclassified tool");
+  assert(generic_window.payload.event.id === generic_event.id, "Nexus app window should belong to the current unclassified tool");
   assert(desktop.active_window_id === generic_window.id, "Current unclassified tool window should become the focused app window");
   assert(desktop.windows.some((window) => window.kind === "code_editor"), "Existing document app window should remain on the desktop");
 }
@@ -580,6 +597,7 @@ function verify_recent_unclassified_tools_remain_as_mac_app_windows(now) {
       session_key: "session:stage",
       active_event: second_event,
       events: [first_event, second_event],
+      runtime_events: [],
       recent_evidence: [],
       workspace_events: [],
       updated_at: now,
@@ -589,6 +607,43 @@ function verify_recent_unclassified_tools_remain_as_mac_app_windows(now) {
   assert(generic_windows.length === 2, `Recent unclassified tools should remain as separate app windows, got ${generic_windows.length}`);
   assert(generic_windows.some((window) => window.payload.event.id === first_event.id && window.phase === "background"), "Previous tool app should remain visible as a background window");
   assert(generic_windows.some((window) => window.payload.event.id === second_event.id && window.phase === "focused"), "Current tool app should be focused");
+}
+
+function verify_task_planner_opens_activity_monitor(now) {
+  const event = {
+    id: "tool-todo-write",
+    session_key: "session:stage",
+    round_id: "round-task-planner",
+    agent_id: "agent-stage",
+    tool_use_id: "tool-todo",
+    tool_name: "TodoWrite",
+    kind: "plan_update",
+    surface: "task",
+    phase: "running",
+    title: "更新计划",
+    target: "todos",
+    input_preview: {
+      todos: [{ content: "运行验证", status: "in_progress" }],
+    },
+    updated_at: now,
+  };
+  const desktop = plan_operation_desktop({
+    event,
+    snapshot: {
+      key: "session:stage",
+      session_key: "session:stage",
+      active_event: event,
+      events: [event],
+      runtime_events: [],
+      recent_evidence: [],
+      workspace_events: [],
+      updated_at: now,
+    },
+  });
+  const task_window = desktop.windows.find((window) => window.kind === "task_board");
+  assert(task_window, "TodoWrite should open Activity Monitor instead of a generic text card");
+  assert(task_window.id === "round-task-planner:task-board", `Activity Monitor session id should be stable per round, got ${task_window.id}`);
+  assert(desktop.active_window_id === task_window.id, "Current TodoWrite activity window should be focused");
 }
 
 function verify_desktop_intents_drive_app_session_windows(now) {
@@ -664,6 +719,7 @@ function verify_desktop_intents_drive_app_session_windows(now) {
       session_key: "session:stage",
       active_event: web_fetch_event,
       events: [web_search_event, web_fetch_event],
+      runtime_events: [],
       recent_evidence: [],
       workspace_events: [],
       updated_at: now + 1,
@@ -673,6 +729,198 @@ function verify_desktop_intents_drive_app_session_windows(now) {
   assert(browser_window?.id === "round-intents:browser", `Safari should use one stable browser app session, got ${browser_window?.id}`);
   assert(browser_window.payload.related_events.length === 2, `Safari session should keep web_search and fetch history, got ${browser_window.payload.related_events.length}`);
   assert(browser_window.phase === "focused", `Latest web event should focus Safari, got ${browser_window.phase}`);
+}
+
+function verify_runtime_events_drive_app_session_windows(now) {
+  const runtime_cases = [
+    {
+      event: {
+        id: "runtime:read:start",
+        event_type: "tool_start",
+        session_key: "session:stage",
+        round_id: "round-runtime",
+        agent_id: "agent-stage",
+        tool_use_id: "tool-read",
+        tool_name: "Read",
+        phase: "running",
+        timestamp: now,
+        input: { file_path: "src/app.ts" },
+      },
+      expected_app: "code",
+      expected_session: "round-runtime:document:src/app.ts",
+    },
+    {
+      event: {
+        id: "runtime:bash:start",
+        event_type: "tool_start",
+        session_key: "session:stage",
+        round_id: "round-runtime",
+        agent_id: "agent-stage",
+        tool_use_id: "tool-bash",
+        tool_name: "Bash",
+        phase: "running",
+        timestamp: now,
+        input: { command: "pnpm --dir web typecheck" },
+      },
+      expected_app: "terminal",
+      expected_session: "round-runtime:terminal",
+    },
+    {
+      event: {
+        id: "runtime:web:start",
+        event_type: "tool_start",
+        session_key: "session:stage",
+        round_id: "round-runtime",
+        agent_id: "agent-stage",
+        tool_use_id: "tool-web",
+        tool_name: "WebFetch",
+        phase: "running",
+        timestamp: now,
+        input: { url: "https://example.com" },
+      },
+      expected_app: "browser",
+      expected_session: "round-runtime:browser",
+    },
+    {
+      event: {
+        id: "runtime:permission:request",
+        event_type: "permission_request",
+        session_key: "session:stage",
+        round_id: "round-runtime",
+        agent_id: "agent-stage",
+        tool_use_id: "tool-write",
+        tool_name: "Write",
+        phase: "waiting",
+        timestamp: now,
+        input: { file_path: "src/app.ts" },
+        permission_request_id: "permission-write",
+      },
+      expected_app: "system",
+      expected_session: "round-runtime:system-gate",
+    },
+  ];
+
+  for (const test_case of runtime_cases) {
+    const intents = derive_stage_desktop_intents_from_runtime_event(test_case.event);
+    const intent = intents.find((item) => item.app === test_case.expected_app);
+    assert(intent, `${test_case.event.event_type}:${test_case.event.tool_name} should derive ${test_case.expected_app} intent`);
+    const session_id = stage_app_session_id_for_intent(test_case.event.round_id, intent, (value) => value);
+    assert(session_id === test_case.expected_session, `Runtime event should map to stable ${test_case.expected_app} session, got ${session_id}`);
+  }
+}
+
+function verify_runtime_event_projection(now) {
+  const snapshot = project_operation_snapshot({
+    key: "session:stage",
+    session_key: "session:stage",
+    agent_id: "agent-stage",
+    live_round_ids: ["round-runtime-projection"],
+    pending_permissions: [{
+      request_id: "permission-bash",
+      tool_name: "Bash",
+      tool_input: { command: "open report.html" },
+      session_key: "session:stage",
+      agent_id: "agent-stage",
+      message_id: "msg-runtime",
+      caused_by: "round-runtime-projection",
+      interaction_mode: "permission",
+      risk_label: "需要确认",
+      summary: "允许打开本地 HTML",
+    }],
+    workspace_events: [{
+      agent_id: "agent-stage",
+      event_type: "file_write_end",
+      id: "workspace-report-html",
+      live_content: "<!doctype html><title>Report</title>",
+      path: "report.html",
+      session_key: "session:stage",
+      source: "agent",
+      status: "updated",
+      tool_use_id: "tool-write",
+      updated_at: now + 10,
+      version: 1,
+    }],
+    messages: [
+      {
+        role: "user",
+        message_id: "msg-user-runtime",
+        session_key: "session:stage",
+        agent_id: "agent-stage",
+        round_id: "round-runtime-projection",
+        content: "生成并打开 report.html",
+        timestamp: now - 30,
+      },
+      {
+        role: "assistant",
+        message_id: "msg-runtime",
+        session_key: "session:stage",
+        agent_id: "agent-stage",
+        round_id: "round-runtime-projection",
+        timestamp: now,
+        is_complete: false,
+        content: [
+          {
+            type: "tool_use",
+            id: "tool-bash",
+            name: "Bash",
+            input: { command: "open report.html" },
+          },
+          {
+            type: "tool_use",
+            id: "tool-read",
+            name: "Read",
+            input: { file_path: "report.html" },
+          },
+          {
+            type: "task_progress",
+            task_id: "task-1",
+            tool_use_id: "tool-bash",
+            last_tool_name: "Bash",
+            description: "打开浏览器预览",
+            usage: { status: "running" },
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        message_id: "msg-summary-runtime",
+        session_key: "session:stage",
+        agent_id: "agent-stage",
+        round_id: "round-runtime-projection",
+        timestamp: now + 20,
+        is_complete: true,
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tool-read",
+            content: "<!doctype html><title>Report</title>",
+          },
+        ],
+        result_summary: {
+          subtype: "success",
+          duration_ms: 1200,
+          duration_api_ms: 800,
+          num_turns: 2,
+          result: "report.html 已打开",
+          is_error: false,
+        },
+      },
+    ],
+  });
+  const event_types = new Set(snapshot.runtime_events.map((event) => event.event_type));
+  for (const event_type of ["tool_start", "tool_delta", "tool_end", "artifact_update", "permission_request", "round_handoff"]) {
+    assert(event_types.has(event_type), `Runtime projection should include ${event_type}`);
+  }
+  assert(snapshot.runtime_events.some((event) => (
+    event.event_type === "permission_request" &&
+    event.permission_request_id === "permission-bash" &&
+    event.tool_use_id === "tool-bash"
+  )), "Runtime permission request should preserve request id and tool_use_id");
+  assert(snapshot.runtime_events.some((event) => (
+    event.event_type === "artifact_update" &&
+    event.tool_use_id === "tool-write" &&
+    event.artifact?.path === "report.html"
+  )), "Runtime artifact update should preserve tool_use_id and workspace path");
 }
 
 function verify_generic_tool_uses_nexus_tool_surface() {
@@ -693,6 +941,82 @@ function verify_tool_app_intent_map() {
   assert(tool_app_intent_for_action("web_fetch").detail_label === "打开网页", "Web fetch should read as opening a page");
   assert(tool_app_intent_for_action("task").app_label === "活动监视器", "Task delegation should feel like Activity Monitor");
   assert(tool_app_intent_for_action("plan").sidebar_title === "计划调度", "Plan tools should have scheduling semantics");
+}
+
+function verify_tool_visual_contract_inventory(now) {
+  const current_tools = new Set([
+    "Task",
+    "TaskOutput",
+    "Bash",
+    "KillShell",
+    "Glob",
+    "Grep",
+    "LS",
+    "Read",
+    "Edit",
+    "MultiEdit",
+    "Write",
+    "NotebookEdit",
+    "WebFetch",
+    "WebSearch",
+    "Skill",
+    "TodoWrite",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "AskUserQuestion",
+  ]);
+  const grouped_tools = new Set(Object.values(OPERATION_TOOL_VISUAL_GROUPS).flatMap((group) => group.tools));
+  for (const tool_name of current_tools) {
+    assert(grouped_tools.has(tool_name), `${tool_name} should be assigned to a visual tool group`);
+  }
+
+  const base_event = {
+    agent_id: "agent-stage",
+    id: "visual-contract",
+    message_id: "msg-visual",
+    phase: "running",
+    round_id: "round-visual",
+    session_key: "session:stage",
+    target: "target",
+    title: "visual",
+    updated_at: now,
+  };
+  const cases = [
+    { expected_component: "code_writer", expected_group: "workspace_writer", kind: "workspace_edit", surface: "editor", tool_name: "Write" },
+    { expected_component: "code_reader", expected_group: "workspace_reader", kind: "workspace_read", surface: "editor", tool_name: "Read" },
+    { expected_component: "terminal", expected_group: "command_runner", kind: "command_run", surface: "terminal", tool_name: "Bash" },
+    { expected_component: "browser", expected_group: "web_browser", kind: "web_research", surface: "web", tool_name: "WebSearch" },
+    { expected_component: "activity_monitor", expected_group: "task_planner", kind: "plan_update", surface: "task", tool_name: "TodoWrite" },
+    { expected_component: "system_gate", expected_group: "human_gate", kind: "human_gate", surface: "conversation", tool_name: "AskUserQuestion" },
+  ];
+
+  for (const test_case of cases) {
+    const contract = resolve_operation_tool_visual_contract({
+      ...base_event,
+      kind: test_case.kind,
+      surface: test_case.surface,
+      tool_name: test_case.tool_name,
+    });
+    assert(contract.group === test_case.expected_group, `${test_case.tool_name} should use ${test_case.expected_group}, got ${contract.group}`);
+    assert(contract.component === test_case.expected_component, `${test_case.tool_name} should render ${test_case.expected_component}, got ${contract.component}`);
+    assert(contract.common_controls.includes("window_drag"), `${test_case.tool_name} should keep shared window drag control`);
+  }
+
+  const gate_contract = resolve_operation_tool_visual_contract({
+    ...base_event,
+    kind: "human_gate",
+    surface: "conversation",
+    tool_name: "AskUserQuestion",
+  });
+  assert(gate_contract.common_controls.includes("confirm"), "human gate should expose confirm control");
+  assert(gate_contract.common_controls.includes("deny"), "human gate should expose deny control");
+  const gate_intents = derive_stage_desktop_intents({
+    ...base_event,
+    kind: "human_gate",
+    surface: "conversation",
+    tool_name: "AskUserQuestion",
+  });
+  assert(gate_intents.some((intent) => intent.app === "system" && intent.action === "request_confirmation"), "human gate should derive a system confirmation intent");
 }
 
 function verify_nexus_tool_session_view(now) {
@@ -1591,6 +1915,7 @@ function verify_workspace_live_stays_in_tool_round(now) {
   });
   const workspace_event = snapshot.events.find((event) => event.id === "workspace:workspace-late");
   assert(workspace_event, "workspace live event should be projected");
+  assert(workspace_event.tool_use_id === "tool-write", `workspace live event should preserve tool identity, got ${workspace_event.tool_use_id}`);
   assert(!snapshot.workspace_events.some((item) => item.path === "stale-session.md"), "workspace events from another session should not enter stage snapshot");
   assert(!snapshot.events.some((event) => event.target === "stale-session.md"), "workspace events from another session should not be projected as current stage events");
   assert(workspace_event.round_id === "round-stage", `workspace live event should stay in tool round, got ${workspace_event.round_id}`);
@@ -1779,6 +2104,119 @@ function verify_extensionless_workspace_file_opens_code_app(now) {
   assert(document_window, "extensionless workspace file should still open a document window");
   assert(document_window.kind === "code_editor", `extensionless workspace file should open in Code, got ${document_window.kind}`);
   assert(app_surface_for_window_kind(document_window.kind) === "document", "extensionless workspace file should render as document content");
+}
+
+function verify_code_writer_preview_uses_real_content(now) {
+  const base_event = {
+    id: "tool-edit-app",
+    session_key: "session:stage",
+    round_id: "round-code-writer",
+    agent_id: "agent-stage",
+    message_id: "message-code-writer",
+    kind: "workspace_edit",
+    surface: "editor",
+    phase: "done",
+    title: "修改文件",
+    target: "src/app.ts",
+    updated_at: now,
+  };
+  const write_event = {
+    ...base_event,
+    id: "tool-write-app",
+    tool_name: "Write",
+    tool_use_id: "tool-write",
+    input_preview: {
+      file_path: "src/app.ts",
+      content: "export const app = true;\n",
+    },
+  };
+  assert(
+    resolve_file_preview_value(write_event, write_event.input_preview) === "export const app = true;\n",
+    "Write preview should render the file content instead of the tool input JSON",
+  );
+
+  const edit_event = {
+    ...base_event,
+    tool_name: "Edit",
+    tool_use_id: "tool-edit",
+    input_preview: {
+      file_path: "src/app.ts",
+      old_string: "export const app = false;",
+      new_string: "export const app = true;",
+    },
+  };
+  const edit_preview = resolve_file_preview_value(edit_event, edit_event.input_preview);
+  assert(
+    edit_preview === "- export const app = false;\n+ export const app = true;",
+    `Edit preview should render a real old/new text hunk, got ${edit_preview}`,
+  );
+
+  const multi_edit_event = {
+    ...base_event,
+    id: "tool-multiedit-app",
+    tool_name: "MultiEdit",
+    tool_use_id: "tool-multiedit",
+    input_preview: {
+      file_path: "src/app.ts",
+      edits: [
+        { old_string: "const a = 1;", new_string: "const a = 2;" },
+        { old_string: "const b = 1;", new_string: "const b = 2;" },
+      ],
+    },
+  };
+  const multi_edit_preview = resolve_file_preview_value(multi_edit_event, multi_edit_event.input_preview);
+  assert(
+    typeof multi_edit_preview === "string" &&
+      multi_edit_preview.includes("- const a = 1;") &&
+      multi_edit_preview.includes("+ const b = 2;"),
+    `MultiEdit preview should render real edit hunks, got ${multi_edit_preview}`,
+  );
+
+  const desktop = plan_operation_desktop({
+    event: edit_event,
+    snapshot: {
+      key: "session:stage",
+      session_key: "session:stage",
+      active_event: edit_event,
+      events: [write_event, edit_event],
+      recent_evidence: [],
+      runtime_events: [],
+      workspace_events: [
+        {
+          id: "workspace-app-old",
+          agent_id: "agent-stage",
+          path: "src/app.ts",
+          status: "updated",
+          version: 1,
+          source: "agent",
+          session_key: "session:stage",
+          tool_use_id: "tool-write",
+          event_type: "file_write_end",
+          live_content: "export const app = false;",
+          updated_at: now - 1000,
+        },
+        {
+          id: "workspace-app-latest",
+          agent_id: "agent-stage",
+          path: "src/app.ts",
+          status: "writing",
+          version: 2,
+          source: "agent",
+          session_key: "session:stage",
+          tool_use_id: "tool-edit",
+          event_type: "file_write_delta",
+          live_content: "export const app = true;",
+          diff_stats: { additions: 1, deletions: 1, changed_lines: 1 },
+          updated_at: now,
+        },
+      ],
+      updated_at: now,
+    },
+  });
+  const document_window = desktop.windows.find((window) => window.target === "src/app.ts");
+  assert(document_window, "Code writer should open a document window for the edited file");
+  assert(document_window.payload.preview === "export const app = true;", `Code writer should render latest live content, got ${document_window.payload.preview}`);
+  assert(document_window.payload.diff_stats?.additions === 1, "Code writer should keep latest workspace diff stats");
 }
 
 function verify_code_editor_session_view() {

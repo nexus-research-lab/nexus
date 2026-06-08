@@ -337,8 +337,12 @@ function build_windows(
   });
 
   if (event.phase === "waiting") {
+    const system_intent = find_stage_desktop_intent(event, "system");
     windows.push(window_state(event, snapshot, {
       id: "permission-checkpoint",
+      session_id: system_intent
+        ? stage_app_session_id_for_intent(event.round_id, system_intent, normalize_window_id)
+        : `${event.round_id}:system-gate`,
       kind: "permission_wait",
       title: event.title || "权限确认",
       layout: "artifact",

@@ -8,8 +8,10 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "@/features/conversation/operation/operation-types";
+import type { OperationRuntimeEvent } from "@/features/conversation/operation/operation-runtime-types";
 import { apply_theme, detect_initial_theme } from "@/shared/theme/theme-context";
 import type { WorkspaceActivityItem } from "@/types/app/workspace-live";
+import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
 const now = Date.now();
 const round_id = "round-preview-gomoku";
@@ -46,6 +48,11 @@ const html_content = `<!doctype html>
   </main>
 </body>
 </html>`;
+
+const edited_html_content = html_content.replace(
+  "<h1>Gomoku</h1>",
+  "<h1>Gomoku · Nexus Stage</h1>",
+);
 
 const live_event: NexusOperationEvent = {
   agent_id,
@@ -85,6 +92,117 @@ const write_event: NexusOperationEvent = {
   result_preview: "created gomoku.html",
   summary: "写入一个可以直接打开的五子棋 HTML 页面。",
   updated_at: now - 8_000,
+};
+
+const edit_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "diff", label: "修改", value: "gomoku.html" },
+    { type: "status", label: "保存", value: "写入中" },
+  ],
+  id: "tool-edit-gomoku",
+  kind: "workspace_edit",
+  message_id: "message-assistant",
+  phase: "running",
+  round_id,
+  session_key,
+  surface: "editor",
+  target: "gomoku.html",
+  title: "修改五子棋标题",
+  tool_name: "Edit",
+  tool_use_id: "tool-edit",
+  input_preview: {
+    file_path: "gomoku.html",
+    old_string: "<h1>Gomoku</h1>",
+    new_string: "<h1>Gomoku · Nexus Stage</h1>",
+  },
+  summary: "打开 gomoku.html，将页面标题更新为 Nexus Stage 版本。",
+  updated_at: now - 6_600,
+};
+
+const read_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "file", label: "读取", value: "gomoku.html" },
+  ],
+  id: "tool-read-gomoku",
+  kind: "workspace_read",
+  message_id: "message-assistant",
+  phase: "running",
+  round_id,
+  session_key,
+  surface: "editor",
+  target: "gomoku.html",
+  title: "读取五子棋页面",
+  tool_name: "Read",
+  tool_use_id: "tool-read",
+  input_preview: {
+    file_path: "gomoku.html",
+  },
+  result_preview: html_content,
+  summary: "打开文件并读取当前内容。",
+  updated_at: now - 7_300,
+};
+
+const finder_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "file", label: "搜索", value: "web/src/**/*.tsx" },
+    { type: "status", label: "命中", value: "operation-stage-preview.tsx" },
+  ],
+  id: "tool-grep-stage",
+  kind: "workspace_search",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "workspace",
+  target: "web/src/**/*.tsx",
+  title: "搜索舞台入口",
+  tool_name: "Grep",
+  tool_use_id: "tool-grep",
+  input_preview: {
+    pattern: "OperationStageDesktop",
+    path: "web/src",
+    glob: "**/*.tsx",
+  },
+  result_preview: [
+    "web/src/dev/operation-stage-preview.tsx",
+    "web/src/features/conversation/operation/stage/operation-stage-desktop.tsx",
+  ],
+  summary: "在工作区搜索舞台桌面入口。",
+  updated_at: now - 7_900,
+};
+
+const task_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "task", label: "计划", value: "3/5" },
+    { type: "status", label: "当前", value: "运行验证命令" },
+  ],
+  id: "tool-todo-pomodoro",
+  kind: "plan_update",
+  message_id: "message-assistant",
+  phase: "running",
+  round_id,
+  session_key,
+  surface: "task",
+  target: "番茄钟实现计划",
+  title: "更新执行计划",
+  tool_name: "TodoWrite",
+  tool_use_id: "tool-todo",
+  input_preview: {
+    todos: [
+      { content: "梳理需求", status: "completed" },
+      { content: "创建 HTML/CSS/JS", status: "completed" },
+      { content: "运行验证命令", status: "in_progress" },
+      { content: "打开浏览器预览", status: "pending" },
+      { content: "交付结果", status: "pending" },
+    ],
+  },
+  result_preview: "计划已更新",
+  summary: "Activity Monitor 展示任务状态和当前执行阶段。",
+  updated_at: now - 7_600,
 };
 
 const generic_tool_event: NexusOperationEvent = {
@@ -150,6 +268,34 @@ const generic_tool_followup_event: NexusOperationEvent = {
   updated_at: now - 5_900,
 };
 
+const knowledge_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "skill", label: "技能", value: "frontend-design" },
+    { type: "status", label: "上下文", value: "组件交互规则" },
+  ],
+  id: "tool-skill-frontend",
+  kind: "context_read",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "knowledge",
+  target: "frontend-design",
+  title: "读取技能上下文",
+  tool_name: "Skill",
+  tool_use_id: "tool-skill",
+  input_preview: {
+    skill_name: "frontend-design",
+  },
+  result_preview: [
+    "Use actual app UI as the first screen.",
+    "Controls must be interactive and fit their containers.",
+  ],
+  summary: "Nexus 知识窗口展示技能上下文，而不是 JSON 卡片。",
+  updated_at: now - 5_950,
+};
+
 const web_search_event: NexusOperationEvent = {
   agent_id,
   evidence: [
@@ -165,7 +311,7 @@ const web_search_event: NexusOperationEvent = {
   surface: "web",
   target: "nexus mac desktop stage",
   title: "搜索桌面交互参考",
-  tool_name: "web_search",
+  tool_name: "WebSearch",
   tool_use_id: "tool-web-search",
   input_preview: {
     query: "nexus mac desktop stage",
@@ -177,6 +323,35 @@ const web_search_event: NexusOperationEvent = {
   ],
   summary: "搜索 macOS 窗口、Stage Manager 和应用工具栏的交互参考。",
   updated_at: now - 5_700,
+};
+
+const web_fetch_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "url", label: "抓取", value: "https://example.com/pomodoro" },
+    { type: "status", label: "内容", value: "页面正文片段" },
+  ],
+  id: "tool-web-fetch",
+  kind: "web_research",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "web",
+  target: "https://example.com/pomodoro",
+  title: "抓取网页资料",
+  tool_name: "WebFetch",
+  tool_use_id: "tool-web-fetch",
+  input_preview: {
+    url: "https://example.com/pomodoro",
+    prompt: "提取番茄钟交互要点",
+  },
+  result_preview: [
+    "Pomodoro timers alternate focus intervals and short breaks.",
+    "Users expect start, pause, reset, and session counters.",
+  ],
+  summary: "Safari 显示真实 URL 和抓取结果片段。",
+  updated_at: now - 5_500,
 };
 
 const open_event: NexusOperationEvent = {
@@ -259,8 +434,55 @@ const permission_event: NexusOperationEvent = {
   input_preview: {
     command: "open gomoku.html",
   },
+  permission_interaction_mode: "permission",
+  permission_request_id: "permission-open-gomoku",
   summary: "允许 Nexus 通过终端打开生成的五子棋 HTML 页面。",
   updated_at: now - 5_800,
+};
+
+const question_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "permission", label: "需要回答", value: "选择番茄钟默认节奏" },
+    { type: "task", label: "协作点", value: "等待用户偏好后继续生成界面" },
+  ],
+  id: "question-pomodoro-preference",
+  kind: "plan_update",
+  message_id: "message-assistant",
+  phase: "waiting",
+  round_id,
+  session_key,
+  surface: "conversation",
+  target: "番茄钟默认节奏",
+  title: "需要用户回答",
+  tool_name: "AskUserQuestion",
+  tool_use_id: "tool-question",
+  input_preview: {
+    questions: [
+      {
+        header: "节奏",
+        question: "番茄钟默认时长用哪一组？",
+        options: [
+          { label: "25/5", description: "标准番茄钟，适合多数任务。" },
+          { label: "50/10", description: "长专注块，适合开发或写作。" },
+        ],
+      },
+      {
+        header: "提醒",
+        multi_select: true,
+        question: "需要哪些提醒方式？",
+        options: [
+          { label: "声音提示" },
+          { label: "页面闪烁" },
+          { label: "桌面通知" },
+        ],
+      },
+    ],
+  },
+  permission_interaction_mode: "question",
+  permission_request_id: "question-pomodoro-preference",
+  summary: "智能体需要确认番茄钟默认节奏和提醒方式。",
+  updated_at: now - 5_400,
 };
 
 const summary_event: NexusOperationEvent = {
@@ -297,39 +519,216 @@ const workspace_item: WorkspaceActivityItem = {
   version: 1,
 };
 
+const edit_workspace_item: WorkspaceActivityItem = {
+  agent_id,
+  diff_stats: {
+    additions: 1,
+    changed_lines: 1,
+    deletions: 1,
+  },
+  event_type: "file_write_delta",
+  id: "workspace-gomoku-html-edit",
+  live_content: edited_html_content,
+  path: "gomoku.html",
+  session_key,
+  source: "agent",
+  status: "writing",
+  tool_use_id: "tool-edit",
+  updated_at: now - 6_400,
+  version: 2,
+};
+
 const PREVIEW_STEPS = [
   { id: "idle", label: "空桌面", event: live_event, events: [live_event] },
+  { id: "activity", label: "活动", event: task_event, events: [live_event, task_event] },
+  { id: "finder", label: "Finder", event: finder_event, events: [live_event, task_event, finder_event] },
   { id: "write", label: "创建文件", event: write_event, events: [live_event, write_event] },
+  { id: "edit", label: "修改文件", event: edit_event, events: [live_event, write_event, edit_event] },
+  { id: "read", label: "读取文件", event: read_event, events: [live_event, write_event, read_event] },
+  { id: "knowledge", label: "知识", event: knowledge_event, events: [live_event, knowledge_event] },
   { id: "tool", label: "工具窗口", event: generic_tool_followup_event, events: [live_event, generic_tool_event, generic_tool_followup_event] },
   { id: "search", label: "浏览搜索", event: web_search_event, events: [live_event, web_search_event] },
+  { id: "fetch", label: "网页抓取", event: web_fetch_event, events: [live_event, web_search_event, web_fetch_event] },
   { id: "permission", label: "权限确认", event: permission_event, events: [live_event, write_event, permission_event] },
+  { id: "question", label: "用户问题", event: question_event, events: [live_event, task_event, question_event] },
   { id: "terminal", label: "终端输出", event: terminal_event, events: [live_event, terminal_event] },
   { id: "open", label: "打开预览", event: open_event, events: [live_event, write_event, open_event] },
   { id: "done", label: "完成收束", event: summary_event, events: [live_event, write_event, open_event, summary_event] },
+  {
+    id: "mixed",
+    label: "混合任务",
+    event: summary_event,
+    events: [
+      live_event,
+      task_event,
+      finder_event,
+      read_event,
+      knowledge_event,
+      write_event,
+      edit_event,
+      terminal_event,
+      web_search_event,
+      web_fetch_event,
+      permission_event,
+      question_event,
+      open_event,
+      summary_event,
+    ],
+  },
 ] as const;
 
 type PreviewStepId = (typeof PREVIEW_STEPS)[number]["id"];
 
 function build_snapshot(events: NexusOperationEvent[], active_event: NexusOperationEvent): NexusOperationSnapshot {
+  const workspace_events = [
+    ...(events.some((event) => (
+    event.id === write_event.id ||
+    event.id === read_event.id ||
+    event.id === open_event.id ||
+    event.id === summary_event.id ||
+    event.id === permission_event.id
+  ))
+    ? [workspace_item]
+    : []),
+    ...(events.some((event) => event.id === edit_event.id) ? [edit_workspace_item] : []),
+  ];
+
   return {
     active_event,
     events,
     key: session_key,
     recent_evidence: events.flatMap((event) => event.evidence ?? []).slice(-8),
+    runtime_events: build_preview_runtime_events(events, workspace_events),
     session_key,
     updated_at: active_event.updated_at,
-    workspace_events: events.some((event) => event.id === write_event.id || event.id === open_event.id || event.id === summary_event.id)
-      ? [workspace_item]
-      : [],
+    workspace_events,
   };
+}
+
+function build_preview_runtime_events(
+  events: NexusOperationEvent[],
+  workspace_events: WorkspaceActivityItem[],
+): OperationRuntimeEvent[] {
+  const runtime_events = events.flatMap((event): OperationRuntimeEvent[] => {
+    if (event.kind === "round_summary") {
+      return [{
+        agent_id: event.agent_id,
+        artifact: {
+          kind: "handoff",
+          preview: event.result_preview ?? event.summary ?? null,
+        },
+        event_type: "round_handoff",
+        id: `runtime:${event.id}:handoff`,
+        input: event.input_preview ?? null,
+        phase: event.phase,
+        result: event.result_preview ?? event.summary ?? null,
+        round_id: event.round_id,
+        session_key: event.session_key,
+        source_event_id: event.id,
+        timestamp: event.updated_at,
+        tool_name: event.tool_name ?? "RoundSummary",
+        tool_use_id: event.tool_use_id ?? null,
+      }];
+    }
+
+    if (event.permission_request_id) {
+      return [{
+        agent_id: event.agent_id,
+        delta: {
+          summary: event.summary,
+        },
+        event_type: "permission_request",
+        id: `runtime:permission:${event.permission_request_id}`,
+        input: event.input_preview ?? null,
+        permission_interaction_mode: event.permission_interaction_mode ?? "permission",
+        permission_request_id: event.permission_request_id,
+        phase: "waiting",
+        round_id: event.round_id,
+        session_key: event.session_key,
+        source_event_id: event.id,
+        timestamp: event.updated_at,
+        tool_name: event.tool_name,
+        tool_use_id: event.tool_use_id ?? null,
+      }];
+    }
+
+    if (!event.tool_use_id) {
+      return [];
+    }
+
+    return [
+      {
+        agent_id: event.agent_id,
+        event_type: "tool_start",
+        id: `runtime:${event.id}:start`,
+        input: event.input_preview ?? null,
+        phase: event.phase === "waiting" ? "waiting" : "running",
+        round_id: event.round_id,
+        session_key: event.session_key,
+        source_event_id: event.id,
+        timestamp: Math.max(0, event.updated_at - 240),
+        tool_name: event.tool_name,
+        tool_use_id: event.tool_use_id,
+      },
+      {
+        agent_id: event.agent_id,
+        event_type: "tool_end",
+        id: `runtime:${event.id}:end`,
+        input: event.input_preview ?? null,
+        phase: event.phase,
+        result: event.result_preview ?? event.summary ?? null,
+        round_id: event.round_id,
+        session_key: event.session_key,
+        source_event_id: event.id,
+        timestamp: event.updated_at,
+        tool_name: event.tool_name,
+        tool_use_id: event.tool_use_id,
+      },
+    ];
+  });
+
+  runtime_events.push(...workspace_events.map((item) => ({
+    agent_id: item.agent_id,
+    artifact: {
+      kind: "html" as const,
+      live_content: item.live_content ?? null,
+      path: item.path,
+      status: item.status,
+      diff_stats: item.diff_stats ?? null,
+    },
+    delta: {
+      event_type: item.event_type,
+      status: item.status,
+    },
+    event_type: "artifact_update" as const,
+    id: `runtime:workspace:${item.id}`,
+    input: {
+      path: item.path,
+      status: item.status,
+    },
+    phase: "done" as const,
+    round_id,
+    session_key: item.session_key ?? session_key,
+    timestamp: item.updated_at,
+    tool_name: "workspace_event",
+    tool_use_id: item.tool_use_id ?? null,
+  })));
+
+  return runtime_events.sort((left, right) => left.timestamp - right.timestamp);
 }
 
 export function OperationStagePreview() {
   const [step_id, set_step_id] = useState<PreviewStepId>(() => read_preview_step_id());
+  const [last_permission_response, set_last_permission_response] = useState<PermissionDecisionPayload | null>(null);
   const step = PREVIEW_STEPS.find((item) => item.id === step_id) ?? PREVIEW_STEPS[0];
   const snapshot = useMemo(() => build_snapshot([...step.events], step.event), [step]);
+  const handle_permission_response = (payload: PermissionDecisionPayload) => {
+    set_last_permission_response(payload);
+    return true;
+  };
   const select_step = (next_step_id: PreviewStepId) => {
     set_step_id(next_step_id);
+    set_last_permission_response(null);
     const url = new URL(window.location.href);
     url.searchParams.set("step", next_step_id);
     window.history.replaceState(null, "", url);
@@ -343,7 +742,7 @@ export function OperationStagePreview() {
           <p className="text-[12px] font-black uppercase tracking-[0.18em] text-(--text-muted)">Operation Stage Preview</p>
           <h1 className="text-[18px] font-black tracking-normal">Mac 桌面叙事检查</h1>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-white/70 bg-white/70 p-1 shadow-[0_16px_42px_rgba(18,28,42,0.10)] backdrop-blur-xl">
+        <div className="flex max-w-[74vw] flex-wrap items-center justify-end gap-1.5 rounded-[18px] border border-white/70 bg-white/70 p-1 shadow-[0_16px_42px_rgba(18,28,42,0.10)] backdrop-blur-xl">
           {PREVIEW_STEPS.map((item) => (
             <button
               className={`rounded-full px-3 py-1.5 text-[12px] font-bold transition ${item.id === step.id ? "bg-[rgba(91,114,255,0.16)] text-[color:var(--primary)]" : "text-(--text-soft) hover:bg-white"}`}
@@ -356,8 +755,18 @@ export function OperationStagePreview() {
           ))}
         </div>
       </div>
+      {last_permission_response ? (
+        <div className="-mt-1 mb-2 self-end rounded-full border border-white/70 bg-white/78 px-3 py-1 text-[11px] font-bold text-(--text-muted) shadow-[0_10px_28px_rgba(18,28,42,0.10)]">
+          mock permission response: {last_permission_response.decision}
+          {last_permission_response.user_answers?.length ? ` / ${last_permission_response.user_answers.length} answers` : ""}
+        </div>
+      ) : null}
       <section className="flex min-h-[620px] flex-1 overflow-hidden rounded-[24px] border border-white/70 bg-white/46 p-2 shadow-[0_28px_90px_rgba(18,28,42,0.16)]">
-        <OperationStageDesktop event={step.event} snapshot={snapshot} />
+        <OperationStageDesktop
+          event={step.event}
+          on_permission_response={handle_permission_response}
+          snapshot={snapshot}
+        />
       </section>
     </main>
   );

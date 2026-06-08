@@ -12,6 +12,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 import { format_operation_time } from "../operation-preview";
 import type {
@@ -39,11 +40,14 @@ export function ActivityMonitorSurface({
   event,
   snapshot,
   lines,
+  on_focus_event,
 }: {
   event: NexusOperationEvent;
   snapshot: NexusOperationSnapshot | null;
   lines: string[];
+  on_focus_event?: (event: NexusOperationEvent) => void;
 }) {
+  const [selected_event_id, set_selected_event_id] = useState<string | null>(null);
   const task_events = collect_task_events(event, snapshot);
   const steps = task_events.map((item, index) => ({
     event: item,
@@ -51,11 +55,15 @@ export function ActivityMonitorSurface({
     status: PHASE_LABEL[item.phase],
   }));
   const active_index = Math.max(0, steps.findIndex((step) => step.event.id === event.id));
+  const selected_index = selected_event_id
+    ? steps.findIndex((step) => step.event.id === selected_event_id)
+    : -1;
+  const inspected_index = selected_index >= 0 ? selected_index : active_index;
   const preview_value = lines.join("\n") || event.result_preview || event.input_preview || event.summary;
   const finished_count = task_events.filter((item) => item.phase === "done").length;
   const running_count = task_events.filter((item) => item.phase === "running" || item.phase === "waiting").length;
   const cpu_load = activity_cpu_load(running_count, finished_count);
-  const active_step = steps[active_index] ?? steps[0];
+  const active_step = steps[inspected_index] ?? steps[0];
 
   return (
     <div className="flex h-full min-h-[320px] min-w-0 max-w-full overflow-hidden bg-[#f7f9fb] max-md:flex-col">
@@ -94,14 +102,17 @@ export function ActivityMonitorSurface({
             const pid_label = activity_pid_label(step.event.id);
             const cpu_label = activity_cpu_label(step.event.phase, index);
             return (
-              <div
+              <button
+                aria-label={`查看进程 ${step.label}`}
                 className={cn(
-                  "mb-1 grid min-w-0 grid-cols-[22px_minmax(0,1fr)_42px_38px] items-center gap-2 rounded-[9px] px-2 py-1.5 text-[11px]",
+                  "mb-1 grid w-full min-w-0 grid-cols-[22px_minmax(0,1fr)_42px_38px] items-center gap-2 rounded-[9px] px-2 py-1.5 text-left text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]",
                   active
                     ? "bg-[rgba(91,114,255,0.10)] text-(--text-strong)"
                     : "text-(--text-muted) hover:bg-white/64",
                 )}
                 key={step.event.id}
+                onClick={() => set_selected_event_id(step.event.id)}
+                type="button"
               >
                 <span className={cn(
                   "grid h-5 w-5 shrink-0 place-items-center rounded-[7px]",
@@ -128,7 +139,7 @@ export function ActivityMonitorSurface({
                 )}>
                   {cpu_label}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -151,7 +162,8 @@ export function ActivityMonitorSurface({
         </div>
       </section>
       <ActivityProcessInspector
-        active_index={active_index}
+        active_index={inspected_index}
+        on_focus_event={on_focus_event}
         preview_value={preview_value}
         step={active_step}
       />
@@ -226,10 +238,12 @@ function icon_for_task_phase(phase: OperationPhase): LucideIcon {
 
 function ActivityProcessInspector({
   active_index,
+  on_focus_event,
   preview_value,
   step,
 }: {
   active_index: number;
+  on_focus_event?: (event: NexusOperationEvent) => void;
   preview_value: unknown;
   step?: { event: NexusOperationEvent; label: string; status: string };
 }) {
@@ -257,14 +271,25 @@ function ActivityProcessInspector({
             PID {pid_label} · {step.status}
           </p>
         </div>
-        <span className={cn(
-          "shrink-0 rounded-[9px] px-2.5 py-1 text-[10px] font-black",
-          step.event.phase === "running" || step.event.phase === "waiting"
-            ? "bg-[rgba(91,114,255,0.10)] text-[color:var(--primary)]"
-            : "bg-white/70 text-(--text-soft)",
-        )}>
-          {cpu_label}% CPU
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className={cn(
+            "rounded-[9px] px-2.5 py-1 text-[10px] font-black",
+            step.event.phase === "running" || step.event.phase === "waiting"
+              ? "bg-[rgba(91,114,255,0.10)] text-[color:var(--primary)]"
+              : "bg-white/70 text-(--text-soft)",
+          )}>
+            {cpu_label}% CPU
+          </span>
+          {on_focus_event ? (
+            <button
+              className="h-7 rounded-[9px] border border-(--divider-subtle-color) bg-white/76 px-2.5 text-[10px] font-black text-(--text-strong) transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]"
+              onClick={() => on_focus_event(step.event)}
+              type="button"
+            >
+              跳到窗口
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-[10px] max-sm:grid-cols-1">

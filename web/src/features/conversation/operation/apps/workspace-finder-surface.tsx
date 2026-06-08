@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -36,11 +37,35 @@ export function WorkspaceFinder({
   event: NexusOperationEvent;
   items: NonNullable<StageWindowState["payload"]["workspace_items"]>;
 }) {
-  const finder_session = build_finder_session_view({ active_path, event, items });
+  const root_ref = useRef<HTMLDivElement | null>(null);
+  const [selected_path, set_selected_path] = useState<string | null>(null);
+  const [container_width, set_container_width] = useState(0);
+  const finder_session = build_finder_session_view({
+    active_path: selected_path ?? active_path,
+    event,
+    items,
+  });
+  const show_navigation = container_width >= 660;
+  const show_inspector = container_width >= 760;
+
+  useEffect(() => {
+    const element = root_ref.current;
+    if (!element) {
+      return;
+    }
+    const update_width = () => set_container_width(element.clientWidth);
+    update_width();
+    const observer = new ResizeObserver(update_width);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-[#f8fafc]">
-      <div className="hidden w-40 shrink-0 border-r border-(--divider-subtle-color) bg-[#eef3f8]/88 p-2 text-[11px] font-semibold text-(--text-soft) sm:block">
+    <div ref={root_ref} className="flex min-h-0 flex-1 overflow-hidden bg-[#f8fafc]">
+      <div className={cn(
+        "w-40 shrink-0 border-r border-(--divider-subtle-color) bg-[#eef3f8]/88 p-2 text-[11px] font-semibold text-(--text-soft)",
+        !show_navigation && "hidden",
+      )}>
         <div className="px-2 pb-1 pt-1 text-[9px] font-black uppercase tracking-[0.14em] text-(--text-soft)">收藏</div>
         <FinderSidebarItem icon={Search} label="最近项目" />
         <FinderSidebarItem icon={FileText} label="文稿" />
@@ -76,7 +101,10 @@ export function WorkspaceFinder({
             <SquareStack className="h-3.5 w-3.5" />
           </FinderToolbarButton>
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(160px,0.36fr)] max-md:grid-cols-1">
+        <div className={cn(
+          "grid min-h-0 flex-1",
+          show_inspector ? "grid-cols-[minmax(0,1fr)_220px]" : "grid-cols-1",
+        )}>
           <div className="soft-scrollbar min-h-0 overflow-auto p-2">
             <div className="grid grid-cols-[minmax(0,1fr)_72px_86px] gap-2 px-2 pb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-(--text-soft)">
               <span>名称</span>
@@ -85,17 +113,21 @@ export function WorkspaceFinder({
             </div>
             {finder_session.rows.map((row) => (
               <WorkspaceTreeRow
-                active={row.path === active_path}
+                active={row.path === finder_session.selected_path}
                 depth={row.depth}
                 item={finder_session.display_items.find((item) => item.path === row.path)}
                 key={row.path}
                 label={row.label}
+                on_select={() => set_selected_path(row.path)}
                 path={row.path}
                 type={row.type}
               />
             ))}
           </div>
-          <aside className="hidden min-h-0 border-l border-(--divider-subtle-color) bg-white/54 p-3 md:block">
+          <aside className={cn(
+            "min-h-0 border-l border-(--divider-subtle-color) bg-white/54 p-3",
+            !show_inspector && "hidden",
+          )}>
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-(--text-soft)">信息</p>
             <div className="mt-3 grid h-16 w-16 place-items-center rounded-[16px] border border-(--divider-subtle-color) bg-white/74 text-(--icon-default)">
               {(() => {
@@ -224,6 +256,7 @@ function WorkspaceTreeRow({
   depth,
   item,
   label,
+  on_select,
   path,
   type,
 }: {
@@ -231,18 +264,22 @@ function WorkspaceTreeRow({
   depth: number;
   item?: NonNullable<StageWindowState["payload"]["workspace_items"]>[number];
   label: string;
+  on_select: () => void;
   path: string;
   type: "folder" | "file";
 }) {
   const status = item?.status;
   const Icon = type === "folder" ? FolderOpen : icon_for_workspace_path(path);
   return (
-    <div
+    <button
+      aria-label={`查看 ${label}`}
       className={cn(
-        "grid grid-cols-[auto_auto_auto_minmax(0,1fr)_72px_86px] items-center gap-2 rounded-[9px] px-2 py-1.5 text-[11px]",
+        "grid w-full grid-cols-[auto_auto_auto_minmax(0,1fr)_72px_86px] items-center gap-2 rounded-[9px] px-2 py-1.5 text-left text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]",
         active ? "bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)]" : "text-(--text-muted) hover:bg-white/70",
       )}
+      onClick={on_select}
       title={path}
+      type="button"
     >
       <span style={{ width: depth * 12 }} className="shrink-0" />
       {type === "folder" ? (
@@ -269,7 +306,7 @@ function WorkspaceTreeRow({
       <span className="truncate text-[9px] text-(--text-soft)">
         {item ? format_workspace_time(item.updated_at) : "--"}
       </span>
-    </div>
+    </button>
   );
 }
 

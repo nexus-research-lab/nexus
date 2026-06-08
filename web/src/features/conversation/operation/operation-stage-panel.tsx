@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Bug } from "lucide-react";
 
@@ -8,11 +8,15 @@ import { cn } from "@/lib/utils";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
+import type { PermissionDecisionPayload } from "@/types/conversation/permission";
 
 import {
   build_operation_stage_key,
   useOperationStageStore,
 } from "./operation-store";
+import {
+  operation_event_from_runtime_event,
+} from "./operation-desktop-intents";
 import {
   derive_operation_stage_experience_phase,
 } from "./operation-stage-experience";
@@ -60,7 +64,14 @@ export function OperationStagePanel({
   const snapshot = useOperationStageStore((state) => (
     stage_key ? state.snapshots[stage_key] : null
   ));
-  const display_event = snapshot?.active_event ?? snapshot?.events.at(-1) ?? null;
+  const permission_response_handler = useOperationStageStore((state) => (
+    stage_key ? state.permission_response_handlers[stage_key] : undefined
+  ));
+  const runtime_display_event = useMemo(() => {
+    const runtime_event = (snapshot?.runtime_events ?? []).at(-1) ?? null;
+    return runtime_event ? operation_event_from_runtime_event(runtime_event) : null;
+  }, [snapshot?.runtime_events]);
+  const display_event = runtime_display_event ?? snapshot?.active_event ?? snapshot?.events.at(-1) ?? null;
   const phase_meta = display_event ? PHASE_META[display_event.phase] : null;
   const PhaseIcon = phase_meta?.Icon;
   const subtitle = display_event
@@ -73,6 +84,7 @@ export function OperationStagePanel({
         active_event={display_event}
         header_action={header_action}
         is_debug_open={is_debug_open}
+        on_permission_response={permission_response_handler}
         presentation={presentation}
         snapshot={snapshot ?? null}
         subtitle={subtitle}
@@ -125,6 +137,7 @@ function StageSurface({
   presentation,
   header_action,
   is_debug_open,
+  on_permission_response,
   on_toggle_debug,
 }: {
   active_event: NexusOperationEvent | null;
@@ -133,6 +146,7 @@ function StageSurface({
   presentation: "panel" | "stage";
   header_action?: ReactNode;
   is_debug_open: boolean;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   on_toggle_debug: () => void;
 }) {
   const is_stage = presentation === "stage";
@@ -186,6 +200,7 @@ function StageSurface({
                 >
                   <StageScene
                     event={active_event}
+                    on_permission_response={on_permission_response}
                     snapshot={snapshot}
                   />
                 </div>
@@ -249,12 +264,20 @@ function StageOverlayControls({
 
 function StageScene({
   event,
+  on_permission_response,
   snapshot,
 }: {
   event: NexusOperationEvent;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
-  return <OperationStageDesktop event={event} snapshot={snapshot} />;
+  return (
+    <OperationStageDesktop
+      event={event}
+      on_permission_response={on_permission_response}
+      snapshot={snapshot}
+    />
+  );
 }
 
 function find_previous_round_event(

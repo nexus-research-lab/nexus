@@ -41,6 +41,16 @@ export function OperationStageMotionStyles() {
           46%, 100% { opacity: 0; }
         }
 
+        @keyframes nexus-operation-type-line {
+          0% { clip-path: inset(0 100% 0 0); }
+          100% { clip-path: inset(0 0 0 0); }
+        }
+
+        @keyframes nexus-operation-editor-file-activity {
+          0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 rgba(141,224,173,0); }
+          50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 18px rgba(141,224,173,.12); }
+        }
+
         @keyframes nexus-operation-pulse-width {
           0%, 100% { transform: scaleX(0.86); opacity: 0.7; }
           50% { transform: scaleX(1); opacity: 1; }
@@ -301,6 +311,27 @@ export function OperationStageMotionStyles() {
           animation: nexus-operation-caret 1s step-end infinite;
         }
 
+        .operation-editor-caret {
+          display: inline-block;
+          width: 7px;
+          height: 14px;
+          margin-left: 2px;
+          translate: 0 2px;
+          background: #8de0ad;
+          animation: nexus-operation-caret 1s step-end infinite;
+        }
+
+        .operation-editor-typed-line {
+          display: inline-block;
+          max-width: 100%;
+          animation: nexus-operation-type-line 760ms steps(var(--operation-characters, 24), end) both;
+          animation-delay: var(--operation-delay, 0ms);
+        }
+
+        .operation-editor-file-activity {
+          animation: nexus-operation-editor-file-activity 1.65s ease-in-out infinite;
+        }
+
         .operation-web-loading {
           position: relative;
           overflow: hidden;
@@ -398,6 +429,9 @@ export function OperationStageMotionStyles() {
         @media (prefers-reduced-motion: reduce) {
           .operation-stage-window,
           .operation-preview-line,
+          .operation-editor-caret,
+          .operation-editor-typed-line,
+          .operation-editor-file-activity,
           .operation-scan-line,
           .operation-terminal-caret,
           .operation-web-loading::after,

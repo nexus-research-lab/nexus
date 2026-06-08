@@ -50,6 +50,7 @@ export function match_pending_permissions_to_tool_uses(
   candidates: PendingPermissionToolUseCandidate[],
 ): {
   matched_permissions_by_tool_use_id: Map<string, PendingPermission>;
+  matched_request_ids: Set<string>;
   unmatched_permissions: PendingPermission[];
 } {
   const matched_permissions_by_tool_use_id = new Map<string, PendingPermission>();
@@ -92,6 +93,7 @@ export function match_pending_permissions_to_tool_uses(
 
   return {
     matched_permissions_by_tool_use_id,
+    matched_request_ids,
     unmatched_permissions: pending_permissions.filter((permission) => !matched_request_ids.has(permission.request_id)),
   };
 }

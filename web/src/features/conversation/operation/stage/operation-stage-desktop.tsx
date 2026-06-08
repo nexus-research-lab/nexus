@@ -1,6 +1,8 @@
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import type { PermissionDecisionPayload } from "@/types/conversation/permission";
+
 import { StageWindowContent } from "../apps/operation-app-renderers";
 import type { StageWindowState } from "../operation-desktop-types";
 import type { StageWindowKind } from "../operation-desktop-types";
@@ -52,6 +54,7 @@ import {
 } from "./operation-stage-window-drag";
 import { build_stage_window_launch_state } from "./operation-stage-window-launch";
 import { build_stage_live_strip_state } from "./operation-stage-live-strip";
+import { StageWorkspaceSwitchboard } from "./operation-stage-workspace-switchboard";
 import {
   build_stage_dock_launch_window,
   stage_dock_launch_window_id,
@@ -59,9 +62,11 @@ import {
 
 export function OperationStageDesktop({
   event,
+  on_permission_response,
   snapshot,
 }: {
   event: NexusOperationEvent;
+  on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
   const [focused_window_id, set_focused_window_id] = useState<string | null>(null);
@@ -390,6 +395,15 @@ export function OperationStageDesktop({
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
       <StageLiveStrip key={active_narrative_event.id} state={live_strip} />
+      <StageWorkspaceSwitchboard
+        active_event={active_narrative_event}
+        active_window_id={active_window_id}
+        events={narrative_events}
+        on_focus_event={focus_event_window}
+        on_restore_window={restore_window}
+        snapshot={snapshot}
+        windows={window_states}
+      />
       <StageAgentCursor active_window={active_window} />
       {visible_windows.length ? visible_windows.map((window, index) => {
         const is_active = active_window_id === window.id && window.phase !== "minimized";
@@ -431,7 +445,11 @@ export function OperationStageDesktop({
             tone={window.kind === "terminal" ? "terminal" : "default"}
             z_index={is_active ? 44 : 8 + index}
           >
-            <StageWindowContent window={window} on_focus_event={is_active ? focus_event_window : undefined} />
+            <StageWindowContent
+              window={window}
+              on_focus_event={is_active ? focus_event_window : undefined}
+              on_permission_response={on_permission_response}
+            />
           </OperationStageWindow>
         );
       }) : desktop_windows.length ? (
