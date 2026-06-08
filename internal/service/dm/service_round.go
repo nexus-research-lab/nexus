@@ -56,6 +56,7 @@ type roundRunner struct {
 	content            string
 	runtimeContent     conversationsvc.RuntimeContent
 	client             runtimectx.Client
+	runtimeKind        string
 	runtimeProvider    string
 	runtimeModel       string
 	ownerUserID        string
@@ -151,6 +152,7 @@ func (r *roundRunner) executeRound(
 				r.workspacePath,
 				r.session,
 				sessionID,
+				r.runtimeKind,
 				r.runtimeProvider,
 				r.runtimeModel,
 			)

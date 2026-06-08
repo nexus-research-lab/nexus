@@ -13,6 +13,9 @@ AGENT_GID ?= 1001
 HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
+APP_WIN_BUNDLE_NXS_RUNTIME ?= 1
+APP_WIN_RUN_SKIP_BUILD ?=
+APP_WIN_RUN_WAIT ?=
 NXS_DEV_GOOS ?= $(shell go env GOOS)
 NXS_DEV_GOARCH ?= $(shell go env GOARCH)
 NXS_DEV_BINARY_NAME := nxs
@@ -28,14 +31,18 @@ COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.ym
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs install gen-protocol-types lint-web typecheck-web prepare-host-data \
 	check-backend check-go check test run-web run-backend run-backend-go \
-	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-smoke app-win-package \
+	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build
 
 # Show help
 help: ## Show this help message
 	@echo "Nexus Core - Available commands:"
 	@echo ""
+ifeq ($(NXS_DEV_GOOS),windows)
+	@pwsh -NoLogo -NoProfile -Command "$$pattern = '^([a-zA-Z_-]+):.*?## (.*)$$'; Get-Content '$(MAKEFILE_LIST)' | ForEach-Object { if ($$_ -match $$pattern) { [pscustomobject]@{ Target = $$Matches[1]; Description = $$Matches[2] } } } | Sort-Object Target | ForEach-Object { '  {0,-20} {1}' -f $$_.Target, $$_.Description }"
+else
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+endif
 
 # Development commands
 run-web: ## Run frontend in development mode
@@ -132,7 +139,10 @@ build-dmg: app-dmg ## app-dmg 的别名
 app-check: app-smoke ## 构建并烟测 macOS .app
 
 app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
-	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)"
+	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)"
+
+app-win-run: ## 构建并运行 Windows WPF/WebView2 桌面 app
+	pwsh scripts/desktop/run-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" $(if $(filter 1 true yes on,$(APP_WIN_RUN_SKIP_BUILD)),-SkipBuild,) $(if $(filter 1 true yes on,$(APP_WIN_RUN_WAIT)),-Wait,)
 
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1

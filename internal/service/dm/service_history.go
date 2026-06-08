@@ -206,6 +206,7 @@ func (s *Service) syncSDKSessionID(
 	workspacePath string,
 	current protocol.Session,
 	sessionID string,
+	runtimeKind string,
 	runtimeProvider string,
 	runtimeModel string,
 ) (protocol.Session, error) {
@@ -214,12 +215,15 @@ func (s *Service) syncSDKSessionID(
 	if trimmedSessionID == "" {
 		return current, nil
 	}
+	nextKind := strings.TrimSpace(runtimeKind)
 	nextProvider := strings.TrimSpace(runtimeProvider)
 	nextModel := strings.TrimSpace(runtimeModel)
+	currentKind, _ := current.Options[protocol.OptionRuntimeKind].(string)
 	currentProvider, _ := current.Options[protocol.OptionRuntimeProvider].(string)
 	currentModel, _ := current.Options[protocol.OptionRuntimeModel].(string)
 	sessionIDChanged := currentSessionID != trimmedSessionID
-	fingerprintChanged := strings.TrimSpace(currentProvider) != nextProvider ||
+	fingerprintChanged := strings.TrimSpace(currentKind) != nextKind ||
+		strings.TrimSpace(currentProvider) != nextProvider ||
 		strings.TrimSpace(currentModel) != nextModel
 	if !sessionIDChanged && !fingerprintChanged {
 		return current, nil
@@ -228,6 +232,7 @@ func (s *Service) syncSDKSessionID(
 	if current.Options == nil {
 		current.Options = map[string]any{}
 	}
+	current.Options[protocol.OptionRuntimeKind] = nextKind
 	current.Options[protocol.OptionRuntimeProvider] = nextProvider
 	current.Options[protocol.OptionRuntimeModel] = nextModel
 	updated, err := s.files.UpsertSession(workspacePath, current)

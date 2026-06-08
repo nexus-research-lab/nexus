@@ -1468,7 +1468,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	if _, _, _, _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	if _, _, _, _, _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	}); err != nil {
@@ -1517,7 +1517,7 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	_, _, _, goalID, goalContext, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	_, _, _, _, goalID, goalContext, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModePlan,
 	})
@@ -1564,7 +1564,7 @@ func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	_, _, _, goalID, goalContext, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	_, _, _, _, goalID, goalContext, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	})
@@ -2482,6 +2482,100 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	}
 	if sessionValue.Options[protocol.OptionRuntimeModel] != "glm-5.1" {
 		t.Fatalf("runtime model 指纹未回写: %+v", sessionValue.Options)
+	}
+}
+
+func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffers(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Enabled:     true,
+	}, "glm-5.1", true)
+
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = "sdk-new-claude-kind"
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-new-claude-kind",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		AgentRuntimeKind: "claude",
+	}})
+	sender := newDMTestSender("sender-stale-runtime-kind")
+	sessionKey := "agent:nexus:ws:dm:stale-runtime-kind"
+	permission.BindSession(sessionKey, sender)
+
+	staleResumeID := "sdk-old-nxs-kind"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &staleResumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Stale Runtime Kind",
+		Options: map[string]any{
+			protocol.OptionRuntimeKind:     "nxs",
+			protocol.OptionRuntimeProvider: "glm",
+			protocol.OptionRuntimeModel:    "glm-5.1",
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入 runtime kind stale 会话 meta 失败: %v", err)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 runtime kind 变更不 resume",
+		RoundID:    "round-stale-runtime-kind",
+		ReqID:      "round-stale-runtime-kind",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Session.ResumeID != "" {
+		t.Fatalf("runtime kind 变更后不应 resume 过期 sdk session: %+v", options)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeClaude {
+		t.Fatalf("runtime 应切到 Claude: %+v", options)
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != "sdk-new-claude-kind" {
+		t.Fatalf("新 sdk session_id 未回写: %+v", sessionValue)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeKind] != "claude" {
+		t.Fatalf("runtime kind 指纹未回写: %+v", sessionValue.Options)
 	}
 }
 func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
