@@ -97,6 +97,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"round_id", r.roundID,
 		"status", result.TerminalStatus,
 		"result_subtype", result.ResultSubtype,
+		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
 	r.recordGoalUsage(context.Background(), result, r.mapper.LastAssistantMessage())
 	r.recordGoalUsageLimit(result)

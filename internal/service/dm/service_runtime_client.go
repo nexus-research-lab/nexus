@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
@@ -93,8 +94,18 @@ func (s *Service) ensureClient(
 		SessionKey:    sessionKey,
 	}, sessionItem)
 	options = s.withRuntimeDiagnosticsLogger(options, sessionKey, agentValue.AgentID)
-	runtimeProvider := resolvedRuntimeProvider(runtimeSelection.Provider, options)
+	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
 	options.Session.ResumeID = s.resolveReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, runtimeProvider, options)
+	s.loggerFor(ctx).Info("准备启动 DM runtime",
+		append(clientopts.RuntimeStartupLogFields(options),
+			"session_key", sessionKey,
+			"agent_id", agentValue.AgentID,
+			"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
+			"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
+			"requested_model", strings.TrimSpace(runtimeSelection.Model),
+			"runtime_provider", runtimeProvider,
+		)...,
+	)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
 		if !shouldRetryDMClientWithoutResume(options.Session.ResumeID, err) {
@@ -154,15 +165,6 @@ func (s *Service) resolveAgentRuntimeSelection(
 	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent: agentValue,
 	})
-}
-
-func resolvedRuntimeProvider(provider string, options agentclient.Options) string {
-	if options.Env != nil {
-		if resolved := strings.TrimSpace(options.Env[clientopts.NexusRuntimeProviderEnvName]); resolved != "" {
-			return resolved
-		}
-	}
-	return strings.TrimSpace(provider)
 }
 
 func (s *Service) resolveReusableSDKSessionID(
@@ -237,12 +239,38 @@ func (s *Service) acquireRuntimeClient(
 ) (runtimectx.Client, error) {
 	client, err := s.runtime.GetOrCreate(ctx, sessionKey, options)
 	if err != nil {
+		s.logRuntimeStartupFailure(ctx, sessionKey, "get_or_create", options, err)
 		return nil, err
 	}
 	if err := client.Connect(ctx); err != nil {
+		s.logRuntimeStartupFailure(ctx, sessionKey, "connect", options, err)
 		return nil, err
 	}
+	s.loggerFor(ctx).Info("DM runtime 启动成功",
+		append(clientopts.RuntimeStartupLogFields(options),
+			"session_key", sessionKey,
+			"sdk_session_id", strings.TrimSpace(client.SessionID()),
+		)...,
+	)
 	return client, nil
+}
+
+func (s *Service) logRuntimeStartupFailure(
+	ctx context.Context,
+	sessionKey string,
+	stage string,
+	options agentclient.Options,
+	err error,
+) {
+	s.loggerFor(ctx).Error("DM runtime 启动失败",
+		append(clientopts.RuntimeStartupLogFields(options),
+			"session_key", sessionKey,
+			"stage", strings.TrimSpace(stage),
+			"err", err,
+			"error_type", fmt.Sprintf("%T", err),
+			"transport_closed", runtimectx.IsRuntimeTransportClosedError(err),
+		)...,
+	)
 }
 
 func (s *Service) withRuntimeDiagnosticsLogger(
@@ -263,21 +291,37 @@ func (s *Service) withRuntimeDiagnosticsLogger(
 		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
-	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
-		if previousDiagnostics == nil {
-			options.Callbacks.Diagnostics = func(agentclient.DiagnosticEvent) {}
-		}
-		return options
-	}
+	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)
 		}
-		logger.Info("Agent SDK diagnostics",
-			"component", strings.TrimSpace(event.Component),
-			"event", strings.TrimSpace(event.Event),
-			"attrs", event.Attributes,
-		)
+		if diagnosticsEnabled {
+			logger.Info("Agent SDK diagnostics",
+				"component", strings.TrimSpace(event.Component),
+				"event", strings.TrimSpace(event.Event),
+				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
+			)
+			return
+		}
+		if clientopts.ShouldLogRuntimeStartupDiagnostic(event) {
+			logger.Info("Agent SDK startup diagnostics",
+				"component", strings.TrimSpace(event.Component),
+				"event", strings.TrimSpace(event.Event),
+				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
+			)
+			return
+		}
+		if clientopts.ShouldWarnRuntimeStartupDiagnostic(event) {
+			logger.Warn("Agent SDK startup diagnostics",
+				"component", strings.TrimSpace(event.Component),
+				"event", strings.TrimSpace(event.Event),
+				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
+			)
+		}
+	}
+	if !diagnosticsEnabled {
+		return options
 	}
 	logger.Info("Agent SDK diagnostics 已启用",
 		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),

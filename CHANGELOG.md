@@ -17,7 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enabled `nxs` runtime session defaults for cached microcompact, API context cleanup, and Claude Code-style 1h prompt cache TTL.
 - Added an opt-in Agent SDK diagnostics setting for `nxs`, surfaced transport diagnostics in Nexus logs, and included runtime debug logs in desktop log exports.
 - Updated the Nexus Agent SDK Bridge checksum metadata for `v0.1.8` so release builds work without a local bridge workspace.
-- Passed Anthropic-compatible Agent runtime credentials through `ANTHROPIC_AUTH_TOKEN` for API-backed Agent sessions.
+- Passed Anthropic-compatible Agent runtime credentials through `ANTHROPIC_API_KEY` for API-backed Agent sessions.
+- Updated desktop release packaging to bundle `nxs` from the `nxs-stable` runtime channel instead of pinning an older runtime release.
+- Kept Windows Claude runtime launches on the installed Claude CLI shim and added safe DM/Room runtime startup diagnostics for `claude` and `nxs`.
+- Kept Anthropic-compatible runtime credentials on `ANTHROPIC_API_KEY` for Claude Code and `nxs` compatibility, with `NEXUS_API_PROVIDER` carrying the provider mode.
+- Logged terminal runtime error messages for DM and Room rounds so API/auth failures are visible in desktop diagnostics.
+- Refreshed existing GitHub release notes during repeated tag publishing so re-released desktop packages match the current changelog.
+- Fixed Anthropic-compatible Agent runtime authentication by passing non-Anthropic provider tokens through `ANTHROPIC_AUTH_TOKEN` as well as `ANTHROPIC_API_KEY`, allowing Claude Code and `nxs` runtimes to send Bearer credentials to compatible gateways.
 
 ## [0.1.16] - 2026-06-05
 

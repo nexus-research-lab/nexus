@@ -75,12 +75,6 @@ func resolveRuntimeCommandConfigWith(
 ) runtimeCommandConfig {
 	profile := resolveRuntimeProfile(runtimeKind, getenv)
 	commandPath := profile.resolveCommandPath(goos, getenv, lookPath, fileExists, globPaths)
-	if !profile.isClaude() || goos != "windows" || strings.TrimSpace(commandPath) == "" {
-		return runtimeCommandConfig{CLIPath: commandPath}
-	}
-	if config, ok := windowsNodeClaudeCommandConfig(commandPath, lookPath, fileExists); ok {
-		return config
-	}
 	return runtimeCommandConfig{CLIPath: commandPath}
 }
 
@@ -195,54 +189,6 @@ func knownClaudeCommandPaths(goos string, getenv func(string) string) []string {
 		}
 		return knownUnixClaudeCommandPaths(getenv, candidates)
 	}
-}
-
-func windowsNodeClaudeCommandConfig(
-	commandPath string,
-	lookPath func(string) (string, error),
-	fileExists func(string) bool,
-) (runtimeCommandConfig, bool) {
-	extension := strings.ToLower(filepath.Ext(commandPath))
-	if extension != ".cmd" && extension != ".bat" && extension != ".ps1" {
-		return runtimeCommandConfig{}, false
-	}
-	scriptPath := windowsClaudeScriptPath(commandPath, fileExists)
-	if scriptPath == "" {
-		return runtimeCommandConfig{}, false
-	}
-	return runtimeCommandConfig{
-		Executable:       windowsNodeExecutable(commandPath, lookPath, fileExists),
-		PathToExecutable: scriptPath,
-	}, true
-}
-
-func windowsClaudeScriptPath(commandPath string, fileExists func(string) bool) string {
-	directory := filepath.Dir(commandPath)
-	candidates := []string{
-		filepath.Join(directory, "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
-		filepath.Join(directory, "node_modules", "@anthropic-ai", "claude-code", "cli.mjs"),
-		filepath.Join(directory, "..", "@anthropic-ai", "claude-code", "cli.js"),
-		filepath.Join(directory, "..", "@anthropic-ai", "claude-code", "cli.mjs"),
-	}
-	for _, candidate := range candidates {
-		cleanCandidate := filepath.Clean(candidate)
-		if fileExists(cleanCandidate) {
-			return cleanCandidate
-		}
-	}
-	return ""
-}
-
-func windowsNodeExecutable(commandPath string, lookPath func(string) (string, error), fileExists func(string) bool) string {
-	if localNode := filepath.Join(filepath.Dir(commandPath), "node.exe"); fileExists(localNode) {
-		return localNode
-	}
-	for _, name := range []string{"node.exe", "node"} {
-		if path, err := lookPath(name); err == nil && strings.TrimSpace(path) != "" {
-			return path
-		}
-	}
-	return "node"
 }
 
 func knownWindowsClaudeCommandPaths(getenv func(string) string) []string {

@@ -63,7 +63,7 @@ NEXUS_DESKTOP_KEYCHAIN_MODE=keychain scripts/desktop/run-macos-app.sh
 make app-dmg
 ```
 
-打包默认从 bridge runtime release 下载 `nxs-v0.1.1`。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时会回到 bridge 下载兜底或 `NEXUS_NXS_COMMAND_PATH` 覆盖路径。
+打包默认从 bridge runtime release 的 `nxs-stable` 通道下载。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时会回到 bridge 下载兜底或 `NEXUS_NXS_COMMAND_PATH` 覆盖路径。
 
 默认输出到 `desktop/macos/.build/package/`：
 
