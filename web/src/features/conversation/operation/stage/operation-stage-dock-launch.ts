@@ -109,6 +109,30 @@ function build_dock_launch_payload({
       url: "about:blank",
     };
   }
+  if (kind === "code_editor") {
+    return {
+      ...base,
+      preview: [
+        "/* Nexus Code */",
+        "const workspace = \"mounted\";",
+        "const nextAction = \"waiting for tool event\";",
+        "",
+        "export function ready() {",
+        "  return \"Code is ready\";",
+        "}",
+      ].join("\n"),
+      summary: "Code 已打开，等待 Nexus 创建或修改文件。",
+      target,
+    };
+  }
+  if (kind === "image_viewer") {
+    return {
+      ...base,
+      preview: "没有选中的图像。Preview 会在 Nexus 生成图片或打开文件后显示内容。",
+      summary: "预览已打开，等待选择文件。",
+      target,
+    };
+  }
   if (kind === "run_manifest" || kind === "handoff") {
     return {
       ...base,
@@ -178,10 +202,10 @@ function dock_launch_title_for_kind(kind: StageWindowKind, app_label: string): s
     return "终端";
   }
   if (kind === "code_editor") {
-    return "Untitled";
+    return "Welcome.tsx";
   }
   if (kind === "image_viewer") {
-    return "预览";
+    return "No Selection.png";
   }
   return app_label;
 }
@@ -194,10 +218,10 @@ function dock_launch_target_for_kind(kind: StageWindowKind): string {
     return "shell";
   }
   if (kind === "code_editor") {
-    return "Untitled";
+    return "Welcome.tsx";
   }
   if (kind === "image_viewer") {
-    return "Preview";
+    return "No Selection.png";
   }
   if (kind === "handoff") {
     return "交付台";

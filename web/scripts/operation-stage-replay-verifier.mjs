@@ -95,7 +95,10 @@ export function verify_completed_round_replay_uses_event_slice({
     event: bash_event,
     snapshot,
   });
-  assert(replay_desktop.active_window_id?.includes(":browser:"), `event replay slice should focus opened browser artifact, got ${replay_desktop.active_window_id}`);
+  const replay_browser_window = replay_desktop.windows.find((window) => window.kind === "browser");
+  assert(replay_browser_window, "event replay slice should keep the opened browser artifact");
+  assert(replay_desktop.active_window_id === replay_browser_window.id, `event replay slice should focus opened Safari session, got ${replay_desktop.active_window_id}`);
+  assert(replay_browser_window.target === "gomoku.html", `event replay Safari session should keep artifact target, got ${replay_browser_window.target}`);
   assert(!replay_desktop.windows.some((window) => window.kind === "handoff" || window.kind === "run_manifest"), "event replay slice should not keep final handoff as the active scene");
   const terminal_window = replay_desktop.windows.find((window) => window.kind === "terminal");
   assert(terminal_window?.phase === "background", `event replay terminal should remain as background evidence, got ${terminal_window?.phase}`);

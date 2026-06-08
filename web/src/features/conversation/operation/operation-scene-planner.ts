@@ -2,6 +2,13 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "./operation-types";
+import {
+  derive_stage_desktop_intents,
+  find_stage_desktop_intent,
+  read_browser_open_target_from_terminal_command,
+  read_stage_browser_query,
+  stage_app_session_id_for_intent,
+} from "./operation-desktop-intents";
 import type {
   OperationDesktopState,
   StageHandoffSummary,
@@ -25,7 +32,6 @@ import {
   looks_like_url,
   normalize_window_id,
   preview_lines,
-  read_input_string,
 } from "./operation-scene-planner-helpers";
 import {
   build_operation_terminal_lines,
@@ -122,13 +128,16 @@ function build_windows(
   const tool_activity_events = round_events.filter(is_desktop_tool_activity_event);
   const file_context = collect_operation_file_context(event, snapshot, round_events);
   const html_artifact = find_operation_html_artifact(snapshot, round_events);
+  const active_intents = derive_stage_desktop_intents(event);
+  const open_browser_target = read_browser_open_target_from_terminal_command(event);
   const is_review_event = is_round_review_event(event);
   const focus_target = resolve_focus_target(event, {
     has_file: Boolean(file_context.latest_file_target),
-    has_html_artifact: Boolean(html_artifact),
+    has_html_artifact: Boolean(html_artifact || open_browser_target),
     has_task: task_events.length > 0,
     has_terminal: terminal_events.length > 0,
     has_web: web_events.length > 0,
+    opens_browser: active_intents.some((intent) => intent.app === "browser"),
   });
   const windows: StageWindowState[] = [];
 
@@ -146,8 +155,12 @@ function build_windows(
       file_context.latest_file_target
     )
   ) {
+    const finder_intent = find_stage_desktop_intent(file_context.latest_file_event ?? event, "finder");
     windows.push(window_state(file_context.latest_file_event ?? event, snapshot, {
       id: "finder",
+      session_id: finder_intent
+        ? stage_app_session_id_for_intent(event.round_id, finder_intent, normalize_window_id)
+        : `${event.round_id}:finder`,
       kind: "finder",
       title: "工作区",
       layout: "secondary",
@@ -174,8 +187,15 @@ function build_windows(
       document.target,
       fallback_window_kind_for_file_event(document.event),
     );
+    const document_intent = find_stage_desktop_intent(document.event, "code") ?? {
+      app: "code" as const,
+      action: "inspect_file" as const,
+      event_id: document.event.id,
+      target: document.target,
+    };
     windows.push(window_state(document.event, snapshot, {
       id: `document:${normalize_window_id(document.target)}`,
+      session_id: stage_app_session_id_for_intent(event.round_id, document_intent, normalize_window_id),
       kind: document_kind,
       title: document.target,
       layout: "primary",
@@ -196,9 +216,13 @@ function build_windows(
 
   if (terminal_events.length > 0) {
     const terminal_event = terminal_events.at(-1) ?? event;
+    const terminal_intent = find_stage_desktop_intent(terminal_event, "terminal");
     const terminal_lines = build_operation_terminal_lines(terminal_events);
     windows.push(window_state(terminal_event, snapshot, {
       id: "terminal",
+      session_id: terminal_intent
+        ? stage_app_session_id_for_intent(event.round_id, terminal_intent, normalize_window_id)
+        : `${event.round_id}:terminal`,
       kind: "terminal",
       title: terminal_event.target ?? "终端",
       layout: "terminal",
@@ -215,14 +239,32 @@ function build_windows(
     }));
   }
 
-  if (web_events.length > 0 || should_open_html_browser_window(event, Boolean(html_artifact))) {
+  if (web_events.length > 0 || should_open_html_browser_window(event, Boolean(html_artifact)) || open_browser_target) {
     const web_event = web_events.at(-1) ?? event;
+    const browser_target = html_artifact?.path ?? open_browser_target?.target ?? web_event.target;
+    const browser_intent = find_stage_desktop_intent(web_event, "browser") ?? (
+      browser_target
+        ? {
+          app: "browser" as const,
+          action: html_artifact ? "preview_artifact" as const : "browse" as const,
+          event_id: web_event.id,
+          query: browser_target,
+          target: browser_target,
+          url: open_browser_target?.url ?? null,
+        }
+        : null
+    );
     const query = html_artifact
       ? basename(html_artifact.path)
-      : read_input_string(web_event.input_preview, ["url", "query", "prompt"]) ?? web_event.target ?? "web";
+      : open_browser_target?.target
+        ?? read_stage_browser_query(web_event)
+        ?? "web";
     const lines = preview_lines(web_event.result_preview ?? web_event.summary, 8);
     windows.push(window_state(web_event, snapshot, {
       id: html_artifact ? `browser:${normalize_window_id(html_artifact.path)}` : "browser",
+      session_id: browser_intent
+        ? stage_app_session_id_for_intent(event.round_id, browser_intent, normalize_window_id)
+        : `${event.round_id}:browser`,
       kind: "browser",
       title: html_artifact ? basename(html_artifact.path) : query,
       layout: "primary",
@@ -237,8 +279,8 @@ function build_windows(
         query,
         related_events: web_events,
         srcdoc: html_artifact?.live_content ?? null,
-        target: html_artifact?.path ?? web_event.target,
-        url: looks_like_url(query) ? query : null,
+        target: browser_target,
+        url: open_browser_target?.url ?? (looks_like_url(query) ? query : null),
       },
     }));
   }
@@ -265,8 +307,12 @@ function build_windows(
 
   if (task_events.length > 0) {
     const task_event = task_events.at(-1) ?? event;
+    const task_intent = find_stage_desktop_intent(task_event, "activity");
     windows.push(window_state(task_event, snapshot, {
       id: "task-board",
+      session_id: task_intent
+        ? stage_app_session_id_for_intent(event.round_id, task_intent, normalize_window_id)
+        : `${event.round_id}:task-board`,
       kind: "task_board",
       title: task_event.target ?? task_event.tool_name ?? "Task",
       layout: "primary",
@@ -314,6 +360,7 @@ function build_windows(
       const is_successful_handoff = event.kind === "round_summary" && event.phase === "done";
       windows.push(window_state(event, snapshot, {
         id: is_successful_handoff ? "handoff" : "run-manifest",
+        session_id: is_successful_handoff ? `${event.round_id}:handoff` : `${event.round_id}:run-manifest`,
         kind: is_successful_handoff ? "handoff" : "run_manifest",
         title: event.phase === "error" ? "Nexus Console · 诊断" : is_successful_handoff ? "Nexus 交付台" : "Nexus Console",
         layout: "primary",
@@ -342,6 +389,7 @@ function window_state(
   snapshot: NexusOperationSnapshot | null,
   config: {
     id: string;
+    session_id?: string;
     kind: StageWindowKind;
     title: string;
     layout: StageWindowLayout;
@@ -354,7 +402,7 @@ function window_state(
   const subtitle = normalize_stage_window_subtitle(event);
   const target = normalize_stage_window_target(event, config.payload?.target);
   return {
-    id: `${event.id}:${config.id}`,
+    id: config.session_id ?? `${event.id}:${config.id}`,
     kind: config.kind,
     title,
     subtitle,
@@ -416,6 +464,7 @@ function resolve_focus_target(
     has_task: boolean;
     has_terminal: boolean;
     has_web: boolean;
+    opens_browser: boolean;
   },
 ): "browser" | "document" | "finder" | "manifest" | "summary" | "task" | "terminal" {
   if (event.phase === "waiting" || event.surface === "conversation") {
@@ -429,6 +478,9 @@ function resolve_focus_target(
   }
   if (event.surface === "task" && context.has_task) {
     return "task";
+  }
+  if (context.opens_browser && (event.surface === "terminal" || event.surface === "web")) {
+    return "browser";
   }
   if (event.surface === "knowledge") {
     return "document";

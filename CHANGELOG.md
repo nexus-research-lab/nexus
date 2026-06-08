@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 操作舞台新增待机桌面空态，使用粒子化 `nexus` 标识与时钟展示新 session 的初始状态。
 
 ### Changed
+- 操作舞台新增工具调用到桌面意图与 app session 的投影层，Bash/open HTML、web_search 和 fetch 会更新并聚焦 Terminal/Safari 持久窗口。
 - 操作舞台按工具类型区分读、写、运行、浏览器、知识与任务窗口，并重做 Dock、窗口聚焦、终端输出与文件预览呈现。
 - 操作舞台窗口支持通过标题栏拖动位置，并在拖动时保持窗口置顶与内部内容滚动独立。
 - 操作舞台新增工作台叙事阶段、事件流轨道、窗口逐步登场与完成沉淀摘要，弱化一次性 demo 布局感。

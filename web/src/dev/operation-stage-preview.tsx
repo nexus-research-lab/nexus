@@ -208,6 +208,37 @@ const open_event: NexusOperationEvent = {
   updated_at: now - 5_000,
 };
 
+const terminal_event: NexusOperationEvent = {
+  agent_id,
+  evidence: [
+    { type: "terminal", label: "运行", value: "printf \"1\\n2\\n\" && pwd" },
+    { type: "status", label: "退出", value: "0" },
+  ],
+  id: "tool-terminal-output",
+  kind: "command_run",
+  message_id: "message-assistant",
+  phase: "done",
+  round_id,
+  session_key,
+  surface: "terminal",
+  target: "printf \"1\\n2\\n\" && pwd",
+  title: "运行验证命令",
+  tool_name: "Bash",
+  tool_use_id: "tool-terminal",
+  input_preview: {
+    command: "printf \"1\\n2\\n\" && pwd",
+    cwd: "/private/tmp/nexus-operation-stage",
+  },
+  result_preview: {
+    stdout: "1\n2\n/private/tmp/nexus-operation-stage\n",
+    stderr: "",
+    exit_code: 0,
+    is_error: false,
+  },
+  summary: "终端显示真实命令输出和退出码。",
+  updated_at: now - 4_800,
+};
+
 const permission_event: NexusOperationEvent = {
   agent_id,
   evidence: [
@@ -272,6 +303,7 @@ const PREVIEW_STEPS = [
   { id: "tool", label: "工具窗口", event: generic_tool_followup_event, events: [live_event, generic_tool_event, generic_tool_followup_event] },
   { id: "search", label: "浏览搜索", event: web_search_event, events: [live_event, web_search_event] },
   { id: "permission", label: "权限确认", event: permission_event, events: [live_event, write_event, permission_event] },
+  { id: "terminal", label: "终端输出", event: terminal_event, events: [live_event, terminal_event] },
   { id: "open", label: "打开预览", event: open_event, events: [live_event, write_event, open_event] },
   { id: "done", label: "完成收束", event: summary_event, events: [live_event, write_event, open_event, summary_event] },
 ] as const;

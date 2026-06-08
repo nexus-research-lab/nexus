@@ -42,6 +42,7 @@ writeFileSync(join(out_dir, "package.json"), "{\"type\":\"module\"}\n");
 // matching files when executing the compiled projector directly.
 copyFileSync(join(operation_dir, "operation-tool-catalog.js"), join(operation_dir, "operation-tool-catalog"));
 copyFileSync(join(operation_dir, "operation-tool-inference.js"), join(operation_dir, "operation-tool-inference"));
+copyFileSync(join(operation_dir, "operation-desktop-intents.js"), join(operation_dir, "operation-desktop-intents"));
 copyFileSync(join(operation_dir, "operation-file-documents.js"), join(operation_dir, "operation-file-documents"));
 copyFileSync(join(operation_dir, "operation-html-artifacts.js"), join(operation_dir, "operation-html-artifacts"));
 copyFileSync(join(operation_dir, "operation-pending-permissions.js"), join(operation_dir, "operation-pending-permissions"));
@@ -100,6 +101,11 @@ const {
   plan_operation_desktop,
   resolve_operation_event_window_id,
 } = await import(pathToFileURL(join(operation_dir, "operation-scene-planner.js")));
+const {
+  derive_stage_desktop_intents,
+  read_browser_open_target_from_terminal_command,
+  stage_app_session_id_for_intent,
+} = await import(pathToFileURL(join(operation_dir, "operation-desktop-intents.js")));
 const {
   build_operation_continuation_brief,
   build_operation_live_episode,
@@ -236,6 +242,7 @@ verify_hidden_stage_uses_desktop_state_instead_of_mission_control();
 verify_unclassified_tool_activity_opens_nexus_app_window(now);
 verify_current_unclassified_tool_opens_beside_existing_app_window(now);
 verify_recent_unclassified_tools_remain_as_mac_app_windows(now);
+verify_desktop_intents_drive_app_session_windows(now);
 verify_generic_tool_uses_nexus_tool_surface();
 verify_tool_app_intent_map();
 verify_nexus_tool_session_view(now);
@@ -582,6 +589,90 @@ function verify_recent_unclassified_tools_remain_as_mac_app_windows(now) {
   assert(generic_windows.length === 2, `Recent unclassified tools should remain as separate app windows, got ${generic_windows.length}`);
   assert(generic_windows.some((window) => window.payload.event.id === first_event.id && window.phase === "background"), "Previous tool app should remain visible as a background window");
   assert(generic_windows.some((window) => window.payload.event.id === second_event.id && window.phase === "focused"), "Current tool app should be focused");
+}
+
+function verify_desktop_intents_drive_app_session_windows(now) {
+  const terminal_event = {
+    id: "tool-bash-open-html",
+    session_key: "session:stage",
+    round_id: "round-intents",
+    agent_id: "agent-stage",
+    message_id: "msg-intents",
+    tool_use_id: "tool-bash",
+    tool_name: "Bash",
+    kind: "command_run",
+    surface: "terminal",
+    phase: "done",
+    title: "打开预览",
+    target: "open gomoku.html",
+    input_preview: {
+      command: "open gomoku.html",
+    },
+    result_preview: {
+      content: "Opening gomoku.html\nSafari preview launched\n",
+      exit_code: 0,
+      is_error: false,
+    },
+    updated_at: now,
+  };
+  const terminal_intents = derive_stage_desktop_intents(terminal_event);
+  assert(terminal_intents.some((intent) => intent.app === "terminal" && intent.action === "run_command"), "Bash should derive a Terminal desktop intent");
+  assert(terminal_intents.some((intent) => intent.app === "browser" && intent.action === "preview_artifact"), "Bash open html should derive a Safari preview intent");
+  const open_target = read_browser_open_target_from_terminal_command(terminal_event);
+  assert(open_target?.target === "gomoku.html", `open html command should expose the artifact target, got ${open_target?.target}`);
+
+  const terminal_session_id = stage_app_session_id_for_intent(
+    terminal_event.round_id,
+    terminal_intents.find((intent) => intent.app === "terminal"),
+    (value) => value,
+  );
+  assert(terminal_session_id === "round-intents:terminal", `Terminal session id should be stable per round, got ${terminal_session_id}`);
+
+  const web_search_event = {
+    ...terminal_event,
+    id: "tool-web-search",
+    tool_use_id: "tool-web-search",
+    tool_name: "web_search",
+    kind: "web_research",
+    surface: "web",
+    title: "搜索资料",
+    target: "macOS Safari window chrome",
+    input_preview: {
+      query: "macOS Safari window chrome",
+    },
+    result_preview: [{
+      title: "Safari browser chrome",
+      url: "https://example.com/safari",
+      snippet: "Safari keeps a focused address field and toolbar.",
+    }],
+  };
+  const web_fetch_event = {
+    ...web_search_event,
+    id: "tool-web-fetch",
+    tool_use_id: "tool-web-fetch",
+    tool_name: "fetch",
+    target: "https://example.com/safari",
+    input_preview: {
+      url: "https://example.com/safari",
+    },
+    updated_at: now + 1,
+  };
+  const desktop = plan_operation_desktop({
+    event: web_fetch_event,
+    snapshot: {
+      key: "session:stage",
+      session_key: "session:stage",
+      active_event: web_fetch_event,
+      events: [web_search_event, web_fetch_event],
+      recent_evidence: [],
+      workspace_events: [],
+      updated_at: now + 1,
+    },
+  });
+  const browser_window = desktop.windows.find((window) => window.kind === "browser");
+  assert(browser_window?.id === "round-intents:browser", `Safari should use one stable browser app session, got ${browser_window?.id}`);
+  assert(browser_window.payload.related_events.length === 2, `Safari session should keep web_search and fetch history, got ${browser_window.payload.related_events.length}`);
+  assert(browser_window.phase === "focused", `Latest web event should focus Safari, got ${browser_window.phase}`);
 }
 
 function verify_generic_tool_uses_nexus_tool_surface() {
@@ -1013,6 +1104,24 @@ function verify_stage_dock_launch_window_model(now) {
   });
   assert(terminal_window.layout === "terminal", `Dock-launched Terminal should use terminal layout, got ${terminal_window.layout}`);
   assert(terminal_window.payload.lines?.some((line) => line.includes("workspace mounted")), "Dock-launched Terminal should show a ready shell transcript");
+
+  const code_window = build_stage_dock_launch_window({
+    app_label: "Code",
+    event,
+    kind: "code_editor",
+    snapshot: null,
+  });
+  assert(code_window.target === "Welcome.tsx", `Dock-launched Code should open a welcome editor tab, got ${code_window.target}`);
+  assert(String(code_window.payload.preview).includes("Code is ready"), "Dock-launched Code should render a real welcome editor buffer");
+
+  const preview_window = build_stage_dock_launch_window({
+    app_label: "预览",
+    event,
+    kind: "image_viewer",
+    snapshot: null,
+  });
+  assert(preview_window.target === "No Selection.png", `Dock-launched Preview should use an image-viewer empty state, got ${preview_window.target}`);
+  assert(String(preview_window.payload.preview).includes("没有选中的图像"), "Dock-launched Preview should explain the empty selection state");
 }
 
 function verify_operation_stage_key_is_session_scoped() {
