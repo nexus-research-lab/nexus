@@ -1,8 +1,8 @@
 import { ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 
+import { cn } from "@/shared/ui/class-name";
 import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
-import { cn } from "@/lib/utils";
 
 export function DesktopEntryLayout({
   children,
