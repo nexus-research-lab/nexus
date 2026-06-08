@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -23,14 +24,6 @@ const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
 const defaultClaudeAutoCompactPctOverride = "70"
 const thinkingCapabilityName = "thinking"
-const nxsCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
-const nxsAPIClearToolResultsEnvName = "NEXUS_API_CLEAR_TOOL_RESULTS"
-const nxsAPIClearToolUsesEnvName = "NEXUS_API_CLEAR_TOOL_USES"
-const nxsPromptCache1hEligibleEnvName = "NEXUS_PROMPT_CACHE_1H_ELIGIBLE"
-const nxsPromptCache1hAllowlistEnvName = "NEXUS_PROMPT_CACHE_1H_ALLOWLIST"
-const nxsAgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
-const nxsAgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
-const nxsAgentSDKProviderDebugBodyEnvName = "NEXUS_AGENT_SDK_PROVIDER_DEBUG_BODY"
 const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
 const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
 const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
@@ -93,7 +86,8 @@ func BuildAgentClientOptions(
 	if err != nil {
 		return agentclient.Options{}, err
 	}
-	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled)
+	runtimeEnv := defaultRuntimeEnv()
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
@@ -104,16 +98,11 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
-	commandConfig := processRuntimeCommandConfig(effectiveRuntimeKind)
-
 	options := agentclient.Options{
-		CLIPath:                commandConfig.CLIPath,
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         append([]string(nil), input.SettingSources...),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
-		Executable:             commandConfig.Executable,
-		PathToExecutable:       commandConfig.PathToExecutable,
 		System: agentclient.SystemOptions{
 			Append: input.AppendSystemPrompt,
 		},
@@ -144,9 +133,6 @@ func BuildAgentClientOptions(
 	}
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
-	}
-	if err := materializeProcessArgFiles(&options); err != nil {
-		return agentclient.Options{}, err
 	}
 	return options, nil
 }
@@ -290,29 +276,19 @@ func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...str
 	}
 }
 
-func defaultRuntimeEnv(runtimeKind string, agentSDKDiagnosticsEnabled bool) map[string]string {
-	env := map[string]string{
+func defaultRuntimeEnv() map[string]string {
+	return map[string]string{
 		claudeAutoCompactPctOverrideEnvName: defaultClaudeAutoCompactPctOverride,
 	}
-	if runtimeProfileForKind(runtimeKind).isNXS() {
-		env[nxsCachedMicrocompactEnvName] = "1"
-		env[nxsAPIClearToolResultsEnvName] = "1"
-		env[nxsAPIClearToolUsesEnvName] = "1"
-		env[nxsPromptCache1hEligibleEnvName] = "1"
-		env[nxsPromptCache1hAllowlistEnvName] = "sdk"
-		applyNXSAgentSDKDiagnosticsEnv(env, agentSDKDiagnosticsEnabled)
-	}
-	return env
 }
 
-func applyNXSAgentSDKDiagnosticsEnv(env map[string]string, enabled bool) {
-	if enabled {
-		env[nxsAgentSDKDiagnosticsEnvName] = "stderr"
-		return
+func nxsDiagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]string {
+	if !enabled || !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
 	}
-	env[nxsAgentSDKDiagnosticsEnvName] = ""
-	env[nxsAgentSDKDebugEnvName] = ""
-	env[nxsAgentSDKProviderDebugBodyEnvName] = ""
+	return map[string]string{
+		runtimectx.AgentSDKDiagnosticsEnvName: "stderr",
+	}
 }
 
 func resolveRuntimeConfig(

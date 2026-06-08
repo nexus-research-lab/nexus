@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -225,29 +226,31 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsAllowsExtraEnvOverrideNXSCacheDefaults(t *testing.T) {
+func TestBuildAgentClientOptionsPreservesExplicitNXSRuntimeEnv(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
 		ExtraEnv: map[string]string{
-			nxsCachedMicrocompactEnvName:     "0",
-			nxsAPIClearToolResultsEnvName:    "",
-			nxsPromptCache1hEligibleEnvName:  "0",
-			nxsPromptCache1hAllowlistEnvName: "agent:*",
-			nxsAgentSDKDiagnosticsEnvName:    "",
+			"NEXUS_CACHED_MICROCOMPACT":           "0",
+			"NEXUS_API_CLEAR_TOOL_RESULTS":        "",
+			"NEXUS_PROMPT_CACHE_1H_ELIGIBLE":      "0",
+			"NEXUS_PROMPT_CACHE_1H_ALLOWLIST":     "agent:*",
+			runtimectx.AgentSDKDiagnosticsEnvName: "",
 		},
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[nxsCachedMicrocompactEnvName] != "0" ||
-		options.Env[nxsAPIClearToolResultsEnvName] != "" ||
-		options.Env[nxsPromptCache1hEligibleEnvName] != "0" ||
-		options.Env[nxsPromptCache1hAllowlistEnvName] != "agent:*" ||
-		options.Env[nxsAgentSDKDiagnosticsEnvName] != "" {
-		t.Fatalf("ExtraEnv 应覆盖 nxs cache 默认值: %+v", options.Env)
+	want := map[string]string{
+		"NEXUS_CACHED_MICROCOMPACT":           "0",
+		"NEXUS_API_CLEAR_TOOL_RESULTS":        "",
+		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE":      "0",
+		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST":     "agent:*",
+		runtimectx.AgentSDKDiagnosticsEnvName: "",
 	}
-	if options.Env[nxsAPIClearToolUsesEnvName] != "1" {
-		t.Fatalf("nxs tool use 清理默认值丢失: %+v", options.Env)
+	for key, value := range want {
+		if options.Env[key] != value {
+			t.Fatalf("%s = %q, want %q; env=%+v", key, options.Env[key], value, options.Env)
+		}
 	}
 }
 
@@ -279,9 +282,9 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	t.Setenv(nexusAppRootEnvName, "")
 	t.Setenv(nexusNXSCommandPathEnvName, "")
-	t.Setenv(nxsAgentSDKDiagnosticsEnvName, "stderr")
-	t.Setenv(nxsAgentSDKDebugEnvName, "1")
-	t.Setenv(nxsAgentSDKProviderDebugBodyEnvName, "full")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
+	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")
+	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
 
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
@@ -296,25 +299,17 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
 	}
 	for _, key := range []string{
-		nxsCachedMicrocompactEnvName,
-		nxsAPIClearToolResultsEnvName,
-		nxsAPIClearToolUsesEnvName,
-		nxsPromptCache1hEligibleEnvName,
+		"NEXUS_CACHED_MICROCOMPACT",
+		"NEXUS_API_CLEAR_TOOL_RESULTS",
+		"NEXUS_API_CLEAR_TOOL_USES",
+		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE",
+		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST",
+		runtimectx.AgentSDKDiagnosticsEnvName,
+		runtimectx.AgentSDKDebugEnvName,
+		runtimectx.AgentSDKProviderDebugBodyEnvName,
 	} {
-		if options.Env[key] != "1" {
-			t.Fatalf("%s = %q, want 1; env=%+v", key, options.Env[key], options.Env)
-		}
-	}
-	if options.Env[nxsPromptCache1hAllowlistEnvName] != "sdk" {
-		t.Fatalf("%s = %q, want sdk; env=%+v", nxsPromptCache1hAllowlistEnvName, options.Env[nxsPromptCache1hAllowlistEnvName], options.Env)
-	}
-	for _, key := range []string{
-		nxsAgentSDKDiagnosticsEnvName,
-		nxsAgentSDKDebugEnvName,
-		nxsAgentSDKProviderDebugBodyEnvName,
-	} {
-		if options.Env[key] != "" {
-			t.Fatalf("%s = %q, want empty; env=%+v", key, options.Env[key], options.Env)
+		if _, ok := options.Env[key]; ok {
+			t.Fatalf("%s 应由 bridge 处理或显式输入，不应由 Nexus 默认注入: %+v", key, options.Env)
 		}
 	}
 }
@@ -327,10 +322,10 @@ func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[nxsAgentSDKDiagnosticsEnvName] != "stderr" {
-		t.Fatalf("%s = %q, want stderr; env=%+v", nxsAgentSDKDiagnosticsEnvName, options.Env[nxsAgentSDKDiagnosticsEnvName], options.Env)
+	if options.Env[runtimectx.AgentSDKDiagnosticsEnvName] != "stderr" {
+		t.Fatalf("%s = %q, want stderr; env=%+v", runtimectx.AgentSDKDiagnosticsEnvName, options.Env[runtimectx.AgentSDKDiagnosticsEnvName], options.Env)
 	}
-	if _, ok := options.Env[nxsAgentSDKProviderDebugBodyEnvName]; ok {
+	if _, ok := options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName]; ok {
 		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)
 	}
 }

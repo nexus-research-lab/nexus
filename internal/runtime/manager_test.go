@@ -111,25 +111,7 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 }
 
-func TestRuntimeMCPControlDetectsServerChanges(t *testing.T) {
-	currentOptions := agentclient.Options{}
-	nextOptions := agentclient.Options{
-		MCP: agentclient.MCPOptions{
-			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_goal": sdkmcp.SDKServerConfig{Name: "nexus_goal", Instance: fakeSDKMCPServer{}},
-			},
-		},
-	}
-
-	if !shouldSyncMCPServersForRuntimeControl(currentOptions, nextOptions) {
-		t.Fatal("新增 MCP server 时应同步运行中 SDK client")
-	}
-	if shouldSyncMCPServersForRuntimeControl(nextOptions, nextOptions) {
-		t.Fatal("MCP server 配置未变化时不应重复同步")
-	}
-}
-
-func TestRuntimeMCPControlResolvesLegacySDKServers(t *testing.T) {
+func TestManagedGoalMCPCheckResolvesLegacySDKServers(t *testing.T) {
 	options := agentclient.Options{
 		MCP: agentclient.MCPOptions{
 			Servers: map[string]sdkmcp.ServerConfig{
@@ -142,7 +124,7 @@ func TestRuntimeMCPControlResolvesLegacySDKServers(t *testing.T) {
 		},
 	}
 
-	servers := resolvedMCPServersForRuntimeControl(options)
+	servers := resolvedMCPServersForManagedGoalCheck(options)
 	if len(servers) != 2 {
 		t.Fatalf("resolved servers = %+v, want 2", servers)
 	}
@@ -182,31 +164,6 @@ func TestRuntimeRestartsWhenManagedGoalMCPServerSetChanges(t *testing.T) {
 	}
 }
 
-func TestRuntimeRestartsWhenToolPolicyChanges(t *testing.T) {
-	currentOptions := agentclient.Options{
-		Tools: agentclient.ToolOptions{
-			Allow: []string{"Read", "create_goal"},
-			Deny:  []string{"ScheduleWakeup"},
-		},
-	}
-	nextOptions := agentclient.Options{
-		Tools: agentclient.ToolOptions{
-			Allow: []string{"Read", "create_goal", "mcp__nexus_goal__update_goal"},
-			Deny:  []string{"ScheduleWakeup"},
-		},
-	}
-
-	if !shouldRestartForToolPolicyChange(currentOptions, nextOptions) {
-		t.Fatal("工具白名单变化时应重建 SDK client")
-	}
-	if shouldRestartForToolPolicyChange(nextOptions, nextOptions) {
-		t.Fatal("工具策略未变化时不应重建 SDK client")
-	}
-	if !shouldReplaceRuntimeClientAfterReconfigureError(errRuntimeToolPolicyChanged) {
-		t.Fatal("工具策略变化错误应触发 client 替换")
-	}
-}
-
 func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	stale := &fakeRuntimeClient{
 		reconfigureErr: errors.New("client: send control request failed: process: write payload failed: write |1: The pipe has been ended"),
@@ -233,6 +190,38 @@ func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	}
 	if second != fresh {
 		t.Fatalf("transport 断开后未替换 client: got=%#v want=%#v", second, fresh)
+	}
+	if stale.disconnectCalls != 1 {
+		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
+	}
+}
+
+func TestManagerGetOrCreateReplacesClientWhenBridgeRequiresRestart(t *testing.T) {
+	stale := &fakeRuntimeClient{
+		reconfigureErr: &agentclient.RestartRequiredError{Reason: agentclient.RestartReasonProcessEnvChanged},
+	}
+	fresh := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:restart-required"
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"ANTHROPIC_AUTH_TOKEN": "old-token"},
+	})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"ANTHROPIC_AUTH_TOKEN": "new-token"},
+	})
+	if err != nil {
+		t.Fatalf("bridge 要求重启后应创建新 client: %v", err)
+	}
+
+	if first != stale {
+		t.Fatalf("首次 client 不正确: %#v", first)
+	}
+	if second != fresh {
+		t.Fatalf("bridge 要求重启后未替换 client: got=%#v want=%#v", second, fresh)
 	}
 	if stale.disconnectCalls != 1 {
 		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
@@ -276,7 +265,10 @@ func TestManagerGetOrCreateReplacesClientWhenBypassSwitchRequiresLaunchFlag(t *t
 
 func TestManagerGetOrCreateReplacesClientWhenMCPControlUnsupported(t *testing.T) {
 	stale := &fakeRuntimeClient{
-		reconfigureErr: errors.New("unsupported control request subtype: mcp_set_servers"),
+		reconfigureErr: &agentclient.RestartRequiredError{
+			Reason: agentclient.RestartReasonMCPControlUnsupported,
+			Cause:  errors.New("unsupported control request subtype: mcp_set_servers"),
+		},
 	}
 	fresh := &fakeRuntimeClient{}
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
@@ -342,22 +334,6 @@ func TestIsRuntimeTransportClosedError(t *testing.T) {
 	}
 	if IsRuntimeTransportClosedError(errors.New("permission mode is not supported")) {
 		t.Fatal("普通控制错误不应识别为 transport 断开")
-	}
-}
-
-func TestIsRuntimeControlRestartRequiredError(t *testing.T) {
-	cases := []error{
-		errors.New("unsupported control request subtype: mcp_set_servers"),
-		errors.New("MCP set servers is not supported by this runtime"),
-		errors.New("unknown mcp_set_servers control"),
-	}
-	for _, err := range cases {
-		if !IsRuntimeControlRestartRequiredError(err) {
-			t.Fatalf("应识别为需要重启的控制面错误: %v", err)
-		}
-	}
-	if IsRuntimeControlRestartRequiredError(errors.New("mcp_set_servers failed: invalid url")) {
-		t.Fatal("配置错误不应识别为必须重启")
 	}
 }
 

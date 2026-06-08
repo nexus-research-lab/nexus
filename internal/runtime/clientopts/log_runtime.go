@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -21,6 +22,76 @@ func ResolvedRuntimeProvider(provider string, options agentclient.Options) strin
 
 // RuntimeStartupLogFields 构造安全的 runtime 启动日志字段。
 func RuntimeStartupLogFields(options agentclient.Options) []any {
+	if !shouldUseBridgeLaunchSnapshot(options) {
+		return legacyRuntimeStartupLogFields(options)
+	}
+	snapshot, err := options.RuntimeLaunchSnapshot()
+	if err != nil {
+		return append(legacyRuntimeStartupLogFields(options), "launch_snapshot_error", err.Error())
+	}
+	return []any{
+		"runtime_kind", string(snapshot.RuntimeKind),
+		"runtime_model", strings.TrimSpace(options.Model),
+		"permission_mode", string(options.Runtime.PermissionMode),
+		"allow_skip_permissions", options.Runtime.AllowDangerouslySkipPermissions,
+		"cli_path", strings.TrimSpace(options.CLIPath),
+		"executable", strings.TrimSpace(options.Executable),
+		"path_to_executable", strings.TrimSpace(options.PathToExecutable),
+		"runtime_transport", snapshot.Transport,
+		"command_path", strings.TrimSpace(snapshot.CommandPath),
+		"runtime_args", append([]string(nil), snapshot.Args...),
+		"runtime_arg_fingerprint", snapshot.ArgFingerprint,
+		"cwd", strings.TrimSpace(snapshot.CWD),
+		"resume_id_present", strings.TrimSpace(options.Session.ResumeID) != "",
+		"max_thinking_tokens", options.Runtime.MaxThinkingTokens,
+		"max_turns", options.Runtime.MaxTurns,
+		"setting_sources", append([]string(nil), options.SettingSources...),
+		"allowed_tools_count", len(options.Tools.Allow),
+		"denied_tools_count", len(options.Tools.Deny),
+		"mcp_servers_count", len(options.MCP.Servers),
+		"runtime_env_keys", append([]string(nil), snapshot.EnvKeys...),
+		"runtime_explicit_env_keys", append([]string(nil), snapshot.ExplicitEnvKeys...),
+		"runtime_sdk_env_keys", append([]string(nil), snapshot.SDKEnvKeys...),
+		"runtime_env_fingerprint", snapshot.EnvFingerprint,
+		"options_fingerprint", snapshot.Fingerprint.Full,
+		"restart_sensitive_fingerprint", snapshot.Fingerprint.RestartSensitive,
+		"process_env_fingerprint", snapshot.Fingerprint.ProcessEnv,
+		"tool_policy_fingerprint", snapshot.Fingerprint.ToolPolicy,
+		"mcp_servers_fingerprint", snapshot.Fingerprint.MCPServers,
+		"runtime_controls_fingerprint", snapshot.Fingerprint.RuntimeControls,
+		"api_provider_env", strings.TrimSpace(options.Env[nexusAPIProviderEnvName]),
+		"nexus_runtime_provider_env", strings.TrimSpace(options.Env[NexusRuntimeProviderEnvName]),
+		"anthropic_base_url_env", RuntimeEnvConfigured(options.Env, anthropicBaseURLEnvName),
+		"anthropic_model_env", RuntimeEnvConfigured(options.Env, anthropicModelEnvName),
+		"anthropic_auth_token_env", RuntimeEnvConfigured(options.Env, anthropicAuthTokenEnvName),
+		"anthropic_api_key_env", RuntimeEnvConfigured(options.Env, anthropicAPIKeyEnvName),
+		"openai_base_url_env", RuntimeEnvConfigured(options.Env, "OPENAI_BASE_URL"),
+		"openai_model_env", RuntimeEnvConfigured(options.Env, "OPENAI_MODEL"),
+		"openai_api_key_env", RuntimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
+		"nxs_command_path_env", RuntimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
+		"diagnostics_enabled", runtimectx.AgentSDKDiagnosticsEnabled(options.Env),
+		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
+	}
+}
+
+func shouldUseBridgeLaunchSnapshot(options agentclient.Options) bool {
+	if options.DirectConnect != nil {
+		return true
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		return true
+	}
+	return strings.TrimSpace(options.CLIPath) != "" ||
+		strings.TrimSpace(options.Executable) != "" ||
+		strings.TrimSpace(options.PathToExecutable) != "" ||
+		strings.TrimSpace(os.Getenv(nexusNXSCommandPathEnvName)) != "" ||
+		strings.TrimSpace(os.Getenv(nexusAppRootEnvName)) != "" ||
+		strings.TrimSpace(os.Getenv(nexusNXSRuntimeCacheDirEnvName)) != "" ||
+		strings.TrimSpace(os.Getenv(nexusNXSRuntimeManifestURLEnvName)) != "" ||
+		strings.TrimSpace(os.Getenv(nexusNXSRuntimeReleaseEnvName)) != ""
+}
+
+func legacyRuntimeStartupLogFields(options agentclient.Options) []any {
 	return []any{
 		"runtime_kind", string(options.Runtime.Kind),
 		"runtime_model", strings.TrimSpace(options.Model),

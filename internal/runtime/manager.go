@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -25,7 +24,6 @@ var (
 	// ErrStreamingInputUnsupported 表示底层 client 不支持流式排队输入。
 	ErrStreamingInputUnsupported      = errors.New("runtime client does not support streaming input")
 	errManagedGoalMCPServerSetChanged = errors.New("runtime client restart required: managed goal mcp server set changed")
-	errRuntimeToolPolicyChanged       = errors.New("runtime client restart required: tool policy changed")
 )
 
 // Client 抽象出运行时需要的最小 SDK 能力，便于测试替身接入。
@@ -186,10 +184,7 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 		if shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
 			return errManagedGoalMCPServerSetChanged
 		}
-		if shouldRestartForToolPolicyChange(currentOptions, options) {
-			return errRuntimeToolPolicyChanged
-		}
-		if err := applyRuntimeControls(ctx, session, currentOptions, options); err != nil {
+		if err := session.Reconfigure(ctx, options); err != nil {
 			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
 				closeSDKSession(session)
 			}
@@ -301,53 +296,6 @@ func (f defaultFactory) New(options agentclient.Options) Client {
 	return WrapSDKClient(options)
 }
 
-func applyRuntimeControls(
-	ctx context.Context,
-	session *agentclient.Session,
-	currentOptions agentclient.Options,
-	nextOptions agentclient.Options,
-) error {
-	control := session.Control()
-	if nextOptions.Runtime.PermissionMode != "" &&
-		nextOptions.Runtime.PermissionMode != currentOptions.Runtime.PermissionMode {
-		if err := control.SetPermissionMode(ctx, nextOptions.Runtime.PermissionMode); err != nil {
-			return err
-		}
-	}
-
-	nextModel := strings.TrimSpace(nextOptions.Model)
-	currentModel := strings.TrimSpace(currentOptions.Model)
-	if nextModel != "" && nextModel != currentModel {
-		if err := control.SetModel(ctx, nextModel); err != nil {
-			return err
-		}
-	}
-
-	nextMaxThinkingTokens := nextOptions.Runtime.MaxThinkingTokens
-	if nextMaxThinkingTokens > 0 &&
-		nextMaxThinkingTokens != currentOptions.Runtime.MaxThinkingTokens {
-		if err := control.SetMaxThinkingTokens(ctx, nextMaxThinkingTokens); err != nil {
-			return err
-		}
-	}
-	if shouldSyncMCPServersForRuntimeControl(currentOptions, nextOptions) {
-		if _, err := session.MCP().SetServers(ctx, resolvedMCPServersForRuntimeControl(nextOptions)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func shouldSyncMCPServersForRuntimeControl(
-	currentOptions agentclient.Options,
-	nextOptions agentclient.Options,
-) bool {
-	return !reflect.DeepEqual(
-		resolvedMCPServersForRuntimeControl(currentOptions),
-		resolvedMCPServersForRuntimeControl(nextOptions),
-	)
-}
-
 func shouldRestartForManagedGoalMCPServerSetChange(
 	currentOptions agentclient.Options,
 	nextOptions agentclient.Options,
@@ -356,24 +304,16 @@ func shouldRestartForManagedGoalMCPServerSetChange(
 		hasMCPServer(nextOptions, managedGoalMCPServerName)
 }
 
-func shouldRestartForToolPolicyChange(
-	currentOptions agentclient.Options,
-	nextOptions agentclient.Options,
-) bool {
-	return !reflect.DeepEqual(currentOptions.Tools.Allow, nextOptions.Tools.Allow) ||
-		!reflect.DeepEqual(currentOptions.Tools.Deny, nextOptions.Tools.Deny)
-}
-
 func hasMCPServer(options agentclient.Options, name string) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	servers := resolvedMCPServersForRuntimeControl(options)
+	servers := resolvedMCPServersForManagedGoalCheck(options)
 	_, ok := servers[name]
 	return ok
 }
 
-func resolvedMCPServersForRuntimeControl(options agentclient.Options) map[string]sdkmcp.ServerConfig {
+func resolvedMCPServersForManagedGoalCheck(options agentclient.Options) map[string]sdkmcp.ServerConfig {
 	if len(options.MCP.Servers) == 0 && len(options.MCP.SDKServers) == 0 {
 		return nil
 	}
@@ -493,8 +433,7 @@ func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
 	return IsRuntimeTransportClosedError(err) ||
 		errors.Is(err, agentclient.ErrBypassPermissionsNotAllowed) ||
 		errors.Is(err, errManagedGoalMCPServerSetChanged) ||
-		errors.Is(err, errRuntimeToolPolicyChanged) ||
-		IsRuntimeControlRestartRequiredError(err)
+		errors.Is(err, agentclient.ErrRestartRequired)
 }
 
 func (m *Manager) replaceRuntimeClient(
@@ -546,20 +485,6 @@ func IsRuntimeTransportClosedError(err error) bool {
 		strings.Contains(message, "stream closed") ||
 		strings.Contains(message, "file already closed") ||
 		strings.Contains(message, "client: not connected")
-}
-
-// IsRuntimeControlRestartRequiredError 判断控制面不支持运行时热更新、必须重建 SDK client 的情况。
-func IsRuntimeControlRestartRequiredError(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	if !(strings.Contains(message, "mcp_set_servers") || strings.Contains(message, "mcp set servers")) {
-		return false
-	}
-	return strings.Contains(message, "unsupported") ||
-		strings.Contains(message, "not supported") ||
-		strings.Contains(message, "unknown")
 }
 
 func closeSDKSession(session *agentclient.Session) {
