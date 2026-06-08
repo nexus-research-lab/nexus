@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-06-08
+
 ### Changed
 - Defaulted new and unset Agent runtime preferences to `nxs` while keeping explicit Claude overrides available.
-- Enabled cached microcompact and API context-management cleanup by default for `nxs` Agent runtime sessions.
-- Enabled Claude Code-style 1h prompt cache TTL by default for `nxs` Agent runtime sessions.
-- Added an opt-in Agent SDK diagnostics setting for `nxs` Agent runtime sessions, surfaced Agent SDK transport diagnostics in Nexus logs when enabled, and included runtime debug logs in desktop log exports.
+- Enabled `nxs` runtime session defaults for cached microcompact, API context cleanup, and Claude Code-style 1h prompt cache TTL.
+- Added an opt-in Agent SDK diagnostics setting for `nxs`, surfaced transport diagnostics in Nexus logs, and included runtime debug logs in desktop log exports.
+- Updated the Nexus Agent SDK Bridge checksum metadata for `v0.1.8` so release builds work without a local bridge workspace.
 - Passed Anthropic-compatible Agent runtime credentials through `ANTHROPIC_AUTH_TOKEN` for API-backed Agent sessions.
 
 ## [0.1.16] - 2026-06-05
