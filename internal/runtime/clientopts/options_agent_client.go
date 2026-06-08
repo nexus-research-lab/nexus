@@ -3,6 +3,7 @@ package clientopts
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -30,6 +31,12 @@ const nxsPromptCache1hAllowlistEnvName = "NEXUS_PROMPT_CACHE_1H_ALLOWLIST"
 const nxsAgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
 const nxsAgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
 const nxsAgentSDKProviderDebugBodyEnvName = "NEXUS_AGENT_SDK_PROVIDER_DEBUG_BODY"
+const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
+const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
+const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
+const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
+const anthropicModelEnvName = "ANTHROPIC_MODEL"
+const firstPartyAnthropicAPIHost = "api.anthropic.com"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -212,16 +219,17 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 
 func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	env := map[string]string{
-		"ANTHROPIC_BASE_URL":             runtimeConfig.BaseURL,
-		"ANTHROPIC_API_KEY":              runtimeConfig.AuthToken,
-		"ANTHROPIC_MODEL":                runtimeConfig.Model,
+		anthropicBaseURLEnvName:          runtimeConfig.BaseURL,
+		anthropicAPIKeyEnvName:           runtimeConfig.AuthToken,
+		anthropicModelEnvName:            runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
 		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
-		"NEXUS_API_PROVIDER":             "anthropic-compatible",
+		nexusAPIProviderEnvName:          "anthropic-compatible",
 	}
+	applyAnthropicCompatibleBearerEnv(env, runtimeConfig)
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
@@ -231,6 +239,30 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 	return env
 }
 
+func applyAnthropicCompatibleBearerEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+	token := strings.TrimSpace(runtimeConfig.AuthToken)
+	if token == "" || isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
+		return
+	}
+	env[anthropicAuthTokenEnvName] = token
+}
+
+func isFirstPartyAnthropicBaseURL(baseURL string) bool {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == "" {
+		return true
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return false
+	}
+	return strings.EqualFold(host, firstPartyAnthropicAPIHost)
+}
+
 func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	return map[string]string{
 		"OPENAI_API_KEY":             runtimeConfig.AuthToken,
@@ -238,7 +270,7 @@ func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string 
 		"OPENAI_MODEL":               runtimeConfig.Model,
 		"CLAUDE_CODE_SUBAGENT_MODEL": runtimeConfig.Model,
 		NexusRuntimeProviderEnvName:  runtimeConfig.Provider,
-		"NEXUS_API_PROVIDER":         "openai",
+		nexusAPIProviderEnvName:      "openai",
 	}
 }
 

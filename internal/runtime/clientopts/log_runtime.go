@@ -9,8 +9,6 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
-const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
-
 // ResolvedRuntimeProvider 返回 SDK runtime 实际使用的 provider key。
 func ResolvedRuntimeProvider(provider string, options agentclient.Options) string {
 	if options.Env != nil {
@@ -41,10 +39,10 @@ func RuntimeStartupLogFields(options agentclient.Options) []any {
 		"mcp_servers_count", len(options.MCP.Servers),
 		"api_provider_env", strings.TrimSpace(options.Env[nexusAPIProviderEnvName]),
 		"nexus_runtime_provider_env", strings.TrimSpace(options.Env[NexusRuntimeProviderEnvName]),
-		"anthropic_base_url_env", RuntimeEnvConfigured(options.Env, "ANTHROPIC_BASE_URL"),
-		"anthropic_model_env", RuntimeEnvConfigured(options.Env, "ANTHROPIC_MODEL"),
-		"anthropic_auth_token_env", RuntimeEnvConfigured(options.Env, "ANTHROPIC_AUTH_TOKEN"),
-		"anthropic_api_key_env", RuntimeEnvConfigured(options.Env, "ANTHROPIC_API_KEY"),
+		"anthropic_base_url_env", RuntimeEnvConfigured(options.Env, anthropicBaseURLEnvName),
+		"anthropic_model_env", RuntimeEnvConfigured(options.Env, anthropicModelEnvName),
+		"anthropic_auth_token_env", RuntimeEnvConfigured(options.Env, anthropicAuthTokenEnvName),
+		"anthropic_api_key_env", RuntimeEnvConfigured(options.Env, anthropicAPIKeyEnvName),
 		"openai_base_url_env", RuntimeEnvConfigured(options.Env, "OPENAI_BASE_URL"),
 		"openai_model_env", RuntimeEnvConfigured(options.Env, "OPENAI_MODEL"),
 		"openai_api_key_env", RuntimeEnvConfigured(options.Env, "OPENAI_API_KEY"),

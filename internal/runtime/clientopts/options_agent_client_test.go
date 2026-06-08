@@ -92,16 +92,13 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if !options.Runtime.AllowDangerouslySkipPermissions {
 		t.Fatalf("运行时应允许后续切换到 bypassPermissions，避免复用 session 时发送失败")
 	}
-	if options.Env["ANTHROPIC_MODEL"] != "kimi-k2" {
+	if options.Env[anthropicModelEnvName] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
-	if options.Env["ANTHROPIC_API_KEY"] != "token-1" {
+	if options.Env[anthropicAPIKeyEnvName] != "token-1" {
 		t.Fatalf("Anthropic-compatible API key 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
-		t.Fatalf("Anthropic-compatible runtime 不应把 API key 写入 OAuth token env: %+v", options.Env)
-	}
-	if options.Env["NEXUS_API_PROVIDER"] != "anthropic-compatible" {
+	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
 	}
 	if options.Model != "kimi-k2" {
@@ -144,11 +141,40 @@ func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env["ANTHROPIC_API_KEY"] != "official-key" {
+	if options.Env[anthropicAPIKeyEnvName] != "official-key" {
 		t.Fatalf("官方 Anthropic API key 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+	if _, ok := options.Env[anthropicAuthTokenEnvName]; ok {
 		t.Fatalf("官方 Anthropic runtime 不应写入 OAuth token env: %+v", options.Env)
+	}
+}
+
+func TestAnthropicRuntimeEnvUsesBearerTokenForCompatibleGateways(t *testing.T) {
+	tests := []struct {
+		name      string
+		baseURL   string
+		authToken string
+		wantToken string
+	}{
+		{name: "compatible gateway", baseURL: "https://provider.example.com/anthropic", authToken: "token-1", wantToken: "token-1"},
+		{name: "first party anthropic", baseURL: "https://api.anthropic.com", authToken: "token-1"},
+		{name: "empty base url defaults first party", baseURL: "", authToken: "token-1"},
+		{name: "empty token", baseURL: "https://provider.example.com/anthropic", authToken: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
+				AuthToken: tt.authToken,
+				BaseURL:   tt.baseURL,
+				Model:     "model-1",
+			})
+			if got := env[anthropicAuthTokenEnvName]; got != tt.wantToken {
+				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAuthTokenEnvName, got, tt.wantToken, env)
+			}
+			if tt.authToken != "" && env[anthropicAPIKeyEnvName] != tt.authToken {
+				t.Fatalf("%s = %q, want %q; env=%+v", anthropicAPIKeyEnvName, env[anthropicAPIKeyEnvName], tt.authToken, env)
+			}
+		})
 	}
 }
 
@@ -303,17 +329,17 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 		"OPENAI_MODEL":               "gpt-4o",
 		"CLAUDE_CODE_SUBAGENT_MODEL": "gpt-4o",
 		NexusRuntimeProviderEnvName:  "openai",
-		"NEXUS_API_PROVIDER":         "openai",
+		nexusAPIProviderEnvName:      "openai",
 	}
 	for key, want := range wantEnv {
 		if options.Env[key] != want {
 			t.Fatalf("%s=%q, want %q; env=%+v", key, options.Env[key], want, options.Env)
 		}
 	}
-	if _, ok := options.Env["ANTHROPIC_AUTH_TOKEN"]; ok {
+	if _, ok := options.Env[anthropicAuthTokenEnvName]; ok {
 		t.Fatalf("nxs chat_completions 不应注入 Anthropic token: %+v", options.Env)
 	}
-	if _, ok := options.Env["ANTHROPIC_API_KEY"]; ok {
+	if _, ok := options.Env[anthropicAPIKeyEnvName]; ok {
 		t.Fatalf("nxs chat_completions 不应注入 Anthropic API key: %+v", options.Env)
 	}
 	if options.Model != "gpt-4o" {
