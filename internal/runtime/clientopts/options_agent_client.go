@@ -220,7 +220,6 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
 	env := map[string]string{
 		anthropicBaseURLEnvName:          runtimeConfig.BaseURL,
-		anthropicAPIKeyEnvName:           runtimeConfig.AuthToken,
 		anthropicModelEnvName:            runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
@@ -229,7 +228,7 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 		nexusAPIProviderEnvName:          "anthropic-compatible",
 	}
-	applyAnthropicCompatibleBearerEnv(env, runtimeConfig)
+	applyAnthropicCredentialsEnv(env, runtimeConfig)
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
@@ -239,9 +238,13 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 	return env
 }
 
-func applyAnthropicCompatibleBearerEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
 	token := strings.TrimSpace(runtimeConfig.AuthToken)
-	if token == "" || isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
+	if token == "" {
+		return
+	}
+	if isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
+		env[anthropicAPIKeyEnvName] = token
 		return
 	}
 	env[anthropicAuthTokenEnvName] = token
