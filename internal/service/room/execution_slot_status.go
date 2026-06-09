@@ -11,7 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 )
 
 func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {
@@ -30,34 +30,30 @@ func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *active
 }
 
 func (s *RealtimeService) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
-	if s.history == nil || !workspacestore.IsTranscriptSessionID(sessionID) {
+	workspacePath := slotWorkspacePath(slot)
+	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	if decision.Allowed {
 		return true
 	}
-	workspacePath := ""
-	if slot != nil {
-		workspacePath = slot.WorkspacePath
-	}
-	exists, err := s.history.TranscriptSessionExists(workspacePath, sessionID)
-	if err != nil {
+	if decision.Err != nil {
 		s.loggerFor(ctx).Warn("检查 Room SDK session transcript 失败，暂不持久化 resume",
 			"agent_id", slotAgentID(slot),
 			"agent_round_id", slotAgentRoundID(slot),
 			"runtime_session_key", slotRuntimeSessionKey(slot),
 			"workspace_path", workspacePath,
-			"sdk_session_id", sessionID,
-			"err", err,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
 		)
 		return false
-	}
-	if exists {
-		return true
 	}
 	s.loggerFor(ctx).Warn("Room SDK session transcript 尚未落盘，暂不持久化 resume",
 		"agent_id", slotAgentID(slot),
 		"agent_round_id", slotAgentRoundID(slot),
 		"runtime_session_key", slotRuntimeSessionKey(slot),
 		"workspace_path", workspacePath,
-		"sdk_session_id", sessionID,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
 	)
 	return false
 }
@@ -96,6 +92,13 @@ func slotRuntimeSessionKey(slot *activeRoomSlot) string {
 		return ""
 	}
 	return strings.TrimSpace(slot.RuntimeSessionKey)
+}
+
+func slotWorkspacePath(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return strings.TrimSpace(slot.WorkspacePath)
 }
 
 func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {

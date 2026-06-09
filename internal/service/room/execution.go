@@ -22,6 +22,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -489,28 +490,25 @@ func (s *RealtimeService) resolveReusableRoomSDKSessionID(
 	if resumeID == "" {
 		return "", nil
 	}
-	if s.history == nil {
+	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	if decision.Allowed {
 		return resumeID, nil
 	}
-
-	transcriptExists, transcriptErr := s.history.TranscriptSessionExists(workspacePath, resumeID)
-	if transcriptErr != nil {
+	if decision.Err != nil {
 		logger.Warn("检查 Room SDK session transcript 失败，跳过过期 resume",
 			"agent_id", slot.AgentID,
 			"agent_round_id", slot.AgentRoundID,
 			"runtime_session_key", slot.RuntimeSessionKey,
 			"room_session_id", slot.RoomSessionID,
 			"workspace_path", workspacePath,
-			"sdk_session_id", resumeID,
-			"err", transcriptErr,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
 		)
 		if clearErr := s.clearSlotSDKSessionID(ctx, slot); clearErr != nil {
 			return "", clearErr
 		}
 		return "", nil
-	}
-	if transcriptExists {
-		return resumeID, nil
 	}
 
 	logger.Warn("Room SDK session transcript 不存在，跳过过期 resume",
@@ -519,7 +517,8 @@ func (s *RealtimeService) resolveReusableRoomSDKSessionID(
 		"runtime_session_key", slot.RuntimeSessionKey,
 		"room_session_id", slot.RoomSessionID,
 		"workspace_path", workspacePath,
-		"sdk_session_id", resumeID,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
 	)
 	if err := s.clearSlotSDKSessionID(ctx, slot); err != nil {
 		return "", err

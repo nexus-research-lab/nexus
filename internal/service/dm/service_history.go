@@ -9,6 +9,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -283,26 +284,25 @@ func (s *Service) canPersistSDKSessionID(
 	current protocol.Session,
 	sessionID string,
 ) bool {
-	if s.history == nil || !workspacestore.IsTranscriptSessionID(sessionID) {
+	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	if decision.Allowed {
 		return true
 	}
-	exists, err := s.history.TranscriptSessionExists(workspacePath, sessionID)
-	if err != nil {
+	if decision.Err != nil {
 		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
 			"session_key", current.SessionKey,
 			"workspace_path", workspacePath,
-			"sdk_session_id", sessionID,
-			"err", err,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
 		)
 		return false
-	}
-	if exists {
-		return true
 	}
 	s.loggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
 		"session_key", current.SessionKey,
 		"workspace_path", workspacePath,
-		"sdk_session_id", sessionID,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
 	)
 	return false
 }
