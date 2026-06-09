@@ -13,7 +13,6 @@ import (
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -393,8 +392,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 			t.Fatalf("Room 固定规则不应包含动态变量 %q:\n%s", unexpected, roomSystemPrompt)
 		}
 	}
-	if got := factory.LastOptions().Env["NEXUS_PROJECT_ROOT"]; got != appfs.Root() {
-		t.Fatalf("Room runtime 未注入项目根目录: got=%q want=%q", got, appfs.Root())
+	if got := strings.TrimSpace(factory.LastOptions().Env["NEXUS_PROJECT_ROOT"]); got != "" {
+		t.Fatalf("Room runtime 不应再注入项目根目录: got=%q", got)
+	}
+	if got := strings.TrimSpace(factory.LastOptions().Env["NEXUSCTL_COMMAND_PATH"]); got == "" {
+		t.Fatalf("Room runtime 应注入明确 nexusctl 命令路径: %+v", factory.LastOptions().Env)
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)

@@ -386,7 +386,6 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 		commandPath = nexusctlShimPath(binDir)
 	}
 	env := map[string]string{
-		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
 		nexusctlCommandPathEnvName:   commandPath,
 		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,
 	}

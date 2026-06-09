@@ -445,9 +445,6 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	if options.Env[nexusctlCommandPathEnvName] != nexusctlShimPath(expectedBinDir) {
 		t.Fatalf("运行时未注入明确 nexusctl 命令路径: %+v", options.Env)
 	}
-	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
-		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
-	}
 	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
 		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
 	}
