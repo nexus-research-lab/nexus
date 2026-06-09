@@ -188,21 +188,46 @@ func (s *Service) resolveReusableSDKSessionID(
 	actualProvider = strings.TrimSpace(actualProvider)
 	actualModel = strings.TrimSpace(actualModel)
 	hasFingerprint := hasKindFingerprint || hasProviderFingerprint || hasModelFingerprint
-	if hasFingerprint &&
+	fingerprintMatches := hasFingerprint &&
 		(!hasKindFingerprint || actualKind == expectedKind) &&
 		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
-		(!hasModelFingerprint || actualModel == expectedModel) {
-		if !hasKindFingerprint || !hasProviderFingerprint || !hasModelFingerprint {
-			s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
-		}
-		return resumeID
-	}
-	if !hasFingerprint {
+		(!hasModelFingerprint || actualModel == expectedModel)
+	if s.history == nil {
 		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
 		return resumeID
 	}
-	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过过期 SDK session resume",
+
+	transcriptExists, transcriptErr := s.history.TranscriptSessionExists(workspacePath, resumeID)
+	if transcriptErr != nil {
+		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，跳过过期 resume",
+			"session_key", sessionItem.SessionKey,
+			"workspace_path", workspacePath,
+			"sdk_session_id", resumeID,
+			"err", transcriptErr,
+		)
+		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
+		return ""
+	}
+	if transcriptExists {
+		if !fingerprintMatches {
+			s.loggerFor(ctx).Info("DM session runtime 配置已变更但 transcript 可恢复，继续 resume",
+				"session_key", sessionItem.SessionKey,
+				"sdk_session_id", resumeID,
+				"old_runtime_kind", actualKind,
+				"new_runtime_kind", expectedKind,
+				"old_provider", actualProvider,
+				"new_provider", expectedProvider,
+				"old_model", actualModel,
+				"new_model", expectedModel,
+			)
+		}
+		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
+		return resumeID
+	}
+
+	s.loggerFor(ctx).Warn("DM SDK session transcript 不存在，跳过过期 resume",
 		"session_key", sessionItem.SessionKey,
+		"sdk_session_id", resumeID,
 		"old_runtime_kind", actualKind,
 		"new_runtime_kind", expectedKind,
 		"old_provider", actualProvider,

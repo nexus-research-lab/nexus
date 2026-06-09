@@ -286,6 +286,19 @@ func (slot *activeRoomSlot) setSDKSessionID(sessionID string) bool {
 	return true
 }
 
+func (slot *activeRoomSlot) clearSDKSessionID() bool {
+	if slot == nil {
+		return false
+	}
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if strings.TrimSpace(slot.SDKSessionID) == "" {
+		return false
+	}
+	slot.SDKSessionID = ""
+	return true
+}
+
 func (slot *activeRoomSlot) getSDKSessionID() string {
 	if slot == nil {
 		return ""
