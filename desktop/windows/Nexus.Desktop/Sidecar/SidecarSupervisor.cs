@@ -95,7 +95,8 @@ internal sealed class SidecarSupervisor : IDisposable
 
         startInfo.Environment["NEXUS_APP_MODE"] = "desktop";
         startInfo.Environment["NEXUS_APP_ROOT"] = locator.AppRoot;
-        startInfo.Environment["NEXUS_CONFIG_DIR"] = DesktopPaths.ConfigDirectory;
+        startInfo.Environment["NEXUS_CONFIG_DIR"] = DesktopPaths.RootDirectory;
+        startInfo.Environment["CLAUDE_CONFIG_DIR"] = DesktopPaths.RootDirectory;
         startInfo.Environment["HOST"] = "127.0.0.1";
         startInfo.Environment["PORT"] = runtime.Port.ToString();
         startInfo.Environment["NEXUS_DESKTOP_SESSION_TOKEN"] = runtime.SessionToken;
@@ -194,6 +195,7 @@ internal sealed class SidecarSupervisor : IDisposable
         Directory.CreateDirectory(DesktopPaths.DataDirectory);
         Directory.CreateDirectory(DesktopPaths.ConfigDirectory);
         Directory.CreateDirectory(DesktopPaths.WorkspaceDirectory);
+        Directory.CreateDirectory(DesktopPaths.ProjectsDirectory);
         Directory.CreateDirectory(DesktopPaths.CacheDirectory);
         Directory.CreateDirectory(DesktopPaths.LogsDirectory);
         Directory.CreateDirectory(DesktopPaths.DebugDirectory);

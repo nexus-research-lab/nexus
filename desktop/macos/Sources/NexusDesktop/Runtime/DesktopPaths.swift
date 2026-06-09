@@ -17,6 +17,10 @@ enum DesktopPaths {
     rootDirectory.appendingPathComponent("workspace", isDirectory: true)
   }
 
+  static var projectsDirectory: URL {
+    rootDirectory.appendingPathComponent("projects", isDirectory: true)
+  }
+
   static var cacheDirectory: URL {
     rootDirectory.appendingPathComponent("cache", isDirectory: true)
   }
@@ -38,7 +42,7 @@ enum DesktopPaths {
   }
 
   static func createRuntimeDirectories() throws {
-    for directory in [rootDirectory, dataDirectory, configDirectory, workspaceDirectory, cacheDirectory, logsDirectory, debugDirectory] {
+    for directory in [rootDirectory, dataDirectory, configDirectory, workspaceDirectory, projectsDirectory, cacheDirectory, logsDirectory, debugDirectory] {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
   }
