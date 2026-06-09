@@ -31,6 +31,7 @@ type Control interface {
 	DeletePairing(context.Context, string, string) error
 	ResolveChannelOwnerByConfig(context.Context, string, string, string) (string, error)
 	PrepareFeishuIngress(context.Context, []byte, http.Header) (channelspkg.FeishuIngressPreparation, error)
+	PrepareWeChatIngress(context.Context, []byte, *http.Request) (channelspkg.WeChatIngressPreparation, error)
 }
 
 // Handlers 封装通道域 HTTP handlers。
@@ -196,6 +197,49 @@ func (h *Handlers) HandleTelegramChannelIngress(writer http.ResponseWriter, requ
 	h.handleChannelIngressByName(writer, request, channelspkg.ChannelTypeTelegram)
 }
 
+func (h *Handlers) HandleDingTalkChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	if h.ingress == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(request.Body, 1<<20))
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	callbackRequest, ignoredReason, err := channelspkg.DecodeDingTalkIngressCallback(body)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if callbackRequest == nil {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted": false,
+			"ignored":  true,
+			"reason":   ignoredReason,
+		})
+		return
+	}
+	result, err := h.ingress.Accept(request.Context(), *callbackRequest)
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
+	if err != nil {
+		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
 func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, request *http.Request) {
 	if h.ingress == nil {
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
@@ -261,6 +305,79 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 	}
 
 	result, err := h.ingress.Accept(request.Context(), *callback.Request)
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
+	if err != nil {
+		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+func (h *Handlers) HandleWeChatChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	if h.ingress == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
+		return
+	}
+	if h.control == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel control is not configured")
+		return
+	}
+	if request.Method == http.MethodGet {
+		prepared, err := h.control.PrepareWeChatIngress(request.Context(), nil, request)
+		if errors.Is(err, channelspkg.ErrWeChatCallbackUnauthorized) {
+			h.api.WriteFailure(writer, http.StatusUnauthorized, "wechat callback verification failed")
+			return
+		}
+		if err != nil {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(prepared.Challenge))
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(request.Body, 1<<20))
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	prepared, err := h.control.PrepareWeChatIngress(request.Context(), body, request)
+	if errors.Is(err, channelspkg.ErrWeChatCallbackUnauthorized) {
+		h.api.WriteFailure(writer, http.StatusUnauthorized, "wechat callback verification failed")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	callbackRequest, ignoredReason, err := channelspkg.DecodeWeChatIngressCallback(prepared.Body)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if callbackRequest == nil {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted": false,
+			"ignored":  true,
+			"reason":   ignoredReason,
+		})
+		return
+	}
+	callbackRequest.OwnerUserID = strings.TrimSpace(prepared.OwnerUserID)
+	result, err := h.ingress.Accept(request.Context(), *callbackRequest)
 	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
 		h.api.WriteSuccess(writer, map[string]any{
 			"accepted":         false,

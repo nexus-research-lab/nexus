@@ -36,10 +36,12 @@ func (f *fakeIngress) Accept(_ context.Context, request channelspkg.IngressReque
 }
 
 type fakeControl struct {
-	prepared      channelspkg.FeishuIngressPreparation
-	prepareErr    error
-	ownerByConfig string
-	ownerErr      error
+	prepared       channelspkg.FeishuIngressPreparation
+	prepareErr     error
+	wechatPrepared channelspkg.WeChatIngressPreparation
+	wechatErr      error
+	ownerByConfig  string
+	ownerErr       error
 }
 
 func (f *fakeControl) ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error) {
@@ -76,6 +78,10 @@ func (f *fakeControl) ResolveChannelOwnerByConfig(context.Context, string, strin
 
 func (f *fakeControl) PrepareFeishuIngress(context.Context, []byte, http.Header) (channelspkg.FeishuIngressPreparation, error) {
 	return f.prepared, f.prepareErr
+}
+
+func (f *fakeControl) PrepareWeChatIngress(context.Context, []byte, *http.Request) (channelspkg.WeChatIngressPreparation, error) {
+	return f.wechatPrepared, f.wechatErr
 }
 
 func TestHandleInternalChannelIngressOverridesChannel(t *testing.T) {
@@ -208,5 +214,44 @@ func TestHandleFeishuChannelIngressUsesPreparedOwner(t *testing.T) {
 	}
 	if ingress.requests[0].OwnerUserID != "owner-a" {
 		t.Fatalf("Feishu handler 应把配置解析出的 owner 传给 ingress: %+v", ingress.requests[0])
+	}
+}
+
+func TestHandleWeChatChannelIngressUsesPreparedOwner(t *testing.T) {
+	ingress := &fakeIngress{}
+	plain := []byte(`<xml>
+		<ToUserName><![CDATA[ww_corp]]></ToUserName>
+		<FromUserName><![CDATA[zhangsan]]></FromUserName>
+		<CreateTime>1700000000</CreateTime>
+		<MsgType><![CDATA[text]]></MsgType>
+		<Content><![CDATA[检查今天发送情况]]></Content>
+		<MsgId>msg-1</MsgId>
+		<AgentID>100001</AgentID>
+	</xml>`)
+	handler := New(handlershared.NewAPI(nil), ingress, &fakeControl{
+		wechatPrepared: channelspkg.WeChatIngressPreparation{
+			Body:        plain,
+			OwnerUserID: "owner-a",
+			CorpID:      "ww_corp",
+			AgentID:     "100001",
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/channels/wechat/messages", bytes.NewReader([]byte(`<xml></xml>`)))
+	handler.HandleWeChatChannelIngress(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(ingress.requests) != 1 {
+		t.Fatalf("wechat 消息未进入 ingress: %+v", ingress.requests)
+	}
+	accepted := ingress.requests[0]
+	if accepted.OwnerUserID != "owner-a" || accepted.Channel != channelspkg.ChannelTypeWeChat || accepted.Ref != "zhangsan" {
+		t.Fatalf("wechat ingress 请求不正确: %+v", accepted)
+	}
+	if accepted.Content != "检查今天发送情况" {
+		t.Fatalf("wechat 消息内容不正确: %+v", accepted)
 	}
 }

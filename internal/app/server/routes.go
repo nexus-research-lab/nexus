@@ -158,7 +158,10 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/channels/internal/messages"), s.handlers.channel.HandleInternalChannelIngress)
 	s.router.Post(s.prefixPath("/channels/discord/messages"), s.handlers.channel.HandleDiscordChannelIngress)
 	s.router.Post(s.prefixPath("/channels/telegram/messages"), s.handlers.channel.HandleTelegramChannelIngress)
+	s.router.Post(s.prefixPath("/channels/dingtalk/messages"), s.handlers.channel.HandleDingTalkChannelIngress)
 	s.router.Post(s.prefixPath("/channels/feishu/messages"), s.handlers.channel.HandleFeishuChannelIngress)
+	s.router.Get(s.prefixPath("/channels/wechat/messages"), s.handlers.channel.HandleWeChatChannelIngress)
+	s.router.Post(s.prefixPath("/channels/wechat/messages"), s.handlers.channel.HandleWeChatChannelIngress)
 
 	s.router.Get(s.prefixPath("/capability/channels"), s.handlers.channel.HandleListChannels)
 	s.router.Put(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleUpsertChannelConfig)

@@ -95,6 +95,9 @@ room:group:<conversation_id>
 - `ws`
 - `dg`
 - `tg`
+- `dt`
+- `wx`
+- `fs`
 - `internal`
 
 ### 4.3 `chat_type`
@@ -121,6 +124,11 @@ room:group:<conversation_id>
 - `dg + group`：`guild_id:channel_id`
 - `tg + dm`：telegram user id
 - `tg + group`：telegram chat id
+- `dt + dm`：钉钉 conversation_id 或 sender id
+- `dt + group`：钉钉 openConversationId / conversationId
+- `wx + dm`：企业微信 user id
+- `fs + dm`：飞书 open_id / user_id / union_id
+- `fs + group`：飞书 chat_id
 - `internal + dm`：内部保留值
 
 ## 5. 真相源与边界

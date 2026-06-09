@@ -79,7 +79,7 @@ func newChannelIngressCommand(services *cliServiceProvider) *cobra.Command {
 		},
 	}
 
-	ingressCommand.Flags().StringVar(&channel, "channel", "", "channel type: internal|discord|telegram")
+	ingressCommand.Flags().StringVar(&channel, "channel", "", "channel type: internal|discord|telegram|dingtalk|feishu|wechat")
 	ingressCommand.Flags().StringVar(&sessionKey, "session-key", "", "structured session_key")
 	ingressCommand.Flags().StringVar(&agentID, "agent-id", "", "target agent id")
 	ingressCommand.Flags().StringVar(&chatType, "chat-type", "dm", "dm|group")

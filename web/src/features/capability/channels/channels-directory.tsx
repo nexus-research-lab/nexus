@@ -101,7 +101,13 @@ function guide_steps(channel_type: ImChannelType) {
       <>在钉钉群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对</>,
     ];
   case "wechat":
-    return [];
+    return [
+      <>登录 <a href="https://developer.work.weixin.qq.com/" target="_blank" rel="noreferrer">企业微信开发者后台</a>，创建或选择 <b>自建应用</b></>,
+      <>在应用详情中复制 <b>企业 ID</b>、<b>Agent ID</b> 和 <b>Secret</b></>,
+      <>如需接收成员消息，打开 <b>接收消息</b>，配置回调地址为当前服务的 <b>/nexus/v1/channels/wechat/messages</b></>,
+      <>复制回调配置中的 <b>Token</b> 与 <b>EncodingAESKey</b>，填入下方表单</>,
+      <>确认应用可见范围包含目标成员；个人微信不支持官方机器人 IM 接入</>,
+    ];
   case "feishu":
     return [
       <>登录 <a href="https://open.feishu.cn/" target="_blank" rel="noreferrer">飞书开放平台</a> 创建企业自建应用，在 <b>应用能力</b> 中添加机器人能力</>,
@@ -203,7 +209,7 @@ function ChannelGuide({
       ) : null}
       {item.channel_type === "feishu" ? (
         <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
-          本通道使用官方飞书长连接 SDK；请确认应用已启用长连接事件订阅。
+          本通道使用飞书事件订阅 HTTP 回调；请确认应用已订阅“接收消息”事件。
         </div>
       ) : null}
     </div>

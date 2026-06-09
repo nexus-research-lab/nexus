@@ -563,6 +563,112 @@ func TestFeishuChannelSendDeliveryText(t *testing.T) {
 	}
 }
 
+func TestDingTalkChannelSendDeliveryText(t *testing.T) {
+	var tokenRequests int
+	var messagePayload map[string]string
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/v1.0/oauth2/accessToken":
+			tokenRequests++
+			var payload map[string]string
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析钉钉 token 请求失败: %w", err)
+			}
+			if payload["appKey"] != "ding-client" || payload["appSecret"] != "ding-secret" {
+				return nil, fmt.Errorf("钉钉 token 请求凭据不正确: %+v", payload)
+			}
+			return jsonResponse(`{"accessToken":"ding-token","expireIn":7200}`), nil
+		case "/v1.0/robot/groupMessages/send":
+			if request.Header.Get("x-acs-dingtalk-access-token") != "ding-token" {
+				return nil, fmt.Errorf("钉钉 Authorization 不正确: %s", request.Header.Get("x-acs-dingtalk-access-token"))
+			}
+			if err := json.NewDecoder(request.Body).Decode(&messagePayload); err != nil {
+				return nil, fmt.Errorf("解析钉钉消息请求失败: %w", err)
+			}
+			return jsonResponse(`{}`), nil
+		default:
+			return nil, fmt.Errorf("未知钉钉请求路径: %s", request.URL.Path)
+		}
+	})}
+
+	channel := newDingTalkChannel("ding-client", "ding-secret", "robot-code", client)
+	channel.baseURL = "https://dingtalk.test"
+
+	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeDingTalk,
+		To:      "cid-group-1",
+	}, "今日新闻摘要"); err != nil {
+		t.Fatalf("钉钉发送失败: %v", err)
+	}
+	if tokenRequests != 1 {
+		t.Fatalf("钉钉 token 请求次数不正确: %d", tokenRequests)
+	}
+	if messagePayload["robotCode"] != "robot-code" || messagePayload["openConversationId"] != "cid-group-1" {
+		t.Fatalf("钉钉消息路由不正确: %+v", messagePayload)
+	}
+	if messagePayload["msgKey"] != "sampleText" {
+		t.Fatalf("钉钉消息类型不正确: %+v", messagePayload)
+	}
+	var msgParam map[string]string
+	if err := json.Unmarshal([]byte(messagePayload["msgParam"]), &msgParam); err != nil {
+		t.Fatalf("解析钉钉 msgParam 失败: %v", err)
+	}
+	if msgParam["content"] != "今日新闻摘要" {
+		t.Fatalf("钉钉消息正文不正确: %+v", msgParam)
+	}
+}
+
+func TestWeChatChannelSendDeliveryText(t *testing.T) {
+	var tokenRequests int
+	var messagePayload map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/cgi-bin/gettoken":
+			tokenRequests++
+			if request.URL.Query().Get("corpid") != "ww_corp" || request.URL.Query().Get("corpsecret") != "corp-secret" {
+				return nil, fmt.Errorf("企业微信 token 请求凭据不正确: %s", request.URL.RawQuery)
+			}
+			return jsonResponse(`{"errcode":0,"errmsg":"ok","access_token":"wechat-token","expires_in":7200}`), nil
+		case "/cgi-bin/message/send":
+			if request.URL.Query().Get("access_token") != "wechat-token" {
+				return nil, fmt.Errorf("企业微信 access_token 不正确: %s", request.URL.RawQuery)
+			}
+			if err := json.NewDecoder(request.Body).Decode(&messagePayload); err != nil {
+				return nil, fmt.Errorf("解析企业微信消息请求失败: %w", err)
+			}
+			return jsonResponse(`{"errcode":0,"errmsg":"ok"}`), nil
+		default:
+			return nil, fmt.Errorf("未知企业微信请求路径: %s", request.URL.Path)
+		}
+	})}
+
+	channel := newWeChatChannel("ww_corp", "corp-secret", "100001", client)
+	channel.baseURL = "https://wechat.test"
+
+	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+		Mode:      DeliveryModeExplicit,
+		Channel:   ChannelTypeWeChat,
+		To:        "zhangsan",
+		AccountID: "touser",
+	}, "今日新闻摘要"); err != nil {
+		t.Fatalf("企业微信发送失败: %v", err)
+	}
+	if tokenRequests != 1 {
+		t.Fatalf("企业微信 token 请求次数不正确: %d", tokenRequests)
+	}
+	if messagePayload["touser"] != "zhangsan" || messagePayload["msgtype"] != "text" {
+		t.Fatalf("企业微信消息路由不正确: %+v", messagePayload)
+	}
+	if int(messagePayload["agentid"].(float64)) != 100001 {
+		t.Fatalf("企业微信 agentid 不正确: %+v", messagePayload)
+	}
+	textPayload, ok := messagePayload["text"].(map[string]any)
+	if !ok || textPayload["content"] != "今日新闻摘要" {
+		t.Fatalf("企业微信消息正文不正确: %+v", messagePayload)
+	}
+}
+
 func jsonResponse(body string) *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
