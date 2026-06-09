@@ -33,6 +33,7 @@ const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
 const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
 const anthropicModelEnvName = "ANTHROPIC_MODEL"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
+const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -281,7 +282,8 @@ func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...str
 
 func defaultRuntimeEnv() map[string]string {
 	return map[string]string{
-		claudeAutoCompactPctOverrideEnvName: defaultClaudeAutoCompactPctOverride,
+		claudeAutoCompactPctOverrideEnvName:    defaultClaudeAutoCompactPctOverride,
+		nexusDisableProjectInstructionsEnvName: "1",
 	}
 }
 

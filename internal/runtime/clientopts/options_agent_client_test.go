@@ -215,7 +215,8 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			claudeAutoCompactPctOverrideEnvName: "80",
+			claudeAutoCompactPctOverrideEnvName:    "80",
+			nexusDisableProjectInstructionsEnvName: "0",
 		},
 	})
 	if err != nil {
@@ -223,6 +224,22 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	}
 	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
 		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
+	}
+	if options.Env[nexusDisableProjectInstructionsEnvName] != "0" {
+		t.Fatalf("ExtraEnv 应允许覆盖项目指令加载开关: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsDisablesRuntimeProjectInstructions(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath:      "/tmp/workspace",
+		AppendSystemPrompt: "Nexus 已经注入 workspace prompt",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusDisableProjectInstructionsEnvName] != "1" {
+		t.Fatalf("Nexus 宿主应关闭 SDK 自动加载项目指令，避免重复注入: %+v", options.Env)
 	}
 }
 
