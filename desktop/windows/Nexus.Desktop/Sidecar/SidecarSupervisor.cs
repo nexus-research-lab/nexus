@@ -113,6 +113,7 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["TELEGRAM_ENABLED"] = "false";
         startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback";
         ApplyPackagedConnectorConfig(startInfo);
+        ApplyBundledNexusctlCommand(startInfo);
         ApplyBundledNXSRuntime(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = $"{runtime.WebBaseUrl.TrimEnd('/')},nexus://connectors";
         return startInfo;
@@ -147,6 +148,46 @@ internal sealed class SidecarSupervisor : IDisposable
                 startInfo.Environment[key] = value;
             }
         }
+    }
+
+    private void ApplyBundledNexusctlCommand(ProcessStartInfo startInfo)
+    {
+        if (startInfo.Environment.TryGetValue("NEXUSCTL_COMMAND_PATH", out string? overridePath) &&
+            !string.IsNullOrWhiteSpace(overridePath))
+        {
+            startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+            {
+                ["source"] = "override",
+                ["path"] = overridePath,
+            });
+            return;
+        }
+
+        if (locator.IsDevelopment)
+        {
+            startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+            {
+                ["source"] = "development",
+            });
+            return;
+        }
+
+        string nexusctlPath = Path.Combine(locator.AppRoot, "bin", "nexusctl.exe");
+        if (File.Exists(nexusctlPath))
+        {
+            startInfo.Environment["NEXUSCTL_COMMAND_PATH"] = nexusctlPath;
+            startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+            {
+                ["source"] = "bundled",
+                ["path"] = nexusctlPath,
+            });
+            return;
+        }
+
+        startupTimeline.Mark("sidecar.nexusctl_command", new Dictionary<string, string>
+        {
+            ["source"] = "missing",
+        });
     }
 
     private void ApplyBundledNXSRuntime(ProcessStartInfo startInfo)

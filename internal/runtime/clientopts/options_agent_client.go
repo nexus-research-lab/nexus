@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -19,6 +21,7 @@ import (
 
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
+const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
@@ -378,8 +381,13 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 		return nil
 	}
 	binDir := appfs.AgentRuntimeBinDir()
+	commandPath := strings.TrimSpace(os.Getenv(nexusctlCommandPathEnvName))
+	if commandPath == "" {
+		commandPath = nexusctlShimPath(binDir)
+	}
 	env := map[string]string{
 		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
+		nexusctlCommandPathEnvName:   commandPath,
 		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,
 	}
 	currentPath := strings.TrimSpace(os.Getenv("PATH"))
@@ -389,6 +397,14 @@ func workspaceRuntimeEnv(workspacePath string) map[string]string {
 		env["PATH"] = binDir + string(os.PathListSeparator) + currentPath
 	}
 	return env
+}
+
+func nexusctlShimPath(binDir string) string {
+	fileName := "nexusctl"
+	if runtime.GOOS == "windows" {
+		fileName = "nexusctl.cmd"
+	}
+	return filepath.Join(binDir, fileName)
 }
 
 func mergeRuntimeEnv(

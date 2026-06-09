@@ -7,7 +7,8 @@ description: 管理 Nexus 的 Agent、Room、Workspace 与 Skill 系统操作。
 
 管理 Nexus 平台的 Agent、Room、Workspace 与 Skill。通过 CLI 工具执行系统操作。
 
-CLI 工具：`nexusctl`（运行时已注入 PATH）
+CLI 工具：优先使用环境变量 `NEXUSCTL_COMMAND_PATH` 指向的命令；示例里的 `nexusctl` 只是简写。
+不要搜索 `cmd/nexusctl`，也不要手写 `go run ./cmd/nexusctl`，运行时入口已经注入。
 
 ## CLI 输出约定
 

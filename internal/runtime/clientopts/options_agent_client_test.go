@@ -442,11 +442,29 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
 		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
 	}
+	if options.Env[nexusctlCommandPathEnvName] != nexusctlShimPath(expectedBinDir) {
+		t.Fatalf("运行时未注入明确 nexusctl 命令路径: %+v", options.Env)
+	}
 	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
 		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
 	}
 	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
 		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsPreservesExplicitNexusctlCommandPath(t *testing.T) {
+	configDir := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusctlCommandPathEnvName] != "/opt/nexus/bin/nexusctl" {
+		t.Fatalf("显式 nexusctl 命令路径不应被共享 shim 覆盖: %+v", options.Env)
 	}
 }
 

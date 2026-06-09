@@ -7,7 +7,7 @@
 - `make check`：运行 `go test ./...`、前端 lint、前端 typecheck
 - `make check-backend`：Go 后端校验，等价于 `make check-go`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
-- `go run ./cmd/nexusctl ...`：主智能体操作系统 CLI
+- Agent runtime 内使用 `NEXUSCTL_COMMAND_PATH` 指向的 CLI；本仓库开发调试时才使用 `go run ./cmd/nexusctl ...`
 
 ## Critical Conventions
 - Go 代码遵循 Google 风格，复杂逻辑注释使用中文。
