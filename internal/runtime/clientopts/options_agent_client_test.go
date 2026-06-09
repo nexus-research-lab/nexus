@@ -280,7 +280,6 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
-	t.Setenv(nexusAppRootEnvName, "")
 	t.Setenv(nexusNXSCommandPathEnvName, "")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
 	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")

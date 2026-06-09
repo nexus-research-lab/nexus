@@ -35,7 +35,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
-import { download_nxs_runtime_api, get_nxs_runtime_status_api } from "@/lib/api/runtime-api";
+import { get_nxs_runtime_status_api } from "@/lib/api/runtime-api";
 import { get_user_preferences_api, update_user_preferences_api } from "@/lib/api/settings-preferences-api";
 import {
   get_system_version_api,
@@ -66,14 +66,6 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import { type Theme, useTheme } from "@/shared/theme/theme-context";
-import {
-  UiDialogBackdrop,
-  UiDialogBody,
-  UiDialogFooter,
-  UiDialogHeader,
-  UiDialogPortal,
-  UiDialogShell,
-} from "@/shared/ui/dialog/dialog";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -84,7 +76,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import type { ProviderOption } from "@/types/capability/provider";
-import { normalize_agent_runtime_kind, type AgentRuntimeKind, type NXSRuntimeStatus, type UserPreferences } from "@/types/settings/preferences";
+import { normalize_agent_runtime_kind, type AgentRuntimeKind, type UserPreferences } from "@/types/settings/preferences";
 import type { Locale } from "@/shared/i18n/messages";
 
 import { ProviderSettingsPanel } from "./provider-settings-panel";
@@ -308,8 +300,6 @@ function GeneralSettingsSection() {
   const [default_model_saving_role, set_default_model_saving_role] = useState<DefaultModelPreferenceRole | null>(null);
   const [default_model_feedback, set_default_model_feedback] = useState<PreferenceFeedback | null>(null);
   const [nxs_runtime_checking, set_nxs_runtime_checking] = useState(false);
-  const [nxs_runtime_downloading, set_nxs_runtime_downloading] = useState(false);
-  const [nxs_download_prompt_status, set_nxs_download_prompt_status] = useState<NXSRuntimeStatus | null>(null);
   const [system_version, set_system_version] = useState<SystemVersionInfo | null>(null);
   const [system_version_loading, set_system_version_loading] = useState(true);
   const [system_version_feedback, set_system_version_feedback] = useState<PreferenceFeedback | null>(null);
@@ -556,7 +546,6 @@ function GeneralSettingsSection() {
       return;
     }
     if (value !== "nxs") {
-      set_nxs_download_prompt_status(null);
       void (async () => {
         await persist_preferences({
           ...current_preferences,
@@ -579,10 +568,6 @@ function GeneralSettingsSection() {
           await load_provider_options("nxs");
           return;
         }
-        if (status.can_download) {
-          set_nxs_download_prompt_status(status);
-          return;
-        }
         set_preference_feedback({
           message: status.message || t("settings.general.agent_runtime_nxs_unavailable"),
         });
@@ -595,44 +580,6 @@ function GeneralSettingsSection() {
       }
     })();
   }, [load_provider_options, persist_preferences, t]);
-
-  const handle_confirm_nxs_download = useCallback(() => {
-    if (nxs_runtime_downloading) {
-      return;
-    }
-    void (async () => {
-      set_nxs_runtime_downloading(true);
-      set_preference_feedback(null);
-      try {
-        const status = await download_nxs_runtime_api();
-        if (!status.available) {
-          set_nxs_download_prompt_status(status);
-          set_preference_feedback({
-            message: status.message || t("settings.general.agent_runtime_nxs_unavailable"),
-          });
-          return;
-        }
-        set_nxs_download_prompt_status(null);
-        await persist_preferences({
-          ...preferences_ref.current,
-          agent_runtime_kind: "nxs",
-        });
-        await load_provider_options("nxs");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : t("settings.general.agent_runtime_download_failed");
-        set_nxs_download_prompt_status({
-          ...(nxs_download_prompt_status ?? {
-            available: false,
-            can_download: true,
-          }),
-          message,
-        });
-        set_preference_feedback({ message });
-      } finally {
-        set_nxs_runtime_downloading(false);
-      }
-    })();
-  }, [load_provider_options, nxs_download_prompt_status, nxs_runtime_downloading, persist_preferences, t]);
 
   const handle_permission_mode_change = useCallback((value: string) => {
     const current_preferences = preferences_ref.current;
@@ -938,7 +885,7 @@ function GeneralSettingsSection() {
               </span>
               <SettingsSegmentedControl
                 aria_label={t("settings.general.agent_runtime_label")}
-                disabled={preferences_loading || preferences_saving || nxs_runtime_checking || nxs_runtime_downloading}
+                disabled={preferences_loading || preferences_saving || nxs_runtime_checking}
                 on_change={handle_agent_runtime_kind_change}
                 options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
                   value: option.value,
@@ -1256,58 +1203,6 @@ function GeneralSettingsSection() {
           </div>
         </div>
       </section>
-      {nxs_download_prompt_status ? (
-        <UiDialogPortal>
-          <UiDialogBackdrop
-            described_by="nxs-runtime-download-message"
-            labelled_by="nxs-runtime-download-title"
-            on_close={() => {
-              if (!nxs_runtime_downloading) {
-                set_nxs_download_prompt_status(null);
-              }
-            }}
-          >
-            <UiDialogShell size="sm">
-              <UiDialogHeader
-                icon={<Download className="h-4 w-4" />}
-                title={t("settings.general.agent_runtime_download_title")}
-                title_id="nxs-runtime-download-title"
-              />
-              <UiDialogBody class_name="space-y-3">
-                <p id="nxs-runtime-download-message" className="text-[13px] leading-5 text-(--text-default)">
-                  {nxs_download_prompt_status.message || t("settings.general.agent_runtime_download_message")}
-                </p>
-                {nxs_download_prompt_status.path ? (
-                  <p className="break-all rounded-[8px] border border-(--divider-subtle-color) px-2.5 py-2 text-[11px] leading-4 text-(--text-soft)">
-                    {nxs_download_prompt_status.path}
-                  </p>
-                ) : null}
-              </UiDialogBody>
-              <UiDialogFooter>
-                <button
-                  className="inline-flex h-8 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) px-3 text-[12px] font-semibold text-(--text-default) hover:bg-(--surface-interactive-hover-background)"
-                  disabled={nxs_runtime_downloading}
-                  onClick={() => set_nxs_download_prompt_status(null)}
-                  type="button"
-                >
-                  {t("common.cancel")}
-                </button>
-                <button
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] bg-primary px-3 text-[12px] font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={nxs_runtime_downloading}
-                  onClick={handle_confirm_nxs_download}
-                  type="button"
-                >
-                  {nxs_runtime_downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                  {nxs_runtime_downloading
-                    ? t("settings.general.agent_runtime_downloading")
-                    : t("settings.general.agent_runtime_download_confirm")}
-                </button>
-              </UiDialogFooter>
-            </UiDialogShell>
-          </UiDialogBackdrop>
-        </UiDialogPortal>
-      ) : null}
     </div>
   );
 }

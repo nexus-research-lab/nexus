@@ -84,11 +84,7 @@ func shouldUseBridgeLaunchSnapshot(options agentclient.Options) bool {
 	return strings.TrimSpace(options.CLIPath) != "" ||
 		strings.TrimSpace(options.Executable) != "" ||
 		strings.TrimSpace(options.PathToExecutable) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSCommandPathEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusAppRootEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSRuntimeCacheDirEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSRuntimeManifestURLEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSRuntimeReleaseEnvName)) != ""
+		strings.TrimSpace(os.Getenv(nexusNXSCommandPathEnvName)) != ""
 }
 
 func legacyRuntimeStartupLogFields(options agentclient.Options) []any {

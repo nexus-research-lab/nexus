@@ -3,8 +3,6 @@ package nxsruntime
 import (
 	"fmt"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
-
 	bridgenxs "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs"
 )
 
@@ -19,7 +17,6 @@ type RuntimeStatus struct {
 
 type runtimeInspector interface {
 	Status() bridgenxs.Status
-	Ensure() (bridgenxs.Status, error)
 }
 
 // Service 负责探测和拉取 nxs runtime。
@@ -39,12 +36,6 @@ func (s *Service) Status() RuntimeStatus {
 	return runtimeStatusFromBridge(s.withDefaults().inspector().Status(), nil)
 }
 
-// Download 通过 bridge resolver 下载并缓存 nxs runtime。
-func (s *Service) Download() (RuntimeStatus, error) {
-	status, err := s.withDefaults().inspector().Ensure()
-	return runtimeStatusFromBridge(status, err), err
-}
-
 func (s *Service) withDefaults() *Service {
 	if s == nil {
 		return NewService()
@@ -57,7 +48,7 @@ func (s *Service) withDefaults() *Service {
 }
 
 func defaultInspector() runtimeInspector {
-	return bridgenxs.NewRuntimeInspector(bridgenxs.WithAppRoot(appfs.Root()))
+	return bridgenxs.NewRuntimeInspector()
 }
 
 func runtimeStatusFromBridge(status bridgenxs.Status, err error) RuntimeStatus {
@@ -73,21 +64,12 @@ func runtimeStatusFromBridge(status bridgenxs.Status, err error) RuntimeStatus {
 func runtimeStatusMessage(status bridgenxs.Status, err error) string {
 	switch status.Error {
 	case bridgenxs.StatusErrorEnvNotExecutable:
-		return "NEXUS_NXS_COMMAND_PATH 指向的 nxs 不可执行，请修正或清空后再下载。"
-	case bridgenxs.StatusErrorAppRootNotExecutable:
-		return "Nexus 桌面包内置的 nxs runtime 不可执行，请重新安装或更新应用。"
-	case bridgenxs.StatusErrorDownloadedNotExecutable:
-		return "nxs runtime 下载完成但文件不可执行。"
-	case bridgenxs.StatusErrorDownloadFailed:
-		if err != nil {
-			return fmt.Sprintf("nxs runtime 下载失败：%v", err)
-		}
-		return "nxs runtime 下载失败。"
+		return "NEXUS_NXS_COMMAND_PATH 指向的 nxs 不可执行，请修正路径。"
 	case bridgenxs.StatusErrorNotFound:
-		return "当前未找到可用 nxs runtime，可以下载后再切换。"
+		return "未配置 nxs runtime。桌面包应由 sidecar 注入 NEXUS_NXS_COMMAND_PATH；开发环境请设置 NEXUS_NXS_COMMAND_PATH 指向本地 nxs。"
 	default:
-		if !status.Available && status.CanDownload {
-			return "当前未找到可用 nxs runtime，可以下载后再切换。"
+		if err != nil {
+			return fmt.Sprintf("nxs runtime 检测失败：%v", err)
 		}
 		return ""
 	}

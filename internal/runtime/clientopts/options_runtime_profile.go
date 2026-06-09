@@ -7,10 +7,6 @@ import (
 )
 
 const nexusNXSCommandPathEnvName = "NEXUS_NXS_COMMAND_PATH"
-const nexusAppRootEnvName = "NEXUS_APP_ROOT"
-const nexusNXSRuntimeCacheDirEnvName = "NEXUS_NXS_RUNTIME_CACHE_DIR"
-const nexusNXSRuntimeManifestURLEnvName = "NEXUS_NXS_RUNTIME_MANIFEST_URL"
-const nexusNXSRuntimeReleaseEnvName = "NEXUS_NXS_RUNTIME_RELEASE"
 const nexusAgentRuntimeKindEnvName = "NEXUS_AGENT_RUNTIME_KIND"
 const nexusAgentRuntimeEnvName = "NEXUS_AGENT_RUNTIME"
 const runtimeKindClaude = runtimeprovider.RuntimeKindClaude

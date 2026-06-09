@@ -119,11 +119,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 ENV HOME=/home/agent \
     NEXUS_APP_ROOT=/opt/app \
+    NEXUS_NXS_COMMAND_PATH=/opt/app/bin/nxs \
     PNPM_HOME=/usr/local/share/pnpm \
     PATH=/usr/local/share/pnpm:/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
     PNPM_REGISTRY=${PNPM_REGISTRY} \
     BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
-    NEXUS_NXS_RUNTIME_RELEASE=${NEXUS_NXS_RUNTIME_RELEASE} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     UV_BREAK_SYSTEM_PACKAGES=true \

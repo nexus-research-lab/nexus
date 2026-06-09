@@ -132,24 +132,6 @@ func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *h
 	h.api.WriteSuccess(writer, h.nxs.Status())
 }
 
-// HandleDownloadNXSRuntime 下载并缓存当前平台的 nxs runtime。
-func (h *Handlers) HandleDownloadNXSRuntime(writer http.ResponseWriter, request *http.Request) {
-	status, err := h.nxs.Download()
-	if err != nil {
-		h.api.WriteJSON(writer, http.StatusUnprocessableEntity, map[string]any{
-			"code":    "422",
-			"message": "failed",
-			"success": false,
-			"data": map[string]any{
-				"detail": status.Message,
-				"status": status,
-			},
-		})
-		return
-	}
-	h.api.WriteSuccess(writer, status)
-}
-
 func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Preferences, error) {
 	if h.prefs == nil {
 		return preferencessvc.DefaultPreferences(), nil
