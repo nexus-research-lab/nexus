@@ -68,6 +68,19 @@ type DMHandler interface {
 	HandleChat(context.Context, dmsvc.Request) error
 }
 
+// ExternalSessionNotifier 接收外部通道 session 元数据更新通知。
+type ExternalSessionNotifier interface {
+	NotifyExternalSessionUpdated(context.Context, string, string)
+}
+
+// ExternalSessionNotifierFunc 适配函数式外部 session 通知器。
+type ExternalSessionNotifierFunc func(context.Context, string, string)
+
+// NotifyExternalSessionUpdated 实现 ExternalSessionNotifier。
+func (fn ExternalSessionNotifierFunc) NotifyExternalSessionUpdated(ctx context.Context, agentID string, sessionKey string) {
+	fn(ctx, agentID, sessionKey)
+}
+
 // IngressRequest 表示一条来自外部通道的标准化消息。
 type IngressRequest struct {
 	Channel          string          `json:"channel,omitempty"`
@@ -120,6 +133,7 @@ type IngressService struct {
 	dm        DMHandler
 	router    *Router
 	control   *ControlService
+	notifier  ExternalSessionNotifier
 	idFactory func(string) string
 	logger    *slog.Logger
 }
@@ -144,6 +158,11 @@ func NewIngressService(
 // SetControlService 注入频道配置与配对授权服务。
 func (s *IngressService) SetControlService(control *ControlService) {
 	s.control = control
+}
+
+// SetExternalSessionNotifier 注入外部 session 更新通知器。
+func (s *IngressService) SetExternalSessionNotifier(notifier ExternalSessionNotifier) {
+	s.notifier = notifier
 }
 
 // SetLogger 注入业务日志实例。
@@ -207,13 +226,15 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		return nil, err
 	}
 	if err = s.dm.HandleChat(ctx, dmsvc.Request{
-		SessionKey:        normalized.sessionKey,
-		AgentID:           normalized.agentID,
-		Content:           normalized.content,
-		RoundID:           normalized.roundID,
-		ReqID:             normalized.reqID,
-		PermissionMode:    normalized.permissionMode,
-		PermissionHandler: s.buildPermissionHandler(agentValue, normalized),
+		SessionKey:           normalized.sessionKey,
+		AgentID:              normalized.agentID,
+		Content:              normalized.content,
+		RoundID:              normalized.roundID,
+		ReqID:                normalized.reqID,
+		PermissionMode:       normalized.permissionMode,
+		BroadcastUserMessage: true,
+		PermissionHandler:    s.buildPermissionHandler(agentValue, normalized),
+		ExternalReplyTarget:  dmExternalReplyTarget(normalized.rememberedTarget),
 	}); err != nil {
 		logger.Error("下发通道消息失败", "err", err)
 		s.markIngressMessageFailed(ctx, claimedIngress, normalized, err)
@@ -242,6 +263,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	logger.Info("通道消息已进入 DM 主链",
 		"remembered_delivery", remembered != nil,
 	)
+	s.notifyExternalSessionUpdated(ctx, normalized)
 
 	return &IngressResult{
 		Channel:            normalized.channelStored,
@@ -251,6 +273,18 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		ReqID:              normalized.reqID,
 		RememberedDelivery: remembered,
 	}, nil
+}
+
+func (s *IngressService) notifyExternalSessionUpdated(ctx context.Context, request normalizedIngressRequest) {
+	if s.notifier == nil || !shouldNotifyExternalSessionUpdate(request.channelStored) {
+		return
+	}
+	s.notifier.NotifyExternalSessionUpdated(ctx, request.agentID, request.sessionKey)
+}
+
+func shouldNotifyExternalSessionUpdate(channel string) bool {
+	normalized := normalizeChannelType(channel)
+	return normalized != "" && normalized != ChannelTypeInternal && normalized != ChannelTypeWebSocket
 }
 
 func (s *IngressService) markIngressMessageFailed(ctx context.Context, claimed bool, request normalizedIngressRequest, err error) {
@@ -397,7 +431,7 @@ func (s *IngressService) resolveRememberedTarget(
 			SessionKey: parsed.Raw,
 		}
 		return &target, nil
-	case ChannelTypeTelegram, ChannelTypeDingTalk, ChannelTypeWeChat, ChannelTypeFeishu:
+	case ChannelTypeTelegram, ChannelTypeDingTalk, ChannelTypeWeChat, ChannelTypeWeixinPersonal, ChannelTypeFeishu:
 		return deliveryTargetFromSessionRef(channelStored, parsed), nil
 	case ChannelTypeDiscord:
 		if parsed.ChatType != "group" {
@@ -430,6 +464,28 @@ func deliveryTargetFromSessionRef(channel string, parsed protocol.SessionKey) *D
 		Channel:  channel,
 		To:       ref,
 		ThreadID: strings.TrimSpace(parsed.ThreadID),
+	}
+}
+
+func dmExternalReplyTarget(target *DeliveryTarget) *dmsvc.ExternalReplyTarget {
+	if target == nil {
+		return nil
+	}
+	normalized := target.Normalized()
+	if normalized.Mode == DeliveryModeNone {
+		return nil
+	}
+	switch normalized.Channel {
+	case "", ChannelTypeWebSocket, ChannelTypeInternal:
+		return nil
+	}
+	return &dmsvc.ExternalReplyTarget{
+		Mode:       normalized.Mode,
+		Channel:    normalized.Channel,
+		To:         normalized.To,
+		AccountID:  normalized.AccountID,
+		ThreadID:   normalized.ThreadID,
+		SessionKey: normalized.SessionKey,
 	}
 }
 

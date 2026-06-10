@@ -22,11 +22,11 @@ func (s *Service) scheduleTitleGeneration(
 	if s.titles == nil {
 		return
 	}
-	conversationID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
-	if conversationID == "" && parsed.ChatType == "dm" {
-		conversationID = strings.TrimSpace(parsed.Ref)
-	}
 	roomID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.RoomID))
+	conversationID := ""
+	if roomID != "" {
+		conversationID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
+	}
 	conversationMessageCount := 0
 	if conversationID == "" {
 		conversationMessageCount = -1

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 
@@ -25,6 +26,10 @@ func (h *Handlers) HandleListAgentPrivateThreads(writer http.ResponseWriter, req
 	)
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrConversationNotFound) {
+		h.api.WriteSuccess(writer, protocol.AgentPrivateThreadPage{Items: []protocol.AgentPrivateThread{}})
 		return
 	}
 	if err != nil {

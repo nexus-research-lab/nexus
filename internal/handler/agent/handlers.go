@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -213,6 +214,63 @@ func (h *Handlers) HandleListSessions(writer http.ResponseWriter, request *http.
 		return
 	}
 	h.api.WriteSuccess(writer, items)
+}
+
+// HandleSessionMessages 返回指定 session 的历史消息分页。
+func (h *Handlers) HandleSessionMessages(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(chi.URLParam(request, "session_key"))
+	h.writeSessionMessages(writer, request, sessionKey)
+}
+
+// HandleSessionMessagesByQuery 返回指定 session 的历史消息分页。
+func (h *Handlers) HandleSessionMessagesByQuery(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(request.URL.Query().Get("session_key"))
+	if sessionKey == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "session_key 参数缺失")
+		return
+	}
+	h.writeSessionMessages(writer, request, sessionKey)
+}
+
+func (h *Handlers) writeSessionMessages(writer http.ResponseWriter, request *http.Request, sessionKey string) {
+	limit := 0
+	if rawLimit := strings.TrimSpace(request.URL.Query().Get("limit")); rawLimit != "" {
+		parsedLimit, parseErr := strconv.Atoi(rawLimit)
+		if parseErr != nil || parsedLimit <= 0 {
+			h.api.WriteFailure(writer, http.StatusBadRequest, "limit 参数错误")
+			return
+		}
+		limit = parsedLimit
+	}
+	beforeRoundID := strings.TrimSpace(request.URL.Query().Get("before_round_id"))
+	beforeRoundTimestamp := int64(0)
+	if rawBeforeTimestamp := strings.TrimSpace(request.URL.Query().Get("before_round_timestamp")); rawBeforeTimestamp != "" {
+		parsedBeforeTimestamp, parseErr := strconv.ParseInt(rawBeforeTimestamp, 10, 64)
+		if parseErr != nil || parsedBeforeTimestamp <= 0 {
+			h.api.WriteFailure(writer, http.StatusBadRequest, "before_round_timestamp 参数错误")
+			return
+		}
+		beforeRoundTimestamp = parsedBeforeTimestamp
+	}
+
+	page, err := h.sessions.GetSessionMessagesPage(request.Context(), sessionKey, sessionpkg.MessagePageRequest{
+		Limit:                limit,
+		BeforeRoundID:        beforeRoundID,
+		BeforeRoundTimestamp: beforeRoundTimestamp,
+	})
+	if handlershared.IsStructuredSessionKeyError(err) {
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, page)
 }
 
 // HandleCreateSession 创建 session。

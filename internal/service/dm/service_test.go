@@ -64,6 +64,237 @@ func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usa
 	return nil
 }
 
+type externalReplyCall struct {
+	agentID string
+	text    string
+	target  ExternalReplyTarget
+}
+
+type fakeExternalReplyDispatcher struct {
+	mu          sync.Mutex
+	calls       []externalReplyCall
+	typingCalls []externalTypingCall
+}
+
+type externalTypingCall struct {
+	agentID string
+	target  ExternalReplyTarget
+	active  bool
+}
+
+func (d *fakeExternalReplyDispatcher) DeliverExternalReply(
+	_ context.Context,
+	agentID string,
+	text string,
+	target ExternalReplyTarget,
+) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.calls = append(d.calls, externalReplyCall{
+		agentID: agentID,
+		text:    text,
+		target:  target,
+	})
+	return nil
+}
+
+func (d *fakeExternalReplyDispatcher) callsSnapshot() []externalReplyCall {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]externalReplyCall(nil), d.calls...)
+}
+
+func (d *fakeExternalReplyDispatcher) SetExternalTyping(
+	_ context.Context,
+	agentID string,
+	target ExternalReplyTarget,
+	active bool,
+) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.typingCalls = append(d.typingCalls, externalTypingCall{
+		agentID: agentID,
+		target:  target,
+		active:  active,
+	})
+	return nil
+}
+
+func (d *fakeExternalReplyDispatcher) typingCallsSnapshot() []externalTypingCall {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]externalTypingCall(nil), d.typingCalls...)
+}
+
+func TestRoundRunnerDeliversExternalAssistantReply(t *testing.T) {
+	t.Parallel()
+
+	dispatcher := &fakeExternalReplyDispatcher{}
+	runner := &roundRunner{
+		service:    &Service{replies: dispatcher},
+		agent:      &protocol.Agent{AgentID: "agent-1"},
+		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
+		roundID:    "round-1",
+		externalReplyTarget: &ExternalReplyTarget{
+			Mode:     "explicit",
+			Channel:  "weixin-personal",
+			To:       "user-1",
+			ThreadID: "context-token-1",
+		},
+	}
+
+	runner.deliverExternalAssistantReply(context.Background(), protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "你好，我是五子棋。"},
+		},
+	})
+
+	calls := dispatcher.callsSnapshot()
+	if len(calls) != 1 {
+		t.Fatalf("期望外部回复投递 1 次，实际 %d", len(calls))
+	}
+	if calls[0].agentID != "agent-1" || calls[0].text != "你好，我是五子棋。" {
+		t.Fatalf("外部回复内容不正确: %+v", calls[0])
+	}
+	if calls[0].target.Channel != "weixin-personal" ||
+		calls[0].target.To != "user-1" ||
+		calls[0].target.ThreadID != "context-token-1" {
+		t.Fatalf("外部回复目标不正确: %+v", calls[0].target)
+	}
+}
+
+func TestRoundRunnerSkipsExternalReplyForWebSocketSession(t *testing.T) {
+	t.Parallel()
+
+	dispatcher := &fakeExternalReplyDispatcher{}
+	runner := &roundRunner{
+		service:    &Service{replies: dispatcher},
+		agent:      &protocol.Agent{AgentID: "agent-1"},
+		sessionKey: "agent:agent-1:ws:dm:user-1",
+		roundID:    "round-1",
+		externalReplyTarget: &ExternalReplyTarget{
+			Mode:    "explicit",
+			Channel: "weixin-personal",
+			To:      "user-1",
+		},
+	}
+
+	runner.deliverExternalAssistantReply(context.Background(), protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": "普通网页会话不应发外部通道。"},
+		},
+	})
+
+	if calls := dispatcher.callsSnapshot(); len(calls) != 0 {
+		t.Fatalf("WebSocket 会话不应触发外部回复: %+v", calls)
+	}
+}
+
+func TestRoundRunnerMaintainsExternalTypingState(t *testing.T) {
+	t.Parallel()
+
+	dispatcher := &fakeExternalReplyDispatcher{}
+	runner := &roundRunner{
+		service:    &Service{replies: dispatcher},
+		agent:      &protocol.Agent{AgentID: "agent-1"},
+		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
+		roundID:    "round-1",
+		externalReplyTarget: &ExternalReplyTarget{
+			Mode:     "explicit",
+			Channel:  "weixin-personal",
+			To:       "user-1",
+			ThreadID: "context-token-1",
+		},
+	}
+
+	stop := runner.startExternalReplyTyping(context.Background())
+	deadline := time.After(2 * time.Second)
+	for {
+		if calls := dispatcher.typingCallsSnapshot(); len(calls) > 0 && calls[0].active {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("未发送 typing start: %+v", dispatcher.typingCallsSnapshot())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	stop()
+
+	calls := dispatcher.typingCallsSnapshot()
+	if len(calls) < 2 {
+		t.Fatalf("typing start/stop 调用不足: %+v", calls)
+	}
+	if !calls[0].active || calls[len(calls)-1].active {
+		t.Fatalf("typing 状态顺序不正确: %+v", calls)
+	}
+	if calls[0].target.ThreadID != "context-token-1" || calls[len(calls)-1].target.To != "user-1" {
+		t.Fatalf("typing 目标不正确: %+v", calls)
+	}
+}
+
+func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
+	t.Parallel()
+
+	dispatcher := &fakeExternalReplyDispatcher{}
+	runner := &roundRunner{
+		service:    &Service{replies: dispatcher},
+		agent:      &protocol.Agent{AgentID: "agent-1"},
+		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
+		roundID:    "round-1",
+		externalReplyTarget: &ExternalReplyTarget{
+			Mode:     "explicit",
+			Channel:  "weixin-personal",
+			To:       "user-1",
+			ThreadID: "context-token-1",
+		},
+	}
+
+	stop := runner.startExternalReplyTyping(context.Background())
+	stop()
+	time.Sleep(externalTypingStartDelay + 50*time.Millisecond)
+
+	if calls := dispatcher.typingCallsSnapshot(); len(calls) != 0 {
+		t.Fatalf("快速结束不应发送 typing 状态: %+v", calls)
+	}
+}
+
+func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *testing.T) {
+	t.Parallel()
+
+	titleScheduler := &fakeDMTitleScheduler{}
+	service := &Service{titles: titleScheduler}
+	sessionKey := "agent:agent-1:weixin-personal:dm:wx-user-1"
+	conversationID := "wx-user-1"
+	service.scheduleTitleGeneration(
+		context.Background(),
+		protocol.ParseSessionKey(sessionKey),
+		protocol.Session{
+			SessionKey:     sessionKey,
+			AgentID:        "agent-1",
+			ChannelType:    "weixin-personal",
+			ChatType:       "dm",
+			Title:          "New Chat",
+			MessageCount:   1,
+			ConversationID: &conversationID,
+		},
+		"你好",
+		1,
+		"kimi-code",
+		"kimi-for-coding",
+	)
+
+	request := titleScheduler.LastRequest()
+	if request.SessionKey != sessionKey {
+		t.Fatalf("标题请求 session_key 不正确: %+v", request)
+	}
+	if request.ConversationID != "" || request.ConversationRoomID != "" || request.ConversationMessageCount != -1 {
+		t.Fatalf("外部 DM 不应作为 room conversation 调度标题: %+v", request)
+	}
+}
+
 func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
 	t.Parallel()
 

@@ -4,6 +4,7 @@ import { MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { flushSync } from "react-dom";
 import { Plus, X } from "lucide-react";
 
+import { get_session_channel_label } from "@/features/conversation/external-session-labels";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -45,6 +46,25 @@ function are_conversation_ids_equal(left_ids: string[], right_ids: string[]): bo
     return false;
   }
   return left_ids.every((id, index) => id === right_ids[index]);
+}
+
+function is_external_session_conversation(conversation?: RoomConversationView): boolean {
+  return conversation?.options?.external_session === true;
+}
+
+function string_option(options: Record<string, unknown>, key: string): string | null {
+  const value = options[key];
+  return typeof value === "string" ? value : null;
+}
+
+function get_external_session_label(conversation: RoomConversationView): string | null {
+  if (!is_external_session_conversation(conversation)) {
+    return null;
+  }
+  return get_session_channel_label(
+    string_option(conversation.options, "channel_type"),
+    conversation.session_key,
+  );
 }
 
 function get_initial_open_conversation_ids(
@@ -278,7 +298,8 @@ export function WorkspaceConversationTabs({
         on_select_conversation(next_active_id);
       }
     }
-    if (on_close_conversation) {
+    const target_conversation = conversations_by_id.get(target_conversation_id);
+    if (on_close_conversation && !is_external_session_conversation(target_conversation)) {
       void on_close_conversation(target_conversation_id).catch(() => undefined);
     }
   };
@@ -318,6 +339,7 @@ export function WorkspaceConversationTabs({
           );
         const should_show_separator = conversation_index > 0 && !is_active && !is_hovered && !is_previous_highlighted;
         const title = conversation.title?.trim() || t("room.untitled_conversation");
+        const external_session_label = get_external_session_label(conversation);
         const tab_width = tab_widths.get(conversation.conversation_id);
 
         return (
@@ -341,7 +363,7 @@ export function WorkspaceConversationTabs({
               minWidth: is_active ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH,
               width: tab_width ?? (is_active ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH),
             }}
-            title={title}
+            title={external_session_label ? `${title} · IM ${external_session_label}` : title}
           >
             <button
               aria-current={is_active ? "page" : undefined}
@@ -369,6 +391,11 @@ export function WorkspaceConversationTabs({
                 )}
               />
               <span className="min-w-0 truncate">{title}</span>
+              {external_session_label ? (
+                <span className="ml-1 inline-flex shrink-0 items-center rounded-[5px] border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-bold leading-none text-(--primary)">
+                  IM
+                </span>
+              ) : null}
             </button>
             {ordered_conversations.length > 1 ? (
               <button

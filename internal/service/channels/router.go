@@ -412,6 +412,56 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 	return normalized, nil
 }
 
+// SetTyping 按目标模式发送或取消通道输入状态；不支持 typing 的通道直接忽略。
+func (r *Router) SetTyping(ctx context.Context, agentID string, target DeliveryTarget, active bool) error {
+	normalized := target.Normalized()
+	if normalized.Mode == DeliveryModeNone {
+		return nil
+	}
+	if normalized.Mode == DeliveryModeLast {
+		lastTarget, err := r.GetLastRoute(ctx, agentID)
+		if err != nil {
+			r.loggerFor(ctx).Warn("读取 typing 最近投递目标失败",
+				"agent_id", agentID,
+				"err", err,
+			)
+			return err
+		}
+		if lastTarget == nil {
+			return nil
+		}
+		normalized = lastTarget.Normalized()
+	}
+	if err := normalized.Validate(); err != nil {
+		return err
+	}
+	channel := r.channelForDelivery(ctx, agentID, normalized.Channel)
+	if channel == nil {
+		return nil
+	}
+	typingChannel, ok := channel.(typingDeliveryChannel)
+	if !ok {
+		return nil
+	}
+	if err := typingChannel.SendDeliveryTyping(ctx, normalized, active); err != nil {
+		r.loggerFor(ctx).Warn("通道 typing 状态投递失败",
+			"agent_id", agentID,
+			"channel", normalized.Channel,
+			"to", normalized.To,
+			"active", active,
+			"err", err,
+		)
+		return err
+	}
+	r.loggerFor(ctx).Debug("通道 typing 状态已投递",
+		"agent_id", agentID,
+		"channel", normalized.Channel,
+		"to", normalized.To,
+		"active", active,
+	)
+	return nil
+}
+
 func (r *Router) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, r.logger)
 }

@@ -189,15 +189,18 @@ func (e *pairingApprovalError) Unwrap() error {
 }
 
 type ControlService struct {
-	config     config.Config
-	db         *sql.DB
-	driver     string
-	key        []byte
-	agents     agentWorkspaceResolver
-	router     *Router
-	httpClient *http.Client
-	idFactory  func(string) string
-	keyErr     error
+	config                   config.Config
+	db                       *sql.DB
+	driver                   string
+	key                      []byte
+	agents                   agentWorkspaceResolver
+	router                   *Router
+	httpClient               *http.Client
+	idFactory                func(string) string
+	loginStore               *channelLoginStore
+	loginTimeout             time.Duration
+	weixinLoginClientFactory func(string, map[string]string) personalWeixinLoginClient
+	keyErr                   error
 }
 
 func NewControlService(
@@ -208,14 +211,16 @@ func NewControlService(
 ) *ControlService {
 	key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey)
 	return &ControlService{
-		config:    cfg,
-		db:        db,
-		driver:    storage.NormalizeSQLDriver(cfg.DatabaseDriver),
-		key:       key,
-		agents:    agents,
-		router:    router,
-		idFactory: newDeliveryID,
-		keyErr:    err,
+		config:       cfg,
+		db:           db,
+		driver:       storage.NormalizeSQLDriver(cfg.DatabaseDriver),
+		key:          key,
+		agents:       agents,
+		router:       router,
+		idFactory:    newDeliveryID,
+		loginStore:   newChannelLoginStore(),
+		loginTimeout: 8 * time.Minute,
+		keyErr:       err,
 	}
 }
 
@@ -591,6 +596,11 @@ func (s *ControlService) PrepareFeishuIngress(ctx context.Context, raw []byte, h
 	}
 	config := matchFeishuIngressConfig(configs, callback)
 	if config == nil {
+		// 飞书 URL 校验 payload 通常没有 app_id。开发态只保存 App ID/App Secret 时，
+		// 这里不能因为飞书侧携带了 token 就拒绝 challenge；真实消息事件仍按 app_id 绑定配置。
+		if strings.TrimSpace(callback.Challenge) != "" && strings.TrimSpace(callback.AppID) == "" {
+			return FeishuIngressPreparation{Body: raw}, nil
+		}
 		if strings.TrimSpace(callback.AppID) == "" && strings.TrimSpace(callback.Token) == "" {
 			return FeishuIngressPreparation{Body: raw}, nil
 		}
@@ -1365,7 +1375,11 @@ func (s *ControlService) configureRouterChannel(
 		if appID == "" || appSecret == "" {
 			return nil
 		}
-		channel := newFeishuChannel(appID, appSecret, s.httpClient).WithOwner(ownerUserID)
+		channel := newFeishuChannel(appID, appSecret, s.httpClient).
+			WithOwner(ownerUserID).
+			WithEventSecurity(secrets["verification_token"], secrets["encrypt_key"]).
+			WithConnectionMode(publicConfig["connection_mode"]).
+			WithReplyInThread(publicConfig["reply_in_thread"])
 		if baseURL := strings.TrimSpace(publicConfig["base_url"]); baseURL != "" {
 			channel.baseURL = baseURL
 		}
@@ -1410,6 +1424,22 @@ func (s *ControlService) configureRouterChannel(
 		if baseURL := strings.TrimSpace(publicConfig["base_url"]); baseURL != "" {
 			channel.baseURL = strings.TrimRight(baseURL, "/")
 		}
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
+	case ChannelTypeWeixinPersonal:
+		publicConfig, _ := decodeStringMap(configJSON)
+		token := strings.TrimSpace(secrets["ilink_bot_token"])
+		if token == "" {
+			return nil
+		}
+		channel := newPersonalWeixinChannel(personalWeixinClientConfig{
+			BaseURL:            publicConfig["base_url"],
+			Token:              token,
+			AccountID:          publicConfig["account_id"],
+			UserID:             publicConfig["user_id"],
+			BotAgent:           publicConfig["bot_agent"],
+			IlinkAppID:         publicConfig["ilink_app_id"],
+			IlinkClientVersion: publicConfig["ilink_client_version"],
+		}, s.httpClient).WithOwner(ownerUserID)
 		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	default:
 		return nil
@@ -1588,13 +1618,29 @@ func channelCatalog() []ChannelCatalogItem {
 			},
 		},
 		{
+			ChannelType:    ChannelTypeWeixinPersonal,
+			Title:          "个人微信",
+			BotLabel:       "微信 iLink Bot",
+			Description:    "通过腾讯 iLink Bot API 接入个人微信私聊，Nexus 内置扫码登录、消息长轮询和文本回投。",
+			RuntimeStatus:  "ready",
+			RuntimeNote:    "使用腾讯 iLink Bot API；扫码登录后 Nexus 保存 ilink_bot_token 并直接长轮询 getUpdates、调用 sendMessage 回投文本。",
+			SupportsGroup:  false,
+			SupportsQRCode: true,
+			CredentialFields: []ChannelCredentialField{
+				{Key: "base_url", Label: "iLink API Base URL", Kind: "text", Placeholder: defaultPersonalWeixinBaseURL},
+				{Key: "bot_agent", Label: "Bot Agent", Kind: "text", Placeholder: defaultPersonalWeixinBotAgent},
+				{Key: "ilink_app_id", Label: "iLink App ID", Kind: "text", Placeholder: defaultPersonalWeixinAppID},
+				{Key: "ilink_client_version", Label: "iLink Client Version", Kind: "text", Placeholder: defaultPersonalWeixinClientVersion},
+			},
+		},
+		{
 			ChannelType:   ChannelTypeFeishu,
 			Title:         "飞书",
 			BotLabel:      "飞书机器人",
-			Description:   "通过飞书自建应用机器人收发群聊或单聊消息，支持事件订阅安全校验。",
-			DocsURL:       "https://open.feishu.cn/document/server-docs/im-v1/message/create",
+			Description:   "通过飞书自建应用机器人收发群聊或单聊消息，默认使用长连接事件订阅，不需要公网回调地址。",
+			DocsURL:       "https://open.feishu.cn/document/server-docs/event-subscription-guide/event-subscription-configure-/request-url-configuration-case",
 			RuntimeStatus: "ready",
-			RuntimeNote:   "使用飞书 tenant access token、IM 发送接口和消息接收事件订阅。",
+			RuntimeNote:   "默认使用飞书长连接事件订阅接收入站消息；支持消息 reply、typing reaction 和 reaction.created 通知。Webhook 回调仍作为兼容模式保留。",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "app_id", Label: "App ID", Kind: "text", Required: true, Placeholder: "例如 cli_xxxxxxxxx"},

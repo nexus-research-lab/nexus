@@ -605,7 +605,15 @@ func shouldHideWorkspaceSession(item protocol.Session) bool {
 	if protocol.IsRoomSharedSessionKey(item.SessionKey) {
 		return true
 	}
+	parsed := protocol.ParseSessionKey(item.SessionKey)
+	if isLegacyWorkspaceSessionChannel(item.ChannelType) || isLegacyWorkspaceSessionChannel(parsed.Channel) {
+		return true
+	}
 	return item.RoomSessionID != nil && strings.TrimSpace(*item.RoomSessionID) != ""
+}
+
+func isLegacyWorkspaceSessionChannel(channel string) bool {
+	return strings.EqualFold(strings.TrimSpace(channel), "openclaw-weixin")
 }
 
 func normalizeSession(item protocol.Session) protocol.Session {

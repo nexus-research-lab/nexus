@@ -536,7 +536,7 @@ func TestFeishuChannelSendDeliveryText(t *testing.T) {
 		}
 	})}
 
-	channel := newFeishuChannel("cli_test", "secret_test", client)
+	channel := newFeishuChannel("cli_test", "secret_test", client).WithConnectionMode("webhook")
 	channel.baseURL = "https://feishu.test"
 	if err := channel.Start(context.Background()); err != nil {
 		t.Fatalf("飞书通道启动失败: %v", err)

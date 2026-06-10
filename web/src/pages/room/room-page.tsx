@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 
+import { get_external_session_key_from_conversation_id } from "@/features/conversation/external-session-labels";
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { useRoomPageController } from "@/hooks/room-page-controller/use-room-page-controller";
@@ -34,6 +35,7 @@ export function RoomPage() {
   const controller = useRoomPageController({
     room_id: params.room_id,
     conversation_id: params.conversation_id,
+    session_key: params.session_key,
   });
   const conversation_tour = useMemo(() => {
     if (!controller.current_room) {
@@ -88,6 +90,11 @@ export function RoomPage() {
     controller.handle_select_conversation(conversation_id);
     const route_room_id = params.room_id;
     if (route_room_id) {
+      const external_session_key = get_external_session_key_from_conversation_id(conversation_id);
+      if (external_session_key) {
+        navigate(AppRouteBuilders.room_session(route_room_id, external_session_key));
+        return;
+      }
       navigate(AppRouteBuilders.room_conversation(route_room_id, conversation_id));
     }
   }, [controller, navigate, params.room_id]);
@@ -232,14 +239,20 @@ export function RoomPage() {
       params.room_id &&
       controller.current_room?.id === params.room_id &&
       !params.conversation_id &&
+      !params.session_key &&
       controller.conversation_id &&
       !pending_initial_prompt
     ) {
+      const external_session_key = get_external_session_key_from_conversation_id(
+        controller.conversation_id,
+      );
       navigate(
-        AppRouteBuilders.room_conversation(
-          params.room_id,
-          controller.conversation_id,
-        ),
+        external_session_key
+          ? AppRouteBuilders.room_session(params.room_id, external_session_key)
+          : AppRouteBuilders.room_conversation(
+            params.room_id,
+            controller.conversation_id,
+          ),
         { replace: true },
       );
     }
@@ -249,6 +262,7 @@ export function RoomPage() {
     navigate,
     params.conversation_id,
     params.room_id,
+    params.session_key,
     controller.current_room?.id,
     controller.conversation_id,
     pending_initial_prompt,

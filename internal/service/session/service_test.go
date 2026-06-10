@@ -188,6 +188,97 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 }
 
+func TestSessionServiceListsExternalIMSessions(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "个人微信助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	now := time.Now().UTC()
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWeixinPersonalSegment,
+		"dm",
+		"wx-user-1",
+		"",
+	)
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	if _, err = store.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      agentValue.AgentID,
+		ChannelType:  protocol.SessionChannelWeixinPersonal,
+		ChatType:     protocol.RoomTypeDM,
+		Status:       "closed",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "New Chat",
+		MessageCount: 2,
+		Options:      map[string]any{},
+	}); err != nil {
+		t.Fatalf("写入外部 IM session 失败: %v", err)
+	}
+	legacySessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		"openclaw-weixin",
+		"dm",
+		"wx-user-legacy",
+		"",
+	)
+	if _, err = store.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+		SessionKey:   legacySessionKey,
+		AgentID:      agentValue.AgentID,
+		ChannelType:  "openclaw-weixin",
+		ChatType:     protocol.RoomTypeDM,
+		Status:       "closed",
+		CreatedAt:    now,
+		LastActivity: now.Add(time.Second),
+		Title:        "legacy",
+		MessageCount: 1,
+		Options:      map[string]any{},
+	}); err != nil {
+		t.Fatalf("写入旧 openclaw IM session 失败: %v", err)
+	}
+
+	agentSessions, err := sessionService.ListAgentSessions(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取 agent sessions 失败: %v", err)
+	}
+	externalSession := findSessionByKey(agentSessions, sessionKey)
+	if externalSession == nil {
+		t.Fatalf("agent sessions 未包含外部 IM session: %+v", agentSessions)
+	}
+	if externalSession.RoomID != nil || externalSession.ConversationID != nil {
+		t.Fatalf("外部 IM session 不应被伪装成普通 room conversation: %+v", externalSession)
+	}
+	if externalSession.ChannelType != protocol.SessionChannelWeixinPersonal {
+		t.Fatalf("外部 IM channel_type 不正确: %+v", externalSession)
+	}
+	if findSessionByKey(agentSessions, legacySessionKey) != nil {
+		t.Fatalf("旧 openclaw IM session 不应进入 agent sessions: %+v", agentSessions)
+	}
+
+	allSessions, err := sessionService.ListSessions(ctx)
+	if err != nil {
+		t.Fatalf("读取全部 sessions 失败: %v", err)
+	}
+	if findSessionByKey(allSessions, sessionKey) == nil {
+		t.Fatalf("全部 sessions 未包含外部 IM session: %+v", allSessions)
+	}
+	if findSessionByKey(allSessions, legacySessionKey) != nil {
+		t.Fatalf("旧 openclaw IM session 不应进入全部 sessions: %+v", allSessions)
+	}
+}
+
 func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
@@ -586,6 +677,15 @@ func bindTranscriptSessionID(
 		t.Fatalf("回写 session_id 失败: %v", err)
 	}
 	return sessionID
+}
+
+func findSessionByKey(items []protocol.Session, sessionKey string) *protocol.Session {
+	for index := range items {
+		if items[index].SessionKey == sessionKey {
+			return &items[index]
+		}
+	}
+	return nil
 }
 
 func newSessionTestConfig(t *testing.T) config.Config {

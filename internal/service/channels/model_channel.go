@@ -26,6 +26,8 @@ const (
 	ChannelTypeDingTalk = "dingtalk"
 	// ChannelTypeWeChat 表示微信通道。
 	ChannelTypeWeChat = "wechat"
+	// ChannelTypeWeixinPersonal 表示内置个人微信 iLink 通道。
+	ChannelTypeWeixinPersonal = protocol.SessionChannelWeixinPersonal
 	// ChannelTypeFeishu 表示飞书通道。
 	ChannelTypeFeishu = "feishu"
 	// ChannelTypeInternal 表示内部系统会话。
@@ -101,6 +103,10 @@ type DeliveryChannel interface {
 
 type agentScopedDeliveryChannel interface {
 	SendAgentDeliveryText(context.Context, string, DeliveryTarget, string) error
+}
+
+type typingDeliveryChannel interface {
+	SendDeliveryTyping(context.Context, DeliveryTarget, bool) error
 }
 
 func normalizeChannelType(channel string) string {

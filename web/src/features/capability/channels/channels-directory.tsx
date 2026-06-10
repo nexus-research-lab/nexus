@@ -1,25 +1,33 @@
 "use client";
 
 import {
+  CircleCheck,
   Clock3,
   ExternalLink,
   Gamepad2,
   Loader2,
   MessageCircle,
   Power,
+  QrCode,
   RefreshCw,
   Send,
   Settings2,
   SlidersHorizontal,
+  Terminal,
+  TriangleAlert,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { get_agents } from "@/lib/api/agent-manage-api";
 import {
+  ChannelLoginView,
   ChannelConfigView,
   ChannelCredentialField,
   ImChannelType,
+  get_channel_login_api,
   list_channels_api,
+  start_channel_login_api,
+  submit_channel_login_verify_code_api,
   upsert_channel_config_api,
 } from "@/lib/api/channel-api";
 import { cn } from "@/lib/utils";
@@ -59,7 +67,7 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { Agent } from "@/types/agent/agent";
 
-const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "feishu", "telegram", "discord"];
+const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "weixin-personal", "feishu", "telegram", "discord"];
 type ChannelFilter = "all" | "connected" | "configured" | "unconfigured" | "planned";
 
 const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: TranslationKey }> = [
@@ -73,6 +81,7 @@ const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: T
 const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; cnName: string }> = {
   dingtalk: { color: "#1677ff", icon: Send, cnName: "bg-[#1677ff] text-white" },
   wechat: { color: "#15c45d", icon: MessageCircle, cnName: "bg-[#15c45d] text-white" },
+  "weixin-personal": { color: "#10a36a", icon: QrCode, cnName: "bg-[#10a36a] text-white" },
   feishu: { color: "#356bff", icon: Send, cnName: "bg-[#356bff] text-white" },
   telegram: { color: "#28a8ea", icon: Send, cnName: "bg-[#28a8ea] text-white" },
   discord: { color: "#5865f2", icon: Gamepad2, cnName: "bg-[#5865f2] text-white" },
@@ -80,6 +89,10 @@ const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; 
 
 function is_channel_planned(item: ChannelConfigView) {
   return item.runtime_status === "planned";
+}
+
+function is_personal_weixin_channel(channel_type: ImChannelType) {
+  return channel_type === "weixin-personal";
 }
 
 function channel_status_text(item: ChannelConfigView) {
@@ -108,12 +121,21 @@ function guide_steps(channel_type: ImChannelType) {
       <>复制回调配置中的 <b>Token</b> 与 <b>EncodingAESKey</b>，填入下方表单</>,
       <>确认应用可见范围包含目标成员；个人微信不支持官方机器人 IM 接入</>,
     ];
+  case "weixin-personal":
+    return [
+      <>选择处理智能体后点击 <b>保存并扫码登录</b>，Nexus 会直接请求腾讯 iLink Bot API 生成个人微信登录二维码</>,
+      <>用手机微信扫码并确认；如手机端显示数字验证码，在下方扫码面板输入后继续等待登录完成</>,
+      <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收个人微信私聊消息</>,
+      <>智能体回复时，Nexus 会使用同一 iLink 账号调用 <b>sendmessage</b> 回投文本消息</>,
+      <>Nexus 首次收到发送者消息后，在配对授权页批准，再由选定智能体处理</>,
+    ];
   case "feishu":
     return [
       <>登录 <a href="https://open.feishu.cn/" target="_blank" rel="noreferrer">飞书开放平台</a> 创建企业自建应用，在 <b>应用能力</b> 中添加机器人能力</>,
       <>在 <b>凭证与基础信息</b> 页面获取 <b>App ID</b> 和 <b>App Secret</b></>,
-      <>进入 <b>权限管理</b>，为机器人添加收发消息所需的 IM 权限，并提交发布</>,
-      <>在 <b>事件订阅</b> 中订阅接收消息事件，把请求地址配置为当前服务的 <b>/nexus/v1/channels/feishu/messages</b></>,
+      <>进入 <b>权限管理</b>，为机器人添加收发消息、读取消息、消息表情回复所需的 IM 权限，并提交发布</>,
+      <>在 <b>事件订阅</b> 中选择 <b>使用长连接接收事件</b>，订阅 <b>im.message.receive_v1</b> 和 <b>im.message.reaction.created_v1</b>；Nexus 启动后会用 App ID/App Secret 主动连接飞书</>,
+      <>如开启事件加密或需要校验 Token，把飞书侧的 <b>Encrypt Key</b> / <b>Verification Token</b> 填到下方；首条用户消息进入后才会生成配对请求</>,
       <>确认应用可用范围包含目标用户或群，并在飞书群中添加该机器人</>,
     ];
   case "telegram":
@@ -141,6 +163,47 @@ function build_discord_oauth_url(config: Record<string, string>) {
     scope: "bot applications.commands",
   });
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
+
+function is_channel_login_running(view: ChannelLoginView | null) {
+  return view?.status === "running";
+}
+
+function channel_login_status_label(status: string) {
+  switch (status) {
+  case "running":
+    return "等待扫码";
+  case "verify_code_required":
+    return "需要验证码";
+  case "succeeded":
+    return "登录完成";
+  case "expired":
+    return "已超时";
+  case "cancelled":
+    return "已取消";
+  case "error":
+    return "登录失败";
+  default:
+    return status || "未启动";
+  }
+}
+
+function channel_login_status_tone(status: string): "default" | "success" | "warning" | "danger" | "info" {
+  switch (status) {
+  case "succeeded":
+    return "success";
+  case "running":
+    return "info";
+  case "verify_code_required":
+    return "warning";
+  case "expired":
+  case "cancelled":
+    return "warning";
+  case "error":
+    return "danger";
+  default:
+    return "default";
+  }
 }
 
 function ChannelIcon({ type, size = "card" }: { type: ImChannelType; size?: "card" | "dialog" }) {
@@ -209,7 +272,170 @@ function ChannelGuide({
       ) : null}
       {item.channel_type === "feishu" ? (
         <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
-          本通道使用飞书事件订阅 HTTP 回调；请确认应用已订阅“接收消息”事件。
+          本通道默认使用飞书长连接事件订阅；请确认应用已选择长连接并订阅“接收消息”事件。
+        </div>
+      ) : null}
+      {is_personal_weixin_channel(item.channel_type) ? (
+        <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
+          个人微信与企业微信分开配置；本通道由 Nexus 内置 iLink 连接能力提供，不复用企业微信回调。
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LoginQRCode({ payload }: { payload?: string }) {
+  const [image_url, set_image_url] = useState("");
+
+  useEffect(() => {
+    const value = payload?.trim() || "";
+    if (!value) {
+      set_image_url("");
+      return;
+    }
+    if (value.startsWith("data:image/")) {
+      set_image_url(value);
+      return;
+    }
+    let cancelled = false;
+    void import("qrcode")
+      .then((module) => module.toDataURL(value, {
+        errorCorrectionLevel: "M",
+        margin: 1,
+        scale: 7,
+        width: 220,
+      }))
+      .then((url) => {
+        if (!cancelled) {
+          set_image_url(url);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          set_image_url("");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [payload]);
+
+  if (!payload) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-[12px] border border-(--divider-subtle-color) px-4 py-4">
+      {image_url ? (
+        <img
+          alt="个人微信扫码登录二维码"
+          className="h-[220px] w-[220px] rounded-[8px] bg-white p-2"
+          src={image_url}
+        />
+      ) : (
+        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-white p-4 text-center text-[12px] leading-5 text-neutral-700">
+          二维码生成失败，请使用下方链接
+        </div>
+      )}
+      <code className="max-w-full truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] text-(--text-muted)">
+        {payload}
+      </code>
+    </div>
+  );
+}
+
+function ChannelLoginPanel({
+  disabled,
+  loading,
+  login_view,
+  on_start,
+  on_submit_verify_code,
+}: {
+  disabled: boolean;
+  loading: boolean;
+  login_view: ChannelLoginView | null;
+  on_start: () => void;
+  on_submit_verify_code: (value: string) => void;
+}) {
+  const [verify_code, set_verify_code] = useState("");
+  const running = is_channel_login_running(login_view);
+  const output = login_view?.output?.trimEnd() || (running ? "等待 iLink 扫码状态..." : "");
+  const status = login_view?.status || "";
+  const status_tone = channel_login_status_tone(status);
+  const StatusIcon = status === "succeeded" ? CircleCheck : status === "error" || status === "expired" ? TriangleAlert : Terminal;
+  const verify_required = status === "verify_code_required";
+
+  return (
+    <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-(--text-strong)">
+            <QrCode className="h-4 w-4 text-(--primary)" />
+            扫码登录
+          </div>
+          <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
+            Nexus 会直接请求腾讯 iLink Bot API 生成二维码并保存登录凭据。
+          </p>
+        </div>
+        <UiButton
+          disabled={disabled || loading || running}
+          onClick={on_start}
+          size="sm"
+          tone="primary"
+          type="button"
+          variant="solid"
+        >
+          {loading || running ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+          {login_view ? "重新拉起" : "拉起二维码"}
+        </UiButton>
+      </div>
+
+      {login_view ? (
+        <div className="mt-3 space-y-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <UiBadge size="xs" tone={status_tone}>
+              <StatusIcon className="mr-1 h-3 w-3" />
+              {channel_login_status_label(status)}
+            </UiBadge>
+            <code className="min-w-0 truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] text-(--text-muted)">
+              {login_view.account_id || login_view.command || "Nexus iLink QR login"}
+            </code>
+          </div>
+          <LoginQRCode payload={login_view.qr_payload} />
+          {verify_required ? (
+            <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-3 py-3">
+              <div className="mb-2 text-[12px] font-semibold text-(--text-strong)">
+                {login_view.verify_code_hint || "输入手机微信显示的数字"}
+              </div>
+              <div className="flex gap-2">
+                <UiInput
+                  onChange={(event) => set_verify_code(event.target.value)}
+                  placeholder="验证码"
+                  value={verify_code}
+                  variant="dialog"
+                />
+                <UiButton
+                  disabled={!verify_code.trim() || loading}
+                  onClick={() => {
+                    on_submit_verify_code(verify_code);
+                    set_verify_code("");
+                  }}
+                  size="sm"
+                  tone="primary"
+                  type="button"
+                  variant="solid"
+                >
+                  提交
+                </UiButton>
+              </div>
+            </div>
+          ) : null}
+          <pre className="max-h-[280px] min-h-[132px] overflow-auto whitespace-pre-wrap break-words rounded-[10px] bg-[#101418] px-3 py-3 font-mono text-[12px] leading-5 text-[#d7f8de]">{output}</pre>
+          {login_view.error ? (
+            <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-3 py-2 text-[12px] leading-5 text-(--destructive)">
+              {login_view.error}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -222,14 +448,22 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
   const [config, set_config] = useState<Record<string, string>>(item.public_config || {});
   const [credentials, set_credentials] = useState<Record<string, string>>({});
   const [saving, set_saving] = useState(false);
+  const [login_loading, set_login_loading] = useState(false);
+  const [login_view, set_login_view] = useState<ChannelLoginView | null>(null);
   const is_planned = is_channel_planned(current_item);
   const discord_oauth_url = current_item.channel_type === "discord" ? build_discord_oauth_url(config) : "";
+  const supports_personal_weixin_login = is_personal_weixin_channel(current_item.channel_type);
+  const login_running = is_channel_login_running(login_view);
+  const login_id = login_view?.login_id || "";
+  const login_status = login_view?.status || "";
 
   useEffect(() => {
     set_current_item(item);
     set_agent_id(item.agent_id || agents[0]?.agent_id || "");
     set_config(item.public_config || {});
     set_credentials({});
+    set_login_view(null);
+    set_login_loading(false);
   }, [agents, item]);
 
   const handle_field_change = (field: ChannelCredentialField, value: string) => {
@@ -239,6 +473,48 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     }
     set_config((current) => ({ ...current, [field.key]: value }));
   };
+
+  const start_login = useCallback(async () => {
+    if (!supports_personal_weixin_login || login_running) return;
+    set_login_loading(true);
+    try {
+      const next_login = await start_channel_login_api(current_item.channel_type);
+      set_login_view(next_login);
+    } catch (error) {
+      on_error(error instanceof Error ? error.message : "扫码登录启动失败");
+    } finally {
+      set_login_loading(false);
+    }
+  }, [current_item.channel_type, login_running, on_error, supports_personal_weixin_login]);
+
+  const submit_verify_code = useCallback(async (value: string) => {
+    if (!supports_personal_weixin_login || !login_id) return;
+    set_login_loading(true);
+    try {
+      const next_login = await submit_channel_login_verify_code_api(current_item.channel_type, login_id, value);
+      set_login_view(next_login);
+    } catch (error) {
+      on_error(error instanceof Error ? error.message : "验证码提交失败");
+    } finally {
+      set_login_loading(false);
+    }
+  }, [current_item.channel_type, login_id, on_error, supports_personal_weixin_login]);
+
+  useEffect(() => {
+    if (!supports_personal_weixin_login || !login_id || login_status !== "running") {
+      return;
+    }
+    const timer = window.setInterval(async () => {
+      try {
+        const next_login = await get_channel_login_api(current_item.channel_type, login_id);
+        set_login_view(next_login);
+      } catch (error) {
+        window.clearInterval(timer);
+        on_error(error instanceof Error ? error.message : "扫码登录状态刷新失败");
+      }
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [current_item.channel_type, login_id, login_status, on_error, supports_personal_weixin_login]);
 
   const save_channel = useCallback(async (close_on_success: boolean) => {
     if (!agent_id) return;
@@ -251,12 +527,20 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
         credentials,
       });
       set_current_item(saved);
-      on_saved(saved);
+      const should_start_login = is_personal_weixin_channel(saved.channel_type);
+      on_saved(saved, !should_start_login);
+      if (close_on_success && should_start_login) {
+        set_login_loading(true);
+        const next_login = await start_channel_login_api(saved.channel_type);
+        set_login_view(next_login);
+        return;
+      }
       if (close_on_success) on_close();
     } catch (error) {
       on_error(error instanceof Error ? error.message : "连接失败");
     } finally {
       set_saving(false);
+      set_login_loading(false);
     }
   }, [agent_id, config, credentials, current_item.channel_type, is_planned, on_close, on_error, on_saved]);
 
@@ -297,6 +581,16 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
                   <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3 text-[13px] font-medium leading-5 text-(--text-default)">
                     {current_item.runtime_note}
                   </div>
+                ) : null}
+
+                {supports_personal_weixin_login ? (
+                  <ChannelLoginPanel
+                    disabled={!current_item.configured || saving}
+                    loading={login_loading}
+                    login_view={login_view}
+                    on_start={start_login}
+                    on_submit_verify_code={submit_verify_code}
+                  />
                 ) : null}
 
                 <UiField label={<>处理智能体 <span className="text-(--destructive)">*</span></>}>
@@ -366,14 +660,22 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
             </UiButton>
             <UiButton
               class_name="min-w-[124px]"
-              disabled={saving || !agent_id || is_planned}
+              disabled={saving || login_loading || !agent_id || is_planned}
               size="lg"
               tone="primary"
               type="submit"
               variant="solid"
             >
-              <Power className="h-5 w-5" />
-              {is_planned ? "未上线" : saving ? "连接中..." : "连接"}
+              {supports_personal_weixin_login ? <QrCode className="h-5 w-5" /> : <Power className="h-5 w-5" />}
+              {is_planned
+                ? "未上线"
+                : saving
+                  ? "保存中..."
+                  : login_loading
+                    ? "拉起二维码..."
+                    : supports_personal_weixin_login
+                      ? "保存并扫码登录"
+                      : "连接"}
             </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>
@@ -404,6 +706,8 @@ function ChannelCard({
             : "neutral";
   const description = planned
     ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
+    : item.runtime_status === "external_adapter" && !item.configured
+      ? "选择处理智能体后，按通道说明完成外部连接。"
     : item.configured
       ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
       : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
@@ -507,7 +811,11 @@ export function ChannelsDirectory() {
   const [feedback, set_feedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
 
   const sorted_channels = useMemo(() => {
-    return [...channels].sort((left, right) => CHANNEL_ORDER.indexOf(left.channel_type) - CHANNEL_ORDER.indexOf(right.channel_type));
+    return [...channels].sort((left, right) => {
+      const left_index = CHANNEL_ORDER.indexOf(left.channel_type);
+      const right_index = CHANNEL_ORDER.indexOf(right.channel_type);
+      return (left_index < 0 ? CHANNEL_ORDER.length : left_index) - (right_index < 0 ? CHANNEL_ORDER.length : right_index);
+    });
   }, [channels]);
   const visible_channels = useMemo(() => {
     const query = search_query.trim().toLowerCase();
@@ -576,7 +884,7 @@ export function ChannelsDirectory() {
         body_scrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.channels_badge", { count: channels.length || 5 })}
+            badge={t("capability.channels_badge", { count: channels.length || 6 })}
             density="compact"
             leading={<MessageCircle className="h-4 w-4" />}
             subtitle={t("capability.channels_subtitle")}

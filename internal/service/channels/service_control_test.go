@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
@@ -28,6 +29,16 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	}
 	if wechat.SupportsGroup {
 		t.Fatal("企业微信自建应用通道不应标记群聊能力")
+	}
+	weixinPersonal, ok := channelCatalogByType(ChannelTypeWeixinPersonal)
+	if !ok {
+		t.Fatal("缺少个人微信通道")
+	}
+	if weixinPersonal.RuntimeStatus != "ready" {
+		t.Fatalf("个人微信应标记为内置可用，实际: %s", weixinPersonal.RuntimeStatus)
+	}
+	if !weixinPersonal.SupportsQRCode || weixinPersonal.SupportsGroup {
+		t.Fatalf("个人微信能力标记不正确: %+v", weixinPersonal)
 	}
 }
 
@@ -80,6 +91,94 @@ func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 				t.Fatalf("不完整渠道配置应拒绝，实际 err=%v want=%s", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestControlServiceConfiguresWeixinPersonalWithoutSecrets(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	item, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"base_url": "https://ilink.test",
+		},
+	})
+	if err != nil {
+		t.Fatalf("配置个人微信通道失败: %v", err)
+	}
+	if item.ChannelType != ChannelTypeWeixinPersonal || item.RuntimeStatus != "ready" || !item.Configured {
+		t.Fatalf("个人微信配置结果不正确: %+v", item)
+	}
+	if item.HasCredentials {
+		t.Fatalf("个人微信配置阶段不应要求 Nexus 保存 iLink token: %+v", item)
+	}
+}
+
+func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	service.idFactory = func(prefix string) string {
+		return prefix + "-1"
+	}
+	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
+		return &fakePersonalWeixinLoginClient{}
+	}
+	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"base_url": "https://ilink.test",
+		},
+	})
+	if err != nil {
+		t.Fatalf("配置个人微信通道失败: %v", err)
+	}
+
+	started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("启动个人微信扫码登录失败: %v", err)
+	}
+	if started.LoginID != "channel_login-1" || started.Status != ChannelLoginStatusRunning {
+		t.Fatalf("初始登录状态不正确: %+v", started)
+	}
+	if started.QRPayload != "weixin://qr-login" {
+		t.Fatalf("登录二维码不正确: %+v", started)
+	}
+
+	latest := waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
+	if latest.AccountID != "wx-account-1" || !strings.Contains(latest.Output, "个人微信已连接") {
+		t.Fatalf("登录完成状态不正确: %+v", latest)
+	}
+	items, err := service.ListChannels(context.Background(), "owner-a")
+	if err != nil {
+		t.Fatalf("读取频道配置失败: %v", err)
+	}
+	var configured *ChannelConfigView
+	for index := range items {
+		if items[index].ChannelType == ChannelTypeWeixinPersonal {
+			configured = &items[index]
+			break
+		}
+	}
+	if configured == nil || !configured.HasCredentials || configured.PublicConfig["account_id"] != "wx-account-1" {
+		t.Fatalf("登录后应保存 iLink 账号和 token: %+v", configured)
+	}
+}
+
+func TestControlServiceRejectsUnsupportedChannelLogin(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	_, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeChat)
+	if !errors.Is(err, ErrChannelLoginUnsupported) {
+		t.Fatalf("企业微信不应走个人微信 iLink 扫码登录，实际: %v", err)
 	}
 }
 
@@ -142,6 +241,41 @@ VALUES ('owner-b', 'feishu', 'agent-b', 'disabled', '{"app_id":"cli_owner_b"}');
 	}
 	if disabledOwner != "" {
 		t.Fatalf("disabled 配置不应参与 owner 解析: %q", disabledOwner)
+	}
+}
+
+func TestControlServicePrepareFeishuIngressAllowsChallengeWithoutStoredToken(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeFeishu, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"app_id": "cli_a",
+		},
+		Credentials: map[string]string{
+			"app_secret": "secret-a",
+		},
+	})
+	if err != nil {
+		t.Fatalf("配置飞书渠道失败: %v", err)
+	}
+
+	body := []byte(`{
+		"type": "url_verification",
+		"token": "feishu-side-token",
+		"challenge": "challenge-token"
+	}`)
+	prepared, err := service.PrepareFeishuIngress(context.Background(), body, http.Header{})
+	if err != nil {
+		t.Fatalf("未保存 verification token 时也应允许飞书 URL 校验 challenge: %v", err)
+	}
+	if string(prepared.Body) != string(body) {
+		t.Fatalf("URL 校验 body 不应被改写: %+v", prepared)
 	}
 }
 
@@ -333,6 +467,53 @@ func TestControlServicePrepareWeChatIngressDecryptsAndVerifiesSignature(t *testi
 	if _, err = service.PrepareWeChatIngress(context.Background(), body, badRequest); !errors.Is(err, ErrWeChatCallbackUnauthorized) {
 		t.Fatalf("错误签名的企业微信回调应拒绝，实际: %v", err)
 	}
+}
+
+type fakePersonalWeixinLoginClient struct{}
+
+func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (weixinQRCodeResponse, error) {
+	return weixinQRCodeResponse{
+		QRCode:             "qr-token-1",
+		QRCodeImageContent: "weixin://qr-login",
+	}, nil
+}
+
+func (c *fakePersonalWeixinLoginClient) PollQRCodeStatus(context.Context, string, string) (weixinQRStatusResponse, error) {
+	return weixinQRStatusResponse{
+		Status:      "confirmed",
+		BotToken:    "ilink-token-1",
+		IlinkBotID:  "wx-account-1",
+		IlinkUserID: "wx-user-1",
+		BaseURL:     "https://ilink.test",
+	}, nil
+}
+
+func waitChannelLoginStatus(
+	t *testing.T,
+	service *ControlService,
+	ownerUserID string,
+	channelType string,
+	loginID string,
+	status string,
+) *ChannelLoginView {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		view, err := service.GetChannelLogin(context.Background(), ownerUserID, channelType, loginID)
+		if err != nil {
+			t.Fatalf("读取登录状态失败: %v", err)
+		}
+		if view.Status == status {
+			return view
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	view, err := service.GetChannelLogin(context.Background(), ownerUserID, channelType, loginID)
+	if err != nil {
+		t.Fatalf("读取最终登录状态失败: %v", err)
+	}
+	t.Fatalf("等待登录状态超时: got=%s want=%s view=%+v", view.Status, status, view)
+	return nil
 }
 
 func testChannelCredentialKey() string {

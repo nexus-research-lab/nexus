@@ -97,6 +97,7 @@ room:group:<conversation_id>
 - `tg`
 - `dt`
 - `wx`
+- `weixin-personal`
 - `fs`
 - `internal`
 
@@ -127,6 +128,7 @@ room:group:<conversation_id>
 - `dt + dm`：钉钉 conversation_id 或 sender id
 - `dt + group`：钉钉 openConversationId / conversationId
 - `wx + dm`：企业微信 user id
+- `weixin-personal + dm`：个人微信 iLink `from_user_id`；微信 `context_token` 只进入 remembered delivery target，不参与 session_key 主键
 - `fs + dm`：飞书 open_id / user_id / union_id
 - `fs + group`：飞书 chat_id
 - `internal + dm`：内部保留值

@@ -13,6 +13,7 @@ import {
   get_message_send_ack_timeout_ms,
 } from "@/config/options";
 import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
+import { get_session_messages_api } from "@/lib/api/agent-api";
 import { get_room_conversation_messages } from "@/lib/api/room-api";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
 import { useWebSocket } from "@/lib/websocket";
@@ -937,8 +938,6 @@ export function useAgentConversation(
 
     if (
       !active_session_key ||
-      !current_room_id ||
-      !current_conversation_id ||
       !has_more_history_ref.current ||
       is_history_loading_ref.current ||
       !before_round_timestamp
@@ -948,15 +947,21 @@ export function useAgentConversation(
 
     set_history_loading(true);
     try {
-      const page = await get_room_conversation_messages(
-        current_room_id,
-        current_conversation_id,
-        {
+      const page = current_room_id && current_conversation_id
+        ? await get_room_conversation_messages(
+          current_room_id,
+          current_conversation_id,
+          {
+            limit: get_message_history_round_page_size(),
+            before_round_id,
+            before_round_timestamp,
+          },
+        )
+        : await get_session_messages_api(active_session_key, {
           limit: get_message_history_round_page_size(),
           before_round_id,
           before_round_timestamp,
-        },
-      );
+        });
       if (active_session_key_ref.current !== active_session_key) {
         return false;
       }

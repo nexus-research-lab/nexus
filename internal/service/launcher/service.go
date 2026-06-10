@@ -280,6 +280,8 @@ func buildBootstrapConversations(
 			RoomID:         roomID,
 			ConversationID: conversationID,
 			RoomType:       roomType,
+			ChannelType:    strings.TrimSpace(item.ChannelType),
+			ChatType:       strings.TrimSpace(item.ChatType),
 			Title:          normalizeBootstrapConversationTitle(item.Title, roomType),
 			Status:         strings.TrimSpace(item.Status),
 			IsActive:       item.IsActive,

@@ -97,6 +97,7 @@ export function AppRouter() {
                   {/* Room 路由 */}
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_conversation} />
+                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_session} />
 
                   {/* /rooms 独立路由重定向到 /app */}
                   <Route element={<Navigate replace to={APP_ROUTE_PATHS.home} />} path="/rooms" />

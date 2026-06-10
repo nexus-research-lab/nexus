@@ -107,6 +107,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetTitleGenerator(titleService)
+	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)

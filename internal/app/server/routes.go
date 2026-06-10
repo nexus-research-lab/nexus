@@ -97,6 +97,8 @@ func (s *Server) mountAgentRoutes() {
 
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
 	s.router.Post(s.prefixPath("/sessions"), s.handlers.agent.HandleCreateSession)
+	s.router.Get(s.prefixPath("/sessions/messages"), s.handlers.agent.HandleSessionMessagesByQuery)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
 	s.router.Patch(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleUpdateSession)
 	s.router.Delete(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleDeleteSession)
 }
@@ -160,12 +162,16 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/channels/telegram/messages"), s.handlers.channel.HandleTelegramChannelIngress)
 	s.router.Post(s.prefixPath("/channels/dingtalk/messages"), s.handlers.channel.HandleDingTalkChannelIngress)
 	s.router.Post(s.prefixPath("/channels/feishu/messages"), s.handlers.channel.HandleFeishuChannelIngress)
+	s.router.Post(s.prefixPath("/channels/weixin-personal/messages"), s.handlers.channel.HandleWeixinPersonalChannelIngress)
 	s.router.Get(s.prefixPath("/channels/wechat/messages"), s.handlers.channel.HandleWeChatChannelIngress)
 	s.router.Post(s.prefixPath("/channels/wechat/messages"), s.handlers.channel.HandleWeChatChannelIngress)
 
 	s.router.Get(s.prefixPath("/capability/channels"), s.handlers.channel.HandleListChannels)
 	s.router.Put(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleUpsertChannelConfig)
 	s.router.Delete(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleDeleteChannelConfig)
+	s.router.Post(s.prefixPath("/capability/channels/{channel_type}/login"), s.handlers.channel.HandleStartChannelLogin)
+	s.router.Get(s.prefixPath("/capability/channels/{channel_type}/login/{login_id}"), s.handlers.channel.HandleGetChannelLogin)
+	s.router.Post(s.prefixPath("/capability/channels/{channel_type}/login/{login_id}/verify-code"), s.handlers.channel.HandleSubmitChannelLoginVerifyCode)
 	s.router.Get(s.prefixPath("/capability/pairings"), s.handlers.channel.HandleListPairings)
 	s.router.Post(s.prefixPath("/capability/pairings"), s.handlers.channel.HandleCreatePairing)
 	s.router.Patch(s.prefixPath("/capability/pairings/{pairing_id}"), s.handlers.channel.HandleUpdatePairing)
