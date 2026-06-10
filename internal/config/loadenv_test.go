@@ -223,11 +223,15 @@ func TestLoadMessageDebugStreamEvent(t *testing.T) {
 }
 
 func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
+	t.Setenv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "120")
 	t.Setenv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "60")
 	t.Setenv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "15")
 
 	cfg := Load()
 
+	if cfg.RuntimeRoundIdleTimeout() != 120*time.Second {
+		t.Fatalf("RuntimeRoundIdleTimeout = %s, want 120s", cfg.RuntimeRoundIdleTimeout())
+	}
 	if cfg.RuntimeIdleSessionTTL() != 60*time.Second {
 		t.Fatalf("RuntimeIdleSessionTTL = %s, want 60s", cfg.RuntimeIdleSessionTTL())
 	}

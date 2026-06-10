@@ -329,6 +329,7 @@ func (s *RealtimeService) runSlot(
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: mapper},
+		IdleTimeout:      s.config.RuntimeRoundIdleTimeout(),
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
 		},

@@ -179,6 +179,17 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 			"stream_wait_error", streamClosed.WaitError,
 		)
 	}
+	var streamIdle *runtimectx.RoundStreamIdleTimeoutError
+	if errors.As(err, &streamIdle) {
+		fields = append(fields,
+			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
+			"stream_messages_seen", streamIdle.MessagesSeen,
+			"stream_last_type", streamIdle.LastMessageType,
+			"stream_last_summary", streamIdle.LastMessageSummary,
+			"stream_last_session_id", streamIdle.LastSessionID,
+			"stream_last_message_id", streamIdle.LastMessageID,
+		)
+	}
 	if mapper != nil {
 		lastAssistant := mapper.LastAssistantMessage()
 		fields = append(fields,

@@ -65,6 +65,7 @@ type Config struct {
 	GoalAutoContinueEnabled        bool
 	GoalMaxContinuationsPerRun     int
 	AutomationRunTimeoutSeconds    int
+	RuntimeRoundIdleTimeoutSeconds int
 	RuntimeIdleSessionTTLSeconds   int
 	RuntimeIdleSessionSweepSeconds int
 	ConnectorCredentialsKey        string
@@ -164,6 +165,7 @@ func Load() Config {
 		GoalAutoContinueEnabled:        mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
 		GoalMaxContinuationsPerRun:     mustInt(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20")),
 		AutomationRunTimeoutSeconds:    mustInt(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600")),
+		RuntimeRoundIdleTimeoutSeconds: mustInt(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200")),
 		RuntimeIdleSessionTTLSeconds:   mustInt(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600")),
 		RuntimeIdleSessionSweepSeconds: mustInt(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120")),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
@@ -180,6 +182,14 @@ func Load() Config {
 		ConnectorShopifyClientID:       getEnv("CONNECTOR_SHOPIFY_CLIENT_ID", ""),
 		ConnectorShopifyClientSecret:   getEnv("CONNECTOR_SHOPIFY_CLIENT_SECRET", ""),
 	}
+}
+
+// RuntimeRoundIdleTimeout 返回单轮 runtime 流无事件保护时长，<=0 表示使用 runtime 默认值。
+func (c Config) RuntimeRoundIdleTimeout() time.Duration {
+	if c.RuntimeRoundIdleTimeoutSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(c.RuntimeRoundIdleTimeoutSeconds) * time.Second
 }
 
 // RuntimeIdleSessionTTL 返回无运行 round 的 SDK client 保留时长，<=0 表示关闭回收。

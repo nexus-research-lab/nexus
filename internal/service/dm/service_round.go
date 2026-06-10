@@ -128,6 +128,7 @@ func (r *roundRunner) executeRound(
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
+		IdleTimeout:      r.service.config.RuntimeRoundIdleTimeout(),
 		InterruptReason: func() string {
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
