@@ -1,11 +1,8 @@
 package channels
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -106,33 +103,46 @@ func (c *discordChannel) SendDeliveryText(ctx context.Context, target DeliveryTa
 	}
 
 	for _, chunk := range splitText(strings.TrimSpace(text), 1900) {
-		payload, err := json.Marshal(map[string]any{
+		payload := map[string]any{
 			"content": chunk,
-		})
-		if err != nil {
-			return err
+			"allowed_mentions": map[string]any{
+				"parse": []string{},
+			},
 		}
-		request, err := http.NewRequestWithContext(
+		if err := doChannelJSONExpectSuccess(
 			ctx,
+			c.client,
 			http.MethodPost,
 			strings.TrimRight(c.baseURL, "/")+"/channels/"+targetID+"/messages",
-			bytes.NewReader(payload),
-		)
-		if err != nil {
-			return err
-		}
-		request.Header.Set("Authorization", "Bot "+c.token)
-		request.Header.Set("Content-Type", "application/json")
-
-		response, err := c.client.Do(request)
-		if err != nil {
-			return err
-		}
-		if err = expectSuccess(response); err != nil {
+			payload,
+			map[string]string{"Authorization": "Bot " + c.token},
+		); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (c *discordChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
+	if !active {
+		return nil
+	}
+	if strings.TrimSpace(c.token) == "" {
+		return fmt.Errorf("discord channel is not configured")
+	}
+	targetID := firstNonEmpty(target.ThreadID, target.To)
+	if targetID == "" {
+		return fmt.Errorf("discord typing target requires to or thread_id")
+	}
+
+	return doChannelJSONExpectSuccess(
+		ctx,
+		c.client,
+		http.MethodPost,
+		strings.TrimRight(c.baseURL, "/")+"/channels/"+targetID+"/typing",
+		nil,
+		map[string]string{"Authorization": "Bot " + c.token},
+	)
 }
 
 func (c *discordChannel) handleMessageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
@@ -256,34 +266,4 @@ func isDiscordThreadType(channelType discordgo.ChannelType) bool {
 	default:
 		return false
 	}
-}
-
-func expectSuccess(response *http.Response) error {
-	defer response.Body.Close()
-	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
-		_, _ = io.Copy(io.Discard, response.Body)
-		return nil
-	}
-	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("delivery request failed: status=%d body=%s", response.StatusCode, strings.TrimSpace(string(body)))
-}
-
-func splitText(text string, limit int) []string {
-	if strings.TrimSpace(text) == "" {
-		return nil
-	}
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return []string{text}
-	}
-
-	result := make([]string, 0, len(runes)/limit+1)
-	for start := 0; start < len(runes); start += limit {
-		end := start + limit
-		if end > len(runes) {
-			end = len(runes)
-		}
-		result = append(result, string(runes[start:end]))
-	}
-	return result
 }

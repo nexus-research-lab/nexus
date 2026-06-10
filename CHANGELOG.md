@@ -11,11 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added configurable IM channels for Telegram, Discord, Feishu, DingTalk, and WeChat Work, including DingTalk Stream ingress, WeChat Work encrypted callback handling, channel routing, and capability page setup guidance.
 - Added a separate personal WeChat channel with built-in Tencent iLink QR login, getUpdates polling, sendMessage delivery, typing status, structured ingress, pairings, and session-key documentation.
 - Added Feishu reply/thread metadata, typing reaction indicators, and reaction-created ingress handling to better match OpenClaw-style IM behavior.
+- Added shared IM channel HTTP/text delivery helpers and filled Discord/Telegram parity details for typing indicators, Telegram topic delivery, and mention-safe Discord replies.
 
 ### Fixed
 - Limited the channel capability UI to personal WeChat and Feishu while keeping the other IM channels closed in the frontend.
 - Made personal WeChat typing-ticket lookup degrade softly so typing status failures do not affect message polling or reply delivery.
 - Standardized the personal WeChat channel identifier on `weixin-personal` and reduced external reply latency by prioritizing final message delivery over post-round bookkeeping.
+- Fixed Telegram long polling to subscribe to edited messages so its existing edited-message ingress handler can actually run.
 
 ## [0.1.19] - 2026-06-10
 

@@ -1656,7 +1656,7 @@ func channelCatalog() []ChannelCatalogItem {
 			Description:   "通过 Telegram Bot API 接收私聊/群聊消息，并向聊天或话题回投文本。",
 			DocsURL:       "https://core.telegram.org/bots",
 			RuntimeStatus: "ready",
-			RuntimeNote:   "使用 Bot API getUpdates 长轮询和 sendMessage。",
+			RuntimeNote:   "使用 Bot API getUpdates 长轮询；支持 edited_message、话题 message_thread_id、sendMessage 和 sendChatAction typing。",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "bot_token", Label: "Bot Token", Kind: "password", Required: true, Secret: true, Placeholder: "粘贴来自 @BotFather 的 Token"},
@@ -1669,7 +1669,7 @@ func channelCatalog() []ChannelCatalogItem {
 			Description:       "通过 Discord Bot 接收服务器频道、Thread 或私聊消息，并向频道回投文本。",
 			DocsURL:           "https://discord.com/developers/docs/resources/message#create-message",
 			RuntimeStatus:     "ready",
-			RuntimeNote:       "使用 Discord Gateway 消息事件和 REST create message。",
+			RuntimeNote:       "使用 Discord Gateway 消息事件和 REST create message/typing；Thread 内回复自动投递到 Thread，并禁用模型文本触发 mentions。",
 			SupportsGroup:     true,
 			SupportsOAuthLink: true,
 			CredentialFields: []ChannelCredentialField{

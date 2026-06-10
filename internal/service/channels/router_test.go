@@ -444,9 +444,15 @@ func TestRouterDeliverTextCreatesInternalAutomationInbox(t *testing.T) {
 
 func TestDiscordChannelSendDeliveryText(t *testing.T) {
 	requests := make([]*http.Request, 0)
+	payloads := make([]map[string]any, 0)
 	channel := newDiscordChannel("token-1", &http.Client{
 		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requests = append(requests, request)
+			var payload map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析 Discord 请求失败: %w", err)
+			}
+			payloads = append(payloads, payload)
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(`{}`)),
@@ -473,13 +479,70 @@ func TestDiscordChannelSendDeliveryText(t *testing.T) {
 	if !strings.HasSuffix(requests[0].URL.Path, "/channels/123456/messages") {
 		t.Fatalf("Discord 路径不正确: %s", requests[0].URL.Path)
 	}
+	allowedMentions, ok := payloads[0]["allowed_mentions"].(map[string]any)
+	if !ok {
+		t.Fatalf("Discord payload 应禁用 mention 解析: %+v", payloads[0])
+	}
+	parseValues, ok := allowedMentions["parse"].([]any)
+	if !ok || len(parseValues) != 0 {
+		t.Fatalf("Discord allowed_mentions.parse 应为空: %+v", allowedMentions)
+	}
+}
+
+func TestDiscordChannelSendDeliveryTyping(t *testing.T) {
+	requests := make([]*http.Request, 0)
+	channel := newDiscordChannel("token-1", &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request)
+			return &http.Response{
+				StatusCode: http.StatusNoContent,
+				Body:       io.NopCloser(strings.NewReader(``)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
+	channel.baseURL = "https://discord.test/api/v10"
+
+	if err := channel.SendDeliveryTyping(context.Background(), DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  ChannelTypeDiscord,
+		To:       "channel-1",
+		ThreadID: "thread-1",
+	}, false); err != nil {
+		t.Fatalf("Discord typing stop 应静默忽略: %v", err)
+	}
+	if len(requests) != 0 {
+		t.Fatalf("Discord typing stop 不应请求 API，实际 %d", len(requests))
+	}
+
+	if err := channel.SendDeliveryTyping(context.Background(), DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  ChannelTypeDiscord,
+		To:       "channel-1",
+		ThreadID: "thread-1",
+	}, true); err != nil {
+		t.Fatalf("Discord typing start 失败: %v", err)
+	}
+	if len(requests) != 1 {
+		t.Fatalf("期望 typing 请求 1 次，实际 %d", len(requests))
+	}
+	if requests[0].Method != http.MethodPost || !strings.HasSuffix(requests[0].URL.Path, "/channels/thread-1/typing") {
+		t.Fatalf("Discord typing 路径不正确: %s %s", requests[0].Method, requests[0].URL.Path)
+	}
+	if got := requests[0].Header.Get("Authorization"); got != "Bot token-1" {
+		t.Fatalf("Discord typing Authorization 不正确: %s", got)
+	}
 }
 
 func TestTelegramChannelSendDeliveryText(t *testing.T) {
 	requests := make([]*http.Request, 0)
+	var payload map[string]any
 	channel := newTelegramChannel("token-2", &http.Client{
 		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			requests = append(requests, request)
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析 Telegram 请求失败: %w", err)
+			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(`{}`)),
@@ -502,6 +565,111 @@ func TestTelegramChannelSendDeliveryText(t *testing.T) {
 	}
 	if !strings.HasSuffix(requests[0].URL.Path, "/bottoken-2/sendMessage") {
 		t.Fatalf("Telegram 路径不正确: %s", requests[0].URL.Path)
+	}
+	if payload["chat_id"] != "-1001" || payload["message_thread_id"] != float64(12) {
+		t.Fatalf("Telegram topic payload 不正确: %+v", payload)
+	}
+	if payload["disable_web_page_preview"] != true {
+		t.Fatalf("Telegram 应关闭链接预览: %+v", payload)
+	}
+}
+
+func TestTelegramChannelSendDeliveryTyping(t *testing.T) {
+	requests := make([]*http.Request, 0)
+	var payload map[string]any
+	channel := newTelegramChannel("token-2", &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request)
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析 Telegram typing 请求失败: %w", err)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
+	channel.baseURL = "https://telegram.test"
+
+	if err := channel.SendDeliveryTyping(context.Background(), DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  ChannelTypeTelegram,
+		To:       "-1001",
+		ThreadID: "12",
+	}, false); err != nil {
+		t.Fatalf("Telegram typing stop 应静默忽略: %v", err)
+	}
+	if len(requests) != 0 {
+		t.Fatalf("Telegram typing stop 不应请求 API，实际 %d", len(requests))
+	}
+
+	if err := channel.SendDeliveryTyping(context.Background(), DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  ChannelTypeTelegram,
+		To:       "-1001",
+		ThreadID: "12",
+	}, true); err != nil {
+		t.Fatalf("Telegram typing start 失败: %v", err)
+	}
+	if len(requests) != 1 {
+		t.Fatalf("期望 typing 请求 1 次，实际 %d", len(requests))
+	}
+	if !strings.HasSuffix(requests[0].URL.Path, "/bottoken-2/sendChatAction") {
+		t.Fatalf("Telegram typing 路径不正确: %s", requests[0].URL.Path)
+	}
+	if payload["chat_id"] != "-1001" || payload["action"] != "typing" || payload["message_thread_id"] != float64(12) {
+		t.Fatalf("Telegram typing payload 不正确: %+v", payload)
+	}
+}
+
+func TestTelegramFetchUpdatesSubscribesEditedMessages(t *testing.T) {
+	var payload map[string]any
+	channel := newTelegramChannel("token-2", &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析 Telegram getUpdates 请求失败: %w", err)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body: io.NopCloser(strings.NewReader(`{
+					"ok": true,
+					"result": [{
+						"update_id": 4,
+						"edited_message": {
+							"message_id": 9,
+							"text": "edited",
+							"from": {"id": 8, "is_bot": false},
+							"chat": {"id": 7, "type": "private"}
+						}
+					}]
+				}`)),
+				Header: make(http.Header),
+			}, nil
+		}),
+	})
+	channel.baseURL = "https://telegram.test"
+
+	updates, nextOffset, err := channel.fetchUpdates(context.Background(), 3)
+	if err != nil {
+		t.Fatalf("Telegram getUpdates 失败: %v", err)
+	}
+	if len(updates) != 1 || updates[0].EditedMessage == nil || nextOffset != 5 {
+		t.Fatalf("Telegram edited update 解析不正确: updates=%+v next=%d", updates, nextOffset)
+	}
+	allowed, ok := payload["allowed_updates"].([]any)
+	if !ok {
+		t.Fatalf("Telegram allowed_updates 未发送: %+v", payload)
+	}
+	foundEdited := false
+	for _, item := range allowed {
+		if item == "edited_message" {
+			foundEdited = true
+			break
+		}
+	}
+	if !foundEdited {
+		t.Fatalf("Telegram allowed_updates 应包含 edited_message: %+v", allowed)
 	}
 }
 
