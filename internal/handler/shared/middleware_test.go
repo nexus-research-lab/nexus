@@ -243,3 +243,75 @@ func TestDesktopSessionTokenMiddlewareAcceptsCookieToken(t *testing.T) {
 		t.Fatalf("桌面 cookie token 未通过: %d", recorder.Code)
 	}
 }
+
+func TestValidateDesktopSessionTokenReportsSource(t *testing.T) {
+	tests := []struct {
+		name       string
+		configure  func(*http.Request)
+		wantValid  bool
+		wantSource string
+		wantReason string
+	}{
+		{
+			name: "header_valid",
+			configure: func(request *http.Request) {
+				request.Header.Set(DesktopSessionTokenHeader, "desktop-token")
+				request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "old-token"})
+			},
+			wantValid:  true,
+			wantSource: "header",
+			wantReason: "ok",
+		},
+		{
+			name: "header_mismatch_takes_precedence",
+			configure: func(request *http.Request) {
+				request.Header.Set(DesktopSessionTokenHeader, "old-token")
+				request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "desktop-token"})
+			},
+			wantValid:  false,
+			wantSource: "header",
+			wantReason: "header_mismatch",
+		},
+		{
+			name: "protocol_mismatch",
+			configure: func(request *http.Request) {
+				request.Header.Set("Sec-WebSocket-Protocol", "nexus.desktop.v1, nexus.desktop.token.old-token")
+			},
+			wantValid:  false,
+			wantSource: "protocol",
+			wantReason: "protocol_mismatch",
+		},
+		{
+			name: "cookie_mismatch",
+			configure: func(request *http.Request) {
+				request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "old-token"})
+			},
+			wantValid:  false,
+			wantSource: "cookie",
+			wantReason: "cookie_mismatch",
+		},
+		{
+			name:       "missing",
+			configure:  func(request *http.Request) {},
+			wantValid:  false,
+			wantSource: "none",
+			wantReason: "missing",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
+			test.configure(request)
+			result := validateDesktopSessionToken(request, "desktop-token")
+			if result.valid != test.wantValid || result.source != test.wantSource || result.reason != test.wantReason {
+				t.Fatalf(
+					"token 校验结果不正确: valid=%v source=%s reason=%s",
+					result.valid,
+					result.source,
+					result.reason,
+				)
+			}
+		})
+	}
+}

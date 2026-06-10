@@ -22,7 +22,20 @@ type DesktopWebReadyPerformance = {
   marks: DesktopPerformanceMark[];
 };
 
-type DesktopLifecycleMessage = {
+export type DesktopRenderSnapshot = {
+  href: string;
+  path: string;
+  ready_state: DocumentReadyState;
+  title: string;
+  has_root: boolean;
+  root_children: number;
+  body_children: number;
+  body_text_length: number;
+};
+
+type DesktopLifecycleMessage = DesktopWebReadyMessage | DesktopWebFatalMessage | DesktopWebHealthMessage;
+
+type DesktopWebReadyMessage = {
   kind: "web.ready";
   location: string;
   reduced_motion: boolean;
@@ -30,10 +43,34 @@ type DesktopLifecycleMessage = {
   performance: DesktopWebReadyPerformance;
 };
 
+type DesktopWebFatalMessage = {
+  kind: "web.fatal";
+  location: string;
+  source: string;
+  message: string;
+  name?: string;
+  stack?: string;
+  component_stack?: string;
+  snapshot: DesktopRenderSnapshot;
+  performance: DesktopWebReadyPerformance;
+};
+
+type DesktopWebHealthMessage = {
+  kind: "web.health";
+  location: string;
+  source: string;
+  status: "ready" | "empty_root";
+  snapshot: DesktopRenderSnapshot;
+  performance: DesktopWebReadyPerformance;
+};
+
 export const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
+export const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
 const DESKTOP_SESSION_TOKEN_PROTOCOL_PREFIX = "nexus.desktop.token.";
 const CONNECTOR_OAUTH_CALLBACK_PATH = "/capability/connectors/oauth/callback";
 const DESKTOP_CONNECTOR_OAUTH_REDIRECT_URI = "nexus://connectors/oauth/callback";
+const DESKTOP_DIAGNOSTIC_TEXT_LIMIT = 4_096;
+const DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX = "nexus:desktop-session-token-reload:";
 
 declare global {
   interface Window {
@@ -86,6 +123,30 @@ export function apply_desktop_request_headers(input: string, headers: Headers): 
   return headers;
 }
 
+export function recover_desktop_session_token_error(message: string, input: string): boolean {
+  if (!is_desktop_session_token_error(message)) {
+    return false;
+  }
+
+  const request_path = desktop_request_path(input);
+  notify_desktop_web_fatal(
+    "desktop.session_token_invalid",
+    new Error(`${DESKTOP_SESSION_TOKEN_INVALID_DETAIL}: ${request_path}`),
+  );
+  mark_desktop_performance("desktop.session_token_invalid");
+  if (!should_reload_for_desktop_session_token(input)) {
+    return false;
+  }
+  window.setTimeout(() => {
+    window.location.reload();
+  }, 0);
+  return true;
+}
+
+export function is_desktop_session_token_error(message: string): boolean {
+  return is_desktop_runtime() && message.includes(DESKTOP_SESSION_TOKEN_INVALID_DETAIL);
+}
+
 export function mark_desktop_performance(name: string): void {
   if (!get_desktop_runtime_config()) {
     return;
@@ -98,12 +159,8 @@ export function mark_desktop_performance(name: string): void {
 }
 
 export function notify_desktop_web_ready(source = "unknown"): void {
-  const lifecycle_handler = window.webkit?.messageHandlers?.nexusDesktopLifecycle;
-  if (!lifecycle_handler) {
-    return;
-  }
   mark_desktop_performance("web.ready");
-  lifecycle_handler.postMessage({
+  post_desktop_lifecycle_message({
     kind: "web.ready",
     location: window.location.pathname || "/",
     reduced_motion: prefers_reduced_motion(),
@@ -112,12 +169,77 @@ export function notify_desktop_web_ready(source = "unknown"): void {
   });
 }
 
+export function notify_desktop_web_fatal(
+  source: string,
+  error: unknown,
+  details: { component_stack?: string } = {},
+): void {
+  if (!is_desktop_runtime()) {
+    return;
+  }
+
+  mark_desktop_performance(`web.fatal.${source}`);
+  post_desktop_lifecycle_message({
+    kind: "web.fatal",
+    location: current_location_path(),
+    source,
+    message: diagnostic_message(error),
+    name: diagnostic_name(error),
+    stack: diagnostic_stack(error),
+    component_stack: trim_diagnostic_text(details.component_stack),
+    snapshot: get_desktop_render_snapshot(),
+    performance: get_desktop_ready_performance(),
+  });
+}
+
+export function notify_desktop_render_health(
+  source: string,
+  status: "ready" | "empty_root",
+): void {
+  if (!is_desktop_runtime()) {
+    return;
+  }
+
+  mark_desktop_performance(`web.health.${status}`);
+  post_desktop_lifecycle_message({
+    kind: "web.health",
+    location: current_location_path(),
+    source,
+    status,
+    snapshot: get_desktop_render_snapshot(),
+    performance: get_desktop_ready_performance(),
+  });
+}
+
+export function get_desktop_render_snapshot(): DesktopRenderSnapshot {
+  const root = document.getElementById("root");
+  const body = document.body;
+  return {
+    href: window.location.href,
+    path: current_location_path(),
+    ready_state: document.readyState,
+    title: document.title,
+    has_root: Boolean(root),
+    root_children: root?.childElementCount ?? -1,
+    body_children: body?.childElementCount ?? -1,
+    body_text_length: body?.innerText?.length ?? -1,
+  };
+}
+
 export function get_connector_oauth_redirect_uri(): string {
   const runtime_config = get_desktop_runtime_config();
   if (runtime_config?.app_mode === "desktop") {
     return DESKTOP_CONNECTOR_OAUTH_REDIRECT_URI;
   }
   return `${window.location.origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
+}
+
+function post_desktop_lifecycle_message(message: DesktopLifecycleMessage): void {
+  const lifecycle_handler = window.webkit?.messageHandlers?.nexusDesktopLifecycle;
+  if (!lifecycle_handler) {
+    return;
+  }
+  lifecycle_handler.postMessage(message);
 }
 
 function should_attach_desktop_session_token(input: string): boolean {
@@ -138,6 +260,70 @@ function should_attach_desktop_session_token(input: string): boolean {
   } catch {
     return false;
   }
+}
+
+function should_reload_for_desktop_session_token(input: string): boolean {
+  const runtime_config = get_desktop_runtime_config();
+  const api_base_url = runtime_config?.api_base_url?.trim() || "missing-api";
+  const key = `${DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX}${api_base_url}:${desktop_request_path(input)}:${current_location_path()}`;
+  try {
+    if (window.sessionStorage.getItem(key) === "1") {
+      return false;
+    }
+    window.sessionStorage.setItem(key, "1");
+    return true;
+  } catch {
+    // sessionStorage 不可用时不要盲目刷新，避免进入无上限重载循环。
+    return false;
+  }
+}
+
+function desktop_request_path(input: string): string {
+  try {
+    const request_url = new URL(input, window.location.href);
+    return `${request_url.pathname}${request_url.search}${request_url.hash}`;
+  } catch {
+    return input.trim() || "unknown";
+  }
+}
+
+function current_location_path(): string {
+  return `${window.location.pathname || "/"}${window.location.search}${window.location.hash}`;
+}
+
+function diagnostic_message(error: unknown): string {
+  if (error instanceof Error) {
+    return trim_diagnostic_text(error.message) || error.name;
+  }
+  if (typeof error === "string") {
+    return trim_diagnostic_text(error) || "Unknown error";
+  }
+  return trim_diagnostic_text(String(error)) || "Unknown error";
+}
+
+function diagnostic_name(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return trim_diagnostic_text(error.name);
+  }
+  return undefined;
+}
+
+function diagnostic_stack(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return trim_diagnostic_text(error.stack);
+  }
+  return undefined;
+}
+
+function trim_diagnostic_text(value?: string): string | undefined {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  if (normalized.length <= DESKTOP_DIAGNOSTIC_TEXT_LIMIT) {
+    return normalized;
+  }
+  return `${normalized.slice(0, DESKTOP_DIAGNOSTIC_TEXT_LIMIT)}...`;
 }
 
 function get_desktop_ready_performance(): DesktopWebReadyPerformance {

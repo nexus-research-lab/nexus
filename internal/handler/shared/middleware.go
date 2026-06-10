@@ -34,6 +34,12 @@ const (
 	DesktopSessionTokenProtocolPrefix = "nexus.desktop.token."
 )
 
+type desktopSessionTokenValidation struct {
+	valid  bool
+	source string
+	reason string
+}
+
 // responseRecorder 负责在不破坏 websocket/hijack 能力的前提下记录状态码和字节数。
 type responseRecorder struct {
 	http.ResponseWriter
@@ -216,7 +222,19 @@ func DesktopSessionTokenMiddleware(api *API, token string, apiPrefix string) fun
 				next.ServeHTTP(writer, request)
 				return
 			}
-			if !validDesktopSessionToken(request, expectedToken) {
+			validation := validateDesktopSessionToken(request, expectedToken)
+			if !validation.valid {
+				logx.Resolve(request.Context(), api.BaseLogger()).Warn(
+					"桌面会话 token 校验失败",
+					"reason", validation.reason,
+					"token_source", validation.source,
+					"has_header", strings.TrimSpace(request.Header.Get(DesktopSessionTokenHeader)) != "",
+					"has_protocol_token", desktopSessionTokenFromProtocolHeader(request.Header.Get("Sec-WebSocket-Protocol")) != "",
+					"has_cookie", desktopSessionTokenFromCookie(request) != "",
+					"method", request.Method,
+					"path", request.URL.Path,
+					"user_agent", request.UserAgent(),
+				)
 				api.WriteFailure(writer, http.StatusUnauthorized, "桌面会话 token 无效")
 				return
 			}
@@ -292,17 +310,49 @@ func desktopSessionTokenBypass(request *http.Request, apiPrefix string) bool {
 }
 
 func validDesktopSessionToken(request *http.Request, expectedToken string) bool {
+	return validateDesktopSessionToken(request, expectedToken).valid
+}
+
+func validateDesktopSessionToken(request *http.Request, expectedToken string) desktopSessionTokenValidation {
 	providedToken := strings.TrimSpace(request.Header.Get(DesktopSessionTokenHeader))
-	if providedToken == "" {
-		providedToken = desktopSessionTokenFromProtocolHeader(request.Header.Get("Sec-WebSocket-Protocol"))
+	if providedToken != "" {
+		valid := subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) == 1
+		return desktopSessionTokenValidation{
+			valid:  valid,
+			source: "header",
+			reason: validationReason(valid, "header_mismatch"),
+		}
 	}
-	if providedToken == "" {
-		providedToken = desktopSessionTokenFromCookie(request)
+	providedToken = desktopSessionTokenFromProtocolHeader(request.Header.Get("Sec-WebSocket-Protocol"))
+	if providedToken != "" {
+		valid := subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) == 1
+		return desktopSessionTokenValidation{
+			valid:  valid,
+			source: "protocol",
+			reason: validationReason(valid, "protocol_mismatch"),
+		}
 	}
-	if providedToken == "" {
-		return false
+	providedToken = desktopSessionTokenFromCookie(request)
+	if providedToken != "" {
+		valid := subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) == 1
+		return desktopSessionTokenValidation{
+			valid:  valid,
+			source: "cookie",
+			reason: validationReason(valid, "cookie_mismatch"),
+		}
 	}
-	return subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) == 1
+	return desktopSessionTokenValidation{
+		valid:  false,
+		source: "none",
+		reason: "missing",
+	}
+}
+
+func validationReason(valid bool, mismatchReason string) string {
+	if valid {
+		return "ok"
+	}
+	return mismatchReason
 }
 
 func desktopSessionTokenFromProtocolHeader(rawHeader string) string {

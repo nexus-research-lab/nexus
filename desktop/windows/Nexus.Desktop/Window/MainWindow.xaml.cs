@@ -16,6 +16,7 @@ public partial class MainWindow : System.Windows.Window
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly DesktopUpdateChecker updateChecker;
     private readonly DesktopTrayController trayController;
+    private readonly System.Windows.Threading.DispatcherTimer webViewHealthProbeTimer;
     private WebViewHost? webViewHost;
     private bool closed;
     private bool exitRequested;
@@ -30,7 +31,18 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
-        trayController = new DesktopTrayController(startupTimeline, RestoreFromTray, CheckForUpdatesFromTray, ExitFromTray);
+        trayController = new DesktopTrayController(
+            startupTimeline,
+            RestoreFromTray,
+            ReloadFromTray,
+            CheckForUpdatesFromTray,
+            ExitFromTray);
+        webViewHealthProbeTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(60),
+        };
+        webViewHealthProbeTimer.Tick += (_, _) => RecoverVisibleWebView("periodic_visible");
+        webViewHealthProbeTimer.Start();
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -49,6 +61,7 @@ public partial class MainWindow : System.Windows.Window
     {
         closed = true;
         startupTimeline.Mark("main_window.closed");
+        webViewHealthProbeTimer.Stop();
         trayController.Dispose();
         DisposeWebView();
         base.OnClosed(e);
@@ -253,6 +266,22 @@ public partial class MainWindow : System.Windows.Window
         _ = updateChecker.CheckNowAsync(this);
     }
 
+    private void ReloadFromTray()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(ReloadFromTray);
+            return;
+        }
+        if (closed)
+        {
+            return;
+        }
+
+        ShowMainWindow();
+        _ = webViewHost?.ReloadAsync("tray_reload");
+    }
+
     private void ShowMainWindow()
     {
         Show();
@@ -262,6 +291,15 @@ public partial class MainWindow : System.Windows.Window
         }
         Activate();
         Focus();
+    }
+
+    private void RecoverVisibleWebView(string reason)
+    {
+        if (closed || webViewHost is null || !IsVisible || WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+        _ = webViewHost.RecoverAfterWindowShownAsync(reason);
     }
 
     private static string TrimMetadata(string value)

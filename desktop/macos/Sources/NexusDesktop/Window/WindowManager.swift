@@ -12,6 +12,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var mainWindow: NSWindow?
   private var mainWebViewHost: WebViewHost?
   private var mainWindowRevealed = false
+  private var mainWindowHealthProbeTask: Task<Void, Never>?
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -78,6 +79,18 @@ final class WindowManager: NSObject, NSWindowDelegate {
     startupTimeline.mark("\(surface)_window.occlusion_changed", metadata: [
       "visible": window.occlusionState.contains(.visible) ? "true" : "false",
     ])
+    if window.occlusionState.contains(.visible) {
+      recoverMainWebViewIfNeeded(reason: "occlusion_visible")
+    }
+  }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow,
+          let surface = surfaceName(for: window) else {
+      return
+    }
+    startupTimeline.mark("\(surface)_window.became_key")
+    recoverMainWebViewIfNeeded(reason: "became_key")
   }
 
   func windowDidMiniaturize(_ notification: Notification) {
@@ -94,6 +107,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       return
     }
     startupTimeline.mark("\(surface)_window.deminiaturized")
+    recoverMainWebViewIfNeeded(reason: "deminiaturized")
   }
 
   private func open(route: DesktopWebRoute) {
@@ -107,6 +121,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
       if let route {
         startupTimeline.mark("main_window.route_load", metadata: ["path": route.path])
         mainWebViewHost?.load(route.url(runtime: runtime))
+      } else {
+        recoverMainWebViewIfNeeded(reason: "show_existing")
       }
       return
     }
@@ -157,6 +173,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       mainWebViewHost = host
       mainWindow = window
       installInitialRevealFallback()
+      installMainWindowHealthProbe()
     } catch {
       let alert = NSAlert(error: error)
       alert.runModal()
@@ -187,10 +204,36 @@ final class WindowManager: NSObject, NSWindowDelegate {
     onMainWindowRevealed()
   }
 
+  private func recoverMainWebViewIfNeeded(reason: String) {
+    guard mainWindowRevealed else {
+      return
+    }
+    mainWebViewHost?.recoverAfterWindowShown(reason: reason)
+  }
+
   private func installInitialRevealFallback() {
     Task { @MainActor in
       try? await Task.sleep(nanoseconds: 3_000_000_000)
       revealMainWindowIfNeeded(source: "fallback_timeout")
+    }
+  }
+
+  private func installMainWindowHealthProbe() {
+    guard mainWindowHealthProbeTask == nil else {
+      return
+    }
+    mainWindowHealthProbeTask = Task { @MainActor [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(nanoseconds: 60_000_000_000)
+        guard let self,
+              self.mainWindowRevealed,
+              let window = self.mainWindow,
+              window.isVisible,
+              window.occlusionState.contains(.visible) else {
+          continue
+        }
+        self.recoverMainWebViewIfNeeded(reason: "periodic_visible")
+      }
     }
   }
 }

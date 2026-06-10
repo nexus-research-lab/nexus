@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, RefObject, useCallback, useEffect, useState } from "react";
+import { RefObject, useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
@@ -31,7 +31,7 @@ import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 type RoomAgentAboutRequestedTab = "identity" | "private_domain";
 
-const ChatBoundary = import.meta.env.DEV ? GroupChatErrorBoundary : Fragment;
+const ChatBoundary = GroupChatErrorBoundary;
 const RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY = "(max-width: 1440px)";
 const WIDE_AUXILIARY_PANEL_WIDTH_LIMITS = {
   minWidth: "min(520px, 46vw)",

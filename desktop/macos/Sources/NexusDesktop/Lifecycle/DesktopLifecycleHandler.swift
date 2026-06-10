@@ -24,20 +24,34 @@ final class DesktopLifecycleHandler: NSObject, WKScriptMessageHandler {
       var metadata = DesktopWebOriginPolicy.metadata(message: message, runtime: runtime)
       metadata["reason"] = reason
       metadata["surface"] = surfaceName
-      startupTimeline?.mark("web.ready_rejected", metadata: metadata)
+      startupTimeline?.mark("web.lifecycle_rejected", metadata: metadata)
       return
     }
     guard let record = message.body as? [String: Any],
-          (record["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) == "web.ready" else {
+          let kind = (record["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !kind.isEmpty else {
       startupTimeline?.mark("web.lifecycle_ignored", metadata: [
         "body_type": String(describing: type(of: message.body)),
         "surface": surfaceName,
       ])
       return
     }
-    startupTimeline?.mark("web.ready", metadata: readyMetadata(record: record))
-    Task { @MainActor in
-      onWebReady()
+
+    switch kind {
+    case "web.ready":
+      startupTimeline?.mark("web.ready", metadata: readyMetadata(record: record))
+      Task { @MainActor in
+        onWebReady()
+      }
+    case "web.fatal":
+      handleFatalLifecycle(record: record)
+    case "web.health":
+      handleHealthLifecycle(record: record)
+    default:
+      startupTimeline?.mark("web.lifecycle_ignored", metadata: [
+        "kind": trimMetadata(kind),
+        "surface": surfaceName,
+      ])
     }
   }
 
@@ -67,6 +81,54 @@ final class DesktopLifecycleHandler: NSObject, WKScriptMessageHandler {
     return metadata
   }
 
+  private func handleFatalLifecycle(record: [String: Any]) {
+    var metadata = lifecycleMetadata(record: record)
+    let reason = metadata["message"] ?? "web.fatal"
+    if let diagnosticsURL = DesktopDiagnosticsReport.writeRuntimeIssue(
+      prefix: "web-fatal",
+      reason: reason,
+      runtime: runtime,
+      startupTimeline: startupTimeline,
+      details: metadata
+    ) {
+      metadata["diagnostics_path"] = diagnosticsURL.path
+    }
+    startupTimeline?.mark("web.fatal", metadata: metadata)
+  }
+
+  private func handleHealthLifecycle(record: [String: Any]) {
+    let metadata = lifecycleMetadata(record: record)
+    let status = metadata["status"] ?? "unknown"
+    let event = status == "ready" ? "web.health" : "web.health_unhealthy"
+    startupTimeline?.mark(event, metadata: metadata)
+  }
+
+  private func lifecycleMetadata(record: [String: Any]) -> [String: String] {
+    var metadata: [String: String] = ["surface": surfaceName]
+    for key in ["kind", "source", "status", "message", "name", "stack", "component_stack"] {
+      if let value = record[key] {
+        metadata[key] = trimMetadata(stringValue(value))
+      }
+    }
+    if let location = record["location"] as? String {
+      for (key, value) in sanitizedLocationMetadata(location) {
+        metadata[key] = value
+      }
+    }
+    if let snapshot = record["snapshot"] as? [String: Any] {
+      for key in ["path", "ready_state", "title", "has_root", "root_children", "body_children", "body_text_length"] {
+        if let value = snapshot[key] {
+          metadata["snapshot_\(key)"] = trimMetadata(stringValue(value))
+        }
+      }
+    }
+    if let performance = record["performance"] as? [String: Any],
+       let readyMS = performance["ready_ms"] {
+      metadata["web_ready_ms"] = stringValue(readyMS)
+    }
+    return metadata
+  }
+
   private func stringValue(_ value: Any) -> String {
     if let number = value as? NSNumber {
       return String(format: "%.1f", number.doubleValue)
@@ -86,5 +148,15 @@ final class DesktopLifecycleHandler: NSObject, WKScriptMessageHandler {
       metadata["location_query_keys"] = keys.isEmpty ? "unknown" : Array(Set(keys)).sorted().joined(separator: ",")
     }
     return metadata
+  }
+
+  private func trimMetadata(_ value: String) -> String {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let maxLength = 240
+    if normalized.count <= maxLength {
+      return normalized
+    }
+    let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+    return String(normalized[..<endIndex]) + "..."
   }
 }
