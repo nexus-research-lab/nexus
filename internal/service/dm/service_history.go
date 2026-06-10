@@ -9,6 +9,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -123,11 +124,32 @@ func (s *Service) refreshSessionMetaAfterMessage(
 	current protocol.Session,
 	message protocol.Message,
 ) (*protocol.Session, error) {
-	current.SessionID = dmdomain.PreferSessionID(current.SessionID, dmdomain.NormalizeString(message["session_id"]))
+	current.SessionID = s.preferPersistableMessageSessionID(
+		context.Background(),
+		workspacePath,
+		current,
+		dmdomain.NormalizeString(message["session_id"]),
+	)
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
 	return s.files.UpsertSession(workspacePath, current)
+}
+
+func (s *Service) preferPersistableMessageSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+	messageSessionID string,
+) *string {
+	trimmedSessionID := strings.TrimSpace(messageSessionID)
+	if trimmedSessionID == "" {
+		return current.SessionID
+	}
+	if !s.canPersistSDKSessionID(ctx, workspacePath, current, trimmedSessionID) {
+		return current.SessionID
+	}
+	return &trimmedSessionID
 }
 
 func (s *Service) refreshSessionMetaRuntimeState(
@@ -228,7 +250,13 @@ func (s *Service) syncSDKSessionID(
 	if !sessionIDChanged && !fingerprintChanged {
 		return current, nil
 	}
-	current.SessionID = &trimmedSessionID
+	canPersistSessionID := !sessionIDChanged || s.canPersistSDKSessionID(ctx, workspacePath, current, trimmedSessionID)
+	if !canPersistSessionID && !fingerprintChanged {
+		return current, nil
+	}
+	if canPersistSessionID {
+		current.SessionID = &trimmedSessionID
+	}
 	if current.Options == nil {
 		current.Options = map[string]any{}
 	}
@@ -242,12 +270,41 @@ func (s *Service) syncSDKSessionID(
 	if updated == nil {
 		return current, nil
 	}
-	if sessionIDChanged && s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
+	if canPersistSessionID && sessionIDChanged && s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
 		if err := s.roomStore.UpdateRoomSessionSDKSessionID(ctx, strings.TrimSpace(*updated.RoomSessionID), trimmedSessionID); err != nil {
 			return protocol.Session{}, err
 		}
 	}
 	return *updated, nil
+}
+
+func (s *Service) canPersistSDKSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+	sessionID string,
+) bool {
+	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	if decision.Allowed {
+		return true
+	}
+	if decision.Err != nil {
+		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
+			"session_key", current.SessionKey,
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		return false
+	}
+	s.loggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
+		"session_key", current.SessionKey,
+		"workspace_path", workspacePath,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
+	)
+	return false
 }
 
 func (s *Service) clearReusableSDKSessionID(

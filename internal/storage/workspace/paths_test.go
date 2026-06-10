@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -48,5 +49,38 @@ func TestStoreRoomConversationDirUsesConversationIDName(t *testing.T) {
 	name := filepath.Base(store.RoomConversationDir(conversationID))
 	if name != "room-743295d46e5841dea378d604d7e45431" {
 		t.Fatalf("room 共享目录不正确: %s", name)
+	}
+}
+
+func TestSanitizeTranscriptPathMatchesClaudeCodeProjectDirectory(t *testing.T) {
+	if got := sanitizeTranscriptPath("/Users/foo/my_project-测试"); got != "-Users-foo-my-project---" {
+		t.Fatalf("sanitizeTranscriptPath() = %q, want Claude Code ASCII replacement", got)
+	}
+
+	longPath := strings.Repeat("a", maxTranscriptSanitizedLength+1)
+	expected := strings.Repeat("a", maxTranscriptSanitizedLength) + "-2lljc4d1ph1qx"
+	if got := sanitizeTranscriptPath(longPath); got != expected {
+		t.Fatalf("sanitizeTranscriptPath() = %q, want %q", got, expected)
+	}
+}
+
+func TestTranscriptProjectHashSuffixMatchesBunHashFixtures(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "empty", input: "", expected: "27k1wwwhf13t"},
+		{name: "ascii", input: "abc", expected: "1g45uqqks6lu"},
+		{name: "unicode", input: "/Users/foo/my_project-测试", expected: "2a16ot6asyzsy"},
+		{name: "emoji", input: strings.Repeat("😀", 101), expected: "1wlro20j1vo13"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := transcriptProjectHashSuffix(test.input); got != test.expected {
+				t.Fatalf("transcriptProjectHashSuffix() = %q, want %q", got, test.expected)
+			}
+		})
 	}
 }

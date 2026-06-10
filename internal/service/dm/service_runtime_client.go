@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -188,27 +189,50 @@ func (s *Service) resolveReusableSDKSessionID(
 	actualProvider = strings.TrimSpace(actualProvider)
 	actualModel = strings.TrimSpace(actualModel)
 	hasFingerprint := hasKindFingerprint || hasProviderFingerprint || hasModelFingerprint
-	if hasFingerprint &&
+	fingerprintMatches := hasFingerprint &&
 		(!hasKindFingerprint || actualKind == expectedKind) &&
 		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
-		(!hasModelFingerprint || actualModel == expectedModel) {
-		if !hasKindFingerprint || !hasProviderFingerprint || !hasModelFingerprint {
-			s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
+		(!hasModelFingerprint || actualModel == expectedModel)
+	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	if decision.Allowed {
+		if !fingerprintMatches {
+			s.loggerFor(ctx).Info("DM session runtime 配置已变更但 transcript 可恢复，继续 resume",
+				"session_key", sessionItem.SessionKey,
+				"sdk_session_id", resumeID,
+				"old_runtime_kind", actualKind,
+				"new_runtime_kind", expectedKind,
+				"old_provider", actualProvider,
+				"new_provider", expectedProvider,
+				"old_model", actualModel,
+				"new_model", expectedModel,
+				"reason", string(decision.Reason),
+			)
 		}
-		return resumeID
-	}
-	if !hasFingerprint {
 		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
 		return resumeID
 	}
-	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过过期 SDK session resume",
+	if decision.Err != nil {
+		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，跳过过期 resume",
+			"session_key", sessionItem.SessionKey,
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
+		return ""
+	}
+
+	s.loggerFor(ctx).Warn("DM SDK session transcript 不存在，跳过过期 resume",
 		"session_key", sessionItem.SessionKey,
+		"sdk_session_id", decision.SessionID,
 		"old_runtime_kind", actualKind,
 		"new_runtime_kind", expectedKind,
 		"old_provider", actualProvider,
 		"new_provider", expectedProvider,
 		"old_model", actualModel,
 		"new_model", expectedModel,
+		"reason", string(decision.Reason),
 	)
 	s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
 	return ""

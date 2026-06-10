@@ -69,6 +69,7 @@ func RuntimeStartupLogFields(options agentclient.Options) []any {
 		"openai_model_env", RuntimeEnvConfigured(options.Env, "OPENAI_MODEL"),
 		"openai_api_key_env", RuntimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
 		"nxs_command_path_env", RuntimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
+		"nexusctl_command_path_env", RuntimeEnvConfigured(options.Env, nexusctlCommandPathEnvName),
 		"diagnostics_enabled", runtimectx.AgentSDKDiagnosticsEnabled(options.Env),
 		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
 	}
@@ -84,11 +85,7 @@ func shouldUseBridgeLaunchSnapshot(options agentclient.Options) bool {
 	return strings.TrimSpace(options.CLIPath) != "" ||
 		strings.TrimSpace(options.Executable) != "" ||
 		strings.TrimSpace(options.PathToExecutable) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSCommandPathEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusAppRootEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSRuntimeCacheDirEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSRuntimeManifestURLEnvName)) != "" ||
-		strings.TrimSpace(os.Getenv(nexusNXSRuntimeReleaseEnvName)) != ""
+		strings.TrimSpace(os.Getenv(nexusNXSCommandPathEnvName)) != ""
 }
 
 func legacyRuntimeStartupLogFields(options agentclient.Options) []any {
@@ -118,6 +115,7 @@ func legacyRuntimeStartupLogFields(options agentclient.Options) []any {
 		"openai_model_env", RuntimeEnvConfigured(options.Env, "OPENAI_MODEL"),
 		"openai_api_key_env", RuntimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
 		"nxs_command_path_env", RuntimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
+		"nexusctl_command_path_env", RuntimeEnvConfigured(options.Env, nexusctlCommandPathEnvName),
 		"diagnostics_enabled", runtimectx.AgentSDKDiagnosticsEnabled(options.Env),
 		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
 	}

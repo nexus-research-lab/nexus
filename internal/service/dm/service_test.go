@@ -2383,9 +2383,23 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	sessionKey := "agent:nexus:ws:dm:resume-chat"
 	permission.BindSession(sessionKey, sender)
 
-	resumeID := "sdk-resume-chat-1"
+	resumeID := "11111111-1111-4111-8111-111111111111"
+	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "11000000-0000-4000-8000-000000000001",
+			"sessionId": resumeID,
+			"timestamp": "2026-06-09T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "之前的消息",
+			},
+		},
+	})
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      cfg.DefaultAgentID,
 		SessionID:    &resumeID,
@@ -2418,6 +2432,60 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	options := factory.LastOptions()
 	if options.Session.ResumeID != resumeID {
 		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
+	}
+}
+
+func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = "11111111-2222-4222-8222-111111111111"
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-without-transcript",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-without-transcript")
+	sessionKey := "agent:nexus:ws:dm:without-transcript"
+	permission.BindSession(sessionKey, sender)
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 transcript 未落盘不写 resume",
+		RoundID:    "round-without-transcript",
+		ReqID:      "round-without-transcript",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if strings.TrimSpace(options.Session.ResumeID) != "" {
+		t.Fatalf("新 DM 会话不应携带 resume: %+v", options)
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if sessionValue.SessionID != nil && strings.TrimSpace(*sessionValue.SessionID) != "" {
+		t.Fatalf("transcript 未落盘时不应写入 sdk session_id: %+v", sessionValue)
 	}
 }
 
@@ -2464,10 +2532,24 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 	sessionKey := "agent:nexus:ws:dm:stale-resume-retry"
 	permission.BindSession(sessionKey, sender)
 
-	staleResumeID := "sdk-stale-resume-1"
+	staleResumeID := "22222222-2222-4222-8222-222222222222"
 	roomSessionID := "room-session-stale-resume-1"
+	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	writeTranscriptFixture(t, workspacePath, staleResumeID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "22000000-0000-4000-8000-000000000001",
+			"sessionId": staleResumeID,
+			"timestamp": "2026-06-09T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "旧会话消息",
+			},
+		},
+	})
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:    sessionKey,
 		AgentID:       cfg.DefaultAgentID,
 		SessionID:     &staleResumeID,
@@ -2536,7 +2618,7 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 	}
 }
 
-func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissing(t *testing.T) {
+func TestServiceHandleChatKeepsSDKSessionResumeWhenRuntimeFingerprintMissingAndTranscriptExists(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -2550,7 +2632,7 @@ func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissi
 		Enabled:     true,
 	}, "glm-5.1", true)
 
-	resumeID := "sdk-legacy-resume-1"
+	resumeID := "33333333-3333-4333-8333-333333333333"
 	permission := permissionctx.NewContext()
 	client := newFakeDMClient()
 	client.sessionID = resumeID
@@ -2577,8 +2659,22 @@ func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissi
 	sessionKey := "agent:nexus:ws:dm:legacy-resume-chat"
 	permission.BindSession(sessionKey, sender)
 
+	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "33000000-0000-4000-8000-000000000001",
+			"sessionId": resumeID,
+			"timestamp": "2026-06-09T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "旧版无指纹会话",
+			},
+		},
+	})
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      cfg.DefaultAgentID,
 		SessionID:    &resumeID,
@@ -2626,7 +2722,7 @@ func TestServiceHandleChatKeepsLegacySDKSessionResumeWhenRuntimeFingerprintMissi
 	}
 }
 
-func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers(t *testing.T) {
+func TestServiceHandleChatReusesSDKSessionWhenRuntimeModelFingerprintDiffersWithTranscript(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -2641,14 +2737,15 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	}, "glm-5.1", true)
 
 	permission := permissionctx.NewContext()
+	resumeID := "77777777-7777-4777-8777-777777777777"
 	client := newFakeDMClient()
-	client.sessionID = "sdk-new-model"
+	client.sessionID = resumeID
 	client.onQuery = func(_ context.Context, _ string) {
 		go func() {
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
 				SessionID: client.sessionID,
-				UUID:      "result-new-model",
+				UUID:      "result-resume-model-change",
 				Result: &sdkprotocol.ResultMessage{
 					Subtype:    "success",
 					DurationMS: 1,
@@ -2666,12 +2763,25 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	sessionKey := "agent:nexus:ws:dm:stale-model"
 	permission.BindSession(sessionKey, sender)
 
-	staleResumeID := "sdk-old-model"
+	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "77000000-0000-4000-8000-000000000001",
+			"sessionId": resumeID,
+			"timestamp": "2026-06-09T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "旧模型会话消息",
+			},
+		},
+	})
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      cfg.DefaultAgentID,
-		SessionID:    &staleResumeID,
+		SessionID:    &resumeID,
 		ChannelType:  "websocket",
 		ChatType:     "dm",
 		Status:       "active",
@@ -2689,7 +2799,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey: sessionKey,
-		Content:    "测试过期模型 session 不 resume",
+		Content:    "测试模型变更仍 resume",
 		RoundID:    "round-stale-model",
 		ReqID:      "round-stale-model",
 	}); err != nil {
@@ -2701,22 +2811,24 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeModelFingerprintDiffers
 	})
 
 	options := factory.LastOptions()
-	if options.Session.ResumeID != "" {
-		t.Fatalf("runtime 模型变更后不应 resume 过期 sdk session: %+v", options)
+	if options.Session.ResumeID != resumeID {
+		t.Fatalf("runtime 模型变更不应阻止 transcript resume: %+v", options)
 	}
 	if options.Model != "glm-5.1" {
 		t.Fatalf("runtime 应使用当前 provider model: %+v", options)
 	}
 	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
-	if stringPointer(t, sessionValue.SessionID) != "sdk-new-model" {
-		t.Fatalf("新 sdk session_id 未回写: %+v", sessionValue)
+	if stringPointer(t, sessionValue.SessionID) != resumeID {
+		t.Fatalf("模型变更 resume 不应替换 sdk session_id: %+v", sessionValue)
 	}
 	if sessionValue.Options[protocol.OptionRuntimeModel] != "glm-5.1" {
 		t.Fatalf("runtime model 指纹未回写: %+v", sessionValue.Options)
 	}
 }
 
-func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffers(t *testing.T) {
+func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffersWithoutTranscript(t *testing.T) {
+	isolateDMRuntimeKindEnv(t)
+
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -2759,7 +2871,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffers(
 	sessionKey := "agent:nexus:ws:dm:stale-runtime-kind"
 	permission.BindSession(sessionKey, sender)
 
-	staleResumeID := "sdk-old-nxs-kind"
+	staleResumeID := "44444444-4444-4444-8444-444444444444"
 	now := time.Now().UTC()
 	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
 		SessionKey:   sessionKey,
@@ -2809,6 +2921,183 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffers(
 		t.Fatalf("runtime kind 指纹未回写: %+v", sessionValue.Options)
 	}
 }
+
+func TestServiceHandleChatReusesSDKSessionWhenRuntimeKindSwitchHasSharedTranscript(t *testing.T) {
+	isolateDMRuntimeKindEnv(t)
+
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	providerService := newDMProviderService(t, cfg)
+	createDMProviderWithModel(t, providerService, providercfg.CreateInput{
+		Provider:    "glm",
+		DisplayName: "GLM",
+		AuthToken:   "glm-token",
+		BaseURL:     "https://open.bigmodel.cn/api/anthropic",
+		Enabled:     true,
+	}, "glm-5.1", true)
+
+	permission := permissionctx.NewContext()
+	sharedResumeID := "55555555-5555-4555-8555-555555555555"
+	client := newFakeDMClient()
+	client.sessionID = sharedResumeID
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: sharedResumeID,
+				UUID:      "result-shared-runtime-resume",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	service.SetProviderResolver(providerService)
+	service.SetPreferences(fakeDMPreferencesService{prefs: preferencessvc.Preferences{
+		AgentRuntimeKind: "claude",
+	}})
+	sender := newDMTestSender("sender-shared-runtime-resume")
+	sessionKey := "agent:nexus:ws:dm:shared-runtime-resume"
+	permission.BindSession(sessionKey, sender)
+
+	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	writeTranscriptFixture(t, workspacePath, sharedResumeID, []map[string]any{
+		{
+			"type":       "user",
+			"uuid":       "55000000-0000-4000-8000-000000000001",
+			"sessionId":  sharedResumeID,
+			"parentUuid": nil,
+			"timestamp":  "2026-06-09T00:00:00Z",
+			"cwd":        workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "继续之前的任务",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "55000000-0000-4000-8000-000000000002",
+			"sessionId":  sharedResumeID,
+			"parentUuid": "55000000-0000-4000-8000-000000000001",
+			"timestamp":  "2026-06-09T00:00:01Z",
+			"message": map[string]any{
+				"role": "assistant",
+				"content": []any{map[string]any{
+					"type": "text",
+					"text": "旧 runtime 已经写入 transcript",
+				}},
+			},
+		},
+	})
+	if exists, err := service.history.TranscriptSessionExists(workspacePath, sharedResumeID); err != nil || !exists {
+		t.Fatalf("shared transcript fixture 未被 history store 识别: exists=%v err=%v", exists, err)
+	}
+
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      cfg.DefaultAgentID,
+		SessionID:    &sharedResumeID,
+		ChannelType:  "websocket",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "Shared Runtime Resume",
+		Options: map[string]any{
+			protocol.OptionRuntimeKind:     "nxs",
+			protocol.OptionRuntimeProvider: "glm",
+			protocol.OptionRuntimeModel:    "glm-5.1",
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("预写入 shared runtime resume 会话 meta 失败: %v", err)
+	}
+	if sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey); stringPointer(t, sessionValue.SessionID) != sharedResumeID {
+		t.Fatalf("预写入 session meta 未被 DM service 识别: %+v", sessionValue)
+	}
+
+	if err := service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "测试 runtime 切换共享 resume",
+		RoundID:    "round-shared-runtime-resume",
+		ReqID:      "round-shared-runtime-resume",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	options := factory.LastOptions()
+	if options.Session.ResumeID != sharedResumeID {
+		t.Fatalf("runtime kind 切换时应复用共享 transcript resume: %+v", options)
+	}
+	if options.Runtime.Kind != agentclient.RuntimeClaude {
+		t.Fatalf("runtime 应切到 Claude: %+v", options)
+	}
+	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
+	if stringPointer(t, sessionValue.SessionID) != sharedResumeID {
+		t.Fatalf("共享 resume 不应替换 sdk session_id: %+v", sessionValue)
+	}
+	if sessionValue.Options[protocol.OptionRuntimeKind] != "claude" {
+		t.Fatalf("runtime kind 指纹未更新为新 runtime: %+v", sessionValue.Options)
+	}
+}
+
+func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	agentService := newDMAgentService(t, cfg)
+	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(&fakeDMFactory{}), permissionctx.NewContext())
+
+	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	resumeID := "66666666-6666-4666-8666-666666666666"
+	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "66000000-0000-4000-8000-000000000001",
+			"sessionId": resumeID,
+			"timestamp": "2026-06-09T00:00:00Z",
+			"cwd":       workspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "继续",
+			},
+		},
+	})
+
+	got := service.resolveReusableSDKSessionID(context.Background(), workspacePath, protocol.Session{
+		SessionKey: "agent:nexus:ws:dm:resolve-shared-runtime-resume",
+		AgentID:    cfg.DefaultAgentID,
+		SessionID:  &resumeID,
+		Options: map[string]any{
+			protocol.OptionRuntimeKind:     "nxs",
+			protocol.OptionRuntimeProvider: "glm",
+			protocol.OptionRuntimeModel:    "glm-5.1",
+		},
+	}, "glm", agentclient.Options{
+		Model: "glm-5.1",
+		Session: agentclient.SessionOptions{
+			ResumeID: resumeID,
+		},
+		Runtime: agentclient.RuntimeOptions{
+			Kind: agentclient.RuntimeClaude,
+		},
+	})
+	if got != resumeID {
+		t.Fatalf("runtime 切换存在共享 transcript 时应复用 resume: got=%q want=%q", got, resumeID)
+	}
+}
+
 func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -3267,6 +3556,7 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	if len(items) != 0 {
 		t.Fatalf("items = %#v, want queued input dispatched", items)
 	}
+	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
 }
 
 func TestServiceGoalContinuationDefersInPlanMode(t *testing.T) {
@@ -3713,6 +4003,12 @@ func newDMTestConfig(t *testing.T) config.Config {
 	}
 }
 
+func isolateDMRuntimeKindEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("NEXUS_AGENT_RUNTIME_KIND", "")
+	t.Setenv("NEXUS_AGENT_RUNTIME", "")
+}
+
 var dmTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func mustFindDMSession(
@@ -3757,6 +4053,9 @@ func writeTranscriptFixture(
 	t.Helper()
 	if strings.TrimSpace(sessionID) == "" {
 		t.Fatal("session_id 为空，无法写入 transcript fixture")
+	}
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 目录失败: %v", err)
 	}
 	projectDir := filepath.Join(
 		os.Getenv("NEXUS_CONFIG_DIR"),
@@ -3908,6 +4207,21 @@ func collectEventsUntil(
 			}
 		case <-timeout:
 			t.Fatalf("等待事件超时，当前事件: %+v", result)
+		}
+	}
+}
+
+func waitForDMRuntimeIdle(t *testing.T, runtimeManager *runtimectx.Manager, sessionKey string) {
+	t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		if len(runtimeManager.GetRunningRoundIDs(sessionKey)) == 0 {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("等待 DM round 结束超时，running_rounds=%+v", runtimeManager.GetRunningRoundIDs(sessionKey))
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 }

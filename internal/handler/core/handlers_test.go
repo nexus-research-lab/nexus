@@ -66,8 +66,8 @@ func TestHandleNXSRuntimeStatus(t *testing.T) {
 	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("解析响应失败: %v", err)
 	}
-	if !payload.Data.Available && !payload.Data.CanDownload {
-		t.Fatalf("不可用时应允许下载或给出阻断原因: %+v", payload.Data)
+	if !payload.Data.Available && (payload.Data.CanDownload || payload.Data.Message == "") {
+		t.Fatalf("不可用时应给出明确路径配置提示且不允许下载: %+v", payload.Data)
 	}
 }
 

@@ -15,6 +15,8 @@ internal static class DesktopPaths
 
     public static string WorkspaceDirectory => Path.Combine(RootDirectory, "workspace");
 
+    public static string ProjectsDirectory => Path.Combine(RootDirectory, "projects");
+
     public static string CacheDirectory => Path.Combine(RootDirectory, "cache");
 
     public static string LogsDirectory => Path.Combine(RootDirectory, "logs");

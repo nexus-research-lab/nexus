@@ -102,6 +102,8 @@ func TestRuntimeStartupLogFieldsUsesBridgeSnapshot(t *testing.T) {
 }
 
 func TestRuntimeStartupLogFieldsSkipsSnapshotForUnresolvedNXS(t *testing.T) {
+	t.Setenv(nexusNXSCommandPathEnvName, "")
+
 	fields := RuntimeStartupLogFields(agentclient.NewOptions().
 		WithRuntime(agentclient.RuntimeNXS).
 		WithCWD("/workspace"))

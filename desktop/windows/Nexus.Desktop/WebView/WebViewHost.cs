@@ -12,13 +12,16 @@ namespace Nexus.Desktop.WebView;
 
 internal sealed class WebViewHost : IDisposable
 {
+    private const int ResumeProbeRecreateThreshold = 2;
+
     private readonly WebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
-    private readonly Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync;
+    private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
+    private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
     private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
 
@@ -26,12 +29,12 @@ internal sealed class WebViewHost : IDisposable
         WebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync)
+        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
-        this.recreateAfterProcessFailureAsync = recreateAfterProcessFailureAsync;
+        this.recreateWebViewAsync = recreateWebViewAsync;
     }
 
     public async Task InitializeAsync()
@@ -92,7 +95,7 @@ internal sealed class WebViewHost : IDisposable
                 metadata["diagnostics_path"] = diagnosticsPath;
             }
             startupTimeline.Mark("webview.process_failed", metadata);
-            _ = recreateAfterProcessFailureAsync(lastRoute, args.ProcessFailedKind.ToString());
+            _ = recreateWebViewAsync(lastRoute, "process_failed", args.ProcessFailedKind.ToString());
         };
         startupTimeline.Mark("webview.initialize_ready");
     }
@@ -149,6 +152,7 @@ internal sealed class WebViewHost : IDisposable
                 """);
             if (IsTruthyScriptResult(result))
             {
+                consecutiveResumeProbeFailures = 0;
                 startupTimeline.Mark("webview.resume_check_ready", new Dictionary<string, string>
                 {
                     ["path"] = lastRoute.Path,
@@ -157,7 +161,7 @@ internal sealed class WebViewHost : IDisposable
                 return;
             }
 
-            ReloadAfterResumeProbe(reason, "empty_or_loading_root");
+            await HandleResumeProbeFailureAsync(reason, "empty_or_loading_root");
         }
         catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
         {
@@ -170,7 +174,7 @@ internal sealed class WebViewHost : IDisposable
         }
         catch (Exception exception)
         {
-            ReloadAfterResumeProbe(reason, exception.GetType().Name);
+            await HandleResumeProbeFailureAsync(reason, exception.GetType().Name);
         }
         finally
         {
@@ -195,20 +199,92 @@ internal sealed class WebViewHost : IDisposable
         webView.Dispose();
     }
 
-    private void ReloadAfterResumeProbe(string reason, string probeResult)
+    private async Task HandleResumeProbeFailureAsync(string reason, string probeResult)
     {
         if (disposed || webView.CoreWebView2 is null)
         {
             return;
         }
 
-        startupTimeline.Mark("webview.resume_reload", new Dictionary<string, string>
+        consecutiveResumeProbeFailures++;
+        string probeSnapshot = await CaptureResumeProbeSnapshotAsync();
+        Dictionary<string, string> metadata = new()
         {
             ["path"] = lastRoute.Path,
             ["probe"] = TrimMetadata(probeResult),
             ["reason"] = reason,
-        });
-        webView.CoreWebView2.Reload();
+            ["failure_count"] = consecutiveResumeProbeFailures.ToString(),
+        };
+        if (!string.IsNullOrWhiteSpace(probeSnapshot))
+        {
+            metadata["probe_snapshot"] = TrimMetadata(probeSnapshot);
+        }
+
+        if (consecutiveResumeProbeFailures < ResumeProbeRecreateThreshold)
+        {
+            startupTimeline.Mark("webview.resume_reload", metadata);
+            webView.CoreWebView2.Reload();
+            return;
+        }
+
+        string? diagnosticsPath = DesktopDiagnosticsReport.WriteRuntimeIssue(
+            prefix: "webview-resume-failed",
+            reason: probeResult,
+            runtime: runtime,
+            startupTimeline: startupTimeline,
+            details: new Dictionary<string, object?>
+            {
+                ["route_path"] = lastRoute.Path,
+                ["resume_reason"] = reason,
+                ["probe_result"] = probeResult,
+                ["failure_count"] = consecutiveResumeProbeFailures,
+                ["probe_snapshot"] = TrimDiagnosticDetail(probeSnapshot),
+            });
+        if (!string.IsNullOrWhiteSpace(diagnosticsPath))
+        {
+            metadata["diagnostics_path"] = diagnosticsPath;
+        }
+        startupTimeline.Mark("webview.resume_probe_recreate", metadata);
+        await recreateWebViewAsync(lastRoute, "resume_probe", probeResult);
+    }
+
+    private async Task<string> CaptureResumeProbeSnapshotAsync()
+    {
+        if (disposed || webView.CoreWebView2 is null)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return await webView.CoreWebView2.ExecuteScriptAsync(
+                """
+                (() => JSON.stringify({
+                  href: window.location.href,
+                  readyState: document.readyState,
+                  title: document.title,
+                  hasRoot: Boolean(document.getElementById("root")),
+                  rootChildren: document.getElementById("root")?.childElementCount ?? -1,
+                  bodyChildren: document.body?.childElementCount ?? -1,
+                  bodyTextLength: document.body?.innerText?.length ?? -1
+                }))();
+                """);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            return exception.GetType().Name + ": " + exception.Message;
+        }
+    }
+
+    private static string TrimDiagnosticDetail(string value)
+    {
+        string normalized = value.Trim();
+        const int maxLength = 4096;
+        if (normalized.Length <= maxLength)
+        {
+            return normalized;
+        }
+        return normalized[..maxLength] + "...";
     }
 
     private async Task HandleWebMessageAsync(CoreWebView2WebMessageReceivedEventArgs args)

@@ -105,13 +105,21 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if !strings.Contains(string(shimPayload), "NEXUSCTL_WORKSPACE_PATH") {
 		t.Fatalf("nexusctl shim 应保留调用方 workspace 路径: %s", shimPayload)
 	}
+	if !strings.Contains(string(shimPayload), "go run ./cmd/nexusctl") {
+		t.Fatalf("开发环境 nexusctl shim 应固定到源码入口: %s", shimPayload)
+	}
+	for _, unexpected := range []string{"$PROJECT_ROOT/bin/nexusctl", "$PROJECT_ROOT/nexusctl"} {
+		if strings.Contains(string(shimPayload), unexpected) {
+			t.Fatalf("nexusctl shim 不应再运行期多路径 fallback: %s", shimPayload)
+		}
+	}
 	nexusctlCmdShim := filepath.Join(sharedBinDir, "nexusctl.cmd")
 	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
 	if err != nil {
 		t.Fatalf("Windows nexusctl shim 未生成: %v", err)
 	}
-	if !strings.Contains(string(cmdPayload), "nexusctl.exe") {
-		t.Fatalf("Windows nexusctl shim 未查找 exe: %s", cmdPayload)
+	if !strings.Contains(string(cmdPayload), "go run ./cmd/nexusctl") {
+		t.Fatalf("Windows nexusctl shim 应固定到源码入口: %s", cmdPayload)
 	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexusctl shim: %v", err)
@@ -223,6 +231,34 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, "nested/.git/config", "x"); err == nil {
 		t.Fatal("不应允许写入嵌套仓库内部目录")
+	}
+}
+
+func TestEnsureNexusctlShimUsesExplicitCommandPath(t *testing.T) {
+	root := t.TempDir()
+	binDir := filepath.Join(root, "shared-bin")
+	commandPath := filepath.Join(root, "tools", "nexusctl")
+	if err := os.MkdirAll(filepath.Dir(commandPath), 0o755); err != nil {
+		t.Fatalf("创建 nexusctl 目录失败: %v", err)
+	}
+	if err := os.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("写入 nexusctl 可执行文件失败: %v", err)
+	}
+	t.Setenv("NEXUSCTL_COMMAND_PATH", commandPath)
+
+	if err := ensureNexusctlShim(binDir, map[string]string{"project_root": filepath.Join(root, "project")}); err != nil {
+		t.Fatalf("生成 nexusctl shim 失败: %v", err)
+	}
+	payload, err := os.ReadFile(filepath.Join(binDir, "nexusctl"))
+	if err != nil {
+		t.Fatalf("读取 nexusctl shim 失败: %v", err)
+	}
+	content := string(payload)
+	if !strings.Contains(content, shellSingleQuote(commandPath)) {
+		t.Fatalf("nexusctl shim 未绑定显式命令路径: %s", content)
+	}
+	if strings.Contains(content, "go run ./cmd/nexusctl") || strings.Contains(content, "bin/nexusctl") {
+		t.Fatalf("显式 nexusctl shim 不应包含源码或打包 fallback: %s", content)
 	}
 }
 

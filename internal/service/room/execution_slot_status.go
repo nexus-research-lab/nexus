@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 )
 
 func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) error {
@@ -18,11 +19,86 @@ func (s *RealtimeService) syncSlotSDKSessionID(ctx context.Context, slot *active
 	if sessionID == "" || sessionID == slot.getSDKSessionID() {
 		return nil
 	}
+	if !s.canPersistSlotSDKSessionID(ctx, slot, sessionID) {
+		return nil
+	}
 	slot.setSDKSessionID(sessionID)
 	if s.rooms == nil {
 		return nil
 	}
 	return s.rooms.UpdateSessionSDKSessionID(ctx, slot.RoomSessionID, sessionID)
+}
+
+func (s *RealtimeService) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
+	workspacePath := slotWorkspacePath(slot)
+	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	if decision.Allowed {
+		return true
+	}
+	if decision.Err != nil {
+		s.loggerFor(ctx).Warn("检查 Room SDK session transcript 失败，暂不持久化 resume",
+			"agent_id", slotAgentID(slot),
+			"agent_round_id", slotAgentRoundID(slot),
+			"runtime_session_key", slotRuntimeSessionKey(slot),
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		return false
+	}
+	s.loggerFor(ctx).Warn("Room SDK session transcript 尚未落盘，暂不持久化 resume",
+		"agent_id", slotAgentID(slot),
+		"agent_round_id", slotAgentRoundID(slot),
+		"runtime_session_key", slotRuntimeSessionKey(slot),
+		"workspace_path", workspacePath,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
+	)
+	return false
+}
+
+func (s *RealtimeService) clearSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot) error {
+	if slot == nil {
+		return nil
+	}
+	slot.clearSDKSessionID()
+	if s.rooms == nil {
+		return nil
+	}
+	roomSessionID := strings.TrimSpace(slot.RoomSessionID)
+	if roomSessionID == "" {
+		return nil
+	}
+	return s.rooms.UpdateSessionSDKSessionID(ctx, roomSessionID, "")
+}
+
+func slotAgentID(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return strings.TrimSpace(slot.AgentID)
+}
+
+func slotAgentRoundID(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return strings.TrimSpace(slot.AgentRoundID)
+}
+
+func slotRuntimeSessionKey(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return strings.TrimSpace(slot.RuntimeSessionKey)
+}
+
+func slotWorkspacePath(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return strings.TrimSpace(slot.WorkspacePath)
 }
 
 func (s *RealtimeService) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {

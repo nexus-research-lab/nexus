@@ -108,7 +108,7 @@ public partial class MainWindow : System.Windows.Window
 
     private WebViewHost CreateWebViewHost(WebView2 webView)
     {
-        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAfterProcessFailureAsync);
+        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAsync);
     }
 
     private WebView2 GetOrCreateWebViewControl()
@@ -126,13 +126,13 @@ public partial class MainWindow : System.Windows.Window
         return nextWebView;
     }
 
-    private async Task RecreateWebViewAfterProcessFailureAsync(DesktopWebRoute route, string reason)
+    private async Task RecreateWebViewAsync(DesktopWebRoute route, string trigger, string reason)
     {
         if (!Dispatcher.CheckAccess())
         {
             await Dispatcher.InvokeAsync(() =>
             {
-                _ = RecreateWebViewAfterProcessFailureAsync(route, reason);
+                _ = RecreateWebViewAsync(route, trigger, reason);
             });
             return;
         }
@@ -144,10 +144,11 @@ public partial class MainWindow : System.Windows.Window
         webViewRecreateInFlight = true;
         try
         {
-            startupTimeline.Mark("webview.process_failed_recreate_begin", new Dictionary<string, string>
+            startupTimeline.Mark(WebViewRecreateEventName(trigger, "begin"), new Dictionary<string, string>
             {
                 ["path"] = route.Path,
                 ["reason"] = reason,
+                ["trigger"] = trigger,
             });
             await Task.Delay(300);
             if (closed)
@@ -161,26 +162,38 @@ public partial class MainWindow : System.Windows.Window
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
             await webViewHost.InitializeAsync();
-            startupTimeline.Mark("webview.process_failed_recreate_ready", new Dictionary<string, string>
+            startupTimeline.Mark(WebViewRecreateEventName(trigger, "ready"), new Dictionary<string, string>
             {
                 ["path"] = route.Path,
                 ["reason"] = reason,
+                ["trigger"] = trigger,
             });
             await webViewHost.LoadRouteAsync(route);
         }
         catch (Exception exception)
         {
-            startupTimeline.Mark("webview.process_failed_recreate_failed", new Dictionary<string, string>
+            startupTimeline.Mark(WebViewRecreateEventName(trigger, "failed"), new Dictionary<string, string>
             {
                 ["error"] = TrimMetadata(exception.Message),
                 ["path"] = route.Path,
                 ["reason"] = reason,
+                ["trigger"] = trigger,
             });
         }
         finally
         {
             webViewRecreateInFlight = false;
         }
+    }
+
+    private static string WebViewRecreateEventName(string trigger, string phase)
+    {
+        if (string.Equals(trigger, "process_failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "webview.process_failed_recreate_" + phase;
+        }
+        string normalizedTrigger = string.IsNullOrWhiteSpace(trigger) ? "manual" : trigger.Trim().Replace('.', '_');
+        return "webview." + normalizedTrigger + "_recreate_" + phase;
     }
 
     private bool ShouldCloseForExit()

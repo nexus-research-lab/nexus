@@ -74,7 +74,8 @@ final class SidecarSupervisor {
 
     environment["NEXUS_APP_MODE"] = "desktop"
     environment["NEXUS_APP_ROOT"] = locator.appRootURL.path
-    environment["NEXUS_CONFIG_DIR"] = DesktopPaths.configDirectory.path
+    environment["NEXUS_CONFIG_DIR"] = DesktopPaths.rootDirectory.path
+    environment["CLAUDE_CONFIG_DIR"] = DesktopPaths.rootDirectory.path
     environment["HOST"] = "127.0.0.1"
     environment["PORT"] = "\(port)"
     environment["NEXUS_DESKTOP_SESSION_TOKEN"] = runtimeConfig.sessionToken
@@ -101,6 +102,7 @@ final class SidecarSupervisor {
     environment["TELEGRAM_ENABLED"] = "false"
     environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback"
     applyPackagedConnectorConfig(to: &environment)
+    applyBundledNexusctlCommand(to: &environment)
     applyBundledNXSRuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = "\(webOrigin),nexus://connectors"
@@ -127,6 +129,34 @@ final class SidecarSupervisor {
         environment[key] = value
       }
     }
+  }
+
+  private func applyBundledNexusctlCommand(to environment: inout [String: String]) {
+    if let override = environment["NEXUSCTL_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+        "source": "override",
+        "path": override,
+      ])
+      return
+    }
+    guard locator.projectRoot == nil else {
+      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+        "source": "development",
+      ])
+      return
+    }
+    let nexusctlURL = locator.appRootURL.appendingPathComponent("bin/nexusctl")
+    if FileManager.default.isExecutableFile(atPath: nexusctlURL.path) {
+      environment["NEXUSCTL_COMMAND_PATH"] = nexusctlURL.path
+      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+        "source": "bundled",
+        "path": nexusctlURL.path,
+      ])
+      return
+    }
+    startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+      "source": "missing",
+    ])
   }
 
   private func applyBundledNXSRuntime(to environment: inout [String: String]) {

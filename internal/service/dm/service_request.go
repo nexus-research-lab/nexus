@@ -92,12 +92,6 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if override := strings.TrimSpace(request.GoalContext); request.Internal && override != "" {
 		goalContext = override
 	}
-	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID(), runtimeKind, runtimeProvider, runtimeModel); syncErr != nil {
-		return syncErr
-	} else {
-		sessionItem = updatedSession
-	}
-
 	roundCtx, cancel := context.WithCancel(context.Background())
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 	s.permission.BindSessionRoute(sessionKey, permissionctx.RouteContext{

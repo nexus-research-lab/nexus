@@ -215,7 +215,8 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			claudeAutoCompactPctOverrideEnvName: "80",
+			claudeAutoCompactPctOverrideEnvName:    "80",
+			nexusDisableProjectInstructionsEnvName: "0",
 		},
 	})
 	if err != nil {
@@ -223,6 +224,22 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	}
 	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
 		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
+	}
+	if options.Env[nexusDisableProjectInstructionsEnvName] != "0" {
+		t.Fatalf("ExtraEnv 应允许覆盖项目指令加载开关: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsDisablesRuntimeProjectInstructions(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath:      "/tmp/workspace",
+		AppendSystemPrompt: "Nexus 已经注入 workspace prompt",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusDisableProjectInstructionsEnvName] != "1" {
+		t.Fatalf("Nexus 宿主应关闭 SDK 自动加载项目指令，避免重复注入: %+v", options.Env)
 	}
 }
 
@@ -280,7 +297,6 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
-	t.Setenv(nexusAppRootEnvName, "")
 	t.Setenv(nexusNXSCommandPathEnvName, "")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
 	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")
@@ -375,6 +391,9 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 }
 
 func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T) {
+	t.Setenv(nexusAgentRuntimeKindEnvName, "")
+	t.Setenv(nexusAgentRuntimeEnvName, "")
+
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
 			AuthToken: "token-1",
@@ -443,11 +462,26 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
 		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
 	}
-	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
-		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
+	if options.Env[nexusctlCommandPathEnvName] != nexusctlShimPath(expectedBinDir) {
+		t.Fatalf("运行时未注入明确 nexusctl 命令路径: %+v", options.Env)
 	}
 	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
 		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsPreservesExplicitNexusctlCommandPath(t *testing.T) {
+	configDir := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusctlCommandPathEnvName] != "/opt/nexus/bin/nexusctl" {
+		t.Fatalf("显式 nexusctl 命令路径不应被共享 shim 覆盖: %+v", options.Env)
 	}
 }
 

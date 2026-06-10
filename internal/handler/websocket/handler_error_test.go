@@ -23,19 +23,9 @@ func TestChatErrorDetailExplainsMissingClaudeCommand(t *testing.T) {
 func TestChatErrorDetailExplainsMissingNXSCommand(t *testing.T) {
 	message := chatErrorDetail(errors.New(`client: backend executable "process backend" not found: process: cli executable "nxs" not found`))
 	if !strings.Contains(message, "nxs runtime") ||
-		!strings.Contains(message, "桌面包") ||
-		!strings.Contains(message, "随包预置") ||
+		!strings.Contains(message, "sidecar") ||
 		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
 		t.Fatalf("缺少 nxs 时应返回 nxs 可执行提示: %q", message)
-	}
-}
-
-func TestChatErrorDetailExplainsNXSRuntimeResolverFailure(t *testing.T) {
-	message := chatErrorDetail(errors.New(`client: resolve nxs runtime failed: download nxs runtime manifest: unexpected http status 404 Not Found`))
-	if !strings.Contains(message, "自动解析失败") ||
-		!strings.Contains(message, "manifest") ||
-		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
-		t.Fatalf("nxs 自动解析失败时应返回 resolver 提示: %q", message)
 	}
 }
 

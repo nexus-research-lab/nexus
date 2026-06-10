@@ -21,6 +21,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -238,40 +240,54 @@ func (s *RealtimeService) runSlot(
 	}))
 	options = withRoomRuntimeDiagnosticsLogger(options, logger.With("agent_id", slot.AgentID, "agent_round_id", slot.AgentRoundID))
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
-	logger.Info("准备启动 Room runtime",
-		append(clientopts.RuntimeStartupLogFields(options),
-			"agent_id", slot.AgentID,
-			"agent_round_id", slot.AgentRoundID,
-			"runtime_session_key", slot.RuntimeSessionKey,
-			"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
-			"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
-			"requested_model", strings.TrimSpace(runtimeSelection.Model),
-			"runtime_provider", runtimeProvider,
-		)...,
+	resumeID, err := s.resolveReusableRoomSDKSessionID(
+		slotCtx,
+		logger,
+		agentValue.WorkspacePath,
+		slot,
+		options.Session.ResumeID,
 	)
-	client := s.factory.New(options)
-	slot.setClient(client)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
+	options.Session.ResumeID = resumeID
+	connectClient := func(currentOptions agentclient.Options) (runtimectx.Client, error) {
+		logger.Info("准备启动 Room runtime",
+			roomRuntimeStartupLogFields(currentOptions, runtimeSelection, runtimeProvider, slot)...,
+		)
+		currentClient := s.factory.New(currentOptions)
+		slot.setClient(currentClient)
+		return currentClient, currentClient.Connect(slotCtx)
+	}
 
-	if err := client.Connect(slotCtx); err != nil {
-		logger.Error("Room runtime 启动失败",
-			append(clientopts.RuntimeStartupLogFields(options),
-				"agent_id", slot.AgentID,
-				"agent_round_id", slot.AgentRoundID,
-				"runtime_session_key", slot.RuntimeSessionKey,
-				"stage", "connect",
-				"err", err,
-				"error_type", fmt.Sprintf("%T", err),
-				"transport_closed", runtimectx.IsRuntimeTransportClosedError(err),
+	client, err := connectClient(options)
+	if err != nil && shouldRetryRoomClientWithoutResume(options.Session.ResumeID, err) {
+		logger.Warn("Room SDK session resume 失效，清除后重试",
+			append(roomRuntimeConnectFailureLogFields(options, runtimeSelection, runtimeProvider, slot, err),
+				"sdk_session_id", strings.TrimSpace(options.Session.ResumeID),
 			)...,
 		)
+		if client != nil {
+			if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil && !runtimectx.IsRuntimeTransportClosedError(disconnectErr) {
+				s.handleSlotFailure(slotCtx, roundValue, slot, mapper, disconnectErr)
+				return
+			}
+		}
+		if clearErr := s.clearSlotSDKSessionID(slotCtx, slot); clearErr != nil {
+			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, clearErr)
+			return
+		}
+		options.Session.ResumeID = ""
+		client, err = connectClient(options)
+	}
+	if err != nil {
+		logger.Error("Room runtime 启动失败", roomRuntimeConnectFailureLogFields(options, runtimeSelection, runtimeProvider, slot, err)...)
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 	logger.Info("Room runtime 启动成功",
-		append(clientopts.RuntimeStartupLogFields(options),
-			"agent_id", slot.AgentID,
-			"agent_round_id", slot.AgentRoundID,
-			"runtime_session_key", slot.RuntimeSessionKey,
+		append(roomRuntimeStartupLogFields(options, runtimeSelection, runtimeProvider, slot),
 			"sdk_session_id", strings.TrimSpace(client.SessionID()),
 		)...,
 	)
@@ -280,10 +296,6 @@ func (s *RealtimeService) runSlot(
 			logger.Warn("Agent SDK disconnect 返回错误", "err", err)
 		}
 	}()
-	if err := s.syncSlotSDKSessionID(slotCtx, slot, client.SessionID()); err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-		return
-	}
 
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamStart,
@@ -465,6 +477,89 @@ func (s *RealtimeService) runSlot(
 		"result_subtype", strings.TrimSpace(result.ResultSubtype),
 		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
+}
+
+func (s *RealtimeService) resolveReusableRoomSDKSessionID(
+	ctx context.Context,
+	logger *slog.Logger,
+	workspacePath string,
+	slot *activeRoomSlot,
+	resumeID string,
+) (string, error) {
+	resumeID = strings.TrimSpace(resumeID)
+	if resumeID == "" {
+		return "", nil
+	}
+	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	if decision.Allowed {
+		return resumeID, nil
+	}
+	if decision.Err != nil {
+		logger.Warn("检查 Room SDK session transcript 失败，跳过过期 resume",
+			"agent_id", slot.AgentID,
+			"agent_round_id", slot.AgentRoundID,
+			"runtime_session_key", slot.RuntimeSessionKey,
+			"room_session_id", slot.RoomSessionID,
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		if clearErr := s.clearSlotSDKSessionID(ctx, slot); clearErr != nil {
+			return "", clearErr
+		}
+		return "", nil
+	}
+
+	logger.Warn("Room SDK session transcript 不存在，跳过过期 resume",
+		"agent_id", slot.AgentID,
+		"agent_round_id", slot.AgentRoundID,
+		"runtime_session_key", slot.RuntimeSessionKey,
+		"room_session_id", slot.RoomSessionID,
+		"workspace_path", workspacePath,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
+	)
+	if err := s.clearSlotSDKSessionID(ctx, slot); err != nil {
+		return "", err
+	}
+	return "", nil
+}
+
+func roomRuntimeStartupLogFields(
+	options agentclient.Options,
+	runtimeSelection runtimeselectionsvc.Selection,
+	runtimeProvider string,
+	slot *activeRoomSlot,
+) []any {
+	return append(clientopts.RuntimeStartupLogFields(options),
+		"agent_id", slot.AgentID,
+		"agent_round_id", slot.AgentRoundID,
+		"runtime_session_key", slot.RuntimeSessionKey,
+		"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
+		"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
+		"requested_model", strings.TrimSpace(runtimeSelection.Model),
+		"runtime_provider", runtimeProvider,
+	)
+}
+
+func roomRuntimeConnectFailureLogFields(
+	options agentclient.Options,
+	runtimeSelection runtimeselectionsvc.Selection,
+	runtimeProvider string,
+	slot *activeRoomSlot,
+	err error,
+) []any {
+	return append(roomRuntimeStartupLogFields(options, runtimeSelection, runtimeProvider, slot),
+		"stage", "connect",
+		"err", err,
+		"error_type", fmt.Sprintf("%T", err),
+		"transport_closed", runtimectx.IsRuntimeTransportClosedError(err),
+	)
+}
+
+func shouldRetryRoomClientWithoutResume(resumeID string, err error) bool {
+	return strings.TrimSpace(resumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err)
 }
 
 func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {

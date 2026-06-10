@@ -13,8 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Feishu reply/thread metadata, typing reaction indicators, and reaction-created ingress handling to better match OpenClaw-style IM behavior.
 
 ### Fixed
+- Limited the channel capability UI to personal WeChat and Feishu while keeping the other IM channels closed in the frontend.
 - Made personal WeChat typing-ticket lookup degrade softly so typing status failures do not affect message polling or reply delivery.
 - Standardized the personal WeChat channel identifier on `weixin-personal` and reduced external reply latency by prioritizing final message delivery over post-round bookkeeping.
+
+## [0.1.19] - 2026-06-10
+
+### Changed
+- Updated the Nexus Agent SDK Bridge dependency to `v0.1.11` for explicit packaged `nxs` runtime path handling and unified transcript config roots.
+- Centralized DM and Room session resume policy so runtime-kind switches reuse compatible transcript history without carrying stale SDK session ids across runtimes.
+- Clarified generated workspace guidance and desktop sidecar runtime path propagation around `NEXUS_NXS_COMMAND_PATH`.
+
+### Fixed
+- Fixed Windows desktop blank WebView recovery after resume by rebuilding invalid WebView instances.
+- Removed stale runtime download/status fallback paths so packaged Nexus hosts rely on their bundled or explicitly configured `nxs` runtime.
+- Fixed `nxs` runtime startup context so SDK-side project instruction loading is disabled when Nexus has already injected workspace prompts.
 
 ## [0.1.18] - 2026-06-09
 

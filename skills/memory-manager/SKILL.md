@@ -13,7 +13,8 @@ description: 管理和检索 Agent 的长期记忆（MEMORY.md）与记忆目录
 - **内部模块** 负责条目建模、相似归并、次数累计、状态流转、长期提升
 - **skill** 负责告诉模型何时该查、何时该记、何时该提升
 
-CLI 工具：`nexusctl memory --workspace "{workspace}"`（运行时已注入 PATH）
+CLI 工具：优先使用 `NEXUSCTL_COMMAND_PATH` 指向的命令；示例里的 `nexusctl memory --workspace "{workspace}"` 只是简写。
+不要搜索 `cmd/nexusctl`，也不要手写 `go run ./cmd/nexusctl`，运行时入口已经注入。
 
 ## 记忆分层规则
 
