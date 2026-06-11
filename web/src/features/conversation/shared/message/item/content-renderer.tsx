@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { CornerDownRight, Info, LoaderCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -79,35 +79,43 @@ function TimelineBlock({
   active?: boolean;
 }) {
   const content_ref = useRef<HTMLDivElement | null>(null);
-  const [dot_top, set_dot_top] = useState(DEFAULT_TIMELINE_DOT_TOP);
+  const dot_ref = useRef<HTMLSpanElement | null>(null);
+  const dot_top_ref = useRef(DEFAULT_TIMELINE_DOT_TOP);
 
   useLayoutEffect(() => {
     const content_element = content_ref.current;
-    if (!content_element) {
+    const dot_element = dot_ref.current;
+    if (!content_element || !dot_element) {
       return;
     }
 
-    const anchor_element = get_timeline_anchor_element(content_element);
-
+    // 圆点位置是纯 DOM 对齐值，避免用 state 回写触发渲染递归。
     const update_dot_top = () => {
-      set_dot_top(get_timeline_anchor_top(content_element, anchor_element));
+      const anchor_element = get_timeline_anchor_element(content_element);
+      const next_dot_top = get_timeline_anchor_top(content_element, anchor_element);
+      if (Math.abs(dot_top_ref.current - next_dot_top) < 0.5) {
+        return;
+      }
+      dot_top_ref.current = next_dot_top;
+      dot_element.style.top = `${next_dot_top}px`;
     };
 
     update_dot_top();
 
     const frame_id = window.requestAnimationFrame(update_dot_top);
     return () => window.cancelAnimationFrame(frame_id);
-  }, [children]);
+  });
 
   return (
     <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
       <div className="relative">
         <span
+          ref={dot_ref}
           className={cn(
             "absolute left-1/2 block h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--divider-subtle-color)",
             active ? "bg-primary/70" : null,
           )}
-          style={{ top: `${dot_top}px` }}
+          style={{ top: `${DEFAULT_TIMELINE_DOT_TOP}px` }}
         />
       </div>
       <div ref={content_ref} className="min-w-0">
