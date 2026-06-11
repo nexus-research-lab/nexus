@@ -139,11 +139,11 @@ function guide_steps(channel_type: ImChannelType) {
     ];
   case "wechat":
     return [
-      <>登录 <a href="https://developer.work.weixin.qq.com/" target="_blank" rel="noreferrer">企业微信开发者后台</a>，创建或选择 <b>自建应用</b></>,
-      <>在应用详情中复制 <b>企业 ID</b>、<b>Agent ID</b> 和 <b>Secret</b></>,
-      <>如需接收成员消息，打开 <b>接收消息</b>，配置回调地址为当前服务的 <b>/nexus/v1/channels/wechat/messages</b></>,
-      <>复制回调配置中的 <b>Token</b> 与 <b>EncodingAESKey</b>，填入下方表单</>,
-      <>确认应用可见范围包含目标成员；企业微信通道只处理企业微信成员与群聊消息</>,
+      <>登录 <a href="https://developer.work.weixin.qq.com/" target="_blank" rel="noreferrer">企业微信开发者后台</a>，创建或选择 <b>智能机器人</b></>,
+      <>在机器人配置页复制 <b>Bot ID</b> 和 <b>Secret</b>，填入下方表单</>,
+      <>Nexus 会通过企业微信官方长连接接收入站消息，并用同一长连接 <b>stream</b> 回复</>,
+      <>智能体回复会使用企业微信智能机器人的 <b>stream</b> 回复回到原会话</>,
+      <>确认机器人可见范围包含目标成员或群；首次收到外部消息后在配对授权页批准</>,
     ];
   case "weixin-personal":
     return [
@@ -172,8 +172,9 @@ function guide_steps(channel_type: ImChannelType) {
   case "discord":
     return [
       <>打开 <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">Discord 开发者平台</a>，点击 <b>New Application</b> 创建应用</>,
-      <>进入应用左侧 <b>机器人</b> 页面，点击 <b>Reset Token</b> 获取 Token，并开启 <b>消息内容意图</b></>,
-      <>在下方填写凭证，生成 <b>授权链接</b>，打开链接并添加到 <b>服务器</b></>,
+      <>复制 <b>Application ID</b>；进入左侧 <b>Bot</b> 页面，点击 <b>Reset Token</b> 获取 <b>Bot Token</b>，不是 OAuth Client Secret</>,
+      <>开启 <b>Message Content Intent</b>，否则 Gateway 消息事件可能没有正文内容</>,
+      <>在下方填写 Application ID 和 Bot Token，生成 <b>授权链接</b>，打开链接并添加到 <b>服务器</b></>,
     ];
   }
 }
@@ -187,6 +188,14 @@ function build_discord_oauth_url(config: Record<string, string>) {
     scope: "bot applications.commands",
   });
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
+
+function channel_field_autocomplete(field: ChannelCredentialField) {
+  return field.secret ? "new-password" : "off";
+}
+
+function channel_field_input_name(channel_type: ImChannelType, index: number) {
+  return `nexus-im-channel-${channel_type}-field-${index}`;
 }
 
 function is_channel_login_running(view: ChannelLoginView | null) {
@@ -596,6 +605,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
     <UiDialogPortal>
       <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={on_close}>
         <UiDialogFormShell
+          autoComplete="off"
           class_name="max-h-[86vh]"
           onSubmit={handle_submit}
           size="lg"
@@ -650,7 +660,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
                 </UiField>
 
                 <div className="space-y-4">
-                  {current_item.credential_fields.map((field) => (
+                  {current_item.credential_fields.map((field, index) => (
                     <UiField
                       key={field.key}
                       label={(
@@ -660,6 +670,13 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
                       )}
                     >
                       <UiInput
+                        autoCapitalize="none"
+                        autoComplete={channel_field_autocomplete(field)}
+                        autoCorrect="off"
+                        data-1p-ignore="true"
+                        data-form-type="other"
+                        data-lpignore="true"
+                        name={channel_field_input_name(current_item.channel_type, index)}
                         onChange={(event) => handle_field_change(field, event.target.value)}
                         placeholder={field.placeholder || ""}
                         required={field.required && !(field.secret && current_item.has_credentials)}

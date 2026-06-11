@@ -3,14 +3,17 @@ package channels
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
@@ -21,6 +24,7 @@ type telegramChannel struct {
 	client      *http.Client
 	baseURL     string
 	ownerUserID string
+	logger      *slog.Logger
 
 	mu      sync.RWMutex
 	ingress IngressAcceptor
@@ -44,6 +48,7 @@ func newTelegramChannel(token string, client *http.Client) *telegramChannel {
 		token:   strings.TrimSpace(token),
 		client:  client,
 		baseURL: "https://api.telegram.org",
+		logger:  logx.NewDiscardLogger(),
 	}
 }
 
@@ -60,6 +65,15 @@ func (c *telegramChannel) SetIngress(ingress IngressAcceptor) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ingress = ingress
+}
+
+func (c *telegramChannel) SetLogger(logger *slog.Logger) {
+	if logger == nil {
+		logger = logx.NewDiscardLogger()
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logger = logger
 }
 
 func (c *telegramChannel) Start(ctx context.Context) error {
@@ -127,7 +141,7 @@ func (c *telegramChannel) SendDeliveryMessage(
 			nil,
 			&response,
 		); err != nil {
-			return DeliveryResult{}, err
+			return DeliveryResult{}, c.redactError(err)
 		}
 		if response.OK != nil && !*response.OK {
 			description := strings.TrimSpace(response.Description)
@@ -166,20 +180,25 @@ func (c *telegramChannel) SendDeliveryTyping(ctx context.Context, target Deliver
 	if err := applyTelegramTypingThreadID(payload, target.ThreadID); err != nil {
 		return err
 	}
-	return doChannelJSONExpectSuccess(
+	if err := doChannelJSONExpectSuccess(
 		ctx,
 		c.client,
 		http.MethodPost,
 		strings.TrimRight(c.baseURL, "/")+"/bot"+c.token+"/sendChatAction",
 		payload,
 		nil,
-	)
+	); err != nil {
+		return c.redactError(err)
+	}
+	return nil
 }
 
 func (c *telegramChannel) pollUpdates(ctx context.Context) {
 	defer c.wg.Done()
 
 	offset := 0
+	lastErrText := ""
+	lastErrLoggedAt := time.Time{}
 	for {
 		if ctx.Err() != nil {
 			return
@@ -189,6 +208,16 @@ func (c *telegramChannel) pollUpdates(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
+			errText := strings.TrimSpace(err.Error())
+			now := time.Now()
+			if errText != lastErrText || now.Sub(lastErrLoggedAt) >= 30*time.Second {
+				c.loggerFor(ctx).Warn("Telegram getUpdates 失败",
+					"owner_user_id", c.ownerUserID,
+					"err", c.redactError(err),
+				)
+				lastErrText = errText
+				lastErrLoggedAt = now
+			}
 			timer := time.NewTimer(2 * time.Second)
 			select {
 			case <-ctx.Done():
@@ -197,6 +226,13 @@ func (c *telegramChannel) pollUpdates(ctx context.Context) {
 			case <-timer.C:
 			}
 			continue
+		}
+		if lastErrText != "" {
+			c.loggerFor(ctx).Info("Telegram getUpdates 已恢复",
+				"owner_user_id", c.ownerUserID,
+			)
+			lastErrText = ""
+			lastErrLoggedAt = time.Time{}
 		}
 		offset = nextOffset
 		for _, update := range updates {
@@ -220,7 +256,7 @@ func (c *telegramChannel) fetchUpdates(ctx context.Context, offset int) ([]teleg
 		nil,
 	)
 	if err != nil {
-		return nil, offset, err
+		return nil, offset, c.redactError(err)
 	}
 	defer response.Body.Close()
 
@@ -297,6 +333,10 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 
 	ingress := c.currentIngress()
 	if ingress == nil {
+		c.loggerFor(ctx).Warn("Telegram 入站消息缺少处理器",
+			"owner_user_id", c.ownerUserID,
+			"update_id", update.UpdateID,
+		)
 		return
 	}
 
@@ -320,6 +360,19 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	messageID := strconv.Itoa(message.MessageID)
+	reqID := messageID
+	if edited {
+		reqID = telegramEditedMessageReqID(messageID, update.UpdateID)
+	}
+	c.loggerFor(ctx).Debug("收到 Telegram 入站消息",
+		"owner_user_id", c.ownerUserID,
+		"chat_type", chatType,
+		"ref", ref,
+		"thread_id", threadID,
+		"message_id", messageID,
+		"edited", edited,
+		"chars", len([]rune(content)),
+	)
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
 		Channel:     ChannelTypeTelegram,
 		OwnerUserID: c.ownerUserID,
@@ -327,7 +380,7 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		Ref:         ref,
 		ThreadID:    threadID,
 		Content:     content,
-		ReqID:       messageID,
+		ReqID:       reqID,
 		Delivery:    delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
 			Channel:           ChannelTypeTelegram,
@@ -343,14 +396,53 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		if isPairingApprovalRequired(err) {
 			return
 		}
+		c.loggerFor(ctx).Warn("Telegram 入站消息处理失败",
+			"owner_user_id", c.ownerUserID,
+			"chat_type", chatType,
+			"ref", ref,
+			"thread_id", threadID,
+			"message_id", messageID,
+			"err", err,
+		)
 		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+truncateChannelError(err))
 	}
+}
+
+func telegramEditedMessageReqID(messageID string, updateID int) string {
+	trimmed := strings.TrimSpace(messageID)
+	if updateID == 0 {
+		return trimmed + ":edited"
+	}
+	return fmt.Sprintf("%s:edited:%d", trimmed, updateID)
+}
+
+func (c *telegramChannel) redactError(err error) error {
+	if err == nil {
+		return nil
+	}
+	text := strings.TrimSpace(err.Error())
+	token := strings.TrimSpace(c.token)
+	if token != "" {
+		text = strings.ReplaceAll(text, "/bot"+token+"/", "/bot<redacted>/")
+		text = strings.ReplaceAll(text, "bot"+token, "bot<redacted>")
+	}
+	if text == "" {
+		text = "telegram request failed"
+	}
+	return errors.New(text)
 }
 
 func (c *telegramChannel) currentIngress() IngressAcceptor {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.ingress
+}
+
+func (c *telegramChannel) loggerFor(ctx context.Context) *slog.Logger {
+	c.mu.RLock()
+	logger := c.logger
+	c.mu.RUnlock()
+	return logx.Resolve(ctx, logger)
 }
 
 type telegramUpdatesEnvelope struct {

@@ -1,12 +1,7 @@
 package channels
 
 import (
-	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -28,8 +23,8 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if !ok {
 		t.Fatal("缺少企业微信通道")
 	}
-	if wechat.SupportsGroup {
-		t.Fatal("企业微信自建应用通道不应标记群聊能力")
+	if !wechat.SupportsGroup {
+		t.Fatal("企业微信智能机器人通道应标记群聊能力")
 	}
 	weixinPersonal, ok := channelCatalogByType(ChannelTypeWeixinPersonal)
 	if !ok {
@@ -121,8 +116,8 @@ func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 		{
 			name:        "wechat",
 			channelType: ChannelTypeWeChat,
-			config:      map[string]string{"corp_id": "ww-corp"},
-			want:        "agent_id is required",
+			config:      map[string]string{"bot_id": "bot-1"},
+			want:        "secret is required",
 		},
 		{
 			name:        "telegram",
@@ -639,95 +634,6 @@ func TestControlServicePrepareFeishuIngressDecryptsAndVerifiesSignature(t *testi
 	}
 }
 
-func TestControlServicePrepareWeChatIngressDecryptsAndVerifiesSignature(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	encodingAESKey := testWeChatEncodingAESKey()
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeChat, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"corp_id":  "ww_corp",
-			"agent_id": "100001",
-		},
-		Credentials: map[string]string{
-			"corp_secret":      "corp-secret",
-			"token":            "wechat-token",
-			"encoding_aes_key": encodingAESKey,
-		},
-	})
-	if err != nil {
-		t.Fatalf("配置企业微信渠道失败: %v", err)
-	}
-
-	plain := []byte(`<xml>
-		<ToUserName><![CDATA[ww_corp]]></ToUserName>
-		<FromUserName><![CDATA[zhangsan]]></FromUserName>
-		<CreateTime>1700000000</CreateTime>
-		<MsgType><![CDATA[text]]></MsgType>
-		<Content><![CDATA[检查本周日报任务]]></Content>
-		<MsgId>msg-1</MsgId>
-		<AgentID>100001</AgentID>
-	</xml>`)
-	encrypted := encryptWeChatCallbackForTest(t, encodingAESKey, plain, "ww_corp")
-	signature := weChatCallbackSignature("wechat-token", "1700000001", "nonce-1", encrypted)
-	body := []byte(fmt.Sprintf(`<xml>
-		<ToUserName><![CDATA[ww_corp]]></ToUserName>
-		<AgentID><![CDATA[100001]]></AgentID>
-		<Encrypt><![CDATA[%s]]></Encrypt>
-	</xml>`, encrypted))
-	request, err := http.NewRequest(
-		http.MethodPost,
-		"/nexus/v1/channels/wechat/messages?msg_signature="+signature+"&timestamp=1700000001&nonce=nonce-1",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatalf("构造企业微信请求失败: %v", err)
-	}
-
-	prepared, err := service.PrepareWeChatIngress(context.Background(), body, request)
-	if err != nil {
-		t.Fatalf("企业微信回调准备失败: %v", err)
-	}
-	if prepared.OwnerUserID != "owner-a" || prepared.CorpID != "ww_corp" || string(prepared.Body) != string(plain) {
-		t.Fatalf("企业微信回调准备结果不正确: %+v body=%s", prepared, prepared.Body)
-	}
-	ingressRequest, ignored, err := DecodeWeChatIngressCallback(prepared.Body)
-	if err != nil {
-		t.Fatalf("企业微信回调解析失败: %v", err)
-	}
-	if ignored != "" || ingressRequest == nil {
-		t.Fatalf("企业微信文本消息不应被忽略: request=%+v ignored=%s", ingressRequest, ignored)
-	}
-	if ingressRequest.Ref != "zhangsan" || ingressRequest.Content != "检查本周日报任务" {
-		t.Fatalf("企业微信入口请求不正确: %+v", ingressRequest)
-	}
-	if ingressRequest.Message == nil ||
-		ingressRequest.Message.Channel != ChannelTypeWeChat ||
-		ingressRequest.Message.PlatformMessageID != "msg-1" ||
-		ingressRequest.Message.SenderID != "zhangsan" ||
-		ingressRequest.Message.Text != "检查本周日报任务" ||
-		!ingressRequest.Message.ReceivedAt.Equal(time.Unix(1700000000, 0).UTC()) {
-		t.Fatalf("企业微信入口 envelope 不正确: %+v", ingressRequest.Message)
-	}
-
-	badRequest, err := http.NewRequest(
-		http.MethodPost,
-		"/nexus/v1/channels/wechat/messages?msg_signature=bad&timestamp=1700000001&nonce=nonce-1",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatalf("构造错误企业微信请求失败: %v", err)
-	}
-	if _, err = service.PrepareWeChatIngress(context.Background(), body, badRequest); !errors.Is(err, ErrWeChatCallbackUnauthorized) {
-		t.Fatalf("错误签名的企业微信回调应拒绝，实际: %v", err)
-	}
-}
-
 type fakePersonalWeixinLoginClient struct{}
 
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (weixinQRCodeResponse, error) {
@@ -777,39 +683,4 @@ func waitChannelLoginStatus(
 
 func testChannelCredentialKey() string {
 	return "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-}
-
-func testWeChatEncodingAESKey() string {
-	return strings.TrimRight(base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")), "=")
-}
-
-func encryptWeChatCallbackForTest(t *testing.T, encodingAESKey string, plain []byte, receiveID string) string {
-	t.Helper()
-	key, err := decodeWeChatAESKey(encodingAESKey)
-	if err != nil {
-		t.Fatalf("测试企业微信 AES key 无效: %v", err)
-	}
-	packet := bytes.NewBufferString("0123456789abcdef")
-	length := make([]byte, 4)
-	binary.BigEndian.PutUint32(length, uint32(len(plain)))
-	packet.Write(length)
-	packet.Write(plain)
-	packet.WriteString(receiveID)
-	padded := appendWeChatPKCS7PaddingForTest(packet.Bytes(), aes.BlockSize)
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		t.Fatalf("创建测试企业微信 cipher 失败: %v", err)
-	}
-	cipherText := append([]byte(nil), padded...)
-	cipher.NewCBCEncrypter(block, key[:aes.BlockSize]).CryptBlocks(cipherText, cipherText)
-	return base64.StdEncoding.EncodeToString(cipherText)
-}
-
-func appendWeChatPKCS7PaddingForTest(data []byte, blockSize int) []byte {
-	padding := blockSize - len(data)%blockSize
-	if padding == 0 {
-		padding = blockSize
-	}
-	return append(data, bytes.Repeat([]byte{byte(padding)}, padding)...)
 }

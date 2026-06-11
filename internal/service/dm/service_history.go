@@ -116,6 +116,11 @@ func (s *Service) refreshSessionMetaAfterRoundMarker(
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return nil, err
+	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
@@ -133,6 +138,11 @@ func (s *Service) refreshSessionMetaAfterMessage(
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return nil, err
+	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
@@ -158,6 +168,11 @@ func (s *Service) refreshSessionMetaRuntimeState(
 ) (*protocol.Session, error) {
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return nil, err
+	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
@@ -263,6 +278,10 @@ func (s *Service) syncSDKSessionID(
 	current.Options[protocol.OptionRuntimeKind] = nextKind
 	current.Options[protocol.OptionRuntimeProvider] = nextProvider
 	current.Options[protocol.OptionRuntimeModel] = nextModel
+	current, err := s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return protocol.Session{}, err
+	}
 	updated, err := s.files.UpsertSession(workspacePath, current)
 	if err != nil {
 		return protocol.Session{}, err
@@ -314,6 +333,11 @@ func (s *Service) clearReusableSDKSessionID(
 ) (protocol.Session, error) {
 	current.SessionID = nil
 	current = closePersistedSessionMeta(current)
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return protocol.Session{}, err
+	}
 	updated, err := s.files.UpsertSession(workspacePath, current)
 	if err != nil {
 		return protocol.Session{}, err
@@ -336,4 +360,24 @@ func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Se
 		return nil
 	}
 	return s.roomStore.UpdateRoomSessionSDKSessionID(ctx, roomSessionID, "")
+}
+
+func (s *Service) preservePersistedSessionTitle(
+	workspacePath string,
+	current protocol.Session,
+) (protocol.Session, error) {
+	if s == nil || s.files == nil ||
+		strings.TrimSpace(workspacePath) == "" ||
+		strings.TrimSpace(current.SessionKey) == "" {
+		return current, nil
+	}
+	persisted, _, err := s.files.FindSession([]string{workspacePath}, current.SessionKey)
+	if err != nil {
+		return protocol.Session{}, err
+	}
+	if persisted == nil || strings.TrimSpace(persisted.Title) == "" {
+		return current, nil
+	}
+	current.Title = persisted.Title
+	return current, nil
 }

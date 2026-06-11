@@ -4,11 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -176,14 +174,6 @@ type feishuIngressConfig struct {
 	AppID             string
 	VerificationToken string
 	EncryptKey        string
-}
-
-type weChatIngressConfig struct {
-	OwnerUserID    string
-	CorpID         string
-	AgentID        string
-	Token          string
-	EncodingAESKey string
 }
 
 func (e *pairingApprovalError) Error() string {
@@ -706,144 +696,6 @@ func matchFeishuIngressConfig(configs []feishuIngressConfig, callback FeishuIngr
 		}
 	}
 	return nil
-}
-
-func (s *ControlService) PrepareWeChatIngress(ctx context.Context, raw []byte, request *http.Request) (WeChatIngressPreparation, error) {
-	if request == nil {
-		return WeChatIngressPreparation{}, errors.New("wechat callback request is required")
-	}
-	configs, err := s.listWeChatIngressConfigs(ctx)
-	if err != nil {
-		return WeChatIngressPreparation{}, err
-	}
-	if strings.EqualFold(request.Method, http.MethodGet) {
-		return prepareWeChatURLVerification(request.URL.Query(), configs)
-	}
-	return prepareWeChatMessageIngress(raw, request.URL.Query(), configs)
-}
-
-func (s *ControlService) listWeChatIngressConfigs(ctx context.Context) ([]weChatIngressConfig, error) {
-	rows, err := s.listAllChannelConfigRows(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]weChatIngressConfig, 0, len(rows))
-	for _, row := range rows {
-		if row.Status == ChannelConfigStatusDisabled || row.ChannelType != ChannelTypeWeChat {
-			continue
-		}
-		publicConfig, decodeErr := decodeStringMap(row.ConfigJSON)
-		if decodeErr != nil {
-			return nil, decodeErr
-		}
-		secrets, decryptErr := s.decryptCredentials(row.CredentialsEncrypted)
-		if decryptErr != nil {
-			return nil, decryptErr
-		}
-		result = append(result, weChatIngressConfig{
-			OwnerUserID:    strings.TrimSpace(row.OwnerUserID),
-			CorpID:         strings.TrimSpace(publicConfig["corp_id"]),
-			AgentID:        strings.TrimSpace(publicConfig["agent_id"]),
-			Token:          strings.TrimSpace(secrets["token"]),
-			EncodingAESKey: strings.TrimSpace(secrets["encoding_aes_key"]),
-		})
-	}
-	return result, nil
-}
-
-func prepareWeChatURLVerification(query url.Values, configs []weChatIngressConfig) (WeChatIngressPreparation, error) {
-	encrypted := strings.TrimSpace(query.Get("echostr"))
-	if encrypted == "" {
-		return WeChatIngressPreparation{}, errors.New("wechat callback echostr is required")
-	}
-	for _, config := range configs {
-		if !weChatConfigHasCallbackSecurity(config) {
-			continue
-		}
-		if err := verifyWeChatCallbackSignature(
-			config.Token,
-			query.Get("timestamp"),
-			query.Get("nonce"),
-			encrypted,
-			query.Get("msg_signature"),
-		); err != nil {
-			continue
-		}
-		challenge, _, err := decryptWeChatEncryptedPayload(encrypted, config.EncodingAESKey, config.CorpID)
-		if err != nil {
-			continue
-		}
-		return WeChatIngressPreparation{
-			Challenge:   string(challenge),
-			OwnerUserID: config.OwnerUserID,
-			CorpID:      config.CorpID,
-			AgentID:     config.AgentID,
-		}, nil
-	}
-	return WeChatIngressPreparation{}, fmt.Errorf("%w: wechat url verification did not match configured apps", ErrWeChatCallbackUnauthorized)
-}
-
-func prepareWeChatMessageIngress(raw []byte, query url.Values, configs []weChatIngressConfig) (WeChatIngressPreparation, error) {
-	var outer weChatOuterCallback
-	if err := xml.Unmarshal(raw, &outer); err != nil {
-		return WeChatIngressPreparation{}, err
-	}
-	encrypted := strings.TrimSpace(outer.Encrypt)
-	if encrypted == "" {
-		return WeChatIngressPreparation{}, errors.New("wechat callback encrypt is required")
-	}
-	for _, config := range configs {
-		if !weChatConfigHasCallbackSecurity(config) || !weChatOuterMatchesConfig(outer, config) {
-			continue
-		}
-		if err := verifyWeChatCallbackSignature(
-			config.Token,
-			query.Get("timestamp"),
-			query.Get("nonce"),
-			encrypted,
-			query.Get("msg_signature"),
-		); err != nil {
-			continue
-		}
-		plain, _, err := decryptWeChatEncryptedPayload(encrypted, config.EncodingAESKey, config.CorpID)
-		if err != nil {
-			continue
-		}
-		var inner weChatMessageCallback
-		if err = xml.Unmarshal(plain, &inner); err != nil {
-			continue
-		}
-		if strings.TrimSpace(config.AgentID) != "" &&
-			strings.TrimSpace(inner.AgentID) != "" &&
-			strings.TrimSpace(config.AgentID) != strings.TrimSpace(inner.AgentID) {
-			continue
-		}
-		return WeChatIngressPreparation{
-			Body:        plain,
-			OwnerUserID: config.OwnerUserID,
-			CorpID:      config.CorpID,
-			AgentID:     config.AgentID,
-		}, nil
-	}
-	return WeChatIngressPreparation{}, fmt.Errorf("%w: encrypted wechat callback did not match configured apps", ErrWeChatCallbackUnauthorized)
-}
-
-func weChatConfigHasCallbackSecurity(config weChatIngressConfig) bool {
-	return strings.TrimSpace(config.Token) != "" && strings.TrimSpace(config.EncodingAESKey) != ""
-}
-
-func weChatOuterMatchesConfig(outer weChatOuterCallback, config weChatIngressConfig) bool {
-	if strings.TrimSpace(outer.ToUserName) != "" &&
-		strings.TrimSpace(config.CorpID) != "" &&
-		strings.TrimSpace(outer.ToUserName) != strings.TrimSpace(config.CorpID) {
-		return false
-	}
-	if strings.TrimSpace(outer.AgentID) != "" &&
-		strings.TrimSpace(config.AgentID) != "" &&
-		strings.TrimSpace(outer.AgentID) != strings.TrimSpace(config.AgentID) {
-		return false
-	}
-	return true
 }
 
 func (s *ControlService) LoadConfiguredChannels(ctx context.Context) error {
@@ -1440,13 +1292,12 @@ func (s *ControlService) configureRouterChannel(
 		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	case ChannelTypeWeChat:
 		publicConfig, _ := decodeStringMap(configJSON)
-		corpID := strings.TrimSpace(publicConfig["corp_id"])
-		corpSecret := strings.TrimSpace(secrets["corp_secret"])
-		agentID := strings.TrimSpace(publicConfig["agent_id"])
-		if corpID == "" || corpSecret == "" || agentID == "" {
+		botID := strings.TrimSpace(publicConfig["bot_id"])
+		secret := strings.TrimSpace(secrets["secret"])
+		if botID == "" || secret == "" {
 			return nil
 		}
-		channel := newWeChatChannel(corpID, corpSecret, agentID, s.httpClient).WithOwner(ownerUserID)
+		channel := newWeComBotChannel(botID, secret).WithOwner(ownerUserID)
 		if baseURL := strings.TrimSpace(publicConfig["base_url"]); baseURL != "" {
 			channel.baseURL = strings.TrimRight(baseURL, "/")
 		}
@@ -1622,25 +1473,22 @@ func channelCatalog() []ChannelCatalogItem {
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "client_id", Label: "Client ID（AppKey）", Kind: "text", Required: true, Placeholder: "填写开发者控制台的 Client ID"},
-				{Key: "robot_code", Label: "Robot Code", Kind: "text", Placeholder: "可选；仅用于主动群发 OpenAPI"},
 				{Key: "client_secret", Label: "Client Secret（AppSecret）", Kind: "password", Required: true, Secret: true, Placeholder: "填写开发者控制台的 Client Secret"},
+				{Key: "robot_code", Label: "Robot Code", Kind: "text", Placeholder: "可选；仅用于主动群发 OpenAPI"},
 			},
 		},
 		{
 			ChannelType:   ChannelTypeWeChat,
 			Title:         "企业微信",
-			BotLabel:      "企业微信应用",
-			Description:   "通过企业微信自建应用接收成员消息，并向成员、部门或标签主动发送文本消息。",
-			DocsURL:       "https://developer.work.weixin.qq.com/document/path/90236",
+			BotLabel:      "企业微信智能机器人",
+			Description:   "通过企业微信智能机器人长连接接收成员或群消息，并使用原生 stream 回复到会话。",
+			DocsURL:       "https://developer.work.weixin.qq.com/",
 			RuntimeStatus: "ready",
-			RuntimeNote:   "使用企业微信自建应用 API；用于企业微信成员、部门和标签的消息收发。",
-			SupportsGroup: false,
+			RuntimeNote:   "使用企业微信智能机器人长连接；只需要 Bot ID 和 Secret，Nexus 会接收入站消息并用 stream 回复。",
+			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
-				{Key: "corp_id", Label: "Corp ID", Kind: "text", Required: true, Placeholder: "填写企业 ID"},
-				{Key: "agent_id", Label: "Agent ID", Kind: "text", Required: true, Placeholder: "填写自建应用 Agent ID"},
-				{Key: "corp_secret", Label: "Corp Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写自建应用 Secret"},
-				{Key: "token", Label: "Callback Token", Kind: "password", Required: true, Secret: true, Placeholder: "填写接收消息 API 的 Token"},
-				{Key: "encoding_aes_key", Label: "EncodingAESKey", Kind: "password", Required: true, Secret: true, Placeholder: "填写接收消息 API 的 EncodingAESKey"},
+				{Key: "bot_id", Label: "Bot ID", Kind: "text", Required: true, Placeholder: "填写企业微信智能机器人 Bot ID"},
+				{Key: "secret", Label: "Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写企业微信智能机器人 Secret"},
 			},
 		},
 		{
@@ -1695,12 +1543,12 @@ func channelCatalog() []ChannelCatalogItem {
 			Description:       "通过 Discord Bot 接收服务器频道、Thread 或私聊消息，并向频道回投文本。",
 			DocsURL:           "https://discord.com/developers/docs/resources/message#create-message",
 			RuntimeStatus:     "ready",
-			RuntimeNote:       "使用 Discord Gateway 消息事件和 REST create message/typing；Thread 内回复自动投递到 Thread，并禁用模型文本触发 mentions。",
+			RuntimeNote:       "使用 Discord Bot Token 连接 Gateway 接收消息，并调用 REST create message/typing 回投；Application ID 仅用于生成 Bot 授权链接。",
 			SupportsGroup:     true,
 			SupportsOAuthLink: true,
 			CredentialFields: []ChannelCredentialField{
-				{Key: "application_id", Label: "Application ID", Kind: "text", Required: true, Placeholder: "例如 1470267845714645176"},
-				{Key: "bot_token", Label: "Bot Token", Kind: "password", Required: true, Secret: true, Placeholder: "从 Bot 页面复制 Token"},
+				{Key: "application_id", Label: "Application ID（Client ID）", Kind: "text", Required: true, Placeholder: "填写 General Information / OAuth2 中的 Application ID"},
+				{Key: "bot_token", Label: "Bot Token（Reset Token）", Kind: "password", Required: true, Secret: true, Placeholder: "填写 Bot 页面生成的 Token，不是 Client Secret"},
 			},
 		},
 	}

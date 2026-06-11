@@ -831,6 +831,65 @@ func TestTelegramFetchUpdatesSubscribesEditedMessages(t *testing.T) {
 	}
 }
 
+func TestTelegramFetchUpdatesRedactsBotTokenInErrors(t *testing.T) {
+	token := "123456:secret-token"
+	channel := newTelegramChannel(token, &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("boom %s", request.URL.String())
+		}),
+	})
+	channel.baseURL = "https://telegram.test"
+
+	_, _, err := channel.fetchUpdates(context.Background(), 0)
+	if err == nil {
+		t.Fatal("Telegram getUpdates 应返回错误")
+	}
+	if strings.Contains(err.Error(), token) {
+		t.Fatalf("Telegram 错误不应包含 bot token: %s", err)
+	}
+	if !strings.Contains(err.Error(), "bot<redacted>") {
+		t.Fatalf("Telegram 错误应标记 token 已脱敏: %s", err)
+	}
+}
+
+func TestTelegramChannelHandleEditedUpdateUsesDistinctReqID(t *testing.T) {
+	channel := newTelegramChannel("token-2", nil)
+	ingress := &recordingIngressAcceptor{}
+	channel.SetIngress(ingress)
+
+	channel.handleUpdate(context.Background(), telegramUpdate{
+		UpdateID: 10,
+		Message: &telegramMessage{
+			MessageID: 9,
+			Text:      "original",
+			From:      &telegramUser{ID: 8},
+			Chat:      telegramChat{ID: 7, Type: "private"},
+		},
+	})
+	channel.handleUpdate(context.Background(), telegramUpdate{
+		UpdateID: 11,
+		EditedMessage: &telegramMessage{
+			MessageID: 9,
+			Text:      "edited",
+			From:      &telegramUser{ID: 8},
+			Chat:      telegramChat{ID: 7, Type: "private"},
+		},
+	})
+
+	if len(ingress.requests) != 2 {
+		t.Fatalf("Telegram 原消息和编辑事件都应进入 ingress: %+v", ingress.requests)
+	}
+	if ingress.requests[0].ReqID == ingress.requests[1].ReqID {
+		t.Fatalf("Telegram 编辑事件不应复用原消息 req_id: %+v", ingress.requests)
+	}
+	if ingress.requests[1].ReqID != "9:edited:11" {
+		t.Fatalf("Telegram 编辑事件 req_id 不正确: %q", ingress.requests[1].ReqID)
+	}
+	if ingress.requests[1].Content != "edited" || !ingress.requests[1].Message.Edited {
+		t.Fatalf("Telegram 编辑事件内容未保留: %+v", ingress.requests[1])
+	}
+}
+
 func TestTelegramChannelHandleUpdateIgnoresPairingApprovalRequired(t *testing.T) {
 	var outboundRequests int
 	channel := newTelegramChannel("token-2", &http.Client{
@@ -1007,56 +1066,6 @@ func TestDingTalkStreamMessageRemembersSessionWebhookDelivery(t *testing.T) {
 		accepted.Delivery.To != "https://dingtalk.test/session-webhook" ||
 		accepted.Delivery.AccountID != "corp-1" {
 		t.Fatalf("钉钉 Stream 回投目标应使用 sessionWebhook: %+v", accepted.Delivery)
-	}
-}
-
-func TestWeChatChannelSendDeliveryMessage(t *testing.T) {
-	var tokenRequests int
-	var messagePayload map[string]any
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/cgi-bin/gettoken":
-			tokenRequests++
-			if request.URL.Query().Get("corpid") != "ww_corp" || request.URL.Query().Get("corpsecret") != "corp-secret" {
-				return nil, fmt.Errorf("企业微信 token 请求凭据不正确: %s", request.URL.RawQuery)
-			}
-			return jsonResponse(`{"errcode":0,"errmsg":"ok","access_token":"wechat-token","expires_in":7200}`), nil
-		case "/cgi-bin/message/send":
-			if request.URL.Query().Get("access_token") != "wechat-token" {
-				return nil, fmt.Errorf("企业微信 access_token 不正确: %s", request.URL.RawQuery)
-			}
-			if err := json.NewDecoder(request.Body).Decode(&messagePayload); err != nil {
-				return nil, fmt.Errorf("解析企业微信消息请求失败: %w", err)
-			}
-			return jsonResponse(`{"errcode":0,"errmsg":"ok"}`), nil
-		default:
-			return nil, fmt.Errorf("未知企业微信请求路径: %s", request.URL.Path)
-		}
-	})}
-
-	channel := newWeChatChannel("ww_corp", "corp-secret", "100001", client)
-	channel.baseURL = "https://wechat.test"
-
-	if _, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:      DeliveryModeExplicit,
-		Channel:   ChannelTypeWeChat,
-		To:        "zhangsan",
-		AccountID: "touser",
-	}, "今日新闻摘要"); err != nil {
-		t.Fatalf("企业微信发送失败: %v", err)
-	}
-	if tokenRequests != 1 {
-		t.Fatalf("企业微信 token 请求次数不正确: %d", tokenRequests)
-	}
-	if messagePayload["touser"] != "zhangsan" || messagePayload["msgtype"] != "text" {
-		t.Fatalf("企业微信消息路由不正确: %+v", messagePayload)
-	}
-	if int(messagePayload["agentid"].(float64)) != 100001 {
-		t.Fatalf("企业微信 agentid 不正确: %+v", messagePayload)
-	}
-	textPayload, ok := messagePayload["text"].(map[string]any)
-	if !ok || textPayload["content"] != "今日新闻摘要" {
-		t.Fatalf("企业微信消息正文不正确: %+v", messagePayload)
 	}
 }
 

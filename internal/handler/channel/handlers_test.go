@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -38,34 +37,9 @@ func (f *fakeIngress) Accept(_ context.Context, request channelspkg.IngressReque
 	}, nil
 }
 
-type blockingIngress struct {
-	accepted chan channelspkg.IngressRequest
-	release  chan struct{}
-}
-
-func (b *blockingIngress) Accept(ctx context.Context, request channelspkg.IngressRequest) (*channelspkg.IngressResult, error) {
-	select {
-	case b.accepted <- request:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	select {
-	case <-b.release:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-	return &channelspkg.IngressResult{
-		Channel: request.Channel,
-		AgentID: request.AgentID,
-		ReqID:   request.ReqID,
-	}, nil
-}
-
 type fakeControl struct {
 	prepared          channelspkg.FeishuIngressPreparation
 	prepareErr        error
-	wechatPrepared    channelspkg.WeChatIngressPreparation
-	wechatErr         error
 	ownerByConfig     string
 	ownerErr          error
 	startLoginChannel string
@@ -156,10 +130,6 @@ func (f *fakeControl) ResolveChannelOwnerByConfig(context.Context, string, strin
 
 func (f *fakeControl) PrepareFeishuIngress(context.Context, []byte, http.Header) (channelspkg.FeishuIngressPreparation, error) {
 	return f.prepared, f.prepareErr
-}
-
-func (f *fakeControl) PrepareWeChatIngress(context.Context, []byte, *http.Request) (channelspkg.WeChatIngressPreparation, error) {
-	return f.wechatPrepared, f.wechatErr
 }
 
 func TestHandleStartChannelLogin(t *testing.T) {
@@ -441,53 +411,5 @@ func TestHandleFeishuChannelIngressUsesPreparedOwner(t *testing.T) {
 	}
 	if ingress.requests[0].OwnerUserID != "owner-a" {
 		t.Fatalf("Feishu handler 应把配置解析出的 owner 传给 ingress: %+v", ingress.requests[0])
-	}
-}
-
-func TestHandleWeChatChannelIngressUsesPreparedOwner(t *testing.T) {
-	ingress := &blockingIngress{
-		accepted: make(chan channelspkg.IngressRequest, 1),
-		release:  make(chan struct{}),
-	}
-	defer close(ingress.release)
-	plain := []byte(`<xml>
-		<ToUserName><![CDATA[ww_corp]]></ToUserName>
-		<FromUserName><![CDATA[zhangsan]]></FromUserName>
-		<CreateTime>1700000000</CreateTime>
-		<MsgType><![CDATA[text]]></MsgType>
-		<Content><![CDATA[检查今天发送情况]]></Content>
-		<MsgId>msg-1</MsgId>
-		<AgentID>100001</AgentID>
-	</xml>`)
-	handler := New(handlershared.NewAPI(nil), ingress, &fakeControl{
-		wechatPrepared: channelspkg.WeChatIngressPreparation{
-			Body:        plain,
-			OwnerUserID: "owner-a",
-			CorpID:      "ww_corp",
-			AgentID:     "100001",
-		},
-	})
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/channels/wechat/messages", bytes.NewReader([]byte(`<xml></xml>`)))
-	handler.HandleWeChatChannelIngress(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("状态码不正确: %d body=%s", recorder.Code, recorder.Body.String())
-	}
-	if recorder.Body.String() != "" {
-		t.Fatalf("企业微信回调应快速返回空响应，实际 body=%s", recorder.Body.String())
-	}
-	var accepted channelspkg.IngressRequest
-	select {
-	case accepted = <-ingress.accepted:
-	case <-time.After(time.Second):
-		t.Fatal("wechat 消息未异步进入 ingress")
-	}
-	if accepted.OwnerUserID != "owner-a" || accepted.Channel != channelspkg.ChannelTypeWeChat || accepted.Ref != "zhangsan" {
-		t.Fatalf("wechat ingress 请求不正确: %+v", accepted)
-	}
-	if accepted.Content != "检查今天发送情况" {
-		t.Fatalf("wechat 消息内容不正确: %+v", accepted)
 	}
 }

@@ -61,11 +61,19 @@ func NewRouter(
 
 // SetLogger 注入业务日志实例。
 func (r *Router) SetLogger(logger *slog.Logger) {
+	resolved := logger
 	if logger == nil {
-		r.logger = logx.NewDiscardLogger()
-		return
+		resolved = logx.NewDiscardLogger()
 	}
-	r.logger = logger
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logger = resolved
+	for _, entry := range r.channels {
+		if entry == nil {
+			continue
+		}
+		setChannelLogger(entry.channel, resolved)
+	}
 }
 
 // Register 注册一个投递通道。
@@ -137,8 +145,14 @@ func (r *Router) UnregisterForOwner(ctx context.Context, ownerUserID string, cha
 }
 
 func (r *Router) newRegisteredChannel(ownerUserID string, channel DeliveryChannel) *registeredChannel {
+	r.mu.RLock()
+	logger := r.logger
+	ingress := r.ingress
+	r.mu.RUnlock()
+
+	setChannelLogger(channel, logger)
 	if aware, ok := channel.(ingressAwareChannel); ok {
-		aware.SetIngress(r.ingress)
+		aware.SetIngress(ingress)
 	}
 	channelType := normalizeChannelType(channel.ChannelType())
 	return &registeredChannel{

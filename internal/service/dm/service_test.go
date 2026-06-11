@@ -394,6 +394,143 @@ func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *tes
 	}
 }
 
+func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("读取默认 agent 失败: %v", err)
+	}
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-title-external-im",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	titleScheduler := &fakeDMTitleScheduler{}
+	service.SetTitleGenerator(titleScheduler)
+
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWeixinPersonalSegment,
+		protocol.RoomTypeDM,
+		"wx-user-1",
+		"",
+	)
+	now := time.Now().UTC()
+	if _, err = service.files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      agentValue.AgentID,
+		ChannelType:  protocol.SessionChannelWeixinPersonal,
+		ChatType:     protocol.RoomTypeDM,
+		Status:       "closed",
+		CreatedAt:    now.Add(-time.Hour),
+		LastActivity: now.Add(-time.Minute),
+		Title:        "New Chat",
+		MessageCount: 74,
+		Options: map[string]any{
+			protocol.OptionRuntimeProvider: "kimi-code",
+			protocol.OptionRuntimeModel:    "kimi-for-coding",
+		},
+	}); err != nil {
+		t.Fatalf("写入外部 IM session 失败: %v", err)
+	}
+	sender := newDMTestSender("sender-external-im-title")
+	permission.BindSession(sessionKey, sender)
+
+	if err = service.HandleChat(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "中午吃点啥好你觉得",
+		RoundID:    "round-external-im-title",
+		ReqID:      "round-external-im-title",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	request := titleScheduler.LastRequest()
+	if request.SessionKey != sessionKey {
+		t.Fatalf("未为外部 IM session 调度标题生成: %+v", request)
+	}
+	if request.SessionTitle != "New Chat" || request.SessionMessageCount != 74 {
+		t.Fatalf("标题请求未携带默认标题和原始消息数: %+v", request)
+	}
+	if request.ConversationID != "" || request.ConversationRoomID != "" || request.ConversationMessageCount != -1 {
+		t.Fatalf("外部 IM 标题生成不应走 room conversation: %+v", request)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+}
+
+func TestRefreshSessionMetaPreservesGeneratedTitle(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	service := NewService(cfg, nil, nil, permissionctx.NewContext())
+	workspacePath := filepath.Join(cfg.WorkspacePath, "agent-title")
+	sessionKey := protocol.BuildAgentSessionKey(
+		"agent-title",
+		protocol.SessionChannelWeixinPersonalSegment,
+		protocol.RoomTypeDM,
+		"wx-user-1",
+		"",
+	)
+	now := time.Now().UTC()
+	stale := protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      "agent-title",
+		ChannelType:  protocol.SessionChannelWeixinPersonal,
+		ChatType:     protocol.RoomTypeDM,
+		Status:       "closed",
+		CreatedAt:    now.Add(-time.Hour),
+		LastActivity: now.Add(-time.Minute),
+		Title:        "New Chat",
+		MessageCount: 75,
+		Options:      map[string]any{},
+	}
+	if _, err := service.files.UpsertSession(workspacePath, stale); err != nil {
+		t.Fatalf("写入初始 session 失败: %v", err)
+	}
+	persisted := stale
+	persisted.Title = "午餐建议"
+	if _, err := service.files.UpsertSession(workspacePath, persisted); err != nil {
+		t.Fatalf("写入生成标题失败: %v", err)
+	}
+
+	updated, err := service.refreshSessionMetaRuntimeState(workspacePath, stale)
+	if err != nil {
+		t.Fatalf("刷新运行态失败: %v", err)
+	}
+	if updated == nil || updated.Title != "午餐建议" {
+		t.Fatalf("运行态刷新不应覆盖已生成标题: %+v", updated)
+	}
+
+	updated, err = service.refreshSessionMetaAfterMessage(workspacePath, stale, protocol.Message{
+		"message_id":  "assistant-1",
+		"role":        "assistant",
+		"session_key": sessionKey,
+	})
+	if err != nil {
+		t.Fatalf("刷新消息 meta 失败: %v", err)
+	}
+	if updated == nil || updated.Title != "午餐建议" {
+		t.Fatalf("消息 meta 刷新不应覆盖已生成标题: %+v", updated)
+	}
+}
+
 func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
 	t.Parallel()
 
