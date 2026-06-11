@@ -23,6 +23,7 @@ import {
   ChannelLoginView,
   ChannelConfigView,
   ChannelCredentialField,
+  ImChannelCapability,
   ImChannelType,
   get_channel_login_api,
   list_channels_api,
@@ -86,6 +87,26 @@ const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; 
   telegram: { color: "#28a8ea", icon: Send, cnName: "bg-[#28a8ea] text-white" },
   discord: { color: "#5865f2", icon: Gamepad2, cnName: "bg-[#5865f2] text-white" },
 };
+
+const CHANNEL_CAPABILITY_LABELS: Record<ImChannelCapability, string> = {
+  text: "文本",
+  media: "媒体",
+  typing: "Typing",
+  thread: "话题",
+  reply: "回复",
+  receipt: "回执",
+  durable_final: "历史",
+};
+
+const CHANNEL_CAPABILITY_ORDER: ImChannelCapability[] = [
+  "text",
+  "typing",
+  "thread",
+  "reply",
+  "receipt",
+  "durable_final",
+  "media",
+];
 
 function is_channel_planned(item: ChannelConfigView) {
   return item.runtime_status === "planned";
@@ -684,6 +705,30 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
   );
 }
 
+function channel_capability_items(capabilities: ImChannelCapability[]) {
+  const capability_set = new Set(capabilities);
+  return CHANNEL_CAPABILITY_ORDER.filter((capability) => capability_set.has(capability));
+}
+
+function ChannelCapabilityChips({ capabilities }: { capabilities: ImChannelCapability[] }) {
+  const items = channel_capability_items(capabilities);
+  if (!items.length) return null;
+
+  return (
+    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+      {items.map((capability) => (
+        <span
+          className="inline-flex h-5 max-w-[88px] shrink-0 items-center rounded-[7px] border border-(--divider-subtle-color) px-1.5 text-[10px] font-semibold leading-none text-(--text-muted)"
+          key={capability}
+          title={CHANNEL_CAPABILITY_LABELS[capability]}
+        >
+          <span className="truncate">{CHANNEL_CAPABILITY_LABELS[capability]}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function ChannelCard({
   item,
   on_configure,
@@ -782,6 +827,7 @@ function ChannelCard({
             </span>
           ))}
         </div>
+        <ChannelCapabilityChips capabilities={item.capabilities} />
         {item.runtime_note ? (
           <div className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
             {item.runtime_note}
