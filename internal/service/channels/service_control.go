@@ -236,6 +236,10 @@ func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) (
 	if err != nil {
 		return nil, err
 	}
+	accountCounts, err := s.channelAccountCounts(ctx, ownerUserID)
+	if err != nil {
+		return nil, err
+	}
 	byType := make(map[string]channelConfigRow, len(rows))
 	for _, row := range rows {
 		byType[row.ChannelType] = row
@@ -263,6 +267,10 @@ func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) (
 			view.AgentName = s.agentName(ctx, row.AgentID)
 			view.PublicConfig = publicConfig
 			view.HasCredentials = row.CredentialsEncrypted.Valid && strings.TrimSpace(row.CredentialsEncrypted.String) != ""
+			if catalog.ChannelType == ChannelTypeWeixinPersonal && accountCounts[catalog.ChannelType] > 0 {
+				view.HasCredentials = true
+				publicConfig["account_count"] = fmt.Sprintf("%d", accountCounts[catalog.ChannelType])
+			}
 			view.LastError = nullStringValue(row.LastError)
 			view.QRPayload = publicConfig["qr_payload"]
 			view.UpdatedAt = &row.UpdatedAt
@@ -389,6 +397,9 @@ func (s *ControlService) DeleteChannelConfig(ctx context.Context, ownerUserID st
 	channelType = normalizeIMChannelType(channelType)
 	query := "DELETE FROM im_channel_configs WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
 	_, err := s.db.ExecContext(ctx, query, ownerUserID, channelType)
+	if err == nil {
+		err = s.deleteChannelAccountRows(ctx, ownerUserID, channelType)
+	}
 	if err == nil && s.router != nil {
 		s.router.UnregisterForOwner(ctx, ownerUserID, channelType)
 	}
@@ -1306,6 +1317,16 @@ func (s *ControlService) configureRouterChannel(
 		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	case ChannelTypeWeixinPersonal:
 		publicConfig, _ := decodeStringMap(configJSON)
+		channels, err := s.personalWeixinAccountChannels(ctx, ownerUserID, channelType, publicConfig)
+		if err != nil {
+			return err
+		}
+		if len(channels) > 1 {
+			return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newPersonalWeixinMultiAccountChannel(channels))
+		}
+		if len(channels) == 1 {
+			return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channels[0])
+		}
 		token := strings.TrimSpace(secrets["ilink_bot_token"])
 		if token == "" {
 			return nil

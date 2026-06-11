@@ -126,7 +126,11 @@ func (s *ControlService) StartChannelLogin(
 	}
 	store.mu.Unlock()
 
-	qrResponse, err := client.StartQRCode(ctx, localWeixinTokenList(secrets))
+	localTokens, err := s.personalWeixinLocalTokens(ctx, row, secrets)
+	if err != nil {
+		return nil, err
+	}
+	qrResponse, err := client.StartQRCode(ctx, localTokens)
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +319,12 @@ func (s *ControlService) savePersonalWeixinLoginCredentials(
 	}
 	if secrets == nil {
 		secrets = map[string]string{}
+	}
+	if err = s.saveLegacyPersonalWeixinAccount(ctx, row, publicConfig, secrets); err != nil {
+		return err
+	}
+	if err = s.savePersonalWeixinAccount(ctx, row, publicConfig, status); err != nil {
+		return err
 	}
 	secrets["ilink_bot_token"] = strings.TrimSpace(status.BotToken)
 	encrypted, err := s.encryptCredentials(secrets)
@@ -509,14 +519,6 @@ func channelLoginIsActive(status string) bool {
 	default:
 		return false
 	}
-}
-
-func localWeixinTokenList(secrets map[string]string) []string {
-	token := strings.TrimSpace(secrets["ilink_bot_token"])
-	if token == "" {
-		return nil
-	}
-	return []string{token}
 }
 
 func trimChannelLoginOutput(output string) string {

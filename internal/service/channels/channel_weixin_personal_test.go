@@ -77,6 +77,58 @@ func TestPersonalWeixinChannelSendDeliveryMessage(t *testing.T) {
 	}
 }
 
+func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
+	var receivedAuth string
+	var receivedTo string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		receivedAuth = request.Header.Get("Authorization")
+		var payload map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatalf("解析个人微信回投请求失败: %v", err)
+		}
+		message, _ := payload["msg"].(map[string]any)
+		receivedTo, _ = message["to_user_id"].(string)
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"ret":0}`))
+	}))
+	defer server.Close()
+
+	channel := newPersonalWeixinMultiAccountChannel([]*personalWeixinChannel{
+		newPersonalWeixinChannel(personalWeixinClientConfig{
+			BaseURL:   server.URL,
+			Token:     "token-1",
+			AccountID: "account-1",
+		}, server.Client()),
+		newPersonalWeixinChannel(personalWeixinClientConfig{
+			BaseURL:   server.URL,
+			Token:     "token-2",
+			AccountID: "account-2",
+		}, server.Client()),
+	})
+
+	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
+		Mode:      DeliveryModeExplicit,
+		Channel:   ChannelTypeWeixinPersonal,
+		To:        "wx-user-1",
+		AccountID: "account-2",
+	}, "你好")
+	if err != nil {
+		t.Fatalf("多账号个人微信回投失败: %v", err)
+	}
+	if receivedAuth != "Bearer token-2" || receivedTo != "wx-user-1" {
+		t.Fatalf("多账号个人微信未按 account_id 分流: auth=%q to=%q", receivedAuth, receivedTo)
+	}
+
+	_, err = channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeWeixinPersonal,
+		To:      "wx-user-1",
+	}, "你好")
+	if err == nil || !strings.Contains(err.Error(), "requires account_id") {
+		t.Fatalf("多账号个人微信缺少 account_id 应拒绝: %v", err)
+	}
+}
+
 func TestPersonalWeixinChannelSendDeliveryTyping(t *testing.T) {
 	var getConfigCalls int
 	statuses := make([]float64, 0, 2)

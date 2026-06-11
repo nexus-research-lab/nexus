@@ -1324,12 +1324,12 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
 	    agent_id VARCHAR(64) NOT NULL,
 	    session_key VARCHAR(512) NOT NULL DEFAULT '',
-    mode VARCHAR(32) NOT NULL,
-    channel VARCHAR(64),
-    "to" VARCHAR(255),
-    account_id VARCHAR(64),
-    thread_id VARCHAR(255),
-    enabled BOOLEAN NOT NULL,
+	    mode VARCHAR(32) NOT NULL,
+	    channel VARCHAR(64),
+	    "to" VARCHAR(255),
+	    account_id VARCHAR(64),
+	    thread_id VARCHAR(255),
+	    enabled BOOLEAN NOT NULL,
 	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 	);
@@ -1344,6 +1344,19 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    PRIMARY KEY (owner_user_id, channel_type)
+	);
+	CREATE TABLE im_channel_accounts (
+	    owner_user_id VARCHAR(64) NOT NULL,
+	    channel_type VARCHAR(32) NOT NULL,
+	    account_id VARCHAR(255) NOT NULL,
+	    user_id VARCHAR(255) NOT NULL DEFAULT '',
+	    status VARCHAR(32) NOT NULL DEFAULT 'connected',
+	    config_json TEXT NOT NULL DEFAULT '{}',
+	    credentials_encrypted TEXT,
+	    last_error TEXT,
+	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	    PRIMARY KEY (owner_user_id, channel_type, account_id)
 	);
 	CREATE TABLE im_pairings (
 	    pairing_id VARCHAR(64) NOT NULL PRIMARY KEY,

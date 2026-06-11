@@ -248,6 +248,89 @@ func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
 	}
 }
 
+func TestControlServiceStoresMultipleWeixinPersonalLogins(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	var id int
+	service.idFactory = func(prefix string) string {
+		id++
+		return fmt.Sprintf("%s-%d", prefix, id)
+	}
+	statuses := []weixinQRStatusResponse{
+		{
+			Status:      "confirmed",
+			BotToken:    "ilink-token-1",
+			IlinkBotID:  "wx-account-1",
+			IlinkUserID: "wx-user-1",
+			BaseURL:     "https://ilink-a.test",
+		},
+		{
+			Status:      "confirmed",
+			BotToken:    "ilink-token-2",
+			IlinkBotID:  "wx-account-2",
+			IlinkUserID: "wx-user-2",
+			BaseURL:     "https://ilink-b.test",
+		},
+	}
+	var loginIndex int
+	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
+		status := statuses[loginIndex]
+		loginIndex++
+		return &fakePersonalWeixinLoginClient{status: status}
+	}
+	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"base_url": "https://ilink.test",
+		},
+	})
+	if err != nil {
+		t.Fatalf("配置个人微信通道失败: %v", err)
+	}
+
+	for index := range statuses {
+		started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+		if err != nil {
+			t.Fatalf("启动第 %d 个个人微信扫码登录失败: %v", index+1, err)
+		}
+		waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
+	}
+
+	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("读取个人微信账号失败: %v", err)
+	}
+	if len(accounts) != 2 {
+		t.Fatalf("两个扫码微信账号应分别保存，实际: %+v", accounts)
+	}
+	seen := map[string]bool{}
+	for _, account := range accounts {
+		seen[account.AccountID] = true
+	}
+	if !seen["wx-account-1"] || !seen["wx-account-2"] {
+		t.Fatalf("个人微信账号保存不完整: %+v", accounts)
+	}
+	items, err := service.ListChannels(context.Background(), "owner-a")
+	if err != nil {
+		t.Fatalf("读取频道配置失败: %v", err)
+	}
+	var configured *ChannelConfigView
+	for index := range items {
+		if items[index].ChannelType == ChannelTypeWeixinPersonal {
+			configured = &items[index]
+			break
+		}
+	}
+	if configured == nil || !configured.HasCredentials || configured.PublicConfig["account_count"] != "2" {
+		t.Fatalf("个人微信频道应展示两个已登录账号: %+v", configured)
+	}
+}
+
 func TestControlServiceRejectsUnsupportedChannelLogin(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -759,7 +842,9 @@ func TestControlServicePrepareFeishuIngressDecryptsAndVerifiesSignature(t *testi
 	}
 }
 
-type fakePersonalWeixinLoginClient struct{}
+type fakePersonalWeixinLoginClient struct {
+	status weixinQRStatusResponse
+}
 
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (weixinQRCodeResponse, error) {
 	return weixinQRCodeResponse{
@@ -769,6 +854,9 @@ func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (
 }
 
 func (c *fakePersonalWeixinLoginClient) PollQRCodeStatus(context.Context, string, string) (weixinQRStatusResponse, error) {
+	if strings.TrimSpace(c.status.Status) != "" {
+		return c.status, nil
+	}
 	return weixinQRStatusResponse{
 		Status:      "confirmed",
 		BotToken:    "ilink-token-1",
