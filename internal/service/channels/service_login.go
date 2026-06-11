@@ -264,12 +264,12 @@ func (s *ControlService) runPersonalWeixinLoginSession(
 				return
 			}
 			if saveErr := s.savePersonalWeixinLoginCredentials(context.Background(), row, status); saveErr != nil {
-				session.finish(ChannelLoginStatusError, "保存个人微信账号失败: "+saveErr.Error())
+				session.finish(ChannelLoginStatusError, "保存微信账号失败: "+saveErr.Error())
 				return
 			}
 			session.setAccount(status.IlinkBotID, status.IlinkUserID)
 			session.finish(ChannelLoginStatusSucceeded, "")
-			session.appendOutput("个人微信已连接，Nexus 将自动接收和回投消息。\n")
+			session.appendOutput("微信已连接，Nexus 将自动接收和回投消息。\n")
 			return
 		default:
 			session.finish(ChannelLoginStatusError, "未知扫码状态: "+status.Status)

@@ -25,10 +25,7 @@ import { CreateRoomDialog } from "@/features/conversation/room/members/create-ro
 import { get_launcher_bootstrap_api } from "@/lib/api/launcher-api";
 import { create_room, delete_room, subscribe_room_directory_updates } from "@/lib/api/room-api";
 import { resolve_direct_room_navigation_target } from "@/lib/conversation/direct-room-navigation";
-import {
-  format_external_session_summary,
-  is_external_session_channel,
-} from "@/features/conversation/external-session-labels";
+import { is_external_session_channel } from "@/features/conversation/external-session-labels";
 import { cn } from "@/lib/utils";
 import { useWebSocket } from "@/lib/websocket";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -79,7 +76,6 @@ interface SidebarConversationItem {
   room_id?: string;
   route_room_id?: string;
   conversation_id?: string;
-  external_session_key?: string;
   session_key?: string;
   agent_id?: string;
   last_activity_at: number;
@@ -348,29 +344,6 @@ function build_latest_conversation_by_room_id(
   return result;
 }
 
-function build_direct_room_by_agent_id(
-  rooms: LauncherRoomSummary[],
-): Map<string, LauncherRoomSummary> {
-  const result = new Map<string, LauncherRoomSummary>();
-  for (const room of rooms) {
-    if (room.room_type !== "dm" || !room.dm_target_agent_id || is_main_agent_dm_room(room)) {
-      continue;
-    }
-    result.set(room.dm_target_agent_id, room);
-  }
-  return result;
-}
-
-function list_external_conversations(
-  conversations: LauncherConversationSummary[],
-): LauncherConversationSummary[] {
-  return conversations.filter((conversation) => (
-    Boolean(conversation.agent_id) &&
-    Boolean(conversation.session_key) &&
-    is_external_session_channel(conversation.channel_type, conversation.session_key)
-  ));
-}
-
 function is_launcher_conversation_active(
   conversation?: LauncherConversationSummary,
 ): boolean {
@@ -415,7 +388,6 @@ function build_conversation_items({
 }): SidebarConversationItem[] {
   const agent_by_id = new Map(agents.map((agent) => [agent.id, agent]));
   const latest_by_room_id = build_latest_conversation_by_room_id(conversations);
-  const direct_room_by_agent_id = build_direct_room_by_agent_id(rooms);
   const items: SidebarConversationItem[] = [];
 
   for (const room of rooms) {
@@ -461,39 +433,6 @@ function build_conversation_items({
       message_count: latest_room.message_count ?? 0,
       running_task_count,
       can_delete: true,
-    });
-  }
-
-  for (const conversation of list_external_conversations(conversations)) {
-    const agent = agent_by_id.get(conversation.agent_id ?? "");
-    const direct_room = direct_room_by_agent_id.get(conversation.agent_id ?? "");
-    const last_activity_at = to_timestamp(conversation.last_activity);
-    items.push({
-      id: conversation.session_key,
-      kind: "dm",
-      title: conversation.title.trim() || "未命名会话",
-      summary: format_external_session_summary({
-        agent_name: agent?.name,
-        channel_type: conversation.channel_type,
-        chat_type: conversation.chat_type,
-        session_key: conversation.session_key,
-      }),
-      time_label: format_sidebar_time(last_activity_at),
-      members: agent ? [{ id: agent.id, name: agent.name, avatar: agent.avatar }] : [],
-      avatar: agent?.avatar,
-      route_room_id: direct_room?.id,
-      external_session_key: conversation.session_key,
-      session_key: conversation.session_key,
-      agent_id: conversation.agent_id,
-      last_activity_at,
-      message_count: conversation.message_count ?? 0,
-      running_task_count: running_task_count_for_sidebar_conversation({
-        agent_runtime_statuses,
-        dm_agent_id: conversation.agent_id,
-        is_dm: true,
-        latest: conversation,
-      }),
-      can_delete: false,
     });
   }
 
@@ -606,9 +545,6 @@ function get_sidebar_item_unread_state({
 }
 
 function build_sidebar_item_notification_key(item: SidebarConversationItem): string | null {
-  if (item.external_session_key) {
-    return build_chat_notification_target_key({ session_key: item.external_session_key });
-  }
   return build_chat_notification_target_key({
     conversation_id: item.conversation_id,
     room_id: item.room_id,
@@ -799,12 +735,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   }, [items, query]);
 
   const navigate_to_room = useCallback(async (item: SidebarConversationItem) => {
-    let route_room_id = item.route_room_id ?? item.room_id;
-    if (!route_room_id && item.external_session_key && item.agent_id) {
-      const target = await resolve_direct_room_navigation_target(item.agent_id);
-      route_room_id = target.context.room.id;
-      refresh_directory();
-    }
+    const route_room_id = item.route_room_id ?? item.room_id;
     if (!route_room_id) {
       return;
     }
@@ -814,10 +745,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     }
     clear_chat_notifications_for_target(item.unread_target_key || item.notification_key);
     set_active_item(item.id);
-    if (item.external_session_key) {
-      navigate(AppRouteBuilders.room_session(route_room_id, item.external_session_key));
-      return;
-    }
     if (target_conversation_id) {
       navigate(AppRouteBuilders.room_conversation(route_room_id, target_conversation_id));
       return;
@@ -827,7 +754,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     clear_chat_notifications_for_room,
     clear_chat_notifications_for_target,
     navigate,
-    refresh_directory,
     set_active_item,
   ]);
 

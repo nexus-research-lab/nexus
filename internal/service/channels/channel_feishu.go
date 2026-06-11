@@ -24,6 +24,7 @@ import (
 	larkdispatcher "github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 type feishuChannel struct {
@@ -300,7 +301,7 @@ func (c *feishuChannel) acceptDecodedIngress(ctx context.Context, callback Feish
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if _, err := ingress.Accept(requestCtx, *callback.Request); err != nil {
-		if errors.Is(err, ErrPairingApprovalRequired) {
+		if isPairingApprovalRequired(err) {
 			return nil
 		}
 		return err
@@ -314,27 +315,38 @@ func (c *feishuChannel) currentIngress() IngressAcceptor {
 	return c.ingress
 }
 
-func (c *feishuChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+func (c *feishuChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	if strings.TrimSpace(target.To) == "" {
-		return fmt.Errorf("feishu delivery target requires to")
+		return DeliveryResult{}, fmt.Errorf("feishu delivery target requires to")
 	}
 	token, err := c.tenantAccessToken(ctx)
 	if err != nil {
-		return err
+		return DeliveryResult{}, err
 	}
 	receiveIDType := normalizeFeishuReceiveIDType(target.AccountID)
+	parts := make([]channelmessage.ReceiptPart, 0)
 	for _, chunk := range splitText(strings.TrimSpace(text), 4500) {
+		messageID := ""
 		if strings.TrimSpace(target.ThreadID) != "" {
-			err = c.replyTextChunk(ctx, token, target.ThreadID, chunk)
+			messageID, err = c.replyTextChunk(ctx, token, target.ThreadID, chunk)
 		} else {
-			err = c.sendTextChunk(ctx, token, receiveIDType, target.To, chunk)
+			messageID, err = c.sendTextChunk(ctx, token, receiveIDType, target.To, chunk)
 		}
 		if err != nil {
 			c.clearTenantAccessToken()
-			return err
+			return DeliveryResult{}, err
+		}
+		if strings.TrimSpace(messageID) != "" {
+			parts = append(parts, channelmessage.TextPart(messageID))
 		}
 	}
-	return nil
+	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  ChannelTypeFeishu,
+		Target:   target.To,
+		ThreadID: target.ThreadID,
+		Parts:    parts,
+	})), nil
 }
 
 func (c *feishuChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
@@ -445,10 +457,10 @@ func (c *feishuChannel) fetchTenantAccessToken(ctx context.Context, now time.Tim
 	return token, now.Add(time.Duration(expiresIn) * time.Second), nil
 }
 
-func (c *feishuChannel) sendTextChunk(ctx context.Context, token string, receiveIDType string, receiveID string, text string) error {
+func (c *feishuChannel) sendTextChunk(ctx context.Context, token string, receiveIDType string, receiveID string, text string) (string, error) {
 	content, err := json.Marshal(map[string]string{"text": text})
 	if err != nil {
-		return err
+		return "", err
 	}
 	payload, err := json.Marshal(map[string]string{
 		"receive_id": strings.TrimSpace(receiveID),
@@ -456,36 +468,36 @@ func (c *feishuChannel) sendTextChunk(ctx context.Context, token string, receive
 		"content":    string(content),
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	endpoint := strings.TrimRight(c.baseURL, "/") +
 		"/open-apis/im/v1/messages?receive_id_type=" +
 		url.QueryEscape(receiveIDType)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return "", err
 	}
 	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := c.client.Do(request)
 	if err != nil {
-		return err
+		return "", err
 	}
 	var envelope feishuMessageEnvelope
 	if err = decodeFeishuEnvelope(response, &envelope); err != nil {
-		return err
+		return "", err
 	}
 	if envelope.Code != 0 {
-		return fmt.Errorf("feishu send message failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
+		return "", fmt.Errorf("feishu send message failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
 	}
-	return nil
+	return strings.TrimSpace(envelope.Data.MessageID), nil
 }
 
-func (c *feishuChannel) replyTextChunk(ctx context.Context, token string, messageID string, text string) error {
+func (c *feishuChannel) replyTextChunk(ctx context.Context, token string, messageID string, text string) (string, error) {
 	content, err := json.Marshal(map[string]string{"text": text})
 	if err != nil {
-		return err
+		return "", err
 	}
 	payload := map[string]any{
 		"msg_type": "text",
@@ -500,12 +512,12 @@ func (c *feishuChannel) replyTextChunk(ctx context.Context, token string, messag
 		"/reply"
 	var envelope feishuMessageEnvelope
 	if err = c.doFeishuJSON(ctx, http.MethodPost, token, endpoint, payload, &envelope); err != nil {
-		return err
+		return "", err
 	}
 	if envelope.Code != 0 {
-		return fmt.Errorf("feishu reply message failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
+		return "", fmt.Errorf("feishu reply message failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
 	}
-	return nil
+	return strings.TrimSpace(envelope.Data.MessageID), nil
 }
 
 func (c *feishuChannel) addMessageReaction(ctx context.Context, token string, messageID string, emojiType string) (string, error) {
@@ -835,15 +847,18 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 		return nil
 	}
 	threadID := firstNonEmpty(message.ThreadID, message.RootID)
+	reqID := firstNonEmpty(message.MessageID, payload.Header.EventID)
+	chatType := normalizeFeishuChatType(message.ChatType)
+	senderID, _ := feishuSenderRef(payload.Event.Sender.SenderID)
 
 	return &IngressRequest{
 		Channel:      ChannelTypeFeishu,
-		ChatType:     normalizeFeishuChatType(message.ChatType),
+		ChatType:     chatType,
 		Ref:          ref,
 		ThreadID:     threadID,
 		Content:      content,
 		RoundID:      firstNonEmpty(payload.Header.EventID, message.MessageID),
-		ReqID:        firstNonEmpty(message.MessageID, payload.Header.EventID),
+		ReqID:        reqID,
 		ExternalName: strings.TrimSpace(message.ChatID),
 		Delivery: &DeliveryTarget{
 			Mode:      DeliveryModeExplicit,
@@ -852,6 +867,16 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 			AccountID: accountID,
 			ThreadID:  strings.TrimSpace(message.MessageID),
 		},
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeFeishu,
+			Target:            ref,
+			PlatformMessageID: reqID,
+			ThreadID:          threadID,
+			SenderID:          senderID,
+			SenderName:        strings.TrimSpace(message.ChatID),
+			ChatType:          chatType,
+			Text:              content,
+		}),
 	}
 }
 
@@ -906,6 +931,21 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 			AccountID: accountID,
 			ThreadID:  messageID,
 		},
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeFeishu,
+			Target:            ref,
+			PlatformMessageID: messageID,
+			ThreadID:          threadID,
+			SenderID:          senderID,
+			SenderName:        strings.TrimSpace(payload.Event.ChatID),
+			ChatType:          normalizeFeishuChatType(payload.Event.ChatType),
+			Text:              fmt.Sprintf("[reacted with %s to message %s]", emoji, messageID),
+			ReplyToID:         messageID,
+			Metadata: map[string]string{
+				"reaction": emoji,
+				"event_id": firstNonEmpty(payload.Header.EventID, payload.Event.ActionTime),
+			},
+		}),
 	}
 }
 

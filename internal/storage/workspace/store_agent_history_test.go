@@ -10,6 +10,49 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+func TestAgentHistoryStoreMaterializesRoundMarkerMetadata(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	workspacePath := filepath.Join(workspaceRoot, "nexus")
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:nexus:fs:group:oc_group_123"
+
+	if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, "round-1", "检查今天的定时任务发送情况", 1000, RoundMarkerOptions{
+		Metadata: map[string]string{
+			"im.channel":             "feishu",
+			"im.platform_message_id": "om_1",
+			"im.thread_id":           "omt_thread_1",
+		},
+	}); err != nil {
+		t.Fatalf("写入 round marker 失败: %v", err)
+	}
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "nexus",
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取历史失败: %v", err)
+	}
+	var userRow protocol.Message
+	for _, row := range rows {
+		if row["role"] == "user" && row["round_id"] == "round-1" {
+			userRow = row
+			break
+		}
+	}
+	if userRow == nil {
+		t.Fatalf("未找到 round marker user 消息: %+v", rows)
+	}
+	metadata, ok := userRow["metadata"].(map[string]string)
+	if !ok {
+		t.Fatalf("user round marker 应带 metadata: %+v", userRow)
+	}
+	if metadata["im.platform_message_id"] != "om_1" || metadata["im.thread_id"] != "omt_thread_1" {
+		t.Fatalf("IM metadata 未投影到历史消息: %+v", metadata)
+	}
+}
+
 func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUserTurn(t *testing.T) {
 	configRoot := t.TempDir()
 	workspaceRoot := filepath.Join(configRoot, "workspace")

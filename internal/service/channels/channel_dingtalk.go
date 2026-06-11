@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dingchatbot "github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	dingclient "github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
 )
@@ -115,28 +116,32 @@ func (c *dingTalkChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *dingTalkChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+func (c *dingTalkChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	if strings.TrimSpace(target.To) == "" {
-		return fmt.Errorf("dingtalk delivery target requires to")
+		return DeliveryResult{}, fmt.Errorf("dingtalk delivery target requires to")
 	}
 	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(target.To)), "http://") ||
 		strings.HasPrefix(strings.ToLower(strings.TrimSpace(target.To)), "https://") {
-		return c.sendSessionWebhookText(ctx, target.To, text)
+		if err := c.sendSessionWebhookText(ctx, target.To, text); err != nil {
+			return DeliveryResult{}, err
+		}
+		return newDeliveryResult(normalized, nil), nil
 	}
 	if strings.TrimSpace(c.robotCode) == "" {
-		return fmt.Errorf("dingtalk delivery requires robot_code")
+		return DeliveryResult{}, fmt.Errorf("dingtalk delivery requires robot_code")
 	}
 	token, err := c.accessTokenForDelivery(ctx)
 	if err != nil {
-		return err
+		return DeliveryResult{}, err
 	}
 	for _, chunk := range splitText(strings.TrimSpace(text), 3800) {
 		if err = c.sendGroupTextChunk(ctx, token, target.To, chunk); err != nil {
 			c.clearAccessToken()
-			return err
+			return DeliveryResult{}, err
 		}
 	}
-	return nil
+	return newDeliveryResult(normalized, nil), nil
 }
 
 func (c *dingTalkChannel) accessTokenForDelivery(ctx context.Context) (string, error) {
@@ -285,10 +290,7 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 	if ref == "" {
 		return nil, nil
 	}
-	deliveryTo := strings.TrimSpace(data.ConversationId)
-	if deliveryTo == "" {
-		deliveryTo = ref
-	}
+	deliveryTo := firstNonEmpty(data.SessionWebhook, data.ConversationId, ref)
 	delivery := &DeliveryTarget{
 		Mode:      DeliveryModeExplicit,
 		Channel:   ChannelTypeDingTalk,
@@ -308,7 +310,22 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 		ReqID:        strings.TrimSpace(data.MsgId),
 		ExternalName: firstNonEmpty(data.ConversationTitle, data.SenderNick),
 		Delivery:     delivery,
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeDingTalk,
+			Target:            ref,
+			PlatformMessageID: strings.TrimSpace(data.MsgId),
+			SenderID:          firstNonEmpty(data.SenderStaffId, data.SenderId),
+			SenderName:        strings.TrimSpace(data.SenderNick),
+			ChatType:          chatType,
+			Text:              content,
+			Metadata: map[string]string{
+				"conversation_title": strings.TrimSpace(data.ConversationTitle),
+			},
+		}),
 	}); err != nil {
+		if isPairingApprovalRequired(err) {
+			return []byte(""), nil
+		}
 		if strings.TrimSpace(data.SessionWebhook) != "" {
 			_ = c.sendSessionWebhookText(ctx, data.SessionWebhook, "DingTalk 消息处理失败: "+truncateChannelError(err))
 		}
@@ -356,6 +373,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*IngressRequest, string, error) 
 		ConversationType   string `json:"conversationType"`
 		ConversationTitle  string `json:"conversationTitle"`
 		ChatbotCorpID      string `json:"chatbotCorpId"`
+		SessionWebhook     string `json:"sessionWebhook"`
 		SenderStaffID      string `json:"senderStaffId"`
 		SenderID           string `json:"senderId"`
 		SenderNick         string `json:"senderNick"`
@@ -380,7 +398,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*IngressRequest, string, error) 
 	if ref == "" {
 		return nil, "empty_ref", nil
 	}
-	deliveryTo := firstNonEmpty(payload.OpenConversationID, payload.ConversationID, ref)
+	deliveryTo := firstNonEmpty(payload.SessionWebhook, payload.OpenConversationID, payload.ConversationID, ref)
 	return &IngressRequest{
 		Channel:      ChannelTypeDingTalk,
 		ChatType:     normalizeDingTalkConversationType(payload.ConversationType),
@@ -395,6 +413,18 @@ func DecodeDingTalkIngressCallback(raw []byte) (*IngressRequest, string, error) 
 			To:        deliveryTo,
 			AccountID: strings.TrimSpace(payload.ChatbotCorpID),
 		},
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeDingTalk,
+			Target:            ref,
+			PlatformMessageID: strings.TrimSpace(payload.MsgID),
+			SenderID:          firstNonEmpty(payload.SenderStaffID, payload.SenderID),
+			SenderName:        strings.TrimSpace(payload.SenderNick),
+			ChatType:          normalizeDingTalkConversationType(payload.ConversationType),
+			Text:              content,
+			Metadata: map[string]string{
+				"conversation_title": strings.TrimSpace(payload.ConversationTitle),
+			},
+		}),
 	}, "", nil
 }
 

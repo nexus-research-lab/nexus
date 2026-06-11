@@ -14,6 +14,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Terminal,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -23,7 +24,9 @@ import {
   ChannelLoginView,
   ChannelConfigView,
   ChannelCredentialField,
+  ImChannelCapability,
   ImChannelType,
+  delete_channel_config_api,
   get_channel_login_api,
   list_channels_api,
   start_channel_login_api,
@@ -68,7 +71,6 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 import type { Agent } from "@/types/agent/agent";
 
 const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "weixin-personal", "feishu", "telegram", "discord"];
-const ENABLED_CHANNEL_TYPES = new Set<ImChannelType>(["weixin-personal", "feishu"]);
 type ChannelFilter = "all" | "connected" | "configured" | "unconfigured" | "planned";
 
 const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: TranslationKey }> = [
@@ -88,16 +90,28 @@ const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; 
   discord: { color: "#5865f2", icon: Gamepad2, cnName: "bg-[#5865f2] text-white" },
 };
 
-function is_channel_enabled(channel_type: ImChannelType) {
-  return ENABLED_CHANNEL_TYPES.has(channel_type);
-}
+const CHANNEL_CAPABILITY_LABELS: Record<ImChannelCapability, string> = {
+  text: "文本",
+  media: "媒体",
+  typing: "Typing",
+  thread: "话题",
+  reply: "回复",
+  receipt: "回执",
+  durable_final: "历史",
+};
 
-function is_channel_closed(item: ChannelConfigView) {
-  return !is_channel_enabled(item.channel_type);
-}
+const CHANNEL_CAPABILITY_ORDER: ImChannelCapability[] = [
+  "text",
+  "typing",
+  "thread",
+  "reply",
+  "receipt",
+  "durable_final",
+  "media",
+];
 
 function is_channel_planned(item: ChannelConfigView) {
-  return item.runtime_status === "planned" || is_channel_closed(item);
+  return item.runtime_status === "planned";
 }
 
 function is_personal_weixin_channel(channel_type: ImChannelType) {
@@ -105,7 +119,6 @@ function is_personal_weixin_channel(channel_type: ImChannelType) {
 }
 
 function channel_status_text(item: ChannelConfigView) {
-  if (is_channel_closed(item)) return "未开放";
   if (is_channel_planned(item)) return "未上线";
   if (!item.configured) return "未关联";
   if (item.connection_state === "connected") return "已连接";
@@ -120,22 +133,23 @@ function guide_steps(channel_type: ImChannelType) {
       <>前往 <a href="https://open.dingtalk.com/" target="_blank" rel="noreferrer">钉钉开放平台</a> 创建企业内部应用，并添加 <b>机器人能力</b></>,
       <>进入 <b>应用配置</b>，左侧菜单 <b>机器人 → 机器人配置</b>，消息接收模式必须选择 <b>Stream</b> 模式，不要选 Webhook</>,
       <>在 <b>凭证与基础信息</b> 页面复制 <b>Client ID</b> 和 <b>Client Secret</b></>,
+      <>常规收消息后原路回复会使用钉钉 Stream 的 <b>sessionWebhook</b>；只有需要主动群发到指定 openConversationId 时才填写 <b>Robot Code</b></>,
       <>先在钉钉侧 <b>发布应用版本</b>，确认应用可见范围包含你的账号</>,
       <>在钉钉群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对</>,
     ];
   case "wechat":
     return [
-      <>登录 <a href="https://developer.work.weixin.qq.com/" target="_blank" rel="noreferrer">企业微信开发者后台</a>，创建或选择 <b>自建应用</b></>,
-      <>在应用详情中复制 <b>企业 ID</b>、<b>Agent ID</b> 和 <b>Secret</b></>,
-      <>如需接收成员消息，打开 <b>接收消息</b>，配置回调地址为当前服务的 <b>/nexus/v1/channels/wechat/messages</b></>,
-      <>复制回调配置中的 <b>Token</b> 与 <b>EncodingAESKey</b>，填入下方表单</>,
-      <>确认应用可见范围包含目标成员；个人微信不支持官方机器人 IM 接入</>,
+      <>登录 <a href="https://developer.work.weixin.qq.com/" target="_blank" rel="noreferrer">企业微信开发者后台</a>，创建或选择 <b>智能机器人</b></>,
+      <>在机器人配置页复制 <b>Bot ID</b> 和 <b>Secret</b>，填入下方表单</>,
+      <>Nexus 会通过企业微信官方长连接接收入站消息，并用同一长连接 <b>stream</b> 回复</>,
+      <>智能体回复会使用企业微信智能机器人的 <b>stream</b> 回复回到原会话</>,
+      <>确认机器人可见范围包含目标成员或群；首次收到外部消息后在配对授权页批准</>,
     ];
   case "weixin-personal":
     return [
-      <>选择处理智能体后点击 <b>保存并扫码登录</b>，Nexus 会直接请求腾讯 iLink Bot API 生成个人微信登录二维码</>,
+      <>选择处理智能体后点击 <b>保存并扫码登录</b>，Nexus 会直接请求腾讯 iLink Bot API 生成微信登录二维码</>,
       <>用手机微信扫码并确认；如手机端显示数字验证码，在下方扫码面板输入后继续等待登录完成</>,
-      <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收个人微信私聊消息</>,
+      <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收微信私聊消息</>,
       <>智能体回复时，Nexus 会使用同一 iLink 账号调用 <b>sendmessage</b> 回投文本消息</>,
       <>Nexus 首次收到发送者消息后，在配对授权页批准，再由选定智能体处理</>,
     ];
@@ -158,8 +172,9 @@ function guide_steps(channel_type: ImChannelType) {
   case "discord":
     return [
       <>打开 <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">Discord 开发者平台</a>，点击 <b>New Application</b> 创建应用</>,
-      <>进入应用左侧 <b>机器人</b> 页面，点击 <b>Reset Token</b> 获取 Token，并开启 <b>消息内容意图</b></>,
-      <>在下方填写凭证，生成 <b>授权链接</b>，打开链接并添加到 <b>服务器</b></>,
+      <>复制 <b>Application ID</b>；进入左侧 <b>Bot</b> 页面，点击 <b>Reset Token</b> 获取 <b>Bot Token</b>，不是 OAuth Client Secret</>,
+      <>开启 <b>Message Content Intent</b>，否则 Gateway 消息事件可能没有正文内容</>,
+      <>在下方填写 Application ID 和 Bot Token，生成 <b>授权链接</b>，打开链接并添加到 <b>服务器</b></>,
     ];
   }
 }
@@ -173,6 +188,14 @@ function build_discord_oauth_url(config: Record<string, string>) {
     scope: "bot applications.commands",
   });
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
+
+function channel_field_autocomplete(field: ChannelCredentialField) {
+  return field.secret ? "new-password" : "off";
+}
+
+function channel_field_input_name(channel_type: ImChannelType, index: number) {
+  return `nexus-im-channel-${channel_type}-field-${index}`;
 }
 
 function is_channel_login_running(view: ChannelLoginView | null) {
@@ -250,6 +273,7 @@ interface ChannelDialogProps {
   item: ChannelConfigView;
   agents: Agent[];
   on_close: () => void;
+  on_deleted: (item: ChannelConfigView) => Promise<void> | void;
   on_saved: (item: ChannelConfigView, announce?: boolean) => void;
   on_error: (message: string) => void;
 }
@@ -287,7 +311,7 @@ function ChannelGuide({
       ) : null}
       {is_personal_weixin_channel(item.channel_type) ? (
         <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
-          个人微信与企业微信分开配置；本通道由 Nexus 内置 iLink 连接能力提供，不复用企业微信回调。
+          微信与企业微信分开配置；本通道由 Nexus 内置 iLink 连接能力提供，不复用企业微信回调。
         </div>
       ) : null}
     </div>
@@ -338,7 +362,7 @@ function LoginQRCode({ payload }: { payload?: string }) {
     <div className="flex flex-col items-center gap-2 rounded-[12px] border border-(--divider-subtle-color) px-4 py-4">
       {image_url ? (
         <img
-          alt="个人微信扫码登录二维码"
+          alt="微信扫码登录二维码"
           className="h-[220px] w-[220px] rounded-[8px] bg-white p-2"
           src={image_url}
         />
@@ -452,12 +476,13 @@ function ChannelLoginPanel({
   );
 }
 
-function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: ChannelDialogProps) {
+function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on_error }: ChannelDialogProps) {
   const [current_item, set_current_item] = useState(item);
   const [agent_id, set_agent_id] = useState(item.agent_id || agents[0]?.agent_id || "");
   const [config, set_config] = useState<Record<string, string>>(item.public_config || {});
   const [credentials, set_credentials] = useState<Record<string, string>>({});
   const [saving, set_saving] = useState(false);
+  const [deleting, set_deleting] = useState(false);
   const [login_loading, set_login_loading] = useState(false);
   const [login_view, set_login_view] = useState<ChannelLoginView | null>(null);
   const is_planned = is_channel_planned(current_item);
@@ -474,6 +499,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     set_credentials({});
     set_login_view(null);
     set_login_loading(false);
+    set_deleting(false);
   }, [agents, item]);
 
   const handle_field_change = (field: ChannelCredentialField, value: string) => {
@@ -554,6 +580,22 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     }
   }, [agent_id, config, credentials, current_item.channel_type, is_planned, on_close, on_error, on_saved]);
 
+  const delete_channel = useCallback(async () => {
+    if (!current_item.configured || is_planned || deleting) return;
+    const confirmed = window.confirm(`确认断开 ${current_item.title} 吗？这会停止该频道的机器人连接，但不会删除已有配对。`);
+    if (!confirmed) return;
+    set_deleting(true);
+    try {
+      await delete_channel_config_api(current_item.channel_type);
+      await on_deleted(current_item);
+      set_deleting(false);
+      on_close();
+    } catch (error) {
+      on_error(error instanceof Error ? error.message : "断开频道失败");
+      set_deleting(false);
+    }
+  }, [current_item, deleting, is_planned, on_close, on_deleted, on_error]);
+
   const handle_submit = async (event: FormEvent) => {
     event.preventDefault();
     await save_channel(true);
@@ -563,6 +605,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     <UiDialogPortal>
       <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={on_close}>
         <UiDialogFormShell
+          autoComplete="off"
           class_name="max-h-[86vh]"
           onSubmit={handle_submit}
           size="lg"
@@ -617,7 +660,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
                 </UiField>
 
                 <div className="space-y-4">
-                  {current_item.credential_fields.map((field) => (
+                  {current_item.credential_fields.map((field, index) => (
                     <UiField
                       key={field.key}
                       label={(
@@ -627,6 +670,13 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
                       )}
                     >
                       <UiInput
+                        autoCapitalize="none"
+                        autoComplete={channel_field_autocomplete(field)}
+                        autoCorrect="off"
+                        data-1p-ignore="true"
+                        data-form-type="other"
+                        data-lpignore="true"
+                        name={channel_field_input_name(current_item.channel_type, index)}
                         onChange={(event) => handle_field_change(field, event.target.value)}
                         placeholder={field.placeholder || ""}
                         required={field.required && !(field.secret && current_item.has_credentials)}
@@ -660,37 +710,81 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
           </UiDialogBody>
 
           <UiDialogFooter>
-            <UiButton
-              class_name="min-w-[104px]"
-              onClick={on_close}
-              size="lg"
-              type="button"
-            >
-              取消
-            </UiButton>
-            <UiButton
-              class_name="min-w-[124px]"
-              disabled={saving || login_loading || !agent_id || is_planned}
-              size="lg"
-              tone="primary"
-              type="submit"
-              variant="solid"
-            >
-              {supports_personal_weixin_login ? <QrCode className="h-5 w-5" /> : <Power className="h-5 w-5" />}
-              {is_planned
-                ? "未上线"
-                : saving
-                  ? "保存中..."
-                  : login_loading
-                    ? "拉起二维码..."
-                    : supports_personal_weixin_login
-                      ? "保存并扫码登录"
-                      : "连接"}
-            </UiButton>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-h-10">
+                {current_item.configured && !is_planned ? (
+                  <UiButton
+                    class_name="min-w-[118px]"
+                    disabled={saving || deleting || login_loading}
+                    onClick={delete_channel}
+                    size="lg"
+                    tone="danger"
+                    type="button"
+                  >
+                    {deleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                    {deleting ? "断开中..." : "断开频道"}
+                  </UiButton>
+                ) : null}
+              </div>
+              <div className="flex justify-end gap-3">
+                <UiButton
+                  class_name="min-w-[104px]"
+                  disabled={deleting}
+                  onClick={on_close}
+                  size="lg"
+                  type="button"
+                >
+                  取消
+                </UiButton>
+                <UiButton
+                  class_name="min-w-[124px]"
+                  disabled={saving || deleting || login_loading || !agent_id || is_planned}
+                  size="lg"
+                  tone="primary"
+                  type="submit"
+                  variant="solid"
+                >
+                  {supports_personal_weixin_login ? <QrCode className="h-5 w-5" /> : <Power className="h-5 w-5" />}
+                  {is_planned
+                    ? "未上线"
+                    : saving
+                      ? "保存中..."
+                      : login_loading
+                        ? "拉起二维码..."
+                        : supports_personal_weixin_login
+                          ? "保存并扫码登录"
+                          : "连接"}
+                </UiButton>
+              </div>
+            </div>
           </UiDialogFooter>
         </UiDialogFormShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
+  );
+}
+
+function channel_capability_items(capabilities: ImChannelCapability[]) {
+  const capability_set = new Set(capabilities);
+  return CHANNEL_CAPABILITY_ORDER.filter((capability) => capability_set.has(capability));
+}
+
+function ChannelCapabilityChips({ capabilities }: { capabilities: ImChannelCapability[] }) {
+  const items = channel_capability_items(capabilities);
+  if (!items.length) return null;
+
+  return (
+    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+      {items.map((capability) => (
+        <span
+          className="inline-flex h-5 max-w-[88px] shrink-0 items-center rounded-[7px] border border-(--divider-subtle-color) px-1.5 text-[10px] font-semibold leading-none text-(--text-muted)"
+          key={capability}
+          title={CHANNEL_CAPABILITY_LABELS[capability]}
+        >
+          <span className="truncate">{CHANNEL_CAPABILITY_LABELS[capability]}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -702,7 +796,6 @@ function ChannelCard({
   on_configure: (item: ChannelConfigView) => void;
 }) {
   const planned = is_channel_planned(item);
-  const closed = is_channel_closed(item);
   const connected = item.connection_state === "connected";
   const state_tone = planned
     ? "neutral"
@@ -715,11 +808,9 @@ function ChannelCard({
           : item.configured
             ? "info"
             : "neutral";
-  const description = closed
-    ? "该频道当前未开放配置，目前仅保留入口和信息结构。"
-    : planned
-      ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
-      : item.runtime_status === "external_adapter" && !item.configured
+  const description = planned
+    ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
+    : item.runtime_status === "external_adapter" && !item.configured
         ? "选择处理智能体后，按通道说明完成外部连接。"
         : item.configured
           ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
@@ -795,6 +886,7 @@ function ChannelCard({
             </span>
           ))}
         </div>
+        <ChannelCapabilityChips capabilities={item.capabilities} />
         {item.runtime_note ? (
           <div className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
             {item.runtime_note}
@@ -857,22 +949,24 @@ export function ChannelsDirectory() {
     });
   }, [channel_filter, search_query, sorted_channels]);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     set_loading(true);
     try {
       const [next_channels, next_agents] = await Promise.all([list_channels_api(), get_agents()]);
       set_channels(next_channels);
       set_agents(next_agents);
+      return true;
     } catch (error) {
       set_feedback({ tone: "error", title: "加载失败", message: error instanceof Error ? error.message : "频道加载失败" });
+      return false;
     } finally {
       set_loading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   const handle_channel_saved = useCallback((item: ChannelConfigView, announce = true) => {
     set_channels((current) => current.map((value) => value.channel_type === item.channel_type ? item : value));
@@ -880,6 +974,15 @@ export function ChannelsDirectory() {
       set_feedback({ tone: "success", title: "连接成功", message: `${item.title} 已完成配置` });
     }
   }, []);
+
+  const handle_channel_deleted = useCallback(async (item: ChannelConfigView) => {
+    const refreshed = await refresh();
+    set_feedback(
+      refreshed
+        ? { tone: "success", title: "频道已断开", message: `${item.title} 已移除配置` }
+        : { tone: "error", title: "频道已断开，刷新失败", message: "请手动刷新频道列表确认最新状态" },
+    );
+  }, [refresh]);
 
   const feedback_items: FeedbackBannerItem[] = feedback
     ? [{
@@ -965,7 +1068,8 @@ export function ChannelsDirectory() {
           agents={agents}
           item={selected}
           on_close={() => set_selected(null)}
-          on_error={(message) => set_feedback({ tone: "error", title: "连接失败", message })}
+          on_deleted={handle_channel_deleted}
+          on_error={(message) => set_feedback({ tone: "error", title: "频道操作失败", message })}
           on_saved={handle_channel_saved}
         />
       ) : null}

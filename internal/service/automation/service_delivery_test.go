@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -57,6 +58,48 @@ func TestDeliverJobObservationUsesTaskOwnerContext(t *testing.T) {
 	owners := delivery.OwnerUserIDs()
 	if len(owners) != 1 || owners[0] != "user-1" {
 		t.Fatalf("投递应使用任务 owner 上下文，实际 owners=%+v", owners)
+	}
+}
+
+func TestDeliverJobObservationRecordsDeliveryReceipt(t *testing.T) {
+	delivery := &fakeDeliveryRouter{
+		receipt: channelmessage.NewReceipt(channelmessage.ReceiptParams{
+			Channel:  channels.ChannelTypeTelegram,
+			Target:   "-1001",
+			ThreadID: "12",
+			Parts:    []channelmessage.ReceiptPart{channelmessage.TextPart("42")},
+		}),
+	}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		delivery,
+	)
+	job := protocol.CronJob{
+		JobID:   "job-receipt",
+		AgentID: "agent-1",
+		Delivery: protocol.DeliveryTarget{
+			Mode:     protocol.DeliveryModeExplicit,
+			Channel:  channels.ChannelTypeTelegram,
+			To:       "-1001",
+			ThreadID: "12",
+		},
+	}
+
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
+		Status:     protocol.RunStatusSucceeded,
+		ResultText: "今日新闻摘要",
+	})
+	if deliveryResult.Receipt == nil || deliveryResult.Receipt.PrimaryPlatformMessageID != "42" {
+		t.Fatalf("投递结果未记录平台回执: %+v", deliveryResult.Receipt)
+	}
+	if got := deliveryResult.deliveryTo(job.Delivery); got != "explicit:telegram:-1001:thread:12:message:42" {
+		t.Fatalf("投递摘要未记录平台 message_id，实际 %q", got)
 	}
 }
 

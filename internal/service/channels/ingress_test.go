@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -22,8 +23,9 @@ import (
 )
 
 type fakeIngressDMHandler struct {
-	requests []dmsvc.Request
-	err      error
+	requests     []dmsvc.Request
+	ownerUserIDs []string
+	err          error
 }
 
 type externalSessionNotifyCall struct {
@@ -35,8 +37,9 @@ type fakeExternalSessionNotifier struct {
 	calls []externalSessionNotifyCall
 }
 
-func (f *fakeIngressDMHandler) HandleChat(_ context.Context, request dmsvc.Request) error {
+func (f *fakeIngressDMHandler) HandleChat(ctx context.Context, request dmsvc.Request) error {
 	f.requests = append(f.requests, request)
+	f.ownerUserIDs = append(f.ownerUserIDs, authctx.OwnerUserID(ctx))
 	if f.err != nil {
 		return f.err
 	}
@@ -137,6 +140,8 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 		ChatType: "group",
 		Ref:      "oc_group_123",
 		Content:  "检查今天的定时任务发送情况",
+		RoundID:  "evt-1",
+		ReqID:    "om_1",
 	})
 	if err != nil {
 		t.Fatalf("Accept 失败: %v", err)
@@ -148,11 +153,23 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 	if result.RememberedDelivery == nil {
 		t.Fatal("feishu ingress 应记录回投目标")
 	}
+	if result.Message == nil ||
+		result.Message.Channel != ChannelTypeFeishu ||
+		result.Message.Target != "oc_group_123" ||
+		result.Message.Text != "检查今天的定时任务发送情况" {
+		t.Fatalf("feishu ingress 应返回标准消息 envelope: %+v", result.Message)
+	}
 	if len(handler.requests) != 1 {
 		t.Fatalf("聊天请求数量不正确: %d", len(handler.requests))
 	}
 	if !handler.requests[0].BroadcastUserMessage {
 		t.Fatal("feishu ingress 应实时广播用户输入")
+	}
+	metadata := handler.requests[0].InputOptions.Metadata
+	if metadata["im.platform_message_id"] != "om_1" ||
+		metadata["im.channel"] != ChannelTypeFeishu ||
+		metadata["im.target"] != "oc_group_123" {
+		t.Fatalf("feishu ingress 应把消息 envelope 注入 DM metadata: %+v", metadata)
 	}
 	replyTarget := handler.requests[0].ExternalReplyTarget
 	if replyTarget == nil || replyTarget.Channel != ChannelTypeFeishu || replyTarget.To != "oc_group_123" {
@@ -164,6 +181,43 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 	}
 	if route == nil || route.Channel != ChannelTypeFeishu || route.To != "oc_group_123" {
 		t.Fatalf("feishu route 记忆不正确: %+v", route)
+	}
+}
+
+func TestIngressServiceAcceptPassesChannelOwnerToDM(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	ownerCtx := ingressTestOwnerContext("owner-a")
+	ownerAgent, err := agentService.GetDefaultAgent(ownerCtx)
+	if err != nil {
+		t.Fatalf("初始化 owner agent 失败: %v", err)
+	}
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+
+	result, err := service.Accept(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     "feishu",
+		ChatType:    "group",
+		Ref:         "oc_group_owner",
+		Content:     "总结一下这个群今天讨论的事项",
+	})
+	if err != nil {
+		t.Fatalf("Accept 失败: %v", err)
+	}
+	if result.AgentID != ownerAgent.AgentID {
+		t.Fatalf("ingress 应解析 owner 作用域默认 agent: got=%s want=%s", result.AgentID, ownerAgent.AgentID)
+	}
+	if len(handler.ownerUserIDs) != 1 || handler.ownerUserIDs[0] != "owner-a" {
+		t.Fatalf("DM handler 未收到 channel owner context: %+v", handler.ownerUserIDs)
+	}
+	expectedSessionKey := "agent:" + ownerAgent.AgentID + ":fs:group:oc_group_owner"
+	if len(handler.requests) != 1 || handler.requests[0].SessionKey != expectedSessionKey {
+		t.Fatalf("DM 请求不正确: %+v", handler.requests)
 	}
 }
 
@@ -513,6 +567,15 @@ func newIngressTestConfig(t *testing.T) config.Config {
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
+}
+
+func ingressTestOwnerContext(ownerUserID string) context.Context {
+	return authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
 }
 
 func migrateIngressSQLite(t *testing.T, databaseURL string) *sql.DB {

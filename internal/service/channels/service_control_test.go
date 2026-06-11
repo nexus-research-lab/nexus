@@ -1,12 +1,7 @@
 package channels
 
 import (
-	"bytes"
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
@@ -27,8 +23,8 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if !ok {
 		t.Fatal("缺少企业微信通道")
 	}
-	if wechat.SupportsGroup {
-		t.Fatal("企业微信自建应用通道不应标记群聊能力")
+	if !wechat.SupportsGroup {
+		t.Fatal("企业微信智能机器人通道应标记群聊能力")
 	}
 	weixinPersonal, ok := channelCatalogByType(ChannelTypeWeixinPersonal)
 	if !ok {
@@ -37,9 +33,66 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if weixinPersonal.RuntimeStatus != "ready" {
 		t.Fatalf("个人微信应标记为内置可用，实际: %s", weixinPersonal.RuntimeStatus)
 	}
+	if weixinPersonal.Title != "微信" {
+		t.Fatalf("微信通道前台标题不正确: %q", weixinPersonal.Title)
+	}
 	if !weixinPersonal.SupportsQRCode || weixinPersonal.SupportsGroup {
 		t.Fatalf("个人微信能力标记不正确: %+v", weixinPersonal)
 	}
+	if !catalogHasCapability(weixinPersonal, channelmessage.CapabilityReceipt) {
+		t.Fatalf("个人微信应声明本地消息回执能力: %+v", weixinPersonal.Capabilities)
+	}
+	feishu, ok := channelCatalogByType(ChannelTypeFeishu)
+	if !ok {
+		t.Fatal("缺少飞书通道")
+	}
+	for _, capability := range []channelmessage.Capability{
+		channelmessage.CapabilityTyping,
+		channelmessage.CapabilityThread,
+		channelmessage.CapabilityReply,
+		channelmessage.CapabilityReceipt,
+	} {
+		if !catalogHasCapability(feishu, capability) {
+			t.Fatalf("飞书应声明 %s 能力: %+v", capability, feishu.Capabilities)
+		}
+	}
+	telegram, ok := channelCatalogByType(ChannelTypeTelegram)
+	if !ok {
+		t.Fatal("缺少 Telegram 通道")
+	}
+	if !catalogHasCapability(telegram, channelmessage.CapabilityThread) ||
+		!catalogHasCapability(telegram, channelmessage.CapabilityTyping) ||
+		!catalogHasCapability(telegram, channelmessage.CapabilityReceipt) {
+		t.Fatalf("Telegram 能力矩阵不完整: %+v", telegram.Capabilities)
+	}
+	if catalogHasCapability(wechat, channelmessage.CapabilityReceipt) {
+		t.Fatalf("企业微信未返回稳定 message id，不应声明 receipt 能力: %+v", wechat.Capabilities)
+	}
+	dingtalk, ok := channelCatalogByType(ChannelTypeDingTalk)
+	if !ok {
+		t.Fatal("缺少钉钉通道")
+	}
+	if field, ok := catalogCredentialField(dingtalk, "robot_code"); !ok || field.Required {
+		t.Fatalf("钉钉 Stream 回复不应强制要求 Robot Code: field=%+v ok=%v", field, ok)
+	}
+}
+
+func catalogHasCapability(item ChannelCatalogItem, capability channelmessage.Capability) bool {
+	for _, value := range item.Capabilities {
+		if value == capability {
+			return true
+		}
+	}
+	return false
+}
+
+func catalogCredentialField(item ChannelCatalogItem, key string) (ChannelCredentialField, bool) {
+	for _, field := range item.CredentialFields {
+		if field.Key == key {
+			return field, true
+		}
+	}
+	return ChannelCredentialField{}, false
 }
 
 func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
@@ -58,14 +111,13 @@ func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 			name:        "dingtalk",
 			channelType: ChannelTypeDingTalk,
 			config:      map[string]string{"client_id": "ding-client"},
-			credentials: map[string]string{"client_secret": "ding-secret"},
-			want:        "robot_code is required",
+			want:        "client_secret is required",
 		},
 		{
 			name:        "wechat",
 			channelType: ChannelTypeWeChat,
-			config:      map[string]string{"corp_id": "ww-corp"},
-			want:        "agent_id is required",
+			config:      map[string]string{"bot_id": "bot-1"},
+			want:        "secret is required",
 		},
 		{
 			name:        "telegram",
@@ -91,6 +143,31 @@ func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 				t.Fatalf("不完整渠道配置应拒绝，实际 err=%v want=%s", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestControlServiceAllowsDingTalkStreamConfigWithoutRobotCode(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	item, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeDingTalk, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"client_id": "ding-client",
+		},
+		Credentials: map[string]string{
+			"client_secret": "ding-secret",
+		},
+	})
+	if err != nil {
+		t.Fatalf("钉钉 Stream 配置不应强制要求 Robot Code: %v", err)
+	}
+	if item.ChannelType != ChannelTypeDingTalk || !item.Configured || !item.HasCredentials {
+		t.Fatalf("钉钉 Stream 配置结果不正确: %+v", item)
 	}
 }
 
@@ -152,7 +229,7 @@ func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
 	}
 
 	latest := waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
-	if latest.AccountID != "wx-account-1" || !strings.Contains(latest.Output, "个人微信已连接") {
+	if latest.AccountID != "wx-account-1" || !strings.Contains(latest.Output, "微信已连接") {
 		t.Fatalf("登录完成状态不正确: %+v", latest)
 	}
 	items, err := service.ListChannels(context.Background(), "owner-a")
@@ -210,6 +287,175 @@ VALUES ('pairing-a', 'owner-a', 'telegram', 'dm', 'chat-a', 'agent-a', 'active',
 	}
 	if activePairings != 1 {
 		t.Fatalf("已实现渠道应计入活跃配对数，实际 %d", activePairings)
+	}
+}
+
+func TestControlServiceCreatesManualPairingForKnownTarget(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType:  " telegram ",
+		ChatType:     " group ",
+		ExternalRef:  " -100123456 ",
+		ThreadID:     " 42 ",
+		ExternalName: " Release room ",
+		AgentID:      " agent-a ",
+	})
+	if err != nil {
+		t.Fatalf("手动创建 IM 配对失败: %v", err)
+	}
+	if created.PairingID == "" ||
+		created.ChannelType != ChannelTypeTelegram ||
+		created.ChatType != "group" ||
+		created.ExternalRef != "-100123456" ||
+		created.ThreadID != "42" ||
+		created.ExternalName != "Release room" ||
+		created.AgentID != "agent-a" ||
+		created.Status != PairingStatusActive ||
+		created.Source != PairingSourceManual {
+		t.Fatalf("手动配对结果不正确: %+v", created)
+	}
+
+	agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeTelegram,
+		ChatType:    "group",
+		Ref:         "-100123456",
+		ThreadID:    "42",
+	})
+	if err != nil {
+		t.Fatalf("手动授权配对应允许入站路由: %v", err)
+	}
+	if agentID != "agent-a" {
+		t.Fatalf("入站路由 agent 不正确: %q", agentID)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeTelegram,
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("查询手动配对失败: %v", err)
+	}
+	if len(items) != 1 || items[0].PairingID != created.PairingID || items[0].LastMessageAt == nil {
+		t.Fatalf("手动配对列表结果不正确: %+v", items)
+	}
+}
+
+func TestControlServiceCreatePairingUpdatesExistingTarget(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	first, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    "dm",
+		ExternalRef: "ou_user_1",
+		AgentID:     "agent-a",
+		Status:      PairingStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("创建初始配对失败: %v", err)
+	}
+
+	updated, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType:  ChannelTypeFeishu,
+		ChatType:     "dm",
+		ExternalRef:  "ou_user_1",
+		ExternalName: "Alice",
+		AgentID:      "agent-b",
+		Status:       PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("重复创建同一目标应更新已有配对: %v", err)
+	}
+	if updated.PairingID != first.PairingID ||
+		updated.ExternalName != "Alice" ||
+		updated.AgentID != "agent-b" ||
+		updated.Status != PairingStatusActive ||
+		updated.Source != PairingSourceManual {
+		t.Fatalf("重复创建配对应更新已有记录: first=%+v updated=%+v", first, updated)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{ChannelType: ChannelTypeFeishu})
+	if err != nil {
+		t.Fatalf("查询配对失败: %v", err)
+	}
+	if len(items) != 1 || items[0].PairingID != first.PairingID {
+		t.Fatalf("重复创建不应产生多条配对: %+v", items)
+	}
+}
+
+func TestControlServiceResolveIngressAgentReturnsExistingPendingPairingID(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	var nextID int
+	service.idFactory = func(prefix string) string {
+		nextID++
+		return fmt.Sprintf("%s-%d", prefix, nextID)
+	}
+
+	_, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID:  "owner-a",
+		Channel:      ChannelTypeTelegram,
+		ChatType:     "group",
+		Ref:          "-100123456",
+		ThreadID:     "42",
+		ExternalName: "Release room",
+		AgentID:      "agent-a",
+	})
+	var firstApproval *pairingApprovalError
+	if !errors.As(err, &firstApproval) || firstApproval.PairingID != "pair-1" {
+		t.Fatalf("首次入站应返回真实 pending pairing id: err=%v approval=%+v", err, firstApproval)
+	}
+
+	_, err = service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID:  "owner-a",
+		Channel:      ChannelTypeTelegram,
+		ChatType:     "group",
+		Ref:          "-100123456",
+		ThreadID:     "42",
+		ExternalName: "Release room renamed",
+		AgentID:      "agent-b",
+	})
+	var secondApproval *pairingApprovalError
+	if !errors.As(err, &secondApproval) || secondApproval.PairingID != firstApproval.PairingID {
+		t.Fatalf("重复入站应返回已有 pending pairing id: first=%+v second=%+v err=%v", firstApproval, secondApproval, err)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeTelegram,
+		Status:      PairingStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("查询 pending 配对失败: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].PairingID != firstApproval.PairingID ||
+		items[0].ExternalName != "Release room renamed" ||
+		items[0].AgentID != "agent-b" {
+		t.Fatalf("重复入站应更新同一 pending 配对: %+v", items)
+	}
+
+	_, err = service.UpdatePairing(context.Background(), "owner-a", firstApproval.PairingID, UpdatePairingRequest{
+		Status: ptrString(PairingStatusActive),
+	})
+	if err != nil {
+		t.Fatalf("批准 pending 配对失败: %v", err)
+	}
+	agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeTelegram,
+		ChatType:    "group",
+		Ref:         "-100123456",
+		ThreadID:    "42",
+	})
+	if err != nil || agentID != "agent-b" {
+		t.Fatalf("批准后入站应路由到更新后的 agent: agent=%q err=%v", agentID, err)
 	}
 }
 
@@ -388,87 +634,6 @@ func TestControlServicePrepareFeishuIngressDecryptsAndVerifiesSignature(t *testi
 	}
 }
 
-func TestControlServicePrepareWeChatIngressDecryptsAndVerifiesSignature(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	encodingAESKey := testWeChatEncodingAESKey()
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeChat, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"corp_id":  "ww_corp",
-			"agent_id": "100001",
-		},
-		Credentials: map[string]string{
-			"corp_secret":      "corp-secret",
-			"token":            "wechat-token",
-			"encoding_aes_key": encodingAESKey,
-		},
-	})
-	if err != nil {
-		t.Fatalf("配置企业微信渠道失败: %v", err)
-	}
-
-	plain := []byte(`<xml>
-		<ToUserName><![CDATA[ww_corp]]></ToUserName>
-		<FromUserName><![CDATA[zhangsan]]></FromUserName>
-		<CreateTime>1700000000</CreateTime>
-		<MsgType><![CDATA[text]]></MsgType>
-		<Content><![CDATA[检查本周日报任务]]></Content>
-		<MsgId>msg-1</MsgId>
-		<AgentID>100001</AgentID>
-	</xml>`)
-	encrypted := encryptWeChatCallbackForTest(t, encodingAESKey, plain, "ww_corp")
-	signature := weChatCallbackSignature("wechat-token", "1700000001", "nonce-1", encrypted)
-	body := []byte(fmt.Sprintf(`<xml>
-		<ToUserName><![CDATA[ww_corp]]></ToUserName>
-		<AgentID><![CDATA[100001]]></AgentID>
-		<Encrypt><![CDATA[%s]]></Encrypt>
-	</xml>`, encrypted))
-	request, err := http.NewRequest(
-		http.MethodPost,
-		"/nexus/v1/channels/wechat/messages?msg_signature="+signature+"&timestamp=1700000001&nonce=nonce-1",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatalf("构造企业微信请求失败: %v", err)
-	}
-
-	prepared, err := service.PrepareWeChatIngress(context.Background(), body, request)
-	if err != nil {
-		t.Fatalf("企业微信回调准备失败: %v", err)
-	}
-	if prepared.OwnerUserID != "owner-a" || prepared.CorpID != "ww_corp" || string(prepared.Body) != string(plain) {
-		t.Fatalf("企业微信回调准备结果不正确: %+v body=%s", prepared, prepared.Body)
-	}
-	ingressRequest, ignored, err := DecodeWeChatIngressCallback(prepared.Body)
-	if err != nil {
-		t.Fatalf("企业微信回调解析失败: %v", err)
-	}
-	if ignored != "" || ingressRequest == nil {
-		t.Fatalf("企业微信文本消息不应被忽略: request=%+v ignored=%s", ingressRequest, ignored)
-	}
-	if ingressRequest.Ref != "zhangsan" || ingressRequest.Content != "检查本周日报任务" {
-		t.Fatalf("企业微信入口请求不正确: %+v", ingressRequest)
-	}
-
-	badRequest, err := http.NewRequest(
-		http.MethodPost,
-		"/nexus/v1/channels/wechat/messages?msg_signature=bad&timestamp=1700000001&nonce=nonce-1",
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatalf("构造错误企业微信请求失败: %v", err)
-	}
-	if _, err = service.PrepareWeChatIngress(context.Background(), body, badRequest); !errors.Is(err, ErrWeChatCallbackUnauthorized) {
-		t.Fatalf("错误签名的企业微信回调应拒绝，实际: %v", err)
-	}
-}
-
 type fakePersonalWeixinLoginClient struct{}
 
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (weixinQRCodeResponse, error) {
@@ -518,39 +683,4 @@ func waitChannelLoginStatus(
 
 func testChannelCredentialKey() string {
 	return "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-}
-
-func testWeChatEncodingAESKey() string {
-	return strings.TrimRight(base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef")), "=")
-}
-
-func encryptWeChatCallbackForTest(t *testing.T, encodingAESKey string, plain []byte, receiveID string) string {
-	t.Helper()
-	key, err := decodeWeChatAESKey(encodingAESKey)
-	if err != nil {
-		t.Fatalf("测试企业微信 AES key 无效: %v", err)
-	}
-	packet := bytes.NewBufferString("0123456789abcdef")
-	length := make([]byte, 4)
-	binary.BigEndian.PutUint32(length, uint32(len(plain)))
-	packet.Write(length)
-	packet.Write(plain)
-	packet.WriteString(receiveID)
-	padded := appendWeChatPKCS7PaddingForTest(packet.Bytes(), aes.BlockSize)
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		t.Fatalf("创建测试企业微信 cipher 失败: %v", err)
-	}
-	cipherText := append([]byte(nil), padded...)
-	cipher.NewCBCEncrypter(block, key[:aes.BlockSize]).CryptBlocks(cipherText, cipherText)
-	return base64.StdEncoding.EncodeToString(cipherText)
-}
-
-func appendWeChatPKCS7PaddingForTest(data []byte, blockSize int) []byte {
-	padding := blockSize - len(data)%blockSize
-	if padding == 0 {
-		padding = blockSize
-	}
-	return append(data, bytes.Repeat([]byte{byte(padding)}, padding)...)
 }

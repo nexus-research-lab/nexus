@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +19,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	titlegensvc "github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -605,6 +609,85 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	}
 }
 
+func TestTitleGenerationUpdatesExternalIMWorkspaceSession(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+
+	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "微信助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWeixinPersonalSegment,
+		protocol.RoomTypeDM,
+		"wx-user-1",
+		"",
+	)
+	now := time.Now().UTC()
+	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	if _, err = store.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      agentValue.AgentID,
+		ChannelType:  protocol.SessionChannelWeixinPersonal,
+		ChatType:     protocol.RoomTypeDM,
+		Status:       "closed",
+		CreatedAt:    now.Add(-time.Hour),
+		LastActivity: now.Add(-time.Minute),
+		Title:        "New Chat",
+		MessageCount: 74,
+		Options:      map[string]any{},
+	}); err != nil {
+		t.Fatalf("写入外部 IM session 失败: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": "午餐建议"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	titleService := titlegensvc.NewService(
+		staticTitleProvider{baseURL: server.URL},
+		sessionService,
+		nil,
+		nil,
+	)
+	titleService.Schedule(context.Background(), titlegensvc.Request{
+		OwnerUserID:              "__system__",
+		SessionKey:               sessionKey,
+		Content:                  "中午吃点啥好你觉得",
+		SessionTitle:             "New Chat",
+		SessionMessageCount:      74,
+		ConversationMessageCount: -1,
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		updated, err := sessionService.GetSession(context.Background(), sessionKey)
+		if err != nil {
+			t.Fatalf("读取更新后的 IM session 失败: %v", err)
+		}
+		if updated.Title == "午餐建议" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("外部 IM session 标题未写回: %+v", updated)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func seedWorkspaceSessionArtifacts(
 	t *testing.T,
 	cfg config.Config,
@@ -686,6 +769,19 @@ func findSessionByKey(items []protocol.Session, sessionKey string) *protocol.Ses
 		}
 	}
 	return nil
+}
+
+type staticTitleProvider struct {
+	baseURL string
+}
+
+func (p staticTitleProvider) ResolveLLMConfig(context.Context, string, string) (*clientopts.RuntimeConfig, error) {
+	return &clientopts.RuntimeConfig{
+		Provider:  "test-title-provider",
+		AuthToken: "token",
+		BaseURL:   p.baseURL,
+		Model:     "title-model",
+	}, nil
 }
 
 func newSessionTestConfig(t *testing.T) config.Config {
