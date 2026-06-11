@@ -14,6 +14,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Terminal,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -25,6 +26,7 @@ import {
   ChannelCredentialField,
   ImChannelCapability,
   ImChannelType,
+  delete_channel_config_api,
   get_channel_login_api,
   list_channels_api,
   start_channel_login_api,
@@ -261,6 +263,7 @@ interface ChannelDialogProps {
   item: ChannelConfigView;
   agents: Agent[];
   on_close: () => void;
+  on_deleted: (item: ChannelConfigView) => Promise<void> | void;
   on_saved: (item: ChannelConfigView, announce?: boolean) => void;
   on_error: (message: string) => void;
 }
@@ -463,12 +466,13 @@ function ChannelLoginPanel({
   );
 }
 
-function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: ChannelDialogProps) {
+function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on_error }: ChannelDialogProps) {
   const [current_item, set_current_item] = useState(item);
   const [agent_id, set_agent_id] = useState(item.agent_id || agents[0]?.agent_id || "");
   const [config, set_config] = useState<Record<string, string>>(item.public_config || {});
   const [credentials, set_credentials] = useState<Record<string, string>>({});
   const [saving, set_saving] = useState(false);
+  const [deleting, set_deleting] = useState(false);
   const [login_loading, set_login_loading] = useState(false);
   const [login_view, set_login_view] = useState<ChannelLoginView | null>(null);
   const is_planned = is_channel_planned(current_item);
@@ -485,6 +489,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
     set_credentials({});
     set_login_view(null);
     set_login_loading(false);
+    set_deleting(false);
   }, [agents, item]);
 
   const handle_field_change = (field: ChannelCredentialField, value: string) => {
@@ -564,6 +569,22 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
       set_login_loading(false);
     }
   }, [agent_id, config, credentials, current_item.channel_type, is_planned, on_close, on_error, on_saved]);
+
+  const delete_channel = useCallback(async () => {
+    if (!current_item.configured || is_planned || deleting) return;
+    const confirmed = window.confirm(`确认断开 ${current_item.title} 吗？这会停止该频道的机器人连接，但不会删除已有配对。`);
+    if (!confirmed) return;
+    set_deleting(true);
+    try {
+      await delete_channel_config_api(current_item.channel_type);
+      await on_deleted(current_item);
+      set_deleting(false);
+      on_close();
+    } catch (error) {
+      on_error(error instanceof Error ? error.message : "断开频道失败");
+      set_deleting(false);
+    }
+  }, [current_item, deleting, is_planned, on_close, on_deleted, on_error]);
 
   const handle_submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -671,33 +692,53 @@ function ChannelConnectDialog({ item, agents, on_close, on_saved, on_error }: Ch
           </UiDialogBody>
 
           <UiDialogFooter>
-            <UiButton
-              class_name="min-w-[104px]"
-              onClick={on_close}
-              size="lg"
-              type="button"
-            >
-              取消
-            </UiButton>
-            <UiButton
-              class_name="min-w-[124px]"
-              disabled={saving || login_loading || !agent_id || is_planned}
-              size="lg"
-              tone="primary"
-              type="submit"
-              variant="solid"
-            >
-              {supports_personal_weixin_login ? <QrCode className="h-5 w-5" /> : <Power className="h-5 w-5" />}
-              {is_planned
-                ? "未上线"
-                : saving
-                  ? "保存中..."
-                  : login_loading
-                    ? "拉起二维码..."
-                    : supports_personal_weixin_login
-                      ? "保存并扫码登录"
-                      : "连接"}
-            </UiButton>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-h-10">
+                {current_item.configured && !is_planned ? (
+                  <UiButton
+                    class_name="min-w-[118px]"
+                    disabled={saving || deleting || login_loading}
+                    onClick={delete_channel}
+                    size="lg"
+                    tone="danger"
+                    type="button"
+                  >
+                    {deleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                    {deleting ? "断开中..." : "断开频道"}
+                  </UiButton>
+                ) : null}
+              </div>
+              <div className="flex justify-end gap-3">
+                <UiButton
+                  class_name="min-w-[104px]"
+                  disabled={deleting}
+                  onClick={on_close}
+                  size="lg"
+                  type="button"
+                >
+                  取消
+                </UiButton>
+                <UiButton
+                  class_name="min-w-[124px]"
+                  disabled={saving || deleting || login_loading || !agent_id || is_planned}
+                  size="lg"
+                  tone="primary"
+                  type="submit"
+                  variant="solid"
+                >
+                  {supports_personal_weixin_login ? <QrCode className="h-5 w-5" /> : <Power className="h-5 w-5" />}
+                  {is_planned
+                    ? "未上线"
+                    : saving
+                      ? "保存中..."
+                      : login_loading
+                        ? "拉起二维码..."
+                        : supports_personal_weixin_login
+                          ? "保存并扫码登录"
+                          : "连接"}
+                </UiButton>
+              </div>
+            </div>
           </UiDialogFooter>
         </UiDialogFormShell>
       </UiDialogBackdrop>
@@ -890,22 +931,24 @@ export function ChannelsDirectory() {
     });
   }, [channel_filter, search_query, sorted_channels]);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     set_loading(true);
     try {
       const [next_channels, next_agents] = await Promise.all([list_channels_api(), get_agents()]);
       set_channels(next_channels);
       set_agents(next_agents);
+      return true;
     } catch (error) {
       set_feedback({ tone: "error", title: "加载失败", message: error instanceof Error ? error.message : "频道加载失败" });
+      return false;
     } finally {
       set_loading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+  }, [refresh]);
 
   const handle_channel_saved = useCallback((item: ChannelConfigView, announce = true) => {
     set_channels((current) => current.map((value) => value.channel_type === item.channel_type ? item : value));
@@ -913,6 +956,15 @@ export function ChannelsDirectory() {
       set_feedback({ tone: "success", title: "连接成功", message: `${item.title} 已完成配置` });
     }
   }, []);
+
+  const handle_channel_deleted = useCallback(async (item: ChannelConfigView) => {
+    const refreshed = await refresh();
+    set_feedback(
+      refreshed
+        ? { tone: "success", title: "频道已断开", message: `${item.title} 已移除配置` }
+        : { tone: "error", title: "频道已断开，刷新失败", message: "请手动刷新频道列表确认最新状态" },
+    );
+  }, [refresh]);
 
   const feedback_items: FeedbackBannerItem[] = feedback
     ? [{
@@ -998,7 +1050,8 @@ export function ChannelsDirectory() {
           agents={agents}
           item={selected}
           on_close={() => set_selected(null)}
-          on_error={(message) => set_feedback({ tone: "error", title: "连接失败", message })}
+          on_deleted={handle_channel_deleted}
+          on_error={(message) => set_feedback({ tone: "error", title: "频道操作失败", message })}
           on_saved={handle_channel_saved}
         />
       ) : null}
