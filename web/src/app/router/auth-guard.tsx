@@ -8,30 +8,28 @@
  */
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 
 function GuardState({
   title,
   description,
   action_label,
   on_action,
-  is_loading = false,
 }: {
   title: string;
   description: string;
   action_label?: string;
   on_action?: () => void;
-  is_loading?: boolean;
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
       <section className="surface-panel surface-radius-xl w-full max-w-[440px] border px-8 py-9 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
-          {is_loading ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : "N"}
+          N
         </div>
         <h1 className="text-[24px] font-bold text-(--text-strong)">{title}</h1>
         <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
@@ -61,11 +59,9 @@ export function AuthGuard() {
 
   if (!is_bootstrapped) {
     return (
-      <GuardState
-        title="正在连接 Nexus"
-        description="正在确认登录状态，请稍候。"
-        is_loading
-      />
+      <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
+        <AppLoadingState message="正在连接 Nexus" />
+      </main>
     );
   }
 

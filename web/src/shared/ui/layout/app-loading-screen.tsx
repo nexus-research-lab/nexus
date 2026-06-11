@@ -1,6 +1,8 @@
 "use client";
 
+import { ANIMATIONS } from "@/config/animation-assets";
 import { cn } from "@/shared/ui/class-name";
+import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
 
 interface AppLoadingStateProps {
   class_name?: string;
@@ -15,16 +17,10 @@ export function AppLoadingState({
 }: AppLoadingStateProps) {
   return (
     <div className={cn("flex flex-col items-center gap-3 px-12 py-10 text-center", class_name)}>
-      <div className="relative isolate flex items-center justify-center">
-        <div
-          aria-hidden="true"
-          className={cn(
-            "relative rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background)",
-            "after:absolute after:inset-3 after:rounded-full after:border-2 after:border-primary after:border-t-transparent after:content-[''] after:animate-spin",
-            animation_class_name,
-          )}
-        />
-      </div>
+      <LottiePlayer
+        class_name={animation_class_name}
+        src={ANIMATIONS.CAT}
+      />
       <p className="text-sm text-(--text-muted)">{message}</p>
     </div>
   );
