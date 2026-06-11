@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disabled browser autofill on IM channel credential forms so saved login usernames and passwords are not prefilled into bot configuration fields.
 - Removed IM channel card status badges so pairing authorization counts are the visible access state.
 - Refined IM channel card metadata so handler, bot, and pairing counts are easier to scan.
+- Hid IM capability chips from channel cards to keep the channel list focused on pairing access.
 - Reordered DingTalk channel credential fields so Client ID and Client Secret appear before optional Robot Code.
 - Clarified Discord IM setup copy to distinguish Bot Token from OAuth Client Secret and explain that Application ID is only used for the invite link.
 - Migrated the WeChat Work channel configuration to the intelligent bot Bot ID + Secret flow and long-connection `aibot_respond_msg` stream replies.
