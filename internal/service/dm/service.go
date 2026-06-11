@@ -42,6 +42,7 @@ type Request struct {
 	InputOptions         sdkprotocol.OutboundMessageOptions
 	PermissionMode       sdkpermission.Mode
 	PermissionHandler    sdkpermission.Handler
+	ExternalReplyTarget  *ExternalReplyTarget
 }
 
 // InterruptRequest 表示一次中断请求。
@@ -78,6 +79,23 @@ type Service struct {
 	logger     *slog.Logger
 	mcpServers MCPServerBuilder
 	titles     titleScheduler
+	replies    ExternalReplyDispatcher
+}
+
+// ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
+type ExternalReplyTarget struct {
+	Mode       string
+	Channel    string
+	To         string
+	AccountID  string
+	ThreadID   string
+	SessionKey string
+}
+
+// ExternalReplyDispatcher 由 app 装配层注入，避免 dm 包反向依赖 channels。
+type ExternalReplyDispatcher interface {
+	DeliverExternalReply(context.Context, string, string, ExternalReplyTarget) error
+	SetExternalTyping(context.Context, string, ExternalReplyTarget, bool) error
 }
 
 type roomSessionStore interface {
@@ -176,6 +194,11 @@ func (s *Service) SetRoomSessionStore(store roomSessionStore) {
 // SetTitleGenerator 注入会话标题生成器。
 func (s *Service) SetTitleGenerator(generator titleScheduler) {
 	s.titles = generator
+}
+
+// SetExternalReplyDispatcher 注入外部 IM 自然回复投递器。
+func (s *Service) SetExternalReplyDispatcher(dispatcher ExternalReplyDispatcher) {
+	s.replies = dispatcher
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {

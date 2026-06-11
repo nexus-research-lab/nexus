@@ -26,12 +26,28 @@ type fakeIngressDMHandler struct {
 	err      error
 }
 
+type externalSessionNotifyCall struct {
+	agentID    string
+	sessionKey string
+}
+
+type fakeExternalSessionNotifier struct {
+	calls []externalSessionNotifyCall
+}
+
 func (f *fakeIngressDMHandler) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
 		return f.err
 	}
 	return nil
+}
+
+func (f *fakeExternalSessionNotifier) NotifyExternalSessionUpdated(_ context.Context, agentID string, sessionKey string) {
+	f.calls = append(f.calls, externalSessionNotifyCall{
+		agentID:    agentID,
+		sessionKey: sessionKey,
+	})
 }
 
 func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T) {
@@ -41,8 +57,10 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	handler := &fakeIngressDMHandler{}
+	notifier := &fakeExternalSessionNotifier{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
 	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetExternalSessionNotifier(notifier)
 
 	result, err := service.Accept(context.Background(), IngressRequest{
 		Channel: "internal",
@@ -65,6 +83,9 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 	if handler.requests[0].PermissionHandler == nil {
 		t.Fatal("internal ingress 应注入权限处理器")
 	}
+	if handler.requests[0].ExternalReplyTarget != nil {
+		t.Fatalf("internal ingress 不应携带外部回复目标: %+v", handler.requests[0].ExternalReplyTarget)
+	}
 
 	route, err := router.GetLastRoute(context.Background(), cfg.DefaultAgentID)
 	if err != nil {
@@ -72,6 +93,9 @@ func TestIngressServiceAcceptInternalBuildsSessionAndRemembersRoute(t *testing.T
 	}
 	if route == nil || route.Channel != ChannelTypeInternal || route.SessionKey != result.SessionKey {
 		t.Fatalf("internal route 记忆不正确: %+v", route)
+	}
+	if len(notifier.calls) != 0 {
+		t.Fatalf("internal ingress 不应触发外部 session 通知: %+v", notifier.calls)
 	}
 
 	decision, err := handler.requests[0].PermissionHandler(context.Background(), sdkpermission.Request{
@@ -103,8 +127,10 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 
 	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
 	handler := &fakeIngressDMHandler{}
+	notifier := &fakeExternalSessionNotifier{}
 	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
 	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetExternalSessionNotifier(notifier)
 
 	result, err := service.Accept(context.Background(), IngressRequest{
 		Channel:  "feishu",
@@ -122,12 +148,78 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 	if result.RememberedDelivery == nil {
 		t.Fatal("feishu ingress 应记录回投目标")
 	}
+	if len(handler.requests) != 1 {
+		t.Fatalf("聊天请求数量不正确: %d", len(handler.requests))
+	}
+	if !handler.requests[0].BroadcastUserMessage {
+		t.Fatal("feishu ingress 应实时广播用户输入")
+	}
+	replyTarget := handler.requests[0].ExternalReplyTarget
+	if replyTarget == nil || replyTarget.Channel != ChannelTypeFeishu || replyTarget.To != "oc_group_123" {
+		t.Fatalf("feishu DM 请求应携带外部回复目标: %+v", replyTarget)
+	}
 	route, err := router.GetLastRoute(context.Background(), cfg.DefaultAgentID)
 	if err != nil {
 		t.Fatalf("读取 last route 失败: %v", err)
 	}
 	if route == nil || route.Channel != ChannelTypeFeishu || route.To != "oc_group_123" {
 		t.Fatalf("feishu route 记忆不正确: %+v", route)
+	}
+}
+
+func TestIngressServiceAcceptWeixinPersonalPassesReplyTarget(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	handler := &fakeIngressDMHandler{}
+	notifier := &fakeExternalSessionNotifier{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetExternalSessionNotifier(notifier)
+
+	result, err := service.Accept(context.Background(), IngressRequest{
+		Channel:  ChannelTypeWeixinPersonal,
+		ChatType: "dm",
+		Ref:      "wx-user-1",
+		Content:  "你好",
+		Delivery: &DeliveryTarget{
+			Mode:      DeliveryModeExplicit,
+			Channel:   ChannelTypeWeixinPersonal,
+			To:        "wx-user-1",
+			AccountID: "bot-agent-1",
+			ThreadID:  "context-token-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Accept 失败: %v", err)
+	}
+
+	if result.SessionKey != "agent:nexus:weixin-personal:dm:wx-user-1" {
+		t.Fatalf("个人微信 session_key 不正确: %s", result.SessionKey)
+	}
+	if len(handler.requests) != 1 {
+		t.Fatalf("聊天请求数量不正确: %d", len(handler.requests))
+	}
+	if !handler.requests[0].BroadcastUserMessage {
+		t.Fatal("个人微信 ingress 应实时广播用户输入")
+	}
+	replyTarget := handler.requests[0].ExternalReplyTarget
+	if replyTarget == nil {
+		t.Fatal("个人微信 DM 请求应携带外部回复目标")
+	}
+	if replyTarget.Channel != ChannelTypeWeixinPersonal ||
+		replyTarget.To != "wx-user-1" ||
+		replyTarget.AccountID != "bot-agent-1" ||
+		replyTarget.ThreadID != "context-token-1" {
+		t.Fatalf("个人微信外部回复目标不正确: %+v", replyTarget)
+	}
+	if len(notifier.calls) != 1 {
+		t.Fatalf("个人微信 ingress 应触发一次外部 session 通知，实际: %+v", notifier.calls)
+	}
+	if notifier.calls[0].agentID != cfg.DefaultAgentID || notifier.calls[0].sessionKey != result.SessionKey {
+		t.Fatalf("个人微信外部 session 通知内容不正确: %+v", notifier.calls[0])
 	}
 }
 

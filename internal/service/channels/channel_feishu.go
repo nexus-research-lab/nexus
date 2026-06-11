@@ -12,23 +12,58 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	larkevent "github.com/larksuite/oapi-sdk-go/v3/event"
+	larkdispatcher "github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 )
 
 type feishuChannel struct {
-	appID       string
-	appSecret   string
-	client      *http.Client
-	baseURL     string
-	ownerUserID string
+	appID             string
+	appSecret         string
+	client            *http.Client
+	baseURL           string
+	ownerUserID       string
+	verificationToken string
+	encryptKey        string
+	connectionMode    string
+	replyInThread     bool
 
 	mu             sync.Mutex
 	tenantToken    string
 	tokenExpiresAt time.Time
+	ingress        IngressAcceptor
+	cancel         context.CancelFunc
+	eventClient    feishuEventClient
+	eventFactory   feishuEventClientFactory
+	typingReacts   map[string]string
+}
+
+type feishuEventClient interface {
+	Start(context.Context) error
+	Close()
+}
+
+type feishuEventClientFactory func(feishuEventClientConfig) feishuEventClient
+
+type feishuEventClientConfig struct {
+	AppID             string
+	AppSecret         string
+	BaseURL           string
+	VerificationToken string
+	EncryptKey        string
+	OnReady           func()
+	OnError           func(error)
+	OnMessage         func(context.Context, *larkim.P2MessageReceiveV1) error
+	OnReaction        func(context.Context, *larkim.P2MessageReactionCreatedV1) error
 }
 
 type feishuTenantTokenEnvelope struct {
@@ -39,8 +74,17 @@ type feishuTenantTokenEnvelope struct {
 }
 
 type feishuMessageEnvelope struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
+	Code int                       `json:"code"`
+	Msg  string                    `json:"msg"`
+	Data feishuMessageResponseData `json:"data,omitempty"`
+}
+
+type feishuMessageResponseData struct {
+	MessageID  string `json:"message_id,omitempty"`
+	RootID     string `json:"root_id,omitempty"`
+	ParentID   string `json:"parent_id,omitempty"`
+	ThreadID   string `json:"thread_id,omitempty"`
+	ReactionID string `json:"reaction_id,omitempty"`
 }
 
 var ErrFeishuCallbackUnauthorized = errors.New("feishu callback verification failed")
@@ -72,10 +116,12 @@ func newFeishuChannel(appID string, appSecret string, client *http.Client) *feis
 		client = defaultChannelHTTPClient
 	}
 	return &feishuChannel{
-		appID:     strings.TrimSpace(appID),
-		appSecret: strings.TrimSpace(appSecret),
-		client:    client,
-		baseURL:   "https://open.feishu.cn",
+		appID:          strings.TrimSpace(appID),
+		appSecret:      strings.TrimSpace(appSecret),
+		client:         client,
+		baseURL:        "https://open.feishu.cn",
+		connectionMode: "websocket",
+		eventFactory:   newFeishuSDKEventClient,
 	}
 }
 
@@ -84,19 +130,188 @@ func (c *feishuChannel) WithOwner(ownerUserID string) *feishuChannel {
 	return c
 }
 
+func (c *feishuChannel) WithEventSecurity(verificationToken string, encryptKey string) *feishuChannel {
+	c.verificationToken = strings.TrimSpace(verificationToken)
+	c.encryptKey = strings.TrimSpace(encryptKey)
+	return c
+}
+
+func (c *feishuChannel) WithConnectionMode(mode string) *feishuChannel {
+	c.connectionMode = normalizeFeishuConnectionMode(mode)
+	return c
+}
+
+func (c *feishuChannel) WithReplyInThread(value string) *feishuChannel {
+	c.replyInThread = normalizeFeishuReplyInThread(value)
+	return c
+}
+
 func (c *feishuChannel) ChannelType() string {
 	return ChannelTypeFeishu
 }
 
-func (c *feishuChannel) Start(context.Context) error {
+func (c *feishuChannel) SetIngress(ingress IngressAcceptor) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ingress = ingress
+}
+
+func (c *feishuChannel) Start(ctx context.Context) error {
 	if strings.TrimSpace(c.appID) == "" || strings.TrimSpace(c.appSecret) == "" {
 		return fmt.Errorf("feishu channel is not configured")
+	}
+	if normalizeFeishuConnectionMode(c.connectionMode) == "webhook" {
+		return nil
+	}
+
+	ready := make(chan struct{}, 1)
+	startErr := make(chan error, 1)
+	runCtx, cancel := context.WithCancel(ctx)
+	client := c.eventFactory(feishuEventClientConfig{
+		AppID:             c.appID,
+		AppSecret:         c.appSecret,
+		BaseURL:           c.baseURL,
+		VerificationToken: c.verificationToken,
+		EncryptKey:        c.encryptKey,
+		OnReady: func() {
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+		},
+		OnError: func(err error) {
+			if err == nil {
+				return
+			}
+			select {
+			case startErr <- err:
+			default:
+			}
+		},
+		OnMessage:  c.handleSDKMessage,
+		OnReaction: c.handleSDKReaction,
+	})
+
+	c.mu.Lock()
+	if c.eventClient != nil {
+		cancel()
+		c.mu.Unlock()
+		return nil
+	}
+	c.cancel = cancel
+	c.eventClient = client
+	c.mu.Unlock()
+
+	go func() {
+		if err := client.Start(runCtx); err != nil {
+			select {
+			case startErr <- err:
+			default:
+			}
+		}
+	}()
+
+	select {
+	case <-ready:
+		return nil
+	case err := <-startErr:
+		c.clearEventClient(client)
+		client.Close()
+		cancel()
+		return err
+	case <-time.After(8 * time.Second):
+		return nil
+	case <-ctx.Done():
+		c.clearEventClient(client)
+		client.Close()
+		cancel()
+		return ctx.Err()
+	}
+}
+
+func (c *feishuChannel) clearEventClient(client feishuEventClient) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.eventClient == client {
+		c.eventClient = nil
+		c.cancel = nil
+	}
+}
+
+func (c *feishuChannel) Stop(context.Context) error {
+	c.mu.Lock()
+	cancel := c.cancel
+	client := c.eventClient
+	c.cancel = nil
+	c.eventClient = nil
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if client != nil {
+		client.Close()
 	}
 	return nil
 }
 
-func (c *feishuChannel) Stop(context.Context) error {
+func (c *feishuChannel) handleSDKMessage(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+	if event == nil {
+		return nil
+	}
+	raw, err := feishuSDKEventRaw(event.EventReq, event)
+	if err != nil {
+		return err
+	}
+	callback, err := DecodeFeishuIngressCallback(raw)
+	if err != nil {
+		return err
+	}
+	return c.acceptDecodedIngress(ctx, callback)
+}
+
+func (c *feishuChannel) handleSDKReaction(ctx context.Context, event *larkim.P2MessageReactionCreatedV1) error {
+	if event == nil {
+		return nil
+	}
+	raw, err := feishuSDKEventRaw(event.EventReq, event)
+	if err != nil {
+		return err
+	}
+	callback, err := DecodeFeishuIngressCallback(raw)
+	if err != nil {
+		return err
+	}
+	return c.acceptDecodedIngress(ctx, callback)
+}
+
+func feishuSDKEventRaw(eventReq *larkevent.EventReq, fallback any) ([]byte, error) {
+	if eventReq != nil && len(bytes.TrimSpace(eventReq.Body)) > 0 {
+		return bytes.TrimSpace(eventReq.Body), nil
+	}
+	return json.Marshal(fallback)
+}
+
+func (c *feishuChannel) acceptDecodedIngress(ctx context.Context, callback FeishuIngressCallback) error {
+	ingress := c.currentIngress()
+	if ingress == nil || callback.Request == nil {
+		return nil
+	}
+	callback.Request.OwnerUserID = c.ownerUserID
+	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	if _, err := ingress.Accept(requestCtx, *callback.Request); err != nil {
+		if errors.Is(err, ErrPairingApprovalRequired) {
+			return nil
+		}
+		return err
+	}
 	return nil
+}
+
+func (c *feishuChannel) currentIngress() IngressAcceptor {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ingress
 }
 
 func (c *feishuChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
@@ -109,11 +324,56 @@ func (c *feishuChannel) SendDeliveryText(ctx context.Context, target DeliveryTar
 	}
 	receiveIDType := normalizeFeishuReceiveIDType(target.AccountID)
 	for _, chunk := range splitText(strings.TrimSpace(text), 4500) {
-		if err = c.sendTextChunk(ctx, token, receiveIDType, target.To, chunk); err != nil {
+		if strings.TrimSpace(target.ThreadID) != "" {
+			err = c.replyTextChunk(ctx, token, target.ThreadID, chunk)
+		} else {
+			err = c.sendTextChunk(ctx, token, receiveIDType, target.To, chunk)
+		}
+		if err != nil {
 			c.clearTenantAccessToken()
 			return err
 		}
 	}
+	return nil
+}
+
+func (c *feishuChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
+	messageID := strings.TrimSpace(target.ThreadID)
+	if messageID == "" {
+		return nil
+	}
+	token, err := c.tenantAccessToken(ctx)
+	if err != nil {
+		return err
+	}
+	if active {
+		reactionID, err := c.addMessageReaction(ctx, token, messageID, "Typing")
+		if err != nil {
+			return nil
+		}
+		if strings.TrimSpace(reactionID) == "" {
+			return nil
+		}
+		c.mu.Lock()
+		if c.typingReacts == nil {
+			c.typingReacts = make(map[string]string)
+		}
+		c.typingReacts[messageID] = reactionID
+		c.mu.Unlock()
+		return nil
+	}
+
+	c.mu.Lock()
+	reactionID := ""
+	if c.typingReacts != nil {
+		reactionID = c.typingReacts[messageID]
+		delete(c.typingReacts, messageID)
+	}
+	c.mu.Unlock()
+	if reactionID == "" {
+		return nil
+	}
+	_ = c.deleteMessageReaction(ctx, token, messageID, reactionID)
 	return nil
 }
 
@@ -222,6 +482,102 @@ func (c *feishuChannel) sendTextChunk(ctx context.Context, token string, receive
 	return nil
 }
 
+func (c *feishuChannel) replyTextChunk(ctx context.Context, token string, messageID string, text string) error {
+	content, err := json.Marshal(map[string]string{"text": text})
+	if err != nil {
+		return err
+	}
+	payload := map[string]any{
+		"msg_type": "text",
+		"content":  string(content),
+	}
+	if c.replyInThread {
+		payload["reply_in_thread"] = true
+	}
+	endpoint := strings.TrimRight(c.baseURL, "/") +
+		"/open-apis/im/v1/messages/" +
+		url.PathEscape(strings.TrimSpace(messageID)) +
+		"/reply"
+	var envelope feishuMessageEnvelope
+	if err = c.doFeishuJSON(ctx, http.MethodPost, token, endpoint, payload, &envelope); err != nil {
+		return err
+	}
+	if envelope.Code != 0 {
+		return fmt.Errorf("feishu reply message failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
+	}
+	return nil
+}
+
+func (c *feishuChannel) addMessageReaction(ctx context.Context, token string, messageID string, emojiType string) (string, error) {
+	payload := map[string]any{
+		"reaction_type": map[string]string{
+			"emoji_type": strings.TrimSpace(emojiType),
+		},
+	}
+	endpoint := strings.TrimRight(c.baseURL, "/") +
+		"/open-apis/im/v1/messages/" +
+		url.PathEscape(strings.TrimSpace(messageID)) +
+		"/reactions"
+	var envelope feishuMessageEnvelope
+	if err := c.doFeishuJSON(ctx, http.MethodPost, token, endpoint, payload, &envelope); err != nil {
+		return "", err
+	}
+	if envelope.Code != 0 {
+		return "", fmt.Errorf("feishu add reaction failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
+	}
+	return strings.TrimSpace(envelope.Data.ReactionID), nil
+}
+
+func (c *feishuChannel) deleteMessageReaction(ctx context.Context, token string, messageID string, reactionID string) error {
+	endpoint := strings.TrimRight(c.baseURL, "/") +
+		"/open-apis/im/v1/messages/" +
+		url.PathEscape(strings.TrimSpace(messageID)) +
+		"/reactions/" +
+		url.PathEscape(strings.TrimSpace(reactionID))
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	response, err := c.client.Do(request)
+	if err != nil {
+		return err
+	}
+	var envelope feishuMessageEnvelope
+	if err = decodeFeishuEnvelope(response, &envelope); err != nil {
+		return err
+	}
+	if envelope.Code != 0 {
+		return fmt.Errorf("feishu delete reaction failed: code=%d msg=%s", envelope.Code, strings.TrimSpace(envelope.Msg))
+	}
+	return nil
+}
+
+func (c *feishuChannel) doFeishuJSON(
+	ctx context.Context,
+	method string,
+	token string,
+	endpoint string,
+	payload any,
+	target any,
+) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	request.Header.Set("Content-Type", "application/json")
+	response, err := c.client.Do(request)
+	if err != nil {
+		return err
+	}
+	return decodeFeishuEnvelope(response, target)
+}
+
 func (c *feishuChannel) clearTenantAccessToken() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -242,6 +598,78 @@ func decodeFeishuEnvelope(response *http.Response, target any) error {
 		return err
 	}
 	return nil
+}
+
+func newFeishuSDKEventClient(config feishuEventClientConfig) feishuEventClient {
+	sdkLogger := feishuSDKLogger{}
+	dispatcher := larkdispatcher.NewEventDispatcher(config.VerificationToken, config.EncryptKey)
+	dispatcher.InitConfig(larkevent.WithLogger(sdkLogger), larkevent.WithLogLevel(larkcore.LogLevelWarn))
+	dispatcher.OnP2MessageReceiveV1(config.OnMessage)
+	if config.OnReaction != nil {
+		dispatcher.OnP2MessageReactionCreatedV1(config.OnReaction)
+	}
+	options := []larkws.ClientOption{
+		larkws.WithEventHandler(dispatcher),
+		larkws.WithLogLevel(larkcore.LogLevelWarn),
+		larkws.WithLogger(sdkLogger),
+		larkws.WithOnReady(config.OnReady),
+		larkws.WithOnError(config.OnError),
+	}
+	if baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"); baseURL != "" {
+		options = append(options, larkws.WithDomain(baseURL))
+	}
+	return larkws.NewClient(config.AppID, config.AppSecret, options...)
+}
+
+func normalizeFeishuConnectionMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "webhook", "http", "callback":
+		return "webhook"
+	default:
+		return "websocket"
+	}
+}
+
+func normalizeFeishuReplyInThread(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on", "enabled", "enable":
+		return true
+	default:
+		return false
+	}
+}
+
+type feishuSDKLogger struct{}
+
+func (feishuSDKLogger) Debug(context.Context, ...interface{}) {}
+
+func (feishuSDKLogger) Info(context.Context, ...interface{}) {}
+
+func (feishuSDKLogger) Warn(ctx context.Context, args ...interface{}) {
+	detail := formatFeishuSDKLog(args...)
+	if detail == "" || isFeishuSDKExpectedCloseLog(detail) {
+		return
+	}
+	slog.Default().WarnContext(ctx, "飞书 SDK 长连接警告", "detail", detail)
+}
+
+func (feishuSDKLogger) Error(ctx context.Context, args ...interface{}) {
+	detail := formatFeishuSDKLog(args...)
+	if detail == "" || isFeishuSDKExpectedCloseLog(detail) {
+		return
+	}
+	slog.Default().ErrorContext(ctx, "飞书 SDK 长连接错误", "detail", detail)
+}
+
+func formatFeishuSDKLog(args ...interface{}) string {
+	return strings.TrimSpace(fmt.Sprint(args...))
+}
+
+func isFeishuSDKExpectedCloseLog(detail string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(detail))
+	return strings.Contains(normalized, "use of closed network connection") ||
+		strings.Contains(normalized, "connection is closed, receive message loop exit") ||
+		strings.Contains(normalized, "websocket: close 1000")
 }
 
 func normalizeFeishuReceiveIDType(value string) string {
@@ -366,24 +794,35 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 		return callback, nil
 	}
 
-	eventType := firstNonEmpty(payload.Header.EventType, payload.Type)
-	if eventType != "im.message.receive_v1" {
+	eventType := strings.TrimSpace(firstNonEmpty(payload.Header.EventType, payload.Type))
+	switch eventType {
+	case "im.message.receive_v1":
+		callback.Request = decodeFeishuMessageIngress(payload, &callback)
+	case "im.message.reaction.created_v1":
+		callback.Request = decodeFeishuReactionIngress(payload, &callback)
+	case "im.message.message_read_v1", "im.message.reaction.deleted_v1":
+		callback.IgnoredReason = "ignored_event_type"
+	default:
 		callback.IgnoredReason = "unsupported_event_type"
 		return callback, nil
 	}
+	return callback, nil
+}
+
+func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *FeishuIngressCallback) *IngressRequest {
 	if isFeishuBotSender(payload.Event.Sender.SenderType) {
 		callback.IgnoredReason = "bot_message"
-		return callback, nil
+		return nil
 	}
 	message := payload.Event.Message
 	if strings.TrimSpace(message.MessageID) == "" && strings.TrimSpace(message.ChatID) == "" {
 		callback.IgnoredReason = "empty_message"
-		return callback, nil
+		return nil
 	}
 	content := feishuMessageText(message)
 	if content == "" {
 		callback.IgnoredReason = "empty_text"
-		return callback, nil
+		return nil
 	}
 
 	ref := strings.TrimSpace(message.ChatID)
@@ -393,13 +832,15 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 	}
 	if ref == "" {
 		callback.IgnoredReason = "empty_ref"
-		return callback, nil
+		return nil
 	}
+	threadID := firstNonEmpty(message.ThreadID, message.RootID)
 
-	callback.Request = &IngressRequest{
+	return &IngressRequest{
 		Channel:      ChannelTypeFeishu,
 		ChatType:     normalizeFeishuChatType(message.ChatType),
 		Ref:          ref,
+		ThreadID:     threadID,
 		Content:      content,
 		RoundID:      firstNonEmpty(payload.Header.EventID, message.MessageID),
 		ReqID:        firstNonEmpty(message.MessageID, payload.Header.EventID),
@@ -409,9 +850,63 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 			Channel:   ChannelTypeFeishu,
 			To:        ref,
 			AccountID: accountID,
+			ThreadID:  strings.TrimSpace(message.MessageID),
 		},
 	}
-	return callback, nil
+}
+
+func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *FeishuIngressCallback) *IngressRequest {
+	emoji := strings.TrimSpace(payload.Event.ReactionType.EmojiType)
+	messageID := strings.TrimSpace(payload.Event.MessageID)
+	senderID, _ := feishuSenderRef(payload.Event.UserID)
+	if emoji == "" || messageID == "" || senderID == "" {
+		callback.IgnoredReason = "empty_reaction"
+		return nil
+	}
+	if isFeishuBotSender(payload.Event.OperatorType) {
+		callback.IgnoredReason = "bot_reaction"
+		return nil
+	}
+	if strings.EqualFold(emoji, "Typing") {
+		callback.IgnoredReason = "typing_reaction"
+		return nil
+	}
+
+	ref := strings.TrimSpace(payload.Event.ChatID)
+	accountID := "chat_id"
+	if ref == "" {
+		ref = senderID
+		accountID = "open_id"
+	}
+	if ref == "" {
+		callback.IgnoredReason = "empty_ref"
+		return nil
+	}
+
+	threadID := firstNonEmpty(payload.Event.ThreadID, payload.Event.RootID)
+	reqID := strings.Join([]string{
+		messageID,
+		"reaction",
+		emoji,
+		firstNonEmpty(payload.Header.EventID, payload.Event.ActionTime),
+	}, ":")
+	return &IngressRequest{
+		Channel:      ChannelTypeFeishu,
+		ChatType:     normalizeFeishuChatType(payload.Event.ChatType),
+		Ref:          ref,
+		ThreadID:     threadID,
+		Content:      fmt.Sprintf("[reacted with %s to message %s]", emoji, messageID),
+		RoundID:      firstNonEmpty(payload.Header.EventID, reqID),
+		ReqID:        reqID,
+		ExternalName: strings.TrimSpace(payload.Event.ChatID),
+		Delivery: &DeliveryTarget{
+			Mode:      DeliveryModeExplicit,
+			Channel:   ChannelTypeFeishu,
+			To:        ref,
+			AccountID: accountID,
+			ThreadID:  messageID,
+		},
+	}
 }
 
 type feishuEventCallbackPayload struct {
@@ -430,9 +925,19 @@ type feishuEventHeader struct {
 }
 
 type feishuEventPayload struct {
-	AppID   string             `json:"app_id"`
-	Sender  feishuEventSender  `json:"sender"`
-	Message feishuEventMessage `json:"message"`
+	AppID        string              `json:"app_id"`
+	Sender       feishuEventSender   `json:"sender"`
+	Message      feishuEventMessage  `json:"message"`
+	MessageID    string              `json:"message_id"`
+	ChatID       string              `json:"chat_id"`
+	ChatType     string              `json:"chat_type"`
+	ThreadID     string              `json:"thread_id"`
+	RootID       string              `json:"root_id"`
+	ParentID     string              `json:"parent_id"`
+	ReactionType feishuReactionType  `json:"reaction_type"`
+	OperatorType string              `json:"operator_type"`
+	UserID       feishuEventSenderID `json:"user_id"`
+	ActionTime   string              `json:"action_time"`
 }
 
 type feishuEventSender struct {
@@ -448,10 +953,18 @@ type feishuEventSenderID struct {
 
 type feishuEventMessage struct {
 	MessageID   string `json:"message_id"`
+	RootID      string `json:"root_id"`
+	ParentID    string `json:"parent_id"`
+	ThreadID    string `json:"thread_id"`
 	ChatID      string `json:"chat_id"`
 	ChatType    string `json:"chat_type"`
 	MessageType string `json:"message_type"`
 	Content     string `json:"content"`
+	CreateTime  string `json:"create_time"`
+}
+
+type feishuReactionType struct {
+	EmojiType string `json:"emoji_type"`
 }
 
 func feishuMessageText(message feishuEventMessage) string {

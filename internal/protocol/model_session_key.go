@@ -17,6 +17,8 @@ const (
 	SessionChannelDingTalkSegment = "dt"
 	// SessionChannelWeChatSegment 表示 session_key 中的微信通道段。
 	SessionChannelWeChatSegment = "wx"
+	// SessionChannelWeixinPersonalSegment 表示个人微信 iLink 通道段。
+	SessionChannelWeixinPersonalSegment = "weixin-personal"
 	// SessionChannelFeishuSegment 表示 session_key 中的飞书通道段。
 	SessionChannelFeishuSegment = "fs"
 	// SessionChannelInternalSegment 表示 session_key 中的内部通道段。
@@ -32,6 +34,8 @@ const (
 	SessionChannelDingTalk = "dingtalk"
 	// SessionChannelWeChat 表示持久化后的微信通道类型。
 	SessionChannelWeChat = "wechat"
+	// SessionChannelWeixinPersonal 表示持久化后的个人微信 iLink 通道类型。
+	SessionChannelWeixinPersonal = "weixin-personal"
 	// SessionChannelFeishu 表示持久化后的飞书通道类型。
 	SessionChannelFeishu = "feishu"
 
@@ -265,6 +269,8 @@ func NormalizeSessionKeyChannelSegment(channel string) string {
 		return SessionChannelDingTalkSegment
 	case SessionChannelWeChatSegment, SessionChannelWeChat:
 		return SessionChannelWeChatSegment
+	case SessionChannelWeixinPersonalSegment:
+		return SessionChannelWeixinPersonalSegment
 	case SessionChannelFeishuSegment, SessionChannelFeishu:
 		return SessionChannelFeishuSegment
 	case SessionChannelInternalSegment:
@@ -287,6 +293,8 @@ func NormalizeStoredChannelType(channel string) string {
 		return SessionChannelDingTalk
 	case SessionChannelWeChatSegment, SessionChannelWeChat:
 		return SessionChannelWeChat
+	case SessionChannelWeixinPersonalSegment:
+		return SessionChannelWeixinPersonal
 	case SessionChannelFeishuSegment, SessionChannelFeishu:
 		return SessionChannelFeishu
 	case SessionChannelInternalSegment:

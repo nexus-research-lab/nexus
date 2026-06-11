@@ -47,6 +47,8 @@ export interface LauncherConversationSummary {
   room_id?: string;
   conversation_id?: string;
   room_type: "dm" | "room";
+  channel_type?: string;
+  chat_type?: "dm" | "group" | string;
   title: string;
   status?: string;
   is_active?: boolean;

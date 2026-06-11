@@ -51,7 +51,7 @@ func createSchema() map[string]any {
 			"selected_reply_session_key": map[string]any{"type": "string", "description": "reply_mode=selected 时填：接收结果的会话 key"},
 			"reply_agent_id":             map[string]any{"type": "string", "description": "reply_mode=agent 时可填：接收结果的智能体；缺省=任务目标智能体"},
 			"reply_session_key":          map[string]any{"type": "string", "description": "reply_mode=channel 时可填：结构化 IM/session key，如 agent:<agent_id>:fs:group:<chat_id>；当前会话就是结构化外部 IM 群时可省略"},
-			"reply_channel":              map[string]any{"type": "string", "description": "reply_mode=channel 时填：websocket/internal/telegram/discord/dingtalk/feishu 等通道"},
+			"reply_channel":              map[string]any{"type": "string", "description": "reply_mode=channel 时填：websocket/internal/telegram/discord/dingtalk/wechat/weixin-personal/feishu 等通道"},
 			"reply_to":                   map[string]any{"type": "string", "description": "reply_mode=channel 时填：目标会话 key、外部群/频道 id 或 chat_id"},
 			"reply_account_id":           map[string]any{"type": "string", "description": "reply_mode=channel 时可填：多账号通道账号 id"},
 			"reply_thread_id":            map[string]any{"type": "string", "description": "reply_mode=channel 时可填：话题/线程 id"},

@@ -16,6 +16,7 @@ import {
   list_agent_private_events_api,
   list_agent_private_threads_api,
 } from "@/lib/api/agent-private-domain-api";
+import { is_external_session_conversation_id } from "@/features/conversation/external-session-labels";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import {
   cn,
@@ -50,13 +51,14 @@ export function AgentPrivateDomainView({
   const [events_loading, set_events_loading] = useState(false);
   const [error, set_error] = useState<string | null>(null);
   const is_preview = variant === "preview";
+  const is_external_session_conversation = is_external_session_conversation_id(conversation_id);
 
   const query = useMemo<AgentPrivateDomainQuery>(() => ({
     room_id,
-    conversation_id,
+    conversation_id: is_external_session_conversation ? null : conversation_id,
     limit: is_preview ? 16 : 80,
     room_limit: is_preview ? 1 : 160,
-  }), [conversation_id, is_preview, room_id]);
+  }), [conversation_id, is_external_session_conversation, is_preview, room_id]);
 
   const load_threads = useCallback(async () => {
     set_threads_loading(true);

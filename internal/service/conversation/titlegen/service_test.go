@@ -206,6 +206,63 @@ func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	}
 }
 
+func TestScheduleUpdatesDefaultSessionTitleAfterInitialMessage(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "微信问候",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:weixin-personal:dm:wx-user-1": {
+				SessionKey: "agent:a:weixin-personal:dm:wx-user-1",
+				Title:      "New Chat",
+			},
+		},
+	}
+	events := &fakeEventBroadcaster{}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "glm",
+				AuthToken: "token-2",
+				BaseURL:   server.URL,
+				Model:     "glm-5.1",
+			},
+		},
+		sessionStore,
+		nil,
+		events,
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:          "agent:a:weixin-personal:dm:wx-user-1",
+		Content:             "你好",
+		SessionTitle:        "New Chat",
+		SessionMessageCount: 8,
+	})
+
+	if got := sessionStore.sessions["agent:a:weixin-personal:dm:wx-user-1"].Title; got != "微信问候" {
+		t.Fatalf("默认标题的历史 session 应继续补生成标题: %s", got)
+	}
+	if len(events.events) == 0 {
+		t.Fatal("标题更新后应广播 resync")
+	}
+}
+
 func TestFillEmptyPreviewFromGoalUpdatesDefaultSessionTitle(t *testing.T) {
 	t.Parallel()
 

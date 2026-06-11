@@ -529,7 +529,7 @@ func (r Request) shouldGenerateTitle() bool {
 
 func (r Request) shouldCheckSessionTitle() bool {
 	return strings.TrimSpace(r.SessionKey) != "" &&
-		r.SessionMessageCount == 0
+		(r.SessionMessageCount == 0 || isDefaultSessionTitle(r.SessionTitle))
 }
 
 func (r Request) shouldCheckConversationTitle() bool {

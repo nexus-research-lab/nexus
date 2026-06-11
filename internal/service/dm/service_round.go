@@ -46,33 +46,34 @@ func (a dmRoundMapperAdapter) SessionID() string {
 }
 
 type roundRunner struct {
-	service            *Service
-	workspacePath      string
-	session            protocol.Session
-	agent              *protocol.Agent
-	sessionKey         string
-	roundID            string
-	reqID              string
-	content            string
-	runtimeContent     conversationsvc.RuntimeContent
-	client             runtimectx.Client
-	runtimeKind        string
-	runtimeProvider    string
-	runtimeModel       string
-	ownerUserID        string
-	mapper             *dmdomain.MessageMapper
-	inputOptions       sdkprotocol.OutboundMessageOptions
-	internal           bool
-	goalContext        string
-	goalIDForUsage     string
-	goalUsage          *goalsvc.RuntimeUsageAccumulator
-	goalUsageStarted   time.Time
-	goalUsageMu        sync.Mutex
-	goalLastAssistant  protocol.Message
-	goalToolProgress   bool
-	permissionMode     sdkpermission.Mode
-	permissionHandler  sdkpermission.Handler
-	resultUsageWritten bool
+	service             *Service
+	workspacePath       string
+	session             protocol.Session
+	agent               *protocol.Agent
+	sessionKey          string
+	roundID             string
+	reqID               string
+	content             string
+	runtimeContent      conversationsvc.RuntimeContent
+	client              runtimectx.Client
+	runtimeKind         string
+	runtimeProvider     string
+	runtimeModel        string
+	ownerUserID         string
+	mapper              *dmdomain.MessageMapper
+	inputOptions        sdkprotocol.OutboundMessageOptions
+	internal            bool
+	externalReplyTarget *ExternalReplyTarget
+	goalContext         string
+	goalIDForUsage      string
+	goalUsage           *goalsvc.RuntimeUsageAccumulator
+	goalUsageStarted    time.Time
+	goalUsageMu         sync.Mutex
+	goalLastAssistant   protocol.Message
+	goalToolProgress    bool
+	permissionMode      sdkpermission.Mode
+	permissionHandler   sdkpermission.Handler
+	resultUsageWritten  bool
 }
 
 func (r *roundRunner) run(ctx context.Context) {
@@ -82,6 +83,8 @@ func (r *roundRunner) run(ctx context.Context) {
 		"round_id", r.roundID,
 	)
 	logger.Info("开始执行 DM round")
+	stopTyping := r.startExternalReplyTyping(context.Background())
+	defer stopTyping()
 	result, err := r.executeRound(ctx, logger)
 	if err != nil {
 		if errors.Is(err, runtimectx.ErrRoundInterrupted) {
@@ -100,11 +103,15 @@ func (r *roundRunner) run(ctx context.Context) {
 		"result_subtype", result.ResultSubtype,
 		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
-	r.recordGoalUsage(context.Background(), result, r.mapper.LastAssistantMessage())
+	finalAssistant := r.mapper.LastAssistantMessage()
+	if result.CompletedByAssistant {
+		r.deliverExternalAssistantReply(context.Background(), finalAssistant)
+	}
+	r.recordGoalUsage(context.Background(), result, finalAssistant)
 	r.recordGoalUsageLimit(result)
 	r.recordGoalContinuationProgress(result)
 	if result.CompletedByAssistant {
-		r.recordTerminalAssistantUsage(r.mapper.LastAssistantMessage())
+		r.recordTerminalAssistantUsage(finalAssistant)
 		go r.commitMemoryTurn()
 	}
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)

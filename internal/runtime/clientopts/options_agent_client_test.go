@@ -391,6 +391,9 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 }
 
 func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T) {
+	t.Setenv(nexusAgentRuntimeKindEnvName, "")
+	t.Setenv(nexusAgentRuntimeEnvName, "")
+
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
 			AuthToken: "token-1",

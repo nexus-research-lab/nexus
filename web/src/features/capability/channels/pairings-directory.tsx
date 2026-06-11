@@ -36,7 +36,8 @@ import type { Agent } from "@/types/agent/agent";
 
 const CHANNEL_LABELS: Record<ImChannelType, string> = {
   dingtalk: "钉钉",
-  wechat: "微信",
+  wechat: "企业微信",
+  "weixin-personal": "个人微信",
   feishu: "飞书",
   telegram: "Telegram",
   discord: "Discord",
@@ -88,7 +89,7 @@ export function PairingsDirectory() {
       || item.external_ref.toLowerCase().includes(normalized_query)
       || (item.thread_id ?? "").toLowerCase().includes(normalized_query)
       || (item.agent_name ?? "").toLowerCase().includes(normalized_query)
-      || CHANNEL_LABELS[item.channel_type].toLowerCase().includes(normalized_query),
+      || (CHANNEL_LABELS[item.channel_type] ?? item.channel_type).toLowerCase().includes(normalized_query),
     );
   }, [items, query]);
   const filtered_count = visible_items.length;
@@ -232,7 +233,7 @@ export function PairingsDirectory() {
                 >
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <UiBadge>{CHANNEL_LABELS[item.channel_type]}</UiBadge>
+                      <UiBadge>{CHANNEL_LABELS[item.channel_type] ?? item.channel_type}</UiBadge>
                       <UiBadge tone={status_tone(item.status)}>
                         {STATUS_LABELS[item.status]}
                       </UiBadge>

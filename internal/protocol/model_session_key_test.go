@@ -38,3 +38,12 @@ func TestRequireStructuredSessionKeyRejectsPlainShape(t *testing.T) {
 		t.Fatal("非结构化 key 不应通过校验")
 	}
 }
+
+func TestNormalizePersonalWeixinChannel(t *testing.T) {
+	if got := NormalizeStoredChannelType("weixin-personal"); got != SessionChannelWeixinPersonal {
+		t.Fatalf("个人微信通道应保持规范名称，实际 %q", got)
+	}
+	if got := NormalizeSessionKeyChannelSegment("weixin-personal"); got != SessionChannelWeixinPersonalSegment {
+		t.Fatalf("个人微信 session_key 段应保持规范名称，实际 %q", got)
+	}
+}

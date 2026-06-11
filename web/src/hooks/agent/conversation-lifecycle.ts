@@ -1,4 +1,5 @@
 import { get_message_history_round_page_size } from "@/config/options";
+import { get_session_messages_api } from "@/lib/api/agent-api";
 import { get_room_conversation_messages } from '@/lib/api/room-api';
 import { build_room_shared_session_key, build_session_key } from '@/lib/conversation/session-key';
 import { generate_uuid } from '@/lib/uuid';
@@ -82,17 +83,17 @@ export async function load_agent_session(
   }
 
   try {
-    if (!context.identity?.room_id || !context.identity?.conversation_id) {
-      throw new Error('room_id 与 conversation_id 不能为空');
-    }
-
-    const data = await get_room_conversation_messages(
-      context.identity.room_id,
-      context.identity.conversation_id,
-      {
+    const data = context.identity?.room_id && context.identity?.conversation_id
+      ? await get_room_conversation_messages(
+        context.identity.room_id,
+        context.identity.conversation_id,
+        {
+          limit: get_message_history_round_page_size(),
+        },
+      )
+      : await get_session_messages_api(session_key, {
         limit: get_message_history_round_page_size(),
-      },
-    );
+      });
     if (
       context.load_request_id_ref.current !== request_id ||
       context.active_session_key_ref.current !== session_key

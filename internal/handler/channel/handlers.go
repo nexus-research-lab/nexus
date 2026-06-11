@@ -25,12 +25,16 @@ type Control interface {
 	ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error)
 	UpsertChannelConfig(context.Context, string, string, channelspkg.UpsertChannelConfigRequest) (*channelspkg.ChannelConfigView, error)
 	DeleteChannelConfig(context.Context, string, string) error
+	StartChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error)
+	GetChannelLogin(context.Context, string, string, string) (*channelspkg.ChannelLoginView, error)
+	SubmitChannelLoginVerifyCode(context.Context, string, string, string, channelspkg.SubmitChannelLoginVerifyCodeRequest) (*channelspkg.ChannelLoginView, error)
 	ListPairings(context.Context, string, channelspkg.PairingQuery) ([]channelspkg.PairingView, error)
 	CreatePairing(context.Context, string, channelspkg.CreatePairingRequest) (*channelspkg.PairingView, error)
 	UpdatePairing(context.Context, string, string, channelspkg.UpdatePairingRequest) (*channelspkg.PairingView, error)
 	DeletePairing(context.Context, string, string) error
 	ResolveChannelOwnerByConfig(context.Context, string, string, string) (string, error)
 	PrepareFeishuIngress(context.Context, []byte, http.Header) (channelspkg.FeishuIngressPreparation, error)
+	PrepareWeChatIngress(context.Context, []byte, *http.Request) (channelspkg.WeChatIngressPreparation, error)
 }
 
 // Handlers 封装通道域 HTTP handlers。
@@ -100,6 +104,85 @@ func (h *Handlers) HandleDeleteChannelConfig(writer http.ResponseWriter, request
 		return
 	}
 	h.api.WriteSuccess(writer, map[string]any{"configured": false})
+}
+
+func (h *Handlers) HandleStartChannelLogin(writer http.ResponseWriter, request *http.Request) {
+	if !h.ensureControl(writer) {
+		return
+	}
+	item, err := h.control.StartChannelLogin(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "channel_type"),
+	)
+	if errors.Is(err, channelspkg.ErrChannelNotFound) || errors.Is(err, channelspkg.ErrChannelLoginNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, channelspkg.ErrChannelLoginUnsupported) {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		h.writeControlFailure(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) HandleGetChannelLogin(writer http.ResponseWriter, request *http.Request) {
+	if !h.ensureControl(writer) {
+		return
+	}
+	item, err := h.control.GetChannelLogin(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "channel_type"),
+		chi.URLParam(request, "login_id"),
+	)
+	if errors.Is(err, channelspkg.ErrChannelNotFound) || errors.Is(err, channelspkg.ErrChannelLoginNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, channelspkg.ErrChannelLoginUnsupported) {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		h.writeControlFailure(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) HandleSubmitChannelLoginVerifyCode(writer http.ResponseWriter, request *http.Request) {
+	if !h.ensureControl(writer) {
+		return
+	}
+	var payload channelspkg.SubmitChannelLoginVerifyCodeRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.control.SubmitChannelLoginVerifyCode(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "channel_type"),
+		chi.URLParam(request, "login_id"),
+		payload,
+	)
+	if errors.Is(err, channelspkg.ErrChannelNotFound) || errors.Is(err, channelspkg.ErrChannelLoginNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if errors.Is(err, channelspkg.ErrChannelLoginUnsupported) {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		h.writeControlFailure(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, item)
 }
 
 func (h *Handlers) HandleListPairings(writer http.ResponseWriter, request *http.Request) {
@@ -196,6 +279,49 @@ func (h *Handlers) HandleTelegramChannelIngress(writer http.ResponseWriter, requ
 	h.handleChannelIngressByName(writer, request, channelspkg.ChannelTypeTelegram)
 }
 
+func (h *Handlers) HandleDingTalkChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	if h.ingress == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(request.Body, 1<<20))
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	callbackRequest, ignoredReason, err := channelspkg.DecodeDingTalkIngressCallback(body)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if callbackRequest == nil {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted": false,
+			"ignored":  true,
+			"reason":   ignoredReason,
+		})
+		return
+	}
+	result, err := h.ingress.Accept(request.Context(), *callbackRequest)
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
+	if err != nil {
+		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
 func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, request *http.Request) {
 	if h.ingress == nil {
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
@@ -261,6 +387,83 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 	}
 
 	result, err := h.ingress.Accept(request.Context(), *callback.Request)
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
+	if err != nil {
+		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+func (h *Handlers) HandleWeixinPersonalChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	h.handleChannelIngressByName(writer, request, channelspkg.ChannelTypeWeixinPersonal)
+}
+
+func (h *Handlers) HandleWeChatChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	if h.ingress == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
+		return
+	}
+	if h.control == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel control is not configured")
+		return
+	}
+	if request.Method == http.MethodGet {
+		prepared, err := h.control.PrepareWeChatIngress(request.Context(), nil, request)
+		if errors.Is(err, channelspkg.ErrWeChatCallbackUnauthorized) {
+			h.api.WriteFailure(writer, http.StatusUnauthorized, "wechat callback verification failed")
+			return
+		}
+		if err != nil {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(prepared.Challenge))
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(request.Body, 1<<20))
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	prepared, err := h.control.PrepareWeChatIngress(request.Context(), body, request)
+	if errors.Is(err, channelspkg.ErrWeChatCallbackUnauthorized) {
+		h.api.WriteFailure(writer, http.StatusUnauthorized, "wechat callback verification failed")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	callbackRequest, ignoredReason, err := channelspkg.DecodeWeChatIngressCallback(prepared.Body)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if callbackRequest == nil {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted": false,
+			"ignored":  true,
+			"reason":   ignoredReason,
+		})
+		return
+	}
+	callbackRequest.OwnerUserID = strings.TrimSpace(prepared.OwnerUserID)
+	result, err := h.ingress.Accept(request.Context(), *callbackRequest)
 	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
 		h.api.WriteSuccess(writer, map[string]any{
 			"accepted":         false,

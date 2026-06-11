@@ -4,6 +4,7 @@ export const APP_ROUTE_PATHS = {
   launcher: "/launcher",
   home: "/app",
   room: "/rooms/:room_id",
+  room_session: "/rooms/:room_id/sessions/:session_key",
   room_conversation: "/rooms/:room_id/conversations/:conversation_id",
   contacts: "/contacts",
   skills: "/capability/skills",
@@ -24,6 +25,8 @@ export const AppRouteBuilders = {
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
   room: (room_id: string) => `/rooms/${encodeURIComponent(room_id)}`,
+  room_session: (room_id: string, session_key: string) =>
+    `/rooms/${encodeURIComponent(room_id)}/sessions/${encodeURIComponent(session_key)}`,
   room_conversation: (room_id: string, conversation_id: string) =>
     `/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
   contacts: () => APP_ROUTE_PATHS.contacts,
