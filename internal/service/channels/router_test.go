@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1030,6 +1032,119 @@ func TestDingTalkChannelSendDeliveryMessage(t *testing.T) {
 	}
 	if msgParam["content"] != "今日新闻摘要" {
 		t.Fatalf("钉钉消息正文不正确: %+v", msgParam)
+	}
+}
+
+func TestDingTalkChannelAccessTokenRefreshUsesSingleflight(t *testing.T) {
+	var callers int32
+	var tokenRequests int32
+	releaseTokenResponse := make(chan struct{})
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/v1.0/oauth2/accessToken" {
+			return nil, fmt.Errorf("未知钉钉请求路径: %s", request.URL.Path)
+		}
+		atomic.AddInt32(&tokenRequests, 1)
+		<-releaseTokenResponse
+		return jsonResponse(`{"accessToken":"ding-token","expireIn":7200}`), nil
+	})}
+	channel := newDingTalkChannel("ding-client", "ding-secret", "robot-code", client)
+	channel.baseURL = "https://dingtalk.test"
+
+	const concurrency = 12
+	start := make(chan struct{})
+	errs := make(chan error, concurrency)
+	var wg sync.WaitGroup
+	for range concurrency {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			atomic.AddInt32(&callers, 1)
+			token, err := channel.accessTokenForDelivery(context.Background())
+			if err != nil {
+				errs <- err
+				return
+			}
+			if token != "ding-token" {
+				errs <- fmt.Errorf("钉钉 token 不正确: %q", token)
+			}
+		}()
+	}
+
+	close(start)
+	deadline := time.After(time.Second)
+	for atomic.LoadInt32(&callers) < concurrency {
+		select {
+		case <-deadline:
+			close(releaseTokenResponse)
+			t.Fatalf("等待并发 token 请求进入调用路径超时，实际: %d", atomic.LoadInt32(&callers))
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+	close(releaseTokenResponse)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("钉钉 token 刷新失败: %v", err)
+		}
+	}
+	if got := atomic.LoadInt32(&tokenRequests); got != 1 {
+		t.Fatalf("并发刷新应只发起 1 次 token 请求，实际: %d", got)
+	}
+}
+
+func TestDingTalkStreamMessageAcknowledgesWhenWebhookReportsIngressFailure(t *testing.T) {
+	var webhookRequests int32
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "https://dingtalk.test/session-webhook" {
+			return nil, fmt.Errorf("未知钉钉请求地址: %s", request.URL.String())
+		}
+		atomic.AddInt32(&webhookRequests, 1)
+		var payload struct {
+			MsgType string `json:"msgtype"`
+			Text    struct {
+				Content string `json:"content"`
+			} `json:"text"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			return nil, fmt.Errorf("解析钉钉 webhook 请求失败: %w", err)
+		}
+		if payload.MsgType != "text" || !strings.Contains(payload.Text.Content, "DingTalk 消息处理失败") {
+			return nil, fmt.Errorf("钉钉 webhook 错误提示不正确: %+v", payload)
+		}
+		return jsonResponse(`{}`), nil
+	})}
+	channel := newDingTalkChannel("ding-client", "ding-secret", "", client)
+	ingress := &recordingIngressAcceptor{err: errors.New("dm temporarily unavailable")}
+	channel.SetIngress(ingress)
+
+	response, err := channel.handleStreamMessage(context.Background(), &dingchatbot.BotCallbackDataModel{
+		ConversationId:    "cid-group-1",
+		ConversationType:  "2",
+		ConversationTitle: "日报群",
+		ChatbotCorpId:     "corp-1",
+		MsgId:             "ding-message-1",
+		SenderStaffId:     "staff-1",
+		SenderNick:        "Alice",
+		SessionWebhook:    "https://dingtalk.test/session-webhook",
+		Text: dingchatbot.BotCallbackDataTextModel{
+			Content: "检查今天日报",
+		},
+	})
+	if err != nil {
+		t.Fatalf("已通过 webhook 通知用户时不应向钉钉返回错误: %v", err)
+	}
+	if response == nil || string(response) != "" {
+		t.Fatalf("钉钉 stream 应返回空 ACK: %q", string(response))
+	}
+	if len(ingress.requests) != 1 {
+		t.Fatalf("钉钉 Stream 消息应先进入 ingress: %+v", ingress.requests)
+	}
+	if got := atomic.LoadInt32(&webhookRequests); got != 1 {
+		t.Fatalf("钉钉错误 webhook 请求次数不正确: %d", got)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dingchatbot "github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	dingclient "github.com/open-dingtalk/dingtalk-stream-sdk-go/client"
+	"golang.org/x/sync/singleflight"
 )
 
 type dingTalkChannel struct {
@@ -31,6 +32,7 @@ type dingTalkChannel struct {
 	accessToken    string
 	tokenExpiresAt time.Time
 	stream         *dingclient.StreamClient
+	tokenFlight    singleflight.Group
 }
 
 type dingTalkAccessTokenEnvelope struct {
@@ -149,6 +151,25 @@ func (c *dingTalkChannel) accessTokenForDelivery(ctx context.Context) (string, e
 		return "", fmt.Errorf("dingtalk channel is not configured")
 	}
 	now := time.Now()
+	c.mu.RLock()
+	if c.accessToken != "" && now.Before(c.tokenExpiresAt) {
+		token := c.accessToken
+		c.mu.RUnlock()
+		return token, nil
+	}
+	c.mu.RUnlock()
+
+	result, err, _ := c.tokenFlight.Do("refresh", func() (any, error) {
+		return c.refreshAccessToken(ctx, now)
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
+}
+
+func (c *dingTalkChannel) refreshAccessToken(ctx context.Context, now time.Time) (string, error) {
+	// singleflight 获胜方在真正刷新前再检查一次，避免等待期间已有 goroutine 写入新 token。
 	c.mu.RLock()
 	if c.accessToken != "" && now.Before(c.tokenExpiresAt) {
 		token := c.accessToken
@@ -327,7 +348,9 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 			return []byte(""), nil
 		}
 		if strings.TrimSpace(data.SessionWebhook) != "" {
-			_ = c.sendSessionWebhookText(ctx, data.SessionWebhook, "DingTalk 消息处理失败: "+truncateChannelError(err))
+			if notifyErr := c.sendSessionWebhookText(ctx, data.SessionWebhook, "DingTalk 消息处理失败: "+truncateChannelError(err)); notifyErr == nil {
+				return []byte(""), nil
+			}
 		}
 		return nil, err
 	}
