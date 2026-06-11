@@ -1,3 +1,5 @@
+/* @refresh reset */
+// 中文注释：Room 控制器聚合多个 hook，开发热更新时直接重挂页面，避免 hook 签名迁移触发错误边界。
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
