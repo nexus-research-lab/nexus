@@ -3,7 +3,7 @@ import { ImChatType, ImChannelType, ImPairingStatus } from "@/lib/api/channel-ap
 export const CHANNEL_LABELS: Record<ImChannelType, string> = {
   dingtalk: "钉钉",
   wechat: "企业微信",
-  "weixin-personal": "个人微信",
+  "weixin-personal": "微信",
   feishu: "飞书",
   telegram: "Telegram",
   discord: "Discord",

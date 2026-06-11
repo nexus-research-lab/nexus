@@ -361,7 +361,7 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 			},
 		}),
 	}); err != nil {
-		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ 个人微信消息处理失败: "+truncateChannelError(err))
+		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ 微信消息处理失败: "+truncateChannelError(err))
 	}
 }
 

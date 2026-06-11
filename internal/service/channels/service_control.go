@@ -1609,7 +1609,7 @@ func channelCatalog() []ChannelCatalogItem {
 			Description:   "通过企业微信自建应用接收成员消息，并向成员、部门或标签主动发送文本消息。",
 			DocsURL:       "https://developer.work.weixin.qq.com/document/path/90236",
 			RuntimeStatus: "ready",
-			RuntimeNote:   "使用企业微信自建应用 API；个人微信不提供官方机器人 IM 接口。",
+			RuntimeNote:   "使用企业微信自建应用 API；用于企业微信成员、部门和标签的消息收发。",
 			SupportsGroup: false,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "corp_id", Label: "Corp ID", Kind: "text", Required: true, Placeholder: "填写企业 ID"},
@@ -1621,9 +1621,9 @@ func channelCatalog() []ChannelCatalogItem {
 		},
 		{
 			ChannelType:    ChannelTypeWeixinPersonal,
-			Title:          "个人微信",
+			Title:          "微信",
 			BotLabel:       "微信 iLink Bot",
-			Description:    "通过腾讯 iLink Bot API 接入个人微信私聊，Nexus 内置扫码登录、消息长轮询和文本回投。",
+			Description:    "通过腾讯 iLink Bot API 接入微信私聊，Nexus 内置扫码登录、消息长轮询和文本回投。",
 			RuntimeStatus:  "ready",
 			RuntimeNote:    "使用腾讯 iLink Bot API；扫码登录后 Nexus 保存 ilink_bot_token 并直接长轮询 getUpdates、调用 sendMessage 回投文本。",
 			SupportsGroup:  false,

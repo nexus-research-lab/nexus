@@ -38,6 +38,9 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if weixinPersonal.RuntimeStatus != "ready" {
 		t.Fatalf("个人微信应标记为内置可用，实际: %s", weixinPersonal.RuntimeStatus)
 	}
+	if weixinPersonal.Title != "微信" {
+		t.Fatalf("微信通道前台标题不正确: %q", weixinPersonal.Title)
+	}
 	if !weixinPersonal.SupportsQRCode || weixinPersonal.SupportsGroup {
 		t.Fatalf("个人微信能力标记不正确: %+v", weixinPersonal)
 	}
@@ -191,7 +194,7 @@ func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
 	}
 
 	latest := waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
-	if latest.AccountID != "wx-account-1" || !strings.Contains(latest.Output, "个人微信已连接") {
+	if latest.AccountID != "wx-account-1" || !strings.Contains(latest.Output, "微信已连接") {
 		t.Fatalf("登录完成状态不正确: %+v", latest)
 	}
 	items, err := service.ListChannels(context.Background(), "owner-a")

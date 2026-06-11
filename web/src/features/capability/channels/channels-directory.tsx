@@ -142,13 +142,13 @@ function guide_steps(channel_type: ImChannelType) {
       <>在应用详情中复制 <b>企业 ID</b>、<b>Agent ID</b> 和 <b>Secret</b></>,
       <>如需接收成员消息，打开 <b>接收消息</b>，配置回调地址为当前服务的 <b>/nexus/v1/channels/wechat/messages</b></>,
       <>复制回调配置中的 <b>Token</b> 与 <b>EncodingAESKey</b>，填入下方表单</>,
-      <>确认应用可见范围包含目标成员；个人微信不支持官方机器人 IM 接入</>,
+      <>确认应用可见范围包含目标成员；企业微信通道只处理企业微信成员与群聊消息</>,
     ];
   case "weixin-personal":
     return [
-      <>选择处理智能体后点击 <b>保存并扫码登录</b>，Nexus 会直接请求腾讯 iLink Bot API 生成个人微信登录二维码</>,
+      <>选择处理智能体后点击 <b>保存并扫码登录</b>，Nexus 会直接请求腾讯 iLink Bot API 生成微信登录二维码</>,
       <>用手机微信扫码并确认；如手机端显示数字验证码，在下方扫码面板输入后继续等待登录完成</>,
-      <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收个人微信私聊消息</>,
+      <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收微信私聊消息</>,
       <>智能体回复时，Nexus 会使用同一 iLink 账号调用 <b>sendmessage</b> 回投文本消息</>,
       <>Nexus 首次收到发送者消息后，在配对授权页批准，再由选定智能体处理</>,
     ];
@@ -301,7 +301,7 @@ function ChannelGuide({
       ) : null}
       {is_personal_weixin_channel(item.channel_type) ? (
         <div className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[12px] font-medium leading-5 text-(--text-muted)">
-          个人微信与企业微信分开配置；本通道由 Nexus 内置 iLink 连接能力提供，不复用企业微信回调。
+          微信与企业微信分开配置；本通道由 Nexus 内置 iLink 连接能力提供，不复用企业微信回调。
         </div>
       ) : null}
     </div>
@@ -352,7 +352,7 @@ function LoginQRCode({ payload }: { payload?: string }) {
     <div className="flex flex-col items-center gap-2 rounded-[12px] border border-(--divider-subtle-color) px-4 py-4">
       {image_url ? (
         <img
-          alt="个人微信扫码登录二维码"
+          alt="微信扫码登录二维码"
           className="h-[220px] w-[220px] rounded-[8px] bg-white p-2"
           src={image_url}
         />
