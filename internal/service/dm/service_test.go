@@ -354,6 +354,7 @@ func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *tes
 	titleScheduler := &fakeDMTitleScheduler{}
 	service := &Service{titles: titleScheduler}
 	sessionKey := "agent:agent-1:weixin-personal:dm:wx-user-1"
+	roomID := "room-agent-1"
 	conversationID := "wx-user-1"
 	service.scheduleTitleGeneration(
 		context.Background(),
@@ -365,6 +366,7 @@ func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *tes
 			ChatType:       "dm",
 			Title:          "New Chat",
 			MessageCount:   1,
+			RoomID:         &roomID,
 			ConversationID: &conversationID,
 		},
 		"你好",

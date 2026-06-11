@@ -1,7 +1,5 @@
 import { parse_session_key } from "@/lib/conversation/session-key";
 
-const DEFAULT_SESSION_TITLES = new Set(["", "New Chat", "未命名会话", "未命名话题"]);
-
 const CHANNEL_LABELS: Record<string, string> = {
   dingtalk: "钉钉",
   dt: "钉钉",
@@ -25,11 +23,6 @@ function normalize_channel(channel_type?: string | null, session_key?: string | 
   return (channel_type || parsed.channel || "").trim();
 }
 
-function normalize_title(title?: string | null): string {
-  const normalized = (title ?? "").trim();
-  return DEFAULT_SESSION_TITLES.has(normalized) ? "" : normalized;
-}
-
 export function is_external_session_channel(channel_type?: string | null, session_key?: string | null): boolean {
   const channel = normalize_channel(channel_type, session_key);
   return !INTERNAL_CHANNELS.has(channel) && SUPPORTED_EXTERNAL_CHANNELS.has(channel);
@@ -41,27 +34,11 @@ export function get_session_channel_label(channel_type?: string | null, session_
 }
 
 export function format_external_session_title({
-  fallback_title,
-  chat_type,
-  channel_type,
-  session_key,
   title,
 }: {
-  fallback_title?: string | null;
-  chat_type?: string | null;
-  channel_type?: string | null;
-  session_key?: string | null;
   title?: string | null;
 }): string {
-  const normalized_title = normalize_title(title);
-  if (normalized_title) {
-    return normalized_title;
-  }
-  const fallback = (fallback_title ?? "").trim();
-  if (fallback) {
-    return fallback;
-  }
-  return format_external_session_summary({ channel_type, chat_type, session_key });
+  return (title ?? "").trim() || "New Chat";
 }
 
 export function format_external_session_summary({

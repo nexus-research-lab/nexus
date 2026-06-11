@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified IM ingress handler responses so every channel returns a successful pairing-required acknowledgement instead of a generic client error when an external target still needs approval.
 - Stopped Telegram, Discord, DingTalk Stream, and WeChat polling ingress from sending external failure replies when a message only needs IM pairing approval.
 - Switched DingTalk Stream replies to the callback `sessionWebhook` path and made Robot Code optional unless explicit openConversationId group sends are needed.
-- Fixed external IM session placement and titles so IM sessions stay under their Agent session switcher and localized default titles can still be auto-generated.
+- Fixed external IM session placement and title generation so IM sessions stay under their Agent session switcher, never use the Agent name as a title fallback, and generate titles through the normal session-only path.
 - Fixed external IM pairing and WeChat Work callback handling so repeated pending pairings reuse their real id and callbacks return a fast empty acknowledgement.
 - Fixed manual IM pairing creation so re-adding an existing external target updates the existing pairing instead of failing after the upsert.
 - Made personal WeChat typing-ticket lookup degrade softly so typing status failures do not affect message polling or reply delivery.

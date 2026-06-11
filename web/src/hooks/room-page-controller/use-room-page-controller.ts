@@ -43,11 +43,9 @@ import { RoomPageControllerOptions } from "@/types/app/route";
 const EXTERNAL_AGENT_SESSION_REFRESH_INTERVAL_MS = 8000;
 
 function build_external_room_conversation_views({
-  fallback_title,
   room_id,
   sessions,
 }: {
-  fallback_title?: string | null;
   room_id: string | null;
   sessions: AgentSession[];
 }): RoomConversationView[] {
@@ -67,10 +65,6 @@ function build_external_room_conversation_views({
       session_id: session.session_id,
       agent_id: session.agent_id,
       title: format_external_session_title({
-        fallback_title,
-        channel_type: session.channel_type,
-        chat_type: session.chat_type,
-        session_key: session.session_key,
         title: session.title,
       }),
       options: {
@@ -217,11 +211,10 @@ export function useRoomPageController({
 
   const external_room_conversations = useMemo(
     () => build_external_room_conversation_views({
-      fallback_title: current_agent?.name,
       room_id: current_room?.id ?? null,
       sessions: external_agent_sessions,
     }),
-    [current_agent?.name, current_room?.id, external_agent_sessions],
+    [current_room?.id, external_agent_sessions],
   );
 
   const current_room_conversations = useMemo(
