@@ -15,6 +15,7 @@ WORKDIR /app/web
 
 COPY web/package.json web/pnpm-lock.yaml ./
 COPY web/.npmrc ./
+COPY docs/specs/room-collaboration-mechanism.md ../docs/specs/room-collaboration-mechanism.md
 RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
