@@ -116,7 +116,7 @@ final class DesktopLifecycleHandler: NSObject, WKScriptMessageHandler {
       }
     }
     if let snapshot = record["snapshot"] as? [String: Any] {
-      for key in ["path", "ready_state", "title", "has_root", "root_children", "body_children", "body_text_length"] {
+      for key in ["path", "ready_state", "title", "has_root", "root_children", "root_text_length", "body_children", "body_text_length"] {
         if let value = snapshot[key] {
           metadata["snapshot_\(key)"] = trimMetadata(stringValue(value))
         }

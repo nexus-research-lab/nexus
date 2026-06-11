@@ -548,7 +548,7 @@ internal sealed class WebViewHost : IDisposable
         }
         if (payload.TryGetProperty("snapshot", out JsonElement snapshot) && snapshot.ValueKind == JsonValueKind.Object)
         {
-            foreach (string key in new[] { "path", "ready_state", "title", "has_root", "root_children", "body_children", "body_text_length" })
+            foreach (string key in new[] { "path", "ready_state", "title", "has_root", "root_children", "root_text_length", "body_children", "body_text_length" })
             {
                 if (snapshot.TryGetProperty(key, out JsonElement value))
                 {

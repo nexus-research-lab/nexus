@@ -29,9 +29,12 @@ export type DesktopRenderSnapshot = {
   title: string;
   has_root: boolean;
   root_children: number;
+  root_text_length: number;
   body_children: number;
   body_text_length: number;
 };
+
+export type DesktopRenderHealthStatus = "ready" | "empty_root" | "blank_root";
 
 type DesktopLifecycleMessage = DesktopWebReadyMessage | DesktopWebFatalMessage | DesktopWebHealthMessage;
 
@@ -59,7 +62,7 @@ type DesktopWebHealthMessage = {
   kind: "web.health";
   location: string;
   source: string;
-  status: "ready" | "empty_root";
+  status: DesktopRenderHealthStatus;
   snapshot: DesktopRenderSnapshot;
   performance: DesktopWebReadyPerformance;
 };
@@ -194,7 +197,7 @@ export function notify_desktop_web_fatal(
 
 export function notify_desktop_render_health(
   source: string,
-  status: "ready" | "empty_root",
+  status: DesktopRenderHealthStatus,
 ): void {
   if (!is_desktop_runtime()) {
     return;
@@ -221,6 +224,7 @@ export function get_desktop_render_snapshot(): DesktopRenderSnapshot {
     title: document.title,
     has_root: Boolean(root),
     root_children: root?.childElementCount ?? -1,
+    root_text_length: root?.innerText?.trim().length ?? -1,
     body_children: body?.childElementCount ?? -1,
     body_text_length: body?.innerText?.length ?? -1,
   };

@@ -5,29 +5,39 @@ import "@/app/globals.css";
 import {
   get_desktop_render_snapshot,
   get_desktop_session_token,
-  is_desktop_runtime,
   mark_desktop_performance,
   notify_desktop_render_health,
   notify_desktop_web_fatal,
   notify_desktop_web_ready,
   recover_desktop_session_token_error,
 } from "@/config/desktop-runtime";
+import type { DesktopRenderHealthStatus, DesktopRenderSnapshot } from "@/config/desktop-runtime";
 import { get_agent_api_base_url, hydrate_runtime_options, is_strict_mode_enabled } from "@/config/options";
 import { apply_theme, detect_initial_theme } from "@/shared/theme/theme-context";
 
 mark_desktop_performance("bootstrap.module_loaded");
 
-const DESKTOP_EMPTY_RENDER_RELOAD_KEY_PREFIX = "nexus:desktop-empty-render-reload:";
-const DESKTOP_RENDER_WATCHDOG_INTERVAL_MS = 10_000;
-const DESKTOP_RENDER_WATCHDOG_EMPTY_THRESHOLD = 2;
+const APP_BLANK_RENDER_RELOAD_KEY_PREFIX = "nexus:app-blank-render-reload:";
+const APP_CHUNK_ERROR_RELOAD_KEY_PREFIX = "nexus:app-chunk-error-reload:";
+const APP_RENDER_WATCHDOG_INTERVAL_MS = 10_000;
+const APP_RENDER_WATCHDOG_UNHEALTHY_THRESHOLD = 2;
+const CHUNK_ERROR_PATTERNS = [
+  /ChunkLoadError/i,
+  /Loading chunk [\w-]+ failed/i,
+  /Failed to fetch dynamically imported module/i,
+  /Importing a module script failed/i,
+  /error loading dynamically imported module/i,
+  /Unable to preload CSS/i,
+];
 
-const container = document.getElementById("root");
-if (!container) {
+const root_container = document.getElementById("root");
+if (!root_container) {
   throw new Error("Root container #root not found.");
 }
+const container: HTMLElement = root_container;
 const root = createRoot(container);
-let did_install_desktop_global_error_handlers = false;
-let did_start_desktop_render_watchdog = false;
+let did_install_global_error_handlers = false;
+let did_start_app_render_watchdog = false;
 
 interface RootErrorBoundaryProps {
   children: ReactNode;
@@ -51,6 +61,7 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
     notify_desktop_web_fatal("react.render", error, {
       component_stack: error_info.componentStack ?? undefined,
     });
+    recover_from_chunk_load_error("react.render", error);
   }
 
   public render(): ReactNode {
@@ -65,7 +76,7 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
               界面渲染失败
             </h1>
             <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">
-              当前页面触发了渲染异常，请刷新页面恢复。
+              当前页面触发了渲染异常，请刷新页面恢复。若刚刚发布了新版本，刷新会重新拉取最新资源。
             </p>
             <button
               className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
@@ -107,7 +118,7 @@ function render_application(render: () => ReactNode) {
   ));
   mark_desktop_performance("react.render_scheduled");
   notify_ready_after_paint();
-  start_desktop_render_watchdog();
+  start_app_render_watchdog();
 }
 
 function render_bootstrap_error(message: string) {
@@ -122,6 +133,13 @@ function render_bootstrap_error(message: string) {
           运行时配置加载失败
         </h1>
         <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{message}</p>
+        <button
+          className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          刷新页面
+        </button>
       </section>
     </main>,
   ));
@@ -151,48 +169,95 @@ function notify_ready_after_paint() {
   }, 250);
 }
 
-function install_desktop_global_error_handlers() {
-  if (!is_desktop_runtime() || did_install_desktop_global_error_handlers) {
+function render_recovery_screen(reason: string) {
+  reconnect_root_container();
+  mark_desktop_performance("react.recovery_render_begin");
+  root.render(with_optional_strict_mode(
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
+      <section className="surface-panel surface-radius-xl w-full max-w-[520px] border px-8 py-9 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
+          N
+        </div>
+        <h1 className="text-[24px] font-bold text-(--text-strong)">
+          界面暂时无法显示
+        </h1>
+        <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">
+          页面连续检测到空白状态：{reason}。请刷新页面恢复。
+        </p>
+        <button
+          className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          刷新页面
+        </button>
+      </section>
+    </main>,
+  ));
+  mark_desktop_performance("react.recovery_render_scheduled");
+  notify_desktop_render_health("recovery_screen", "ready");
+}
+
+function reconnect_root_container() {
+  if (container.isConnected) {
     return;
   }
 
-  did_install_desktop_global_error_handlers = true;
+  document.body.appendChild(container);
+}
+
+function install_global_error_handlers() {
+  if (did_install_global_error_handlers) {
+    return;
+  }
+
+  did_install_global_error_handlers = true;
   window.addEventListener("error", (event) => {
-    notify_desktop_web_fatal("window.error", event.error ?? event.message);
+    const error = event.error ?? event.message;
+    notify_desktop_web_fatal("window.error", error);
+    recover_from_chunk_load_error("window.error", error);
   });
   window.addEventListener("unhandledrejection", (event) => {
     notify_desktop_web_fatal("window.unhandledrejection", event.reason);
+    recover_from_chunk_load_error("window.unhandledrejection", event.reason);
   });
 }
 
-function start_desktop_render_watchdog() {
-  if (!is_desktop_runtime() || did_start_desktop_render_watchdog) {
+function start_app_render_watchdog() {
+  if (did_start_app_render_watchdog) {
     return;
   }
 
-  did_start_desktop_render_watchdog = true;
-  let consecutive_empty_root_count = 0;
+  did_start_app_render_watchdog = true;
+  let consecutive_unhealthy_count = 0;
   const check_render_health = (source: string) => {
     const snapshot = get_desktop_render_snapshot();
-    if (snapshot.has_root && snapshot.root_children > 0 && snapshot.ready_state !== "loading") {
-      consecutive_empty_root_count = 0;
+    const unhealthy_status = get_render_unhealthy_status(snapshot);
+    if (!unhealthy_status) {
+      if (consecutive_unhealthy_count > 0) {
+        notify_desktop_render_health(source, "ready");
+      }
+      consecutive_unhealthy_count = 0;
       return;
     }
 
-    consecutive_empty_root_count += 1;
-    notify_desktop_render_health(source, "empty_root");
-    if (consecutive_empty_root_count < DESKTOP_RENDER_WATCHDOG_EMPTY_THRESHOLD) {
+    consecutive_unhealthy_count += 1;
+    notify_desktop_render_health(source, unhealthy_status);
+    if (consecutive_unhealthy_count < APP_RENDER_WATCHDOG_UNHEALTHY_THRESHOLD) {
       return;
     }
-    if (should_reload_once(DESKTOP_EMPTY_RENDER_RELOAD_KEY_PREFIX, "empty-render")) {
-      mark_desktop_performance("web.health.empty_root_reload");
+    if (should_reload_once(APP_BLANK_RENDER_RELOAD_KEY_PREFIX, unhealthy_status)) {
+      mark_desktop_performance(`web.health.${unhealthy_status}_reload`);
       window.location.reload();
+      return;
     }
+
+    render_recovery_screen(unhealthy_status === "empty_root" ? "根节点为空" : "根节点没有可见内容");
   };
 
   window.setInterval(() => {
     check_render_health("watchdog");
-  }, DESKTOP_RENDER_WATCHDOG_INTERVAL_MS);
+  }, APP_RENDER_WATCHDOG_INTERVAL_MS);
   window.addEventListener("focus", () => {
     window.setTimeout(() => check_render_health("focus"), 300);
   });
@@ -201,6 +266,19 @@ function start_desktop_render_watchdog() {
       window.setTimeout(() => check_render_health("visibility"), 300);
     }
   });
+}
+
+function get_render_unhealthy_status(snapshot: DesktopRenderSnapshot): DesktopRenderHealthStatus | null {
+  if (snapshot.ready_state === "loading") {
+    return null;
+  }
+  if (!snapshot.has_root || snapshot.root_children <= 0) {
+    return "empty_root";
+  }
+  if (snapshot.root_text_length <= 0 && snapshot.body_text_length <= 0) {
+    return "blank_root";
+  }
+  return null;
 }
 
 function should_recover_after_desktop_runtime_auth_error(error: unknown): boolean {
@@ -212,8 +290,8 @@ function should_recover_after_desktop_runtime_auth_error(error: unknown): boolea
 }
 
 function should_reload_once(prefix: string, reason: string): boolean {
-  const token = get_desktop_session_token() || "missing";
-  const reload_key = `${prefix}${token}:${reason}:${window.location.pathname}`;
+  const runtime_key = get_desktop_session_token() || window.location.origin || "web";
+  const reload_key = `${prefix}${runtime_key}:${reason}:${window.location.pathname}`;
   try {
     if (window.sessionStorage.getItem(reload_key) === "1") {
       return false;
@@ -226,9 +304,45 @@ function should_reload_once(prefix: string, reason: string): boolean {
   }
 }
 
+function recover_from_chunk_load_error(source: string, error: unknown): boolean {
+  if (!is_chunk_load_error(error)) {
+    return false;
+  }
+
+  notify_desktop_web_fatal(`${source}.chunk_load`, error);
+  if (!should_reload_once(APP_CHUNK_ERROR_RELOAD_KEY_PREFIX, source)) {
+    return false;
+  }
+
+  mark_desktop_performance(`web.chunk_error_reload.${source}`);
+  window.setTimeout(() => {
+    window.location.reload();
+  }, 0);
+  return true;
+}
+
+function is_chunk_load_error(error: unknown): boolean {
+  const diagnostic = diagnostic_text(error);
+  return CHUNK_ERROR_PATTERNS.some((pattern) => pattern.test(diagnostic));
+}
+
+function diagnostic_text(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}\n${error.message}\n${error.stack ?? ""}`;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 async function bootstrap(render: () => ReactNode) {
   mark_desktop_performance("bootstrap.start");
-  install_desktop_global_error_handlers();
+  install_global_error_handlers();
   apply_theme(detect_initial_theme());
   try {
     mark_desktop_performance("runtime_options.hydrate_begin");
