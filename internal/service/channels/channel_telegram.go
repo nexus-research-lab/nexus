@@ -340,6 +340,9 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 			Edited:            edited,
 		}),
 	}); err != nil {
+		if isPairingApprovalRequired(err) {
+			return
+		}
 		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+truncateChannelError(err))
 	}
 }

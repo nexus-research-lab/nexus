@@ -301,7 +301,7 @@ func (c *feishuChannel) acceptDecodedIngress(ctx context.Context, callback Feish
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if _, err := ingress.Accept(requestCtx, *callback.Request); err != nil {
-		if errors.Is(err, ErrPairingApprovalRequired) {
+		if isPairingApprovalRequired(err) {
 			return nil
 		}
 		return err

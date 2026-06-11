@@ -326,6 +326,9 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 			},
 		}),
 	}); err != nil {
+		if isPairingApprovalRequired(err) {
+			return []byte(""), nil
+		}
 		if strings.TrimSpace(data.SessionWebhook) != "" {
 			_ = c.sendSessionWebhookText(ctx, data.SessionWebhook, "DingTalk 消息处理失败: "+truncateChannelError(err))
 		}

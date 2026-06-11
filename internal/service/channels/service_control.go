@@ -44,6 +44,10 @@ var (
 	ErrPairingApprovalRequired = errors.New("im pairing requires approval")
 )
 
+func isPairingApprovalRequired(err error) bool {
+	return errors.Is(err, ErrPairingApprovalRequired)
+}
+
 type ChannelCredentialField struct {
 	Key         string `json:"key"`
 	Label       string `json:"label"`

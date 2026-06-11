@@ -188,6 +188,9 @@ func (c *discordChannel) handleMessageCreate(session *discordgo.Session, message
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	if _, err = ingress.Accept(ctx, request); err != nil {
+		if isPairingApprovalRequired(err) {
+			return
+		}
 		_, _ = session.ChannelMessageSend(
 			message.ChannelID,
 			"⚠️ Discord 消息处理失败: "+truncateChannelError(err),

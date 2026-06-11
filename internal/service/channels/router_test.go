@@ -82,6 +82,23 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
+type recordingIngressAcceptor struct {
+	requests []IngressRequest
+	err      error
+}
+
+func (r *recordingIngressAcceptor) Accept(_ context.Context, request IngressRequest) (*IngressResult, error) {
+	r.requests = append(r.requests, request)
+	if r.err != nil {
+		return nil, r.err
+	}
+	return &IngressResult{
+		Channel: request.Channel,
+		AgentID: request.AgentID,
+		ReqID:   request.ReqID,
+	}, nil
+}
+
 type recordingDeliveryChannel struct {
 	channelType string
 	startErr    error
@@ -810,6 +827,35 @@ func TestTelegramFetchUpdatesSubscribesEditedMessages(t *testing.T) {
 	}
 	if !foundEdited {
 		t.Fatalf("Telegram allowed_updates 应包含 edited_message: %+v", allowed)
+	}
+}
+
+func TestTelegramChannelHandleUpdateIgnoresPairingApprovalRequired(t *testing.T) {
+	var outboundRequests int
+	channel := newTelegramChannel("token-2", &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			outboundRequests++
+			return jsonResponse(`{"ok":true,"result":{"message_id":42}}`), nil
+		}),
+	})
+	channel.baseURL = "https://telegram.test"
+	ingress := &recordingIngressAcceptor{err: ErrPairingApprovalRequired}
+	channel.SetIngress(ingress)
+
+	channel.handleUpdate(context.Background(), telegramUpdate{
+		Message: &telegramMessage{
+			MessageID: 8,
+			Text:      "hello",
+			From:      &telegramUser{ID: 7},
+			Chat:      telegramChat{ID: 7, Type: "private"},
+		},
+	})
+
+	if len(ingress.requests) != 1 {
+		t.Fatalf("Telegram 消息未进入 ingress: %+v", ingress.requests)
+	}
+	if outboundRequests != 0 {
+		t.Fatalf("待配对授权不应回发处理失败消息，实际请求数: %d", outboundRequests)
 	}
 }
 
