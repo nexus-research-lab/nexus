@@ -255,6 +255,104 @@ VALUES ('pairing-a', 'owner-a', 'telegram', 'dm', 'chat-a', 'agent-a', 'active',
 	}
 }
 
+func TestControlServiceCreatesManualPairingForKnownTarget(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType:  " telegram ",
+		ChatType:     " group ",
+		ExternalRef:  " -100123456 ",
+		ThreadID:     " 42 ",
+		ExternalName: " Release room ",
+		AgentID:      " agent-a ",
+	})
+	if err != nil {
+		t.Fatalf("手动创建 IM 配对失败: %v", err)
+	}
+	if created.PairingID == "" ||
+		created.ChannelType != ChannelTypeTelegram ||
+		created.ChatType != "group" ||
+		created.ExternalRef != "-100123456" ||
+		created.ThreadID != "42" ||
+		created.ExternalName != "Release room" ||
+		created.AgentID != "agent-a" ||
+		created.Status != PairingStatusActive ||
+		created.Source != PairingSourceManual {
+		t.Fatalf("手动配对结果不正确: %+v", created)
+	}
+
+	agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeTelegram,
+		ChatType:    "group",
+		Ref:         "-100123456",
+		ThreadID:    "42",
+	})
+	if err != nil {
+		t.Fatalf("手动授权配对应允许入站路由: %v", err)
+	}
+	if agentID != "agent-a" {
+		t.Fatalf("入站路由 agent 不正确: %q", agentID)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeTelegram,
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("查询手动配对失败: %v", err)
+	}
+	if len(items) != 1 || items[0].PairingID != created.PairingID || items[0].LastMessageAt == nil {
+		t.Fatalf("手动配对列表结果不正确: %+v", items)
+	}
+}
+
+func TestControlServiceCreatePairingUpdatesExistingTarget(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	first, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    "dm",
+		ExternalRef: "ou_user_1",
+		AgentID:     "agent-a",
+		Status:      PairingStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("创建初始配对失败: %v", err)
+	}
+
+	updated, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType:  ChannelTypeFeishu,
+		ChatType:     "dm",
+		ExternalRef:  "ou_user_1",
+		ExternalName: "Alice",
+		AgentID:      "agent-b",
+		Status:       PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("重复创建同一目标应更新已有配对: %v", err)
+	}
+	if updated.PairingID != first.PairingID ||
+		updated.ExternalName != "Alice" ||
+		updated.AgentID != "agent-b" ||
+		updated.Status != PairingStatusActive ||
+		updated.Source != PairingSourceManual {
+		t.Fatalf("重复创建配对应更新已有记录: first=%+v updated=%+v", first, updated)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{ChannelType: ChannelTypeFeishu})
+	if err != nil {
+		t.Fatalf("查询配对失败: %v", err)
+	}
+	if len(items) != 1 || items[0].PairingID != first.PairingID {
+		t.Fatalf("重复创建不应产生多条配对: %+v", items)
+	}
+}
+
 func TestControlServiceResolveChannelOwnerByConfig(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()

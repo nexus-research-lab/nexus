@@ -421,9 +421,20 @@ func (s *ControlService) CreatePairing(ctx context.Context, ownerUserID string, 
 	if err = s.upsertPairingRow(ctx, row); err != nil {
 		return nil, err
 	}
-	created, err := s.getPairingRow(ctx, ownerUserID, row.PairingID)
+	created, err := s.findPairingByTarget(
+		ctx,
+		ownerUserID,
+		row.ChannelType,
+		row.ChatType,
+		row.ExternalRef,
+		row.ThreadID,
+		row.Status,
+	)
 	if err != nil {
 		return nil, err
+	}
+	if created == nil {
+		return nil, ErrPairingNotFound
 	}
 	view := s.pairingView(ctx, *created)
 	return &view, nil
