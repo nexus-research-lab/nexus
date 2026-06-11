@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { Download, FolderUp, GitBranch, Info, PackageCheck } from "lucide-react";
+import { Download, FileText, FolderUp, GitBranch, Info, PackageCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { UiButton } from "@/shared/ui/button";
@@ -16,6 +16,7 @@ import {
 import { UiField, UiInput } from "@/shared/ui/form-control";
 
 import type { SkillImportDialogMode, SkillMarketplaceController } from "./skills-view-model";
+import room_collaboration_mechanism_markdown from "../../../../../docs/specs/room-collaboration-mechanism.md?raw";
 
 interface SkillImportDialogProps {
   ctrl: SkillMarketplaceController;
@@ -35,6 +36,23 @@ const MODE_LABELS: Record<SkillImportDialogMode, string> = {
   local: "本地 zip",
   git: "Git 仓库",
 };
+
+const ROOM_COLLABORATION_MECHANISM_FILE_NAME = "room-collaboration-mechanism.md";
+
+function download_room_collaboration_mechanism() {
+  const blob = new Blob([room_collaboration_mechanism_markdown], {
+    type: "text/markdown;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = ROOM_COLLABORATION_MECHANISM_FILE_NAME;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   const mode = ctrl.import_dialog_mode;
@@ -162,13 +180,27 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
 
             <aside className="space-y-3">
               <div className="rounded-[12px] border border-(--divider-subtle-color) px-4 py-3">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
-                  <Info className="h-4 w-4 text-(--primary)" />
-                  SKILL.md 规范
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-(--text-strong)">
+                    <Info className="h-4 w-4 text-(--primary)" />
+                    SKILL.md 规范
+                  </div>
+                  <UiButton
+                    aria-label="下载 Room 协作机制 Markdown 文档"
+                    class_name="shrink-0"
+                    onClick={download_room_collaboration_mechanism}
+                    size="xs"
+                    tone="primary"
+                    variant="surface"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    room协作机制
+                  </UiButton>
                 </div>
                 <ul className="space-y-1.5 text-xs leading-5 text-(--text-muted)">
                   <li>必须包含 `name`，推荐补齐 `title`、`description`、`tags`。</li>
                   <li>`scope: any` 可安装到 Agent；`scope: main` 只给主 Agent；`scope: room` 只给群聊。</li>
+                  <li>编写 Room Skill 时，把“room协作机制”文档交给 agent 参考，先明确公开协作和私下协作的边界。</li>
                   <li>Room Skill 导入后在群聊管理弹窗的“群聊技能”里选择，不会安装到单个 Agent。</li>
                   <li>Git 导入会保存 URL、branch、path 和 commit，后续“更新技能库”会按这些信息重新拉取。</li>
                 </ul>
