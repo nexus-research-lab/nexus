@@ -362,6 +362,9 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 		}),
 	}); err != nil {
 		if isPairingApprovalRequired(err) {
+			if notice := pairingApprovalNoticeText(err); notice != "" {
+				_, _ = c.SendDeliveryMessage(requestCtx, *delivery, notice)
+			}
 			return
 		}
 		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ 微信消息处理失败: "+truncateChannelError(err))

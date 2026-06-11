@@ -103,6 +103,7 @@ type PairingView struct {
 	ChatType      string     `json:"chat_type"`
 	ExternalRef   string     `json:"external_ref"`
 	ThreadID      string     `json:"thread_id,omitempty"`
+	SessionKey    string     `json:"session_key"`
 	ExternalName  string     `json:"external_name,omitempty"`
 	AgentID       string     `json:"agent_id"`
 	AgentName     string     `json:"agent_name,omitempty"`
@@ -542,7 +543,7 @@ func (s *ControlService) ResolveIngressAgent(ctx context.Context, request Ingres
 	}
 	return "", &pairingApprovalError{
 		PairingID: created.PairingID,
-		Message:   "IM 对象尚未配对授权，请先在配对授权页批准",
+		Message:   "IM 对象尚未配对授权，请先在配对控制台批准",
 	}
 }
 
@@ -1112,6 +1113,7 @@ func (s *ControlService) pairingView(ctx context.Context, row pairingRow) Pairin
 		ChatType:      row.ChatType,
 		ExternalRef:   row.ExternalRef,
 		ThreadID:      row.ThreadID,
+		SessionKey:    protocol.BuildAgentSessionKey(row.AgentID, protocol.NormalizeSessionKeyChannelSegment(row.ChannelType), row.ChatType, row.ExternalRef, row.ThreadID),
 		ExternalName:  nullStringValue(row.ExternalName),
 		AgentID:       row.AgentID,
 		AgentName:     s.agentName(ctx, row.AgentID),

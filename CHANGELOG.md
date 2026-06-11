@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added IM channel capability chips to the channel directory so users can compare typing, thread, reply, receipt, media, and durable history support per channel.
 - Added a channel disconnect action in the IM channel configuration dialog so users can stop a configured bot connection without deleting existing pairings.
 - Added manual IM pairing creation from the pairing directory for known external user, group, or thread identifiers.
+- Added explicit multi-user IM session coverage so multiple external users can bind to one Agent while each inbound target keeps its own session.
+- Added session-scoped IM delivery routes and clearer pairing management so multiple external users under one Agent remain distinguishable by binding key and IM session.
+- Added IM-side pairing approval notices so unapproved external users and groups are told to wait for approval in the Nexus pairing console.
 
 ### Fixed
 - Opened the channel capability UI for every ready IM channel instead of keeping Telegram, Discord, DingTalk, and WeChat Work hidden behind a frontend allowlist.
@@ -39,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Telegram edited messages so edit updates use distinct ingress request ids instead of being deduplicated as the original message.
 - Added Telegram polling and inbound diagnostics so Bot API failures and received updates are visible in channel logs.
 - Disabled browser autofill on IM channel credential forms so saved login usernames and passwords are not prefilled into bot configuration fields.
+- Removed IM channel card status badges so pairing authorization counts are the visible access state.
+- Refined IM channel card metadata so handler, bot, and pairing counts are easier to scan.
+- Hid IM capability chips from channel cards to keep the channel list focused on pairing access.
 - Reordered DingTalk channel credential fields so Client ID and Client Secret appear before optional Robot Code.
 - Clarified Discord IM setup copy to distinguish Bot Token from OAuth Client Secret and explain that Application ID is only used for the invite link.
 - Migrated the WeChat Work channel configuration to the intelligent bot Bot ID + Secret flow and long-connection `aibot_respond_msg` stream replies.

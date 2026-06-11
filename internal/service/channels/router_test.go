@@ -271,6 +271,78 @@ func TestRouterDeliverMessageReturnsReceipt(t *testing.T) {
 	}
 }
 
+func TestRouterDeliverMessageUsesSessionRememberedRouteBeforeAgentRoute(t *testing.T) {
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{
+		agentByID: map[string]*protocol.Agent{
+			"agent-a": {AgentID: "agent-a", OwnerUserID: "owner-a"},
+		},
+	}
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, resolver, nil)
+	channel := &recordingDeliveryChannel{channelType: ChannelTypeTelegram}
+	router.RegisterForOwner("owner-a", channel)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	sessionA := protocol.BuildAgentSessionKey("agent-a", ChannelTypeTelegram, "dm", "user-a", "")
+	sessionB := protocol.BuildAgentSessionKey("agent-a", ChannelTypeTelegram, "dm", "user-b", "")
+	if _, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "agent-latest",
+	}); err != nil {
+		t.Fatalf("记录 agent 最近目标失败: %v", err)
+	}
+	if _, err := router.RememberSessionRoute(context.Background(), "agent-a", sessionA, DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "user-a",
+	}); err != nil {
+		t.Fatalf("记录 session A 目标失败: %v", err)
+	}
+	if _, err := router.RememberSessionRoute(context.Background(), "agent-a", sessionB, DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "user-b",
+	}); err != nil {
+		t.Fatalf("记录 session B 目标失败: %v", err)
+	}
+
+	result, err := router.DeliverMessage(context.Background(), "agent-a", "给 A", DeliveryTarget{
+		Mode:       DeliveryModeLast,
+		SessionKey: sessionA,
+	})
+	if err != nil {
+		t.Fatalf("session A last 投递失败: %v", err)
+	}
+	if result.Target.To != "user-a" {
+		t.Fatalf("session A 应使用自己的最近目标，不应使用 agent 最近目标: %+v", result.Target)
+	}
+
+	result, err = router.DeliverMessage(context.Background(), "agent-a", "给 B", DeliveryTarget{
+		Mode:       DeliveryModeLast,
+		SessionKey: sessionB,
+	})
+	if err != nil {
+		t.Fatalf("session B last 投递失败: %v", err)
+	}
+	if result.Target.To != "user-b" {
+		t.Fatalf("session B 应使用自己的最近目标，不应被 session A 覆盖: %+v", result.Target)
+	}
+
+	result, err = router.DeliverMessage(context.Background(), "agent-a", "给最近 Agent", DeliveryTarget{
+		Mode: DeliveryModeLast,
+	})
+	if err != nil {
+		t.Fatalf("agent last 投递失败: %v", err)
+	}
+	if result.Target.To != "agent-latest" {
+		t.Fatalf("未指定 session 时应仍使用 agent 最近目标: %+v", result.Target)
+	}
+}
+
 func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
 	db := newChannelTestDB(t)
 	resolver := &stubAgentResolver{
@@ -892,16 +964,26 @@ func TestTelegramChannelHandleEditedUpdateUsesDistinctReqID(t *testing.T) {
 	}
 }
 
-func TestTelegramChannelHandleUpdateIgnoresPairingApprovalRequired(t *testing.T) {
+func TestTelegramChannelHandleUpdateSendsPairingApprovalNotice(t *testing.T) {
 	var outboundRequests int
+	var outboundPayload map[string]any
 	channel := newTelegramChannel("token-2", &http.Client{
 		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			outboundRequests++
+			if !strings.HasSuffix(request.URL.Path, "/bottoken-2/sendMessage") {
+				t.Fatalf("待配对提醒应调用 Telegram sendMessage，实际 path=%s", request.URL.Path)
+			}
+			if err := json.NewDecoder(request.Body).Decode(&outboundPayload); err != nil {
+				t.Fatalf("解析 Telegram 待配对提醒失败: %v", err)
+			}
 			return jsonResponse(`{"ok":true,"result":{"message_id":42}}`), nil
 		}),
 	})
 	channel.baseURL = "https://telegram.test"
-	ingress := &recordingIngressAcceptor{err: ErrPairingApprovalRequired}
+	ingress := &recordingIngressAcceptor{err: &pairingApprovalError{
+		PairingID: "pair_pending_1",
+		Message:   "IM 对象尚未配对授权，请先在配对控制台批准",
+	}}
 	channel.SetIngress(ingress)
 
 	channel.handleUpdate(context.Background(), telegramUpdate{
@@ -916,8 +998,15 @@ func TestTelegramChannelHandleUpdateIgnoresPairingApprovalRequired(t *testing.T)
 	if len(ingress.requests) != 1 {
 		t.Fatalf("Telegram 消息未进入 ingress: %+v", ingress.requests)
 	}
-	if outboundRequests != 0 {
-		t.Fatalf("待配对授权不应回发处理失败消息，实际请求数: %d", outboundRequests)
+	if outboundRequests != 1 {
+		t.Fatalf("待配对授权应回发配对提醒，实际请求数: %d", outboundRequests)
+	}
+	text := fmt.Sprint(outboundPayload["text"])
+	if !strings.Contains(text, "配对控制台") || !strings.Contains(text, "pair_pending_1") {
+		t.Fatalf("待配对提醒文案不正确: %q", text)
+	}
+	if strings.Contains(text, "消息处理失败") {
+		t.Fatalf("待配对提醒不应伪装成处理失败: %q", text)
 	}
 }
 
@@ -1234,6 +1323,7 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	CREATE TABLE automation_delivery_routes (
 	    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
 	    agent_id VARCHAR(64) NOT NULL,
+	    session_key VARCHAR(512) NOT NULL DEFAULT '',
     mode VARCHAR(32) NOT NULL,
     channel VARCHAR(64),
     "to" VARCHAR(255),

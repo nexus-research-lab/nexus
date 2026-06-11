@@ -438,6 +438,7 @@ func isChannelIngressClientError(err error) bool {
 		strings.Contains(message, "channel 与 session_key 不一致") ||
 		strings.Contains(message, "仅支持 agent session_key") ||
 		strings.Contains(message, "配对授权") ||
+		strings.Contains(message, "配对控制台") ||
 		strings.Contains(message, "requires")
 }
 

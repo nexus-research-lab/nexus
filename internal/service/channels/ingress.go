@@ -276,6 +276,10 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 			logger.Error("记录通道回投目标失败", "err", err)
 			return nil, err
 		}
+		if _, err = s.router.RememberSessionRoute(ctx, normalized.agentID, normalized.sessionKey, *normalized.rememberedTarget); err != nil {
+			logger.Error("记录通道 session 回投目标失败", "err", err)
+			return nil, err
+		}
 	}
 	logger.Info("通道消息已进入 DM 主链",
 		"remembered_delivery", remembered != nil,

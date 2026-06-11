@@ -394,6 +394,9 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		}),
 	}); err != nil {
 		if isPairingApprovalRequired(err) {
+			if notice := pairingApprovalNoticeText(err); notice != "" {
+				_, _ = c.SendDeliveryMessage(requestCtx, *delivery, notice)
+			}
 			return
 		}
 		c.loggerFor(ctx).Warn("Telegram 入站消息处理失败",

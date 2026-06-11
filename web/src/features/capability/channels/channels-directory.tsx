@@ -16,6 +16,8 @@ import {
   Terminal,
   Trash2,
   TriangleAlert,
+  UserRound,
+  UsersRound,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -24,7 +26,6 @@ import {
   ChannelLoginView,
   ChannelConfigView,
   ChannelCredentialField,
-  ImChannelCapability,
   ImChannelType,
   delete_channel_config_api,
   get_channel_login_api,
@@ -90,40 +91,12 @@ const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; 
   discord: { color: "#5865f2", icon: Gamepad2, cnName: "bg-[#5865f2] text-white" },
 };
 
-const CHANNEL_CAPABILITY_LABELS: Record<ImChannelCapability, string> = {
-  text: "文本",
-  media: "媒体",
-  typing: "Typing",
-  thread: "话题",
-  reply: "回复",
-  receipt: "回执",
-  durable_final: "历史",
-};
-
-const CHANNEL_CAPABILITY_ORDER: ImChannelCapability[] = [
-  "text",
-  "typing",
-  "thread",
-  "reply",
-  "receipt",
-  "durable_final",
-  "media",
-];
-
 function is_channel_planned(item: ChannelConfigView) {
   return item.runtime_status === "planned";
 }
 
 function is_personal_weixin_channel(channel_type: ImChannelType) {
   return channel_type === "weixin-personal";
-}
-
-function channel_status_text(item: ChannelConfigView) {
-  if (is_channel_planned(item)) return "未上线";
-  if (!item.configured) return "未关联";
-  if (item.connection_state === "connected") return "已连接";
-  if (item.connection_state === "error") return "异常";
-  return "已配置";
 }
 
 function guide_steps(channel_type: ImChannelType) {
@@ -143,7 +116,7 @@ function guide_steps(channel_type: ImChannelType) {
       <>在机器人配置页复制 <b>Bot ID</b> 和 <b>Secret</b>，填入下方表单</>,
       <>Nexus 会通过企业微信官方长连接接收入站消息，并用同一长连接 <b>stream</b> 回复</>,
       <>智能体回复会使用企业微信智能机器人的 <b>stream</b> 回复回到原会话</>,
-      <>确认机器人可见范围包含目标成员或群；首次收到外部消息后在配对授权页批准</>,
+      <>确认机器人可见范围包含目标成员或群；首次收到外部消息后在配对控制台批准</>,
     ];
   case "weixin-personal":
     return [
@@ -151,7 +124,7 @@ function guide_steps(channel_type: ImChannelType) {
       <>用手机微信扫码并确认；如手机端显示数字验证码，在下方扫码面板输入后继续等待登录完成</>,
       <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收微信私聊消息</>,
       <>智能体回复时，Nexus 会使用同一 iLink 账号调用 <b>sendmessage</b> 回投文本消息</>,
-      <>Nexus 首次收到发送者消息后，在配对授权页批准，再由选定智能体处理</>,
+      <>Nexus 首次收到发送者消息后，在配对控制台批准，再由选定智能体处理</>,
     ];
   case "feishu":
     return [
@@ -252,20 +225,6 @@ function ChannelIcon({ type, size = "card" }: { type: ImChannelType; size?: "car
     >
       <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-5 w-5"} />
     </span>
-  );
-}
-
-function ChannelStatePill({
-  children,
-  tone = "neutral",
-}: {
-  children: string;
-  tone?: "neutral" | "success" | "warning" | "danger" | "info";
-}) {
-  return (
-    <UiBadge tone={tone === "neutral" ? "default" : tone}>
-      {children}
-    </UiBadge>
   );
 }
 
@@ -764,27 +723,30 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
   );
 }
 
-function channel_capability_items(capabilities: ImChannelCapability[]) {
-  const capability_set = new Set(capabilities);
-  return CHANNEL_CAPABILITY_ORDER.filter((capability) => capability_set.has(capability));
-}
-
-function ChannelCapabilityChips({ capabilities }: { capabilities: ImChannelCapability[] }) {
-  const items = channel_capability_items(capabilities);
-  if (!items.length) return null;
-
+function ChannelStatPill({
+  icon: Icon,
+  label,
+  value,
+  tone = "default",
+}: {
+  icon: typeof Send;
+  label: string;
+  value: number | string;
+  tone?: "default" | "warning";
+}) {
   return (
-    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-      {items.map((capability) => (
-        <span
-          className="inline-flex h-5 max-w-[88px] shrink-0 items-center rounded-[7px] border border-(--divider-subtle-color) px-1.5 text-[10px] font-semibold leading-none text-(--text-muted)"
-          key={capability}
-          title={CHANNEL_CAPABILITY_LABELS[capability]}
-        >
-          <span className="truncate">{CHANNEL_CAPABILITY_LABELS[capability]}</span>
-        </span>
-      ))}
-    </div>
+    <span
+      className={cn(
+        "inline-flex h-6 shrink-0 items-center gap-1 rounded-[7px] border px-2 text-[11px] font-semibold leading-none",
+        tone === "warning"
+          ? "border-[color:color-mix(in_srgb,var(--warning)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] text-(--text-strong)"
+          : "border-(--divider-subtle-color) bg-(--surface-elevated-background) text-(--text-muted)",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 text-(--icon-muted)" />
+      <span>{label}</span>
+      <span className="tabular-nums text-(--text-strong)">{value}</span>
+    </span>
   );
 }
 
@@ -796,33 +758,14 @@ function ChannelCard({
   on_configure: (item: ChannelConfigView) => void;
 }) {
   const planned = is_channel_planned(item);
-  const connected = item.connection_state === "connected";
-  const state_tone = planned
-    ? "neutral"
-    : connected
-      ? "success"
-      : item.connection_state === "error"
-        ? "danger"
-        : item.runtime_status === "external_adapter"
-          ? "warning"
-          : item.configured
-            ? "info"
-            : "neutral";
   const description = planned
     ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
     : item.runtime_status === "external_adapter" && !item.configured
         ? "选择处理智能体后，按通道说明完成外部连接。"
         : item.configured
-          ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
+          ? "消息会进入绑定的处理智能体。"
           : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
-  const meta_items = [
-    item.bot_label,
-    `用户 ${item.stats.paired_user_count}`,
-    `群聊 ${item.supports_group ? item.stats.paired_group_count : "-"}`,
-    `待处理 ${item.stats.pending_count}`,
-    item.configured ? "已绑定智能体" : "待配置",
-    item.supports_group ? null : "仅私聊",
-  ].filter(Boolean);
+  const handler_label = item.configured ? item.agent_name || "已绑定" : "未绑定";
 
   return (
     <UiListRow
@@ -834,9 +777,6 @@ function ChannelCard({
       on_click={planned ? undefined : () => on_configure(item)}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
-          <ChannelStatePill tone={state_tone}>
-            {channel_status_text(item)}
-          </ChannelStatePill>
           {!planned && item.docs_url ? (
             <UiListActionButton
               onClick={() => window.open(item.docs_url, "_blank", "noopener,noreferrer")}
@@ -878,15 +818,23 @@ function ChannelCard({
         <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
           {description}
         </div>
-        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-(--text-soft)">
-          {meta_items.map((meta_item, index) => (
-            <span className="min-w-0 truncate" key={`${item.channel_type}-${index}`}>
-              {index > 0 ? "· " : ""}
-              {meta_item}
-            </span>
-          ))}
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 text-(--text-soft)">
+          <span className="min-w-0 truncate">机器人：{item.bot_label}</span>
+          <span className="min-w-0 truncate">处理：{handler_label}</span>
+          {!item.supports_group ? <span className="shrink-0">仅私聊</span> : null}
         </div>
-        <ChannelCapabilityChips capabilities={item.capabilities} />
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+          <ChannelStatPill icon={UserRound} label="用户" value={item.stats.paired_user_count} />
+          {item.supports_group ? (
+            <ChannelStatPill icon={UsersRound} label="群聊" value={item.stats.paired_group_count} />
+          ) : null}
+          <ChannelStatPill
+            icon={Clock3}
+            label="待审"
+            tone={item.stats.pending_count > 0 ? "warning" : "default"}
+            value={item.stats.pending_count}
+          />
+        </div>
         {item.runtime_note ? (
           <div className="mt-0.5 truncate text-[11px] leading-4 text-(--text-soft)">
             {item.runtime_note}

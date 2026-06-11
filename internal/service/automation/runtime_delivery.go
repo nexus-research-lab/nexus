@@ -53,13 +53,17 @@ func (s *Service) deliverJobObservation(
 	if text == "" {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusSkipped}
 	}
+	target := toChannelDeliveryTarget(job.Delivery)
+	if strings.TrimSpace(target.Mode) == channels.DeliveryModeLast {
+		target.SessionKey = strings.TrimSpace(job.Source.SessionKey)
+	}
 	deliveryCtx := contextForJobOwner(ctx, job)
 	delivered, err := deliverChannelMessage(
 		deliveryCtx,
 		s.delivery,
 		job.AgentID,
 		text,
-		toChannelDeliveryTarget(job.Delivery),
+		target,
 	)
 	if err != nil {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusFailed, Error: errorPointer(err)}

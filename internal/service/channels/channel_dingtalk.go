@@ -345,6 +345,9 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 		}),
 	}); err != nil {
 		if isPairingApprovalRequired(err) {
+			if notice := pairingApprovalNoticeText(err); notice != "" {
+				_, _ = c.SendDeliveryMessage(ctx, *delivery, notice)
+			}
 			return []byte(""), nil
 		}
 		if strings.TrimSpace(data.SessionWebhook) != "" {

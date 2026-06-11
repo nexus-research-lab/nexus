@@ -175,7 +175,12 @@ func currentSessionKeyCanDeliverToExternalChannel(sessionKey string) bool {
 		return false
 	}
 	switch protocol.NormalizeStoredChannelType(parsed.Channel) {
-	case protocol.SessionChannelDiscord, protocol.SessionChannelTelegram, protocol.SessionChannelDingTalk, protocol.SessionChannelWeChat, protocol.SessionChannelFeishu:
+	case protocol.SessionChannelDiscord,
+		protocol.SessionChannelTelegram,
+		protocol.SessionChannelDingTalk,
+		protocol.SessionChannelWeChat,
+		protocol.SessionChannelWeixinPersonal,
+		protocol.SessionChannelFeishu:
 		return strings.TrimSpace(parsed.Ref) != ""
 	default:
 		return false
@@ -193,7 +198,12 @@ func deliveryFromSessionKey(sessionKey string) protocol.DeliveryTarget {
 		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: channel, To: normalized}.Normalized()
 	}
 	switch channel {
-	case protocol.SessionChannelDiscord, protocol.SessionChannelTelegram, protocol.SessionChannelDingTalk, protocol.SessionChannelWeChat, protocol.SessionChannelFeishu:
+	case protocol.SessionChannelDiscord,
+		protocol.SessionChannelTelegram,
+		protocol.SessionChannelDingTalk,
+		protocol.SessionChannelWeChat,
+		protocol.SessionChannelWeixinPersonal,
+		protocol.SessionChannelFeishu:
 	default:
 		return protocol.DeliveryTarget{Mode: protocol.DeliveryModeExplicit, Channel: "websocket", To: normalized}.Normalized()
 	}
