@@ -263,6 +263,60 @@ func TestScheduleUpdatesDefaultSessionTitleAfterInitialMessage(t *testing.T) {
 	}
 }
 
+func TestScheduleUpdatesLocalizedDefaultSessionTitle(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "钉钉答疑",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	const sessionKey = "agent:a:dingtalk:dm:dt-user-1"
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			sessionKey: {
+				SessionKey: sessionKey,
+				Title:      "未命名会话",
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "glm",
+				AuthToken: "token-2",
+				BaseURL:   server.URL,
+				Model:     "glm-5.1",
+			},
+		},
+		sessionStore,
+		nil,
+		&fakeEventBroadcaster{},
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:          sessionKey,
+		Content:             "怎么配置钉钉",
+		SessionTitle:        "未命名会话",
+		SessionMessageCount: 3,
+	})
+
+	if got := sessionStore.sessions[sessionKey].Title; got != "钉钉答疑" {
+		t.Fatalf("中文默认标题应被模型标题覆盖: %s", got)
+	}
+}
+
 func TestFillEmptyPreviewFromGoalUpdatesDefaultSessionTitle(t *testing.T) {
 	t.Parallel()
 

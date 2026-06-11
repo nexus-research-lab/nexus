@@ -11,9 +11,9 @@ const CHANNEL_LABELS: Record<string, string> = {
   fs: "飞书",
   telegram: "Telegram",
   tg: "Telegram",
-  wechat: "企业微信",
-  wx: "企业微信",
-  "weixin-personal": "个人微信",
+  wechat: "微信",
+  wx: "微信",
+  "weixin-personal": "微信",
 };
 
 const INTERNAL_CHANNELS = new Set(["", "websocket", "ws", "internal"]);
@@ -41,17 +41,30 @@ export function get_session_channel_label(channel_type?: string | null, session_
 }
 
 export function format_external_session_title({
+  fallback_title,
+  chat_type,
+  channel_type,
+  session_key,
   title,
 }: {
+  fallback_title?: string | null;
+  chat_type?: string | null;
   channel_type?: string | null;
   session_key?: string | null;
   title?: string | null;
 }): string {
-  return normalize_title(title) || "未命名会话";
+  const normalized_title = normalize_title(title);
+  if (normalized_title) {
+    return normalized_title;
+  }
+  const fallback = (fallback_title ?? "").trim();
+  if (fallback) {
+    return fallback;
+  }
+  return format_external_session_summary({ channel_type, chat_type, session_key });
 }
 
 export function format_external_session_summary({
-  agent_name,
   channel_type,
   chat_type,
   session_key,
@@ -64,8 +77,7 @@ export function format_external_session_summary({
   const parsed = parse_session_key(session_key);
   const channel_label = get_session_channel_label(channel_type, session_key);
   const chat_label = (chat_type || parsed.chat_type) === "group" ? "群聊" : "私聊";
-  const owner = (agent_name ?? "").trim() || parsed.agent_id || "Agent";
-  return `${owner} · ${channel_label}${chat_label}`;
+  return `${channel_label}${chat_label}`;
 }
 
 export function build_external_session_conversation_id(session_key: string): string {

@@ -36,6 +36,12 @@ var (
 	errEmptyGeneratedTitle     = errors.New("标题生成返回空结果")
 	defaultConversationPattern = regexp.MustCompile(`^.+\s·\s对话\s+\d+$`)
 	whitespacePattern          = regexp.MustCompile(`\s+`)
+	defaultSessionTitles       = map[string]struct{}{
+		"":         {},
+		"New Chat": {},
+		"未命名会话":    {},
+		"未命名话题":    {},
+	}
 )
 
 // Request 描述一次标题生成请求。
@@ -539,7 +545,8 @@ func (r Request) shouldCheckConversationTitle() bool {
 
 func isDefaultSessionTitle(title string) bool {
 	normalized := strings.TrimSpace(title)
-	return normalized == "" || normalized == "New Chat"
+	_, ok := defaultSessionTitles[normalized]
+	return ok
 }
 
 func isDefaultConversationTitle(title string, roomName string) bool {
