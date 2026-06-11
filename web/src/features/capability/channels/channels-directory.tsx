@@ -118,14 +118,6 @@ function is_personal_weixin_channel(channel_type: ImChannelType) {
   return channel_type === "weixin-personal";
 }
 
-function channel_status_text(item: ChannelConfigView) {
-  if (is_channel_planned(item)) return "未上线";
-  if (!item.configured) return "未关联";
-  if (item.connection_state === "connected") return "机器人在线";
-  if (item.connection_state === "error") return "异常";
-  return "已配置";
-}
-
 function guide_steps(channel_type: ImChannelType) {
   switch (channel_type) {
   case "dingtalk":
@@ -252,20 +244,6 @@ function ChannelIcon({ type, size = "card" }: { type: ImChannelType; size?: "car
     >
       <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-5 w-5"} />
     </span>
-  );
-}
-
-function ChannelStatePill({
-  children,
-  tone = "neutral",
-}: {
-  children: string;
-  tone?: "neutral" | "success" | "warning" | "danger" | "info";
-}) {
-  return (
-    <UiBadge tone={tone === "neutral" ? "default" : tone}>
-      {children}
-    </UiBadge>
   );
 }
 
@@ -796,18 +774,6 @@ function ChannelCard({
   on_configure: (item: ChannelConfigView) => void;
 }) {
   const planned = is_channel_planned(item);
-  const connected = item.connection_state === "connected";
-  const state_tone = planned
-    ? "neutral"
-    : connected
-      ? "success"
-      : item.connection_state === "error"
-        ? "danger"
-        : item.runtime_status === "external_adapter"
-          ? "warning"
-          : item.configured
-            ? "info"
-            : "neutral";
   const description = planned
     ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
     : item.runtime_status === "external_adapter" && !item.configured
@@ -836,9 +802,6 @@ function ChannelCard({
       on_click={planned ? undefined : () => on_configure(item)}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
-          <ChannelStatePill tone={state_tone}>
-            {channel_status_text(item)}
-          </ChannelStatePill>
           {!planned && item.docs_url ? (
             <UiListActionButton
               onClick={() => window.open(item.docs_url, "_blank", "noopener,noreferrer")}
