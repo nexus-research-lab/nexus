@@ -16,6 +16,8 @@ import {
   Terminal,
   Trash2,
   TriangleAlert,
+  UserRound,
+  UsersRound,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -766,6 +768,33 @@ function ChannelCapabilityChips({ capabilities }: { capabilities: ImChannelCapab
   );
 }
 
+function ChannelStatPill({
+  icon: Icon,
+  label,
+  value,
+  tone = "default",
+}: {
+  icon: typeof Send;
+  label: string;
+  value: number | string;
+  tone?: "default" | "warning";
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 shrink-0 items-center gap-1 rounded-[7px] border px-2 text-[11px] font-semibold leading-none",
+        tone === "warning"
+          ? "border-[color:color-mix(in_srgb,var(--warning)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] text-(--text-strong)"
+          : "border-(--divider-subtle-color) bg-(--surface-elevated-background) text-(--text-muted)",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 text-(--icon-muted)" />
+      <span>{label}</span>
+      <span className="tabular-nums text-(--text-strong)">{value}</span>
+    </span>
+  );
+}
+
 function ChannelCard({
   item,
   on_configure,
@@ -779,18 +808,9 @@ function ChannelCard({
     : item.runtime_status === "external_adapter" && !item.configured
         ? "选择处理智能体后，按通道说明完成外部连接。"
         : item.configured
-          ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
+          ? "消息会进入绑定的处理智能体。"
           : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
-  const approved_pairing_count = item.stats.paired_user_count + item.stats.paired_group_count;
-  const meta_items = [
-    item.bot_label,
-    `已授权 ${approved_pairing_count}`,
-    `配对用户 ${item.stats.paired_user_count}`,
-    item.supports_group ? `配对群聊 ${item.stats.paired_group_count}` : null,
-    `待审批 ${item.stats.pending_count}`,
-    item.configured ? `处理智能体 ${item.agent_name || "已绑定"}` : "未绑定智能体",
-    item.supports_group ? null : "仅私聊",
-  ].filter(Boolean);
+  const handler_label = item.configured ? item.agent_name || "已绑定" : "未绑定";
 
   return (
     <UiListRow
@@ -843,13 +863,22 @@ function ChannelCard({
         <div className="mt-0.5 truncate text-[13px] leading-5 text-(--text-muted)">
           {description}
         </div>
-        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-4 text-(--text-soft)">
-          {meta_items.map((meta_item, index) => (
-            <span className="min-w-0 truncate" key={`${item.channel_type}-${index}`}>
-              {index > 0 ? "· " : ""}
-              {meta_item}
-            </span>
-          ))}
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 text-(--text-soft)">
+          <span className="min-w-0 truncate">机器人：{item.bot_label}</span>
+          <span className="min-w-0 truncate">处理：{handler_label}</span>
+          {!item.supports_group ? <span className="shrink-0">仅私聊</span> : null}
+        </div>
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+          <ChannelStatPill icon={UserRound} label="用户" value={item.stats.paired_user_count} />
+          {item.supports_group ? (
+            <ChannelStatPill icon={UsersRound} label="群聊" value={item.stats.paired_group_count} />
+          ) : null}
+          <ChannelStatPill
+            icon={Clock3}
+            label="待审"
+            tone={item.stats.pending_count > 0 ? "warning" : "default"}
+            value={item.stats.pending_count}
+          />
         </div>
         <ChannelCapabilityChips capabilities={item.capabilities} />
         {item.runtime_note ? (
