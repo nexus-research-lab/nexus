@@ -393,6 +393,77 @@ func TestControlServiceCreatePairingUpdatesExistingTarget(t *testing.T) {
 	}
 }
 
+func TestControlServiceResolveIngressAgentReturnsExistingPendingPairingID(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	var nextID int
+	service.idFactory = func(prefix string) string {
+		nextID++
+		return fmt.Sprintf("%s-%d", prefix, nextID)
+	}
+
+	_, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID:  "owner-a",
+		Channel:      ChannelTypeTelegram,
+		ChatType:     "group",
+		Ref:          "-100123456",
+		ThreadID:     "42",
+		ExternalName: "Release room",
+		AgentID:      "agent-a",
+	})
+	var firstApproval *pairingApprovalError
+	if !errors.As(err, &firstApproval) || firstApproval.PairingID != "pair-1" {
+		t.Fatalf("首次入站应返回真实 pending pairing id: err=%v approval=%+v", err, firstApproval)
+	}
+
+	_, err = service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID:  "owner-a",
+		Channel:      ChannelTypeTelegram,
+		ChatType:     "group",
+		Ref:          "-100123456",
+		ThreadID:     "42",
+		ExternalName: "Release room renamed",
+		AgentID:      "agent-b",
+	})
+	var secondApproval *pairingApprovalError
+	if !errors.As(err, &secondApproval) || secondApproval.PairingID != firstApproval.PairingID {
+		t.Fatalf("重复入站应返回已有 pending pairing id: first=%+v second=%+v err=%v", firstApproval, secondApproval, err)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeTelegram,
+		Status:      PairingStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("查询 pending 配对失败: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].PairingID != firstApproval.PairingID ||
+		items[0].ExternalName != "Release room renamed" ||
+		items[0].AgentID != "agent-b" {
+		t.Fatalf("重复入站应更新同一 pending 配对: %+v", items)
+	}
+
+	_, err = service.UpdatePairing(context.Background(), "owner-a", firstApproval.PairingID, UpdatePairingRequest{
+		Status: ptrString(PairingStatusActive),
+	})
+	if err != nil {
+		t.Fatalf("批准 pending 配对失败: %v", err)
+	}
+	agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeTelegram,
+		ChatType:    "group",
+		Ref:         "-100123456",
+		ThreadID:    "42",
+	})
+	if err != nil || agentID != "agent-b" {
+		t.Fatalf("批准后入站应路由到更新后的 agent: agent=%q err=%v", agentID, err)
+	}
+}
+
 func TestControlServiceResolveChannelOwnerByConfig(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()

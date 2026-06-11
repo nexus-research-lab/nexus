@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
@@ -415,21 +416,18 @@ func (h *Handlers) HandleWeChatChannelIngress(writer http.ResponseWriter, reques
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
-	callbackRequest, ignoredReason, err := channelspkg.DecodeWeChatIngressCallback(prepared.Body)
+	callbackRequest, _, err := channelspkg.DecodeWeChatIngressCallback(prepared.Body)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
 	if callbackRequest == nil {
-		h.api.WriteSuccess(writer, map[string]any{
-			"accepted": false,
-			"ignored":  true,
-			"reason":   ignoredReason,
-		})
+		h.writeWeChatCallbackAcknowledgement(writer)
 		return
 	}
 	callbackRequest.OwnerUserID = strings.TrimSpace(prepared.OwnerUserID)
-	h.acceptChannelIngress(writer, request, *callbackRequest)
+	h.acceptChannelIngressAsync(request, *callbackRequest)
+	h.writeWeChatCallbackAcknowledgement(writer)
 }
 
 func (h *Handlers) handleChannelIngressByName(
@@ -462,6 +460,22 @@ func (h *Handlers) acceptChannelIngress(
 	h.writeChannelIngressOutcome(writer, result, err)
 }
 
+func (h *Handlers) acceptChannelIngressAsync(request *http.Request, payload channelspkg.IngressRequest) {
+	baseCtx := context.WithoutCancel(request.Context())
+	go func() {
+		ctx, cancel := context.WithTimeout(baseCtx, 2*time.Minute)
+		defer cancel()
+		if _, err := h.ingress.Accept(ctx, payload); err != nil {
+			h.api.BaseLogger().Warn("异步通道 ingress 处理失败",
+				"channel", payload.Channel,
+				"owner_user_id", payload.OwnerUserID,
+				"req_id", payload.ReqID,
+				"err", err,
+			)
+		}
+	}()
+}
+
 func (h *Handlers) writeChannelIngressOutcome(writer http.ResponseWriter, result *channelspkg.IngressResult, err error) {
 	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
 		h.api.WriteSuccess(writer, map[string]any{
@@ -480,6 +494,11 @@ func (h *Handlers) writeChannelIngressOutcome(writer http.ResponseWriter, result
 		return
 	}
 	h.api.WriteSuccess(writer, result)
+}
+
+func (h *Handlers) writeWeChatCallbackAcknowledgement(writer http.ResponseWriter) {
+	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	writer.WriteHeader(http.StatusOK)
 }
 
 func isChannelIngressClientError(err error) bool {

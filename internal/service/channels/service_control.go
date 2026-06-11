@@ -422,23 +422,9 @@ func (s *ControlService) CreatePairing(ctx context.Context, ownerUserID string, 
 	if err != nil {
 		return nil, err
 	}
-	if err = s.upsertPairingRow(ctx, row); err != nil {
-		return nil, err
-	}
-	created, err := s.findPairingByTarget(
-		ctx,
-		ownerUserID,
-		row.ChannelType,
-		row.ChatType,
-		row.ExternalRef,
-		row.ThreadID,
-		row.Status,
-	)
+	created, err := s.upsertPairingRowAndReload(ctx, row)
 	if err != nil {
 		return nil, err
-	}
-	if created == nil {
-		return nil, ErrPairingNotFound
 	}
 	view := s.pairingView(ctx, *created)
 	return &view, nil
@@ -560,11 +546,12 @@ func (s *ControlService) ResolveIngressAgent(ctx context.Context, request Ingres
 	if err != nil {
 		return "", err
 	}
-	if err = s.upsertPairingRow(ctx, row); err != nil {
+	created, err := s.upsertPairingRowAndReload(ctx, row)
+	if err != nil {
 		return "", err
 	}
 	return "", &pairingApprovalError{
-		PairingID: row.PairingID,
+		PairingID: created.PairingID,
 		Message:   "IM 对象尚未配对授权，请先在配对授权页批准",
 	}
 }
@@ -1111,6 +1098,28 @@ LIMIT 1`
 	return item, err
 }
 
+func (s *ControlService) upsertPairingRowAndReload(ctx context.Context, row pairingRow) (*pairingRow, error) {
+	if err := s.upsertPairingRow(ctx, row); err != nil {
+		return nil, err
+	}
+	created, err := s.findPairingByTarget(
+		ctx,
+		row.OwnerUserID,
+		row.ChannelType,
+		row.ChatType,
+		row.ExternalRef,
+		row.ThreadID,
+		row.Status,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if created == nil {
+		return nil, ErrPairingNotFound
+	}
+	return created, nil
+}
+
 func (s *ControlService) upsertPairingRow(ctx context.Context, row pairingRow) error {
 	if strings.TrimSpace(row.PairingID) == "" {
 		row.PairingID = s.idFactory("pair")
@@ -1630,8 +1639,8 @@ func channelCatalog() []ChannelCatalogItem {
 				{Key: "corp_id", Label: "Corp ID", Kind: "text", Required: true, Placeholder: "填写企业 ID"},
 				{Key: "agent_id", Label: "Agent ID", Kind: "text", Required: true, Placeholder: "填写自建应用 Agent ID"},
 				{Key: "corp_secret", Label: "Corp Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写自建应用 Secret"},
-				{Key: "token", Label: "Callback Token", Kind: "password", Secret: true, Placeholder: "可选：接收消息回调 Token"},
-				{Key: "encoding_aes_key", Label: "EncodingAESKey", Kind: "password", Secret: true, Placeholder: "可选：接收消息回调 EncodingAESKey"},
+				{Key: "token", Label: "Callback Token", Kind: "password", Required: true, Secret: true, Placeholder: "填写接收消息 API 的 Token"},
+				{Key: "encoding_aes_key", Label: "EncodingAESKey", Kind: "password", Required: true, Secret: true, Placeholder: "填写接收消息 API 的 EncodingAESKey"},
 			},
 		},
 		{

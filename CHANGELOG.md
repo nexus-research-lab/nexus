@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stopped Telegram, Discord, DingTalk Stream, and WeChat polling ingress from sending external failure replies when a message only needs IM pairing approval.
 - Switched DingTalk Stream replies to the callback `sessionWebhook` path and made Robot Code optional unless explicit openConversationId group sends are needed.
 - Fixed external IM session placement and titles so IM sessions stay under their Agent session switcher and localized default titles can still be auto-generated.
+- Fixed external IM pairing and WeChat Work callback handling so repeated pending pairings reuse their real id and callbacks return a fast empty acknowledgement.
 - Fixed manual IM pairing creation so re-adding an existing external target updates the existing pairing instead of failing after the upsert.
 - Made personal WeChat typing-ticket lookup degrade softly so typing status failures do not affect message polling or reply delivery.
 - Standardized the personal WeChat channel identifier on `weixin-personal` and reduced external reply latency by prioritizing final message delivery over post-round bookkeeping.
