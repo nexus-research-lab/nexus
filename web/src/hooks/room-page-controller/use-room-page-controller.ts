@@ -65,8 +65,6 @@ function build_external_room_conversation_views({
       session_id: session.session_id,
       agent_id: session.agent_id,
       title: format_external_session_title({
-        channel_type: session.channel_type,
-        session_key: session.session_key,
         title: session.title,
       }),
       options: {
@@ -193,6 +191,24 @@ export function useRoomPageController({
     [scoped_room_contexts, selected_base_conversation_id],
   );
 
+  const active_room_session = useMemo(
+    () =>
+      current_room_context?.sessions.find(
+        (session) => session.agent_id === selected_member_agent_id,
+      ) ??
+      current_room_context?.sessions[0] ??
+      null,
+    [current_room_context, selected_member_agent_id],
+  );
+
+  const current_agent = useMemo(
+    () =>
+      room_member_agents.find(
+        (agent) => agent.agent_id === active_room_session?.agent_id,
+      ) ?? null,
+    [active_room_session?.agent_id, room_member_agents],
+  );
+
   const external_room_conversations = useMemo(
     () => build_external_room_conversation_views({
       room_id: current_room?.id ?? null,
@@ -232,24 +248,6 @@ export function useRoomPageController({
       set_selected_member_agent_id(next_selected_member_agent_id);
     }
   }, [current_room_context, selected_member_agent_id]);
-
-  const active_room_session = useMemo(
-    () =>
-      current_room_context?.sessions.find(
-        (session) => session.agent_id === selected_member_agent_id,
-      ) ??
-      current_room_context?.sessions[0] ??
-      null,
-    [current_room_context, selected_member_agent_id],
-  );
-
-  const current_agent = useMemo(
-    () =>
-      room_member_agents.find(
-        (agent) => agent.agent_id === active_room_session?.agent_id,
-      ) ?? null,
-    [active_room_session?.agent_id, room_member_agents],
-  );
 
   useEffect(
     () => subscribe_room_directory_updates(() => {
@@ -570,6 +568,7 @@ export function useRoomPageController({
     }
 
     await refresh_room_contexts(room_id);
+    notify_room_directory_updated();
   }, [refresh_room_contexts, room_id]);
 
   const is_hydrated = is_bootstrapped && !is_room_loading;

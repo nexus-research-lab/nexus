@@ -256,6 +256,15 @@ func (s *Service) persistSDKSessionFingerprint(
 	sessionItem.Options[protocol.OptionRuntimeKind] = strings.TrimSpace(runtimeKind)
 	sessionItem.Options[protocol.OptionRuntimeProvider] = strings.TrimSpace(provider)
 	sessionItem.Options[protocol.OptionRuntimeModel] = strings.TrimSpace(model)
+	var err error
+	sessionItem, err = s.preservePersistedSessionTitle(workspacePath, sessionItem)
+	if err != nil {
+		s.loggerFor(ctx).Error("DM session runtime 配置指纹保留标题失败",
+			"session_key", sessionItem.SessionKey,
+			"err", err,
+		)
+		return
+	}
 	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
 		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
 			"session_key", sessionItem.SessionKey,

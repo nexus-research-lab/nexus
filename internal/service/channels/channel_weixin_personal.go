@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 const (
@@ -210,20 +212,23 @@ func (c *personalWeixinChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *personalWeixinChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+func (c *personalWeixinChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
-		return fmt.Errorf("personal weixin channel is not configured")
+		return DeliveryResult{}, fmt.Errorf("personal weixin channel is not configured")
 	}
 	if strings.TrimSpace(target.To) == "" {
-		return fmt.Errorf("personal weixin delivery target requires to")
+		return DeliveryResult{}, fmt.Errorf("personal weixin delivery target requires to")
 	}
+	parts := make([]channelmessage.ReceiptPart, 0)
 	for _, chunk := range splitText(strings.TrimSpace(text), 4000) {
+		clientID := newDeliveryID("weixin")
 		request := map[string]any{
 			"base_info": c.client.baseInfo(),
 			"msg": personalWeixinMessage{
 				FromUserID:   "",
 				ToUserID:     strings.TrimSpace(target.To),
-				ClientID:     newDeliveryID("weixin"),
+				ClientID:     clientID,
 				MessageType:  personalWeixinMessageTypeBot,
 				MessageState: personalWeixinMessageStateEnd,
 				ContextToken: strings.TrimSpace(target.ThreadID),
@@ -236,10 +241,16 @@ func (c *personalWeixinChannel) SendDeliveryText(ctx context.Context, target Del
 			},
 		}
 		if err := c.client.post(ctx, "ilink/bot/sendmessage", request, nil); err != nil {
-			return err
+			return DeliveryResult{}, err
 		}
+		parts = append(parts, channelmessage.TextPart(clientID))
 	}
-	return nil
+	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  ChannelTypeWeixinPersonal,
+		Target:   target.To,
+		ThreadID: target.ThreadID,
+		Parts:    parts,
+	})), nil
 }
 
 func (c *personalWeixinChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
@@ -316,6 +327,11 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 		AccountID: c.accountID,
 		ThreadID:  strings.TrimSpace(message.ContextToken),
 	}
+	messageID := personalWeixinInboundMessageID(message)
+	receivedAt := time.Time{}
+	if message.CreateTimeMS > 0 {
+		receivedAt = time.UnixMilli(message.CreateTimeMS).UTC()
+	}
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
@@ -325,10 +341,44 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 		Ref:          fromUserID,
 		ExternalName: fromUserID,
 		Content:      content,
+		RoundID:      messageID,
+		ReqID:        messageID,
 		Delivery:     delivery,
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeWeixinPersonal,
+			Target:            fromUserID,
+			PlatformMessageID: messageID,
+			ThreadID:          strings.TrimSpace(message.ContextToken),
+			SenderID:          fromUserID,
+			SenderName:        fromUserID,
+			ChatType:          "dm",
+			Text:              content,
+			ReceivedAt:        receivedAt,
+			Metadata: map[string]string{
+				"client_id":  strings.TrimSpace(message.ClientID),
+				"session_id": strings.TrimSpace(message.SessionID),
+				"group_id":   strings.TrimSpace(message.GroupID),
+			},
+		}),
 	}); err != nil {
-		_ = c.SendDeliveryText(requestCtx, *delivery, "⚠️ 个人微信消息处理失败: "+truncateChannelError(err))
+		if isPairingApprovalRequired(err) {
+			return
+		}
+		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ 微信消息处理失败: "+truncateChannelError(err))
 	}
+}
+
+func personalWeixinInboundMessageID(message personalWeixinMessage) string {
+	if message.MessageID > 0 {
+		return strconv.FormatInt(message.MessageID, 10)
+	}
+	if strings.TrimSpace(message.ClientID) != "" {
+		return strings.TrimSpace(message.ClientID)
+	}
+	if message.Seq > 0 {
+		return strconv.FormatInt(message.Seq, 10)
+	}
+	return ""
 }
 
 func (c *personalWeixinChannel) currentIngress() IngressAcceptor {

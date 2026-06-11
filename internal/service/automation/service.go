@@ -45,7 +45,7 @@ type workspaceReader interface {
 }
 
 type deliveryRouter interface {
-	DeliverText(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryTarget, error)
+	DeliverMessage(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryResult, error)
 }
 
 type runtimeSessionCloser interface {

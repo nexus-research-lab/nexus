@@ -118,6 +118,12 @@ func TestDecodeFeishuIngressCallbackMessage(t *testing.T) {
 	if request.ReqID != "om_1" || request.RoundID != "evt-1" {
 		t.Fatalf("飞书请求 ID 不正确: req=%q round=%q", request.ReqID, request.RoundID)
 	}
+	if request.Message == nil ||
+		request.Message.PlatformMessageID != "om_1" ||
+		request.Message.SenderID != "ou_sender" ||
+		request.Message.Text != "检查今天的定时任务发送情况" {
+		t.Fatalf("飞书消息 envelope 不正确: %+v", request.Message)
+	}
 }
 
 func TestDecodeFeishuIngressCallbackMessageThreadMetadata(t *testing.T) {
@@ -157,6 +163,11 @@ func TestDecodeFeishuIngressCallbackMessageThreadMetadata(t *testing.T) {
 	}
 	if callback.Request.Delivery == nil || callback.Request.Delivery.ThreadID != "om_reply_1" {
 		t.Fatalf("飞书话题回投目标应记录当前消息 ID: %+v", callback.Request.Delivery)
+	}
+	if callback.Request.Message == nil ||
+		callback.Request.Message.PlatformMessageID != "om_reply_1" ||
+		callback.Request.Message.ThreadID != "omt_thread_1" {
+		t.Fatalf("飞书话题消息 envelope 不正确: %+v", callback.Request.Message)
 	}
 }
 
@@ -359,7 +370,7 @@ func TestFeishuChannelReplyUsesMessageReplyAPI(t *testing.T) {
 		WithReplyInThread("enabled")
 	channel.baseURL = "https://feishu.test"
 
-	err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:     DeliveryModeExplicit,
 		Channel:  ChannelTypeFeishu,
 		To:       "oc_group_123",

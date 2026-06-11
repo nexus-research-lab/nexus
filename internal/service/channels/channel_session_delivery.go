@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -57,32 +58,35 @@ func (c *sessionDeliveryChannel) Stop(context.Context) error {
 	return nil
 }
 
-// SendDeliveryText 按 session_key 完成文本投递。
-func (c *sessionDeliveryChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
-	return c.SendAgentDeliveryText(ctx, "", target, text)
+// SendDeliveryMessage 按 session_key 完成消息投递。
+func (c *sessionDeliveryChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+	return c.SendAgentDeliveryMessage(ctx, "", target, text)
 }
 
-// SendAgentDeliveryText 按 session_key 完成文本投递，agentID 用于 room 公区消息归属。
-func (c *sessionDeliveryChannel) SendAgentDeliveryText(
+// SendAgentDeliveryMessage 按 session_key 完成消息投递，agentID 用于 room 公区消息归属。
+func (c *sessionDeliveryChannel) SendAgentDeliveryMessage(
 	ctx context.Context,
 	agentID string,
 	target DeliveryTarget,
 	text string,
-) error {
+) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	sessionKey := firstNonEmpty(target.SessionKey, target.To)
 	sessionKey, err := protocol.RequireStructuredSessionKey(sessionKey)
 	if err != nil {
-		return err
+		return DeliveryResult{}, err
 	}
 
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		return c.sendRoomDeliveryText(ctx, strings.TrimSpace(agentID), parsed, sessionKey, text)
+		receipt, err := c.sendRoomDeliveryText(ctx, strings.TrimSpace(agentID), parsed, sessionKey, text)
+		return newDeliveryResult(normalized, receipt), err
 	}
 	if parsed.Kind != protocol.SessionKeyKindAgent {
-		return errors.New("shared room delivery 暂不支持")
+		return DeliveryResult{}, errors.New("shared room delivery 暂不支持")
 	}
-	return c.sendAgentSessionDeliveryText(ctx, parsed, sessionKey, text)
+	receipt, err := c.sendAgentSessionDeliveryText(ctx, parsed, sessionKey, text)
+	return newDeliveryResult(normalized, receipt), err
 }
 
 // sendAgentSessionDeliveryText 追加 assistant 正文与内部 result overlay，
@@ -92,24 +96,24 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 	parsed protocol.SessionKey,
 	sessionKey string,
 	text string,
-) error {
+) (*channelmessage.Receipt, error) {
 	if c.agents == nil {
-		return errors.New("session delivery 缺少 agent 解析器")
+		return nil, errors.New("session delivery 缺少 agent 解析器")
 	}
 
 	agentValue, err := c.agents.GetAgent(ctx, parsed.AgentID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
 	if workspacePath == "" {
-		return fmt.Errorf("delivery target agent has no workspace path: %s", parsed.AgentID)
+		return nil, fmt.Errorf("delivery target agent has no workspace path: %s", parsed.AgentID)
 	}
 
 	now := time.Now().UTC()
 	sessionValue, err := c.ensureSession(workspacePath, parsed, sessionKey, now)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	roundID := c.idFactory("delivery_round")
@@ -150,14 +154,21 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 
 	updated, err := c.persistMessage(workspacePath, *sessionValue, assistantMessage)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if _, err = c.persistMessage(workspacePath, updated, resultMessage); err != nil {
-		return err
+		return nil, err
 	}
 
 	c.broadcastMessage(ctx, sessionKey, parsed.AgentID, message.ProjectResultMessage(assistantMessage, resultMessage))
-	return nil
+	return channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  c.channelType,
+		Target:   sessionKey,
+		ThreadID: parsed.ThreadID,
+		Parts: []channelmessage.ReceiptPart{
+			channelmessage.TextPart(stringValue(assistantMessage["message_id"])),
+		},
+	}), nil
 }
 
 func (c *sessionDeliveryChannel) ensureSession(

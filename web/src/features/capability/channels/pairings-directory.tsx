@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Filter, RefreshCw, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, Filter, Plus, RefreshCw, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { get_agents } from "@/lib/api/agent-manage-api";
@@ -34,21 +34,8 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { Agent } from "@/types/agent/agent";
 
-const CHANNEL_LABELS: Record<ImChannelType, string> = {
-  dingtalk: "钉钉",
-  wechat: "企业微信",
-  "weixin-personal": "个人微信",
-  feishu: "飞书",
-  telegram: "Telegram",
-  discord: "Discord",
-};
-
-const STATUS_LABELS: Record<ImPairingStatus, string> = {
-  pending: "待处理",
-  active: "已授权",
-  disabled: "已停用",
-  rejected: "已拒绝",
-};
+import { CreatePairingDialog } from "./pairing-create-dialog";
+import { CHANNEL_LABELS, CHANNEL_OPTIONS, STATUS_LABELS } from "./pairing-options";
 
 function status_tone(status: ImPairingStatus): UiBadgeTone {
   switch (status) {
@@ -77,6 +64,7 @@ export function PairingsDirectory() {
   const [query, set_query] = useState("");
   const [loading, set_loading] = useState(true);
   const [busy_id, set_busy_id] = useState<string | null>(null);
+  const [create_open, set_create_open] = useState(false);
   const [feedback, set_feedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
 
   const visible_items = useMemo(() => {
@@ -144,6 +132,11 @@ export function PairingsDirectory() {
     }
   };
 
+  const handle_pairing_created = useCallback((item: PairingView) => {
+    set_feedback({ tone: "success", title: "配对已新增", message: `${item.external_name || item.external_ref} 已创建` });
+    void refresh();
+  }, [refresh]);
+
   const feedback_items: FeedbackBannerItem[] = feedback
     ? [{
         key: "pairings-feedback",
@@ -166,10 +159,21 @@ export function PairingsDirectory() {
             subtitle={t("capability.pairings_subtitle")}
             title={t("capability.pairings")}
             trailing={(
-              <WorkspaceSurfaceToolbarAction onClick={() => void refresh()}>
-                <RefreshCw className="h-3.5 w-3.5" />
-                {t("capability.refresh")}
-              </WorkspaceSurfaceToolbarAction>
+              <>
+                <WorkspaceSurfaceToolbarAction
+                  disabled={agents.length === 0}
+                  onClick={() => set_create_open(true)}
+                  title={agents.length === 0 ? "需要先创建智能体" : "新增 IM 配对"}
+                  tone="primary"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  新增配对
+                </WorkspaceSurfaceToolbarAction>
+                <WorkspaceSurfaceToolbarAction onClick={() => void refresh()}>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {t("capability.refresh")}
+                </WorkspaceSurfaceToolbarAction>
+              </>
             )}
           />
         )}
@@ -191,10 +195,7 @@ export function PairingsDirectory() {
               on_change={(value) => set_channel(value as ImChannelType | "")}
               options={[
                 { value: "", label: "全部渠道" },
-                ...Object.entries(CHANNEL_LABELS).map(([key, label]) => ({
-                  value: key,
-                  label,
-                })),
+                ...CHANNEL_OPTIONS,
               ]}
               value={channel}
             />
@@ -319,6 +320,15 @@ export function PairingsDirectory() {
           )}
         </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
+
+      {create_open ? (
+        <CreatePairingDialog
+          agents={agents}
+          on_close={() => set_create_open(false)}
+          on_created={handle_pairing_created}
+          on_error={(message) => set_feedback({ tone: "error", title: "新增失败", message })}
+        />
+      ) : null}
 
       <FeedbackBannerStack items={feedback_items} />
     </>

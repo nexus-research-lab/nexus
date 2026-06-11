@@ -11,10 +11,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 var (
@@ -83,32 +85,34 @@ func (fn ExternalSessionNotifierFunc) NotifyExternalSessionUpdated(ctx context.C
 
 // IngressRequest 表示一条来自外部通道的标准化消息。
 type IngressRequest struct {
-	Channel          string          `json:"channel,omitempty"`
-	OwnerUserID      string          `json:"owner_user_id,omitempty"`
-	SessionKey       string          `json:"session_key,omitempty"`
-	AgentID          string          `json:"agent_id,omitempty"`
-	ChatType         string          `json:"chat_type,omitempty"`
-	Ref              string          `json:"ref,omitempty"`
-	ThreadID         string          `json:"thread_id,omitempty"`
-	ExternalName     string          `json:"external_name,omitempty"`
-	Content          string          `json:"content"`
-	RoundID          string          `json:"round_id,omitempty"`
-	ReqID            string          `json:"req_id,omitempty"`
-	PermissionMode   string          `json:"permission_mode,omitempty"`
-	AutoApproveAll   bool            `json:"auto_approve_all,omitempty"`
-	AutoApproveTools []string        `json:"auto_approve_tools,omitempty"`
-	Delivery         *DeliveryTarget `json:"delivery,omitempty"`
+	Channel          string                  `json:"channel,omitempty"`
+	OwnerUserID      string                  `json:"owner_user_id,omitempty"`
+	SessionKey       string                  `json:"session_key,omitempty"`
+	AgentID          string                  `json:"agent_id,omitempty"`
+	ChatType         string                  `json:"chat_type,omitempty"`
+	Ref              string                  `json:"ref,omitempty"`
+	ThreadID         string                  `json:"thread_id,omitempty"`
+	ExternalName     string                  `json:"external_name,omitempty"`
+	Content          string                  `json:"content"`
+	RoundID          string                  `json:"round_id,omitempty"`
+	ReqID            string                  `json:"req_id,omitempty"`
+	PermissionMode   string                  `json:"permission_mode,omitempty"`
+	AutoApproveAll   bool                    `json:"auto_approve_all,omitempty"`
+	AutoApproveTools []string                `json:"auto_approve_tools,omitempty"`
+	Delivery         *DeliveryTarget         `json:"delivery,omitempty"`
+	Message          *channelmessage.Inbound `json:"message,omitempty"`
 }
 
 // IngressResult 描述入口受理结果。
 type IngressResult struct {
-	Channel            string          `json:"channel"`
-	AgentID            string          `json:"agent_id"`
-	SessionKey         string          `json:"session_key"`
-	RoundID            string          `json:"round_id"`
-	ReqID              string          `json:"req_id"`
-	Duplicate          bool            `json:"duplicate,omitempty"`
-	RememberedDelivery *DeliveryTarget `json:"remembered_delivery,omitempty"`
+	Channel            string                  `json:"channel"`
+	AgentID            string                  `json:"agent_id"`
+	SessionKey         string                  `json:"session_key"`
+	RoundID            string                  `json:"round_id"`
+	ReqID              string                  `json:"req_id"`
+	Duplicate          bool                    `json:"duplicate,omitempty"`
+	RememberedDelivery *DeliveryTarget         `json:"remembered_delivery,omitempty"`
+	Message            *channelmessage.Inbound `json:"message,omitempty"`
 }
 
 type normalizedIngressRequest struct {
@@ -124,6 +128,14 @@ type normalizedIngressRequest struct {
 	autoApproveAll   bool
 	autoApproveTools map[string]struct{}
 	rememberedTarget *DeliveryTarget
+	message          *channelmessage.Inbound
+}
+
+func (r normalizedIngressRequest) messageID() string {
+	if r.message == nil {
+		return ""
+	}
+	return strings.TrimSpace(r.message.PlatformMessageID)
 }
 
 // IngressService 负责把外部通道消息归一到 DM 入口。
@@ -196,6 +208,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	)
 	logger.Info("受理外部通道消息",
 		"content_chars", utf8.RuneCountInString(normalized.content),
+		"platform_message_id", normalized.messageID(),
 	)
 
 	claimedIngress := false
@@ -219,13 +232,14 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		claimedIngress = true
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, normalized.agentID)
+	ownerCtx := contextWithIngressOwner(ctx, normalized.ownerUserID)
+	agentValue, err := s.agents.GetAgent(ownerCtx, normalized.agentID)
 	if err != nil {
 		logger.Error("解析通道消息目标 Agent 失败", "err", err)
 		s.markIngressMessageFailed(ctx, claimedIngress, normalized, err)
 		return nil, err
 	}
-	if err = s.dm.HandleChat(ctx, dmsvc.Request{
+	if err = s.dm.HandleChat(ownerCtx, dmsvc.Request{
 		SessionKey:           normalized.sessionKey,
 		AgentID:              normalized.agentID,
 		Content:              normalized.content,
@@ -233,8 +247,11 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		ReqID:                normalized.reqID,
 		PermissionMode:       normalized.permissionMode,
 		BroadcastUserMessage: true,
-		PermissionHandler:    s.buildPermissionHandler(agentValue, normalized),
-		ExternalReplyTarget:  dmExternalReplyTarget(normalized.rememberedTarget),
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Metadata: channelmessage.RuntimeMetadata(normalized.message),
+		},
+		PermissionHandler:   s.buildPermissionHandler(agentValue, normalized),
+		ExternalReplyTarget: dmExternalReplyTarget(normalized.rememberedTarget),
 	}); err != nil {
 		logger.Error("下发通道消息失败", "err", err)
 		s.markIngressMessageFailed(ctx, claimedIngress, normalized, err)
@@ -272,6 +289,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		RoundID:            normalized.roundID,
 		ReqID:              normalized.reqID,
 		RememberedDelivery: remembered,
+		Message:            normalized.message,
 	}, nil
 }
 
@@ -317,7 +335,9 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		return normalizedIngressRequest{}, errors.New("content is required")
 	}
 
-	sessionKey, parsed, agentID, err := s.resolveSession(ctx, request)
+	ownerUserID := normalizeChannelOwnerUserID(firstNonEmptyIngress(request.OwnerUserID, authctx.OwnerUserID(ctx)))
+	ownerCtx := contextWithIngressOwner(ctx, ownerUserID)
+	sessionKey, parsed, agentID, err := s.resolveSession(ownerCtx, request)
 	if err != nil {
 		return normalizedIngressRequest{}, err
 	}
@@ -328,21 +348,37 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		return normalizedIngressRequest{}, err
 	}
 	roundID := firstNonEmptyIngress(request.RoundID, s.idFactory("ingress_round"))
+	reqID := firstNonEmptyIngress(request.ReqID, request.RoundID, roundID)
+	message := migrateIngressMessage(request, channelStored, parsed, content, reqID)
 
 	return normalizedIngressRequest{
-		ownerUserID:      normalizeChannelOwnerUserID(firstNonEmptyIngress(request.OwnerUserID, authctx.OwnerUserID(ctx))),
+		ownerUserID:      ownerUserID,
 		channelStored:    channelStored,
 		sessionKey:       sessionKey,
 		parsed:           parsed,
 		agentID:          agentID,
 		content:          content,
 		roundID:          roundID,
-		reqID:            firstNonEmptyIngress(request.ReqID, request.RoundID, roundID),
+		reqID:            reqID,
 		permissionMode:   sdkpermission.Mode(strings.TrimSpace(request.PermissionMode)),
 		autoApproveAll:   request.AutoApproveAll,
 		autoApproveTools: s.resolveApprovedTools(channelStored, request.AutoApproveTools),
 		rememberedTarget: rememberedTarget,
+		message:          message,
 	}, nil
+}
+
+func contextWithIngressOwner(ctx context.Context, ownerUserID string) context.Context {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && strings.TrimSpace(currentUserID) == ownerUserID {
+		return ctx
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
 }
 
 func (s *IngressService) resolveSession(ctx context.Context, request IngressRequest) (string, protocol.SessionKey, string, error) {

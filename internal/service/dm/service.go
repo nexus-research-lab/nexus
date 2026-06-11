@@ -92,9 +92,18 @@ type ExternalReplyTarget struct {
 	SessionKey string
 }
 
+// ExternalReplyResult 是外部 IM 回投后的最小可观测结果。
+type ExternalReplyResult struct {
+	Channel                  string
+	To                       string
+	ThreadID                 string
+	PrimaryPlatformMessageID string
+	PlatformMessageIDs       []string
+}
+
 // ExternalReplyDispatcher 由 app 装配层注入，避免 dm 包反向依赖 channels。
 type ExternalReplyDispatcher interface {
-	DeliverExternalReply(context.Context, string, string, ExternalReplyTarget) error
+	DeliverExternalReply(context.Context, string, string, ExternalReplyTarget) (ExternalReplyResult, error)
 	SetExternalTyping(context.Context, string, ExternalReplyTarget, bool) error
 }
 

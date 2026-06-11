@@ -36,6 +36,12 @@ var (
 	errEmptyGeneratedTitle     = errors.New("标题生成返回空结果")
 	defaultConversationPattern = regexp.MustCompile(`^.+\s·\s对话\s+\d+$`)
 	whitespacePattern          = regexp.MustCompile(`\s+`)
+	defaultSessionTitles       = map[string]struct{}{
+		"":         {},
+		"New Chat": {},
+		"未命名会话":    {},
+		"未命名话题":    {},
+	}
 )
 
 // Request 描述一次标题生成请求。
@@ -133,7 +139,28 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 	if s == nil || s.providers == nil || s.llmClient == nil {
 		return
 	}
-	if strings.TrimSpace(request.Content) == "" || !request.hasTarget() || !request.shouldGenerateTitle() {
+	if strings.TrimSpace(request.Content) == "" {
+		s.logger.Debug("跳过标题生成：内容为空",
+			"session_key", request.SessionKey,
+			"conversation_id", request.ConversationID,
+		)
+		return
+	}
+	if !request.hasTarget() {
+		s.logger.Debug("跳过标题生成：缺少目标",
+			"session_key", request.SessionKey,
+			"conversation_id", request.ConversationID,
+		)
+		return
+	}
+	if !request.shouldGenerateTitle() {
+		s.logger.Debug("跳过标题生成：标题无需更新",
+			"session_key", request.SessionKey,
+			"conversation_id", request.ConversationID,
+			"session_title", request.SessionTitle,
+			"session_message_count", request.SessionMessageCount,
+			"conversation_message_count", request.ConversationMessageCount,
+		)
 		return
 	}
 	targetKey := request.targetKey()
@@ -141,9 +168,24 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 		return
 	}
 	if !s.markInflight(targetKey) {
+		s.logger.Debug("跳过标题生成：已有任务执行中",
+			"target_key", targetKey,
+			"session_key", request.SessionKey,
+			"conversation_id", request.ConversationID,
+		)
 		return
 	}
 
+	s.logger.Debug("调度标题生成",
+		"target_key", targetKey,
+		"session_key", request.SessionKey,
+		"conversation_id", request.ConversationID,
+		"owner_user_id", request.OwnerUserID,
+		"provider", request.Provider,
+		"model", request.Model,
+		"session_title", request.SessionTitle,
+		"session_message_count", request.SessionMessageCount,
+	)
 	asyncCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), titleRequestTimeout)
 	s.runAsync(func() {
 		defer cancel()
@@ -246,6 +288,12 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 		sessionEligible = sessionEligible && conversationEligible
 	}
 	if !sessionEligible && !conversationEligible {
+		s.logger.Debug("跳过标题生成：目标当前不可自动更新",
+			"session_key", request.SessionKey,
+			"conversation_id", request.ConversationID,
+			"session_eligible", sessionEligible,
+			"conversation_eligible", conversationEligible,
+		)
 		return
 	}
 
@@ -282,6 +330,10 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			)
 		} else if ok {
 			updated = true
+			s.logger.Info("session 标题已生成",
+				"session_key", request.SessionKey,
+				"title", title,
+			)
 		}
 	}
 	if conversationEligible {
@@ -300,6 +352,11 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			)
 		} else if ok {
 			updated = true
+			s.logger.Info("room 对话标题已生成",
+				"conversation_id", request.ConversationID,
+				"room_id", request.ConversationRoomID,
+				"title", title,
+			)
 		}
 	}
 	if updated {
@@ -539,7 +596,8 @@ func (r Request) shouldCheckConversationTitle() bool {
 
 func isDefaultSessionTitle(title string) bool {
 	normalized := strings.TrimSpace(title)
-	return normalized == "" || normalized == "New Chat"
+	_, ok := defaultSessionTitles[normalized]
+	return ok
 }
 
 func isDefaultConversationTitle(title string, roomName string) bool {

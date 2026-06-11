@@ -13,6 +13,14 @@ export type ImChannelType =
   | "discord";
 export type ImPairingStatus = "pending" | "active" | "disabled" | "rejected";
 export type ImChatType = "dm" | "group";
+export type ImChannelCapability =
+  | "text"
+  | "media"
+  | "typing"
+  | "thread"
+  | "reply"
+  | "receipt"
+  | "durable_final";
 
 export interface ChannelCredentialField {
   key: string;
@@ -34,6 +42,7 @@ export interface ChannelCatalogItem {
   supports_group: boolean;
   supports_qr_code: boolean;
   supports_oauth_link: boolean;
+  capabilities: ImChannelCapability[];
   credential_fields: ChannelCredentialField[];
 }
 

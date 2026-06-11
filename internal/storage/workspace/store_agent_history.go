@@ -31,6 +31,7 @@ const (
 	overlayKindField              = "nexus_overlay_kind"
 	overlayKindRoundMarker        = "round_marker"
 	overlayKindRoomPublicCursor   = "room_public_cursor"
+	overlayKindExternalDelivery   = "external_delivery_receipt"
 )
 
 var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
@@ -81,6 +82,18 @@ type RoomPublicCursor struct {
 	LastPublicMessageID string
 	LastPublicTimestamp int64
 	Timestamp           int64
+}
+
+// ExternalDeliveryReceipt 记录一条 assistant 消息投递到外部 IM 后的平台回执。
+type ExternalDeliveryReceipt struct {
+	RoundID                  string
+	MessageID                string
+	Channel                  string
+	Target                   string
+	ThreadID                 string
+	PrimaryPlatformMessageID string
+	PlatformMessageIDs       []string
+	Timestamp                time.Time
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
@@ -172,6 +185,37 @@ func (s *AgentHistoryStore) DeleteTranscriptProject(workspacePath string) (bool,
 // AppendOverlayMessage 追加一条 Nexus overlay 消息。
 func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKey string, message protocol.Message) error {
 	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), message)
+}
+
+// AppendExternalDeliveryReceipt 追加一条外部 IM 投递回执 overlay 控制行。
+func (s *AgentHistoryStore) AppendExternalDeliveryReceipt(
+	workspacePath string,
+	sessionKey string,
+	receipt ExternalDeliveryReceipt,
+) error {
+	normalized := normalizeExternalDeliveryReceipt(receipt)
+	if !normalized.hasAddress() || !normalized.hasDeliveryData() {
+		return nil
+	}
+
+	timestamp := normalized.Timestamp
+	if timestamp.IsZero() {
+		timestamp = time.Now().UTC()
+	}
+	row := protocol.Message{
+		overlayKindField:              overlayKindExternalDelivery,
+		"message_id":                  externalDeliveryReceiptMessageID(normalized, timestamp),
+		"role":                        overlayKindExternalDelivery,
+		"round_id":                    normalized.RoundID,
+		"assistant_message_id":        normalized.MessageID,
+		"channel":                     normalized.Channel,
+		"target":                      normalized.Target,
+		"thread_id":                   normalized.ThreadID,
+		"primary_platform_message_id": normalized.PrimaryPlatformMessageID,
+		"platform_message_ids":        normalized.PlatformMessageIDs,
+		"timestamp":                   timestamp.UnixMilli(),
+	}
+	return s.AppendOverlayMessage(workspacePath, sessionKey, row)
 }
 
 // AppendRoundMarker 记录一条 transcript round 对齐标记。
@@ -493,6 +537,9 @@ func materializeRoundMarkerMessages(
 		}
 		if normalizedAttachments := protocol.NormalizeChatAttachments(marker.Attachments, agentID); len(normalizedAttachments) > 0 {
 			row["attachments"] = normalizedAttachments
+		}
+		if len(marker.Metadata) > 0 {
+			row["metadata"] = marker.Metadata
 		}
 		rows = append(rows, row)
 	}

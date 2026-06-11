@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 const roomDeliverySource = "automation_delivery"
@@ -18,16 +19,16 @@ func (c *sessionDeliveryChannel) sendRoomDeliveryText(
 	parsed protocol.SessionKey,
 	sessionKey string,
 	text string,
-) error {
+) (*channelmessage.Receipt, error) {
 	if c.channelType != ChannelTypeWebSocket {
-		return fmt.Errorf("room delivery requires websocket channel: %s", c.channelType)
+		return nil, fmt.Errorf("room delivery requires websocket channel: %s", c.channelType)
 	}
 	conversationID := strings.TrimSpace(parsed.ConversationID)
 	if conversationID == "" {
-		return errors.New("room delivery requires conversation_id")
+		return nil, errors.New("room delivery requires conversation_id")
 	}
 	if c.roomHistory == nil {
-		return errors.New("session delivery 缺少 room history store")
+		return nil, errors.New("session delivery 缺少 room history store")
 	}
 
 	now := time.Now().UTC()
@@ -53,11 +54,18 @@ func (c *sessionDeliveryChannel) sendRoomDeliveryText(
 		},
 	}
 	if err := c.roomHistory.AppendInlineMessage(conversationID, assistantMessage); err != nil {
-		return err
+		return nil, err
 	}
 
 	c.broadcastRoomMessage(ctx, sessionKey, conversationID, strings.TrimSpace(agentID), roundID, assistantMessage)
-	return nil
+	return channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  c.channelType,
+		Target:   sessionKey,
+		ThreadID: conversationID,
+		Parts: []channelmessage.ReceiptPart{
+			channelmessage.TextPart(stringValue(assistantMessage["message_id"])),
+		},
+	}), nil
 }
 
 func (c *sessionDeliveryChannel) broadcastRoomMessage(
