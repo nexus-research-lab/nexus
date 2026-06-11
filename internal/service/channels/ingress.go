@@ -232,13 +232,14 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		claimedIngress = true
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, normalized.agentID)
+	ownerCtx := contextWithIngressOwner(ctx, normalized.ownerUserID)
+	agentValue, err := s.agents.GetAgent(ownerCtx, normalized.agentID)
 	if err != nil {
 		logger.Error("解析通道消息目标 Agent 失败", "err", err)
 		s.markIngressMessageFailed(ctx, claimedIngress, normalized, err)
 		return nil, err
 	}
-	if err = s.dm.HandleChat(ctx, dmsvc.Request{
+	if err = s.dm.HandleChat(ownerCtx, dmsvc.Request{
 		SessionKey:           normalized.sessionKey,
 		AgentID:              normalized.agentID,
 		Content:              normalized.content,
@@ -334,7 +335,9 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		return normalizedIngressRequest{}, errors.New("content is required")
 	}
 
-	sessionKey, parsed, agentID, err := s.resolveSession(ctx, request)
+	ownerUserID := normalizeChannelOwnerUserID(firstNonEmptyIngress(request.OwnerUserID, authctx.OwnerUserID(ctx)))
+	ownerCtx := contextWithIngressOwner(ctx, ownerUserID)
+	sessionKey, parsed, agentID, err := s.resolveSession(ownerCtx, request)
 	if err != nil {
 		return normalizedIngressRequest{}, err
 	}
@@ -349,7 +352,7 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	message := migrateIngressMessage(request, channelStored, parsed, content, reqID)
 
 	return normalizedIngressRequest{
-		ownerUserID:      normalizeChannelOwnerUserID(firstNonEmptyIngress(request.OwnerUserID, authctx.OwnerUserID(ctx))),
+		ownerUserID:      ownerUserID,
 		channelStored:    channelStored,
 		sessionKey:       sessionKey,
 		parsed:           parsed,
@@ -363,6 +366,19 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		rememberedTarget: rememberedTarget,
 		message:          message,
 	}, nil
+}
+
+func contextWithIngressOwner(ctx context.Context, ownerUserID string) context.Context {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && strings.TrimSpace(currentUserID) == ownerUserID {
+		return ctx
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
 }
 
 func (s *IngressService) resolveSession(ctx context.Context, request IngressRequest) (string, protocol.SessionKey, string, error) {

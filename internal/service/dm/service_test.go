@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -356,8 +357,14 @@ func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *tes
 	sessionKey := "agent:agent-1:weixin-personal:dm:wx-user-1"
 	roomID := "room-agent-1"
 	conversationID := "wx-user-1"
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     "owner-a",
+		Username:   "owner-a",
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
 	service.scheduleTitleGeneration(
-		context.Background(),
+		ctx,
 		protocol.ParseSessionKey(sessionKey),
 		protocol.Session{
 			SessionKey:     sessionKey,
@@ -378,6 +385,9 @@ func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *tes
 	request := titleScheduler.LastRequest()
 	if request.SessionKey != sessionKey {
 		t.Fatalf("标题请求 session_key 不正确: %+v", request)
+	}
+	if request.OwnerUserID != "owner-a" {
+		t.Fatalf("标题请求 owner 不正确: %+v", request)
 	}
 	if request.ConversationID != "" || request.ConversationRoomID != "" || request.ConversationMessageCount != -1 {
 		t.Fatalf("外部 DM 不应作为 room conversation 调度标题: %+v", request)
