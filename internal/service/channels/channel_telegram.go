@@ -10,7 +10,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
+
+const telegramGeneralTopicID int64 = 1
 
 type telegramChannel struct {
 	token       string
@@ -22,6 +26,14 @@ type telegramChannel struct {
 	ingress IngressAcceptor
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
+}
+
+type telegramSendMessageResponse struct {
+	OK          *bool  `json:"ok"`
+	Description string `json:"description,omitempty"`
+	Result      struct {
+		MessageID int64 `json:"message_id"`
+	} `json:"result"`
 }
 
 func newTelegramChannel(token string, client *http.Client) *telegramChannel {
@@ -82,35 +94,58 @@ func (c *telegramChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *telegramChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+func (c *telegramChannel) SendDeliveryMessage(
+	ctx context.Context,
+	target DeliveryTarget,
+	text string,
+) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
-		return fmt.Errorf("telegram channel is not configured")
+		return DeliveryResult{}, fmt.Errorf("telegram channel is not configured")
 	}
 	if strings.TrimSpace(target.To) == "" {
-		return fmt.Errorf("telegram delivery target requires to")
+		return DeliveryResult{}, fmt.Errorf("telegram delivery target requires to")
 	}
 
+	parts := make([]channelmessage.ReceiptPart, 0)
 	for _, chunk := range splitText(strings.TrimSpace(text), 4000) {
 		payload := map[string]any{
 			"chat_id":                  target.To,
 			"text":                     chunk,
 			"disable_web_page_preview": true,
 		}
-		if err := applyTelegramThreadID(payload, target.ThreadID); err != nil {
-			return err
+		if err := applyTelegramSendThreadID(payload, target.ThreadID); err != nil {
+			return DeliveryResult{}, err
 		}
-		if err := doChannelJSONExpectSuccess(
+		var response telegramSendMessageResponse
+		if err := doChannelJSONExpectSuccessDecode(
 			ctx,
 			c.client,
 			http.MethodPost,
 			strings.TrimRight(c.baseURL, "/")+"/bot"+c.token+"/sendMessage",
 			payload,
 			nil,
+			&response,
 		); err != nil {
-			return err
+			return DeliveryResult{}, err
+		}
+		if response.OK != nil && !*response.OK {
+			description := strings.TrimSpace(response.Description)
+			if description == "" {
+				description = "ok=false"
+			}
+			return DeliveryResult{}, fmt.Errorf("telegram sendMessage failed: %s", description)
+		}
+		if response.Result.MessageID != 0 {
+			parts = append(parts, channelmessage.TextPart(strconv.FormatInt(response.Result.MessageID, 10)))
 		}
 	}
-	return nil
+	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  ChannelTypeTelegram,
+		Target:   target.To,
+		ThreadID: target.ThreadID,
+		Parts:    parts,
+	})), nil
 }
 
 func (c *telegramChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
@@ -128,7 +163,7 @@ func (c *telegramChannel) SendDeliveryTyping(ctx context.Context, target Deliver
 		"chat_id": target.To,
 		"action":  "typing",
 	}
-	if err := applyTelegramThreadID(payload, target.ThreadID); err != nil {
+	if err := applyTelegramTypingThreadID(payload, target.ThreadID); err != nil {
 		return err
 	}
 	return doChannelJSONExpectSuccess(
@@ -218,7 +253,15 @@ func (c *telegramChannel) fetchUpdates(ctx context.Context, offset int) ([]teleg
 	return envelope.Result, nextOffset, nil
 }
 
-func applyTelegramThreadID(payload map[string]any, rawThreadID string) error {
+func applyTelegramSendThreadID(payload map[string]any, rawThreadID string) error {
+	return applyTelegramThreadID(payload, rawThreadID, false)
+}
+
+func applyTelegramTypingThreadID(payload map[string]any, rawThreadID string) error {
+	return applyTelegramThreadID(payload, rawThreadID, true)
+}
+
+func applyTelegramThreadID(payload map[string]any, rawThreadID string, includeGeneralTopic bool) error {
 	if strings.TrimSpace(rawThreadID) == "" {
 		return nil
 	}
@@ -226,14 +269,19 @@ func applyTelegramThreadID(payload map[string]any, rawThreadID string) error {
 	if err != nil {
 		return fmt.Errorf("telegram thread_id is invalid: %w", err)
 	}
+	if threadID == telegramGeneralTopicID && !includeGeneralTopic {
+		return nil
+	}
 	payload["message_thread_id"] = threadID
 	return nil
 }
 
 func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdate) {
 	message := update.Message
+	edited := false
 	if message == nil {
 		message = update.EditedMessage
+		edited = message != nil
 	}
 	if message == nil || message.From == nil || message.From.IsBot {
 		return
@@ -271,6 +319,7 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
+	messageID := strconv.Itoa(message.MessageID)
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
 		Channel:     ChannelTypeTelegram,
 		OwnerUserID: c.ownerUserID,
@@ -278,9 +327,20 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		Ref:         ref,
 		ThreadID:    threadID,
 		Content:     content,
+		ReqID:       messageID,
 		Delivery:    delivery,
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeTelegram,
+			Target:            ref,
+			PlatformMessageID: messageID,
+			ThreadID:          threadID,
+			SenderID:          strconv.FormatInt(message.From.ID, 10),
+			ChatType:          chatType,
+			Text:              content,
+			Edited:            edited,
+		}),
 	}); err != nil {
-		_ = c.SendDeliveryText(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+truncateChannelError(err))
+		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+truncateChannelError(err))
 	}
 }
 

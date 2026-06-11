@@ -17,11 +17,11 @@ func (d dmExternalReplyDispatcher) DeliverExternalReply(
 	agentID string,
 	text string,
 	target dmsvc.ExternalReplyTarget,
-) error {
+) (dmsvc.ExternalReplyResult, error) {
 	if d.router == nil {
-		return errors.New("channel router is not configured")
+		return dmsvc.ExternalReplyResult{}, errors.New("channel router is not configured")
 	}
-	_, err := d.router.DeliverText(ctx, agentID, text, channels.DeliveryTarget{
+	result, err := d.router.DeliverMessage(ctx, agentID, text, channels.DeliveryTarget{
 		Mode:       target.Mode,
 		Channel:    target.Channel,
 		To:         target.To,
@@ -29,7 +29,19 @@ func (d dmExternalReplyDispatcher) DeliverExternalReply(
 		ThreadID:   target.ThreadID,
 		SessionKey: target.SessionKey,
 	})
-	return err
+	if err != nil {
+		return dmsvc.ExternalReplyResult{}, err
+	}
+	reply := dmsvc.ExternalReplyResult{
+		Channel:  result.Target.Channel,
+		To:       result.Target.To,
+		ThreadID: result.Target.ThreadID,
+	}
+	if result.Receipt != nil {
+		reply.PrimaryPlatformMessageID = result.Receipt.PrimaryPlatformMessageID
+		reply.PlatformMessageIDs = append([]string(nil), result.Receipt.PlatformMessageIDs...)
+	}
+	return reply, nil
 }
 
 func (d dmExternalReplyDispatcher) SetExternalTyping(

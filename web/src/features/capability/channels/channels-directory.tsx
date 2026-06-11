@@ -68,7 +68,6 @@ import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspac
 import type { Agent } from "@/types/agent/agent";
 
 const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "weixin-personal", "feishu", "telegram", "discord"];
-const ENABLED_CHANNEL_TYPES = new Set<ImChannelType>(["weixin-personal", "feishu"]);
 type ChannelFilter = "all" | "connected" | "configured" | "unconfigured" | "planned";
 
 const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: TranslationKey }> = [
@@ -88,16 +87,8 @@ const CHANNEL_STYLES: Record<ImChannelType, { color: string; icon: typeof Send; 
   discord: { color: "#5865f2", icon: Gamepad2, cnName: "bg-[#5865f2] text-white" },
 };
 
-function is_channel_enabled(channel_type: ImChannelType) {
-  return ENABLED_CHANNEL_TYPES.has(channel_type);
-}
-
-function is_channel_closed(item: ChannelConfigView) {
-  return !is_channel_enabled(item.channel_type);
-}
-
 function is_channel_planned(item: ChannelConfigView) {
-  return item.runtime_status === "planned" || is_channel_closed(item);
+  return item.runtime_status === "planned";
 }
 
 function is_personal_weixin_channel(channel_type: ImChannelType) {
@@ -105,7 +96,6 @@ function is_personal_weixin_channel(channel_type: ImChannelType) {
 }
 
 function channel_status_text(item: ChannelConfigView) {
-  if (is_channel_closed(item)) return "未开放";
   if (is_channel_planned(item)) return "未上线";
   if (!item.configured) return "未关联";
   if (item.connection_state === "connected") return "已连接";
@@ -702,7 +692,6 @@ function ChannelCard({
   on_configure: (item: ChannelConfigView) => void;
 }) {
   const planned = is_channel_planned(item);
-  const closed = is_channel_closed(item);
   const connected = item.connection_state === "connected";
   const state_tone = planned
     ? "neutral"
@@ -715,11 +704,9 @@ function ChannelCard({
           : item.configured
             ? "info"
             : "neutral";
-  const description = closed
-    ? "该频道当前未开放配置，目前仅保留入口和信息结构。"
-    : planned
-      ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
-      : item.runtime_status === "external_adapter" && !item.configured
+  const description = planned
+    ? "该频道将在后续版本补充，目前仅保留入口和信息结构。"
+    : item.runtime_status === "external_adapter" && !item.configured
         ? "选择处理智能体后，按通道说明完成外部连接。"
         : item.configured
           ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`

@@ -94,6 +94,82 @@ func TestNormalizeHistoryRowsMergesAssistantSnapshotsByMessageID(t *testing.T) {
 	}
 }
 
+func TestNormalizeHistoryRowsMergesExternalDeliveryReceipt(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id":  "user-1",
+			"session_key": "agent:nexus:telegram:dm:test",
+			"agent_id":    "nexus",
+			"round_id":    "round-1",
+			"role":        "user",
+			"content":     "处理一下",
+			"timestamp":   int64(1000),
+		},
+		{
+			"message_id":  "assistant-1",
+			"session_key": "agent:nexus:telegram:dm:test",
+			"agent_id":    "nexus",
+			"round_id":    "round-1",
+			"role":        "assistant",
+			"content": []map[string]any{
+				{"type": "text", "text": "已处理。"},
+			},
+			"is_complete": true,
+			"timestamp":   int64(2000),
+		},
+		{
+			overlayKindField:              overlayKindExternalDelivery,
+			"message_id":                  "external_delivery_receipt:round-1:assistant-1:telegram:-1001:42",
+			"role":                        overlayKindExternalDelivery,
+			"round_id":                    "round-1",
+			"assistant_message_id":        "assistant-1",
+			"channel":                     "telegram",
+			"target":                      "-1001",
+			"thread_id":                   "12",
+			"primary_platform_message_id": "42",
+			"platform_message_ids":        []any{"42", "43"},
+			"timestamp":                   int64(3000),
+		},
+		{
+			"message_id":  "result-1",
+			"session_key": "agent:nexus:telegram:dm:test",
+			"agent_id":    "nexus",
+			"round_id":    "round-1",
+			"role":        "result",
+			"subtype":     "success",
+			"result":      "已处理。",
+			"timestamp":   int64(4000),
+		},
+	}
+
+	normalized := normalizeHistoryRows(rows, nil)
+	if len(normalized) != 2 {
+		t.Fatalf("回执控制行不应作为可见消息返回: %+v", normalized)
+	}
+	assistant := normalized[1]
+	delivery, ok := assistant["external_delivery"].(map[string]any)
+	if !ok {
+		t.Fatalf("assistant 未挂载 external_delivery: %+v", assistant)
+	}
+	if delivery["channel"] != "telegram" || delivery["target"] != "-1001" || delivery["thread_id"] != "12" {
+		t.Fatalf("外部投递目标不正确: %+v", delivery)
+	}
+	if delivery["primary_platform_message_id"] != "42" {
+		t.Fatalf("外部投递主平台 message id 不正确: %+v", delivery)
+	}
+	if delivery["delivered_at"] != int64(3000) {
+		t.Fatalf("外部投递时间不正确: %+v", delivery)
+	}
+	ids, ok := delivery["platform_message_ids"].([]string)
+	if !ok || len(ids) != 2 || ids[0] != "42" || ids[1] != "43" {
+		t.Fatalf("外部投递平台 message ids 不正确: %+v", delivery)
+	}
+	deliveries, ok := assistant["external_deliveries"].([]map[string]any)
+	if !ok || len(deliveries) != 1 {
+		t.Fatalf("assistant 应保留 external_deliveries 列表: %+v", assistant)
+	}
+}
+
 func TestNormalizeHistoryRowsKeepsResultUsageWhenSuppressingDuplicateResultText(t *testing.T) {
 	rows := []protocol.Message{
 		{

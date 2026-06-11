@@ -22,6 +22,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 var ErrWeChatCallbackUnauthorized = errors.New("wechat callback verification failed")
@@ -109,26 +111,27 @@ func (c *weChatChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *weChatChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+func (c *weChatChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	if strings.TrimSpace(target.To) == "" {
-		return fmt.Errorf("wechat delivery target requires to")
+		return DeliveryResult{}, fmt.Errorf("wechat delivery target requires to")
 	}
 	agentID, err := strconv.Atoi(strings.TrimSpace(c.agentID))
 	if err != nil {
-		return fmt.Errorf("wechat agent_id is invalid: %w", err)
+		return DeliveryResult{}, fmt.Errorf("wechat agent_id is invalid: %w", err)
 	}
 	token, err := c.accessTokenForDelivery(ctx)
 	if err != nil {
-		return err
+		return DeliveryResult{}, err
 	}
 	targetKey := normalizeWeChatMessageTargetKey(target.AccountID)
 	for _, chunk := range splitText(strings.TrimSpace(text), 900) {
 		if err = c.sendTextChunk(ctx, token, agentID, targetKey, target.To, chunk); err != nil {
 			c.clearAccessToken()
-			return err
+			return DeliveryResult{}, err
 		}
 	}
-	return nil
+	return newDeliveryResult(normalized, nil), nil
 }
 
 func (c *weChatChannel) accessTokenForDelivery(ctx context.Context) (string, error) {
@@ -262,6 +265,10 @@ func DecodeWeChatIngressCallback(raw []byte) (*IngressRequest, string, error) {
 		return nil, "empty_ref", nil
 	}
 	reqID := firstNonEmpty(payload.MsgID, strconv.FormatInt(payload.CreateTime, 10))
+	receivedAt := time.Time{}
+	if payload.CreateTime > 0 {
+		receivedAt = time.Unix(payload.CreateTime, 0).UTC()
+	}
 	return &IngressRequest{
 		Channel:      ChannelTypeWeChat,
 		ChatType:     "dm",
@@ -276,6 +283,16 @@ func DecodeWeChatIngressCallback(raw []byte) (*IngressRequest, string, error) {
 			To:        ref,
 			AccountID: "touser",
 		},
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeWeChat,
+			Target:            ref,
+			PlatformMessageID: reqID,
+			SenderID:          ref,
+			SenderName:        ref,
+			ChatType:          "dm",
+			Text:              content,
+			ReceivedAt:        receivedAt,
+		}),
 	}, "", nil
 }
 

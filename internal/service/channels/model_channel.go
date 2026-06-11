@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 const (
@@ -98,11 +99,24 @@ type MessageChannel interface {
 // DeliveryChannel 定义统一文本投递能力。
 type DeliveryChannel interface {
 	MessageChannel
-	SendDeliveryText(context.Context, DeliveryTarget, string) error
+	SendDeliveryMessage(context.Context, DeliveryTarget, string) (DeliveryResult, error)
+}
+
+// DeliveryResult 表示一次通道投递的目标解析结果与平台回执。
+type DeliveryResult struct {
+	Target  DeliveryTarget          `json:"target"`
+	Receipt *channelmessage.Receipt `json:"receipt,omitempty"`
+}
+
+func newDeliveryResult(target DeliveryTarget, receipt *channelmessage.Receipt) DeliveryResult {
+	return DeliveryResult{
+		Target:  target.Normalized(),
+		Receipt: receipt,
+	}
 }
 
 type agentScopedDeliveryChannel interface {
-	SendAgentDeliveryText(context.Context, string, DeliveryTarget, string) error
+	SendAgentDeliveryMessage(context.Context, string, DeliveryTarget, string) (DeliveryResult, error)
 }
 
 type typingDeliveryChannel interface {

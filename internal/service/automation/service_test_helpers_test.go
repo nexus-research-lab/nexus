@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
@@ -308,22 +309,23 @@ type fakeDeliveryRouter struct {
 	calls        []channels.DeliveryTarget
 	ownerUserIDs []string
 	err          error
+	receipt      *channelmessage.Receipt
 }
 
-func (f *fakeDeliveryRouter) DeliverText(
+func (f *fakeDeliveryRouter) DeliverMessage(
 	ctx context.Context,
 	_ string,
 	_ string,
 	target channels.DeliveryTarget,
-) (channels.DeliveryTarget, error) {
+) (channels.DeliveryResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, target)
 	f.ownerUserIDs = append(f.ownerUserIDs, authctx.OwnerUserID(ctx))
 	if f.err != nil {
-		return channels.DeliveryTarget{}, f.err
+		return channels.DeliveryResult{}, f.err
 	}
-	return target, nil
+	return channels.DeliveryResult{Target: target, Receipt: f.receipt}, nil
 }
 
 func (f *fakeDeliveryRouter) Calls() []channels.DeliveryTarget {

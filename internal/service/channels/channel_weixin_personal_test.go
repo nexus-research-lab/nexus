@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 type recordingPersonalWeixinIngress struct {
@@ -21,7 +22,7 @@ func (r *recordingPersonalWeixinIngress) Accept(_ context.Context, request Ingre
 	}, nil
 }
 
-func TestPersonalWeixinChannelSendDeliveryText(t *testing.T) {
+func TestPersonalWeixinChannelSendDeliveryMessage(t *testing.T) {
 	var receivedPath string
 	var receivedAuth string
 	var payload map[string]any
@@ -41,7 +42,7 @@ func TestPersonalWeixinChannelSendDeliveryText(t *testing.T) {
 		Token:     "token-1",
 		AccountID: "account-1",
 	}, server.Client())
-	err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:     DeliveryModeExplicit,
 		Channel:  ChannelTypeWeixinPersonal,
 		To:       "wx-user-1",
@@ -168,7 +169,7 @@ func TestPersonalWeixinChannelTypingIgnoresGetConfigFailure(t *testing.T) {
 	}
 }
 
-func TestPersonalWeixinChannelSendDeliveryTextChecksBusinessError(t *testing.T) {
+func TestPersonalWeixinChannelSendDeliveryMessageChecksBusinessError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		_, _ = writer.Write([]byte(`{"ret":1,"errmsg":"send unavailable"}`))
@@ -179,7 +180,7 @@ func TestPersonalWeixinChannelSendDeliveryTextChecksBusinessError(t *testing.T) 
 		BaseURL: server.URL,
 		Token:   "token-1",
 	}, server.Client())
-	err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeWeixinPersonal,
 		To:      "wx-user-1",
@@ -199,6 +200,11 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 
 	channel.handleMessage(context.Background(), personalWeixinMessage{
 		FromUserID:   "wx-user-1",
+		MessageID:    42,
+		ClientID:     "client-42",
+		CreateTimeMS: 1700000000000,
+		SessionID:    "session-1",
+		GroupID:      "group-1",
 		ContextToken: "ctx-token-1",
 		MessageType:  personalWeixinMessageTypeUser,
 		ItemList: []personalWeixinMessageItem{{
@@ -224,5 +230,22 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 	}
 	if !strings.Contains(request.Content, "检查今日任务") {
 		t.Fatalf("个人微信文本不正确: %+v", request)
+	}
+	if request.RoundID != "42" || request.ReqID != "42" {
+		t.Fatalf("个人微信消息 id 未进入入口请求: %+v", request)
+	}
+	if request.Message == nil ||
+		request.Message.Channel != ChannelTypeWeixinPersonal ||
+		request.Message.PlatformMessageID != "42" ||
+		request.Message.ThreadID != "ctx-token-1" ||
+		request.Message.SenderID != "wx-user-1" ||
+		request.Message.Text != "检查今日任务" ||
+		request.Message.Metadata["client_id"] != "client-42" ||
+		request.Message.Metadata["session_id"] != "session-1" ||
+		request.Message.Metadata["group_id"] != "group-1" {
+		t.Fatalf("个人微信入口 envelope 不正确: %+v", request.Message)
+	}
+	if !request.Message.ReceivedAt.Equal(time.UnixMilli(1700000000000).UTC()) {
+		t.Fatalf("个人微信入口时间不正确: %+v", request.Message.ReceivedAt)
 	}
 }

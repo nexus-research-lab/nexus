@@ -57,10 +57,42 @@ func doChannelJSONExpectSuccess(
 	return expectSuccess(response)
 }
 
+func doChannelJSONExpectSuccessDecode(
+	ctx context.Context,
+	client *http.Client,
+	method string,
+	endpoint string,
+	body any,
+	headers map[string]string,
+	output any,
+) error {
+	response, err := doChannelJSON(ctx, client, method, endpoint, body, headers)
+	if err != nil {
+		return err
+	}
+	return expectSuccessDecode(response, output)
+}
+
 func expectSuccess(response *http.Response) error {
 	defer response.Body.Close()
 	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, response.Body)
+		return nil
+	}
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+	return fmt.Errorf("delivery request failed: status=%d body=%s", response.StatusCode, strings.TrimSpace(string(body)))
+}
+
+func expectSuccessDecode(response *http.Response, output any) error {
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
+		if output == nil {
+			_, _ = io.Copy(io.Discard, response.Body)
+			return nil
+		}
+		if err := json.NewDecoder(response.Body).Decode(output); err != nil && err != io.EOF {
+			return err
+		}
 		return nil
 	}
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))

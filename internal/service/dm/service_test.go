@@ -74,6 +74,7 @@ type fakeExternalReplyDispatcher struct {
 	mu          sync.Mutex
 	calls       []externalReplyCall
 	typingCalls []externalTypingCall
+	result      ExternalReplyResult
 }
 
 type externalTypingCall struct {
@@ -87,7 +88,7 @@ func (d *fakeExternalReplyDispatcher) DeliverExternalReply(
 	agentID string,
 	text string,
 	target ExternalReplyTarget,
-) error {
+) (ExternalReplyResult, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.calls = append(d.calls, externalReplyCall{
@@ -95,7 +96,7 @@ func (d *fakeExternalReplyDispatcher) DeliverExternalReply(
 		text:    text,
 		target:  target,
 	})
-	return nil
+	return d.result, nil
 }
 
 func (d *fakeExternalReplyDispatcher) callsSnapshot() []externalReplyCall {
@@ -161,6 +162,92 @@ func TestRoundRunnerDeliversExternalAssistantReply(t *testing.T) {
 		calls[0].target.To != "user-1" ||
 		calls[0].target.ThreadID != "context-token-1" {
 		t.Fatalf("外部回复目标不正确: %+v", calls[0].target)
+	}
+}
+
+func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	workspacePath := filepath.Join(root, "agent-1")
+	history := workspacestore.NewAgentHistoryStore(root)
+	dispatcher := &fakeExternalReplyDispatcher{
+		result: ExternalReplyResult{
+			Channel:                  "telegram",
+			To:                       "-1001",
+			ThreadID:                 "12",
+			PrimaryPlatformMessageID: "42",
+			PlatformMessageIDs:       []string{"42", "43"},
+		},
+	}
+	sessionKey := "agent:agent-1:telegram:dm:-1001"
+	session := protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "agent-1",
+	}
+	assistant := protocol.Message{
+		"message_id":  "assistant-1",
+		"session_key": sessionKey,
+		"agent_id":    "agent-1",
+		"round_id":    "round-1",
+		"role":        "assistant",
+		"timestamp":   int64(1000),
+		"content": []map[string]any{
+			{"type": "text", "text": "已处理。"},
+		},
+	}
+	if err := history.AppendOverlayMessage(workspacePath, sessionKey, assistant); err != nil {
+		t.Fatal(err)
+	}
+	if err := history.AppendOverlayMessage(workspacePath, sessionKey, protocol.Message{
+		"message_id":  "result-1",
+		"session_key": sessionKey,
+		"agent_id":    "agent-1",
+		"round_id":    "round-1",
+		"role":        "result",
+		"subtype":     "success",
+		"result":      "已处理。",
+		"timestamp":   int64(1001),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runner := &roundRunner{
+		service:       &Service{replies: dispatcher, history: history},
+		workspacePath: workspacePath,
+		session:       session,
+		agent:         &protocol.Agent{AgentID: "agent-1"},
+		sessionKey:    sessionKey,
+		roundID:       "round-1",
+		externalReplyTarget: &ExternalReplyTarget{
+			Mode:     "explicit",
+			Channel:  "telegram",
+			To:       "-1001",
+			ThreadID: "12",
+		},
+	}
+
+	runner.deliverExternalAssistantReply(context.Background(), assistant)
+
+	messages, err := history.ReadMessages(workspacePath, session, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("历史应只保留 assistant 可见消息: %+v", messages)
+	}
+	delivery, ok := messages[0]["external_delivery"].(map[string]any)
+	if !ok {
+		t.Fatalf("assistant 未挂载外部投递回执: %+v", messages[0])
+	}
+	if delivery["channel"] != "telegram" || delivery["target"] != "-1001" || delivery["thread_id"] != "12" {
+		t.Fatalf("外部投递目标不正确: %+v", delivery)
+	}
+	if delivery["primary_platform_message_id"] != "42" {
+		t.Fatalf("外部投递主平台 message id 不正确: %+v", delivery)
+	}
+	ids, ok := delivery["platform_message_ids"].([]string)
+	if !ok || len(ids) != 2 || ids[0] != "42" || ids[1] != "43" {
+		t.Fatalf("外部投递平台 message ids 不正确: %+v", delivery)
 	}
 }
 

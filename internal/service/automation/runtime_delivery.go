@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 const (
@@ -17,9 +18,10 @@ const (
 )
 
 type jobDeliveryResult struct {
-	Status string
-	Error  *string
-	Target *channels.DeliveryTarget
+	Status  string
+	Error   *string
+	Target  *channels.DeliveryTarget
+	Receipt *channelmessage.Receipt
 }
 
 var deliveryRetryBackoffs = []time.Duration{
@@ -52,8 +54,9 @@ func (s *Service) deliverJobObservation(
 		return jobDeliveryResult{Status: protocol.DeliveryStatusSkipped}
 	}
 	deliveryCtx := contextForJobOwner(ctx, job)
-	deliveredTarget, err := s.delivery.DeliverText(
+	delivered, err := deliverChannelMessage(
 		deliveryCtx,
+		s.delivery,
 		job.AgentID,
 		text,
 		toChannelDeliveryTarget(job.Delivery),
@@ -61,14 +64,28 @@ func (s *Service) deliverJobObservation(
 	if err != nil {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusFailed, Error: errorPointer(err)}
 	}
-	return jobDeliveryResult{Status: protocol.DeliveryStatusSucceeded, Target: &deliveredTarget}
+	return jobDeliveryResult{Status: protocol.DeliveryStatusSucceeded, Target: &delivered.Target, Receipt: delivered.Receipt}
 }
 
 func (r jobDeliveryResult) deliveryTo(fallback protocol.DeliveryTarget) string {
+	var summary string
 	if r.Target != nil {
-		return channelDeliveryTargetSummary(*r.Target)
+		summary = channelDeliveryTargetSummary(*r.Target)
+	} else {
+		summary = deliveryTargetSummary(fallback)
 	}
-	return deliveryTargetSummary(fallback)
+	if r.Receipt == nil || strings.TrimSpace(r.Receipt.PrimaryPlatformMessageID) == "" {
+		return summary
+	}
+	switch strings.TrimSpace(r.Receipt.Channel) {
+	case "", channels.ChannelTypeInternal, channels.ChannelTypeWebSocket:
+		return summary
+	}
+	messageID := strings.TrimSpace(r.Receipt.PrimaryPlatformMessageID)
+	if summary == "" {
+		return "message:" + messageID
+	}
+	return summary + ":message:" + messageID
 }
 
 func channelDeliveryTargetSummary(target channels.DeliveryTarget) string {
@@ -147,8 +164,9 @@ func (s *Service) deliverHeartbeatObservation(
 	if !filtered.ShouldDeliver || strings.TrimSpace(filtered.Text) == "" {
 		return nil
 	}
-	if _, err := s.delivery.DeliverText(
+	if _, err := deliverChannelMessage(
 		context.Background(),
+		s.delivery,
 		agentID,
 		filtered.Text,
 		channels.DeliveryTarget{Mode: strings.TrimSpace(configValue.TargetMode)},
@@ -156,4 +174,14 @@ func (s *Service) deliverHeartbeatObservation(
 		return errorPointer(err)
 	}
 	return nil
+}
+
+func deliverChannelMessage(
+	ctx context.Context,
+	delivery deliveryRouter,
+	agentID string,
+	text string,
+	target channels.DeliveryTarget,
+) (channels.DeliveryResult, error) {
+	return delivery.DeliverMessage(ctx, agentID, text, target)
 }

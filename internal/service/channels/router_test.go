@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -110,18 +111,34 @@ func (c *recordingDeliveryChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *recordingDeliveryChannel) SendDeliveryText(_ context.Context, target DeliveryTarget, text string) error {
+func (c *recordingDeliveryChannel) SendDeliveryMessage(_ context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.targets = append(c.targets, target)
 	c.texts = append(c.texts, text)
-	return nil
+	return newDeliveryResult(target, nil), nil
 }
 
 func (c *recordingDeliveryChannel) sentCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return len(c.targets)
+}
+
+type recordingReceiptDeliveryChannel struct {
+	recordingDeliveryChannel
+	receipt *channelmessage.Receipt
+}
+
+func (c *recordingReceiptDeliveryChannel) SendDeliveryMessage(
+	ctx context.Context,
+	target DeliveryTarget,
+	text string,
+) (DeliveryResult, error) {
+	if _, err := c.recordingDeliveryChannel.SendDeliveryMessage(ctx, target, text); err != nil {
+		return DeliveryResult{}, err
+	}
+	return newDeliveryResult(target, c.receipt), nil
 }
 
 func extractAssistantText(message protocol.Message) string {
@@ -152,7 +169,7 @@ func extractAssistantText(message protocol.Message) string {
 	return strings.Join(parts, "\n")
 }
 
-func TestRouterDeliverTextUsesOwnerScopedChannel(t *testing.T) {
+func TestRouterDeliverMessageUsesOwnerScopedChannel(t *testing.T) {
 	db := newChannelTestDB(t)
 	resolver := &stubAgentResolver{
 		agentByID: map[string]*protocol.Agent{
@@ -170,7 +187,7 @@ func TestRouterDeliverTextUsesOwnerScopedChannel(t *testing.T) {
 	}
 	defer router.Stop(context.Background())
 
-	if _, err := router.DeliverText(context.Background(), "agent-a", "给 A", DeliveryTarget{
+	if _, err := router.DeliverMessage(context.Background(), "agent-a", "给 A", DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeTelegram,
 		To:      "chat-a",
@@ -181,7 +198,7 @@ func TestRouterDeliverTextUsesOwnerScopedChannel(t *testing.T) {
 		t.Fatalf("owner-a 投递应只进入 A 通道，A=%d B=%d", channelA.sentCount(), channelB.sentCount())
 	}
 
-	if _, err := router.DeliverText(context.Background(), "agent-b", "给 B", DeliveryTarget{
+	if _, err := router.DeliverMessage(context.Background(), "agent-b", "给 B", DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeTelegram,
 		To:      "chat-b",
@@ -190,6 +207,47 @@ func TestRouterDeliverTextUsesOwnerScopedChannel(t *testing.T) {
 	}
 	if channelA.sentCount() != 1 || channelB.sentCount() != 1 {
 		t.Fatalf("owner-b 投递应只进入 B 通道，A=%d B=%d", channelA.sentCount(), channelB.sentCount())
+	}
+}
+
+func TestRouterDeliverMessageReturnsReceipt(t *testing.T) {
+	db := newChannelTestDB(t)
+	resolver := &stubAgentResolver{
+		agentByID: map[string]*protocol.Agent{
+			"agent-a": {AgentID: "agent-a", OwnerUserID: "owner-a"},
+		},
+	}
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, resolver, nil)
+	channel := &recordingReceiptDeliveryChannel{
+		recordingDeliveryChannel: recordingDeliveryChannel{channelType: ChannelTypeTelegram},
+		receipt: channelmessage.NewReceipt(channelmessage.ReceiptParams{
+			Channel: ChannelTypeTelegram,
+			Target:  "chat-a",
+			Parts:   []channelmessage.ReceiptPart{channelmessage.TextPart("42")},
+		}),
+	}
+	router.RegisterForOwner("owner-a", channel)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	result, err := router.DeliverMessage(context.Background(), "agent-a", "给 A", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeTelegram,
+		To:      "chat-a",
+	})
+	if err != nil {
+		t.Fatalf("receipt 投递失败: %v", err)
+	}
+	if result.Target.To != "chat-a" {
+		t.Fatalf("投递目标未返回解析后结果: %+v", result.Target)
+	}
+	if result.Receipt == nil || result.Receipt.PrimaryPlatformMessageID != "42" {
+		t.Fatalf("投递回执未返回平台 message_id: %+v", result.Receipt)
+	}
+	if channel.sentCount() != 1 {
+		t.Fatalf("receipt-aware 通道应收到 1 次投递，实际 %d", channel.sentCount())
 	}
 }
 
@@ -211,7 +269,7 @@ func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
 	}
 	defer router.Stop(context.Background())
 
-	if _, err := router.DeliverText(context.Background(), "agent-a", "失败通道", DeliveryTarget{
+	if _, err := router.DeliverMessage(context.Background(), "agent-a", "失败通道", DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeTelegram,
 		To:      "chat-a",
@@ -223,7 +281,7 @@ func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
 	}
 }
 
-func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
+func TestRouterDeliverMessageUsesRememberedWebSocketRoute(t *testing.T) {
 	workspacePath := t.TempDir()
 	db := newChannelTestDB(t)
 	permission := permissionctx.NewContext()
@@ -265,10 +323,11 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	if err := router.RememberWebSocketRoute(context.Background(), sessionKey); err != nil {
 		t.Fatalf("RememberWebSocketRoute 失败: %v", err)
 	}
-	target, err := router.DeliverText(context.Background(), "agent-1", "自动提醒", DeliveryTarget{Mode: DeliveryModeLast})
+	result, err := router.DeliverMessage(context.Background(), "agent-1", "自动提醒", DeliveryTarget{Mode: DeliveryModeLast})
 	if err != nil {
-		t.Fatalf("DeliverText 失败: %v", err)
+		t.Fatalf("DeliverMessage 失败: %v", err)
 	}
+	target := result.Target
 	if target.Channel != ChannelTypeWebSocket || target.To != sessionKey {
 		t.Fatalf("解析后的投递目标不正确: %+v", target)
 	}
@@ -310,7 +369,7 @@ func TestRouterDeliverTextUsesRememberedWebSocketRoute(t *testing.T) {
 	}
 }
 
-func TestRouterDeliverTextPersistsSharedRoomDelivery(t *testing.T) {
+func TestRouterDeliverMessagePersistsSharedRoomDelivery(t *testing.T) {
 	workspacePath := t.TempDir()
 	t.Setenv("NEXUS_CONFIG_DIR", t.TempDir())
 	db := newChannelTestDB(t)
@@ -334,7 +393,7 @@ func TestRouterDeliverTextPersistsSharedRoomDelivery(t *testing.T) {
 	sender := &stubPermissionSender{key: "room-sender-1"}
 	permission.BindSession(sessionKey, sender)
 
-	target, err := router.DeliverText(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
+	result, err := router.DeliverMessage(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeWebSocket,
 		To:      sessionKey,
@@ -342,6 +401,7 @@ func TestRouterDeliverTextPersistsSharedRoomDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Room 共享投递失败: %v", err)
 	}
+	target := result.Target
 	if target.Channel != ChannelTypeWebSocket || target.To != sessionKey || target.SessionKey != sessionKey {
 		t.Fatalf("解析后的投递目标不正确: %+v", target)
 	}
@@ -379,7 +439,7 @@ func TestRouterDeliverTextPersistsSharedRoomDelivery(t *testing.T) {
 	}
 }
 
-func TestRouterDeliverTextCreatesInternalAutomationInbox(t *testing.T) {
+func TestRouterDeliverMessageCreatesInternalAutomationInbox(t *testing.T) {
 	workspacePath := t.TempDir()
 	db := newChannelTestDB(t)
 	resolver := &stubAgentResolver{
@@ -409,7 +469,7 @@ func TestRouterDeliverTextCreatesInternalAutomationInbox(t *testing.T) {
 		protocol.AutomationInboxSessionRef,
 		"",
 	)
-	target, err := router.DeliverText(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
+	result, err := router.DeliverMessage(context.Background(), "agent-1", "今日新闻摘要", DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeInternal,
 		To:      sessionKey,
@@ -417,6 +477,7 @@ func TestRouterDeliverTextCreatesInternalAutomationInbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("internal 投递失败: %v", err)
 	}
+	target := result.Target
 	if target.Channel != ChannelTypeInternal || target.To != sessionKey || target.SessionKey != sessionKey {
 		t.Fatalf("解析后的投递目标不正确: %+v", target)
 	}
@@ -442,7 +503,7 @@ func TestRouterDeliverTextCreatesInternalAutomationInbox(t *testing.T) {
 	}
 }
 
-func TestDiscordChannelSendDeliveryText(t *testing.T) {
+func TestDiscordChannelSendDeliveryMessage(t *testing.T) {
 	requests := make([]*http.Request, 0)
 	payloads := make([]map[string]any, 0)
 	channel := newDiscordChannel("token-1", &http.Client{
@@ -463,7 +524,7 @@ func TestDiscordChannelSendDeliveryText(t *testing.T) {
 	channel.baseURL = "https://discord.test/api/v10"
 
 	text := strings.Repeat("a", 2400)
-	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	if _, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeDiscord,
 		To:      "123456",
@@ -534,7 +595,7 @@ func TestDiscordChannelSendDeliveryTyping(t *testing.T) {
 	}
 }
 
-func TestTelegramChannelSendDeliveryText(t *testing.T) {
+func TestTelegramChannelSendDeliveryMessage(t *testing.T) {
 	requests := make([]*http.Request, 0)
 	var payload map[string]any
 	channel := newTelegramChannel("token-2", &http.Client{
@@ -552,7 +613,7 @@ func TestTelegramChannelSendDeliveryText(t *testing.T) {
 	})
 	channel.baseURL = "https://telegram.test"
 
-	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	if _, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:     DeliveryModeExplicit,
 		Channel:  ChannelTypeTelegram,
 		To:       "-1001",
@@ -571,6 +632,36 @@ func TestTelegramChannelSendDeliveryText(t *testing.T) {
 	}
 	if payload["disable_web_page_preview"] != true {
 		t.Fatalf("Telegram 应关闭链接预览: %+v", payload)
+	}
+}
+
+func TestTelegramChannelSendDeliveryMessageReturnsReceipt(t *testing.T) {
+	channel := newTelegramChannel("token-2", &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"ok":true,"result":{"message_id":42}}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
+	channel.baseURL = "https://telegram.test"
+
+	result, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  ChannelTypeTelegram,
+		To:       "-1001",
+		ThreadID: "12",
+	}, "hello")
+	if err != nil {
+		t.Fatalf("Telegram receipt 发送失败: %v", err)
+	}
+	receipt := result.Receipt
+	if receipt == nil || receipt.PrimaryPlatformMessageID != "42" {
+		t.Fatalf("Telegram receipt 未记录 message_id: %+v", receipt)
+	}
+	if receipt.Channel != ChannelTypeTelegram || receipt.Target != "-1001" || receipt.ThreadID != "12" {
+		t.Fatalf("Telegram receipt 目标信息不正确: %+v", receipt)
 	}
 }
 
@@ -620,6 +711,55 @@ func TestTelegramChannelSendDeliveryTyping(t *testing.T) {
 	}
 	if payload["chat_id"] != "-1001" || payload["action"] != "typing" || payload["message_thread_id"] != float64(12) {
 		t.Fatalf("Telegram typing payload 不正确: %+v", payload)
+	}
+}
+
+func TestTelegramChannelSendDeliveryGeneralTopicHandling(t *testing.T) {
+	var messagePayload map[string]any
+	var typingPayload map[string]any
+	requests := make([]*http.Request, 0, 2)
+	channel := newTelegramChannel("token-2", &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			requests = append(requests, request)
+			var payload map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				return nil, fmt.Errorf("解析 Telegram 请求失败: %w", err)
+			}
+			if strings.HasSuffix(request.URL.Path, "/sendMessage") {
+				messagePayload = payload
+			}
+			if strings.HasSuffix(request.URL.Path, "/sendChatAction") {
+				typingPayload = payload
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
+	channel.baseURL = "https://telegram.test"
+	target := DeliveryTarget{
+		Mode:     DeliveryModeExplicit,
+		Channel:  ChannelTypeTelegram,
+		To:       "-1001",
+		ThreadID: "1",
+	}
+
+	if _, err := channel.SendDeliveryMessage(context.Background(), target, "hello"); err != nil {
+		t.Fatalf("Telegram General topic 发送失败: %v", err)
+	}
+	if err := channel.SendDeliveryTyping(context.Background(), target, true); err != nil {
+		t.Fatalf("Telegram General topic typing 失败: %v", err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("期望 Telegram 请求 2 次，实际 %d", len(requests))
+	}
+	if _, ok := messagePayload["message_thread_id"]; ok {
+		t.Fatalf("Telegram sendMessage 不应携带 General topic thread_id=1: %+v", messagePayload)
+	}
+	if typingPayload["message_thread_id"] != float64(1) {
+		t.Fatalf("Telegram sendChatAction 应携带 General topic thread_id=1: %+v", typingPayload)
 	}
 }
 
@@ -673,7 +813,7 @@ func TestTelegramFetchUpdatesSubscribesEditedMessages(t *testing.T) {
 	}
 }
 
-func TestFeishuChannelSendDeliveryText(t *testing.T) {
+func TestFeishuChannelSendDeliveryMessage(t *testing.T) {
 	var tokenRequests int
 	var messagePayload map[string]string
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -709,7 +849,7 @@ func TestFeishuChannelSendDeliveryText(t *testing.T) {
 	if err := channel.Start(context.Background()); err != nil {
 		t.Fatalf("飞书通道启动失败: %v", err)
 	}
-	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	if _, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeFeishu,
 		To:      "oc_group_123",
@@ -731,7 +871,7 @@ func TestFeishuChannelSendDeliveryText(t *testing.T) {
 	}
 }
 
-func TestDingTalkChannelSendDeliveryText(t *testing.T) {
+func TestDingTalkChannelSendDeliveryMessage(t *testing.T) {
 	var tokenRequests int
 	var messagePayload map[string]string
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -762,7 +902,7 @@ func TestDingTalkChannelSendDeliveryText(t *testing.T) {
 	channel := newDingTalkChannel("ding-client", "ding-secret", "robot-code", client)
 	channel.baseURL = "https://dingtalk.test"
 
-	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	if _, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:    DeliveryModeExplicit,
 		Channel: ChannelTypeDingTalk,
 		To:      "cid-group-1",
@@ -787,7 +927,7 @@ func TestDingTalkChannelSendDeliveryText(t *testing.T) {
 	}
 }
 
-func TestWeChatChannelSendDeliveryText(t *testing.T) {
+func TestWeChatChannelSendDeliveryMessage(t *testing.T) {
 	var tokenRequests int
 	var messagePayload map[string]any
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -814,7 +954,7 @@ func TestWeChatChannelSendDeliveryText(t *testing.T) {
 	channel := newWeChatChannel("ww_corp", "corp-secret", "100001", client)
 	channel.baseURL = "https://wechat.test"
 
-	if err := channel.SendDeliveryText(context.Background(), DeliveryTarget{
+	if _, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
 		Mode:      DeliveryModeExplicit,
 		Channel:   ChannelTypeWeChat,
 		To:        "zhangsan",

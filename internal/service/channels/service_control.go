@@ -17,6 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
@@ -53,17 +54,18 @@ type ChannelCredentialField struct {
 }
 
 type ChannelCatalogItem struct {
-	ChannelType       string                   `json:"channel_type"`
-	Title             string                   `json:"title"`
-	BotLabel          string                   `json:"bot_label"`
-	Description       string                   `json:"description"`
-	DocsURL           string                   `json:"docs_url,omitempty"`
-	RuntimeStatus     string                   `json:"runtime_status"`
-	RuntimeNote       string                   `json:"runtime_note,omitempty"`
-	SupportsGroup     bool                     `json:"supports_group"`
-	SupportsQRCode    bool                     `json:"supports_qr_code"`
-	SupportsOAuthLink bool                     `json:"supports_oauth_link"`
-	CredentialFields  []ChannelCredentialField `json:"credential_fields"`
+	ChannelType       string                      `json:"channel_type"`
+	Title             string                      `json:"title"`
+	BotLabel          string                      `json:"bot_label"`
+	Description       string                      `json:"description"`
+	DocsURL           string                      `json:"docs_url,omitempty"`
+	RuntimeStatus     string                      `json:"runtime_status"`
+	RuntimeNote       string                      `json:"runtime_note,omitempty"`
+	SupportsGroup     bool                        `json:"supports_group"`
+	SupportsQRCode    bool                        `json:"supports_qr_code"`
+	SupportsOAuthLink bool                        `json:"supports_oauth_link"`
+	Capabilities      []channelmessage.Capability `json:"capabilities"`
+	CredentialFields  []ChannelCredentialField    `json:"credential_fields"`
 }
 
 type ChannelStats struct {
@@ -317,7 +319,7 @@ func (s *ControlService) UpsertChannelConfig(
 	if !ok {
 		return nil, ErrChannelNotFound
 	}
-	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
+	if isPlannedChannel(channelType) {
 		return nil, errors.New("消息渠道未上线")
 	}
 	agentID := strings.TrimSpace(request.AgentID)
@@ -1360,7 +1362,7 @@ func (s *ControlService) configureRouterChannel(
 	if s.router == nil {
 		return nil
 	}
-	if isPlannedChannel(channelType) && !hasHiddenChannelBackend(channelType) {
+	if isPlannedChannel(channelType) {
 		return nil
 	}
 	secrets, err := s.decryptCredentials(encrypted)
@@ -1584,7 +1586,7 @@ func nullTimeValueOrNil(value sql.NullTime) any {
 }
 
 func channelCatalog() []ChannelCatalogItem {
-	return []ChannelCatalogItem{
+	items := []ChannelCatalogItem{
 		{
 			ChannelType:   ChannelTypeDingTalk,
 			Title:         "钉钉",
@@ -1678,6 +1680,10 @@ func channelCatalog() []ChannelCatalogItem {
 			},
 		},
 	}
+	for index := range items {
+		items[index].Capabilities = channelCapabilities(items[index].ChannelType)
+	}
+	return items
 }
 
 func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
@@ -1693,16 +1699,6 @@ func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
 func isPlannedChannel(channelType string) bool {
 	item, ok := channelCatalogByType(channelType)
 	return ok && item.RuntimeStatus == "planned"
-}
-
-// hasHiddenChannelBackend 表示该通道前端仍展示未上线，但后端实现保留给内部测试和已有配置使用。
-func hasHiddenChannelBackend(channelType string) bool {
-	switch normalizeIMChannelType(channelType) {
-	case ChannelTypeFeishu:
-		return true
-	default:
-		return false
-	}
 }
 
 func sortedChannelTypes() []string {

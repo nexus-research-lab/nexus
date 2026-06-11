@@ -137,6 +137,8 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 		ChatType: "group",
 		Ref:      "oc_group_123",
 		Content:  "检查今天的定时任务发送情况",
+		RoundID:  "evt-1",
+		ReqID:    "om_1",
 	})
 	if err != nil {
 		t.Fatalf("Accept 失败: %v", err)
@@ -148,11 +150,23 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 	if result.RememberedDelivery == nil {
 		t.Fatal("feishu ingress 应记录回投目标")
 	}
+	if result.Message == nil ||
+		result.Message.Channel != ChannelTypeFeishu ||
+		result.Message.Target != "oc_group_123" ||
+		result.Message.Text != "检查今天的定时任务发送情况" {
+		t.Fatalf("feishu ingress 应返回标准消息 envelope: %+v", result.Message)
+	}
 	if len(handler.requests) != 1 {
 		t.Fatalf("聊天请求数量不正确: %d", len(handler.requests))
 	}
 	if !handler.requests[0].BroadcastUserMessage {
 		t.Fatal("feishu ingress 应实时广播用户输入")
+	}
+	metadata := handler.requests[0].InputOptions.Metadata
+	if metadata["im.platform_message_id"] != "om_1" ||
+		metadata["im.channel"] != ChannelTypeFeishu ||
+		metadata["im.target"] != "oc_group_123" {
+		t.Fatalf("feishu ingress 应把消息 envelope 注入 DM metadata: %+v", metadata)
 	}
 	replyTarget := handler.requests[0].ExternalReplyTarget
 	if replyTarget == nil || replyTarget.Channel != ChannelTypeFeishu || replyTarget.To != "oc_group_123" {

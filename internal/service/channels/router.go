@@ -342,11 +342,11 @@ func (r *Router) RememberWebSocketRoute(ctx context.Context, sessionKey string) 
 	return err
 }
 
-// DeliverText 按目标模式解析并完成文本投递。
-func (r *Router) DeliverText(ctx context.Context, agentID string, text string, target DeliveryTarget) (DeliveryTarget, error) {
+// DeliverMessage 按目标模式解析并完成消息投递，返回平台回执。
+func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string, target DeliveryTarget) (DeliveryResult, error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(text) == "" || normalized.Mode == DeliveryModeNone {
-		return normalized, nil
+		return DeliveryResult{Target: normalized}, nil
 	}
 	if normalized.Mode == DeliveryModeLast {
 		lastTarget, err := r.GetLastRoute(ctx, agentID)
@@ -355,7 +355,7 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 				"agent_id", agentID,
 				"err", err,
 			)
-			return DeliveryTarget{}, err
+			return DeliveryResult{}, err
 		}
 		if lastTarget == nil {
 			err = fmt.Errorf("last delivery target is not available for agent: %s", strings.TrimSpace(agentID))
@@ -363,12 +363,12 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 				"agent_id", agentID,
 				"err", err,
 			)
-			return DeliveryTarget{}, err
+			return DeliveryResult{}, err
 		}
 		normalized = lastTarget.Normalized()
 	}
 	if err := normalized.Validate(); err != nil {
-		return DeliveryTarget{}, err
+		return DeliveryResult{}, err
 	}
 
 	channel := r.channelForDelivery(ctx, agentID, normalized.Channel)
@@ -379,14 +379,9 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 			"channel", normalized.Channel,
 			"err", err,
 		)
-		return DeliveryTarget{}, err
+		return DeliveryResult{}, err
 	}
-	var deliveryErr error
-	if scoped, ok := channel.(agentScopedDeliveryChannel); ok {
-		deliveryErr = scoped.SendAgentDeliveryText(ctx, agentID, normalized, text)
-	} else {
-		deliveryErr = channel.SendDeliveryText(ctx, normalized, text)
-	}
+	result, deliveryErr := sendDeliveryMessage(ctx, channel, agentID, normalized, text)
 	if deliveryErr != nil {
 		r.loggerFor(ctx).Error("文本投递失败",
 			"agent_id", agentID,
@@ -395,21 +390,46 @@ func (r *Router) DeliverText(ctx context.Context, agentID string, text string, t
 			"thread_id", normalized.ThreadID,
 			"err", deliveryErr,
 		)
-		return DeliveryTarget{}, deliveryErr
+		return DeliveryResult{}, deliveryErr
 	}
 	if strings.TrimSpace(agentID) != "" {
 		if _, err := r.RememberRoute(ctx, agentID, normalized); err != nil {
-			return DeliveryTarget{}, err
+			return DeliveryResult{}, err
 		}
 	}
-	r.loggerFor(ctx).Info("文本投递成功",
+	if strings.TrimSpace(result.Target.Mode) == "" {
+		result.Target = normalized
+	} else {
+		result.Target = result.Target.Normalized()
+	}
+	logArgs := []any{
 		"agent_id", agentID,
-		"channel", normalized.Channel,
-		"to", normalized.To,
-		"thread_id", normalized.ThreadID,
+		"channel", result.Target.Channel,
+		"to", result.Target.To,
+		"thread_id", result.Target.ThreadID,
 		"chars", len([]rune(strings.TrimSpace(text))),
-	)
-	return normalized, nil
+	}
+	if result.Receipt != nil {
+		logArgs = append(logArgs,
+			"primary_platform_message_id", result.Receipt.PrimaryPlatformMessageID,
+			"platform_message_ids", result.Receipt.PlatformMessageIDs,
+		)
+	}
+	r.loggerFor(ctx).Info("文本投递成功", logArgs...)
+	return result, nil
+}
+
+func sendDeliveryMessage(
+	ctx context.Context,
+	channel DeliveryChannel,
+	agentID string,
+	target DeliveryTarget,
+	text string,
+) (DeliveryResult, error) {
+	if scoped, ok := channel.(agentScopedDeliveryChannel); ok {
+		return scoped.SendAgentDeliveryMessage(ctx, agentID, target, text)
+	}
+	return channel.SendDeliveryMessage(ctx, target, text)
 }
 
 // SetTyping 按目标模式发送或取消通道输入状态；不支持 typing 的通道直接忽略。

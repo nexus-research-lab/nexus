@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
@@ -40,6 +41,44 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if !weixinPersonal.SupportsQRCode || weixinPersonal.SupportsGroup {
 		t.Fatalf("个人微信能力标记不正确: %+v", weixinPersonal)
 	}
+	if !catalogHasCapability(weixinPersonal, channelmessage.CapabilityReceipt) {
+		t.Fatalf("个人微信应声明本地消息回执能力: %+v", weixinPersonal.Capabilities)
+	}
+	feishu, ok := channelCatalogByType(ChannelTypeFeishu)
+	if !ok {
+		t.Fatal("缺少飞书通道")
+	}
+	for _, capability := range []channelmessage.Capability{
+		channelmessage.CapabilityTyping,
+		channelmessage.CapabilityThread,
+		channelmessage.CapabilityReply,
+		channelmessage.CapabilityReceipt,
+	} {
+		if !catalogHasCapability(feishu, capability) {
+			t.Fatalf("飞书应声明 %s 能力: %+v", capability, feishu.Capabilities)
+		}
+	}
+	telegram, ok := channelCatalogByType(ChannelTypeTelegram)
+	if !ok {
+		t.Fatal("缺少 Telegram 通道")
+	}
+	if !catalogHasCapability(telegram, channelmessage.CapabilityThread) ||
+		!catalogHasCapability(telegram, channelmessage.CapabilityTyping) ||
+		!catalogHasCapability(telegram, channelmessage.CapabilityReceipt) {
+		t.Fatalf("Telegram 能力矩阵不完整: %+v", telegram.Capabilities)
+	}
+	if catalogHasCapability(wechat, channelmessage.CapabilityReceipt) {
+		t.Fatalf("企业微信未返回稳定 message id，不应声明 receipt 能力: %+v", wechat.Capabilities)
+	}
+}
+
+func catalogHasCapability(item ChannelCatalogItem, capability channelmessage.Capability) bool {
+	for _, value := range item.Capabilities {
+		if value == capability {
+			return true
+		}
+	}
+	return false
 }
 
 func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
@@ -454,6 +493,14 @@ func TestControlServicePrepareWeChatIngressDecryptsAndVerifiesSignature(t *testi
 	}
 	if ingressRequest.Ref != "zhangsan" || ingressRequest.Content != "检查本周日报任务" {
 		t.Fatalf("企业微信入口请求不正确: %+v", ingressRequest)
+	}
+	if ingressRequest.Message == nil ||
+		ingressRequest.Message.Channel != ChannelTypeWeChat ||
+		ingressRequest.Message.PlatformMessageID != "msg-1" ||
+		ingressRequest.Message.SenderID != "zhangsan" ||
+		ingressRequest.Message.Text != "检查本周日报任务" ||
+		!ingressRequest.Message.ReceivedAt.Equal(time.Unix(1700000000, 0).UTC()) {
+		t.Fatalf("企业微信入口 envelope 不正确: %+v", ingressRequest.Message)
 	}
 
 	badRequest, err := http.NewRequest(

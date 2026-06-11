@@ -3,17 +3,19 @@ package dm
 import (
 	"context"
 	"strings"
-	"sync/atomic"
 	"time"
 
+	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/channels/typingloop"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 const externalReplyTimeout = 45 * time.Second
-const externalTypingTimeout = 10 * time.Second
-const externalTypingStartDelay = 800 * time.Millisecond
-const externalTypingKeepaliveInterval = 5 * time.Second
+const externalTypingTimeout = typingloop.DefaultCallTimeout
+const externalTypingStartDelay = typingloop.DefaultStartDelay
+const externalTypingKeepaliveInterval = typingloop.DefaultKeepaliveInterval
 
 func (r *roundRunner) startExternalReplyTyping(ctx context.Context) func() {
 	agentID, target, ok := r.externalReplyTypingTarget()
@@ -21,45 +23,16 @@ func (r *roundRunner) startExternalReplyTyping(ctx context.Context) func() {
 		return func() {}
 	}
 
-	typingCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	activeStarted := atomic.Bool{}
-	go func() {
-		defer close(done)
-		timer := time.NewTimer(externalTypingStartDelay)
-		defer timer.Stop()
-		select {
-		case <-typingCtx.Done():
-			return
-		case <-timer.C:
-		}
-		activeStarted.Store(true)
-		r.setExternalTyping(typingCtx, agentID, target, true)
-		ticker := time.NewTicker(externalTypingKeepaliveInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-typingCtx.Done():
-				return
-			case <-ticker.C:
-				r.setExternalTyping(typingCtx, agentID, target, true)
-			}
-		}
-	}()
-
-	return func() {
-		cancel()
-		select {
-		case <-done:
-		case <-time.After(500 * time.Millisecond):
-		}
-		if !activeStarted.Load() {
-			return
-		}
-		cancelCtx, cancelStop := context.WithTimeout(context.Background(), externalTypingTimeout)
-		defer cancelStop()
-		r.setExternalTyping(cancelCtx, agentID, target, false)
-	}
+	return typingloop.Start(ctx, func(callCtx context.Context, active bool) error {
+		return r.service.replies.SetExternalTyping(callCtx, agentID, target, active)
+	}, typingloop.LoopOptions{
+		StartDelay:        externalTypingStartDelay,
+		KeepaliveInterval: externalTypingKeepaliveInterval,
+		CallTimeout:       externalTypingTimeout,
+		OnError: func(active bool, err error) {
+			r.logExternalTypingError(agentID, target, active, err)
+		},
+	})
 }
 
 func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assistant protocol.Message) {
@@ -74,7 +47,8 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 
 	deliverCtx, cancel := context.WithTimeout(ctx, externalReplyTimeout)
 	defer cancel()
-	if err := r.service.replies.DeliverExternalReply(deliverCtx, agentID, text, target); err != nil {
+	result, err := r.service.replies.DeliverExternalReply(deliverCtx, agentID, text, target)
+	if err != nil {
 		r.service.loggerFor(context.Background()).Error("DM assistant 外部通道回复投递失败",
 			"session_key", r.sessionKey,
 			"agent_id", agentID,
@@ -86,6 +60,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		)
 		return
 	}
+	r.persistExternalReplyReceipt(assistant, result)
 	r.service.loggerFor(context.Background()).Info("DM assistant 外部通道回复已投递",
 		"session_key", r.sessionKey,
 		"agent_id", agentID,
@@ -93,8 +68,40 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		"channel", target.Channel,
 		"to", target.To,
 		"thread_id", target.ThreadID,
+		"primary_platform_message_id", result.PrimaryPlatformMessageID,
+		"platform_message_ids", result.PlatformMessageIDs,
 		"chars", len([]rune(strings.TrimSpace(text))),
 	)
+}
+
+func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, result ExternalReplyResult) {
+	if r == nil || r.service == nil || r.service.history == nil {
+		return
+	}
+	if strings.TrimSpace(r.workspacePath) == "" || strings.TrimSpace(r.session.SessionKey) == "" {
+		return
+	}
+
+	receipt := workspacestore.ExternalDeliveryReceipt{
+		RoundID:                  r.roundID,
+		MessageID:                dmdomain.NormalizeString(assistant["message_id"]),
+		Channel:                  result.Channel,
+		Target:                   result.To,
+		ThreadID:                 result.ThreadID,
+		PrimaryPlatformMessageID: result.PrimaryPlatformMessageID,
+		PlatformMessageIDs:       append([]string(nil), result.PlatformMessageIDs...),
+		Timestamp:                time.Now().UTC(),
+	}
+	if err := r.service.history.AppendExternalDeliveryReceipt(r.workspacePath, r.session.SessionKey, receipt); err != nil {
+		r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
+			"session_key", r.sessionKey,
+			"round_id", r.roundID,
+			"message_id", receipt.MessageID,
+			"channel", result.Channel,
+			"to", result.To,
+			"err", err,
+		)
+	}
 }
 
 func (r *roundRunner) externalReplyTypingTarget() (string, ExternalReplyTarget, bool) {
@@ -118,23 +125,16 @@ func (r *roundRunner) externalReplyTypingTarget() (string, ExternalReplyTarget, 
 	return agentID, target, true
 }
 
-func (r *roundRunner) setExternalTyping(ctx context.Context, agentID string, target ExternalReplyTarget, active bool) {
-	callCtx, cancel := context.WithTimeout(ctx, externalTypingTimeout)
-	defer cancel()
-	if err := r.service.replies.SetExternalTyping(callCtx, agentID, target, active); err != nil {
-		if active && ctx.Err() != nil {
-			return
-		}
-		r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道 typing 状态投递失败",
-			"session_key", r.sessionKey,
-			"agent_id", agentID,
-			"round_id", r.roundID,
-			"channel", target.Channel,
-			"to", target.To,
-			"active", active,
-			"err", err,
-		)
-	}
+func (r *roundRunner) logExternalTypingError(agentID string, target ExternalReplyTarget, active bool, err error) {
+	r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道 typing 状态投递失败",
+		"session_key", r.sessionKey,
+		"agent_id", agentID,
+		"round_id", r.roundID,
+		"channel", target.Channel,
+		"to", target.To,
+		"active", active,
+		"err", err,
+	)
 }
 
 func isExternalReplySessionKey(sessionKey string) bool {

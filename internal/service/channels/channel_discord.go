@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 type discordChannel struct {
@@ -20,6 +21,10 @@ type discordChannel struct {
 	mu      sync.RWMutex
 	ingress IngressAcceptor
 	session *discordgo.Session
+}
+
+type discordSendMessageResponse struct {
+	ID string `json:"id"`
 }
 
 func newDiscordChannel(token string, client *http.Client) *discordChannel {
@@ -93,15 +98,17 @@ func (c *discordChannel) Stop(context.Context) error {
 	return session.Close()
 }
 
-func (c *discordChannel) SendDeliveryText(ctx context.Context, target DeliveryTarget, text string) error {
+func (c *discordChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
-		return fmt.Errorf("discord channel is not configured")
+		return DeliveryResult{}, fmt.Errorf("discord channel is not configured")
 	}
 	targetID := firstNonEmpty(target.ThreadID, target.To)
 	if targetID == "" {
-		return fmt.Errorf("discord delivery target requires to or thread_id")
+		return DeliveryResult{}, fmt.Errorf("discord delivery target requires to or thread_id")
 	}
 
+	parts := make([]channelmessage.ReceiptPart, 0)
 	for _, chunk := range splitText(strings.TrimSpace(text), 1900) {
 		payload := map[string]any{
 			"content": chunk,
@@ -109,18 +116,28 @@ func (c *discordChannel) SendDeliveryText(ctx context.Context, target DeliveryTa
 				"parse": []string{},
 			},
 		}
-		if err := doChannelJSONExpectSuccess(
+		var response discordSendMessageResponse
+		if err := doChannelJSONExpectSuccessDecode(
 			ctx,
 			c.client,
 			http.MethodPost,
 			strings.TrimRight(c.baseURL, "/")+"/channels/"+targetID+"/messages",
 			payload,
 			map[string]string{"Authorization": "Bot " + c.token},
+			&response,
 		); err != nil {
-			return err
+			return DeliveryResult{}, err
+		}
+		if strings.TrimSpace(response.ID) != "" {
+			parts = append(parts, channelmessage.TextPart(response.ID))
 		}
 	}
-	return nil
+	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  ChannelTypeDiscord,
+		Target:   targetID,
+		ThreadID: target.ThreadID,
+		Parts:    parts,
+	})), nil
 }
 
 func (c *discordChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
@@ -201,7 +218,20 @@ func (c *discordChannel) buildIngressRequest(
 			ChatType:    chatType,
 			Ref:         ref,
 			Content:     content,
+			RoundID:     strings.TrimSpace(message.ID),
+			ReqID:       strings.TrimSpace(message.ID),
 			Delivery:    delivery,
+			Message: channelmessage.NewInbound(channelmessage.InboundParams{
+				Channel:           ChannelTypeDiscord,
+				Target:            ref,
+				PlatformMessageID: strings.TrimSpace(message.ID),
+				ThreadID:          threadID,
+				ReplyToID:         discordReplyToID(message),
+				SenderID:          strings.TrimSpace(message.Author.ID),
+				SenderName:        strings.TrimSpace(message.Author.Username),
+				ChatType:          chatType,
+				Text:              content,
+			}),
 		}, nil
 	}
 
@@ -222,8 +252,28 @@ func (c *discordChannel) buildIngressRequest(
 		Ref:         ref,
 		ThreadID:    threadID,
 		Content:     content,
+		RoundID:     strings.TrimSpace(message.ID),
+		ReqID:       strings.TrimSpace(message.ID),
 		Delivery:    delivery,
+		Message: channelmessage.NewInbound(channelmessage.InboundParams{
+			Channel:           ChannelTypeDiscord,
+			Target:            ref,
+			PlatformMessageID: strings.TrimSpace(message.ID),
+			ThreadID:          threadID,
+			ReplyToID:         discordReplyToID(message),
+			SenderID:          strings.TrimSpace(message.Author.ID),
+			SenderName:        strings.TrimSpace(message.Author.Username),
+			ChatType:          chatType,
+			Text:              content,
+		}),
 	}, nil
+}
+
+func discordReplyToID(message *discordgo.MessageCreate) string {
+	if message == nil || message.ReferencedMessage == nil {
+		return ""
+	}
+	return strings.TrimSpace(message.ReferencedMessage.ID)
 }
 
 func (c *discordChannel) resolveDiscordThreadRoute(session *discordgo.Session, channelID string) (string, string) {
