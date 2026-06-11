@@ -280,6 +280,46 @@ func TestHandleWeixinPersonalChannelIngressOverridesChannel(t *testing.T) {
 	}
 }
 
+func TestHandleTelegramChannelIngressPairingRequiredReturnsAcceptedResponse(t *testing.T) {
+	ingress := &fakeIngress{err: channelspkg.ErrPairingApprovalRequired}
+	handler := New(handlershared.NewAPI(nil), ingress)
+
+	body, err := json.Marshal(map[string]any{
+		"channel":  "discord",
+		"agent_id": "agent-a",
+		"ref":      "chat-1",
+		"content":  "hello",
+	})
+	if err != nil {
+		t.Fatalf("编码请求失败: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/channels/telegram/messages", bytes.NewReader(body))
+	handler.HandleTelegramChannelIngress(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Accepted        bool   `json:"accepted"`
+			PairingRequired bool   `json:"pairing_required"`
+			Message         string `json:"message"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("响应不是 JSON: %v", err)
+	}
+	if !response.Success || response.Data.Accepted || !response.Data.PairingRequired || !strings.Contains(response.Data.Message, "pairing") {
+		t.Fatalf("配对授权响应不正确: %+v body=%s", response, recorder.Body.String())
+	}
+	if len(ingress.requests) != 1 || ingress.requests[0].Channel != channelspkg.ChannelTypeTelegram {
+		t.Fatalf("telegram handler 未强制覆盖 channel: %+v", ingress.requests)
+	}
+}
+
 func TestHandleFeishuChannelIngressChallenge(t *testing.T) {
 	handler := New(handlershared.NewAPI(nil), &fakeIngress{})
 	body := []byte(`{"type":"url_verification","challenge":"challenge-token"}`)

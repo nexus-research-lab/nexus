@@ -302,24 +302,7 @@ func (h *Handlers) HandleDingTalkChannelIngress(writer http.ResponseWriter, requ
 		})
 		return
 	}
-	result, err := h.ingress.Accept(request.Context(), *callbackRequest)
-	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
-		h.api.WriteSuccess(writer, map[string]any{
-			"accepted":         false,
-			"pairing_required": true,
-			"message":          err.Error(),
-		})
-		return
-	}
-	if err != nil {
-		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, result)
+	h.acceptChannelIngress(writer, request, *callbackRequest)
 }
 
 func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, request *http.Request) {
@@ -386,24 +369,7 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 		}
 	}
 
-	result, err := h.ingress.Accept(request.Context(), *callback.Request)
-	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
-		h.api.WriteSuccess(writer, map[string]any{
-			"accepted":         false,
-			"pairing_required": true,
-			"message":          err.Error(),
-		})
-		return
-	}
-	if err != nil {
-		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, result)
+	h.acceptChannelIngress(writer, request, *callback.Request)
 }
 
 func (h *Handlers) HandleWeixinPersonalChannelIngress(writer http.ResponseWriter, request *http.Request) {
@@ -463,24 +429,7 @@ func (h *Handlers) HandleWeChatChannelIngress(writer http.ResponseWriter, reques
 		return
 	}
 	callbackRequest.OwnerUserID = strings.TrimSpace(prepared.OwnerUserID)
-	result, err := h.ingress.Accept(request.Context(), *callbackRequest)
-	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
-		h.api.WriteSuccess(writer, map[string]any{
-			"accepted":         false,
-			"pairing_required": true,
-			"message":          err.Error(),
-		})
-		return
-	}
-	if err != nil {
-		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, result)
+	h.acceptChannelIngress(writer, request, *callbackRequest)
 }
 
 func (h *Handlers) handleChannelIngressByName(
@@ -501,7 +450,27 @@ func (h *Handlers) handleChannelIngressByName(
 		payload.Channel = channelName
 	}
 
+	h.acceptChannelIngress(writer, request, payload)
+}
+
+func (h *Handlers) acceptChannelIngress(
+	writer http.ResponseWriter,
+	request *http.Request,
+	payload channelspkg.IngressRequest,
+) {
 	result, err := h.ingress.Accept(request.Context(), payload)
+	h.writeChannelIngressOutcome(writer, result, err)
+}
+
+func (h *Handlers) writeChannelIngressOutcome(writer http.ResponseWriter, result *channelspkg.IngressResult, err error) {
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
 	if err != nil {
 		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())

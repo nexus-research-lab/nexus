@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Opened the channel capability UI for every ready IM channel instead of keeping Telegram, Discord, DingTalk, and WeChat Work hidden behind a frontend allowlist.
 - Updated IM channel copy so the iLink channel is displayed as WeChat in the UI and the WeChat Work setup guide no longer references personal WeChat limitations.
+- Unified IM ingress handler responses so every channel returns a successful pairing-required acknowledgement instead of a generic client error when an external target still needs approval.
 - Fixed manual IM pairing creation so re-adding an existing external target updates the existing pairing instead of failing after the upsert.
 - Made personal WeChat typing-ticket lookup degrade softly so typing status failures do not affect message polling or reply delivery.
 - Standardized the personal WeChat channel identifier on `weixin-personal` and reduced external reply latency by prioritizing final message delivery over post-round bookkeeping.
