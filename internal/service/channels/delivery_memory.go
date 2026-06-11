@@ -14,17 +14,19 @@ import (
 )
 
 type deliveryMemory struct {
-	db                 *sql.DB
-	isPostgres         bool
-	idFactory          func(string) string
-	rememberRouteQuery string
-	latestRouteQuery   string
+	db                      *sql.DB
+	isPostgres              bool
+	idFactory               func(string) string
+	rememberRouteQuery      string
+	latestRouteQuery        string
+	latestSessionRouteQuery string
 }
 
 type rememberedRoute struct {
-	RouteID string
-	Target  DeliveryTarget
-	Enabled bool
+	RouteID    string
+	SessionKey string
+	Target     DeliveryTarget
+	Enabled    bool
 }
 
 func newDeliveryMemory(cfg config.Config, db *sql.DB) *deliveryMemory {
@@ -37,6 +39,7 @@ func newDeliveryMemory(cfg config.Config, db *sql.DB) *deliveryMemory {
 INSERT INTO automation_delivery_routes (
     route_id,
     agent_id,
+    session_key,
     mode,
     channel,
     "to",
@@ -48,6 +51,7 @@ INSERT INTO automation_delivery_routes (
 ) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
 ON CONFLICT(route_id) DO UPDATE SET
     agent_id = EXCLUDED.agent_id,
+    session_key = EXCLUDED.session_key,
     mode = EXCLUDED.mode,
     channel = EXCLUDED.channel,
     "to" = EXCLUDED."to",
@@ -55,11 +59,12 @@ ON CONFLICT(route_id) DO UPDATE SET
     thread_id = EXCLUDED.thread_id,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`,
-		memory.bindList(8),
+		memory.bindList(9),
 	)
 	memory.latestRouteQuery = `
 SELECT
     route_id,
+    session_key,
     mode,
     channel,
     "to",
@@ -68,6 +73,22 @@ SELECT
     enabled
 FROM automation_delivery_routes
 WHERE agent_id = ` + memory.bind(1) + `
+  AND COALESCE(session_key, '') = ''
+ORDER BY updated_at DESC, route_id DESC
+LIMIT 1`
+	memory.latestSessionRouteQuery = `
+SELECT
+    route_id,
+    session_key,
+    mode,
+    channel,
+    "to",
+    account_id,
+    thread_id,
+    enabled
+FROM automation_delivery_routes
+WHERE agent_id = ` + memory.bind(1) + `
+  AND session_key = ` + memory.bind(2) + `
 ORDER BY updated_at DESC, route_id DESC
 LIMIT 1`
 	return memory
@@ -91,6 +112,20 @@ func (m *deliveryMemory) bindList(count int) string {
 // GetLastRoute 读取最近一次成功投递的显式目标。
 func (m *deliveryMemory) GetLastRoute(ctx context.Context, agentID string) (*DeliveryTarget, error) {
 	row, err := m.getLatestRouteRow(ctx, agentID)
+	return normalizedRememberedTarget(row, err)
+}
+
+// GetSessionRoute 读取指定 session 最近一次成功投递的显式目标。
+func (m *deliveryMemory) GetSessionRoute(ctx context.Context, agentID string, sessionKey string) (*DeliveryTarget, error) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return m.GetLastRoute(ctx, agentID)
+	}
+	row, err := m.getLatestSessionRouteRow(ctx, agentID, sessionKey)
+	return normalizedRememberedTarget(row, err)
+}
+
+func normalizedRememberedTarget(row *rememberedRoute, err error) (*DeliveryTarget, error) {
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -109,6 +144,19 @@ func (m *deliveryMemory) GetLastRoute(ctx context.Context, agentID string) (*Del
 
 // RememberRoute 刷新最近一次成功目标。
 func (m *deliveryMemory) RememberRoute(ctx context.Context, agentID string, target DeliveryTarget) (*DeliveryTarget, error) {
+	return m.rememberRoute(ctx, agentID, "", target)
+}
+
+// RememberSessionRoute 刷新指定 session 最近一次成功目标。
+func (m *deliveryMemory) RememberSessionRoute(ctx context.Context, agentID string, sessionKey string, target DeliveryTarget) (*DeliveryTarget, error) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return m.RememberRoute(ctx, agentID, target)
+	}
+	return m.rememberRoute(ctx, agentID, sessionKey, target)
+}
+
+func (m *deliveryMemory) rememberRoute(ctx context.Context, agentID string, sessionKey string, target DeliveryTarget) (*DeliveryTarget, error) {
 	normalized := target.Normalized()
 	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
 		normalized.Mode = DeliveryModeExplicit
@@ -118,7 +166,7 @@ func (m *deliveryMemory) RememberRoute(ctx context.Context, agentID string, targ
 	}
 
 	routeID := m.idFactory("route")
-	existing, err := m.getLatestRouteRow(ctx, agentID)
+	existing, err := m.getLatestRouteRowForScope(ctx, agentID, sessionKey)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
@@ -131,6 +179,7 @@ func (m *deliveryMemory) RememberRoute(ctx context.Context, agentID string, targ
 		m.rememberRouteQuery,
 		routeID,
 		strings.TrimSpace(agentID),
+		strings.TrimSpace(sessionKey),
 		DeliveryModeExplicit,
 		nullableString(normalized.Channel),
 		nullableString(normalized.To),
@@ -146,6 +195,22 @@ func (m *deliveryMemory) RememberRoute(ctx context.Context, agentID string, targ
 
 func (m *deliveryMemory) getLatestRouteRow(ctx context.Context, agentID string) (*rememberedRoute, error) {
 	row := m.db.QueryRowContext(ctx, m.latestRouteQuery, strings.TrimSpace(agentID))
+	return scanRememberedRoute(row)
+}
+
+func (m *deliveryMemory) getLatestSessionRouteRow(ctx context.Context, agentID string, sessionKey string) (*rememberedRoute, error) {
+	row := m.db.QueryRowContext(ctx, m.latestSessionRouteQuery, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey))
+	return scanRememberedRoute(row)
+}
+
+func (m *deliveryMemory) getLatestRouteRowForScope(ctx context.Context, agentID string, sessionKey string) (*rememberedRoute, error) {
+	if strings.TrimSpace(sessionKey) != "" {
+		return m.getLatestSessionRouteRow(ctx, agentID, sessionKey)
+	}
+	return m.getLatestRouteRow(ctx, agentID)
+}
+
+func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
 	var (
 		item      rememberedRoute
 		channel   sql.NullString
@@ -155,6 +220,7 @@ func (m *deliveryMemory) getLatestRouteRow(ctx context.Context, agentID string) 
 	)
 	if err := row.Scan(
 		&item.RouteID,
+		&item.SessionKey,
 		&item.Target.Mode,
 		&channel,
 		&toValue,
@@ -164,6 +230,7 @@ func (m *deliveryMemory) getLatestRouteRow(ctx context.Context, agentID string) 
 	); err != nil {
 		return nil, err
 	}
+	item.SessionKey = strings.TrimSpace(item.SessionKey)
 	item.Target.Channel = nullStringValue(channel)
 	item.Target.To = nullStringValue(toValue)
 	item.Target.AccountID = nullStringValue(accountID)

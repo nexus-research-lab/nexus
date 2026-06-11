@@ -302,6 +302,11 @@ func (c *feishuChannel) acceptDecodedIngress(ctx context.Context, callback Feish
 	defer cancel()
 	if _, err := ingress.Accept(requestCtx, *callback.Request); err != nil {
 		if isPairingApprovalRequired(err) {
+			if callback.Request.Delivery != nil {
+				if notice := pairingApprovalNoticeText(err); notice != "" {
+					_, _ = c.SendDeliveryMessage(requestCtx, *callback.Request.Delivery, notice)
+				}
+			}
 			return nil
 		}
 		return err

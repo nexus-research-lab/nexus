@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added IM channel capability chips to the channel directory so users can compare typing, thread, reply, receipt, media, and durable history support per channel.
 - Added a channel disconnect action in the IM channel configuration dialog so users can stop a configured bot connection without deleting existing pairings.
 - Added manual IM pairing creation from the pairing directory for known external user, group, or thread identifiers.
+- Added explicit multi-user IM session coverage so multiple external users can bind to one Agent while each inbound target keeps its own session.
+- Added session-scoped IM delivery routes and clearer pairing management so multiple external users under one Agent remain distinguishable by binding key and IM session.
+- Added IM-side pairing approval notices so unapproved external users and groups are told to wait for approval in the Nexus pairing console.
 
 ### Fixed
 - Opened the channel capability UI for every ready IM channel instead of keeping Telegram, Discord, DingTalk, and WeChat Work hidden behind a frontend allowlist.

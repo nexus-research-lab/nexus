@@ -143,7 +143,7 @@ function guide_steps(channel_type: ImChannelType) {
       <>在机器人配置页复制 <b>Bot ID</b> 和 <b>Secret</b>，填入下方表单</>,
       <>Nexus 会通过企业微信官方长连接接收入站消息，并用同一长连接 <b>stream</b> 回复</>,
       <>智能体回复会使用企业微信智能机器人的 <b>stream</b> 回复回到原会话</>,
-      <>确认机器人可见范围包含目标成员或群；首次收到外部消息后在配对授权页批准</>,
+      <>确认机器人可见范围包含目标成员或群；首次收到外部消息后在配对控制台批准</>,
     ];
   case "weixin-personal":
     return [
@@ -151,7 +151,7 @@ function guide_steps(channel_type: ImChannelType) {
       <>用手机微信扫码并确认；如手机端显示数字验证码，在下方扫码面板输入后继续等待登录完成</>,
       <>登录成功后 Nexus 会保存 <b>ilink_bot_token</b>，并内置长轮询 <b>getupdates</b> 接收微信私聊消息</>,
       <>智能体回复时，Nexus 会使用同一 iLink 账号调用 <b>sendmessage</b> 回投文本消息</>,
-      <>Nexus 首次收到发送者消息后，在配对授权页批准，再由选定智能体处理</>,
+      <>Nexus 首次收到发送者消息后，在配对控制台批准，再由选定智能体处理</>,
     ];
   case "feishu":
     return [

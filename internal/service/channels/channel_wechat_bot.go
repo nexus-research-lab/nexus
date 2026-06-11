@@ -325,6 +325,13 @@ func (c *weComBotChannel) handleFrame(ctx context.Context, raw []byte) error {
 	defer cancel()
 	if _, err = ingress.Accept(requestCtx, request); err != nil {
 		if isPairingApprovalRequired(err) {
+			if request.Delivery != nil {
+				if notice := pairingApprovalNoticeText(err); notice != "" {
+					if _, sendErr := c.SendDeliveryMessage(requestCtx, *request.Delivery, notice); sendErr != nil {
+						c.loggerFor(ctx).Warn("企业微信配对提醒发送失败", "err", sendErr)
+					}
+				}
+			}
 			return nil
 		}
 		return err

@@ -97,6 +97,7 @@ export interface PairingView {
   chat_type: ImChatType;
   external_ref: string;
   thread_id?: string;
+  session_key: string;
   external_name?: string;
   agent_id: string;
   agent_name?: string;

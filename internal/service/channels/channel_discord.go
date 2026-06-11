@@ -189,6 +189,9 @@ func (c *discordChannel) handleMessageCreate(session *discordgo.Session, message
 	defer cancel()
 	if _, err = ingress.Accept(ctx, request); err != nil {
 		if isPairingApprovalRequired(err) {
+			if notice := pairingApprovalNoticeText(err); notice != "" {
+				_, _ = session.ChannelMessageSend(message.ChannelID, notice)
+			}
 			return
 		}
 		_, _ = session.ChannelMessageSend(

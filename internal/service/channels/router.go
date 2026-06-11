@@ -314,6 +314,14 @@ func (r *Router) GetLastRoute(ctx context.Context, agentID string) (*DeliveryTar
 	return r.memory.GetLastRoute(ctx, agentID)
 }
 
+// GetSessionRoute 读取指定 session 最近一次成功目标。
+func (r *Router) GetSessionRoute(ctx context.Context, agentID string, sessionKey string) (*DeliveryTarget, error) {
+	if r.memory == nil {
+		return nil, nil
+	}
+	return r.memory.GetSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey))
+}
+
 // RememberRoute 记录一条可复用的显式路由。
 func (r *Router) RememberRoute(ctx context.Context, agentID string, target DeliveryTarget) (*DeliveryTarget, error) {
 	if r.memory == nil {
@@ -340,6 +348,34 @@ func (r *Router) RememberRoute(ctx context.Context, agentID string, target Deliv
 	return remembered, nil
 }
 
+// RememberSessionRoute 记录指定 session 的显式路由。
+func (r *Router) RememberSessionRoute(ctx context.Context, agentID string, sessionKey string, target DeliveryTarget) (*DeliveryTarget, error) {
+	if r.memory == nil {
+		return nil, nil
+	}
+	normalized := target.Normalized()
+	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
+		normalized.Mode = DeliveryModeExplicit
+	}
+	remembered, err := r.memory.RememberSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey), normalized)
+	if err != nil {
+		r.loggerFor(ctx).Error("记录 session 投递目标失败",
+			"agent_id", strings.TrimSpace(agentID),
+			"session_key", strings.TrimSpace(sessionKey),
+			"channel", normalized.Channel,
+			"err", err,
+		)
+		return nil, err
+	}
+	r.loggerFor(ctx).Debug("记录 session 投递目标",
+		"agent_id", strings.TrimSpace(agentID),
+		"session_key", strings.TrimSpace(sessionKey),
+		"channel", normalized.Channel,
+		"mode", normalized.Mode,
+	)
+	return remembered, nil
+}
+
 // RememberWebSocketRoute 把当前浏览器会话注册成最近目标。
 func (r *Router) RememberWebSocketRoute(ctx context.Context, sessionKey string) error {
 	parsed := protocol.ParseSessionKey(sessionKey)
@@ -347,6 +383,16 @@ func (r *Router) RememberWebSocketRoute(ctx context.Context, sessionKey string) 
 		return nil
 	}
 	_, err := r.RememberRoute(ctx, parsed.AgentID, DeliveryTarget{
+		Mode:       DeliveryModeExplicit,
+		Channel:    ChannelTypeWebSocket,
+		To:         strings.TrimSpace(sessionKey),
+		ThreadID:   parsed.ThreadID,
+		SessionKey: strings.TrimSpace(sessionKey),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = r.RememberSessionRoute(ctx, parsed.AgentID, sessionKey, DeliveryTarget{
 		Mode:       DeliveryModeExplicit,
 		Channel:    ChannelTypeWebSocket,
 		To:         strings.TrimSpace(sessionKey),
@@ -363,18 +409,30 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 		return DeliveryResult{Target: normalized}, nil
 	}
 	if normalized.Mode == DeliveryModeLast {
-		lastTarget, err := r.GetLastRoute(ctx, agentID)
+		lastTarget, err := r.GetSessionRoute(ctx, agentID, normalized.SessionKey)
 		if err != nil {
 			r.loggerFor(ctx).Error("读取最近投递目标失败",
 				"agent_id", agentID,
+				"session_key", normalized.SessionKey,
 				"err", err,
 			)
 			return DeliveryResult{}, err
+		}
+		if lastTarget == nil && strings.TrimSpace(normalized.SessionKey) != "" {
+			lastTarget, err = r.GetLastRoute(ctx, agentID)
+			if err != nil {
+				r.loggerFor(ctx).Error("读取 agent 最近投递目标失败",
+					"agent_id", agentID,
+					"err", err,
+				)
+				return DeliveryResult{}, err
+			}
 		}
 		if lastTarget == nil {
 			err = fmt.Errorf("last delivery target is not available for agent: %s", strings.TrimSpace(agentID))
 			r.loggerFor(ctx).Warn("最近投递目标不存在",
 				"agent_id", agentID,
+				"session_key", normalized.SessionKey,
 				"err", err,
 			)
 			return DeliveryResult{}, err
@@ -407,7 +465,11 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 		return DeliveryResult{}, deliveryErr
 	}
 	if strings.TrimSpace(agentID) != "" {
-		if _, err := r.RememberRoute(ctx, agentID, normalized); err != nil {
+		if strings.TrimSpace(target.SessionKey) != "" {
+			if _, err := r.RememberSessionRoute(ctx, agentID, target.SessionKey, normalized); err != nil {
+				return DeliveryResult{}, err
+			}
+		} else if _, err := r.RememberRoute(ctx, agentID, normalized); err != nil {
 			return DeliveryResult{}, err
 		}
 	}

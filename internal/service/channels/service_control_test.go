@@ -344,6 +344,81 @@ func TestControlServiceCreatesManualPairingForKnownTarget(t *testing.T) {
 	}
 }
 
+func TestControlServiceAllowsManyExternalTargetsForOneAgent(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	targets := []string{"wx-user-1", "wx-user-2", "wx-user-3"}
+	pairingIDs := map[string]bool{}
+	sessionKeys := map[string]bool{}
+	for _, ref := range targets {
+		created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+			ChannelType:  ChannelTypeWeixinPersonal,
+			ChatType:     "dm",
+			ExternalRef:  ref,
+			ExternalName: ref,
+			AgentID:      "agent-a",
+		})
+		if err != nil {
+			t.Fatalf("创建多用户 IM 配对失败 ref=%s err=%v", ref, err)
+		}
+		if created.AgentID != "agent-a" ||
+			created.ChannelType != ChannelTypeWeixinPersonal ||
+			created.ChatType != "dm" ||
+			created.ExternalRef != ref ||
+			created.Status != PairingStatusActive {
+			t.Fatalf("多用户 IM 配对结果不正确 ref=%s item=%+v", ref, created)
+		}
+		if pairingIDs[created.PairingID] {
+			t.Fatalf("不同外部用户不应复用 pairing id: %+v", created)
+		}
+		pairingIDs[created.PairingID] = true
+		expectedSessionKey := "agent:agent-a:weixin-personal:dm:" + ref
+		if created.SessionKey != expectedSessionKey {
+			t.Fatalf("多用户 IM 配对应暴露稳定 session_key ref=%s got=%s want=%s", ref, created.SessionKey, expectedSessionKey)
+		}
+		if sessionKeys[created.SessionKey] {
+			t.Fatalf("不同外部用户不应复用 session_key: %+v", created)
+		}
+		sessionKeys[created.SessionKey] = true
+
+		agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+			OwnerUserID: "owner-a",
+			Channel:     ChannelTypeWeixinPersonal,
+			ChatType:    "dm",
+			Ref:         ref,
+		})
+		if err != nil || agentID != "agent-a" {
+			t.Fatalf("已授权外部用户应路由到同一 agent ref=%s agent=%q err=%v", ref, agentID, err)
+		}
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeWeixinPersonal,
+		Status:      PairingStatusActive,
+		AgentID:     "agent-a",
+	})
+	if err != nil {
+		t.Fatalf("查询多用户 IM 配对失败: %v", err)
+	}
+	if len(items) != len(targets) {
+		t.Fatalf("同一 agent 应允许多个外部 IM 目标配对: %+v", items)
+	}
+	seenTargets := map[string]bool{}
+	for _, item := range items {
+		if item.AgentID != "agent-a" {
+			t.Fatalf("多用户配对应保持同一 agent: %+v", item)
+		}
+		seenTargets[item.ExternalRef] = true
+	}
+	for _, ref := range targets {
+		if !seenTargets[ref] {
+			t.Fatalf("缺少外部用户配对 ref=%s items=%+v", ref, items)
+		}
+	}
+}
+
 func TestControlServiceCreatePairingUpdatesExistingTarget(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -385,6 +460,56 @@ func TestControlServiceCreatePairingUpdatesExistingTarget(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].PairingID != first.PairingID {
 		t.Fatalf("重复创建不应产生多条配对: %+v", items)
+	}
+}
+
+func TestControlServiceCreatesSeparatePendingPairingsForManyExternalTargets(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	var nextID int
+	service.idFactory = func(prefix string) string {
+		nextID++
+		return fmt.Sprintf("%s-%d", prefix, nextID)
+	}
+
+	targets := []string{"wx-user-1", "wx-user-2"}
+	for index, ref := range targets {
+		_, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+			OwnerUserID:  "owner-a",
+			Channel:      ChannelTypeWeixinPersonal,
+			ChatType:     "dm",
+			Ref:          ref,
+			ExternalName: ref,
+			AgentID:      "agent-a",
+		})
+		wantPairingID := fmt.Sprintf("pair-%d", index+1)
+		var approval *pairingApprovalError
+		if !errors.As(err, &approval) || approval.PairingID != wantPairingID {
+			t.Fatalf("新外部用户应各自生成 pending pairing ref=%s err=%v approval=%+v want=%s", ref, err, approval, wantPairingID)
+		}
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeWeixinPersonal,
+		Status:      PairingStatusPending,
+		AgentID:     "agent-a",
+	})
+	if err != nil {
+		t.Fatalf("查询 pending IM 配对失败: %v", err)
+	}
+	if len(items) != len(targets) {
+		t.Fatalf("不同外部用户的 pending 配对不应互相覆盖: %+v", items)
+	}
+	seenTargets := map[string]bool{}
+	for _, item := range items {
+		seenTargets[item.ExternalRef] = true
+	}
+	for _, ref := range targets {
+		if !seenTargets[ref] {
+			t.Fatalf("缺少 pending 外部用户配对 ref=%s items=%+v", ref, items)
+		}
 	}
 }
 

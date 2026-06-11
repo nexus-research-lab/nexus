@@ -103,6 +103,45 @@ func TestDeliverJobObservationRecordsDeliveryReceipt(t *testing.T) {
 	}
 }
 
+func TestDeliverJobObservationPassesSourceSessionForLastDelivery(t *testing.T) {
+	delivery := &fakeDeliveryRouter{}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		delivery,
+	)
+	sourceSessionKey := protocol.BuildAgentSessionKey("agent-1", channels.ChannelTypeWeixinPersonal, "dm", "wx-user-1", "")
+	job := protocol.CronJob{
+		JobID:   "job-session-last",
+		AgentID: "agent-1",
+		Delivery: protocol.DeliveryTarget{
+			Mode: protocol.DeliveryModeLast,
+		},
+		Source: protocol.Source{
+			SessionKey: sourceSessionKey,
+		},
+	}
+
+	deliveryResult := service.deliverJobObservation(context.Background(), job, "", automationdomain.ExecutionObservation{
+		Status:     protocol.RunStatusSucceeded,
+		ResultText: "定时提醒",
+	})
+	if deliveryResult.Status != protocol.DeliveryStatusSucceeded || deliveryResult.Error != nil {
+		t.Fatalf("投递状态异常: status=%s err=%v", deliveryResult.Status, deliveryResult.Error)
+	}
+	calls := delivery.Calls()
+	if len(calls) != 1 ||
+		calls[0].Mode != channels.DeliveryModeLast ||
+		calls[0].SessionKey != sourceSessionKey {
+		t.Fatalf("last 投递应携带来源 IM session_key: %+v", calls)
+	}
+}
+
 func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 	workspacePath := t.TempDir()
 	db := newAutomationTestDB(t)

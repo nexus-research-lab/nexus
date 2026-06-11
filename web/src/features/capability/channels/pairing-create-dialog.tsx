@@ -89,7 +89,7 @@ export function CreatePairingDialog({
           <UiDialogHeader
             icon={<ShieldCheck className="h-5 w-5" />}
             on_close={on_close}
-            subtitle="为已知外部用户、群或话题预先建立 IM 授权关系。"
+            subtitle="为已知外部用户、群或话题预先建立 IM 授权关系；只有渠道、会话类型、外部 ID 和 Thread 都相同时才会更新已有配对。"
             title="新增 IM 配对"
             title_id="create-pairing-dialog-title"
           />
@@ -116,7 +116,10 @@ export function CreatePairingDialog({
               </UiField>
             </div>
 
-            <UiField label={<>外部会话 ID <span className="text-(--destructive)">*</span></>}>
+            <UiField
+              description="同一智能体可以绑定多个不同外部对象，每个对象会生成独立 IM session。"
+              label={<>外部对象 ID <span className="text-(--destructive)">*</span></>}
+            >
               <UiInput
                 onChange={(event) => set_external_ref(event.target.value)}
                 placeholder={chat_type === "group" ? "群 ID / chat_id / channel_id" : "用户 ID / open_id / chat_id"}

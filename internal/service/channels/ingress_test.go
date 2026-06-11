@@ -277,6 +277,94 @@ func TestIngressServiceAcceptWeixinPersonalPassesReplyTarget(t *testing.T) {
 	}
 }
 
+func TestIngressServiceAcceptsManyWeixinUsersAsSeparateAgentSessions(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	ownerCtx := ingressTestOwnerContext("owner-a")
+	ownerAgent, err := agentService.GetDefaultAgent(ownerCtx)
+	if err != nil {
+		t.Fatalf("初始化 owner agent 失败: %v", err)
+	}
+	handler := &fakeIngressDMHandler{}
+	notifier := &fakeExternalSessionNotifier{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetExternalSessionNotifier(notifier)
+
+	cases := []struct {
+		ref     string
+		content string
+		reqID   string
+		token   string
+	}{
+		{ref: "wx-user-1", content: "第一位微信用户", reqID: "wx-msg-1", token: "context-token-1"},
+		{ref: "wx-user-2", content: "第二位微信用户", reqID: "wx-msg-2", token: "context-token-2"},
+	}
+	seenSessionKeys := map[string]bool{}
+	for _, tc := range cases {
+		result, err := service.Accept(context.Background(), IngressRequest{
+			OwnerUserID: "owner-a",
+			Channel:     ChannelTypeWeixinPersonal,
+			ChatType:    "dm",
+			Ref:         tc.ref,
+			Content:     tc.content,
+			ReqID:       tc.reqID,
+			Delivery: &DeliveryTarget{
+				Mode:      DeliveryModeExplicit,
+				Channel:   ChannelTypeWeixinPersonal,
+				To:        tc.ref,
+				AccountID: "bot-agent-1",
+				ThreadID:  tc.token,
+			},
+		})
+		if err != nil {
+			t.Fatalf("多微信用户入站失败 ref=%s err=%v", tc.ref, err)
+		}
+		expectedSessionKey := "agent:" + ownerAgent.AgentID + ":weixin-personal:dm:" + tc.ref
+		if result.AgentID != ownerAgent.AgentID || result.SessionKey != expectedSessionKey {
+			t.Fatalf("多微信用户 session 解析不正确 ref=%s result=%+v want=%s", tc.ref, result, expectedSessionKey)
+		}
+		if seenSessionKeys[result.SessionKey] {
+			t.Fatalf("不同微信用户不应复用同一个 IM session: %s", result.SessionKey)
+		}
+		seenSessionKeys[result.SessionKey] = true
+	}
+
+	if len(handler.requests) != len(cases) {
+		t.Fatalf("每个微信用户消息都应进入 DM 主链，实际请求数: %d", len(handler.requests))
+	}
+	if len(handler.ownerUserIDs) != len(cases) {
+		t.Fatalf("每个微信用户消息都应携带 owner context: %+v", handler.ownerUserIDs)
+	}
+	for index, tc := range cases {
+		request := handler.requests[index]
+		expectedSessionKey := "agent:" + ownerAgent.AgentID + ":weixin-personal:dm:" + tc.ref
+		if handler.ownerUserIDs[index] != "owner-a" ||
+			request.AgentID != ownerAgent.AgentID ||
+			request.SessionKey != expectedSessionKey ||
+			request.Content != tc.content {
+			t.Fatalf("多微信用户 DM 请求不正确 index=%d request=%+v owners=%+v", index, request, handler.ownerUserIDs)
+		}
+		if request.ExternalReplyTarget == nil ||
+			request.ExternalReplyTarget.Channel != ChannelTypeWeixinPersonal ||
+			request.ExternalReplyTarget.To != tc.ref ||
+			request.ExternalReplyTarget.ThreadID != tc.token {
+			t.Fatalf("多微信用户外部回复目标不正确 index=%d target=%+v", index, request.ExternalReplyTarget)
+		}
+	}
+	if len(notifier.calls) != len(cases) {
+		t.Fatalf("每个微信用户 session 更新都应通知前端: %+v", notifier.calls)
+	}
+	for index, call := range notifier.calls {
+		if call.agentID != ownerAgent.AgentID || !seenSessionKeys[call.sessionKey] {
+			t.Fatalf("微信用户外部 session 通知不正确 index=%d call=%+v", index, call)
+		}
+	}
+}
+
 func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
