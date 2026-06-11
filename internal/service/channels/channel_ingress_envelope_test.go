@@ -53,6 +53,7 @@ func TestDecodeDingTalkIngressCallbackIncludesMessageEnvelope(t *testing.T) {
 		"conversationType": "2",
 		"conversationTitle": "日报群",
 		"chatbotCorpId": "corp-1",
+		"sessionWebhook": "https://dingtalk.test/session-webhook",
 		"senderStaffId": "staff-1",
 		"senderId": "sender-1",
 		"senderNick": "Alice",
@@ -65,6 +66,9 @@ func TestDecodeDingTalkIngressCallbackIncludesMessageEnvelope(t *testing.T) {
 	}
 	if ignored != "" || request == nil {
 		t.Fatalf("钉钉文本消息不应被忽略: request=%+v ignored=%s", request, ignored)
+	}
+	if request.Delivery == nil || request.Delivery.To != "https://dingtalk.test/session-webhook" {
+		t.Fatalf("钉钉回投应优先使用 sessionWebhook: %+v", request.Delivery)
 	}
 	if request.Message == nil ||
 		request.Message.Channel != ChannelTypeDingTalk ||

@@ -290,10 +290,7 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 	if ref == "" {
 		return nil, nil
 	}
-	deliveryTo := strings.TrimSpace(data.ConversationId)
-	if deliveryTo == "" {
-		deliveryTo = ref
-	}
+	deliveryTo := firstNonEmpty(data.SessionWebhook, data.ConversationId, ref)
 	delivery := &DeliveryTarget{
 		Mode:      DeliveryModeExplicit,
 		Channel:   ChannelTypeDingTalk,
@@ -376,6 +373,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*IngressRequest, string, error) 
 		ConversationType   string `json:"conversationType"`
 		ConversationTitle  string `json:"conversationTitle"`
 		ChatbotCorpID      string `json:"chatbotCorpId"`
+		SessionWebhook     string `json:"sessionWebhook"`
 		SenderStaffID      string `json:"senderStaffId"`
 		SenderID           string `json:"senderId"`
 		SenderNick         string `json:"senderNick"`
@@ -400,7 +398,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*IngressRequest, string, error) 
 	if ref == "" {
 		return nil, "empty_ref", nil
 	}
-	deliveryTo := firstNonEmpty(payload.OpenConversationID, payload.ConversationID, ref)
+	deliveryTo := firstNonEmpty(payload.SessionWebhook, payload.OpenConversationID, payload.ConversationID, ref)
 	return &IngressRequest{
 		Channel:      ChannelTypeDingTalk,
 		ChatType:     normalizeDingTalkConversationType(payload.ConversationType),

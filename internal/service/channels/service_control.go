@@ -1609,11 +1609,11 @@ func channelCatalog() []ChannelCatalogItem {
 			Description:   "通过钉钉应用机器人接收群聊或单聊消息，并把任务结果回投到钉钉会话。",
 			DocsURL:       "https://opensource.dingtalk.com/developerpedia/docs/learn/bot/appbot/receive/",
 			RuntimeStatus: "ready",
-			RuntimeNote:   "使用官方 Stream 模式接收入站消息；主动回投使用机器人群消息 OpenAPI。",
+			RuntimeNote:   "使用官方 Stream 模式接收入站消息；收到消息后的回复优先使用 sessionWebhook，Robot Code 仅用于显式 openConversationId 主动群发。",
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "client_id", Label: "Client ID（AppKey）", Kind: "text", Required: true, Placeholder: "填写开发者控制台的 Client ID"},
-				{Key: "robot_code", Label: "Robot Code", Kind: "text", Required: true, Placeholder: "填写应用机器人的 Robot Code"},
+				{Key: "robot_code", Label: "Robot Code", Kind: "text", Placeholder: "可选；仅用于主动群发 OpenAPI"},
 				{Key: "client_secret", Label: "Client Secret（AppSecret）", Kind: "password", Required: true, Secret: true, Placeholder: "填写开发者控制台的 Client Secret"},
 			},
 		},

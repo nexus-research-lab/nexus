@@ -133,6 +133,7 @@ function guide_steps(channel_type: ImChannelType) {
       <>前往 <a href="https://open.dingtalk.com/" target="_blank" rel="noreferrer">钉钉开放平台</a> 创建企业内部应用，并添加 <b>机器人能力</b></>,
       <>进入 <b>应用配置</b>，左侧菜单 <b>机器人 → 机器人配置</b>，消息接收模式必须选择 <b>Stream</b> 模式，不要选 Webhook</>,
       <>在 <b>凭证与基础信息</b> 页面复制 <b>Client ID</b> 和 <b>Client Secret</b></>,
+      <>常规收消息后原路回复会使用钉钉 Stream 的 <b>sessionWebhook</b>；只有需要主动群发到指定 openConversationId 时才填写 <b>Robot Code</b></>,
       <>先在钉钉侧 <b>发布应用版本</b>，确认应用可见范围包含你的账号</>,
       <>在钉钉群中添加该机器人并 <b>@机器人</b>，或私聊机器人完成配对</>,
     ];

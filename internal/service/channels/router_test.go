@@ -17,6 +17,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
+	dingchatbot "github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 
 	_ "modernc.org/sqlite"
 )
@@ -970,6 +971,42 @@ func TestDingTalkChannelSendDeliveryMessage(t *testing.T) {
 	}
 	if msgParam["content"] != "今日新闻摘要" {
 		t.Fatalf("钉钉消息正文不正确: %+v", msgParam)
+	}
+}
+
+func TestDingTalkStreamMessageRemembersSessionWebhookDelivery(t *testing.T) {
+	channel := newDingTalkChannel("ding-client", "ding-secret", "", nil)
+	ingress := &recordingIngressAcceptor{}
+	channel.SetIngress(ingress)
+
+	if _, err := channel.handleStreamMessage(context.Background(), &dingchatbot.BotCallbackDataModel{
+		ConversationId:    "cid-group-1",
+		ConversationType:  "2",
+		ConversationTitle: "日报群",
+		ChatbotCorpId:     "corp-1",
+		MsgId:             "ding-message-1",
+		SenderStaffId:     "staff-1",
+		SenderNick:        "Alice",
+		SessionWebhook:    "https://dingtalk.test/session-webhook",
+		Text: dingchatbot.BotCallbackDataTextModel{
+			Content: "检查今天日报",
+		},
+	}); err != nil {
+		t.Fatalf("钉钉 Stream 消息处理失败: %v", err)
+	}
+
+	if len(ingress.requests) != 1 {
+		t.Fatalf("钉钉 Stream 消息未进入 ingress: %+v", ingress.requests)
+	}
+	accepted := ingress.requests[0]
+	if accepted.Ref != "cid-group-1" || accepted.ChatType != "group" || accepted.Content != "检查今天日报" {
+		t.Fatalf("钉钉 Stream ingress 请求不正确: %+v", accepted)
+	}
+	if accepted.Delivery == nil ||
+		accepted.Delivery.Channel != ChannelTypeDingTalk ||
+		accepted.Delivery.To != "https://dingtalk.test/session-webhook" ||
+		accepted.Delivery.AccountID != "corp-1" {
+		t.Fatalf("钉钉 Stream 回投目标应使用 sessionWebhook: %+v", accepted.Delivery)
 	}
 }
 

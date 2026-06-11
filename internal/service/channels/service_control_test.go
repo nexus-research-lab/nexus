@@ -73,6 +73,13 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if catalogHasCapability(wechat, channelmessage.CapabilityReceipt) {
 		t.Fatalf("企业微信未返回稳定 message id，不应声明 receipt 能力: %+v", wechat.Capabilities)
 	}
+	dingtalk, ok := channelCatalogByType(ChannelTypeDingTalk)
+	if !ok {
+		t.Fatal("缺少钉钉通道")
+	}
+	if field, ok := catalogCredentialField(dingtalk, "robot_code"); !ok || field.Required {
+		t.Fatalf("钉钉 Stream 回复不应强制要求 Robot Code: field=%+v ok=%v", field, ok)
+	}
 }
 
 func catalogHasCapability(item ChannelCatalogItem, capability channelmessage.Capability) bool {
@@ -82,6 +89,15 @@ func catalogHasCapability(item ChannelCatalogItem, capability channelmessage.Cap
 		}
 	}
 	return false
+}
+
+func catalogCredentialField(item ChannelCatalogItem, key string) (ChannelCredentialField, bool) {
+	for _, field := range item.CredentialFields {
+		if field.Key == key {
+			return field, true
+		}
+	}
+	return ChannelCredentialField{}, false
 }
 
 func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
@@ -100,8 +116,7 @@ func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 			name:        "dingtalk",
 			channelType: ChannelTypeDingTalk,
 			config:      map[string]string{"client_id": "ding-client"},
-			credentials: map[string]string{"client_secret": "ding-secret"},
-			want:        "robot_code is required",
+			want:        "client_secret is required",
 		},
 		{
 			name:        "wechat",
@@ -133,6 +148,31 @@ func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 				t.Fatalf("不完整渠道配置应拒绝，实际 err=%v want=%s", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestControlServiceAllowsDingTalkStreamConfigWithoutRobotCode(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	item, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeDingTalk, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"client_id": "ding-client",
+		},
+		Credentials: map[string]string{
+			"client_secret": "ding-secret",
+		},
+	})
+	if err != nil {
+		t.Fatalf("钉钉 Stream 配置不应强制要求 Robot Code: %v", err)
+	}
+	if item.ChannelType != ChannelTypeDingTalk || !item.Configured || !item.HasCredentials {
+		t.Fatalf("钉钉 Stream 配置结果不正确: %+v", item)
 	}
 }
 
