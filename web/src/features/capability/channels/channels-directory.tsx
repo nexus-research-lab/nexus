@@ -121,7 +121,7 @@ function is_personal_weixin_channel(channel_type: ImChannelType) {
 function channel_status_text(item: ChannelConfigView) {
   if (is_channel_planned(item)) return "未上线";
   if (!item.configured) return "未关联";
-  if (item.connection_state === "connected") return "已连接";
+  if (item.connection_state === "connected") return "机器人在线";
   if (item.connection_state === "error") return "异常";
   return "已配置";
 }
@@ -815,12 +815,14 @@ function ChannelCard({
         : item.configured
           ? `由 ${item.agent_name || "已配置智能体"} 处理该渠道消息。`
           : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
+  const approved_pairing_count = item.stats.paired_user_count + item.stats.paired_group_count;
   const meta_items = [
     item.bot_label,
-    `用户 ${item.stats.paired_user_count}`,
-    `群聊 ${item.supports_group ? item.stats.paired_group_count : "-"}`,
-    `待处理 ${item.stats.pending_count}`,
-    item.configured ? "已绑定智能体" : "待配置",
+    `已授权 ${approved_pairing_count}`,
+    `配对用户 ${item.stats.paired_user_count}`,
+    item.supports_group ? `配对群聊 ${item.stats.paired_group_count}` : null,
+    `待审批 ${item.stats.pending_count}`,
+    item.configured ? `处理智能体 ${item.agent_name || "已绑定"}` : "未绑定智能体",
     item.supports_group ? null : "仅私聊",
   ].filter(Boolean);
 
