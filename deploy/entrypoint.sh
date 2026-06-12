@@ -54,28 +54,37 @@ PY
 
 prepare_connector_credentials_key() {
     local key_file="${CONNECTOR_CREDENTIALS_KEY_FILE:-${HOME}/.nexus/config/connector-credentials.key}"
+    local file_key=""
 
-    if [[ -z "${CONNECTOR_CREDENTIALS_KEY}" ]]; then
-        mkdir -p "$(dirname "${key_file}")"
-        if [[ -s "${key_file}" ]]; then
-            CONNECTOR_CREDENTIALS_KEY="$(tr -d '[:space:]' < "${key_file}")"
-        else
-            CONNECTOR_CREDENTIALS_KEY="$(generate_connector_credentials_key)"
-            local previous_umask
-            previous_umask="$(umask)"
-            umask 077
-            printf '%s\n' "${CONNECTOR_CREDENTIALS_KEY}" > "${key_file}"
-            umask "${previous_umask}"
-            chmod 0600 "${key_file}"
-            echo "Generated CONNECTOR_CREDENTIALS_KEY at ${key_file}"
+    mkdir -p "$(dirname "${key_file}")"
+    if [[ -s "${key_file}" ]]; then
+        file_key="$(tr -d '[:space:]' < "${key_file}")"
+        if [[ -n "${file_key}" ]] && ! validate_connector_credentials_key "${file_key}"; then
+            echo "WARNING: Ignoring malformed connector credentials key file at ${key_file}; a new Docker key will be generated if needed." >&2
+            file_key=""
         fi
     fi
 
-    if ! validate_connector_credentials_key "${CONNECTOR_CREDENTIALS_KEY}"; then
-        echo "ERROR: CONNECTOR_CREDENTIALS_KEY must be exactly 32 random bytes encoded as standard base64." >&2
-        echo "Generate one with: openssl rand -base64 32" >&2
-        echo "For Docker deployments, unset CONNECTOR_CREDENTIALS_KEY to let the entrypoint generate and persist one at ${key_file}." >&2
-        exit 1
+    if [[ -n "${CONNECTOR_CREDENTIALS_KEY}" ]]; then
+        if validate_connector_credentials_key "${CONNECTOR_CREDENTIALS_KEY}"; then
+            export CONNECTOR_CREDENTIALS_KEY
+            return
+        fi
+        echo "WARNING: Ignoring malformed CONNECTOR_CREDENTIALS_KEY from environment; using the persisted Docker key instead." >&2
+        CONNECTOR_CREDENTIALS_KEY=""
+    fi
+
+    if [[ -n "${file_key}" ]]; then
+        CONNECTOR_CREDENTIALS_KEY="${file_key}"
+    else
+        CONNECTOR_CREDENTIALS_KEY="$(generate_connector_credentials_key)"
+        local previous_umask
+        previous_umask="$(umask)"
+        umask 077
+        printf '%s\n' "${CONNECTOR_CREDENTIALS_KEY}" > "${key_file}"
+        umask "${previous_umask}"
+        chmod 0600 "${key_file}"
+        echo "Generated CONNECTOR_CREDENTIALS_KEY at ${key_file}"
     fi
 
 	export CONNECTOR_CREDENTIALS_KEY
