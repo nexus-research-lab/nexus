@@ -126,6 +126,62 @@ func TestDecodeFeishuIngressCallbackMessage(t *testing.T) {
 	}
 }
 
+func TestDecodeFeishuIngressCallbackKeepsP2PChatsSeparate(t *testing.T) {
+	payloads := []string{
+		`{
+			"schema": "2.0",
+			"header": {"event_id": "evt-p2p-1", "event_type": "im.message.receive_v1", "app_id": "cli_a"},
+			"event": {
+				"sender": {"sender_id": {"open_id": "ou_sender_1"}},
+				"message": {
+					"message_id": "om_p2p_1",
+					"chat_id": "oc_p2p_1",
+					"chat_type": "p2p",
+					"message_type": "text",
+					"content": "{\"text\":\"hello\"}"
+				}
+			}
+		}`,
+		`{
+			"schema": "2.0",
+			"header": {"event_id": "evt-p2p-2", "event_type": "im.message.receive_v1", "app_id": "cli_a"},
+			"event": {
+				"sender": {"sender_id": {"open_id": "ou_sender_2"}},
+				"message": {
+					"message_id": "om_p2p_2",
+					"chat_id": "oc_p2p_2",
+					"chat_type": "p2p",
+					"message_type": "text",
+					"content": "{\"text\":\"hello\"}"
+				}
+			}
+		}`,
+	}
+	seenRefs := map[string]bool{}
+	for _, payload := range payloads {
+		callback, err := DecodeFeishuIngressCallback([]byte(payload))
+		if err != nil {
+			t.Fatalf("解析飞书 p2p 消息失败: %v", err)
+		}
+		request := callback.Request
+		if request == nil {
+			t.Fatalf("飞书 p2p 消息应生成 ingress request: %+v", callback)
+		}
+		if request.ChatType != "dm" || request.Ref == "" {
+			t.Fatalf("飞书 p2p session ref 不正确: %+v", request)
+		}
+		if request.Delivery == nil ||
+			request.Delivery.To != request.Ref ||
+			request.Delivery.AccountID != "chat_id" {
+			t.Fatalf("飞书 p2p 回投目标不正确: %+v", request.Delivery)
+		}
+		if seenRefs[request.Ref] {
+			t.Fatalf("不同飞书 p2p chat 不应复用 session ref: %+v", request)
+		}
+		seenRefs[request.Ref] = true
+	}
+}
+
 func TestDecodeFeishuIngressCallbackMessageThreadMetadata(t *testing.T) {
 	callback, err := DecodeFeishuIngressCallback([]byte(`{
 		"schema": "2.0",

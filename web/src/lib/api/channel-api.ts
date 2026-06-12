@@ -94,6 +94,7 @@ export interface ChannelLoginView {
 export interface PairingView {
   pairing_id: string;
   channel_type: ImChannelType;
+  account_id?: string;
   chat_type: ImChatType;
   external_ref: string;
   thread_id?: string;
@@ -116,6 +117,7 @@ export interface ListPairingsParams {
 
 export interface CreatePairingPayload {
   channel_type: ImChannelType;
+  account_id?: string;
   chat_type: ImChatType;
   external_ref: string;
   thread_id?: string;

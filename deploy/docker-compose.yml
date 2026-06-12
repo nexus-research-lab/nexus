@@ -23,7 +23,7 @@ services:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
         BUN_CONFIG_REGISTRY: ${BUN_CONFIG_REGISTRY:-https://registry.npmjs.org/}
         NEXUS_DOCKER_BUNDLE_NXS_RUNTIME: ${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME:-1}
-        NEXUS_NXS_RUNTIME_RELEASE: ${NEXUS_NXS_RUNTIME_RELEASE:-nxs-v0.1.1}
+        NEXUS_NXS_RUNTIME_RELEASE: ${NEXUS_NXS_RUNTIME_RELEASE:-nxs-stable}
     image: ${IMAGE:-nexus}:app-${TAG:-latest}
     restart: unless-stopped
     env_file:
@@ -38,14 +38,36 @@ services:
       UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}
       UV_INDEX_URL: ${UV_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
       NEXUS_APT_ALLOWLIST: ${NEXUS_APT_ALLOWLIST:-ca-certificates curl ffmpeg git imagemagick iputils-ping jq less procps ripgrep rsync unzip vim wget zip}
-      DATABASE_DRIVER: ${DATABASE_DRIVER:-sqlite}
-      DATABASE_URL: ${DATABASE_URL:-sqlite:////home/agent/.nexus/data/nexus.db}
-      CACHE_FILE_DIR: ${CACHE_FILE_DIR:-/home/agent/.nexus/cache}
-      LOG_PATH: ${LOG_PATH:-/home/agent/.nexus/logs/logger.log}
-      WORKSPACE_PATH: ${WORKSPACE_PATH:-/home/agent/.nexus/workspace}
+      DATABASE_DRIVER: ${NEXUS_DOCKER_DATABASE_DRIVER:-sqlite}
+      DATABASE_URL: ${NEXUS_DOCKER_DATABASE_URL:-sqlite:////home/agent/.nexus/data/nexus.db}
+      CACHE_FILE_DIR: ${NEXUS_DOCKER_CACHE_FILE_DIR:-/home/agent/.nexus/cache}
+      LOG_PATH: ${NEXUS_DOCKER_LOG_PATH:-/home/agent/.nexus/logs/logger.log}
+      WORKSPACE_PATH: ${NEXUS_DOCKER_WORKSPACE_PATH:-/home/agent/.nexus/workspace}
+      NEXUS_APP_ROOT: /opt/app
+      NEXUS_APP_MODE: ${NEXUS_DOCKER_APP_MODE:-}
+      NEXUS_CONFIG_DIR: /home/agent/.nexus
+      CLAUDE_CONFIG_DIR: /home/agent/.claude
+      WEB_DIST_DIR: /opt/app/web/dist
+      NEXUSCTL_COMMAND_PATH: /usr/local/bin/nexusctl
+      NEXUS_NXS_COMMAND_PATH: ${NEXUS_DOCKER_NXS_COMMAND_PATH:-/opt/app/bin/nxs}
+      NEXUS_NXS_RUNTIME_CACHE_DIR: ${NEXUS_DOCKER_NXS_RUNTIME_CACHE_DIR:-}
+      NEXUS_DOCKER_REWRITE_LOOPBACK_PROXY: ${NEXUS_DOCKER_REWRITE_LOOPBACK_PROXY:-true}
+      NEXUS_DESKTOP_SESSION_TOKEN: ""
+      CONNECTOR_CREDENTIALS_KEY: ${CONNECTOR_CREDENTIALS_KEY:-}
+      CONNECTOR_CREDENTIALS_KEY_FILE: ${CONNECTOR_CREDENTIALS_KEY_FILE:-/home/agent/.nexus/config/connector-credentials.key}
+      HTTP_PROXY: ${NEXUS_DOCKER_HTTP_PROXY:-${HTTP_PROXY:-}}
+      HTTPS_PROXY: ${NEXUS_DOCKER_HTTPS_PROXY:-${HTTPS_PROXY:-}}
+      ALL_PROXY: ${NEXUS_DOCKER_ALL_PROXY:-${ALL_PROXY:-}}
+      NO_PROXY: ${NEXUS_DOCKER_NO_PROXY:-localhost,127.0.0.1,::1,nexus,nginx,host.docker.internal}
+      http_proxy: ${NEXUS_DOCKER_http_proxy:-${http_proxy:-}}
+      https_proxy: ${NEXUS_DOCKER_https_proxy:-${https_proxy:-}}
+      all_proxy: ${NEXUS_DOCKER_all_proxy:-${all_proxy:-}}
+      no_proxy: ${NEXUS_DOCKER_no_proxy:-localhost,127.0.0.1,::1,nexus,nginx,host.docker.internal}
     volumes:
       - ${HOST_DATA_DIR:-./data}/.nexus:/home/agent/.nexus
       - ${HOST_DATA_DIR:-./data}/.claude.json:/home/agent/.claude.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
       - "8010"
     healthcheck:
@@ -78,8 +100,8 @@ services:
       nexus:
         condition: service_healthy
     ports:
+      # TLS should terminate at an outer reverse proxy/load balancer unless nginx.conf is extended with certificates.
       - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/nginx-health || exit 1"]
       interval: 30s

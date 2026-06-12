@@ -63,27 +63,15 @@ function chat_type_label(item: PairingView) {
 function binding_key(item: PairingView) {
   return [
     CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
+    item.account_id || "default",
     chat_type_label(item),
     item.external_ref,
     item.thread_id || "-",
   ].join(" / ");
 }
 
-const SESSION_CHANNEL_SEGMENTS: Record<ImChannelType, string> = {
-  dingtalk: "dt",
-  discord: "dg",
-  feishu: "fs",
-  telegram: "tg",
-  wechat: "wx",
-  "weixin-personal": "weixin-personal",
-};
-
 function session_key_for_pairing(item: PairingView) {
-  if (item.session_key) {
-    return item.session_key;
-  }
-  const thread = item.thread_id ? `:${item.thread_id}` : "";
-  return `agent:${item.agent_id}:${SESSION_CHANNEL_SEGMENTS[item.channel_type]}:${item.chat_type}:${item.external_ref}${thread}`;
+  return item.session_key || "";
 }
 
 export function PairingsDirectory() {
@@ -108,6 +96,7 @@ export function PairingsDirectory() {
     return items.filter((item) =>
       (item.external_name ?? "").toLowerCase().includes(normalized_query)
       || item.external_ref.toLowerCase().includes(normalized_query)
+      || (item.account_id ?? "").toLowerCase().includes(normalized_query)
       || (item.thread_id ?? "").toLowerCase().includes(normalized_query)
       || session_key_for_pairing(item).toLowerCase().includes(normalized_query)
       || (item.agent_name ?? "").toLowerCase().includes(normalized_query)
@@ -328,6 +317,7 @@ export function PairingsDirectory() {
                               {STATUS_LABELS[item.status]}
                             </UiBadge>
                             <UiBadge>{chat_type_label(item)}</UiBadge>
+                            {item.account_id ? <UiBadge tone="default">{item.account_id}</UiBadge> : null}
                           </div>
                           <div className="mt-2 truncate text-[16px] font-bold text-(--text-strong)">
                             {item.external_name || format_target(item)}
@@ -335,6 +325,11 @@ export function PairingsDirectory() {
                           <div className="mt-1 truncate font-mono text-[12px] text-(--text-muted)">
                             {format_target(item)}
                           </div>
+                          {item.account_id ? (
+                            <div className="mt-1 truncate font-mono text-[11px] text-(--text-soft)" title={item.account_id}>
+                              account: {item.account_id}
+                            </div>
+                          ) : null}
                         </div>
 
                         <UiField class_name="min-w-0" label="处理智能体">

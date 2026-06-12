@@ -41,6 +41,7 @@ export function CreatePairingDialog({
   on_error: (message: string) => void;
 }) {
   const [channel_type, set_channel_type] = useState<ImChannelType>("feishu");
+  const [account_id, set_account_id] = useState("");
   const [chat_type, set_chat_type] = useState<ImChatType>("dm");
   const [external_ref, set_external_ref] = useState("");
   const [thread_id, set_thread_id] = useState("");
@@ -66,6 +67,7 @@ export function CreatePairingDialog({
     try {
       const created = await create_pairing_api({
         channel_type,
+        account_id: account_id.trim() || undefined,
         chat_type,
         external_ref: normalized_ref,
         thread_id: thread_id.trim() || undefined,
@@ -125,6 +127,18 @@ export function CreatePairingDialog({
                 placeholder={chat_type === "group" ? "群 ID / chat_id / channel_id" : "用户 ID / open_id / chat_id"}
                 required
                 value={external_ref}
+                variant="dialog"
+              />
+            </UiField>
+
+            <UiField
+              description="可选；多扫码账号或多机器人账号时用于区分同一个外部对象。"
+              label="通道账号 ID"
+            >
+              <UiInput
+                onChange={(event) => set_account_id(event.target.value)}
+                placeholder="可选，例如扫码账号 ID / bot id"
+                value={account_id}
                 variant="dialog"
               />
             </UiField>

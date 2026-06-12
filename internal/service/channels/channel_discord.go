@@ -68,6 +68,8 @@ func (c *discordChannel) Start(context.Context) error {
 		c.mu.Unlock()
 		return err
 	}
+	session.Client = c.client
+	session.Dialer = newChannelWebsocketDialer()
 	session.Identify.Intents = discordgo.IntentsGuildMessages |
 		discordgo.IntentsDirectMessages |
 		discordgo.IntentsMessageContent
@@ -221,6 +223,7 @@ func (c *discordChannel) buildIngressRequest(
 		return IngressRequest{
 			Channel:     ChannelTypeDiscord,
 			OwnerUserID: c.ownerUserID,
+			AccountID:   channelAccountIDFromSecret("dg", c.token),
 			ChatType:    chatType,
 			Ref:         ref,
 			Content:     content,
@@ -254,6 +257,7 @@ func (c *discordChannel) buildIngressRequest(
 	return IngressRequest{
 		Channel:     ChannelTypeDiscord,
 		OwnerUserID: c.ownerUserID,
+		AccountID:   channelAccountIDFromSecret("dg", c.token),
 		ChatType:    chatType,
 		Ref:         ref,
 		ThreadID:    threadID,

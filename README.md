@@ -91,12 +91,27 @@ cat > .env <<'EOF'
 AUTH_INIT_OWNER_PASSWORD=your-password
 HTTP_PORT=80
 HOST_DATA_DIR=./data
+# Optional: source deployments must set this manually; Docker generates and persists one when empty.
+CONNECTOR_CREDENTIALS_KEY=
+# Optional: server-side outbound proxy for backend IM/OAuth HTTP and WebSocket requests.
+HTTPS_PROXY=
+NO_PROXY=localhost,127.0.0.1,::1,nexus,nginx
 EOF
 
 make start
 ```
 
-Open `http://localhost`.
+Open `http://localhost`. The default compose stack only exposes HTTP; terminate production TLS at an outer gateway or load balancer and forward to this HTTP entrypoint.
+
+Configure IM channel credentials in the web app under Capability / Channels. The container reloads saved channel configs from the database on startup; `DISCORD_BOT_TOKEN` and `TELEGRAM_BOT_TOKEN` in `.env` are only legacy system-level fallbacks.
+
+When reusing a local host proxy for Docker, `127.0.0.1` / `localhost` proxy hosts are rewritten to `host.docker.internal` by default. Use `NEXUS_DOCKER_HTTPS_PROXY`, `NEXUS_DOCKER_HTTP_PROXY`, or `NEXUS_DOCKER_DATABASE_URL` when the container needs values that differ from the desktop app `.env`.
+
+For non-Docker deployments, generate the connector credentials encryption key yourself:
+
+```bash
+openssl rand -base64 32
+```
 
 #### Source Deployment
 

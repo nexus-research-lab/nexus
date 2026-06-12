@@ -20,10 +20,7 @@ func newPersonalWeixinMultiAccountChannel(accounts []*personalWeixinChannel) *pe
 		if account == nil {
 			continue
 		}
-		key := strings.TrimSpace(account.accountID)
-		if key == "" {
-			key = strings.TrimSpace(account.userID)
-		}
+		key := personalWeixinAccountKey(account)
 		if key == "" {
 			key = fmt.Sprintf("account-%d", len(result.accounts)+1)
 		}
@@ -56,6 +53,32 @@ func (c *personalWeixinMultiAccountChannel) SetIngress(ingress IngressAcceptor) 
 	for _, account := range c.snapshotAccounts() {
 		account.SetIngress(ingress)
 	}
+}
+
+func (c *personalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced DeliveryChannel) bool {
+	accounts := personalWeixinAccountsByKey(replaced)
+	if len(accounts) == 0 {
+		return false
+	}
+	adopted := false
+	stale := make([]*personalWeixinChannel, 0)
+	c.mu.Lock()
+	for key, account := range accounts {
+		if key == "" || account == nil {
+			continue
+		}
+		if current := c.accounts[key]; current != nil && strings.TrimSpace(current.token) != strings.TrimSpace(account.token) {
+			stale = append(stale, account)
+			continue
+		}
+		c.accounts[key] = account
+		adopted = true
+	}
+	c.mu.Unlock()
+	for _, account := range stale {
+		_ = account.Stop(context.Background())
+	}
+	return adopted
 }
 
 func (c *personalWeixinMultiAccountChannel) SendDeliveryMessage(
@@ -110,4 +133,43 @@ func (c *personalWeixinMultiAccountChannel) snapshotAccounts() []*personalWeixin
 		result = append(result, account)
 	}
 	return result
+}
+
+func (c *personalWeixinMultiAccountChannel) snapshotAccountMap() map[string]*personalWeixinChannel {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	result := make(map[string]*personalWeixinChannel, len(c.accounts))
+	for key, account := range c.accounts {
+		key = strings.TrimSpace(key)
+		if key == "" || account == nil {
+			continue
+		}
+		result[key] = account
+	}
+	return result
+}
+
+func personalWeixinAccountsByKey(channel DeliveryChannel) map[string]*personalWeixinChannel {
+	switch typed := channel.(type) {
+	case *personalWeixinChannel:
+		key := personalWeixinAccountKey(typed)
+		if key == "" {
+			return nil
+		}
+		return map[string]*personalWeixinChannel{key: typed}
+	case *personalWeixinMultiAccountChannel:
+		return typed.snapshotAccountMap()
+	default:
+		return nil
+	}
+}
+
+func personalWeixinAccountKey(account *personalWeixinChannel) string {
+	if account == nil {
+		return ""
+	}
+	if key := strings.TrimSpace(account.accountID); key != "" {
+		return key
+	}
+	return strings.TrimSpace(account.userID)
 }

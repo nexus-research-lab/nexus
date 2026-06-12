@@ -72,6 +72,7 @@ RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile
 
 COPY web/ ./
+COPY docs/specs/room-collaboration-mechanism.md /src/docs/specs/room-collaboration-mechanism.md
 RUN pnpm run build
 
 FROM ${NODE_IMAGE} AS runtime
@@ -90,7 +91,7 @@ ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
-ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-v0.1.1
+ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -140,6 +141,8 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python3 -m pip install --no-cache-dir --break-system-packages \
+    --retries 5 \
+    --timeout 120 \
     --index-url "${PIP_INDEX_URL}" \
     uv && \
     (python3 -m pip cache purge || true)

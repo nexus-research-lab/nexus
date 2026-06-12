@@ -324,6 +324,7 @@ func (c *dingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
 		Channel:      ChannelTypeDingTalk,
 		OwnerUserID:  c.ownerUserID,
+		AccountID:    strings.TrimSpace(c.clientID),
 		ChatType:     chatType,
 		Ref:          ref,
 		Content:      content,
@@ -427,6 +428,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*IngressRequest, string, error) 
 	deliveryTo := firstNonEmpty(payload.SessionWebhook, payload.OpenConversationID, payload.ConversationID, ref)
 	return &IngressRequest{
 		Channel:      ChannelTypeDingTalk,
+		AccountID:    strings.TrimSpace(payload.ChatbotCorpID),
 		ChatType:     normalizeDingTalkConversationType(payload.ConversationType),
 		Ref:          ref,
 		Content:      content,

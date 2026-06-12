@@ -93,12 +93,27 @@ cat > .env <<'EOF'
 AUTH_INIT_OWNER_PASSWORD=your-password
 HTTP_PORT=80
 HOST_DATA_DIR=./data
+# 可选：源码部署需手动设置，Docker 留空会自动生成并保存到数据目录。
+CONNECTOR_CREDENTIALS_KEY=
+# 可选：服务器出站代理，覆盖后端 IM/OAuth 的 HTTP 和 WebSocket 请求。
+HTTPS_PROXY=
+NO_PROXY=localhost,127.0.0.1,::1,nexus,nginx
 EOF
 
 make start
 ```
 
-打开 `http://localhost`。
+打开 `http://localhost`。默认 compose 只暴露 HTTP；生产 HTTPS 建议在外层网关或负载均衡上终止 TLS，再转发到该 HTTP 入口。
+
+IM 通道机器人凭据建议在 Web App 的「能力 / IM 通道」里配置。容器启动时会从数据库重新加载这些配置；`.env` 里的 `DISCORD_BOT_TOKEN` 和 `TELEGRAM_BOT_TOKEN` 只作为历史系统级兜底入口保留。
+
+Docker 复用宿主本地代理时，`127.0.0.1` / `localhost` 代理地址默认会在容器入口改写为 `host.docker.internal`。如果容器需要和桌面 App `.env` 不同的值，可使用 `NEXUS_DOCKER_HTTPS_PROXY`、`NEXUS_DOCKER_HTTP_PROXY` 或 `NEXUS_DOCKER_DATABASE_URL` 单独覆盖。
+
+如果不是 Docker 部署，需要自己生成 connector 凭据加密密钥：
+
+```bash
+openssl rand -base64 32
+```
 
 #### 源码部署：
 

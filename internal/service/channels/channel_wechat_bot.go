@@ -104,13 +104,10 @@ type weComBotParsedMessage struct {
 
 func newWeComBotChannel(botID string, secret string) *weComBotChannel {
 	return &weComBotChannel{
-		botID:   strings.TrimSpace(botID),
-		secret:  strings.TrimSpace(secret),
-		baseURL: weComBotDefaultLongConnectionURL,
-		dialer: gorillaWeComBotDialer{dialer: &websocket.Dialer{
-			Proxy:            http.ProxyFromEnvironment,
-			HandshakeTimeout: 45 * time.Second,
-		}},
+		botID:       strings.TrimSpace(botID),
+		secret:      strings.TrimSpace(secret),
+		baseURL:     weComBotDefaultLongConnectionURL,
+		dialer:      gorillaWeComBotDialer{dialer: newChannelWebsocketDialer()},
 		logger:      logx.NewDiscardLogger(),
 		pendingAcks: make(map[string]chan error),
 		ackTimeout:  5 * time.Second,
@@ -379,6 +376,7 @@ func (c *weComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 	return IngressRequest{
 		Channel:      ChannelTypeWeChat,
 		OwnerUserID:  c.ownerUserID,
+		AccountID:    strings.TrimSpace(c.botID),
 		ChatType:     chatType,
 		Ref:          ref,
 		ExternalName: firstNonEmpty(parsed.SenderName, parsed.FromUser, parsed.ChatID),

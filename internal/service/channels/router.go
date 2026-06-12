@@ -91,7 +91,7 @@ func (r *Router) RegisterForOwner(ownerUserID string, channel DeliveryChannel) {
 	replaced := r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)]
 	r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)] = entry
 	r.mu.Unlock()
-	if replaced != nil && replaced.channel != nil && replaced.channel != channel {
+	if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adoptReplacedChannel(channel, replaced.channel) {
 		_ = replaced.channel.Stop(context.Background())
 	}
 }
@@ -114,7 +114,7 @@ func (r *Router) RegisterAndStartForOwner(ctx context.Context, ownerUserID strin
 	running := r.running
 	runCtx := r.runCtx
 	r.mu.Unlock()
-	if replaced != nil && replaced.channel != nil && replaced.channel != channel {
+	if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adoptReplacedChannel(channel, replaced.channel) {
 		_ = replaced.channel.Stop(context.Background())
 	}
 
@@ -130,6 +130,21 @@ func (r *Router) RegisterAndStartForOwner(ctx context.Context, ownerUserID strin
 	}
 	r.markChannelStartResult(entry.ownerUserID, entry.channelType, true, nil)
 	return nil
+}
+
+type replacementAdoptingChannel interface {
+	AdoptReplacedChannel(DeliveryChannel) bool
+}
+
+func adoptReplacedChannel(channel DeliveryChannel, replaced DeliveryChannel) bool {
+	if channel == nil || replaced == nil || channel == replaced {
+		return false
+	}
+	adopter, ok := channel.(replacementAdoptingChannel)
+	if !ok {
+		return false
+	}
+	return adopter.AdoptReplacedChannel(replaced)
 }
 
 // UnregisterForOwner 停止并移除指定 owner 的通道实例。

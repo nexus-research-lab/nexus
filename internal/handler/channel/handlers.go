@@ -456,7 +456,7 @@ func (h *Handlers) writeControlFailure(writer http.ResponseWriter, err error) {
 	case strings.Contains(message, "required"),
 		strings.Contains(message, "invalid"),
 		strings.Contains(message, "不能为空"),
-		strings.Contains(message, "CONNECTOR_CREDENTIALS_KEY 未配置"):
+		strings.Contains(message, "CONNECTOR_CREDENTIALS_KEY"):
 		h.api.WriteFailure(writer, http.StatusBadRequest, message)
 	default:
 		h.api.WriteFailure(writer, http.StatusInternalServerError, message)

@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 type recordingPersonalWeixinIngress struct {
@@ -126,6 +129,99 @@ func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
 	}, "你好")
 	if err == nil || !strings.Contains(err.Error(), "requires account_id") {
 		t.Fatalf("多账号个人微信缺少 account_id 应拒绝: %v", err)
+	}
+}
+
+func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	authByRecipient := map[string]string{}
+	var authMu sync.Mutex
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch {
+		case strings.Contains(request.URL.Path, "/ilink/bot/getupdates"):
+			<-request.Context().Done()
+			return nil, request.Context().Err()
+		case strings.Contains(request.URL.Path, "/ilink/bot/sendmessage"):
+			var payload map[string]any
+			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+				t.Fatalf("解析个人微信回投请求失败: %v", err)
+			}
+			message, _ := payload["msg"].(map[string]any)
+			to, _ := message["to_user_id"].(string)
+			authMu.Lock()
+			authByRecipient[to] = request.Header.Get("Authorization")
+			authMu.Unlock()
+			return jsonResponse(`{"ret":0}`), nil
+		default:
+			t.Fatalf("未知个人微信请求路径: %s", request.URL.Path)
+			return nil, nil
+		}
+	})}
+
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatalf("启动 router 失败: %v", err)
+	}
+	defer router.Stop(context.Background())
+
+	accountOne := newPersonalWeixinChannel(personalWeixinClientConfig{
+		BaseURL:   "https://weixin.test",
+		Token:     "token-1",
+		AccountID: "account-1",
+	}, client)
+	if err := router.RegisterAndStartForOwner(context.Background(), "", accountOne); err != nil {
+		t.Fatalf("注册第一个个人微信账号失败: %v", err)
+	}
+
+	replacement := newPersonalWeixinMultiAccountChannel([]*personalWeixinChannel{
+		newPersonalWeixinChannel(personalWeixinClientConfig{
+			BaseURL:   "https://weixin.test",
+			Token:     "token-1",
+			AccountID: "account-1",
+		}, client),
+		newPersonalWeixinChannel(personalWeixinClientConfig{
+			BaseURL:   "https://weixin.test",
+			Token:     "token-2",
+			AccountID: "account-2",
+		}, client),
+	})
+	if err := router.RegisterAndStartForOwner(context.Background(), "", replacement); err != nil {
+		t.Fatalf("注册多账号个人微信 channel 失败: %v", err)
+	}
+
+	accountOne.mu.RLock()
+	accountOneStillRunning := accountOne.cancel != nil
+	accountOne.mu.RUnlock()
+	if !accountOneStillRunning {
+		t.Fatal("第二个微信扫码后不应停止第一个已运行账号")
+	}
+
+	if _, err := router.DeliverMessage(context.Background(), "", "给账号一", DeliveryTarget{
+		Mode:      DeliveryModeExplicit,
+		Channel:   ChannelTypeWeixinPersonal,
+		To:        "wx-user-1",
+		AccountID: "account-1",
+	}); err != nil {
+		t.Fatalf("账号一回投失败: %v", err)
+	}
+	if _, err := router.DeliverMessage(context.Background(), "", "给账号二", DeliveryTarget{
+		Mode:      DeliveryModeExplicit,
+		Channel:   ChannelTypeWeixinPersonal,
+		To:        "wx-user-2",
+		AccountID: "account-2",
+	}); err != nil {
+		t.Fatalf("账号二回投失败: %v", err)
+	}
+
+	authMu.Lock()
+	defer authMu.Unlock()
+	if authByRecipient["wx-user-1"] != "Bearer token-1" {
+		t.Fatalf("账号一应复用已运行 channel，不应切到新建 channel: %+v", authByRecipient)
+	}
+	if authByRecipient["wx-user-2"] != "Bearer token-2" {
+		t.Fatalf("账号二应使用新扫码账号 channel: %+v", authByRecipient)
 	}
 }
 

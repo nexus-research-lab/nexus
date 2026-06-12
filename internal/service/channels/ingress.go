@@ -87,6 +87,7 @@ func (fn ExternalSessionNotifierFunc) NotifyExternalSessionUpdated(ctx context.C
 type IngressRequest struct {
 	Channel          string                  `json:"channel,omitempty"`
 	OwnerUserID      string                  `json:"owner_user_id,omitempty"`
+	AccountID        string                  `json:"account_id,omitempty"`
 	SessionKey       string                  `json:"session_key,omitempty"`
 	AgentID          string                  `json:"agent_id,omitempty"`
 	ChatType         string                  `json:"chat_type,omitempty"`
@@ -118,6 +119,7 @@ type IngressResult struct {
 type normalizedIngressRequest struct {
 	ownerUserID      string
 	channelStored    string
+	accountID        string
 	sessionKey       string
 	parsed           protocol.SessionKey
 	agentID          string
@@ -201,6 +203,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 
 	logger := s.loggerFor(ctx).With(
 		"channel", normalized.channelStored,
+		"account_id", normalized.accountID,
 		"agent_id", normalized.agentID,
 		"session_key", normalized.sessionKey,
 		"round_id", normalized.roundID,
@@ -216,6 +219,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		claimed, duplicate, claimErr := s.control.claimIngressMessage(ctx, ingressMessageClaimInput{
 			OwnerUserID: normalized.ownerUserID,
 			Channel:     normalized.channelStored,
+			AccountID:   normalized.accountID,
 			ReqID:       normalized.reqID,
 			AgentID:     normalized.agentID,
 			SessionKey:  normalized.sessionKey,
@@ -317,6 +321,7 @@ func (s *IngressService) markIngressMessageFailed(ctx context.Context, claimed b
 	if finishErr := s.control.finishIngressMessage(ctx, ingressMessageFinishInput{
 		OwnerUserID:  request.ownerUserID,
 		Channel:      request.channelStored,
+		AccountID:    request.accountID,
 		ReqID:        request.reqID,
 		Status:       ingressMessageStatusFailed,
 		ErrorMessage: &message,
@@ -347,6 +352,7 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	}
 
 	channelStored := protocol.NormalizeStoredChannelType(parsed.Channel)
+	accountID := strings.TrimSpace(parsed.AccountID)
 	rememberedTarget, err := s.resolveRememberedTarget(channelStored, parsed, request.Delivery)
 	if err != nil {
 		return normalizedIngressRequest{}, err
@@ -358,6 +364,7 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	return normalizedIngressRequest{
 		ownerUserID:      ownerUserID,
 		channelStored:    channelStored,
+		accountID:        accountID,
 		sessionKey:       sessionKey,
 		parsed:           parsed,
 		agentID:          agentID,
@@ -401,6 +408,9 @@ func (s *IngressService) resolveSession(ctx context.Context, request IngressRequ
 		if agentID := strings.TrimSpace(request.AgentID); agentID != "" && agentID != parsed.AgentID {
 			return "", protocol.SessionKey{}, "", errors.New("agent_id 与 session_key 不一致")
 		}
+		if accountID := strings.TrimSpace(request.AccountID); accountID != "" && parsed.AccountID != "" && accountID != parsed.AccountID {
+			return "", protocol.SessionKey{}, "", errors.New("account_id 与 session_key 不一致")
+		}
 		return sessionKey, parsed, parsed.AgentID, nil
 	}
 
@@ -431,10 +441,12 @@ func (s *IngressService) resolveSession(ctx context.Context, request IngressRequ
 		}
 		agentID = defaultAgent.AgentID
 	}
-	sessionKey := protocol.BuildAgentSessionKey(
+	accountID := strings.TrimSpace(request.AccountID)
+	sessionKey := protocol.BuildAgentAccountSessionKey(
 		agentID,
 		channel,
 		protocol.NormalizeSessionChatType(request.ChatType),
+		accountID,
 		ref,
 		strings.TrimSpace(request.ThreadID),
 	)
@@ -455,6 +467,9 @@ func (s *IngressService) resolveRememberedTarget(
 		}
 		if target.Channel == ChannelTypeInternal && target.SessionKey == "" {
 			target.SessionKey = parsed.Raw
+		}
+		if target.Channel == ChannelTypeWeixinPersonal && target.AccountID == "" {
+			target.AccountID = strings.TrimSpace(parsed.AccountID)
 		}
 		if err := target.Validate(); err != nil {
 			return nil, err
@@ -499,12 +514,16 @@ func deliveryTargetFromSessionRef(channel string, parsed protocol.SessionKey) *D
 	if ref == "" {
 		return nil
 	}
-	return &DeliveryTarget{
+	target := &DeliveryTarget{
 		Mode:     DeliveryModeExplicit,
 		Channel:  channel,
 		To:       ref,
 		ThreadID: strings.TrimSpace(parsed.ThreadID),
 	}
+	if channel == ChannelTypeWeixinPersonal {
+		target.AccountID = strings.TrimSpace(parsed.AccountID)
+	}
+	return target
 }
 
 func dmExternalReplyTarget(target *DeliveryTarget) *dmsvc.ExternalReplyTarget {

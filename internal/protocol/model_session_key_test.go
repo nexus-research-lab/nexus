@@ -19,6 +19,25 @@ func TestParseAgentSessionKeyWithTopicAndColonRef(t *testing.T) {
 	}
 }
 
+func TestParseAgentSessionKeyWithAccountScope(t *testing.T) {
+	raw := BuildAgentAccountSessionKey("alpha", "weixin-personal", "dm", "wx-account-1", "wx-user:1", "ctx:1")
+	if raw != "agent:alpha:weixin-personal:dm:acct:wx-account-1:wx-user:1:topic:ctx:1" {
+		t.Fatalf("account-scoped session_key 构建错误: %s", raw)
+	}
+	parsed := ParseSessionKey(raw)
+	if !parsed.IsStructured {
+		t.Fatalf("session_key 应合法: %+v", parsed)
+	}
+	if parsed.AgentID != "alpha" ||
+		parsed.Channel != "weixin-personal" ||
+		parsed.ChatType != "dm" ||
+		parsed.AccountID != "wx-account-1" ||
+		parsed.Ref != "wx-user:1" ||
+		parsed.ThreadID != "ctx:1" {
+		t.Fatalf("account-scoped session_key 解析错误: %+v", parsed)
+	}
+}
+
 func TestParseRoomSharedSessionKey(t *testing.T) {
 	raw := "room:group:conversation_1"
 	parsed := ParseSessionKey(raw)

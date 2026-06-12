@@ -1360,9 +1360,10 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	);
 	CREATE TABLE im_pairings (
 	    pairing_id VARCHAR(64) NOT NULL PRIMARY KEY,
-	    owner_user_id VARCHAR(64) NOT NULL,
-	    channel_type VARCHAR(32) NOT NULL,
-	    chat_type VARCHAR(16) NOT NULL,
+		    owner_user_id VARCHAR(64) NOT NULL,
+		    channel_type VARCHAR(32) NOT NULL,
+		    account_id VARCHAR(255) NOT NULL DEFAULT '',
+		    chat_type VARCHAR(16) NOT NULL,
 	    external_ref VARCHAR(255) NOT NULL,
 	    thread_id VARCHAR(255) NOT NULL DEFAULT '',
 	    external_name VARCHAR(255),
@@ -1372,8 +1373,8 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    last_message_at DATETIME,
 	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	    UNIQUE (owner_user_id, channel_type, chat_type, external_ref, thread_id)
-	);`
+		    UNIQUE (owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id)
+		);`
 	if _, err = db.Exec(schema); err != nil {
 		t.Fatalf("初始化 delivery schema 失败: %v", err)
 	}

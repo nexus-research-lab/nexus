@@ -46,6 +46,9 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if !ok {
 		t.Fatal("缺少飞书通道")
 	}
+	if field, ok := catalogCredentialField(feishu, "connection_mode"); !ok || field.Required {
+		t.Fatalf("飞书应暴露可选 connection_mode 便于线上切换长连接或 webhook: field=%+v ok=%v", field, ok)
+	}
 	for _, capability := range []channelmessage.Capability{
 		channelmessage.CapabilityTyping,
 		channelmessage.CapabilityThread,
@@ -74,6 +77,27 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	}
 	if field, ok := catalogCredentialField(dingtalk, "robot_code"); !ok || field.Required {
 		t.Fatalf("钉钉 Stream 回复不应强制要求 Robot Code: field=%+v ok=%v", field, ok)
+	}
+	for _, key := range []string{"base_url", "stream_base_url"} {
+		if _, ok := catalogCredentialField(dingtalk, key); !ok {
+			t.Fatalf("钉钉应暴露运行时可选字段 %s", key)
+		}
+	}
+	for _, channelCase := range []struct {
+		channelType string
+		fieldKey    string
+	}{
+		{channelType: ChannelTypeWeChat, fieldKey: "base_url"},
+		{channelType: ChannelTypeTelegram, fieldKey: "base_url"},
+		{channelType: ChannelTypeDiscord, fieldKey: "base_url"},
+	} {
+		item, found := channelCatalogByType(channelCase.channelType)
+		if !found {
+			t.Fatalf("缺少通道 %s", channelCase.channelType)
+		}
+		if _, ok := catalogCredentialField(item, channelCase.fieldKey); !ok {
+			t.Fatalf("%s 应暴露运行时可选字段 %s", channelCase.channelType, channelCase.fieldKey)
+		}
 	}
 }
 
@@ -168,6 +192,95 @@ func TestControlServiceAllowsDingTalkStreamConfigWithoutRobotCode(t *testing.T) 
 	}
 	if item.ChannelType != ChannelTypeDingTalk || !item.Configured || !item.HasCredentials {
 		t.Fatalf("钉钉 Stream 配置结果不正确: %+v", item)
+	}
+}
+
+func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, router)
+	ctx := context.Background()
+
+	_, err := service.UpsertChannelConfig(ctx, "owner-a", ChannelTypeDingTalk, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"client_id":       "ding-client",
+			"base_url":        "https://ding-api.test/",
+			"stream_base_url": "https://ding-stream.test/",
+		},
+		Credentials: map[string]string{"client_secret": "ding-secret"},
+	})
+	if err != nil {
+		t.Fatalf("配置钉钉失败: %v", err)
+	}
+	dingtalk, ok := router.GetForOwner("owner-a", ChannelTypeDingTalk).(*dingTalkChannel)
+	if !ok || dingtalk.baseURL != "https://ding-api.test" || dingtalk.streamHost != "https://ding-stream.test" {
+		t.Fatalf("钉钉运行时配置未生效: channel=%+v ok=%v", dingtalk, ok)
+	}
+
+	_, err = service.UpsertChannelConfig(ctx, "owner-a", ChannelTypeWeChat, UpsertChannelConfigRequest{
+		AgentID:     "agent-a",
+		Config:      map[string]string{"bot_id": "wechat-bot", "base_url": "wss://wecom.test/ws/"},
+		Credentials: map[string]string{"secret": "wechat-secret"},
+	})
+	if err != nil {
+		t.Fatalf("配置企业微信失败: %v", err)
+	}
+	wechat, ok := router.GetForOwner("owner-a", ChannelTypeWeChat).(*weComBotChannel)
+	if !ok || wechat.baseURL != "wss://wecom.test/ws" {
+		t.Fatalf("企业微信运行时配置未生效: channel=%+v ok=%v", wechat, ok)
+	}
+
+	_, err = service.UpsertChannelConfig(ctx, "owner-a", ChannelTypeFeishu, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"app_id":          "cli_a",
+			"connection_mode": "webhook",
+			"base_url":        "https://feishu-api.test",
+			"reply_in_thread": "true",
+		},
+		Credentials: map[string]string{"app_secret": "feishu-secret"},
+	})
+	if err != nil {
+		t.Fatalf("配置飞书失败: %v", err)
+	}
+	feishu, ok := router.GetForOwner("owner-a", ChannelTypeFeishu).(*feishuChannel)
+	if !ok || feishu.connectionMode != "webhook" || feishu.baseURL != "https://feishu-api.test" || !feishu.replyInThread {
+		t.Fatalf("飞书运行时配置未生效: channel=%+v ok=%v", feishu, ok)
+	}
+
+	_, err = service.UpsertChannelConfig(ctx, "owner-a", ChannelTypeTelegram, UpsertChannelConfigRequest{
+		AgentID:     "agent-a",
+		Config:      map[string]string{"base_url": "https://telegram-api.test/"},
+		Credentials: map[string]string{"bot_token": "telegram-token"},
+	})
+	if err != nil {
+		t.Fatalf("配置 Telegram 失败: %v", err)
+	}
+	telegram, ok := router.GetForOwner("owner-a", ChannelTypeTelegram).(*telegramChannel)
+	if !ok || telegram.baseURL != "https://telegram-api.test" {
+		t.Fatalf("Telegram 运行时配置未生效: channel=%+v ok=%v", telegram, ok)
+	}
+
+	_, err = service.UpsertChannelConfig(ctx, "owner-a", ChannelTypeDiscord, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"application_id": "discord-app",
+			"base_url":       "https://discord-api.test/",
+		},
+		Credentials: map[string]string{"bot_token": "discord-token"},
+	})
+	if err != nil {
+		t.Fatalf("配置 Discord 失败: %v", err)
+	}
+	discord, ok := router.GetForOwner("owner-a", ChannelTypeDiscord).(*discordChannel)
+	if !ok || discord.baseURL != "https://discord-api.test" {
+		t.Fatalf("Discord 运行时配置未生效: channel=%+v ok=%v", discord, ok)
 	}
 }
 
@@ -499,6 +612,126 @@ func TestControlServiceAllowsManyExternalTargetsForOneAgent(t *testing.T) {
 		if !seenTargets[ref] {
 			t.Fatalf("缺少外部用户配对 ref=%s items=%+v", ref, items)
 		}
+	}
+}
+
+func TestControlServiceScopesPairingsByIMAccount(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	accounts := []string{"wx-account-1", "wx-account-2"}
+	seenPairings := map[string]bool{}
+	seenSessions := map[string]bool{}
+	for _, accountID := range accounts {
+		created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+			ChannelType: ChannelTypeWeixinPersonal,
+			AccountID:   accountID,
+			ChatType:    "dm",
+			ExternalRef: "same-wx-user",
+			AgentID:     "agent-a",
+		})
+		if err != nil {
+			t.Fatalf("创建账号隔离配对失败 account=%s err=%v", accountID, err)
+		}
+		if created.AccountID != accountID {
+			t.Fatalf("配对应保留 account_id account=%s item=%+v", accountID, created)
+		}
+		expectedSessionKey := "agent:agent-a:weixin-personal:dm:acct:" + accountID + ":same-wx-user"
+		if created.SessionKey != expectedSessionKey {
+			t.Fatalf("账号隔离 session_key 不正确 account=%s got=%s want=%s", accountID, created.SessionKey, expectedSessionKey)
+		}
+		if seenPairings[created.PairingID] || seenSessions[created.SessionKey] {
+			t.Fatalf("不同账号不应复用 pairing/session: %+v", created)
+		}
+		seenPairings[created.PairingID] = true
+		seenSessions[created.SessionKey] = true
+
+		agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+			OwnerUserID: "owner-a",
+			Channel:     ChannelTypeWeixinPersonal,
+			AccountID:   accountID,
+			ChatType:    "dm",
+			Ref:         "same-wx-user",
+		})
+		if err != nil || agentID != "agent-a" {
+			t.Fatalf("账号隔离配对应可解析 account=%s agent=%q err=%v", accountID, agentID, err)
+		}
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeWeixinPersonal,
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("查询账号隔离配对失败: %v", err)
+	}
+	if len(items) != len(accounts) {
+		t.Fatalf("同一外部 ref 在不同账号下应保留多条配对: %+v", items)
+	}
+}
+
+func TestControlServiceAllowsManyExternalTargetsForOneAgentAcrossIMChannels(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	for _, channelType := range []string{
+		ChannelTypeTelegram,
+		ChannelTypeDiscord,
+		ChannelTypeDingTalk,
+		ChannelTypeWeChat,
+		ChannelTypeWeixinPersonal,
+		ChannelTypeFeishu,
+	} {
+		t.Run(channelType, func(t *testing.T) {
+			seenPairings := map[string]bool{}
+			seenSessions := map[string]bool{}
+			for _, ref := range []string{channelType + "-user-1", channelType + "-user-2"} {
+				created, err := service.CreatePairing(context.Background(), "owner-"+channelType, CreatePairingRequest{
+					ChannelType: channelType,
+					ChatType:    "dm",
+					ExternalRef: ref,
+					AgentID:     "agent-a",
+				})
+				if err != nil {
+					t.Fatalf("创建多用户配对失败 channel=%s ref=%s err=%v", channelType, ref, err)
+				}
+				if created.AgentID != "agent-a" || created.ExternalRef != ref || created.Status != PairingStatusActive {
+					t.Fatalf("多用户配对结果不正确 channel=%s ref=%s item=%+v", channelType, ref, created)
+				}
+				if seenPairings[created.PairingID] {
+					t.Fatalf("不同外部用户不应复用 pairing id channel=%s item=%+v", channelType, created)
+				}
+				seenPairings[created.PairingID] = true
+				if created.SessionKey == "" || seenSessions[created.SessionKey] {
+					t.Fatalf("不同外部用户不应复用 session_key channel=%s item=%+v", channelType, created)
+				}
+				seenSessions[created.SessionKey] = true
+
+				agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+					OwnerUserID: "owner-" + channelType,
+					Channel:     channelType,
+					ChatType:    "dm",
+					Ref:         ref,
+				})
+				if err != nil || agentID != "agent-a" {
+					t.Fatalf("已授权外部用户应路由到同一 agent channel=%s ref=%s agent=%q err=%v", channelType, ref, agentID, err)
+				}
+			}
+
+			items, err := service.ListPairings(context.Background(), "owner-"+channelType, PairingQuery{
+				ChannelType: channelType,
+				Status:      PairingStatusActive,
+				AgentID:     "agent-a",
+			})
+			if err != nil {
+				t.Fatalf("查询多用户配对失败 channel=%s err=%v", channelType, err)
+			}
+			if len(items) != 2 {
+				t.Fatalf("同一 agent 应允许多个外部 IM 目标配对 channel=%s items=%+v", channelType, items)
+			}
+		})
 	}
 }
 

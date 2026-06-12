@@ -823,6 +823,9 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 		callback.IgnoredReason = "unsupported_event_type"
 		return callback, nil
 	}
+	if callback.Request != nil && callback.Request.AccountID == "" {
+		callback.Request.AccountID = strings.TrimSpace(callback.AppID)
+	}
 	return callback, nil
 }
 
@@ -858,6 +861,7 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 
 	return &IngressRequest{
 		Channel:      ChannelTypeFeishu,
+		AccountID:    strings.TrimSpace(callback.AppID),
 		ChatType:     chatType,
 		Ref:          ref,
 		ThreadID:     threadID,
@@ -922,6 +926,7 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 	}, ":")
 	return &IngressRequest{
 		Channel:      ChannelTypeFeishu,
+		AccountID:    strings.TrimSpace(callback.AppID),
 		ChatType:     normalizeFeishuChatType(payload.Event.ChatType),
 		Ref:          ref,
 		ThreadID:     threadID,

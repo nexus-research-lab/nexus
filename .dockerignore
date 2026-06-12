@@ -112,6 +112,9 @@ coverage.xml
 !db/**
 !web/
 !web/**
+!docs/
+!docs/specs/
+!docs/specs/room-collaboration-mechanism.md
 !skills/
 !skills/**
 !vendor/

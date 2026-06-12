@@ -337,6 +337,7 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
 		Channel:      ChannelTypeWeixinPersonal,
 		OwnerUserID:  c.ownerUserID,
+		AccountID:    c.accountID,
 		ChatType:     "dm",
 		Ref:          fromUserID,
 		ExternalName: fromUserID,

@@ -365,6 +365,59 @@ func TestIngressServiceAcceptsManyWeixinUsersAsSeparateAgentSessions(t *testing.
 	}
 }
 
+func TestIngressServiceScopesSameWeixinUserByAccount(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	ownerCtx := ingressTestOwnerContext("owner-a")
+	ownerAgent, err := agentService.GetDefaultAgent(ownerCtx)
+	if err != nil {
+		t.Fatalf("初始化 owner agent 失败: %v", err)
+	}
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	service := NewIngressService(cfg, agentService, handler, router)
+
+	for _, accountID := range []string{"wx-account-1", "wx-account-2"} {
+		result, err := service.Accept(context.Background(), IngressRequest{
+			OwnerUserID: "owner-a",
+			Channel:     ChannelTypeWeixinPersonal,
+			AccountID:   accountID,
+			ChatType:    "dm",
+			Ref:         "same-wx-user",
+			Content:     "来自 " + accountID,
+			ReqID:       "same-platform-msg",
+			Delivery: &DeliveryTarget{
+				Mode:      DeliveryModeExplicit,
+				Channel:   ChannelTypeWeixinPersonal,
+				To:        "same-wx-user",
+				AccountID: accountID,
+				ThreadID:  "context-token-" + accountID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("账号隔离微信入站失败 account=%s err=%v", accountID, err)
+		}
+		expectedSessionKey := "agent:" + ownerAgent.AgentID + ":weixin-personal:dm:acct:" + accountID + ":same-wx-user"
+		if result.SessionKey != expectedSessionKey {
+			t.Fatalf("账号隔离微信 session_key 不正确 account=%s got=%s want=%s", accountID, result.SessionKey, expectedSessionKey)
+		}
+	}
+	if len(handler.requests) != 2 {
+		t.Fatalf("两个账号的消息都应进入 DM 主链，实际: %d", len(handler.requests))
+	}
+	if handler.requests[0].SessionKey == handler.requests[1].SessionKey {
+		t.Fatalf("不同微信账号不应复用同一 IM session: %+v", handler.requests)
+	}
+	for index, request := range handler.requests {
+		if request.ExternalReplyTarget == nil || request.ExternalReplyTarget.AccountID == "" {
+			t.Fatalf("账号隔离微信回复目标应保留 account_id index=%d request=%+v", index, request)
+		}
+	}
+}
+
 func TestIngressServiceFeishuAllowsScheduledTaskSkillWithRestrictiveAgentTools(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)

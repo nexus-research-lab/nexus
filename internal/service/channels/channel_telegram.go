@@ -376,6 +376,7 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 	if _, err := ingress.Accept(requestCtx, IngressRequest{
 		Channel:     ChannelTypeTelegram,
 		OwnerUserID: c.ownerUserID,
+		AccountID:   channelAccountIDFromSecret("tg", c.token),
 		ChatType:    chatType,
 		Ref:         ref,
 		ThreadID:    threadID,

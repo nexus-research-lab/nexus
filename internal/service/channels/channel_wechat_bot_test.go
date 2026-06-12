@@ -88,6 +88,58 @@ func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 	}
 }
 
+func TestWeComBotChannelKeepsDirectUsersSeparate(t *testing.T) {
+	ingress := &recordingIngressAcceptor{}
+	channel := newWeComBotChannel("bot-1", "secret-1").WithOwner("owner-a")
+	channel.SetIngress(ingress)
+
+	frames := []string{
+		`{
+			"cmd": "aibot_msg_callback",
+			"headers": {"req_id": "callback-1"},
+			"body": {
+				"msgid": "msg-1",
+				"msgtype": "text",
+				"from": {"userid": "user-1", "name": "张三"},
+				"chattype": "single",
+				"text": {"content": "hello"}
+			}
+		}`,
+		`{
+			"cmd": "aibot_msg_callback",
+			"headers": {"req_id": "callback-2"},
+			"body": {
+				"msgid": "msg-2",
+				"msgtype": "text",
+				"from": {"userid": "user-2", "name": "李四"},
+				"chattype": "single",
+				"text": {"content": "hello"}
+			}
+		}`,
+	}
+	for _, frame := range frames {
+		if err := channel.handleFrame(context.Background(), []byte(frame)); err != nil {
+			t.Fatalf("企业微信 direct 入站处理失败: %v", err)
+		}
+	}
+	if len(ingress.requests) != 2 {
+		t.Fatalf("两个企业微信 direct 用户都应进入 ingress: %+v", ingress.requests)
+	}
+	seenRefs := map[string]bool{}
+	for _, request := range ingress.requests {
+		if request.OwnerUserID != "owner-a" || request.ChatType != "dm" || request.Ref == "" {
+			t.Fatalf("企业微信 direct ingress 基础字段不正确: %+v", request)
+		}
+		if request.Delivery == nil || request.Delivery.To != request.Ref || request.Delivery.AccountID == "" {
+			t.Fatalf("企业微信 direct 回投目标不正确: %+v", request.Delivery)
+		}
+		if seenRefs[request.Ref] {
+			t.Fatalf("不同企业微信 direct 用户不应复用 session ref: %+v", ingress.requests)
+		}
+		seenRefs[request.Ref] = true
+	}
+}
+
 func TestWeComBotChannelSendDeliveryMessageUsesStreamReply(t *testing.T) {
 	socket := &fakeWeComBotSocket{}
 	channel := newWeComBotChannel("bot-1", "secret-1")

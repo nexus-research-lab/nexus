@@ -338,16 +338,12 @@ function LoginQRCode({ payload }: { payload?: string }) {
 }
 
 function ChannelLoginPanel({
-  disabled,
   loading,
   login_view,
-  on_start,
   on_submit_verify_code,
 }: {
-  disabled: boolean;
   loading: boolean;
   login_view: ChannelLoginView | null;
-  on_start: () => void;
   on_submit_verify_code: (value: string) => void;
 }) {
   const [verify_code, set_verify_code] = useState("");
@@ -360,27 +356,14 @@ function ChannelLoginPanel({
 
   return (
     <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-(--text-strong)">
-            <QrCode className="h-4 w-4 text-(--primary)" />
-            扫码登录
-          </div>
-          <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
-            Nexus 会直接请求腾讯 iLink Bot API 生成二维码并保存登录凭据。
-          </p>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-[13px] font-semibold text-(--text-strong)">
+          <QrCode className="h-4 w-4 text-(--primary)" />
+          扫码登录
         </div>
-        <UiButton
-          disabled={disabled || loading || running}
-          onClick={on_start}
-          size="sm"
-          tone="primary"
-          type="button"
-          variant="solid"
-        >
-          {loading || running ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
-          {login_view ? "重新拉起" : "拉起二维码"}
-        </UiButton>
+        <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
+          Nexus 会先保存当前配置，再请求腾讯 iLink Bot API 生成二维码。
+        </p>
       </div>
 
       {login_view ? (
@@ -468,19 +451,6 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
     }
     set_config((current) => ({ ...current, [field.key]: value }));
   };
-
-  const start_login = useCallback(async () => {
-    if (!supports_personal_weixin_login || login_running) return;
-    set_login_loading(true);
-    try {
-      const next_login = await start_channel_login_api(current_item.channel_type);
-      set_login_view(next_login);
-    } catch (error) {
-      on_error(error instanceof Error ? error.message : "扫码登录启动失败");
-    } finally {
-      set_login_loading(false);
-    }
-  }, [current_item.channel_type, login_running, on_error, supports_personal_weixin_login]);
 
   const submit_verify_code = useCallback(async (value: string) => {
     if (!supports_personal_weixin_login || !login_id) return;
@@ -597,10 +567,8 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
 
                 {supports_personal_weixin_login ? (
                   <ChannelLoginPanel
-                    disabled={!current_item.configured || saving}
-                    loading={login_loading}
+                    loading={login_loading || saving}
                     login_view={login_view}
-                    on_start={start_login}
                     on_submit_verify_code={submit_verify_code}
                   />
                 ) : null}
@@ -697,7 +665,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
                 </UiButton>
                 <UiButton
                   class_name="min-w-[124px]"
-                  disabled={saving || deleting || login_loading || !agent_id || is_planned}
+                  disabled={saving || deleting || login_loading || login_running || !agent_id || is_planned}
                   size="lg"
                   tone="primary"
                   type="submit"
@@ -710,8 +678,10 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
                       ? "保存中..."
                       : login_loading
                         ? "拉起二维码..."
+                        : login_running
+                          ? "等待扫码..."
                         : supports_personal_weixin_login
-                          ? "保存并扫码登录"
+                          ? "拉起二维码"
                           : "连接"}
                 </UiButton>
               </div>

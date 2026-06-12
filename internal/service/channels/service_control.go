@@ -100,6 +100,7 @@ type UpsertChannelConfigRequest struct {
 type PairingView struct {
 	PairingID     string     `json:"pairing_id"`
 	ChannelType   string     `json:"channel_type"`
+	AccountID     string     `json:"account_id,omitempty"`
 	ChatType      string     `json:"chat_type"`
 	ExternalRef   string     `json:"external_ref"`
 	ThreadID      string     `json:"thread_id,omitempty"`
@@ -122,6 +123,7 @@ type PairingQuery struct {
 
 type CreatePairingRequest struct {
 	ChannelType  string `json:"channel_type"`
+	AccountID    string `json:"account_id,omitempty"`
 	ChatType     string `json:"chat_type"`
 	ExternalRef  string `json:"external_ref"`
 	ThreadID     string `json:"thread_id,omitempty"`
@@ -153,6 +155,7 @@ type pairingRow struct {
 	PairingID     string
 	OwnerUserID   string
 	ChannelType   string
+	AccountID     string
 	ChatType      string
 	ExternalRef   string
 	ThreadID      string
@@ -504,13 +507,14 @@ func (s *ControlService) ResolveIngressAgent(ctx context.Context, request Ingres
 
 	ownerUserID := normalizeChannelOwnerUserID(firstNonEmpty(request.OwnerUserID, authctx.OwnerUserID(ctx)))
 	chatType := protocol.NormalizeSessionChatType(request.ChatType)
+	accountID := strings.TrimSpace(request.AccountID)
 	externalRef := strings.TrimSpace(request.Ref)
 	if externalRef == "" {
 		return strings.TrimSpace(request.AgentID), nil
 	}
 	threadID := strings.TrimSpace(request.ThreadID)
 
-	active, err := s.findPairingByTarget(ctx, ownerUserID, channelType, chatType, externalRef, threadID, PairingStatusActive)
+	active, err := s.findPairingByTarget(ctx, ownerUserID, channelType, accountID, chatType, externalRef, threadID, PairingStatusActive)
 	if err != nil {
 		return "", err
 	}
@@ -536,6 +540,7 @@ func (s *ControlService) ResolveIngressAgent(ctx context.Context, request Ingres
 
 	pending := CreatePairingRequest{
 		ChannelType:  channelType,
+		AccountID:    accountID,
 		ChatType:     chatType,
 		ExternalRef:  externalRef,
 		ThreadID:     threadID,
@@ -877,8 +882,8 @@ func scanChannelConfigScanner(row sqlScanner) (*channelConfigRow, error) {
 
 func (s *ControlService) listPairingRows(ctx context.Context, ownerUserID string, query PairingQuery) ([]pairingRow, error) {
 	sqlText := `
-SELECT pairing_id, owner_user_id, channel_type, chat_type, external_ref, thread_id, external_name,
-       agent_id, status, source, last_message_at, created_at, updated_at
+	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	       agent_id, status, source, last_message_at, created_at, updated_at
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1)
 	args := []any{strings.TrimSpace(ownerUserID)}
@@ -915,8 +920,8 @@ WHERE owner_user_id = ` + s.bind(1)
 
 func (s *ControlService) getPairingRow(ctx context.Context, ownerUserID string, pairingID string) (*pairingRow, error) {
 	query := `
-SELECT pairing_id, owner_user_id, channel_type, chat_type, external_ref, thread_id, external_name,
-       agent_id, status, source, last_message_at, created_at, updated_at
+	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	       agent_id, status, source, last_message_at, created_at, updated_at
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + " AND pairing_id = " + s.bind(2)
 	item, err := scanPairingScanner(s.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID)))
@@ -930,27 +935,30 @@ func (s *ControlService) findPairingByTarget(
 	ctx context.Context,
 	ownerUserID string,
 	channelType string,
+	accountID string,
 	chatType string,
 	externalRef string,
 	threadID string,
 	status string,
 ) (*pairingRow, error) {
 	query := `
-SELECT pairing_id, owner_user_id, channel_type, chat_type, external_ref, thread_id, external_name,
-       agent_id, status, source, last_message_at, created_at, updated_at
+	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	       agent_id, status, source, last_message_at, created_at, updated_at
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + `
-  AND channel_type = ` + s.bind(2) + `
-  AND chat_type = ` + s.bind(3) + `
-  AND external_ref = ` + s.bind(4) + `
-  AND thread_id = ` + s.bind(5) + `
-  AND status = ` + s.bind(6) + `
-LIMIT 1`
+	  AND channel_type = ` + s.bind(2) + `
+	  AND account_id = ` + s.bind(3) + `
+	  AND chat_type = ` + s.bind(4) + `
+	  AND external_ref = ` + s.bind(5) + `
+	  AND thread_id = ` + s.bind(6) + `
+	  AND status = ` + s.bind(7) + `
+	LIMIT 1`
 	item, err := scanPairingScanner(s.db.QueryRowContext(
 		ctx,
 		query,
 		strings.TrimSpace(ownerUserID),
 		normalizeIMChannelType(channelType),
+		strings.TrimSpace(accountID),
 		protocol.NormalizeSessionChatType(chatType),
 		strings.TrimSpace(externalRef),
 		strings.TrimSpace(threadID),
@@ -970,6 +978,7 @@ func (s *ControlService) upsertPairingRowAndReload(ctx context.Context, row pair
 		ctx,
 		row.OwnerUserID,
 		row.ChannelType,
+		row.AccountID,
 		row.ChatType,
 		row.ExternalRef,
 		row.ThreadID,
@@ -990,11 +999,11 @@ func (s *ControlService) upsertPairingRow(ctx context.Context, row pairingRow) e
 	}
 	if s.driver == "pgx" {
 		query := `
-INSERT INTO im_pairings (
-    pairing_id, owner_user_id, channel_type, chat_type, external_ref, thread_id, external_name,
-    agent_id, status, source, last_message_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-ON CONFLICT (owner_user_id, channel_type, chat_type, external_ref, thread_id) DO UPDATE SET
+	INSERT INTO im_pairings (
+	    pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	    agent_id, status, source, last_message_at
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+	ON CONFLICT (owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id) DO UPDATE SET
     external_name = EXCLUDED.external_name,
     agent_id = EXCLUDED.agent_id,
     status = EXCLUDED.status,
@@ -1007,6 +1016,7 @@ ON CONFLICT (owner_user_id, channel_type, chat_type, external_ref, thread_id) DO
 			row.PairingID,
 			row.OwnerUserID,
 			row.ChannelType,
+			row.AccountID,
 			row.ChatType,
 			row.ExternalRef,
 			row.ThreadID,
@@ -1019,11 +1029,11 @@ ON CONFLICT (owner_user_id, channel_type, chat_type, external_ref, thread_id) DO
 		return err
 	}
 	query := `
-INSERT INTO im_pairings (
-    pairing_id, owner_user_id, channel_type, chat_type, external_ref, thread_id, external_name,
-    agent_id, status, source, last_message_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(owner_user_id, channel_type, chat_type, external_ref, thread_id) DO UPDATE SET
+	INSERT INTO im_pairings (
+	    pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	    agent_id, status, source, last_message_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id) DO UPDATE SET
     external_name = excluded.external_name,
     agent_id = excluded.agent_id,
     status = excluded.status,
@@ -1036,6 +1046,7 @@ ON CONFLICT(owner_user_id, channel_type, chat_type, external_ref, thread_id) DO 
 		row.PairingID,
 		row.OwnerUserID,
 		row.ChannelType,
+		row.AccountID,
 		row.ChatType,
 		row.ExternalRef,
 		row.ThreadID,
@@ -1054,6 +1065,7 @@ func scanPairingScanner(row sqlScanner) (*pairingRow, error) {
 		&item.PairingID,
 		&item.OwnerUserID,
 		&item.ChannelType,
+		&item.AccountID,
 		&item.ChatType,
 		&item.ExternalRef,
 		&item.ThreadID,
@@ -1069,6 +1081,7 @@ func scanPairingScanner(row sqlScanner) (*pairingRow, error) {
 		return nil, err
 	}
 	item.ChannelType = normalizeIMChannelType(item.ChannelType)
+	item.AccountID = strings.TrimSpace(item.AccountID)
 	item.ChatType = protocol.NormalizeSessionChatType(item.ChatType)
 	return &item, nil
 }
@@ -1102,6 +1115,7 @@ func (s *ControlService) buildPairingRow(ctx context.Context, ownerUserID string
 		PairingID:    s.idFactory("pair"),
 		OwnerUserID:  strings.TrimSpace(ownerUserID),
 		ChannelType:  channelType,
+		AccountID:    strings.TrimSpace(request.AccountID),
 		ChatType:     chatType,
 		ExternalRef:  externalRef,
 		ThreadID:     strings.TrimSpace(request.ThreadID),
@@ -1121,10 +1135,11 @@ func (s *ControlService) pairingView(ctx context.Context, row pairingRow) Pairin
 	return PairingView{
 		PairingID:     row.PairingID,
 		ChannelType:   row.ChannelType,
+		AccountID:     row.AccountID,
 		ChatType:      row.ChatType,
 		ExternalRef:   row.ExternalRef,
 		ThreadID:      row.ThreadID,
-		SessionKey:    protocol.BuildAgentSessionKey(row.AgentID, protocol.NormalizeSessionKeyChannelSegment(row.ChannelType), row.ChatType, row.ExternalRef, row.ThreadID),
+		SessionKey:    protocol.BuildAgentAccountSessionKey(row.AgentID, protocol.NormalizeSessionKeyChannelSegment(row.ChannelType), row.ChatType, row.AccountID, row.ExternalRef, row.ThreadID),
 		ExternalName:  nullStringValue(row.ExternalName),
 		AgentID:       row.AgentID,
 		AgentName:     s.agentName(ctx, row.AgentID),
@@ -1276,17 +1291,27 @@ func (s *ControlService) configureRouterChannel(
 		}
 		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	case ChannelTypeTelegram:
+		publicConfig, _ := decodeStringMap(configJSON)
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
 			return nil
 		}
-		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newTelegramChannel(token, s.httpClient).WithOwner(ownerUserID))
+		channel := newTelegramChannel(token, s.httpClient).WithOwner(ownerUserID)
+		if baseURL := strings.TrimSpace(publicConfig["base_url"]); baseURL != "" {
+			channel.baseURL = strings.TrimRight(baseURL, "/")
+		}
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	case ChannelTypeDiscord:
+		publicConfig, _ := decodeStringMap(configJSON)
 		token := strings.TrimSpace(secrets["bot_token"])
 		if token == "" {
 			return nil
 		}
-		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, newDiscordChannel(token, s.httpClient).WithOwner(ownerUserID))
+		channel := newDiscordChannel(token, s.httpClient).WithOwner(ownerUserID)
+		if baseURL := strings.TrimSpace(publicConfig["base_url"]); baseURL != "" {
+			channel.baseURL = strings.TrimRight(baseURL, "/")
+		}
+		return s.router.RegisterAndStartForOwner(ctx, ownerUserID, channel)
 	case ChannelTypeDingTalk:
 		publicConfig, _ := decodeStringMap(configJSON)
 		clientID := strings.TrimSpace(publicConfig["client_id"])
@@ -1498,6 +1523,8 @@ func channelCatalog() []ChannelCatalogItem {
 				{Key: "client_id", Label: "Client ID（AppKey）", Kind: "text", Required: true, Placeholder: "填写开发者控制台的 Client ID"},
 				{Key: "client_secret", Label: "Client Secret（AppSecret）", Kind: "password", Required: true, Secret: true, Placeholder: "填写开发者控制台的 Client Secret"},
 				{Key: "robot_code", Label: "Robot Code", Kind: "text", Placeholder: "可选；仅用于主动群发 OpenAPI"},
+				{Key: "base_url", Label: "OpenAPI Base URL", Kind: "text", Placeholder: "https://api.dingtalk.com"},
+				{Key: "stream_base_url", Label: "Stream Base URL", Kind: "text", Placeholder: "https://api.dingtalk.com"},
 			},
 		},
 		{
@@ -1512,6 +1539,7 @@ func channelCatalog() []ChannelCatalogItem {
 			CredentialFields: []ChannelCredentialField{
 				{Key: "bot_id", Label: "Bot ID", Kind: "text", Required: true, Placeholder: "填写企业微信智能机器人 Bot ID"},
 				{Key: "secret", Label: "Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写企业微信智能机器人 Secret"},
+				{Key: "base_url", Label: "Long Connection URL", Kind: "text", Placeholder: weComBotDefaultLongConnectionURL},
 			},
 		},
 		{
@@ -1542,6 +1570,9 @@ func channelCatalog() []ChannelCatalogItem {
 			CredentialFields: []ChannelCredentialField{
 				{Key: "app_id", Label: "App ID", Kind: "text", Required: true, Placeholder: "例如 cli_xxxxxxxxx"},
 				{Key: "app_secret", Label: "App Secret", Kind: "password", Required: true, Secret: true, Placeholder: "填写应用 App Secret"},
+				{Key: "connection_mode", Label: "Connection Mode", Kind: "text", Placeholder: "websocket 或 webhook，默认 websocket"},
+				{Key: "base_url", Label: "OpenAPI Base URL", Kind: "text", Placeholder: "https://open.feishu.cn"},
+				{Key: "reply_in_thread", Label: "Reply In Thread", Kind: "text", Placeholder: "true/false，默认 false"},
 				{Key: "verification_token", Label: "Verification Token", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Verification Token"},
 				{Key: "encrypt_key", Label: "Encrypt Key", Kind: "password", Secret: true, Placeholder: "可选：填写事件订阅 Encrypt Key"},
 			},
@@ -1557,6 +1588,7 @@ func channelCatalog() []ChannelCatalogItem {
 			SupportsGroup: true,
 			CredentialFields: []ChannelCredentialField{
 				{Key: "bot_token", Label: "Bot Token", Kind: "password", Required: true, Secret: true, Placeholder: "粘贴来自 @BotFather 的 Token"},
+				{Key: "base_url", Label: "Bot API Base URL", Kind: "text", Placeholder: "https://api.telegram.org"},
 			},
 		},
 		{
@@ -1572,6 +1604,7 @@ func channelCatalog() []ChannelCatalogItem {
 			CredentialFields: []ChannelCredentialField{
 				{Key: "application_id", Label: "Application ID（Client ID）", Kind: "text", Required: true, Placeholder: "填写 General Information / OAuth2 中的 Application ID"},
 				{Key: "bot_token", Label: "Bot Token（Reset Token）", Kind: "password", Required: true, Secret: true, Placeholder: "填写 Bot 页面生成的 Token，不是 Client Secret"},
+				{Key: "base_url", Label: "REST API Base URL", Kind: "text", Placeholder: "https://discord.com/api/v10"},
 			},
 		},
 	}
