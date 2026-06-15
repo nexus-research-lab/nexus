@@ -513,13 +513,13 @@ func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	}
 }
 
-func TestProcessorCompletesAssistantOnMessageStopAfterTerminalSnapshot(t *testing.T) {
+func TestProcessorDoesNotCompleteAssistantOnMessageStop(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
 		AgentID:    "nexus",
-		RoundID:    "round-message-stop-terminal",
-		ParentID:   "round-message-stop-terminal",
-	}, "sdk-session-message-stop-terminal")
+		RoundID:    "round-message-stop-not-terminal",
+		ParentID:   "round-message-stop-not-terminal",
+	}, "sdk-session-message-stop-not-terminal")
 
 	processor.Process(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
@@ -537,37 +537,13 @@ func TestProcessorCompletesAssistantOnMessageStopAfterTerminalSnapshot(t *testin
 		Type: sdkprotocol.MessageTypeStreamEvent,
 		Stream: &sdkprotocol.StreamEvent{
 			Event: map[string]any{
-				"type":  "content_block_start",
-				"index": 0,
-				"content_block": map[string]any{
-					"type": "text",
-					"text": "最终回答",
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "end_turn",
 				},
 			},
 		},
 	})
-	snapshotOutput := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAssistant,
-		Assistant: &sdkprotocol.AssistantMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				ID:         "assistant-message-stop-1",
-				Model:      "glm-5-turbo",
-				StopReason: "end_turn",
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.TextBlock{Text: "最终回答"},
-				},
-			},
-		},
-	})
-	if len(snapshotOutput.DurableMessages) != 1 {
-		t.Fatalf("terminal 前快照应先落一条中间 durable assistant: %+v", snapshotOutput)
-	}
-	if snapshotOutput.DurableMessages[0]["is_complete"] != false {
-		t.Fatalf("message_stop 之前不应提前完成 assistant: %+v", snapshotOutput.DurableMessages[0])
-	}
-	if _, ok := snapshotOutput.DurableMessages[0]["stop_reason"]; ok {
-		t.Fatalf("message_stop 之前不应暴露 stop_reason: %+v", snapshotOutput.DurableMessages[0])
-	}
 
 	stopOutput := processor.Process(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,
@@ -577,12 +553,11 @@ func TestProcessorCompletesAssistantOnMessageStopAfterTerminalSnapshot(t *testin
 			},
 		},
 	})
-	if len(stopOutput.DurableMessages) != 1 || !stopOutput.AssistantCompleted {
-		t.Fatalf("message_stop 应补出终态 assistant: %+v", stopOutput)
+	if len(stopOutput.StreamEvents) != 1 || stopOutput.StreamEvents[0].Data["type"] != "message_stop" {
+		t.Fatalf("message_stop 应只作为 stream event 输出: %+v", stopOutput)
 	}
-	assistantMessage := stopOutput.DurableMessages[0]
-	if assistantMessage["is_complete"] != true || assistantMessage["stop_reason"] != "end_turn" {
-		t.Fatalf("message_stop 终态 assistant 不正确: %+v", assistantMessage)
+	if len(stopOutput.DurableMessages) != 0 || stopOutput.AssistantCompleted {
+		t.Fatalf("message_stop 不应补出终态 assistant: %+v", stopOutput)
 	}
 }
 

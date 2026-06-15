@@ -285,6 +285,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 			"stream_last_message_id", streamClosed.LastMessageID,
 			"stream_wait_error", streamClosed.WaitError,
 		)
+		fields = append(fields, runtimectx.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
 	}
 	var streamIdle *runtimectx.RoundStreamIdleTimeoutError
 	if errors.As(err, &streamIdle) {
@@ -296,6 +297,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 			"stream_last_session_id", streamIdle.LastSessionID,
 			"stream_last_message_id", streamIdle.LastMessageID,
 		)
+		fields = append(fields, runtimectx.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
 	}
 	if runner != nil && runner.client != nil {
 		fields = append(fields, "client_session_id", runner.client.SessionID())
