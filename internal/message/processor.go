@@ -241,6 +241,15 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 				"timestamp": time.Now().UnixMilli(),
 			},
 		})
+		if p.segment.HasContent() && strings.TrimSpace(p.segment.StopReason()) != "" {
+			p.streamTerminalObserved = true
+			if durable := p.buildAssistantDurableMessage(true, true, ""); durable != nil {
+				output.DurableMessages = append(output.DurableMessages, *durable)
+			}
+			if isTerminalAssistantStopReason(p.segment.StopReason()) {
+				output.AssistantCompleted = true
+			}
+		}
 	}
 	return output
 }
@@ -376,6 +385,15 @@ func assistantMessagesEqual(previous protocol.Message, current protocol.Message)
 		normalizeString(previous["round_id"]) == normalizeString(current["round_id"]) &&
 		boolValue(previous["is_complete"]) == boolValue(current["is_complete"]) &&
 		reflect.DeepEqual(previous["content"], current["content"])
+}
+
+func isTerminalAssistantStopReason(stopReason string) bool {
+	switch strings.TrimSpace(stopReason) {
+	case "end_turn", "stop_sequence", "max_tokens":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeAnyString(value any) string {

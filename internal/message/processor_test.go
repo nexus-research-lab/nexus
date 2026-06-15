@@ -513,6 +513,79 @@ func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	}
 }
 
+func TestProcessorCompletesAssistantOnMessageStopAfterTerminalSnapshot(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-message-stop-terminal",
+		ParentID:   "round-message-stop-terminal",
+	}, "sdk-session-message-stop-terminal")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_start",
+				"message": map[string]any{
+					"id":    "assistant-message-stop-1",
+					"model": "glm-5-turbo",
+				},
+			},
+		},
+	})
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type":  "content_block_start",
+				"index": 0,
+				"content_block": map[string]any{
+					"type": "text",
+					"text": "最终回答",
+				},
+			},
+		},
+	})
+	snapshotOutput := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:         "assistant-message-stop-1",
+				Model:      "glm-5-turbo",
+				StopReason: "end_turn",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: "最终回答"},
+				},
+			},
+		},
+	})
+	if len(snapshotOutput.DurableMessages) != 1 {
+		t.Fatalf("terminal 前快照应先落一条中间 durable assistant: %+v", snapshotOutput)
+	}
+	if snapshotOutput.DurableMessages[0]["is_complete"] != false {
+		t.Fatalf("message_stop 之前不应提前完成 assistant: %+v", snapshotOutput.DurableMessages[0])
+	}
+	if _, ok := snapshotOutput.DurableMessages[0]["stop_reason"]; ok {
+		t.Fatalf("message_stop 之前不应暴露 stop_reason: %+v", snapshotOutput.DurableMessages[0])
+	}
+
+	stopOutput := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_stop",
+			},
+		},
+	})
+	if len(stopOutput.DurableMessages) != 1 || !stopOutput.AssistantCompleted {
+		t.Fatalf("message_stop 应补出终态 assistant: %+v", stopOutput)
+	}
+	assistantMessage := stopOutput.DurableMessages[0]
+	if assistantMessage["is_complete"] != true || assistantMessage["stop_reason"] != "end_turn" {
+		t.Fatalf("message_stop 终态 assistant 不正确: %+v", assistantMessage)
+	}
+}
+
 func TestProcessorUsesCumulativeStreamIndexesWhenSDKReusesRawIndex(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
