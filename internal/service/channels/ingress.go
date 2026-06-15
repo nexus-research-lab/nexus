@@ -265,6 +265,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		if err = s.control.finishIngressMessage(ctx, ingressMessageFinishInput{
 			OwnerUserID: normalized.ownerUserID,
 			Channel:     normalized.channelStored,
+			AccountID:   normalized.accountID,
 			ReqID:       normalized.reqID,
 			Status:      ingressMessageStatusAccepted,
 		}); err != nil {
