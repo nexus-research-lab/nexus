@@ -34,10 +34,15 @@ func (c *personalWeixinMultiAccountChannel) ChannelType() string {
 }
 
 func (c *personalWeixinMultiAccountChannel) Start(ctx context.Context) error {
+	started := make([]*personalWeixinChannel, 0, len(c.accounts))
 	for _, account := range c.snapshotAccounts() {
 		if err := account.Start(ctx); err != nil {
+			for _, s := range started {
+				_ = s.Stop(ctx)
+			}
 			return err
 		}
+		started = append(started, account)
 	}
 	return nil
 }
