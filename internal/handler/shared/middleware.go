@@ -303,6 +303,9 @@ func desktopSessionTokenBypass(request *http.Request, apiPrefix string) bool {
 		apiPrefix + "/system/version":
 		return true
 	}
+	if request.Method == http.MethodPost && path == apiPrefix+"/connectors/oauth/callback" {
+		return true
+	}
 	if strings.HasPrefix(path, apiPrefix+"/internal/") {
 		return true
 	}

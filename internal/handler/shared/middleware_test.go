@@ -210,6 +210,41 @@ func TestDesktopSessionTokenMiddlewareAllowsHealthAndStatic(t *testing.T) {
 	}
 }
 
+func TestDesktopSessionTokenMiddlewareAllowsOAuthCallbackPost(t *testing.T) {
+	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(
+		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			_, _ = writer.Write([]byte("ok"))
+		}),
+	)
+
+	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/connectors/oauth/callback", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("OAuth callback POST 应绕过桌面 token，实际状态码: %d", recorder.Code)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/nexus/v1/connectors/oauth/callback", nil)
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("OAuth callback GET 不应绕过桌面 token，实际状态码: %d", recorder.Code)
+	}
+}
+
+func TestPublicAuthRouteAllowsOAuthCallbackPost(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/connectors/oauth/callback", nil)
+	if !PublicAuthRoute(request) {
+		t.Fatal("OAuth callback POST 应为公开路由")
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/nexus/v1/connectors/oauth/callback", nil)
+	if PublicAuthRoute(request) {
+		t.Fatal("OAuth callback GET 不应为公开路由")
+	}
+}
+
 func TestDesktopSessionTokenMiddlewareAcceptsWebSocketProtocolToken(t *testing.T) {
 	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	handler := DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(

@@ -16,6 +16,7 @@ internal static class DesktopRuntimeScript
             ["app_version"] = runtime.AppVersion,
             ["build_number"] = runtime.BuildNumber,
             ["platform"] = runtime.Platform,
+            ["oauth_redirect_uri"] = runtime.OAuthRedirectUri,
         };
         return $"window.__NEXUS_DESKTOP_RUNTIME__ = {JsonSerializer.Serialize(payload)};";
     }

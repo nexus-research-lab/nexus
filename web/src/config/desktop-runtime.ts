@@ -6,6 +6,7 @@ export type DesktopRuntimeConfig = {
   app_version?: string;
   build_number?: string;
   platform?: string;
+  oauth_redirect_uri?: string;
 };
 
 type DesktopPerformanceMark = {
@@ -71,7 +72,8 @@ export const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
 export const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
 const DESKTOP_SESSION_TOKEN_PROTOCOL_PREFIX = "nexus.desktop.token.";
 const CONNECTOR_OAUTH_CALLBACK_PATH = "/capability/connectors/oauth/callback";
-const DESKTOP_CONNECTOR_OAUTH_REDIRECT_URI = "nexus://connectors/oauth/callback";
+const DESKTOP_LOOPBACK_OAUTH_PORT = "34343";
+const DESKTOP_CONNECTORS_RETURN_URI = "nexus://capability/connectors";
 const DESKTOP_DIAGNOSTIC_TEXT_LIMIT = 4_096;
 const DESKTOP_SESSION_TOKEN_RELOAD_KEY_PREFIX = "nexus:desktop-session-token-reload:";
 
@@ -233,9 +235,36 @@ export function get_desktop_render_snapshot(): DesktopRenderSnapshot {
 export function get_connector_oauth_redirect_uri(): string {
   const runtime_config = get_desktop_runtime_config();
   if (runtime_config?.app_mode === "desktop") {
-    return DESKTOP_CONNECTOR_OAUTH_REDIRECT_URI;
+    const configured_uri = runtime_config.oauth_redirect_uri?.trim();
+    if (configured_uri) {
+      return configured_uri;
+    }
+    const api_base_url = runtime_config.api_base_url?.trim();
+    if (api_base_url) {
+      try {
+        return `${new URL(api_base_url).origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
+      } catch {
+        return `${window.location.origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
+      }
+    }
   }
   return `${window.location.origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
+}
+
+export function is_desktop_loopback_oauth_callback(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const host = window.location.hostname.trim().toLowerCase();
+  const is_loopback = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+  return window.location.protocol === "http:" &&
+    window.location.port === DESKTOP_LOOPBACK_OAUTH_PORT &&
+    is_loopback &&
+    window.location.pathname === CONNECTOR_OAUTH_CALLBACK_PATH;
+}
+
+export function get_desktop_connectors_return_uri(): string {
+  return DESKTOP_CONNECTORS_RETURN_URI;
 }
 
 function post_desktop_lifecycle_message(message: DesktopLifecycleMessage): void {

@@ -13,12 +13,14 @@ final class SidecarSupervisor {
   init(startupTimeline: DesktopStartupTimeline? = nil) throws {
     self.startupTimeline = startupTimeline
     locator = try SidecarBundleLocator.resolve()
-    port = try SidecarPortAllocator.allocate()
-    runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
     orphanReaper = SidecarOrphanReaper(
       pidFileURL: DesktopPaths.sidecarPIDFileURL,
       expectedExecutablePath: locator.command
     )
+    startupTimeline?.mark("sidecar.reap_begin")
+    orphanReaper.reapIfNeeded()
+    port = try SidecarPortAllocator.allocate()
+    runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
     startupTimeline?.mark("sidecar.config_resolved", metadata: [
       "mode": locator.projectRoot == nil ? "bundle" : "development",
       "port": "\(port)",
@@ -26,8 +28,6 @@ final class SidecarSupervisor {
   }
 
   func start() async throws -> SidecarRuntimeConfig {
-    startupTimeline?.mark("sidecar.reap_begin")
-    orphanReaper.reapIfNeeded()
     startupTimeline?.mark("sidecar.launch_begin")
 
     let sidecarProcess = Process()
@@ -100,12 +100,12 @@ final class SidecarSupervisor {
     environment["LOG_FILE_ENABLED"] = "true"
     environment["DISCORD_ENABLED"] = "false"
     environment["TELEGRAM_ENABLED"] = "false"
-    environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback"
+    environment["CONNECTOR_OAUTH_REDIRECT_URI"] = runtimeConfig.oauthRedirectURL.absoluteString
     applyPackagedConnectorConfig(to: &environment)
     applyBundledNexusctlCommand(to: &environment)
     applyBundledNXSRuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = "\(webOrigin),nexus://connectors"
+    environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = webOrigin
     return environment
   }
 
