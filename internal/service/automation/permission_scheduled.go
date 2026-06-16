@@ -18,10 +18,15 @@ func (s *Service) scheduledTaskPermissionHandler(ctx context.Context, job protoc
 			options = agentValue.Options
 		}
 	}
-	return scheduledTaskPermissionHandler(options)
+	return scheduledTaskPermissionHandlerForOptions(options, s.runtimeImagegenDefaultEnabled(ctx))
 }
 
 func scheduledTaskPermissionHandler(options protocol.Options) sdkpermission.Handler {
+	return scheduledTaskPermissionHandlerForOptions(options, false)
+}
+
+func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegenDefaultEnabled bool) sdkpermission.Handler {
+	options.AllowedTools = toolpolicy.WithManagedRuntimeAllowedTools(options.AllowedTools, imagegenDefaultEnabled)
 	allowedByAgent := toolpolicy.NormalizeSet(options.AllowedTools)
 	disallowedByAgent := toolpolicy.NormalizeSet(options.DisallowedTools)
 	return func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {

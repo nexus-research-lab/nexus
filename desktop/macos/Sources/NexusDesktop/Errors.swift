@@ -4,7 +4,7 @@ enum DesktopShellError: LocalizedError {
   case projectRootNotFound
   case webDistNotFound(String)
   case sidecarExecutableNotFound
-  case portUnavailable
+  case portUnavailable(Int)
   case sidecarExited
   case invalidRuntimeConfig
   case sessionTokenUnavailable
@@ -26,8 +26,8 @@ enum DesktopShellError: LocalizedError {
       return "未找到 Web 产物：\(path)。请先执行 scripts/desktop/run-macos-dev.sh 或构建 web/dist。"
     case .sidecarExecutableNotFound:
       return "未找到 Go sidecar。开发模式需要可用的 go 命令，打包模式需要 bundle 内的 nexus-server。"
-    case .portUnavailable:
-      return "无法分配本地监听端口。"
+    case .portUnavailable(let port):
+      return "Nexus 桌面端本地端口 \(port) 已被占用，请关闭占用该端口的进程后重试。"
     case .sidecarExited:
       return "Go sidecar 在健康检查前退出。"
     case .invalidRuntimeConfig:

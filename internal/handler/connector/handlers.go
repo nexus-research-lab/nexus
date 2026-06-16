@@ -100,7 +100,11 @@ func (h *Handlers) HandleConnectorOAuthCallback(writer http.ResponseWriter, requ
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.connectors.CompleteOAuthCallback(request.Context(), currentOwnerUserID(request), payload)
+	ownerUserID := ""
+	if userID, ok := authsvc.CurrentUserID(request.Context()); ok {
+		ownerUserID = userID
+	}
+	item, err := h.connectors.CompleteOAuthCallback(request.Context(), ownerUserID, payload)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return

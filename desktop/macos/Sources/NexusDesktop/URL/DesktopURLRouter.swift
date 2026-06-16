@@ -119,6 +119,14 @@ enum DesktopURLRouter {
         entry: .oauthCallback
       )
     }
+    if url.host?.lowercased() == "capability" {
+      let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+      return DesktopWebRoute(
+        path: "/capability\(normalizedPath(url))",
+        percentEncodedQuery: components?.percentEncodedQuery,
+        percentEncodedFragment: components?.percentEncodedFragment
+      )
+    }
     if url.host?.lowercased() == "open" || url.host == nil && url.path.isEmpty {
       return DesktopWebRoute(path: "/launcher", entry: .app)
     }

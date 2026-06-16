@@ -258,6 +258,8 @@ func PublicAuthRoute(request *http.Request) bool {
 		"/nexus/v1/auth/login",
 		"/nexus/v1/auth/logout":
 		return true
+	case "/nexus/v1/connectors/oauth/callback":
+		return request.Method == http.MethodPost
 	default:
 		return false
 	}

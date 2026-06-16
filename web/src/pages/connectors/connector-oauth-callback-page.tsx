@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
-import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
+import {
+  get_connector_oauth_redirect_uri,
+  get_desktop_connectors_return_uri,
+  is_desktop_loopback_oauth_callback,
+} from "@/config/desktop-runtime";
 import { is_desktop_bridge_available, open_desktop_route } from "@/lib/desktop-bridge";
 import { complete_connector_o_auth_api } from "@/lib/api/connector-api";
 import {
@@ -45,6 +49,16 @@ export function ConnectorOAuthCallbackPage() {
       close_callback_window(msg);
     };
 
+    const return_to_desktop = (msg: string) => {
+      set_message(`${msg}，正在返回 Nexus……`);
+      window.setTimeout(() => {
+        window.location.href = get_desktop_connectors_return_uri();
+      }, 120);
+      window.setTimeout(() => {
+        set_message(`${msg}，请返回 Nexus 或手动关闭此窗口`);
+      }, 1_000);
+    };
+
     const complete_success = async () => {
       if (is_desktop_bridge_available()) {
         try {
@@ -53,7 +67,12 @@ export function ConnectorOAuthCallbackPage() {
           // OAuth 已经完成，返回主窗口失败不应该阻止回调页关闭。
         }
       }
-      post_and_close("connector-oauth:success", "连接成功");
+      publish_connector_oauth_event("connector-oauth:success", "连接成功");
+      if (is_desktop_loopback_oauth_callback()) {
+        return_to_desktop("连接成功");
+        return;
+      }
+      close_callback_window("连接成功");
     };
 
     if (error) {

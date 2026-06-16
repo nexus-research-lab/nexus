@@ -118,6 +118,7 @@ enum DesktopDiagnosticsReport {
       "api_base_url": runtime.apiBaseURL.absoluteString,
       "websocket_url": runtime.webSocketURL.absoluteString,
       "health_url": runtime.healthURL.absoluteString,
+      "oauth_redirect_uri": runtime.oauthRedirectURL.absoluteString,
     ]
   }
 

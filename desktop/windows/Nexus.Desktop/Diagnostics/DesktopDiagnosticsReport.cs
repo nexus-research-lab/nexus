@@ -146,6 +146,7 @@ internal static class DesktopDiagnosticsReport
             ["api_base_url"] = runtime.ApiBaseUrl,
             ["websocket_url"] = runtime.WebSocketUrl,
             ["health_url"] = runtime.HealthUrl,
+            ["oauth_redirect_uri"] = runtime.OAuthRedirectUri,
         };
     }
 

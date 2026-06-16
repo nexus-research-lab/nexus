@@ -513,6 +513,54 @@ func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	}
 }
 
+func TestProcessorDoesNotCompleteAssistantOnMessageStop(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-message-stop-not-terminal",
+		ParentID:   "round-message-stop-not-terminal",
+	}, "sdk-session-message-stop-not-terminal")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_start",
+				"message": map[string]any{
+					"id":    "assistant-message-stop-1",
+					"model": "glm-5-turbo",
+				},
+			},
+		},
+	})
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "end_turn",
+				},
+			},
+		},
+	})
+
+	stopOutput := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeStreamEvent,
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_stop",
+			},
+		},
+	})
+	if len(stopOutput.StreamEvents) != 1 || stopOutput.StreamEvents[0].Data["type"] != "message_stop" {
+		t.Fatalf("message_stop 应只作为 stream event 输出: %+v", stopOutput)
+	}
+	if len(stopOutput.DurableMessages) != 0 || stopOutput.AssistantCompleted {
+		t.Fatalf("message_stop 不应补出终态 assistant: %+v", stopOutput)
+	}
+}
+
 func TestProcessorUsesCumulativeStreamIndexesWhenSDKReusesRawIndex(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

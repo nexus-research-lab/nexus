@@ -37,6 +37,7 @@ type RoundStreamClosedError struct {
 	LastMessageID      string
 	ReadError          string
 	WaitError          string
+	LastStreamStop     RoundStreamStopDiagnostics
 }
 
 func (e *RoundStreamClosedError) Error() string {
@@ -58,6 +59,7 @@ func (e *RoundStreamClosedError) Error() string {
 	if strings.TrimSpace(e.ReadError) != "" {
 		detail += " read_error=" + strings.TrimSpace(e.ReadError)
 	}
+	detail = appendRoundStreamStopErrorDetail(detail, e.LastStreamStop)
 	return detail
 }
 
@@ -73,13 +75,14 @@ type RoundStreamIdleTimeoutError struct {
 	LastMessageSummary string
 	LastSessionID      string
 	LastMessageID      string
+	LastStreamStop     RoundStreamStopDiagnostics
 }
 
 func (e *RoundStreamIdleTimeoutError) Error() string {
 	if e == nil {
 		return ErrRoundStreamIdleTimeout.Error()
 	}
-	return fmt.Sprintf(
+	detail := fmt.Sprintf(
 		"%s after %s: messages_seen=%d last_type=%s last_summary=%q last_session_id=%s last_message_id=%s",
 		ErrRoundStreamIdleTimeout,
 		e.IdleTimeout,
@@ -89,6 +92,7 @@ func (e *RoundStreamIdleTimeoutError) Error() string {
 		e.LastSessionID,
 		e.LastMessageID,
 	)
+	return appendRoundStreamStopErrorDetail(detail, e.LastStreamStop)
 }
 
 func (e *RoundStreamIdleTimeoutError) Unwrap() error {
@@ -140,6 +144,55 @@ type RoundExecutionResult struct {
 	UsageLimitReason     string
 }
 
+// RoundStreamStopDiagnostics 表示最近一次 provider message_stop 的定位信息。
+type RoundStreamStopDiagnostics struct {
+	Observed      bool
+	MessageIndex  int
+	MessagesAfter int
+	Age           time.Duration
+	Summary       string
+	StopReason    string
+	SessionID     string
+	MessageID     string
+	Model         string
+}
+
+// RoundStreamStopDiagnosticLogFields 返回 message_stop 诊断日志字段。
+func RoundStreamStopDiagnosticLogFields(diagnostics RoundStreamStopDiagnostics) []any {
+	if !diagnostics.Observed {
+		return nil
+	}
+	fields := []any{
+		"stream_last_stop_summary", diagnostics.Summary,
+		"stream_last_stop_reason", diagnostics.StopReason,
+		"stream_last_stop_session_id", diagnostics.SessionID,
+		"stream_last_stop_message_id", diagnostics.MessageID,
+		"stream_last_stop_model", diagnostics.Model,
+		"stream_last_stop_message_index", diagnostics.MessageIndex,
+		"stream_messages_after_last_stop", diagnostics.MessagesAfter,
+	}
+	if diagnostics.Age > 0 {
+		fields = append(fields, "stream_last_stop_age", diagnostics.Age.String())
+	}
+	return fields
+}
+
+func appendRoundStreamStopErrorDetail(detail string, diagnostics RoundStreamStopDiagnostics) string {
+	if !diagnostics.Observed {
+		return detail
+	}
+	detail += fmt.Sprintf(
+		" last_stream_stop_summary=%q last_stream_stop_reason=%s messages_after_last_stream_stop=%d",
+		diagnostics.Summary,
+		diagnostics.StopReason,
+		diagnostics.MessagesAfter,
+	)
+	if diagnostics.Age > 0 {
+		detail += " last_stream_stop_age=" + diagnostics.Age.String()
+	}
+	return detail
+}
+
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
 func ExecuteRound(
 	ctx context.Context,
@@ -172,6 +225,7 @@ func ExecuteRound(
 	messageCh := request.Client.ReceiveMessages(ctx)
 	messagesSeen := 0
 	lastMessage := sdkprotocol.ReceivedMessage{}
+	streamDiagnostics := roundStreamDiagnostics{}
 	idleTimeout := normalizeRoundIdleTimeout(request.IdleTimeout)
 	var idleTimer *time.Timer
 	var idleTimeoutCh <-chan time.Time
@@ -193,7 +247,12 @@ func ExecuteRound(
 				return RoundExecutionResult{}, ErrRoundInterrupted
 			}
 			abortRoundClientAfterIdleTimeout(request.Client)
-			return RoundExecutionResult{}, buildRoundStreamIdleTimeoutError(idleTimeout, messagesSeen, lastMessage)
+			return RoundExecutionResult{}, buildRoundStreamIdleTimeoutError(
+				idleTimeout,
+				messagesSeen,
+				lastMessage,
+				streamDiagnostics.Snapshot(messagesSeen, time.Now()),
+			)
 		case incoming, ok := <-messageCh:
 			if !ok {
 				if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
@@ -202,10 +261,16 @@ func ExecuteRound(
 				if assistantTerminalResult != nil {
 					return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 				}
-				return RoundExecutionResult{}, buildRoundStreamClosedError(request.Client, messagesSeen, lastMessage)
+				return RoundExecutionResult{}, buildRoundStreamClosedError(
+					request.Client,
+					messagesSeen,
+					lastMessage,
+					streamDiagnostics.Snapshot(messagesSeen, time.Now()),
+				)
 			}
 			messagesSeen++
 			lastMessage = incoming
+			streamDiagnostics.Observe(incoming, messagesSeen, time.Now())
 			resetRoundIdleTimer(idleTimer, idleTimeout)
 			if request.ObserveIncomingMessage != nil {
 				request.ObserveIncomingMessage(incoming)
@@ -399,10 +464,74 @@ func abortRoundClientAfterIdleTimeout(client Client) {
 	disconnectCancel()
 }
 
+type roundStreamDiagnostics struct {
+	currentMessageID  string
+	currentModel      string
+	currentStopReason string
+	lastStreamStop    RoundStreamStopDiagnostics
+	lastStreamStopAt  time.Time
+}
+
+func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, messageIndex int, observedAt time.Time) {
+	if message.Type != sdkprotocol.MessageTypeStreamEvent || message.Stream == nil {
+		return
+	}
+	payload := streamEventPayload(message)
+	eventType := strings.TrimSpace(rawString(payload["type"]))
+	switch eventType {
+	case "message_start":
+		startMessage := rawMap(payload["message"])
+		d.currentMessageID = strings.TrimSpace(rawString(startMessage["id"]))
+		d.currentModel = strings.TrimSpace(rawString(startMessage["model"]))
+		d.currentStopReason = ""
+	case "message_delta":
+		delta := rawMap(payload["delta"])
+		if stopReason := strings.TrimSpace(rawString(delta["stop_reason"])); stopReason != "" {
+			d.currentStopReason = stopReason
+		}
+	case "message_stop":
+		d.lastStreamStopAt = observedAt
+		d.lastStreamStop = RoundStreamStopDiagnostics{
+			Observed:     true,
+			MessageIndex: messageIndex,
+			Summary:      strings.TrimSpace(BuildSDKMessageLogSummary(message)),
+			StopReason:   firstNonEmpty(strings.TrimSpace(rawString(payload["stop_reason"])), d.currentStopReason),
+			SessionID:    strings.TrimSpace(message.SessionID),
+			MessageID:    firstNonEmpty(strings.TrimSpace(receivedMessageID(message)), d.currentMessageID),
+			Model:        firstNonEmpty(strings.TrimSpace(rawString(payload["model"])), d.currentModel),
+		}
+	}
+}
+
+func (d roundStreamDiagnostics) Snapshot(messagesSeen int, now time.Time) RoundStreamStopDiagnostics {
+	result := d.lastStreamStop
+	if !result.Observed {
+		return result
+	}
+	if messagesSeen > result.MessageIndex {
+		result.MessagesAfter = messagesSeen - result.MessageIndex
+	}
+	if !d.lastStreamStopAt.IsZero() && !now.Before(d.lastStreamStopAt) {
+		result.Age = now.Sub(d.lastStreamStopAt)
+	}
+	return result
+}
+
+func streamEventPayload(message sdkprotocol.ReceivedMessage) map[string]any {
+	if message.Stream == nil {
+		return nil
+	}
+	if payload := rawMap(message.Stream.Event); len(payload) > 0 {
+		return payload
+	}
+	return rawMap(message.Stream.Data)
+}
+
 func buildRoundStreamIdleTimeoutError(
 	idleTimeout time.Duration,
 	messagesSeen int,
 	lastMessage sdkprotocol.ReceivedMessage,
+	lastStreamStop RoundStreamStopDiagnostics,
 ) error {
 	return &RoundStreamIdleTimeoutError{
 		IdleTimeout:        idleTimeout,
@@ -411,6 +540,7 @@ func buildRoundStreamIdleTimeoutError(
 		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
 		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
+		LastStreamStop:     lastStreamStop,
 	}
 }
 
@@ -451,13 +581,19 @@ type clientStreamErrorer interface {
 	StreamError() error
 }
 
-func buildRoundStreamClosedError(client Client, messagesSeen int, lastMessage sdkprotocol.ReceivedMessage) error {
+func buildRoundStreamClosedError(
+	client Client,
+	messagesSeen int,
+	lastMessage sdkprotocol.ReceivedMessage,
+	lastStreamStop RoundStreamStopDiagnostics,
+) error {
 	result := &RoundStreamClosedError{
 		MessagesSeen:       messagesSeen,
 		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
 		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
 		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
+		LastStreamStop:     lastStreamStop,
 	}
 	if streamErrorer, ok := client.(clientStreamErrorer); ok {
 		if err := streamErrorer.StreamError(); err != nil {

@@ -2,7 +2,6 @@
  * AgentOptions Provider 常量与归一化工具
  */
 
-import { format_provider_label, type ProviderOption } from "@/types/capability/provider";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type { AgentOptions } from "@/types/agent/agent";
 
@@ -66,43 +65,6 @@ export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
 export function normalize_agent_option_provider(provider?: string | null): string {
   const normalized_provider = provider?.trim();
   return normalized_provider || DEFAULT_AGENT_OPTION_PROVIDER;
-}
-
-export function build_agent_option_provider_options(
-  provider_options: ProviderOption[],
-  current_provider?: string,
-  current_model?: string,
-): ProviderOption[] {
-  const normalized_provider = current_provider?.trim();
-  const normalized_model = current_model?.trim();
-  if (!normalized_provider) {
-    return provider_options;
-  }
-  const existing_index = provider_options.findIndex((item) => item.provider === normalized_provider);
-  if (existing_index >= 0) {
-    if (!normalized_model || provider_options[existing_index].models.some((item) => item.model_id === normalized_model)) {
-      return provider_options;
-    }
-    return provider_options.map((item, index) => index === existing_index
-      ? {
-        ...item,
-        models: [
-          ...item.models,
-          { model_id: normalized_model, display_name: normalized_model, is_default: false },
-        ],
-      }
-      : item);
-  }
-  return [
-    ...provider_options,
-    {
-      provider: normalized_provider,
-      display_name: format_provider_label(normalized_provider),
-      models: normalized_model
-        ? [{ model_id: normalized_model, display_name: normalized_model, is_default: false }]
-        : [],
-    },
-  ];
 }
 
 export function build_agent_options_save_payload(options: AgentOptions): AgentOptions {

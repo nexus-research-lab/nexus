@@ -1042,6 +1042,14 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
+    if (model.is_default && !enabled) {
+      set_feedback({
+        tone: "error",
+        title: t("settings.providers.default_model_disable_title"),
+        message: t("settings.providers.default_model_disable_message", { model: model.display_name || model.model_id }),
+      });
+      return;
+    }
     try {
       set_pending_action(`model:${model.model_id}`);
       await update_provider_model_api(
@@ -1139,8 +1147,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
   const delete_usage_agents = delete_target_record?.used_by_agents ?? [];
 
   const panel_content = (
-    <div className={cn("mx-auto w-full px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
-      <div className="flex min-h-[calc(100dvh-112px)] flex-1 items-stretch gap-5">
+    <div className={cn("mx-auto flex h-full min-h-0 w-full flex-col px-1 py-3", WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME)}>
+      <div className="flex min-h-0 flex-1 items-stretch gap-5 overflow-hidden">
         <aside
           className="max-w-full shrink-0 border-r border-(--divider-subtle-color) pr-4"
           style={{ width: 190 }}
@@ -1266,10 +1274,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
           </div>
         </aside>
 
-        <section className="min-h-0 min-w-0 flex-1">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {is_empty_mode ? null : (
-            <div className="bg-transparent px-5 py-2">
-              <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="flex min-h-0 flex-1 flex-col bg-transparent px-5 py-2">
+              <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <h2 className="truncate text-[18px] font-semibold tracking-tight text-(--text-strong)">
@@ -1325,7 +1333,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="flex min-h-0 flex-1 flex-col gap-4">
                 {show_provider_shape_controls ? (
                   <div className={cn(
                     "grid gap-4",
@@ -1470,8 +1478,8 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                   )}
                 </div>
 
-                <div className="space-y-3 pt-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-h-0 flex-1 flex-col gap-3 pt-1">
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-baseline gap-2">
                       <h3 className="text-[14px] font-semibold tracking-tight text-(--text-strong)">
                         {t("settings.providers.models")}
@@ -1520,7 +1528,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                     variant="dialog"
                   />
 
-                  <div className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
+                  <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto rounded-[12px] border border-(--divider-subtle-color)">
                     {!selected_record || displayed_models.length === 0 ? (
                       <div className="flex min-h-28 items-center justify-center text-sm text-(--text-soft)">
                         {selected_record
@@ -1533,6 +1541,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         const pending_model = pending_action?.endsWith(model.model_id) ?? false;
                         const display_name = model.display_name || model.model_id;
                         const show_model_id = model.model_id !== display_name;
+                        const disable_model_toggle = pending_action !== null || !selected_can_manage || model.is_default;
+                        const model_toggle_title = model.is_default
+                          ? t("settings.providers.default_model_disable_tooltip")
+                          : undefined;
                         return (
                           <div
                             className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0"
@@ -1568,12 +1580,26 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                               {pending_model ? (
                                 <Loader2 className="h-4 w-4 animate-spin text-(--text-muted)" />
                               ) : (
-                                <GlassSwitch
-                                  checked={model.enabled}
-                                  disabled={pending_action !== null || !selected_can_manage}
-                                  size="xs"
-                                  on_change={(checked) => void handle_toggle_model(model, checked)}
-                                />
+                                <span
+                                  onClick={() => {
+                                    if (!model.is_default) {
+                                      return;
+                                    }
+                                    set_feedback({
+                                      tone: "error",
+                                      title: t("settings.providers.default_model_disable_title"),
+                                      message: t("settings.providers.default_model_disable_message", { model: display_name }),
+                                    });
+                                  }}
+                                  title={model_toggle_title}
+                                >
+                                  <GlassSwitch
+                                    checked={model.enabled}
+                                    disabled={disable_model_toggle}
+                                    size="xs"
+                                    on_change={(checked) => void handle_toggle_model(model, checked)}
+                                  />
+                                </span>
                               )}
                             </div>
                           </div>

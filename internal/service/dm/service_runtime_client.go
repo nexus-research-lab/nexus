@@ -75,7 +75,7 @@ func (s *Service) ensureClient(
 		Model:                      runtimeSelection.Model,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
-		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
+		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
 		DisallowedTools:            agentValue.Options.DisallowedTools,
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,

@@ -655,6 +655,84 @@ func TestExecuteRoundReturnsStreamReadErrorDiagnostics(t *testing.T) {
 	}
 }
 
+func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 4),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_start",
+				"message": map[string]any{
+					"id":    "assistant-1",
+					"model": "kimi-k2.6",
+				},
+			},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "tool_use",
+				},
+			},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_stop",
+			},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeTaskProgress,
+		SessionID: "sdk-session-1",
+	}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "需要工具",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{}, {}, {}, {}},
+		},
+	})
+	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
+		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
+	}
+	var streamErr *RoundStreamClosedError
+	if !errors.As(err, &streamErr) {
+		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
+	}
+	stop := streamErr.LastStreamStop
+	if !stop.Observed ||
+		stop.MessageIndex != 3 ||
+		stop.MessagesAfter != 1 ||
+		stop.StopReason != "tool_use" ||
+		stop.SessionID != "sdk-session-1" ||
+		stop.MessageID != "assistant-1" ||
+		stop.Model != "kimi-k2.6" {
+		t.Fatalf("message_stop 诊断字段不正确: %+v", stop)
+	}
+	if !strings.Contains(err.Error(), "messages_after_last_stream_stop=1") {
+		t.Fatalf("错误字符串缺少 message_stop 诊断: %v", err)
+	}
+	fields := RoundStreamStopDiagnosticLogFields(stop)
+	if len(fields) == 0 {
+		t.Fatalf("message_stop 日志字段为空: %+v", stop)
+	}
+}
+
 func TestExecuteRoundReturnsIdleTimeoutDiagnostics(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-1",

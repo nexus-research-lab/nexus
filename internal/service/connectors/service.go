@@ -562,9 +562,14 @@ func (s *Service) GetAuthURL(ctx context.Context, ownerUserID string, connectorI
 
 // CompleteOAuthCallback 完成 OAuth token 交换。
 func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string, request OAuthCallbackRequest) (*Info, error) {
-	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
+	requestOwnerUserID := strings.TrimSpace(ownerUserID)
+	if requestOwnerUserID == "" {
+		if userID, ok := authctx.CurrentUserID(ctx); ok {
+			requestOwnerUserID = userID
+		}
+	}
 	stateValue := strings.TrimSpace(request.State)
-	state, err := s.consumeState(ctx, ownerUserID, stateValue)
+	state, err := s.consumeState(ctx, requestOwnerUserID, stateValue)
 	if err != nil {
 		return nil, err
 	}
@@ -574,6 +579,7 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string,
 	if state.ExpiresAt.Before(time.Now()) {
 		return nil, errors.New("OAuth state 无效或已过期")
 	}
+	ownerUserID = normalizeConnectorOwnerUserID(ctx, state.OwnerUserID)
 	entry, ok := getConnector(state.ConnectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
@@ -916,18 +922,27 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 	if strings.TrimSpace(state) == "" {
 		return nil, nil
 	}
-	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
+	normalizedOwnerUserID := strings.TrimSpace(ownerUserID)
 	query := fmt.Sprintf(
-		"DELETE FROM connector_oauth_states WHERE owner_user_id = %s AND state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at",
+		"DELETE FROM connector_oauth_states WHERE state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at",
 		s.bind(1),
-		s.bind(2),
 	)
+	args := []any{strings.TrimSpace(state)}
+	if normalizedOwnerUserID != "" {
+		normalizedOwnerUserID = normalizeConnectorOwnerUserID(ctx, normalizedOwnerUserID)
+		query = fmt.Sprintf(
+			"DELETE FROM connector_oauth_states WHERE owner_user_id = %s AND state = %s RETURNING owner_user_id, state, connector_id, code_verifier, redirect_uri, redirect_kind, shop_domain, extra_json, expires_at",
+			s.bind(1),
+			s.bind(2),
+		)
+		args = []any{normalizedOwnerUserID, strings.TrimSpace(state)}
+	}
 	var row stateRow
 	var codeVerifier sql.NullString
 	var redirectKind sql.NullString
 	var shopDomain sql.NullString
 	var extraJSON sql.NullString
-	err := s.db.QueryRowContext(ctx, query, ownerUserID, strings.TrimSpace(state)).Scan(
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(
 		&row.OwnerUserID,
 		&row.State,
 		&row.ConnectorID,

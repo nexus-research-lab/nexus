@@ -34,7 +34,6 @@ import { AgentOptionsIdentityTab } from "@/features/agents/options/components/ag
 import { AgentOptionsSkillsTab } from "@/features/agents/options/components/agent-options-skills-tab";
 import { AgentOptionsAdvancedTab } from "@/features/agents/options/components/agent-options-advanced-tab";
 import {
-  build_agent_option_provider_options,
   DEFAULT_AGENT_OPTION_MODEL,
   DEFAULT_AGENT_PERMISSION_MODE,
   DEFAULT_AGENT_OPTION_PROVIDER,
@@ -458,7 +457,7 @@ export function AgentOptionsEditor({
           model={model}
           default_provider={defaultProvider}
           default_model={defaultModel}
-          provider_options={build_agent_option_provider_options(providerOptions, provider, model)}
+          provider_options={providerOptions}
           provider_options_error={providerOptionsError}
           provider_options_loading={providerOptionsLoading}
           on_provider_change={handle_provider_change}

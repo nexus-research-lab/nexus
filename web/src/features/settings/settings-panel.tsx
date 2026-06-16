@@ -57,7 +57,6 @@ import {
 } from "@/config/options";
 import {
   AGENT_PERMISSION_MODES,
-  build_agent_option_provider_options,
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
 import {
@@ -592,17 +591,7 @@ function GeneralSettingsSection() {
     });
   }, [persist_preferences]);
 
-  const selected_default_model = useMemo(() => (
-    decode_default_model_value(default_model_value)
-  ), [default_model_value]);
-
-  const default_model_provider_options = useMemo(() => build_agent_option_provider_options(
-    provider_options,
-    selected_default_model?.provider,
-    selected_default_model?.model,
-  ), [provider_options, selected_default_model]);
-
-  const default_model_options = useMemo(() => default_model_provider_options.flatMap((provider) => (
+  const default_model_options = useMemo(() => provider_options.flatMap((provider) => (
     provider.models.map((model) => {
       const provider_label = provider.display_name || provider.provider;
       const model_label = model.display_name || model.model_id;
@@ -611,7 +600,7 @@ function GeneralSettingsSection() {
         label: `${provider_label} / ${model_label}`,
       };
     })
-  )), [default_model_provider_options]);
+  )), [provider_options]);
 
   const default_image_model_options = useMemo(() => image_provider_options.flatMap((provider) => (
     provider.models.map((model) => {

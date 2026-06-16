@@ -131,6 +131,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelRouter,
 	)
 	automationService.SetRuntimeSessionCloser(runtimeManager)
+	automationService.SetProviderResolver(providerService)
 	automationService.SetLogger(logger.With("component", "automation"))
 
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。

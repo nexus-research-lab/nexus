@@ -111,11 +111,11 @@ internal sealed class SidecarSupervisor : IDisposable
         startInfo.Environment["LOG_FILE_ENABLED"] = "true";
         startInfo.Environment["DISCORD_ENABLED"] = "false";
         startInfo.Environment["TELEGRAM_ENABLED"] = "false";
-        startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback";
+        startInfo.Environment["CONNECTOR_OAUTH_REDIRECT_URI"] = runtime.OAuthRedirectUri;
         ApplyPackagedConnectorConfig(startInfo);
         ApplyBundledNexusctlCommand(startInfo);
         ApplyBundledNXSRuntime(startInfo);
-        startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = $"{runtime.WebBaseUrl.TrimEnd('/')},nexus://connectors";
+        startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = runtime.WebBaseUrl.TrimEnd('/');
         return startInfo;
     }
 
