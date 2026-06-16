@@ -111,7 +111,7 @@ func Load() Config {
 	}
 	return Config{
 		Host:                           getEnv("HOST", "0.0.0.0"),
-		Port:                           mustInt(getEnv("PORT", "8010")),
+		Port:                           parseIntEnv(getEnv("PORT", "8010"), 8010),
 		Debug:                          debug,
 		ProjectName:                    getEnv("PROJECT_NAME", "nexus"),
 		LogLevel:                       logLevel,
@@ -121,9 +121,9 @@ func Load() Config {
 		LogNoColor:                     mustBool(getEnv("LOG_NO_COLOR", "false")),
 		LogFileEnabled:                 mustBool(getEnv("LOG_FILE_ENABLED", "true")),
 		LogRotateDaily:                 mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
-		LogMaxSizeMB:                   mustInt(getEnv("LOG_MAX_SIZE_MB", "10")),
-		LogMaxAgeDays:                  mustInt(getEnv("LOG_MAX_AGE_DAYS", "7")),
-		LogMaxBackups:                  mustInt(getEnv("LOG_MAX_BACKUPS", "7")),
+		LogMaxSizeMB:                   parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
+		LogMaxAgeDays:                  parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
+		LogMaxBackups:                  parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
 		LogCompress:                    mustBool(getEnv("LOG_COMPRESS", "true")),
 		MessageDebugStreamEvent:        mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
 		APIPrefix:                      getEnv("API_PREFIX", "/nexus/v1"),
@@ -138,20 +138,20 @@ func Load() Config {
 		SkillsAPIURL:                   getEnv("SKILLS_API_URL", "https://skills.sh"),
 		SkillsSourceURLs:               getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled:    mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
-		SkillsAPISearchLimit:           mustInt(getEnv("SKILLS_API_SEARCH_LIMIT", "20")),
+		SkillsAPISearchLimit:           parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
 		DatabaseDriver:                 getEnv("DATABASE_DRIVER", "sqlite"),
 		DatabaseURL:                    getEnv("DATABASE_URL", "~/.nexus/data/nexus.db"),
 		AccessToken:                    getEnv("ACCESS_TOKEN", ""),
 		AuthSessionCookieName:          getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
 		AuthCookieSameSite:             getEnv("AUTH_COOKIE_SAMESITE", "lax"),
 		AuthCookieSecure:               mustBool(getEnv("AUTH_COOKIE_SECURE", "false")),
-		AuthSessionTTLHours:            mustInt(getEnv("AUTH_SESSION_TTL_HOURS", "24")),
+		AuthSessionTTLHours:            parseIntEnv(getEnv("AUTH_SESSION_TTL_HOURS", "24"), 24),
 		BaseSystemPrompt:               getEnv("BASE_SYSTEM_PROMPT", ""),
 		MainAgentSystemPrompt:          getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
 		MemoryEnabled:                  mustBool(getEnv("MEMORY_ENABLED", "true")),
 		MemoryAutoRecall:               mustBool(getEnv("MEMORY_AUTO_RECALL", "true")),
 		MemoryAutoExtract:              mustBool(getEnv("MEMORY_AUTO_EXTRACT", "true")),
-		MemoryMaxResults:               mustInt(getEnv("MEMORY_MAX_RESULTS", "5")),
+		MemoryMaxResults:               parseIntEnv(getEnv("MEMORY_MAX_RESULTS", "5"), 5),
 		MemoryScoreThreshold:           mustFloat(getEnv("MEMORY_SCORE_THRESHOLD", "0.08")),
 		DiscordEnabled:                 mustBool(getEnv("DISCORD_ENABLED", "true")),
 		DiscordBotToken:                getEnv("DISCORD_BOT_TOKEN", ""),
@@ -160,14 +160,14 @@ func Load() Config {
 		ConnectorOAuthRedirectURI:      getEnv("CONNECTOR_OAUTH_REDIRECT_URI", "http://localhost:3000/capability/connectors/oauth/callback"),
 		ConnectorOAuthAllowedOrigins:   mustStringList(getEnv("CONNECTOR_OAUTH_ALLOWED_ORIGINS", "http://localhost:3000")),
 		AllowedWebSocketOrigins:        mustStringList(getEnv("ALLOWED_WEBSOCKET_ORIGINS", "")),
-		ConnectorOAuthStateTTLSeconds:  mustInt(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600")),
+		ConnectorOAuthStateTTLSeconds:  parseIntEnv(getEnv("CONNECTOR_OAUTH_STATE_TTL_SECONDS", "600"), 600),
 		GoalEnabled:                    mustBool(getEnv("NEXUS_GOAL_ENABLED", "true")),
 		GoalAutoContinueEnabled:        mustBool(getEnv("NEXUS_GOAL_AUTO_CONTINUE_ENABLED", "true")),
-		GoalMaxContinuationsPerRun:     mustInt(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20")),
-		AutomationRunTimeoutSeconds:    mustInt(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600")),
-		RuntimeRoundIdleTimeoutSeconds: mustInt(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200")),
-		RuntimeIdleSessionTTLSeconds:   mustInt(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600")),
-		RuntimeIdleSessionSweepSeconds: mustInt(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120")),
+		GoalMaxContinuationsPerRun:     parseIntEnv(getEnv("NEXUS_GOAL_MAX_CONTINUATIONS_PER_RUN", "20"), 20),
+		AutomationRunTimeoutSeconds:    parseIntEnv(getEnv("AUTOMATION_RUN_TIMEOUT_SECONDS", "21600"), 21600),
+		RuntimeRoundIdleTimeoutSeconds: parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
+		RuntimeIdleSessionTTLSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
+		RuntimeIdleSessionSweepSeconds: parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
 		ConnectorCredentialsKey:        getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:        getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:    getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),
@@ -215,10 +215,10 @@ func getEnv(key string, fallback string) string {
 	return fallback
 }
 
-func mustInt(raw string) int {
+func parseIntEnv(raw string, fallback int) int {
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return 8010
+		return fallback
 	}
 	return value
 }
