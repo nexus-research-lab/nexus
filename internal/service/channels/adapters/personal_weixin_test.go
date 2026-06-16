@@ -1,25 +1,25 @@
-package channels
+package adapters
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 type recordingPersonalWeixinIngress struct {
-	requests []IngressRequest
+	requests []channelcontract.IngressRequest
 }
 
-func (r *recordingPersonalWeixinIngress) Accept(_ context.Context, request IngressRequest) (*IngressResult, error) {
+func (r *recordingPersonalWeixinIngress) Accept(_ context.Context, request channelcontract.IngressRequest) (*channelcontract.IngressResult, error) {
 	r.requests = append(r.requests, request)
-	return &IngressResult{
+	return &channelcontract.IngressResult{
 		Channel: request.Channel,
 		AgentID: request.AgentID,
 	}, nil
@@ -40,14 +40,14 @@ func TestPersonalWeixinChannelSendDeliveryMessage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	channel := newPersonalWeixinChannel(personalWeixinClientConfig{
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		BaseURL:   server.URL,
 		Token:     "token-1",
 		AccountID: "account-1",
 	}, server.Client())
-	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:     DeliveryModeExplicit,
-		Channel:  ChannelTypeWeixinPersonal,
+	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:     channelcontract.DeliveryModeExplicit,
+		Channel:  channelcontract.ChannelTypeWeixinPersonal,
 		To:       "wx-user-1",
 		ThreadID: "ctx-token-1",
 	}, "你好")
@@ -96,22 +96,22 @@ func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
 	}))
 	defer server.Close()
 
-	channel := newPersonalWeixinMultiAccountChannel([]*personalWeixinChannel{
-		newPersonalWeixinChannel(personalWeixinClientConfig{
+	channel := NewPersonalWeixinMultiAccountChannel([]*PersonalWeixinChannel{
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 			BaseURL:   server.URL,
 			Token:     "token-1",
 			AccountID: "account-1",
 		}, server.Client()),
-		newPersonalWeixinChannel(personalWeixinClientConfig{
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 			BaseURL:   server.URL,
 			Token:     "token-2",
 			AccountID: "account-2",
 		}, server.Client()),
 	})
 
-	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:      DeliveryModeExplicit,
-		Channel:   ChannelTypeWeixinPersonal,
+	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:      channelcontract.DeliveryModeExplicit,
+		Channel:   channelcontract.ChannelTypeWeixinPersonal,
 		To:        "wx-user-1",
 		AccountID: "account-2",
 	}, "你好")
@@ -122,9 +122,9 @@ func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
 		t.Fatalf("多账号个人微信未按 account_id 分流: auth=%q to=%q", receivedAuth, receivedTo)
 	}
 
-	_, err = channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeWeixinPersonal,
+	_, err = channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:    channelcontract.DeliveryModeExplicit,
+		Channel: channelcontract.ChannelTypeWeixinPersonal,
 		To:      "wx-user-1",
 	}, "你好")
 	if err == nil || !strings.Contains(err.Error(), "requires account_id") {
@@ -132,10 +132,44 @@ func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
 	}
 }
 
-func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
+func TestPersonalWeixinMultiAccountChannelStopsStartedAccountsOnStartFailure(t *testing.T) {
+	startErr := errors.New("start account failed")
+	accounts := []*PersonalWeixinChannel{
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{AccountID: "account-1"}, nil),
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{AccountID: "account-2"}, nil),
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{AccountID: "account-3"}, nil),
+	}
+	started := make([]string, 0)
+	stopped := make([]string, 0)
 
+	err := startPersonalWeixinAccounts(
+		context.Background(),
+		accounts,
+		func(account *PersonalWeixinChannel, _ context.Context) error {
+			if account.accountID == "account-2" {
+				return startErr
+			}
+			started = append(started, account.accountID)
+			return nil
+		},
+		func(account *PersonalWeixinChannel, _ context.Context) error {
+			stopped = append(stopped, account.accountID)
+			return nil
+		},
+	)
+
+	if !errors.Is(err, startErr) {
+		t.Fatalf("多账号启动失败应返回原始错误: %v", err)
+	}
+	if strings.Join(started, ",") != "account-1" {
+		t.Fatalf("启动顺序不正确: %+v", started)
+	}
+	if strings.Join(stopped, ",") != "account-1" {
+		t.Fatalf("第二个账号启动失败时应回滚已启动账号: %+v", stopped)
+	}
+}
+
+func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testing.T) {
 	authByRecipient := map[string]string{}
 	var authMu sync.Mutex
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -160,36 +194,37 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 		}
 	})}
 
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	if err := router.Start(context.Background()); err != nil {
-		t.Fatalf("启动 router 失败: %v", err)
-	}
-	defer router.Stop(context.Background())
+	runCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	accountOne := newPersonalWeixinChannel(personalWeixinClientConfig{
+	accountOne := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		BaseURL:   "https://weixin.test",
 		Token:     "token-1",
 		AccountID: "account-1",
 	}, client)
-	if err := router.RegisterAndStartForOwner(context.Background(), "", accountOne); err != nil {
-		t.Fatalf("注册第一个个人微信账号失败: %v", err)
+	if err := accountOne.Start(runCtx); err != nil {
+		t.Fatalf("启动第一个个人微信账号失败: %v", err)
 	}
 
-	replacement := newPersonalWeixinMultiAccountChannel([]*personalWeixinChannel{
-		newPersonalWeixinChannel(personalWeixinClientConfig{
+	replacement := NewPersonalWeixinMultiAccountChannel([]*PersonalWeixinChannel{
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 			BaseURL:   "https://weixin.test",
 			Token:     "token-1",
 			AccountID: "account-1",
 		}, client),
-		newPersonalWeixinChannel(personalWeixinClientConfig{
+		NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 			BaseURL:   "https://weixin.test",
 			Token:     "token-2",
 			AccountID: "account-2",
 		}, client),
 	})
-	if err := router.RegisterAndStartForOwner(context.Background(), "", replacement); err != nil {
-		t.Fatalf("注册多账号个人微信 channel 失败: %v", err)
+	if !replacement.AdoptReplacedChannel(accountOne) {
+		t.Fatal("多账号个人微信应接管同账号的已运行 channel")
 	}
+	if err := replacement.Start(runCtx); err != nil {
+		t.Fatalf("启动多账号个人微信 channel 失败: %v", err)
+	}
+	defer replacement.Stop(context.Background())
 
 	accountOne.mu.RLock()
 	accountOneStillRunning := accountOne.cancel != nil
@@ -198,20 +233,20 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 		t.Fatal("第二个微信扫码后不应停止第一个已运行账号")
 	}
 
-	if _, err := router.DeliverMessage(context.Background(), "", "给账号一", DeliveryTarget{
-		Mode:      DeliveryModeExplicit,
-		Channel:   ChannelTypeWeixinPersonal,
+	if _, err := replacement.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:      channelcontract.DeliveryModeExplicit,
+		Channel:   channelcontract.ChannelTypeWeixinPersonal,
 		To:        "wx-user-1",
 		AccountID: "account-1",
-	}); err != nil {
+	}, "给账号一"); err != nil {
 		t.Fatalf("账号一回投失败: %v", err)
 	}
-	if _, err := router.DeliverMessage(context.Background(), "", "给账号二", DeliveryTarget{
-		Mode:      DeliveryModeExplicit,
-		Channel:   ChannelTypeWeixinPersonal,
+	if _, err := replacement.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:      channelcontract.DeliveryModeExplicit,
+		Channel:   channelcontract.ChannelTypeWeixinPersonal,
 		To:        "wx-user-2",
 		AccountID: "account-2",
-	}); err != nil {
+	}, "给账号二"); err != nil {
 		t.Fatalf("账号二回投失败: %v", err)
 	}
 
@@ -253,13 +288,13 @@ func TestPersonalWeixinChannelSendDeliveryTyping(t *testing.T) {
 	}))
 	defer server.Close()
 
-	channel := newPersonalWeixinChannel(personalWeixinClientConfig{
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		BaseURL: server.URL,
 		Token:   "token-1",
 	}, server.Client())
-	target := DeliveryTarget{
-		Mode:     DeliveryModeExplicit,
-		Channel:  ChannelTypeWeixinPersonal,
+	target := channelcontract.DeliveryTarget{
+		Mode:     channelcontract.DeliveryModeExplicit,
+		Channel:  channelcontract.ChannelTypeWeixinPersonal,
 		To:       "wx-user-1",
 		ThreadID: "ctx-token-1",
 	}
@@ -300,13 +335,13 @@ func TestPersonalWeixinChannelTypingIgnoresGetConfigFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	channel := newPersonalWeixinChannel(personalWeixinClientConfig{
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		BaseURL: server.URL,
 		Token:   "token-1",
 	}, server.Client())
-	err := channel.SendDeliveryTyping(context.Background(), DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeWeixinPersonal,
+	err := channel.SendDeliveryTyping(context.Background(), channelcontract.DeliveryTarget{
+		Mode:    channelcontract.DeliveryModeExplicit,
+		Channel: channelcontract.ChannelTypeWeixinPersonal,
 		To:      "wx-user-1",
 	}, true)
 	if err != nil {
@@ -324,13 +359,13 @@ func TestPersonalWeixinChannelSendDeliveryMessageChecksBusinessError(t *testing.
 	}))
 	defer server.Close()
 
-	channel := newPersonalWeixinChannel(personalWeixinClientConfig{
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		BaseURL: server.URL,
 		Token:   "token-1",
 	}, server.Client())
-	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeWeixinPersonal,
+	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:    channelcontract.DeliveryModeExplicit,
+		Channel: channelcontract.ChannelTypeWeixinPersonal,
 		To:      "wx-user-1",
 	}, "你好")
 	if err == nil || !strings.Contains(err.Error(), "ret=1") {
@@ -340,7 +375,7 @@ func TestPersonalWeixinChannelSendDeliveryMessageChecksBusinessError(t *testing.
 
 func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 	ingress := &recordingPersonalWeixinIngress{}
-	channel := newPersonalWeixinChannel(personalWeixinClientConfig{
+	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		Token:     "token-1",
 		AccountID: "account-1",
 	}, nil).WithOwner("owner-a")
@@ -367,7 +402,7 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 		t.Fatalf("个人微信消息未进入 ingress: %+v", ingress.requests)
 	}
 	request := ingress.requests[0]
-	if request.OwnerUserID != "owner-a" || request.Channel != ChannelTypeWeixinPersonal || request.Ref != "wx-user-1" {
+	if request.OwnerUserID != "owner-a" || request.Channel != channelcontract.ChannelTypeWeixinPersonal || request.Ref != "wx-user-1" {
 		t.Fatalf("个人微信 ingress 基础字段不正确: %+v", request)
 	}
 	if request.ThreadID != "" {
@@ -383,7 +418,7 @@ func TestPersonalWeixinChannelHandlesTextMessage(t *testing.T) {
 		t.Fatalf("个人微信消息 id 未进入入口请求: %+v", request)
 	}
 	if request.Message == nil ||
-		request.Message.Channel != ChannelTypeWeixinPersonal ||
+		request.Message.Channel != channelcontract.ChannelTypeWeixinPersonal ||
 		request.Message.PlatformMessageID != "42" ||
 		request.Message.ThreadID != "ctx-token-1" ||
 		request.Message.SenderID != "wx-user-1" ||

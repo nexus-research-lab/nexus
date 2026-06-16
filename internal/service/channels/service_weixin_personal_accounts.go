@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+
+	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 )
 
 func (s *ControlService) personalWeixinAccountChannels(
@@ -11,12 +13,12 @@ func (s *ControlService) personalWeixinAccountChannels(
 	ownerUserID string,
 	channelType string,
 	channelConfig map[string]string,
-) ([]*personalWeixinChannel, error) {
+) ([]*channeladapters.PersonalWeixinChannel, error) {
 	rows, err := s.listChannelAccountRows(ctx, ownerUserID, channelType)
 	if err != nil {
 		return nil, err
 	}
-	channels := make([]*personalWeixinChannel, 0, len(rows))
+	channels := make([]*channeladapters.PersonalWeixinChannel, 0, len(rows))
 	for _, row := range rows {
 		if row.Status == ChannelConfigStatusDisabled {
 			continue
@@ -33,7 +35,7 @@ func (s *ControlService) personalWeixinAccountChannels(
 		if token == "" {
 			continue
 		}
-		channels = append(channels, newPersonalWeixinChannel(personalWeixinClientConfig{
+		channels = append(channels, channeladapters.NewPersonalWeixinChannel(channeladapters.PersonalWeixinClientConfig{
 			BaseURL:            firstNonEmpty(accountConfig["base_url"], channelConfig["base_url"]),
 			Token:              token,
 			AccountID:          row.AccountID,
@@ -83,7 +85,7 @@ func (s *ControlService) savePersonalWeixinAccount(
 	ctx context.Context,
 	row *channelConfigRow,
 	publicConfig map[string]string,
-	status weixinQRStatusResponse,
+	status channeladapters.PersonalWeixinQRStatusResponse,
 ) error {
 	accountID := strings.TrimSpace(status.IlinkBotID)
 	token := strings.TrimSpace(status.BotToken)
@@ -147,7 +149,7 @@ func (s *ControlService) personalWeixinLocalTokens(
 
 func personalWeixinAccountConfig(publicConfig map[string]string, baseURL string) (string, error) {
 	values := map[string]string{
-		"base_url":             firstNonEmpty(baseURL, publicConfig["base_url"], defaultPersonalWeixinBaseURL),
+		"base_url":             firstNonEmpty(baseURL, publicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL),
 		"bot_agent":            publicConfig["bot_agent"],
 		"ilink_app_id":         publicConfig["ilink_app_id"],
 		"ilink_client_version": publicConfig["ilink_client_version"],

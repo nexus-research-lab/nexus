@@ -1,19 +1,17 @@
-package channels
+package deliveryroute
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
-type deliveryMemory struct {
+type Store struct {
 	db                      *sql.DB
 	isPostgres              bool
 	idFactory               func(string) string
@@ -25,17 +23,17 @@ type deliveryMemory struct {
 type rememberedRoute struct {
 	RouteID    string
 	SessionKey string
-	Target     DeliveryTarget
+	Target     channelcontract.DeliveryTarget
 	Enabled    bool
 }
 
-func newDeliveryMemory(cfg config.Config, db *sql.DB) *deliveryMemory {
-	memory := &deliveryMemory{
+func NewStore(cfg config.Config, db *sql.DB) *Store {
+	store := &Store{
 		db:         db,
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
-		idFactory:  newDeliveryID,
+		idFactory:  channelcontract.NewID,
 	}
-	memory.rememberRouteQuery = fmt.Sprintf(`
+	store.rememberRouteQuery = fmt.Sprintf(`
 INSERT INTO automation_delivery_routes (
     route_id,
     agent_id,
@@ -59,9 +57,9 @@ ON CONFLICT(route_id) DO UPDATE SET
     thread_id = EXCLUDED.thread_id,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`,
-		memory.bindList(9),
+		store.bindList(9),
 	)
-	memory.latestRouteQuery = `
+	store.latestRouteQuery = `
 SELECT
     route_id,
     session_key,
@@ -72,11 +70,11 @@ SELECT
     thread_id,
     enabled
 FROM automation_delivery_routes
-WHERE agent_id = ` + memory.bind(1) + `
+WHERE agent_id = ` + store.bind(1) + `
   AND COALESCE(session_key, '') = ''
 ORDER BY updated_at DESC, route_id DESC
 LIMIT 1`
-	memory.latestSessionRouteQuery = `
+	store.latestSessionRouteQuery = `
 SELECT
     route_id,
     session_key,
@@ -87,21 +85,21 @@ SELECT
     thread_id,
     enabled
 FROM automation_delivery_routes
-WHERE agent_id = ` + memory.bind(1) + `
-  AND session_key = ` + memory.bind(2) + `
+WHERE agent_id = ` + store.bind(1) + `
+  AND session_key = ` + store.bind(2) + `
 ORDER BY updated_at DESC, route_id DESC
 LIMIT 1`
-	return memory
+	return store
 }
 
-func (m *deliveryMemory) bind(index int) string {
+func (m *Store) bind(index int) string {
 	if m.isPostgres {
 		return fmt.Sprintf("$%d", index)
 	}
 	return "?"
 }
 
-func (m *deliveryMemory) bindList(count int) string {
+func (m *Store) bindList(count int) string {
 	items := make([]string, 0, count)
 	for index := 1; index <= count; index++ {
 		items = append(items, m.bind(index))
@@ -110,13 +108,13 @@ func (m *deliveryMemory) bindList(count int) string {
 }
 
 // GetLastRoute 读取最近一次成功投递的显式目标。
-func (m *deliveryMemory) GetLastRoute(ctx context.Context, agentID string) (*DeliveryTarget, error) {
+func (m *Store) GetLastRoute(ctx context.Context, agentID string) (*channelcontract.DeliveryTarget, error) {
 	row, err := m.getLatestRouteRow(ctx, agentID)
 	return normalizedRememberedTarget(row, err)
 }
 
 // GetSessionRoute 读取指定 session 最近一次成功投递的显式目标。
-func (m *deliveryMemory) GetSessionRoute(ctx context.Context, agentID string, sessionKey string) (*DeliveryTarget, error) {
+func (m *Store) GetSessionRoute(ctx context.Context, agentID string, sessionKey string) (*channelcontract.DeliveryTarget, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return m.GetLastRoute(ctx, agentID)
@@ -125,14 +123,14 @@ func (m *deliveryMemory) GetSessionRoute(ctx context.Context, agentID string, se
 	return normalizedRememberedTarget(row, err)
 }
 
-func normalizedRememberedTarget(row *rememberedRoute, err error) (*DeliveryTarget, error) {
+func normalizedRememberedTarget(row *rememberedRoute, err error) (*channelcontract.DeliveryTarget, error) {
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	if !row.Enabled || row.Target.Mode != DeliveryModeExplicit {
+	if !row.Enabled || row.Target.Mode != channelcontract.DeliveryModeExplicit {
 		return nil, nil
 	}
 	normalized := row.Target.Normalized()
@@ -143,12 +141,12 @@ func normalizedRememberedTarget(row *rememberedRoute, err error) (*DeliveryTarge
 }
 
 // RememberRoute 刷新最近一次成功目标。
-func (m *deliveryMemory) RememberRoute(ctx context.Context, agentID string, target DeliveryTarget) (*DeliveryTarget, error) {
+func (m *Store) RememberRoute(ctx context.Context, agentID string, target channelcontract.DeliveryTarget) (*channelcontract.DeliveryTarget, error) {
 	return m.rememberRoute(ctx, agentID, "", target)
 }
 
 // RememberSessionRoute 刷新指定 session 最近一次成功目标。
-func (m *deliveryMemory) RememberSessionRoute(ctx context.Context, agentID string, sessionKey string, target DeliveryTarget) (*DeliveryTarget, error) {
+func (m *Store) RememberSessionRoute(ctx context.Context, agentID string, sessionKey string, target channelcontract.DeliveryTarget) (*channelcontract.DeliveryTarget, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return m.RememberRoute(ctx, agentID, target)
@@ -156,10 +154,15 @@ func (m *deliveryMemory) RememberSessionRoute(ctx context.Context, agentID strin
 	return m.rememberRoute(ctx, agentID, sessionKey, target)
 }
 
-func (m *deliveryMemory) rememberRoute(ctx context.Context, agentID string, sessionKey string, target DeliveryTarget) (*DeliveryTarget, error) {
+func (m *Store) rememberRoute(
+	ctx context.Context,
+	agentID string,
+	sessionKey string,
+	target channelcontract.DeliveryTarget,
+) (*channelcontract.DeliveryTarget, error) {
 	normalized := target.Normalized()
-	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
-		normalized.Mode = DeliveryModeExplicit
+	if normalized.Mode == channelcontract.DeliveryModeNone || normalized.Mode == channelcontract.DeliveryModeLast {
+		normalized.Mode = channelcontract.DeliveryModeExplicit
 	}
 	if err := normalized.Validate(); err != nil {
 		return nil, err
@@ -180,11 +183,11 @@ func (m *deliveryMemory) rememberRoute(ctx context.Context, agentID string, sess
 		routeID,
 		strings.TrimSpace(agentID),
 		strings.TrimSpace(sessionKey),
-		DeliveryModeExplicit,
-		nullableString(normalized.Channel),
-		nullableString(normalized.To),
-		nullableString(normalized.AccountID),
-		nullableString(normalized.ThreadID),
+		channelcontract.DeliveryModeExplicit,
+		channelcontract.NullableString(normalized.Channel),
+		channelcontract.NullableString(normalized.To),
+		channelcontract.NullableString(normalized.AccountID),
+		channelcontract.NullableString(normalized.ThreadID),
 		true,
 	)
 	if err != nil {
@@ -193,21 +196,25 @@ func (m *deliveryMemory) rememberRoute(ctx context.Context, agentID string, sess
 	return &normalized, nil
 }
 
-func (m *deliveryMemory) getLatestRouteRow(ctx context.Context, agentID string) (*rememberedRoute, error) {
+func (m *Store) getLatestRouteRow(ctx context.Context, agentID string) (*rememberedRoute, error) {
 	row := m.db.QueryRowContext(ctx, m.latestRouteQuery, strings.TrimSpace(agentID))
 	return scanRememberedRoute(row)
 }
 
-func (m *deliveryMemory) getLatestSessionRouteRow(ctx context.Context, agentID string, sessionKey string) (*rememberedRoute, error) {
+func (m *Store) getLatestSessionRouteRow(ctx context.Context, agentID string, sessionKey string) (*rememberedRoute, error) {
 	row := m.db.QueryRowContext(ctx, m.latestSessionRouteQuery, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey))
 	return scanRememberedRoute(row)
 }
 
-func (m *deliveryMemory) getLatestRouteRowForScope(ctx context.Context, agentID string, sessionKey string) (*rememberedRoute, error) {
+func (m *Store) getLatestRouteRowForScope(ctx context.Context, agentID string, sessionKey string) (*rememberedRoute, error) {
 	if strings.TrimSpace(sessionKey) != "" {
 		return m.getLatestSessionRouteRow(ctx, agentID, sessionKey)
 	}
 	return m.getLatestRouteRow(ctx, agentID)
+}
+
+type sqlScanner interface {
+	Scan(dest ...any) error
 }
 
 func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
@@ -231,32 +238,10 @@ func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
 		return nil, err
 	}
 	item.SessionKey = strings.TrimSpace(item.SessionKey)
-	item.Target.Channel = nullStringValue(channel)
-	item.Target.To = nullStringValue(toValue)
-	item.Target.AccountID = nullStringValue(accountID)
-	item.Target.ThreadID = nullStringValue(threadID)
+	item.Target.Channel = channelcontract.NullStringValue(channel)
+	item.Target.To = channelcontract.NullStringValue(toValue)
+	item.Target.AccountID = channelcontract.NullStringValue(accountID)
+	item.Target.ThreadID = channelcontract.NullStringValue(threadID)
 	item.Target = item.Target.Normalized()
 	return &item, nil
-}
-
-func nullableString(value string) any {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	return strings.TrimSpace(value)
-}
-
-func nullStringValue(value sql.NullString) string {
-	if !value.Valid {
-		return ""
-	}
-	return strings.TrimSpace(value.String)
-}
-
-func newDeliveryID(prefix string) string {
-	buffer := make([]byte, 8)
-	if _, err := rand.Read(buffer); err != nil {
-		return fmt.Sprintf("%s_%d", strings.TrimSpace(prefix), time.Now().UnixNano())
-	}
-	return strings.TrimSpace(prefix) + "_" + hex.EncodeToString(buffer)
 }

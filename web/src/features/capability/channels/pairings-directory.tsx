@@ -17,6 +17,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/badge";
 import type { UiBadgeTone } from "@/shared/ui/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
 import { UiField } from "@/shared/ui/form-control";
 import { UiPanel } from "@/shared/ui/panel";
@@ -34,6 +35,8 @@ import {
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { Agent } from "@/types/agent/agent";
+
+import { notify_capability_summary_mutated } from "../capability-summary-events";
 
 import { CreatePairingDialog } from "./pairing-create-dialog";
 import { CHANNEL_LABELS, CHANNEL_OPTIONS, CHAT_TYPE_OPTIONS, STATUS_LABELS } from "./pairing-options";
@@ -86,6 +89,7 @@ export function PairingsDirectory() {
   const [loading, set_loading] = useState(true);
   const [busy_id, set_busy_id] = useState<string | null>(null);
   const [create_open, set_create_open] = useState(false);
+  const [delete_target, set_delete_target] = useState<PairingView | null>(null);
   const [feedback, set_feedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
 
   const visible_items = useMemo(() => {
@@ -150,6 +154,7 @@ export function PairingsDirectory() {
     try {
       const updated = await update_pairing_api(item.pairing_id, next);
       set_items((current) => current.map((value) => value.pairing_id === updated.pairing_id ? updated : value));
+      notify_capability_summary_mutated({ source: "pairings", action: "update", pairing_id: updated.pairing_id });
       set_feedback({ tone: "success", title: "配对已更新", message: `${updated.external_name || updated.external_ref} 已保存` });
     } catch (error) {
       set_feedback({ tone: "error", title: "更新失败", message: error instanceof Error ? error.message : "配对更新失败" });
@@ -159,19 +164,26 @@ export function PairingsDirectory() {
   };
 
   const delete_pairing = async (item: PairingView) => {
-    if (!window.confirm(`确认删除 ${item.external_name || item.external_ref} 的配对吗？`)) {
-      return;
-    }
     set_busy_id(item.pairing_id);
     try {
       await delete_pairing_api(item.pairing_id);
       set_items((current) => current.filter((value) => value.pairing_id !== item.pairing_id));
+      notify_capability_summary_mutated({ source: "pairings", action: "delete", pairing_id: item.pairing_id });
       set_feedback({ tone: "success", title: "配对已删除", message: `${item.external_name || item.external_ref} 已移除` });
     } catch (error) {
       set_feedback({ tone: "error", title: "删除失败", message: error instanceof Error ? error.message : "配对删除失败" });
     } finally {
       set_busy_id(null);
     }
+  };
+
+  const confirm_delete_pairing = () => {
+    if (!delete_target) {
+      return;
+    }
+    const target = delete_target;
+    set_delete_target(null);
+    void delete_pairing(target);
   };
 
   const handle_pairing_created = useCallback((item: PairingView) => {
@@ -416,7 +428,7 @@ export function PairingsDirectory() {
                           ) : null}
                           <UiIconButton
                             disabled={busy_id === item.pairing_id}
-                            onClick={() => void delete_pairing(item)}
+                            onClick={() => set_delete_target(item)}
                             size="lg"
                             title="删除"
                             tone="danger"
@@ -446,6 +458,17 @@ export function PairingsDirectory() {
       ) : null}
 
       <FeedbackBannerStack items={feedback_items} />
+      <ConfirmDialog
+        confirm_text="删除配对"
+        is_open={delete_target !== null}
+        message={delete_target
+          ? `确认删除 ${delete_target.external_name || delete_target.external_ref} 的配对吗？删除后该外部对象需要重新授权。`
+          : ""}
+        on_cancel={() => set_delete_target(null)}
+        on_confirm={confirm_delete_pairing}
+        title="删除配对"
+        variant="danger"
+      />
     </>
   );
 }

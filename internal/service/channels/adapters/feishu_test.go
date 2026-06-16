@@ -1,4 +1,4 @@
-package channels
+package adapters
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"net/http"
 	"testing"
 
@@ -106,13 +107,13 @@ func TestDecodeFeishuIngressCallbackMessage(t *testing.T) {
 		t.Fatal("飞书消息应生成 ingress request")
 	}
 	request := callback.Request
-	if request.Channel != ChannelTypeFeishu || request.ChatType != "group" || request.Ref != "oc_group_123" {
+	if request.Channel != channelcontract.ChannelTypeFeishu || request.ChatType != "group" || request.Ref != "oc_group_123" {
 		t.Fatalf("飞书路由不正确: %+v", request)
 	}
 	if request.Content != "检查今天的定时任务发送情况" {
 		t.Fatalf("飞书文本不正确: %q", request.Content)
 	}
-	if request.Delivery == nil || request.Delivery.Channel != ChannelTypeFeishu || request.Delivery.To != "oc_group_123" || request.Delivery.AccountID != "chat_id" {
+	if request.Delivery == nil || request.Delivery.Channel != channelcontract.ChannelTypeFeishu || request.Delivery.To != "oc_group_123" || request.Delivery.AccountID != "chat_id" {
 		t.Fatalf("飞书回投目标不正确: %+v", request.Delivery)
 	}
 	if request.ReqID != "om_1" || request.RoundID != "evt-1" {
@@ -365,7 +366,7 @@ func TestDecodeFeishuIngressCallbackIgnoresBotSender(t *testing.T) {
 }
 
 func TestFeishuChannelStartsWebSocketByDefault(t *testing.T) {
-	channel := newFeishuChannel("cli_a", "secret-a", nil)
+	channel := NewFeishuChannel("cli_a", "secret-a", nil)
 	var client *fakeFeishuEventClient
 	channel.eventFactory = func(config feishuEventClientConfig) feishuEventClient {
 		client = &fakeFeishuEventClient{config: config}
@@ -391,7 +392,7 @@ func TestFeishuChannelStartsWebSocketByDefault(t *testing.T) {
 }
 
 func TestFeishuChannelWebhookModeSkipsWebSocket(t *testing.T) {
-	channel := newFeishuChannel("cli_a", "secret-a", nil).WithConnectionMode("webhook")
+	channel := NewFeishuChannel("cli_a", "secret-a", nil).WithConnectionMode("webhook")
 	channel.eventFactory = func(feishuEventClientConfig) feishuEventClient {
 		t.Fatal("webhook 兼容模式不应启动飞书长连接")
 		return nil
@@ -421,14 +422,14 @@ func TestFeishuChannelReplyUsesMessageReplyAPI(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	channel := newFeishuChannel("cli_a", "secret-a", client).
+	channel := NewFeishuChannel("cli_a", "secret-a", client).
 		WithConnectionMode("webhook").
 		WithReplyInThread("enabled")
 	channel.baseURL = "https://feishu.test"
 
-	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:     DeliveryModeExplicit,
-		Channel:  ChannelTypeFeishu,
+	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:     channelcontract.DeliveryModeExplicit,
+		Channel:  channelcontract.ChannelTypeFeishu,
 		To:       "oc_group_123",
 		ThreadID: "om_parent_1",
 	}, "收到，我继续处理")
@@ -475,11 +476,11 @@ func TestFeishuChannelSendDeliveryTypingUsesReaction(t *testing.T) {
 			return nil, nil
 		}
 	})}
-	channel := newFeishuChannel("cli_a", "secret-a", client).WithConnectionMode("webhook")
+	channel := NewFeishuChannel("cli_a", "secret-a", client).WithConnectionMode("webhook")
 	channel.baseURL = "https://feishu.test"
-	target := DeliveryTarget{
-		Mode:     DeliveryModeExplicit,
-		Channel:  ChannelTypeFeishu,
+	target := channelcontract.DeliveryTarget{
+		Mode:     channelcontract.DeliveryModeExplicit,
+		Channel:  channelcontract.ChannelTypeFeishu,
 		To:       "oc_group_123",
 		ThreadID: "om_parent_1",
 	}
@@ -497,7 +498,7 @@ func TestFeishuChannelSendDeliveryTypingUsesReaction(t *testing.T) {
 
 func TestFeishuChannelHandlesSDKMessageThroughIngress(t *testing.T) {
 	ingress := &recordingFeishuIngress{}
-	channel := newFeishuChannel("cli_a", "secret-a", nil).WithOwner("owner-a")
+	channel := NewFeishuChannel("cli_a", "secret-a", nil).WithOwner("owner-a")
 	channel.SetIngress(ingress)
 
 	content := `{"text":"检查今天的定时任务发送情况"}`
@@ -534,20 +535,20 @@ func TestFeishuChannelHandlesSDKMessageThroughIngress(t *testing.T) {
 		t.Fatalf("飞书 SDK 消息未进入 ingress: %+v", ingress.requests)
 	}
 	request := ingress.requests[0]
-	if request.OwnerUserID != "owner-a" || request.Channel != ChannelTypeFeishu || request.Ref != "oc_group_123" {
+	if request.OwnerUserID != "owner-a" || request.Channel != channelcontract.ChannelTypeFeishu || request.Ref != "oc_group_123" {
 		t.Fatalf("飞书 ingress 路由不正确: %+v", request)
 	}
 	if request.Content != "检查今天的定时任务发送情况" || request.ReqID != "om_1" || request.RoundID != "evt-1" {
 		t.Fatalf("飞书 ingress 内容不正确: %+v", request)
 	}
-	if request.Delivery == nil || request.Delivery.Channel != ChannelTypeFeishu || request.Delivery.To != "oc_group_123" {
+	if request.Delivery == nil || request.Delivery.Channel != channelcontract.ChannelTypeFeishu || request.Delivery.To != "oc_group_123" {
 		t.Fatalf("飞书回投目标不正确: %+v", request.Delivery)
 	}
 }
 
 func TestFeishuChannelHandlesSDKReactionThroughIngress(t *testing.T) {
 	ingress := &recordingFeishuIngress{}
-	channel := newFeishuChannel("cli_a", "secret-a", nil).WithOwner("owner-a")
+	channel := NewFeishuChannel("cli_a", "secret-a", nil).WithOwner("owner-a")
 	channel.SetIngress(ingress)
 	event := &larkim.P2MessageReactionCreatedV1{
 		EventReq: &larkevent.EventReq{Body: []byte(`{
@@ -618,12 +619,12 @@ func (c *fakeFeishuEventClient) Close() {
 }
 
 type recordingFeishuIngress struct {
-	requests []IngressRequest
+	requests []channelcontract.IngressRequest
 }
 
-func (r *recordingFeishuIngress) Accept(_ context.Context, request IngressRequest) (*IngressResult, error) {
+func (r *recordingFeishuIngress) Accept(_ context.Context, request channelcontract.IngressRequest) (*channelcontract.IngressResult, error) {
 	r.requests = append(r.requests, request)
-	return &IngressResult{
+	return &channelcontract.IngressResult{
 		Channel:    request.Channel,
 		AgentID:    request.AgentID,
 		SessionKey: request.SessionKey,

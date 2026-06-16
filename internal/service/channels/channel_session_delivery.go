@@ -273,15 +273,6 @@ func (c *sessionDeliveryChannel) broadcastMessage(
 	c.permission.BroadcastEvent(ctx, sessionKey, event)
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, item := range values {
-		if strings.TrimSpace(item) != "" {
-			return strings.TrimSpace(item)
-		}
-	}
-	return ""
-}
-
 func stringValue(value any) string {
 	switch typed := value.(type) {
 	case string:

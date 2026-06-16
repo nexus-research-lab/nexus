@@ -1,4 +1,4 @@
-package channels
+package adapters
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,10 +19,11 @@ import (
 	"time"
 
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
+	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
 const (
-	defaultPersonalWeixinBaseURL       = "https://ilinkai.weixin.qq.com"
+	DefaultPersonalWeixinBaseURL       = "https://ilinkai.weixin.qq.com"
 	defaultPersonalWeixinBotType       = "3"
 	defaultPersonalWeixinAppID         = "bot"
 	defaultPersonalWeixinClientVersion = "132099"
@@ -38,20 +40,20 @@ const (
 	personalWeixinConfigFailureBackoff = 2 * time.Second
 )
 
-type personalWeixinChannel struct {
+type PersonalWeixinChannel struct {
 	token       string
 	accountID   string
 	userID      string
 	ownerUserID string
-	client      *personalWeixinIlinkClient
+	client      *PersonalWeixinIlinkClient
 
 	mu      sync.RWMutex
-	ingress IngressAcceptor
+	ingress channelcontract.IngressAcceptor
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 }
 
-type personalWeixinClientConfig struct {
+type PersonalWeixinClientConfig struct {
 	BaseURL            string
 	Token              string
 	AccountID          string
@@ -61,7 +63,7 @@ type personalWeixinClientConfig struct {
 	IlinkClientVersion string
 }
 
-type personalWeixinIlinkClient struct {
+type PersonalWeixinIlinkClient struct {
 	baseURL            string
 	token              string
 	botAgent           string
@@ -72,12 +74,12 @@ type personalWeixinIlinkClient struct {
 	configCache        map[string]personalWeixinConfigCacheEntry
 }
 
-type weixinQRCodeResponse struct {
+type PersonalWeixinQRCodeResponse struct {
 	QRCode             string `json:"qrcode"`
 	QRCodeImageContent string `json:"qrcode_img_content"`
 }
 
-type weixinQRStatusResponse struct {
+type PersonalWeixinQRStatusResponse struct {
 	Status       string `json:"status"`
 	BotToken     string `json:"bot_token,omitempty"`
 	IlinkBotID   string `json:"ilink_bot_id,omitempty"`
@@ -142,9 +144,9 @@ type personalWeixinRefMsg struct {
 	Title string `json:"title,omitempty"`
 }
 
-func newPersonalWeixinChannel(config personalWeixinClientConfig, client *http.Client) *personalWeixinChannel {
-	ilinkClient := newPersonalWeixinIlinkClient(config, client)
-	return &personalWeixinChannel{
+func NewPersonalWeixinChannel(config PersonalWeixinClientConfig, client *http.Client) *PersonalWeixinChannel {
+	ilinkClient := NewPersonalWeixinIlinkClient(config, client)
+	return &PersonalWeixinChannel{
 		token:     strings.TrimSpace(config.Token),
 		accountID: strings.TrimSpace(config.AccountID),
 		userID:    strings.TrimSpace(config.UserID),
@@ -152,37 +154,37 @@ func newPersonalWeixinChannel(config personalWeixinClientConfig, client *http.Cl
 	}
 }
 
-func newPersonalWeixinIlinkClient(config personalWeixinClientConfig, client *http.Client) *personalWeixinIlinkClient {
+func NewPersonalWeixinIlinkClient(config PersonalWeixinClientConfig, client *http.Client) *PersonalWeixinIlinkClient {
 	if client == nil {
-		client = defaultChannelHTTPClient
+		client = channeltransport.DefaultHTTPClient
 	}
-	return &personalWeixinIlinkClient{
+	return &PersonalWeixinIlinkClient{
 		baseURL:            normalizePersonalWeixinBaseURL(config.BaseURL),
 		token:              strings.TrimSpace(config.Token),
-		botAgent:           firstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
-		ilinkAppID:         firstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
-		ilinkClientVersion: firstNonEmpty(config.IlinkClientVersion, defaultPersonalWeixinClientVersion),
+		botAgent:           channelcontract.FirstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
+		ilinkAppID:         channelcontract.FirstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
+		ilinkClientVersion: channelcontract.FirstNonEmpty(config.IlinkClientVersion, defaultPersonalWeixinClientVersion),
 		client:             client,
 		configCache:        make(map[string]personalWeixinConfigCacheEntry),
 	}
 }
 
-func (c *personalWeixinChannel) WithOwner(ownerUserID string) *personalWeixinChannel {
+func (c *PersonalWeixinChannel) WithOwner(ownerUserID string) *PersonalWeixinChannel {
 	c.ownerUserID = strings.TrimSpace(ownerUserID)
 	return c
 }
 
-func (c *personalWeixinChannel) ChannelType() string {
-	return ChannelTypeWeixinPersonal
+func (c *PersonalWeixinChannel) ChannelType() string {
+	return channelcontract.ChannelTypeWeixinPersonal
 }
 
-func (c *personalWeixinChannel) SetIngress(ingress IngressAcceptor) {
+func (c *PersonalWeixinChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ingress = ingress
 }
 
-func (c *personalWeixinChannel) Start(ctx context.Context) error {
+func (c *PersonalWeixinChannel) Start(ctx context.Context) error {
 	if strings.TrimSpace(c.token) == "" {
 		return nil
 	}
@@ -200,7 +202,7 @@ func (c *personalWeixinChannel) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *personalWeixinChannel) Stop(context.Context) error {
+func (c *PersonalWeixinChannel) Stop(context.Context) error {
 	c.mu.Lock()
 	cancel := c.cancel
 	c.cancel = nil
@@ -212,17 +214,17 @@ func (c *personalWeixinChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *personalWeixinChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+func (c *PersonalWeixinChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
-		return DeliveryResult{}, fmt.Errorf("personal weixin channel is not configured")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("personal weixin channel is not configured")
 	}
 	if strings.TrimSpace(target.To) == "" {
-		return DeliveryResult{}, fmt.Errorf("personal weixin delivery target requires to")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("personal weixin delivery target requires to")
 	}
 	parts := make([]channelmessage.ReceiptPart, 0)
-	for _, chunk := range splitText(strings.TrimSpace(text), 4000) {
-		clientID := newDeliveryID("weixin")
+	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4000) {
+		clientID := channelcontract.NewID("weixin")
 		request := map[string]any{
 			"base_info": c.client.baseInfo(),
 			"msg": personalWeixinMessage{
@@ -241,19 +243,19 @@ func (c *personalWeixinChannel) SendDeliveryMessage(ctx context.Context, target 
 			},
 		}
 		if err := c.client.post(ctx, "ilink/bot/sendmessage", request, nil); err != nil {
-			return DeliveryResult{}, err
+			return channelcontract.DeliveryResult{}, err
 		}
 		parts = append(parts, channelmessage.TextPart(clientID))
 	}
-	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
-		Channel:  ChannelTypeWeixinPersonal,
+	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  channelcontract.ChannelTypeWeixinPersonal,
 		Target:   target.To,
 		ThreadID: target.ThreadID,
 		Parts:    parts,
 	})), nil
 }
 
-func (c *personalWeixinChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
+func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {
 	if strings.TrimSpace(c.token) == "" {
 		return fmt.Errorf("personal weixin channel is not configured")
 	}
@@ -271,7 +273,7 @@ func (c *personalWeixinChannel) SendDeliveryTyping(ctx context.Context, target D
 	return c.client.SendTyping(ctx, to, ticket, active)
 }
 
-func (c *personalWeixinChannel) pollUpdates(ctx context.Context) {
+func (c *PersonalWeixinChannel) pollUpdates(ctx context.Context) {
 	defer c.wg.Done()
 	getUpdatesBuf := ""
 	nextTimeout := 35 * time.Second
@@ -281,7 +283,7 @@ func (c *personalWeixinChannel) pollUpdates(ctx context.Context) {
 		}
 		response, err := c.client.GetUpdates(ctx, getUpdatesBuf, nextTimeout)
 		if err != nil {
-			if waitChannelLoginRetry(ctx, 2*time.Second) {
+			if waitPersonalWeixinRetry(ctx, 2*time.Second) {
 				continue
 			}
 			return
@@ -290,7 +292,7 @@ func (c *personalWeixinChannel) pollUpdates(ctx context.Context) {
 			nextTimeout = time.Duration(response.LongPollingTimeoutMS) * time.Millisecond
 		}
 		if response.Ret != 0 || response.ErrCode != 0 {
-			if waitChannelLoginRetry(ctx, 5*time.Second) {
+			if waitPersonalWeixinRetry(ctx, 5*time.Second) {
 				continue
 			}
 			return
@@ -304,7 +306,7 @@ func (c *personalWeixinChannel) pollUpdates(ctx context.Context) {
 	}
 }
 
-func (c *personalWeixinChannel) handleMessage(ctx context.Context, message personalWeixinMessage) {
+func (c *PersonalWeixinChannel) handleMessage(ctx context.Context, message personalWeixinMessage) {
 	if message.MessageType == personalWeixinMessageTypeBot {
 		return
 	}
@@ -320,9 +322,9 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 	if ingress == nil {
 		return
 	}
-	delivery := &DeliveryTarget{
-		Mode:      DeliveryModeExplicit,
-		Channel:   ChannelTypeWeixinPersonal,
+	delivery := &channelcontract.DeliveryTarget{
+		Mode:      channelcontract.DeliveryModeExplicit,
+		Channel:   channelcontract.ChannelTypeWeixinPersonal,
 		To:        fromUserID,
 		AccountID: c.accountID,
 		ThreadID:  strings.TrimSpace(message.ContextToken),
@@ -334,8 +336,8 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	if _, err := ingress.Accept(requestCtx, IngressRequest{
-		Channel:      ChannelTypeWeixinPersonal,
+	if _, err := ingress.Accept(requestCtx, channelcontract.IngressRequest{
+		Channel:      channelcontract.ChannelTypeWeixinPersonal,
 		OwnerUserID:  c.ownerUserID,
 		AccountID:    c.accountID,
 		ChatType:     "dm",
@@ -346,7 +348,7 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 		ReqID:        messageID,
 		Delivery:     delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
-			Channel:           ChannelTypeWeixinPersonal,
+			Channel:           channelcontract.ChannelTypeWeixinPersonal,
 			Target:            fromUserID,
 			PlatformMessageID: messageID,
 			ThreadID:          strings.TrimSpace(message.ContextToken),
@@ -362,13 +364,13 @@ func (c *personalWeixinChannel) handleMessage(ctx context.Context, message perso
 			},
 		}),
 	}); err != nil {
-		if isPairingApprovalRequired(err) {
-			if notice := pairingApprovalNoticeText(err); notice != "" {
+		if IsPairingApprovalRequired(err) {
+			if notice := PairingApprovalNoticeText(err); notice != "" {
 				_, _ = c.SendDeliveryMessage(requestCtx, *delivery, notice)
 			}
 			return
 		}
-		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ 微信消息处理失败: "+truncateChannelError(err))
+		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ 微信消息处理失败: "+TruncateError(err))
 	}
 }
 
@@ -385,32 +387,32 @@ func personalWeixinInboundMessageID(message personalWeixinMessage) string {
 	return ""
 }
 
-func (c *personalWeixinChannel) currentIngress() IngressAcceptor {
+func (c *PersonalWeixinChannel) currentIngress() channelcontract.IngressAcceptor {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.ingress
 }
 
-func (c *personalWeixinIlinkClient) StartQRCode(ctx context.Context, localTokens []string) (weixinQRCodeResponse, error) {
-	var response weixinQRCodeResponse
+func (c *PersonalWeixinIlinkClient) StartQRCode(ctx context.Context, localTokens []string) (PersonalWeixinQRCodeResponse, error) {
+	var response PersonalWeixinQRCodeResponse
 	endpoint := "ilink/bot/get_bot_qrcode?bot_type=" + url.QueryEscape(defaultPersonalWeixinBotType)
 	body := map[string]any{
 		"local_token_list": localTokens,
 	}
 	if err := c.post(ctx, endpoint, body, &response); err != nil {
-		return weixinQRCodeResponse{}, err
+		return PersonalWeixinQRCodeResponse{}, err
 	}
 	return response, nil
 }
 
-func (c *personalWeixinIlinkClient) PollQRCodeStatus(ctx context.Context, qrcode string, verifyCode string) (weixinQRStatusResponse, error) {
+func (c *PersonalWeixinIlinkClient) PollQRCodeStatus(ctx context.Context, qrcode string, verifyCode string) (PersonalWeixinQRStatusResponse, error) {
 	endpoint := "ilink/bot/get_qrcode_status?qrcode=" + url.QueryEscape(strings.TrimSpace(qrcode))
 	if strings.TrimSpace(verifyCode) != "" {
 		endpoint += "&verify_code=" + url.QueryEscape(strings.TrimSpace(verifyCode))
 	}
-	var response weixinQRStatusResponse
+	var response PersonalWeixinQRStatusResponse
 	if err := c.get(ctx, endpoint, &response); err != nil {
-		return weixinQRStatusResponse{}, err
+		return PersonalWeixinQRStatusResponse{}, err
 	}
 	if response.Status == "scaned_but_redirect" && strings.TrimSpace(response.RedirectHost) != "" {
 		c.baseURL = "https://" + strings.TrimSpace(response.RedirectHost)
@@ -418,7 +420,7 @@ func (c *personalWeixinIlinkClient) PollQRCodeStatus(ctx context.Context, qrcode
 	return response, nil
 }
 
-func (c *personalWeixinIlinkClient) GetUpdates(
+func (c *PersonalWeixinIlinkClient) GetUpdates(
 	ctx context.Context,
 	getUpdatesBuf string,
 	timeout time.Duration,
@@ -439,7 +441,7 @@ func (c *personalWeixinIlinkClient) GetUpdates(
 	return response, nil
 }
 
-func (c *personalWeixinIlinkClient) GetConfig(
+func (c *PersonalWeixinIlinkClient) GetConfig(
 	ctx context.Context,
 	ilinkUserID string,
 	contextToken string,
@@ -458,7 +460,7 @@ func (c *personalWeixinIlinkClient) GetConfig(
 	return response, nil
 }
 
-func (c *personalWeixinIlinkClient) TypingTicket(ctx context.Context, ilinkUserID string, contextToken string) (string, error) {
+func (c *PersonalWeixinIlinkClient) TypingTicket(ctx context.Context, ilinkUserID string, contextToken string) (string, error) {
 	ilinkUserID = strings.TrimSpace(ilinkUserID)
 	if ilinkUserID == "" {
 		return "", fmt.Errorf("personal weixin typing requires ilink_user_id")
@@ -506,7 +508,7 @@ func (c *personalWeixinIlinkClient) TypingTicket(ctx context.Context, ilinkUserI
 	return ticket, nil
 }
 
-func (c *personalWeixinIlinkClient) SendTyping(ctx context.Context, ilinkUserID string, typingTicket string, active bool) error {
+func (c *PersonalWeixinIlinkClient) SendTyping(ctx context.Context, ilinkUserID string, typingTicket string, active bool) error {
 	status := personalWeixinTypingCancel
 	if active {
 		status = personalWeixinTypingActive
@@ -520,7 +522,7 @@ func (c *personalWeixinIlinkClient) SendTyping(ctx context.Context, ilinkUserID 
 	return c.post(ctx, "ilink/bot/sendtyping", body, nil)
 }
 
-func (c *personalWeixinIlinkClient) post(ctx context.Context, endpoint string, body any, target any) error {
+func (c *PersonalWeixinIlinkClient) post(ctx context.Context, endpoint string, body any, target any) error {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -542,7 +544,7 @@ func (c *personalWeixinIlinkClient) post(ctx context.Context, endpoint string, b
 	return readPersonalWeixinResponse(response, target)
 }
 
-func (c *personalWeixinIlinkClient) get(ctx context.Context, endpoint string, target any) error {
+func (c *PersonalWeixinIlinkClient) get(ctx context.Context, endpoint string, target any) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.urlFor(endpoint), nil)
 	if err != nil {
 		return err
@@ -555,12 +557,12 @@ func (c *personalWeixinIlinkClient) get(ctx context.Context, endpoint string, ta
 	return readPersonalWeixinResponse(response, target)
 }
 
-func (c *personalWeixinIlinkClient) urlFor(endpoint string) string {
+func (c *PersonalWeixinIlinkClient) urlFor(endpoint string) string {
 	base := strings.TrimRight(c.baseURL, "/") + "/"
 	return base + strings.TrimLeft(endpoint, "/")
 }
 
-func (c *personalWeixinIlinkClient) applyHeaders(request *http.Request, withAuth bool) {
+func (c *PersonalWeixinIlinkClient) applyHeaders(request *http.Request, withAuth bool) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("iLink-App-Id", c.ilinkAppID)
 	request.Header.Set("iLink-App-ClientVersion", c.ilinkClientVersion)
@@ -573,10 +575,10 @@ func (c *personalWeixinIlinkClient) applyHeaders(request *http.Request, withAuth
 	}
 }
 
-func (c *personalWeixinIlinkClient) baseInfo() map[string]string {
+func (c *PersonalWeixinIlinkClient) baseInfo() map[string]string {
 	return map[string]string{
 		"channel_version": "nexus",
-		"bot_agent":       firstNonEmpty(c.botAgent, defaultPersonalWeixinBotAgent),
+		"bot_agent":       channelcontract.FirstNonEmpty(c.botAgent, defaultPersonalWeixinBotAgent),
 	}
 }
 
@@ -624,7 +626,7 @@ func personalWeixinTextContent(message personalWeixinMessage) string {
 func normalizePersonalWeixinBaseURL(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return defaultPersonalWeixinBaseURL
+		return DefaultPersonalWeixinBaseURL
 	}
 	if !strings.Contains(value, "://") {
 		value = "https://" + value
@@ -639,4 +641,15 @@ func randomPersonalWeixinUIN() string {
 	}
 	value := binary.BigEndian.Uint32(buffer)
 	return base64.StdEncoding.EncodeToString([]byte(strconv.FormatUint(uint64(value), 10)))
+}
+
+func waitPersonalWeixinRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }

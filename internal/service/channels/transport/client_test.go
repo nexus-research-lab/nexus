@@ -1,11 +1,11 @@
-package channels
+package transport
 
 import (
 	"net/http"
 	"testing"
 )
 
-func TestChannelWebsocketProxyFromEnvironmentMapsWebSocketSchemes(t *testing.T) {
+func TestWebsocketProxyFromEnvironmentMapsWebSocketSchemes(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://http-proxy.example:8080")
 	t.Setenv("HTTPS_PROXY", "http://https-proxy.example:8443")
 	t.Setenv("NO_PROXY", "internal.example")
@@ -39,7 +39,7 @@ func TestChannelWebsocketProxyFromEnvironmentMapsWebSocketSchemes(t *testing.T) 
 				t.Fatal(err)
 			}
 
-			proxyURL, err := channelWebsocketProxyFromEnvironment(req)
+			proxyURL, err := websocketProxyFromEnvironment(req)
 			if err != nil {
 				t.Fatal(err)
 			}

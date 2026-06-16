@@ -107,7 +107,9 @@ make start
 
 IM 通道机器人凭据建议在 Web App 的「能力 / IM 通道」里配置。容器启动时会从数据库重新加载这些配置；`.env` 里的 `DISCORD_BOT_TOKEN` 和 `TELEGRAM_BOT_TOKEN` 只作为历史系统级兜底入口保留。
 
-Docker 复用宿主本地代理时，`127.0.0.1` / `localhost` 代理地址默认会在容器入口改写为 `host.docker.internal`。如果容器需要和桌面 App `.env` 不同的值，可使用 `NEXUS_DOCKER_HTTPS_PROXY`、`NEXUS_DOCKER_HTTP_PROXY` 或 `NEXUS_DOCKER_DATABASE_URL` 单独覆盖。
+Docker 复用宿主本地代理时，`127.0.0.1` / `localhost` 代理地址默认会在容器入口改写为 `host.docker.internal`。如果容器需要和桌面 App `.env` 不同的值，可使用 `NEXUS_DOCKER_HTTPS_PROXY`、`NEXUS_DOCKER_HTTP_PROXY`、`NEXUS_DOCKER_ALL_PROXY`、`NEXUS_DOCKER_NO_PROXY` 或 `NEXUS_DOCKER_DATABASE_URL` 单独覆盖。
+
+启用 IM 通道时，同一个数据库建议只运行一个后端 worker。个人微信 iLink、Telegram 轮询、Discord Gateway、钉钉 Stream 和飞书长连接都维护进程内连接；同库多副本会导致重复轮询，或一个副本抢走另一个副本的更新。
 
 如果不是 Docker 部署，需要自己生成 connector 凭据加密密钥：
 

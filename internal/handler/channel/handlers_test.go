@@ -49,6 +49,8 @@ type fakeControl struct {
 	getLoginView      *channelspkg.ChannelLoginView
 	verifyLoginID     string
 	verifyCode        string
+	deleteAccount     string
+	deleteChannel     string
 }
 
 func (f *fakeControl) ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error) {
@@ -61,6 +63,15 @@ func (f *fakeControl) UpsertChannelConfig(context.Context, string, string, chann
 
 func (f *fakeControl) DeleteChannelConfig(context.Context, string, string) error {
 	return nil
+}
+
+func (f *fakeControl) DeleteChannelAccount(_ context.Context, _ string, channelType string, accountID string) (*channelspkg.ChannelConfigView, error) {
+	f.deleteChannel = channelType
+	f.deleteAccount = accountID
+	return &channelspkg.ChannelConfigView{
+		ChannelCatalogItem: channelspkg.ChannelCatalogItem{ChannelType: channelType},
+		Configured:         true,
+	}, nil
 }
 
 func (f *fakeControl) StartChannelLogin(_ context.Context, _ string, channelType string) (*channelspkg.ChannelLoginView, error) {
@@ -194,6 +205,29 @@ func TestHandleSubmitChannelLoginVerifyCode(t *testing.T) {
 	}
 	if control.verifyLoginID != "login-1" || control.verifyCode != "1234" {
 		t.Fatalf("验证码提交参数不正确: login=%q code=%q", control.verifyLoginID, control.verifyCode)
+	}
+}
+
+func TestHandleDeleteChannelAccount(t *testing.T) {
+	control := &fakeControl{}
+	handler := New(handlershared.NewAPI(nil), &fakeIngress{}, control)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodDelete,
+		"/nexus/v1/capability/channels/weixin-personal/accounts/wx-account-1",
+		nil,
+	)
+	ctx := withRouteParam(request.Context(), "channel_type", channelspkg.ChannelTypeWeixinPersonal)
+	ctx = withRouteParam(ctx, "account_id", "wx-account-1")
+	request = request.WithContext(ctx)
+	handler.HandleDeleteChannelAccount(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if control.deleteChannel != channelspkg.ChannelTypeWeixinPersonal || control.deleteAccount != "wx-account-1" {
+		t.Fatalf("账号删除参数不正确: channel=%q account=%q", control.deleteChannel, control.deleteAccount)
 	}
 }
 
