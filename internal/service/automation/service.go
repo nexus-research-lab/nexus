@@ -60,6 +60,7 @@ type Service struct {
 	dm            dmRunner
 	room          roomRunner
 	permission    *permissionctx.Context
+	providers     imagegenDefaultResolver
 	workspace     workspaceReader
 	delivery      deliveryRouter
 	logger        *slog.Logger
@@ -119,6 +120,11 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 // SetRuntimeSessionCloser 注入运行时会话关闭器，用于清理 isolated 自动化会话。
 func (s *Service) SetRuntimeSessionCloser(sessionCloser runtimeSessionCloser) {
 	s.sessionCloser = sessionCloser
+}
+
+// SetProviderResolver 注入 Provider 解析器，用于判断后台运行时是否可默认开放图片生成工具。
+func (s *Service) SetProviderResolver(resolver imagegenDefaultResolver) {
+	s.providers = resolver
 }
 
 // Start 启动后台调度循环。

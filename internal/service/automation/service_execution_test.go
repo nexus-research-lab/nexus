@@ -512,6 +512,30 @@ func TestScheduledTaskPermissionHandlerApprovesAgentAllowedTools(t *testing.T) {
 	}
 }
 
+func TestScheduledTaskPermissionHandlerUsesImagegenDefaultTools(t *testing.T) {
+	enabledHandler := scheduledTaskPermissionHandlerForOptions(protocol.Options{
+		AllowedTools: []string{"Read"},
+	}, true)
+	enabledDecision, err := enabledHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_imagegen__generate_image"})
+	if err != nil {
+		t.Fatalf("图片生成权限处理失败: %v", err)
+	}
+	if enabledDecision.Behavior != sdkpermission.BehaviorAllow {
+		t.Fatalf("配置生图 provider 后定时任务应默认允许图片生成工具: %+v", enabledDecision)
+	}
+
+	disabledHandler := scheduledTaskPermissionHandlerForOptions(protocol.Options{
+		AllowedTools: []string{"Read", "nexus_imagegen"},
+	}, false)
+	disabledDecision, err := disabledHandler(context.Background(), sdkpermission.Request{ToolName: "mcp__nexus_imagegen__generate_image"})
+	if err != nil {
+		t.Fatalf("图片生成权限处理失败: %v", err)
+	}
+	if disabledDecision.Behavior != sdkpermission.BehaviorDeny {
+		t.Fatalf("未配置生图 provider 时定时任务不应允许图片生成工具: %+v", disabledDecision)
+	}
+}
+
 func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 	db := newAutomationTestDB(t)
 	workspacePath := t.TempDir()
