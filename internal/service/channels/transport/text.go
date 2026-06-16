@@ -1,8 +1,8 @@
-package channels
+package transport
 
 import "strings"
 
-func splitText(text string, limit int) []string {
+func SplitText(text string, limit int) []string {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}

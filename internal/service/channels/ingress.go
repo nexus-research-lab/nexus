@@ -83,39 +83,6 @@ func (fn ExternalSessionNotifierFunc) NotifyExternalSessionUpdated(ctx context.C
 	fn(ctx, agentID, sessionKey)
 }
 
-// IngressRequest 表示一条来自外部通道的标准化消息。
-type IngressRequest struct {
-	Channel          string                  `json:"channel,omitempty"`
-	OwnerUserID      string                  `json:"owner_user_id,omitempty"`
-	AccountID        string                  `json:"account_id,omitempty"`
-	SessionKey       string                  `json:"session_key,omitempty"`
-	AgentID          string                  `json:"agent_id,omitempty"`
-	ChatType         string                  `json:"chat_type,omitempty"`
-	Ref              string                  `json:"ref,omitempty"`
-	ThreadID         string                  `json:"thread_id,omitempty"`
-	ExternalName     string                  `json:"external_name,omitempty"`
-	Content          string                  `json:"content"`
-	RoundID          string                  `json:"round_id,omitempty"`
-	ReqID            string                  `json:"req_id,omitempty"`
-	PermissionMode   string                  `json:"permission_mode,omitempty"`
-	AutoApproveAll   bool                    `json:"auto_approve_all,omitempty"`
-	AutoApproveTools []string                `json:"auto_approve_tools,omitempty"`
-	Delivery         *DeliveryTarget         `json:"delivery,omitempty"`
-	Message          *channelmessage.Inbound `json:"message,omitempty"`
-}
-
-// IngressResult 描述入口受理结果。
-type IngressResult struct {
-	Channel            string                  `json:"channel"`
-	AgentID            string                  `json:"agent_id"`
-	SessionKey         string                  `json:"session_key"`
-	RoundID            string                  `json:"round_id"`
-	ReqID              string                  `json:"req_id"`
-	Duplicate          bool                    `json:"duplicate,omitempty"`
-	RememberedDelivery *DeliveryTarget         `json:"remembered_delivery,omitempty"`
-	Message            *channelmessage.Inbound `json:"message,omitempty"`
-}
-
 type normalizedIngressRequest struct {
 	ownerUserID      string
 	channelStored    string

@@ -184,6 +184,67 @@ func TestIngressServiceAcceptFeishuBuildsSessionAndRemembersRoute(t *testing.T) 
 	}
 }
 
+func TestIngressServiceAcceptFeishuThreadUsesGroupPairing(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	defaultAgent, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("初始化默认 Agent 失败: %v", err)
+	}
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agentService, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agentService, router)
+	if _, err = control.CreatePairing(context.Background(), "", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    "group",
+		ExternalRef: "oc_group_123",
+		AgentID:     defaultAgent.AgentID,
+	}); err != nil {
+		t.Fatalf("创建飞书群级配对失败: %v", err)
+	}
+	service := NewIngressService(cfg, agentService, handler, router)
+	service.SetControlService(control)
+
+	result, err := service.Accept(context.Background(), IngressRequest{
+		Channel:   ChannelTypeFeishu,
+		AccountID: "cli_a",
+		ChatType:  "group",
+		Ref:       "oc_group_123",
+		ThreadID:  "omt_thread_1",
+		Content:   "继续这个话题",
+		RoundID:   "evt-thread-1",
+		ReqID:     "om_reply_1",
+		Delivery: &DeliveryTarget{
+			Mode:      DeliveryModeExplicit,
+			Channel:   ChannelTypeFeishu,
+			To:        "oc_group_123",
+			AccountID: "chat_id",
+			ThreadID:  "om_reply_1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("飞书话题消息应命中群级配对: %v", err)
+	}
+
+	expectedSessionKey := "agent:" + defaultAgent.AgentID + ":fs:group:acct:cli_a:oc_group_123:topic:omt_thread_1"
+	if result.SessionKey != expectedSessionKey {
+		t.Fatalf("飞书话题 session_key 不正确: %s", result.SessionKey)
+	}
+	if len(handler.requests) != 1 || handler.requests[0].SessionKey != expectedSessionKey {
+		t.Fatalf("飞书话题消息未进入 DM 主链: %+v", handler.requests)
+	}
+	replyTarget := handler.requests[0].ExternalReplyTarget
+	if replyTarget == nil ||
+		replyTarget.Channel != ChannelTypeFeishu ||
+		replyTarget.To != "oc_group_123" ||
+		replyTarget.ThreadID != "om_reply_1" {
+		t.Fatalf("飞书话题回复目标应指向当前消息: %+v", replyTarget)
+	}
+}
+
 func TestIngressServiceAcceptPassesChannelOwnerToDM(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)

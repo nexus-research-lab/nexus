@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 )
 
 const (
@@ -47,8 +49,8 @@ type SubmitChannelLoginVerifyCodeRequest struct {
 }
 
 type personalWeixinLoginClient interface {
-	StartQRCode(context.Context, []string) (weixinQRCodeResponse, error)
-	PollQRCodeStatus(context.Context, string, string) (weixinQRStatusResponse, error)
+	StartQRCode(context.Context, []string) (channeladapters.PersonalWeixinQRCodeResponse, error)
+	PollQRCodeStatus(context.Context, string, string) (channeladapters.PersonalWeixinQRStatusResponse, error)
 }
 
 type channelLoginStore struct {
@@ -106,7 +108,7 @@ func (s *ControlService) StartChannelLogin(
 	if err != nil {
 		return nil, err
 	}
-	baseURL := firstNonEmpty(publicConfig["base_url"], defaultPersonalWeixinBaseURL)
+	baseURL := firstNonEmpty(publicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL)
 	client := s.newPersonalWeixinLoginClient(baseURL, publicConfig)
 
 	store := s.effectiveChannelLoginStore()
@@ -219,7 +221,7 @@ func (s *ControlService) runPersonalWeixinLoginSession(
 	defer cancel()
 	defer s.finishChannelLoginSession(session)
 
-	var status weixinQRStatusResponse
+	var status channeladapters.PersonalWeixinQRStatusResponse
 	var err error
 	for ctx.Err() == nil {
 		status, err = session.client.PollQRCodeStatus(ctx, session.qrcode, session.takeVerifyCode())
@@ -294,7 +296,7 @@ func (s *ControlService) runPersonalWeixinLoginSession(
 func (s *ControlService) savePersonalWeixinLoginCredentials(
 	ctx context.Context,
 	row *channelConfigRow,
-	status weixinQRStatusResponse,
+	status channeladapters.PersonalWeixinQRStatusResponse,
 ) error {
 	if row == nil {
 		return errors.New("channel config is required before login")
@@ -306,13 +308,6 @@ func (s *ControlService) savePersonalWeixinLoginCredentials(
 	if publicConfig == nil {
 		publicConfig = map[string]string{}
 	}
-	publicConfig["account_id"] = strings.TrimSpace(status.IlinkBotID)
-	publicConfig["user_id"] = strings.TrimSpace(status.IlinkUserID)
-	publicConfig["base_url"] = firstNonEmpty(status.BaseURL, publicConfig["base_url"], defaultPersonalWeixinBaseURL)
-	configJSON, err := encodeStringMap(publicConfig)
-	if err != nil {
-		return err
-	}
 	secrets, err := s.decryptCredentials(row.CredentialsEncrypted)
 	if err != nil {
 		return err
@@ -323,28 +318,30 @@ func (s *ControlService) savePersonalWeixinLoginCredentials(
 	if err = s.saveLegacyPersonalWeixinAccount(ctx, row, publicConfig, secrets); err != nil {
 		return err
 	}
-	if err = s.savePersonalWeixinAccount(ctx, row, publicConfig, status); err != nil {
-		return err
-	}
-	secrets["ilink_bot_token"] = strings.TrimSpace(status.BotToken)
-	encrypted, err := s.encryptCredentials(secrets)
+	nextPublicConfig := normalizeStringMap(publicConfig)
+	delete(nextPublicConfig, "account_id")
+	delete(nextPublicConfig, "user_id")
+	nextPublicConfig["base_url"] = firstNonEmpty(status.BaseURL, nextPublicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL)
+	configJSON, err := encodeStringMap(nextPublicConfig)
 	if err != nil {
 		return err
 	}
-	encryptedValue := sql.NullString{String: encrypted, Valid: true}
+	if err = s.savePersonalWeixinAccount(ctx, row, nextPublicConfig, status); err != nil {
+		return err
+	}
 	if err = s.upsertChannelConfigRow(ctx, channelConfigRow{
 		OwnerUserID:          row.OwnerUserID,
 		ChannelType:          row.ChannelType,
 		AgentID:              row.AgentID,
 		Status:               ChannelConfigStatusConfigured,
 		ConfigJSON:           configJSON,
-		CredentialsEncrypted: encryptedValue,
+		CredentialsEncrypted: sql.NullString{},
 	}); err != nil {
 		return err
 	}
 	runtimeStatus := ChannelConfigStatusConfigured
 	runtimeError := ""
-	if err = s.configureRouterChannel(ctx, row.OwnerUserID, row.ChannelType, configJSON, encryptedValue); err != nil {
+	if err = s.configureRouterChannel(ctx, row.OwnerUserID, row.ChannelType, configJSON, sql.NullString{}); err != nil {
 		runtimeStatus = ChannelConfigStatusError
 		runtimeError = err.Error()
 	} else if s.router != nil && s.router.IsReadyForOwner(row.OwnerUserID, row.ChannelType) {
@@ -390,7 +387,7 @@ func (s *ControlService) newPersonalWeixinLoginClient(baseURL string, publicConf
 	if s.weixinLoginClientFactory != nil {
 		return s.weixinLoginClientFactory(baseURL, publicConfig)
 	}
-	return newPersonalWeixinIlinkClient(personalWeixinClientConfig{
+	return channeladapters.NewPersonalWeixinIlinkClient(channeladapters.PersonalWeixinClientConfig{
 		BaseURL:            baseURL,
 		BotAgent:           publicConfig["bot_agent"],
 		IlinkAppID:         publicConfig["ilink_app_id"],

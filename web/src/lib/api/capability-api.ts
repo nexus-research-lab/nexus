@@ -16,6 +16,7 @@ export interface CapabilitySummary {
   skills_count: number;
   connected_connectors_count: number;
   enabled_scheduled_tasks_count: number;
+  connected_channels_count?: number;
   configured_channels_count?: number;
   active_pairings_count?: number;
 }

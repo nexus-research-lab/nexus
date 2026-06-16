@@ -1,9 +1,10 @@
-package channels
+package adapters
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"strings"
 	"testing"
 )
@@ -39,7 +40,7 @@ func (f *fakeWeComBotSocket) Close() error {
 
 func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 	ingress := &recordingIngressAcceptor{}
-	channel := newWeComBotChannel("bot-1", "secret-1").WithOwner("owner-a")
+	channel := NewWeComBotChannel("bot-1", "secret-1").WithOwner("owner-a")
 	channel.SetIngress(ingress)
 
 	frame := []byte(`{
@@ -62,7 +63,7 @@ func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 	}
 	accepted := ingress.requests[0]
 	if accepted.OwnerUserID != "owner-a" ||
-		accepted.Channel != ChannelTypeWeChat ||
+		accepted.Channel != channelcontract.ChannelTypeWeChat ||
 		accepted.ChatType != "group" ||
 		accepted.Ref != "chat-1" ||
 		accepted.ThreadID != "" ||
@@ -71,7 +72,7 @@ func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 		t.Fatalf("企业微信智能机器人 ingress 请求不正确: %+v", accepted)
 	}
 	if accepted.Delivery == nil ||
-		accepted.Delivery.Channel != ChannelTypeWeChat ||
+		accepted.Delivery.Channel != channelcontract.ChannelTypeWeChat ||
 		accepted.Delivery.To != "chat-1" ||
 		accepted.Delivery.AccountID != "callback-1" ||
 		!strings.HasPrefix(accepted.Delivery.ThreadID, "stream_") {
@@ -90,7 +91,7 @@ func TestWeComBotChannelHandlesLongConnectionTextMessage(t *testing.T) {
 
 func TestWeComBotChannelKeepsDirectUsersSeparate(t *testing.T) {
 	ingress := &recordingIngressAcceptor{}
-	channel := newWeComBotChannel("bot-1", "secret-1").WithOwner("owner-a")
+	channel := NewWeComBotChannel("bot-1", "secret-1").WithOwner("owner-a")
 	channel.SetIngress(ingress)
 
 	frames := []string{
@@ -142,7 +143,7 @@ func TestWeComBotChannelKeepsDirectUsersSeparate(t *testing.T) {
 
 func TestWeComBotChannelSendDeliveryMessageUsesStreamReply(t *testing.T) {
 	socket := &fakeWeComBotSocket{}
-	channel := newWeComBotChannel("bot-1", "secret-1")
+	channel := NewWeComBotChannel("bot-1", "secret-1")
 	socket.onWrite = func(map[string]any) {
 		if err := channel.handleFrame(context.Background(), []byte(`{
 			"cmd": "aibot_respond_msg",
@@ -154,9 +155,9 @@ func TestWeComBotChannelSendDeliveryMessageUsesStreamReply(t *testing.T) {
 	}
 	channel.setSocket(socket, true)
 
-	_, err := channel.SendDeliveryMessage(context.Background(), DeliveryTarget{
-		Mode:      DeliveryModeExplicit,
-		Channel:   ChannelTypeWeChat,
+	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
+		Mode:      channelcontract.DeliveryModeExplicit,
+		Channel:   channelcontract.ChannelTypeWeChat,
 		To:        "chat-1",
 		AccountID: "callback-1",
 		ThreadID:  "stream-1",
@@ -189,7 +190,7 @@ func TestWeComBotChannelSendDeliveryMessageUsesStreamReply(t *testing.T) {
 }
 
 func TestWeComBotChannelHandlesBodyStatusFrame(t *testing.T) {
-	channel := newWeComBotChannel("bot-1", "secret-1")
+	channel := NewWeComBotChannel("bot-1", "secret-1")
 	channel.setSubscribeReqID("subscribe-1")
 
 	if err := channel.handleFrame(context.Background(), []byte(`{

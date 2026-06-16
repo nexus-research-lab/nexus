@@ -52,6 +52,15 @@ export interface ChannelStats {
   pending_count: number;
 }
 
+export interface ChannelAccountView {
+  account_id: string;
+  user_id?: string;
+  status: string;
+  last_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ChannelConfigView extends ChannelCatalogItem {
   configured: boolean;
   connection_state: string;
@@ -64,6 +73,7 @@ export interface ChannelConfigView extends ChannelCatalogItem {
   qr_payload?: string;
   updated_at?: string;
   stats: ChannelStats;
+  accounts?: ChannelAccountView[];
 }
 
 export interface UpsertChannelConfigPayload {
@@ -172,6 +182,18 @@ export async function delete_channel_config_api(
 ): Promise<{ configured: boolean }> {
   return request_api<{ configured: boolean }>(
     `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/config`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function delete_channel_account_api(
+  channel_type: ImChannelType,
+  account_id: string,
+): Promise<ChannelConfigView> {
+  return request_api<ChannelConfigView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/accounts/${encodeURIComponent(account_id)}`,
     {
       method: "DELETE",
     },

@@ -1,4 +1,4 @@
-package channels
+package transport
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func doChannelJSON(
+func DoJSON(
 	ctx context.Context,
 	client *http.Client,
 	method string,
@@ -19,7 +19,7 @@ func doChannelJSON(
 	headers map[string]string,
 ) (*http.Response, error) {
 	if client == nil {
-		client = defaultChannelHTTPClient
+		client = DefaultHTTPClient
 	}
 	var reader io.Reader
 	if body != nil {
@@ -42,7 +42,7 @@ func doChannelJSON(
 	return client.Do(request)
 }
 
-func doChannelJSONExpectSuccess(
+func DoJSONExpectSuccess(
 	ctx context.Context,
 	client *http.Client,
 	method string,
@@ -50,14 +50,14 @@ func doChannelJSONExpectSuccess(
 	body any,
 	headers map[string]string,
 ) error {
-	response, err := doChannelJSON(ctx, client, method, endpoint, body, headers)
+	response, err := DoJSON(ctx, client, method, endpoint, body, headers)
 	if err != nil {
 		return err
 	}
-	return expectSuccess(response)
+	return ExpectSuccess(response)
 }
 
-func doChannelJSONExpectSuccessDecode(
+func DoJSONExpectSuccessDecode(
 	ctx context.Context,
 	client *http.Client,
 	method string,
@@ -66,14 +66,14 @@ func doChannelJSONExpectSuccessDecode(
 	headers map[string]string,
 	output any,
 ) error {
-	response, err := doChannelJSON(ctx, client, method, endpoint, body, headers)
+	response, err := DoJSON(ctx, client, method, endpoint, body, headers)
 	if err != nil {
 		return err
 	}
-	return expectSuccessDecode(response, output)
+	return ExpectSuccessDecode(response, output)
 }
 
-func expectSuccess(response *http.Response) error {
+func ExpectSuccess(response *http.Response) error {
 	defer response.Body.Close()
 	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, response.Body)
@@ -83,7 +83,7 @@ func expectSuccess(response *http.Response) error {
 	return fmt.Errorf("delivery request failed: status=%d body=%s", response.StatusCode, strings.TrimSpace(string(body)))
 }
 
-func expectSuccessDecode(response *http.Response, output any) error {
+func ExpectSuccessDecode(response *http.Response, output any) error {
 	defer response.Body.Close()
 	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 		if output == nil {

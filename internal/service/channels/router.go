@@ -13,18 +13,20 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
+	deliveryroute "github.com/nexus-research-lab/nexus/internal/service/channels/deliveryroute"
 )
 
 // Router 负责管理通道生命周期与统一投递。
 type Router struct {
-	mu       sync.RWMutex
-	memory   *deliveryMemory
-	agents   agentWorkspaceResolver
-	channels map[string]*registeredChannel
-	ingress  IngressAcceptor
-	running  bool
-	runCtx   context.Context
-	logger   *slog.Logger
+	mu             sync.RWMutex
+	deliveryRoutes *deliveryroute.Store
+	agents         agentWorkspaceResolver
+	channels       map[string]*registeredChannel
+	ingress        IngressAcceptor
+	running        bool
+	runCtx         context.Context
+	logger         *slog.Logger
 }
 
 type registeredChannel struct {
@@ -43,18 +45,18 @@ func NewRouter(
 	permission *permissionctx.Context,
 ) *Router {
 	router := &Router{
-		memory:   newDeliveryMemory(cfg, db),
-		agents:   agents,
-		channels: make(map[string]*registeredChannel),
-		logger:   logx.NewDiscardLogger(),
+		deliveryRoutes: deliveryroute.NewStore(cfg, db),
+		agents:         agents,
+		channels:       make(map[string]*registeredChannel),
+		logger:         logx.NewDiscardLogger(),
 	}
 	router.Register(newSessionDeliveryChannel(ChannelTypeWebSocket, agents, permission, cfg.WorkspacePath))
 	router.Register(newSessionDeliveryChannel(ChannelTypeInternal, agents, permission, cfg.WorkspacePath))
 	if cfg.DiscordEnabled && strings.TrimSpace(cfg.DiscordBotToken) != "" {
-		router.Register(newDiscordChannel(cfg.DiscordBotToken, nil))
+		router.Register(channeladapters.NewDiscordChannel(cfg.DiscordBotToken, nil))
 	}
 	if cfg.TelegramEnabled && strings.TrimSpace(cfg.TelegramBotToken) != "" {
-		router.Register(newTelegramChannel(cfg.TelegramBotToken, nil))
+		router.Register(channeladapters.NewTelegramChannel(cfg.TelegramBotToken, nil))
 	}
 	return router
 }
@@ -323,30 +325,30 @@ func (r *Router) IsReadyForOwner(ownerUserID string, channelType string) bool {
 
 // GetLastRoute 读取最近一次成功目标。
 func (r *Router) GetLastRoute(ctx context.Context, agentID string) (*DeliveryTarget, error) {
-	if r.memory == nil {
+	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
-	return r.memory.GetLastRoute(ctx, agentID)
+	return r.deliveryRoutes.GetLastRoute(ctx, agentID)
 }
 
 // GetSessionRoute 读取指定 session 最近一次成功目标。
 func (r *Router) GetSessionRoute(ctx context.Context, agentID string, sessionKey string) (*DeliveryTarget, error) {
-	if r.memory == nil {
+	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
-	return r.memory.GetSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey))
+	return r.deliveryRoutes.GetSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey))
 }
 
 // RememberRoute 记录一条可复用的显式路由。
 func (r *Router) RememberRoute(ctx context.Context, agentID string, target DeliveryTarget) (*DeliveryTarget, error) {
-	if r.memory == nil {
+	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
 	normalized := target.Normalized()
 	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
 		normalized.Mode = DeliveryModeExplicit
 	}
-	remembered, err := r.memory.RememberRoute(ctx, strings.TrimSpace(agentID), normalized)
+	remembered, err := r.deliveryRoutes.RememberRoute(ctx, strings.TrimSpace(agentID), normalized)
 	if err != nil {
 		r.loggerFor(ctx).Error("记录最近投递目标失败",
 			"agent_id", strings.TrimSpace(agentID),
@@ -365,14 +367,14 @@ func (r *Router) RememberRoute(ctx context.Context, agentID string, target Deliv
 
 // RememberSessionRoute 记录指定 session 的显式路由。
 func (r *Router) RememberSessionRoute(ctx context.Context, agentID string, sessionKey string, target DeliveryTarget) (*DeliveryTarget, error) {
-	if r.memory == nil {
+	if r.deliveryRoutes == nil {
 		return nil, nil
 	}
 	normalized := target.Normalized()
 	if normalized.Mode == DeliveryModeNone || normalized.Mode == DeliveryModeLast {
 		normalized.Mode = DeliveryModeExplicit
 	}
-	remembered, err := r.memory.RememberSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey), normalized)
+	remembered, err := r.deliveryRoutes.RememberSessionRoute(ctx, strings.TrimSpace(agentID), strings.TrimSpace(sessionKey), normalized)
 	if err != nil {
 		r.loggerFor(ctx).Error("记录 session 投递目标失败",
 			"agent_id", strings.TrimSpace(agentID),

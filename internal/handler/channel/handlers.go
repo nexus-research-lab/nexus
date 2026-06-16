@@ -11,6 +11,7 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
+	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -25,6 +26,7 @@ type Control interface {
 	ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error)
 	UpsertChannelConfig(context.Context, string, string, channelspkg.UpsertChannelConfigRequest) (*channelspkg.ChannelConfigView, error)
 	DeleteChannelConfig(context.Context, string, string) error
+	DeleteChannelAccount(context.Context, string, string, string) (*channelspkg.ChannelConfigView, error)
 	StartChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error)
 	GetChannelLogin(context.Context, string, string, string) (*channelspkg.ChannelLoginView, error)
 	SubmitChannelLoginVerifyCode(context.Context, string, string, string, channelspkg.SubmitChannelLoginVerifyCodeRequest) (*channelspkg.ChannelLoginView, error)
@@ -103,6 +105,27 @@ func (h *Handlers) HandleDeleteChannelConfig(writer http.ResponseWriter, request
 		return
 	}
 	h.api.WriteSuccess(writer, map[string]any{"configured": false})
+}
+
+func (h *Handlers) HandleDeleteChannelAccount(writer http.ResponseWriter, request *http.Request) {
+	if !h.ensureControl(writer) {
+		return
+	}
+	item, err := h.control.DeleteChannelAccount(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "channel_type"),
+		chi.URLParam(request, "account_id"),
+	)
+	if errors.Is(err, channelspkg.ErrChannelNotFound) || errors.Is(err, channelspkg.ErrChannelAccountNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.writeControlFailure(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, item)
 }
 
 func (h *Handlers) HandleStartChannelLogin(writer http.ResponseWriter, request *http.Request) {
@@ -288,7 +311,7 @@ func (h *Handlers) HandleDingTalkChannelIngress(writer http.ResponseWriter, requ
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
-	callbackRequest, ignoredReason, err := channelspkg.DecodeDingTalkIngressCallback(body)
+	callbackRequest, ignoredReason, err := channeladapters.DecodeDingTalkIngressCallback(body)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
@@ -331,7 +354,7 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 		}
 		ownerUserID = strings.TrimSpace(prepared.OwnerUserID)
 	}
-	callback, err := channelspkg.DecodeFeishuIngressCallback(preparedBody)
+	callback, err := channeladapters.DecodeFeishuIngressCallback(preparedBody)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return

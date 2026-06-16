@@ -1,10 +1,11 @@
-package channels
+package adapters
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
+	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
 const (
@@ -27,7 +29,7 @@ const (
 	weComBotResponseCommand          = "aibot_respond_msg"
 )
 
-type weComBotChannel struct {
+type WeComBotChannel struct {
 	botID       string
 	secret      string
 	baseURL     string
@@ -38,7 +40,7 @@ type weComBotChannel struct {
 	mu             sync.RWMutex
 	writeMu        sync.Mutex
 	pendingMu      sync.Mutex
-	ingress        IngressAcceptor
+	ingress        channelcontract.IngressAcceptor
 	conn           weComBotSocket
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
@@ -73,7 +75,7 @@ type weComBotHeaders struct {
 }
 
 func (h weComBotHeaders) requestID() string {
-	return firstNonEmpty(h.ReqID, h.ReqIDCompat)
+	return channelcontract.FirstNonEmpty(h.ReqID, h.ReqIDCompat)
 }
 
 type weComBotCommandFrame struct {
@@ -102,34 +104,45 @@ type weComBotParsedMessage struct {
 	ReqID      string
 }
 
-func newWeComBotChannel(botID string, secret string) *weComBotChannel {
-	return &weComBotChannel{
+func NewWeComBotChannel(botID string, secret string) *WeComBotChannel {
+	return &WeComBotChannel{
 		botID:       strings.TrimSpace(botID),
 		secret:      strings.TrimSpace(secret),
 		baseURL:     weComBotDefaultLongConnectionURL,
-		dialer:      gorillaWeComBotDialer{dialer: newChannelWebsocketDialer()},
+		dialer:      gorillaWeComBotDialer{dialer: channeltransport.NewWebsocketDialer()},
 		logger:      logx.NewDiscardLogger(),
 		pendingAcks: make(map[string]chan error),
 		ackTimeout:  5 * time.Second,
 	}
 }
 
-func (c *weComBotChannel) WithOwner(ownerUserID string) *weComBotChannel {
+func (c *WeComBotChannel) WithOwner(ownerUserID string) *WeComBotChannel {
 	c.ownerUserID = strings.TrimSpace(ownerUserID)
 	return c
 }
 
-func (c *weComBotChannel) ChannelType() string {
-	return ChannelTypeWeChat
+func (c *WeComBotChannel) WithBaseURL(baseURL string) *WeComBotChannel {
+	if baseURL = strings.TrimSpace(baseURL); baseURL != "" {
+		c.baseURL = strings.TrimRight(baseURL, "/")
+	}
+	return c
 }
 
-func (c *weComBotChannel) SetIngress(ingress IngressAcceptor) {
+func (c *WeComBotChannel) BaseURL() string {
+	return c.baseURL
+}
+
+func (c *WeComBotChannel) ChannelType() string {
+	return channelcontract.ChannelTypeWeChat
+}
+
+func (c *WeComBotChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ingress = ingress
 }
 
-func (c *weComBotChannel) SetLogger(logger *slog.Logger) {
+func (c *WeComBotChannel) SetLogger(logger *slog.Logger) {
 	if logger == nil {
 		logger = logx.NewDiscardLogger()
 	}
@@ -138,7 +151,7 @@ func (c *weComBotChannel) SetLogger(logger *slog.Logger) {
 	c.logger = logger
 }
 
-func (c *weComBotChannel) Start(ctx context.Context) error {
+func (c *WeComBotChannel) Start(ctx context.Context) error {
 	if strings.TrimSpace(c.botID) == "" || strings.TrimSpace(c.secret) == "" {
 		return fmt.Errorf("wechat bot channel is not configured")
 	}
@@ -157,7 +170,7 @@ func (c *weComBotChannel) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *weComBotChannel) Stop(context.Context) error {
+func (c *WeComBotChannel) Stop(context.Context) error {
 	c.mu.Lock()
 	cancel := c.cancel
 	conn := c.conn
@@ -179,34 +192,34 @@ func (c *weComBotChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *weComBotChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+func (c *WeComBotChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(target.To) == "" {
-		return DeliveryResult{}, fmt.Errorf("wechat bot delivery target requires to")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("wechat bot delivery target requires to")
 	}
 	reqID := strings.TrimSpace(target.AccountID)
 	if reqID == "" {
-		return DeliveryResult{}, fmt.Errorf("wechat bot delivery requires callback req_id")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("wechat bot delivery requires callback req_id")
 	}
-	streamID := firstNonEmpty(target.ThreadID, target.To)
+	streamID := channelcontract.FirstNonEmpty(target.ThreadID, target.To)
 	if streamID == "" {
-		return DeliveryResult{}, fmt.Errorf("wechat bot delivery requires stream id")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("wechat bot delivery requires stream id")
 	}
 
-	chunks := splitText(strings.TrimSpace(text), 3800)
+	chunks := channeltransport.SplitText(strings.TrimSpace(text), 3800)
 	if len(chunks) == 0 {
-		return newDeliveryResult(normalized, nil), nil
+		return channelcontract.NewDeliveryResult(normalized, nil), nil
 	}
 	for index, chunk := range chunks {
 		frame := weComBotStreamResponseFrame(reqID, streamID, chunk, index == len(chunks)-1)
 		if err := c.writeReplyFrame(ctx, reqID, frame); err != nil {
-			return DeliveryResult{}, err
+			return channelcontract.DeliveryResult{}, err
 		}
 	}
-	return newDeliveryResult(normalized, nil), nil
+	return channelcontract.NewDeliveryResult(normalized, nil), nil
 }
 
-func (c *weComBotChannel) run(ctx context.Context) {
+func (c *WeComBotChannel) run(ctx context.Context) {
 	defer c.wg.Done()
 	delay := time.Second
 	for ctx.Err() == nil {
@@ -228,7 +241,7 @@ func (c *weComBotChannel) run(ctx context.Context) {
 	}
 }
 
-func (c *weComBotChannel) connectAndServe(ctx context.Context) error {
+func (c *WeComBotChannel) connectAndServe(ctx context.Context) error {
 	endpoint := strings.TrimSpace(c.baseURL)
 	if endpoint == "" {
 		endpoint = weComBotDefaultLongConnectionURL
@@ -243,7 +256,7 @@ func (c *weComBotChannel) connectAndServe(ctx context.Context) error {
 	c.setSocket(conn, false)
 	defer c.clearSocket(conn)
 
-	subscribeReqID := newDeliveryID("aibot_subscribe")
+	subscribeReqID := channelcontract.NewID("aibot_subscribe")
 	c.setSubscribeReqID(subscribeReqID)
 	if err = c.writeFrame(ctx, weComBotCommandFrame{
 		Cmd:     weComBotSubscribeCommand,
@@ -271,13 +284,13 @@ func (c *weComBotChannel) connectAndServe(ctx context.Context) error {
 	}
 }
 
-func (c *weComBotChannel) pingLoop(ctx context.Context) {
+func (c *WeComBotChannel) pingLoop(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			reqID := newDeliveryID("ping")
+			reqID := channelcontract.NewID("ping")
 			c.setLastPingReqID(reqID)
 			if err := c.writeFrame(ctx, weComBotCommandFrame{
 				Cmd:     weComBotPingCommand,
@@ -291,7 +304,7 @@ func (c *weComBotChannel) pingLoop(ctx context.Context) {
 	}
 }
 
-func (c *weComBotChannel) handleFrame(ctx context.Context, raw []byte) error {
+func (c *WeComBotChannel) handleFrame(ctx context.Context, raw []byte) error {
 	var frame weComBotIncomingFrame
 	if err := json.Unmarshal(raw, &frame); err != nil {
 		return err
@@ -321,9 +334,9 @@ func (c *weComBotChannel) handleFrame(ctx context.Context, raw []byte) error {
 	requestCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if _, err = ingress.Accept(requestCtx, request); err != nil {
-		if isPairingApprovalRequired(err) {
+		if IsPairingApprovalRequired(err) {
 			if request.Delivery != nil {
-				if notice := pairingApprovalNoticeText(err); notice != "" {
+				if notice := PairingApprovalNoticeText(err); notice != "" {
 					if _, sendErr := c.SendDeliveryMessage(requestCtx, *request.Delivery, notice); sendErr != nil {
 						c.loggerFor(ctx).Warn("企业微信配对提醒发送失败", "err", sendErr)
 					}
@@ -336,7 +349,7 @@ func (c *weComBotChannel) handleFrame(ctx context.Context, raw []byte) error {
 	return nil
 }
 
-func (c *weComBotChannel) handleStatusFrame(ctx context.Context, reqID string, errCode int, errMsg string) {
+func (c *WeComBotChannel) handleStatusFrame(ctx context.Context, reqID string, errCode int, errMsg string) {
 	if c.completePendingAck(reqID, errCode, errMsg) {
 		return
 	}
@@ -357,14 +370,14 @@ func (c *weComBotChannel) handleStatusFrame(ctx context.Context, reqID string, e
 	}
 }
 
-func (c *weComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage) IngressRequest {
+func (c *WeComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage) channelcontract.IngressRequest {
 	chatType := "dm"
 	ref := parsed.FromUser
 	if parsed.ChatType == "group" || parsed.ChatID != "" {
 		chatType = "group"
-		ref = firstNonEmpty(parsed.ChatID, parsed.FromUser)
+		ref = channelcontract.FirstNonEmpty(parsed.ChatID, parsed.FromUser)
 	}
-	streamID := newDeliveryID("stream")
+	streamID := channelcontract.NewID("stream")
 	metadata := map[string]string{
 		"req_id":    parsed.ReqID,
 		"stream_id": streamID,
@@ -373,25 +386,25 @@ func (c *weComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 	if parsed.ChatID != "" {
 		metadata["chat_id"] = parsed.ChatID
 	}
-	return IngressRequest{
-		Channel:      ChannelTypeWeChat,
+	return channelcontract.IngressRequest{
+		Channel:      channelcontract.ChannelTypeWeChat,
 		OwnerUserID:  c.ownerUserID,
 		AccountID:    strings.TrimSpace(c.botID),
 		ChatType:     chatType,
 		Ref:          ref,
-		ExternalName: firstNonEmpty(parsed.SenderName, parsed.FromUser, parsed.ChatID),
+		ExternalName: channelcontract.FirstNonEmpty(parsed.SenderName, parsed.FromUser, parsed.ChatID),
 		Content:      parsed.Content,
 		RoundID:      parsed.MsgID,
 		ReqID:        parsed.MsgID,
-		Delivery: &DeliveryTarget{
-			Mode:      DeliveryModeExplicit,
-			Channel:   ChannelTypeWeChat,
+		Delivery: &channelcontract.DeliveryTarget{
+			Mode:      channelcontract.DeliveryModeExplicit,
+			Channel:   channelcontract.ChannelTypeWeChat,
 			To:        ref,
 			AccountID: parsed.ReqID,
 			ThreadID:  streamID,
 		},
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
-			Channel:           ChannelTypeWeChat,
+			Channel:           channelcontract.ChannelTypeWeChat,
 			Target:            ref,
 			PlatformMessageID: parsed.MsgID,
 			SenderID:          parsed.FromUser,
@@ -403,7 +416,7 @@ func (c *weComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 	}
 }
 
-func (c *weComBotChannel) writeFrame(ctx context.Context, frame weComBotCommandFrame, requireConnected bool) error {
+func (c *WeComBotChannel) writeFrame(ctx context.Context, frame weComBotCommandFrame, requireConnected bool) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -424,7 +437,7 @@ func (c *weComBotChannel) writeFrame(ctx context.Context, frame weComBotCommandF
 	return conn.WriteJSON(frame)
 }
 
-func (c *weComBotChannel) writeReplyFrame(ctx context.Context, reqID string, frame weComBotCommandFrame) error {
+func (c *WeComBotChannel) writeReplyFrame(ctx context.Context, reqID string, frame weComBotCommandFrame) error {
 	ackTimeout := c.currentAckTimeout()
 	if ackTimeout <= 0 {
 		return c.writeFrame(ctx, frame, true)
@@ -448,13 +461,13 @@ func (c *weComBotChannel) writeReplyFrame(ctx context.Context, reqID string, fra
 	}
 }
 
-func (c *weComBotChannel) currentAckTimeout() time.Duration {
+func (c *WeComBotChannel) currentAckTimeout() time.Duration {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.ackTimeout
 }
 
-func (c *weComBotChannel) registerPendingAck(reqID string) chan error {
+func (c *WeComBotChannel) registerPendingAck(reqID string) chan error {
 	reqID = strings.TrimSpace(reqID)
 	ack := make(chan error, 1)
 	if reqID == "" {
@@ -467,13 +480,13 @@ func (c *weComBotChannel) registerPendingAck(reqID string) chan error {
 	return ack
 }
 
-func (c *weComBotChannel) removePendingAck(reqID string) {
+func (c *WeComBotChannel) removePendingAck(reqID string) {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
 	delete(c.pendingAcks, strings.TrimSpace(reqID))
 }
 
-func (c *weComBotChannel) completePendingAck(reqID string, errCode int, errMsg string) bool {
+func (c *WeComBotChannel) completePendingAck(reqID string, errCode int, errMsg string) bool {
 	reqID = strings.TrimSpace(reqID)
 	if reqID == "" {
 		return false
@@ -493,7 +506,7 @@ func (c *weComBotChannel) completePendingAck(reqID string, errCode int, errMsg s
 	return true
 }
 
-func (c *weComBotChannel) clearPendingAcks(err error) {
+func (c *WeComBotChannel) clearPendingAcks(err error) {
 	if err == nil {
 		err = errors.New("wechat bot long connection closed")
 	}
@@ -506,20 +519,20 @@ func (c *weComBotChannel) clearPendingAcks(err error) {
 	}
 }
 
-func (c *weComBotChannel) currentIngress() IngressAcceptor {
+func (c *WeComBotChannel) currentIngress() channelcontract.IngressAcceptor {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.ingress
 }
 
-func (c *weComBotChannel) setSocket(conn weComBotSocket, connected bool) {
+func (c *WeComBotChannel) setSocket(conn weComBotSocket, connected bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.conn = conn
 	c.connected = connected
 }
 
-func (c *weComBotChannel) clearSocket(conn weComBotSocket) {
+func (c *WeComBotChannel) clearSocket(conn weComBotSocket) {
 	c.mu.Lock()
 	if c.conn == conn {
 		c.conn = nil
@@ -532,37 +545,37 @@ func (c *weComBotChannel) clearSocket(conn weComBotSocket) {
 	_ = conn.Close()
 }
 
-func (c *weComBotChannel) setConnected(connected bool) {
+func (c *WeComBotChannel) setConnected(connected bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connected = connected
 }
 
-func (c *weComBotChannel) setSubscribeReqID(reqID string) {
+func (c *WeComBotChannel) setSubscribeReqID(reqID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.subscribeReqID = strings.TrimSpace(reqID)
 }
 
-func (c *weComBotChannel) isSubscribeReqID(reqID string) bool {
+func (c *WeComBotChannel) isSubscribeReqID(reqID string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return strings.TrimSpace(reqID) != "" && strings.TrimSpace(reqID) == c.subscribeReqID
 }
 
-func (c *weComBotChannel) setLastPingReqID(reqID string) {
+func (c *WeComBotChannel) setLastPingReqID(reqID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lastPingReqID = strings.TrimSpace(reqID)
 }
 
-func (c *weComBotChannel) isLastPingReqID(reqID string) bool {
+func (c *WeComBotChannel) isLastPingReqID(reqID string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return strings.TrimSpace(reqID) != "" && strings.TrimSpace(reqID) == c.lastPingReqID
 }
 
-func (c *weComBotChannel) loggerFor(context.Context) *slog.Logger {
+func (c *WeComBotChannel) loggerFor(context.Context) *slog.Logger {
 	c.mu.RLock()
 	logger := c.logger
 	c.mu.RUnlock()
@@ -595,7 +608,7 @@ func weComBotFrameRequestID(frame weComBotIncomingFrame) string {
 	if err := json.Unmarshal(frame.Body, &body); err != nil {
 		return ""
 	}
-	return firstNonEmpty(
+	return channelcontract.FirstNonEmpty(
 		weComBotStringAt(body, "req_id"),
 		weComBotStringAt(body, "reqId"),
 		weComBotStringAt(body, "request_id"),
@@ -618,7 +631,7 @@ func weComBotFrameStatus(frame weComBotIncomingFrame, cmd string) (int, string, 
 	if !ok {
 		return 0, "", false
 	}
-	return errCode, firstNonEmpty(
+	return errCode, channelcontract.FirstNonEmpty(
 		weComBotStringAt(body, "errmsg"),
 		weComBotStringAt(body, "err_msg"),
 		weComBotStringAt(body, "message"),
@@ -631,7 +644,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		return weComBotParsedMessage{}, "", err
 	}
 	source := weComBotMessageSource(payload)
-	msgType := strings.ToLower(firstNonEmpty(
+	msgType := strings.ToLower(channelcontract.FirstNonEmpty(
 		weComBotStringAt(source, "msgtype"),
 		weComBotStringAt(source, "msg_type"),
 		weComBotStringAt(source, "msgType"),
@@ -666,7 +679,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		return weComBotParsedMessage{}, "empty_text", nil
 	}
 
-	fromUser := firstNonEmpty(
+	fromUser := channelcontract.FirstNonEmpty(
 		weComBotStringAt(source, "from", "userid"),
 		weComBotStringAt(source, "from", "user_id"),
 		weComBotStringAt(source, "from", "userId"),
@@ -682,7 +695,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		return weComBotParsedMessage{}, "empty_from_user", nil
 	}
 
-	msgID := firstNonEmpty(
+	msgID := channelcontract.FirstNonEmpty(
 		weComBotStringAt(source, "msgid"),
 		weComBotStringAt(source, "msg_id"),
 		weComBotStringAt(source, "msgId"),
@@ -691,27 +704,27 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		weComBotStringAt(source, "id"),
 	)
 	if msgID == "" {
-		msgID = newDeliveryID("wecom_msg")
+		msgID = channelcontract.NewID("wecom_msg")
 	}
 	return weComBotParsedMessage{
 		Kind:     "message",
 		MsgType:  msgType,
 		MsgID:    msgID,
 		FromUser: fromUser,
-		SenderName: firstNonEmpty(
+		SenderName: channelcontract.FirstNonEmpty(
 			weComBotStringAt(source, "sender", "name"),
 			weComBotStringAt(source, "from", "name"),
 			weComBotStringAt(source, "sender_name"),
 			weComBotStringAt(source, "senderName"),
 			weComBotStringAt(source, "nickname"),
 		),
-		ChatType: strings.ToLower(firstNonEmpty(
+		ChatType: strings.ToLower(channelcontract.FirstNonEmpty(
 			weComBotStringAt(source, "chattype"),
 			weComBotStringAt(source, "chat_type"),
 			weComBotStringAt(source, "chatType"),
 			"single",
 		)),
-		ChatID: firstNonEmpty(
+		ChatID: channelcontract.FirstNonEmpty(
 			weComBotStringAt(source, "chatid"),
 			weComBotStringAt(source, "chat_id"),
 			weComBotStringAt(source, "chatId"),
@@ -719,7 +732,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 			weComBotStringAt(source, "conversationId"),
 		),
 		Content: content,
-		ReqID:   firstNonEmpty(reqID, msgID),
+		ReqID:   channelcontract.FirstNonEmpty(reqID, msgID),
 	}, "", nil
 }
 
@@ -735,7 +748,7 @@ func weComBotMessageSource(payload map[string]any) map[string]any {
 		if candidate == nil {
 			continue
 		}
-		if firstNonEmpty(
+		if channelcontract.FirstNonEmpty(
 			weComBotStringAt(candidate, "msgtype"),
 			weComBotStringAt(candidate, "msg_type"),
 			weComBotStringAt(candidate, "msgType"),
@@ -751,7 +764,7 @@ func weComBotMessageSource(payload map[string]any) map[string]any {
 }
 
 func weComBotTextContent(source map[string]any) string {
-	return firstNonEmpty(
+	return channelcontract.FirstNonEmpty(
 		weComBotStringAt(source, "text", "content"),
 		weComBotStringAt(source, "text", "text"),
 		weComBotStringAt(source, "message", "text", "content"),
@@ -777,7 +790,7 @@ func weComBotMixedText(source map[string]any) string {
 		if !ok {
 			continue
 		}
-		itemType := strings.ToLower(firstNonEmpty(
+		itemType := strings.ToLower(channelcontract.FirstNonEmpty(
 			weComBotStringAt(itemMap, "msgtype"),
 			weComBotStringAt(itemMap, "msg_type"),
 			weComBotStringAt(itemMap, "msgType"),
@@ -786,7 +799,7 @@ func weComBotMixedText(source map[string]any) string {
 		if itemType != "" && itemType != "text" {
 			continue
 		}
-		text := firstNonEmpty(
+		text := channelcontract.FirstNonEmpty(
 			weComBotStringAt(itemMap, "text", "content"),
 			weComBotStringAt(itemMap, "content"),
 			weComBotStringAt(itemMap, "text"),

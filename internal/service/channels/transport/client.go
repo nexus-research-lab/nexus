@@ -1,4 +1,4 @@
-package channels
+package transport
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var defaultChannelHTTPClient = &http.Client{
+var DefaultHTTPClient = &http.Client{
 	Timeout: 45 * time.Second,
 	Transport: &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
@@ -20,14 +20,14 @@ var defaultChannelHTTPClient = &http.Client{
 	},
 }
 
-func newChannelWebsocketDialer() *websocket.Dialer {
+func NewWebsocketDialer() *websocket.Dialer {
 	return &websocket.Dialer{
-		Proxy:            channelWebsocketProxyFromEnvironment,
+		Proxy:            websocketProxyFromEnvironment,
 		HandshakeTimeout: 45 * time.Second,
 	}
 }
 
-func channelWebsocketProxyFromEnvironment(req *http.Request) (*url.URL, error) {
+func websocketProxyFromEnvironment(req *http.Request) (*url.URL, error) {
 	if req == nil || req.URL == nil {
 		return nil, nil
 	}

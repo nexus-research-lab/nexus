@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
@@ -218,8 +219,8 @@ func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置钉钉失败: %v", err)
 	}
-	dingtalk, ok := router.GetForOwner("owner-a", ChannelTypeDingTalk).(*dingTalkChannel)
-	if !ok || dingtalk.baseURL != "https://ding-api.test" || dingtalk.streamHost != "https://ding-stream.test" {
+	dingtalk, ok := router.GetForOwner("owner-a", ChannelTypeDingTalk).(*channeladapters.DingTalkChannel)
+	if !ok || dingtalk.BaseURL() != "https://ding-api.test" || dingtalk.StreamHost() != "https://ding-stream.test" {
 		t.Fatalf("钉钉运行时配置未生效: channel=%+v ok=%v", dingtalk, ok)
 	}
 
@@ -231,8 +232,8 @@ func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置企业微信失败: %v", err)
 	}
-	wechat, ok := router.GetForOwner("owner-a", ChannelTypeWeChat).(*weComBotChannel)
-	if !ok || wechat.baseURL != "wss://wecom.test/ws" {
+	wechat, ok := router.GetForOwner("owner-a", ChannelTypeWeChat).(*channeladapters.WeComBotChannel)
+	if !ok || wechat.BaseURL() != "wss://wecom.test/ws" {
 		t.Fatalf("企业微信运行时配置未生效: channel=%+v ok=%v", wechat, ok)
 	}
 
@@ -249,8 +250,8 @@ func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置飞书失败: %v", err)
 	}
-	feishu, ok := router.GetForOwner("owner-a", ChannelTypeFeishu).(*feishuChannel)
-	if !ok || feishu.connectionMode != "webhook" || feishu.baseURL != "https://feishu-api.test" || !feishu.replyInThread {
+	feishu, ok := router.GetForOwner("owner-a", ChannelTypeFeishu).(*channeladapters.FeishuChannel)
+	if !ok || feishu.ConnectionMode() != "webhook" || feishu.BaseURL() != "https://feishu-api.test" || !feishu.ReplyInThread() {
 		t.Fatalf("飞书运行时配置未生效: channel=%+v ok=%v", feishu, ok)
 	}
 
@@ -262,8 +263,8 @@ func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置 Telegram 失败: %v", err)
 	}
-	telegram, ok := router.GetForOwner("owner-a", ChannelTypeTelegram).(*telegramChannel)
-	if !ok || telegram.baseURL != "https://telegram-api.test" {
+	telegram, ok := router.GetForOwner("owner-a", ChannelTypeTelegram).(*channeladapters.TelegramChannel)
+	if !ok || telegram.BaseURL() != "https://telegram-api.test" {
 		t.Fatalf("Telegram 运行时配置未生效: channel=%+v ok=%v", telegram, ok)
 	}
 
@@ -278,8 +279,8 @@ func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置 Discord 失败: %v", err)
 	}
-	discord, ok := router.GetForOwner("owner-a", ChannelTypeDiscord).(*discordChannel)
-	if !ok || discord.baseURL != "https://discord-api.test" {
+	discord, ok := router.GetForOwner("owner-a", ChannelTypeDiscord).(*channeladapters.DiscordChannel)
+	if !ok || discord.BaseURL() != "https://discord-api.test" {
 		t.Fatalf("Discord 运行时配置未生效: channel=%+v ok=%v", discord, ok)
 	}
 }
@@ -356,8 +357,11 @@ func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
 			break
 		}
 	}
-	if configured == nil || !configured.HasCredentials || configured.PublicConfig["account_id"] != "wx-account-1" {
+	if configured == nil || !configured.HasCredentials || len(configured.Accounts) != 1 || configured.Accounts[0].AccountID != "wx-account-1" {
 		t.Fatalf("登录后应保存 iLink 账号和 token: %+v", configured)
+	}
+	if configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
+		t.Fatalf("个人微信账号不应再写回顶层 channel 配置: %+v", configured.PublicConfig)
 	}
 }
 
@@ -374,7 +378,7 @@ func TestControlServiceStoresMultipleWeixinPersonalLogins(t *testing.T) {
 		id++
 		return fmt.Sprintf("%s-%d", prefix, id)
 	}
-	statuses := []weixinQRStatusResponse{
+	statuses := []channeladapters.PersonalWeixinQRStatusResponse{
 		{
 			Status:      "confirmed",
 			BotToken:    "ilink-token-1",
@@ -439,8 +443,136 @@ func TestControlServiceStoresMultipleWeixinPersonalLogins(t *testing.T) {
 			break
 		}
 	}
-	if configured == nil || !configured.HasCredentials || configured.PublicConfig["account_count"] != "2" {
+	if configured == nil || !configured.HasCredentials || configured.PublicConfig["account_count"] != "2" || len(configured.Accounts) != 2 {
 		t.Fatalf("个人微信频道应展示两个已登录账号: %+v", configured)
+	}
+	if configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
+		t.Fatalf("个人微信多账号不应暴露最后扫码账号为顶层配置: %+v", configured.PublicConfig)
+	}
+}
+
+func TestControlServiceMigratesLegacyWeixinPersonalAccountBeforeNewLogin(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	service.idFactory = func(prefix string) string {
+		return prefix + "-legacy"
+	}
+	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
+		return &fakePersonalWeixinLoginClient{status: channeladapters.PersonalWeixinQRStatusResponse{
+			Status:      "confirmed",
+			BotToken:    "new-token",
+			IlinkBotID:  "wx-account-new",
+			IlinkUserID: "wx-user-new",
+			BaseURL:     "https://ilink-new.test",
+		}}
+	}
+	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config: map[string]string{
+			"base_url":   "https://ilink-legacy.test",
+			"account_id": "wx-account-legacy",
+			"user_id":    "wx-user-legacy",
+		},
+		Credentials: map[string]string{"ilink_bot_token": "legacy-token"},
+	})
+	if err != nil {
+		t.Fatalf("准备旧个人微信配置失败: %v", err)
+	}
+
+	started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("启动新个人微信扫码登录失败: %v", err)
+	}
+	waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
+
+	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("读取个人微信账号失败: %v", err)
+	}
+	tokens := map[string]string{}
+	for _, account := range accounts {
+		secrets, decryptErr := service.decryptCredentials(account.CredentialsEncrypted)
+		if decryptErr != nil {
+			t.Fatalf("解密账号凭据失败 account=%s err=%v", account.AccountID, decryptErr)
+		}
+		tokens[account.AccountID] = secrets["ilink_bot_token"]
+	}
+	if tokens["wx-account-legacy"] != "legacy-token" || tokens["wx-account-new"] != "new-token" {
+		t.Fatalf("旧账号应先迁移到账号表，新账号应独立保存: accounts=%+v tokens=%+v", accounts, tokens)
+	}
+
+	items, err := service.ListChannels(context.Background(), "owner-a")
+	if err != nil {
+		t.Fatalf("读取频道配置失败: %v", err)
+	}
+	var configured *ChannelConfigView
+	for index := range items {
+		if items[index].ChannelType == ChannelTypeWeixinPersonal {
+			configured = &items[index]
+			break
+		}
+	}
+	if configured == nil || len(configured.Accounts) != 2 || configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
+		t.Fatalf("个人微信账号视图不正确: %+v", configured)
+	}
+}
+
+func TestControlServiceDeletesSingleWeixinPersonalAccount(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	var id int
+	service.idFactory = func(prefix string) string {
+		id++
+		return fmt.Sprintf("%s-%d", prefix, id)
+	}
+	statuses := []channeladapters.PersonalWeixinQRStatusResponse{
+		{Status: "confirmed", BotToken: "token-1", IlinkBotID: "wx-account-1", IlinkUserID: "wx-user-1"},
+		{Status: "confirmed", BotToken: "token-2", IlinkBotID: "wx-account-2", IlinkUserID: "wx-user-2"},
+	}
+	var loginIndex int
+	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
+		status := statuses[loginIndex]
+		loginIndex++
+		return &fakePersonalWeixinLoginClient{status: status}
+	}
+	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
+		AgentID: "agent-a",
+		Config:  map[string]string{"base_url": "https://ilink.test"},
+	})
+	if err != nil {
+		t.Fatalf("配置个人微信通道失败: %v", err)
+	}
+	for range statuses {
+		started, startErr := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+		if startErr != nil {
+			t.Fatalf("启动个人微信扫码登录失败: %v", startErr)
+		}
+		waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
+	}
+
+	updated, err := service.DeleteChannelAccount(context.Background(), "owner-a", ChannelTypeWeixinPersonal, "wx-account-1")
+	if err != nil {
+		t.Fatalf("删除单个微信账号失败: %v", err)
+	}
+	if updated == nil || len(updated.Accounts) != 1 || updated.Accounts[0].AccountID != "wx-account-2" {
+		t.Fatalf("删除后应只保留第二个微信账号: %+v", updated)
+	}
+	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
+	if err != nil {
+		t.Fatalf("读取账号表失败: %v", err)
+	}
+	if len(accounts) != 1 || accounts[0].AccountID != "wx-account-2" {
+		t.Fatalf("账号表删除结果不正确: %+v", accounts)
 	}
 }
 
@@ -462,9 +594,15 @@ func TestControlServiceIncludesImplementedChannelsInSummaryCounts(t *testing.T) 
 	if _, err := db.Exec(`
 INSERT INTO im_channel_configs (owner_user_id, channel_type, agent_id, status, config_json)
 VALUES ('owner-a', 'telegram', 'agent-a', 'configured', '{}');
+INSERT INTO im_channel_configs (owner_user_id, channel_type, agent_id, status, config_json)
+VALUES ('owner-a', 'feishu', 'agent-a', 'connected', '{}');
+INSERT INTO im_channel_configs (owner_user_id, channel_type, agent_id, status, config_json)
+VALUES ('owner-a', 'weixin-personal', 'agent-a', 'configured', '{}');
+INSERT INTO im_channel_accounts (owner_user_id, channel_type, account_id, user_id, status, config_json)
+VALUES ('owner-a', 'weixin-personal', 'wx-account-a', 'wx-user-a', 'connected', '{}');
 INSERT INTO im_pairings (pairing_id, owner_user_id, channel_type, chat_type, external_ref, agent_id, status, source)
 VALUES ('pairing-a', 'owner-a', 'telegram', 'dm', 'chat-a', 'agent-a', 'active', 'manual');
-`); err != nil {
+	`); err != nil {
 		t.Fatalf("准备 IM 数据失败: %v", err)
 	}
 
@@ -473,8 +611,16 @@ VALUES ('pairing-a', 'owner-a', 'telegram', 'dm', 'chat-a', 'agent-a', 'active',
 	if err != nil {
 		t.Fatalf("统计已配置渠道失败: %v", err)
 	}
-	if configured != 1 {
+	if configured != 3 {
 		t.Fatalf("已实现渠道应计入已配置渠道数，实际 %d", configured)
+	}
+
+	connected, err := service.CountConnectedChannels(context.Background(), "owner-a")
+	if err != nil {
+		t.Fatalf("统计已连接渠道失败: %v", err)
+	}
+	if connected != 2 {
+		t.Fatalf("只有运行态 connected 或含已连接账号的渠道应计入已连接渠道数，实际 %d", connected)
 	}
 
 	activePairings, err := service.CountActivePairings(context.Background(), "owner-a")
@@ -537,6 +683,123 @@ func TestControlServiceCreatesManualPairingForKnownTarget(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].PairingID != created.PairingID || items[0].LastMessageAt == nil {
 		t.Fatalf("手动配对列表结果不正确: %+v", items)
+	}
+}
+
+func TestControlServiceGroupPairingRoutesThreadedIngress(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	groupPairing, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    "group",
+		ExternalRef: "oc_group_123",
+		AgentID:     "agent-a",
+	})
+	if err != nil {
+		t.Fatalf("创建群级 IM 配对失败: %v", err)
+	}
+	topicPairing, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    "group",
+		ExternalRef: "oc_group_123",
+		ThreadID:    "topic-override",
+		AgentID:     "agent-b",
+	})
+	if err != nil {
+		t.Fatalf("创建话题级 IM 配对失败: %v", err)
+	}
+
+	agentID, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeFeishu,
+		ChatType:    "group",
+		Ref:         "oc_group_123",
+		ThreadID:    "topic-1",
+	})
+	if err != nil || agentID != "agent-a" {
+		t.Fatalf("群级配对应接住子线程入站: agent=%q err=%v", agentID, err)
+	}
+	agentID, err = service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeFeishu,
+		ChatType:    "group",
+		Ref:         "oc_group_123",
+		ThreadID:    "topic-override",
+	})
+	if err != nil || agentID != "agent-b" {
+		t.Fatalf("话题级配对应优先于群级配对: agent=%q err=%v", agentID, err)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeFeishu,
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("查询 active 配对失败: %v", err)
+	}
+	seen := map[string]PairingView{}
+	for _, item := range items {
+		seen[item.PairingID] = item
+	}
+	if seen[groupPairing.PairingID].LastMessageAt == nil || seen[topicPairing.PairingID].LastMessageAt == nil {
+		t.Fatalf("命中的配对应更新 last_message_at: %+v", items)
+	}
+}
+
+func TestControlServiceThreadedGroupIngressCreatesGroupScopedPendingPairing(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	var nextID int
+	service.idFactory = func(prefix string) string {
+		nextID++
+		return fmt.Sprintf("%s-%d", prefix, nextID)
+	}
+
+	_, err := service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID:  "owner-a",
+		Channel:      ChannelTypeDiscord,
+		ChatType:     "group",
+		Ref:          "guild-1:channel-1",
+		ThreadID:     "thread-a",
+		ExternalName: "Release room",
+		AgentID:      "agent-a",
+	})
+	var firstApproval *pairingApprovalError
+	if !errors.As(err, &firstApproval) || firstApproval.PairingID != "pair-1" {
+		t.Fatalf("首次群子线程入站应返回群级 pending pairing id: err=%v approval=%+v", err, firstApproval)
+	}
+
+	_, err = service.ResolveIngressAgent(context.Background(), IngressRequest{
+		OwnerUserID:  "owner-a",
+		Channel:      ChannelTypeDiscord,
+		ChatType:     "group",
+		Ref:          "guild-1:channel-1",
+		ThreadID:     "thread-b",
+		ExternalName: "Release room renamed",
+		AgentID:      "agent-b",
+	})
+	var secondApproval *pairingApprovalError
+	if !errors.As(err, &secondApproval) || secondApproval.PairingID != firstApproval.PairingID {
+		t.Fatalf("同群不同子线程应复用群级 pending pairing: first=%+v second=%+v err=%v", firstApproval, secondApproval, err)
+	}
+
+	items, err := service.ListPairings(context.Background(), "owner-a", PairingQuery{
+		ChannelType: ChannelTypeDiscord,
+		Status:      PairingStatusPending,
+	})
+	if err != nil {
+		t.Fatalf("查询 pending 配对失败: %v", err)
+	}
+	if len(items) != 1 ||
+		items[0].PairingID != firstApproval.PairingID ||
+		items[0].ThreadID != "" ||
+		items[0].ExternalName != "Release room renamed" ||
+		items[0].AgentID != "agent-b" {
+		t.Fatalf("群子线程 pending 配对应归并到群级目标: %+v", items)
 	}
 }
 
@@ -1076,21 +1339,21 @@ func TestControlServicePrepareFeishuIngressDecryptsAndVerifiesSignature(t *testi
 }
 
 type fakePersonalWeixinLoginClient struct {
-	status weixinQRStatusResponse
+	status channeladapters.PersonalWeixinQRStatusResponse
 }
 
-func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (weixinQRCodeResponse, error) {
-	return weixinQRCodeResponse{
+func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (channeladapters.PersonalWeixinQRCodeResponse, error) {
+	return channeladapters.PersonalWeixinQRCodeResponse{
 		QRCode:             "qr-token-1",
 		QRCodeImageContent: "weixin://qr-login",
 	}, nil
 }
 
-func (c *fakePersonalWeixinLoginClient) PollQRCodeStatus(context.Context, string, string) (weixinQRStatusResponse, error) {
+func (c *fakePersonalWeixinLoginClient) PollQRCodeStatus(context.Context, string, string) (channeladapters.PersonalWeixinQRStatusResponse, error) {
 	if strings.TrimSpace(c.status.Status) != "" {
 		return c.status, nil
 	}
-	return weixinQRStatusResponse{
+	return channeladapters.PersonalWeixinQRStatusResponse{
 		Status:      "confirmed",
 		BotToken:    "ilink-token-1",
 		IlinkBotID:  "wx-account-1",
