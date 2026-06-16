@@ -56,6 +56,7 @@ func newHandlerSet(
 			services.Core.Session,
 			services.Runtime,
 			services.RoomRealtime,
+			websocketHandler.BroadcastDirectoryChanged,
 			services.Preferences,
 		),
 		room: roomhandler.New(
@@ -66,6 +67,7 @@ func newHandlerSet(
 			websocketHandler.BroadcastRoomEvent,
 			websocketHandler.BroadcastRoomResyncRequired,
 			websocketHandler.RemoveRoom,
+			websocketHandler.BroadcastDirectoryChanged,
 		),
 		capability: capabilityhandler.New(api, services.Skills, services.Connectors, services.Automation, services.ChannelControl),
 		skill:      skillhandler.New(api, services.Skills),

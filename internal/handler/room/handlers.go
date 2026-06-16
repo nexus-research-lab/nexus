@@ -19,6 +19,7 @@ import (
 type roomEventBroadcaster func(context.Context, string, protocol.EventType, map[string]any)
 type roomResyncBroadcaster func(context.Context, string, string, string)
 type roomRegistryRemover func(string)
+type directoryBroadcaster func(context.Context, string, map[string]any)
 
 // Handlers 封装 room 域 HTTP handlers。
 type Handlers struct {
@@ -28,6 +29,7 @@ type Handlers struct {
 	sessions              *sessionpkg.Service
 	broadcastRoomEvent    roomEventBroadcaster
 	broadcastRoomResync   roomResyncBroadcaster
+	broadcastDirectory    directoryBroadcaster
 	removeRoomSubscribers roomRegistryRemover
 }
 
@@ -40,7 +42,12 @@ func New(
 	broadcastRoomEvent roomEventBroadcaster,
 	broadcastRoomResync roomResyncBroadcaster,
 	removeRoomSubscribers roomRegistryRemover,
+	broadcastDirectory ...directoryBroadcaster,
 ) *Handlers {
+	var directory directoryBroadcaster
+	if len(broadcastDirectory) > 0 {
+		directory = broadcastDirectory[0]
+	}
 	return &Handlers{
 		api:                   api,
 		roomService:           roomService,
@@ -48,6 +55,7 @@ func New(
 		sessions:              sessions,
 		broadcastRoomEvent:    broadcastRoomEvent,
 		broadcastRoomResync:   broadcastRoomResync,
+		broadcastDirectory:    directory,
 		removeRoomSubscribers: removeRoomSubscribers,
 	}
 }
@@ -80,6 +88,13 @@ func (h *Handlers) HandleGetRoom(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 	h.api.WriteSuccess(writer, item)
+}
+
+func (h *Handlers) broadcastDirectoryChanged(ctx context.Context, reason string, data map[string]any) {
+	if h.broadcastDirectory == nil {
+		return
+	}
+	h.broadcastDirectory(ctx, reason, data)
 }
 
 // HandleGetRoomContexts 返回 room 上下文。
@@ -229,6 +244,10 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "room_created", map[string]any{
+		"room_id":         item.Room.ID,
+		"conversation_id": item.Conversation.ID,
+	})
 	h.api.WriteSuccess(writer, item)
 }
 

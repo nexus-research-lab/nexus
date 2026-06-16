@@ -45,7 +45,7 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job protoc
 	if contextActorAgentID, ok := automationdomain.ActorAgentID(ctx); ok {
 		actorAgentID = contextActorAgentID
 	}
-	if err := s.repository.InsertTaskEvent(ctx, automationstore.TaskEventInput{
+	event := protocol.CronTaskEvent{
 		EventID:      s.idFactory("task_evt"),
 		JobID:        job.JobID,
 		OwnerUserID:  job.OwnerUserID,
@@ -55,12 +55,28 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job protoc
 		ActorAgentID: actorAgentID,
 		RunID:        runID,
 		Detail:       detail,
+		CreatedAt:    s.nowFn(),
+	}
+	if err := s.repository.InsertTaskEvent(ctx, automationstore.TaskEventInput{
+		EventID:      event.EventID,
+		JobID:        event.JobID,
+		OwnerUserID:  event.OwnerUserID,
+		AgentID:      event.AgentID,
+		Action:       event.Action,
+		ActorUserID:  event.ActorUserID,
+		ActorAgentID: event.ActorAgentID,
+		RunID:        event.RunID,
+		Detail:       event.Detail,
 	}); err != nil {
 		s.loggerFor(ctx).Warn("写入定时任务管理审计失败",
 			"job_id", job.JobID,
 			"action", action,
 			"err", err,
 		)
+		return
+	}
+	if s.taskNotifier != nil {
+		s.taskNotifier.NotifyTaskEvent(ctx, event)
 	}
 }
 

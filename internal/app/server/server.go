@@ -39,6 +39,7 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 	api := handlershared.NewAPI(logger)
 	websocketHandler := newWebSocketHandler(api, appServices, cfg)
 	configureExternalSessionNotifier(appServices, websocketHandler, logger)
+	configureRealtimeInvalidation(appServices, websocketHandler)
 
 	server := &Server{
 		config:   cfg,

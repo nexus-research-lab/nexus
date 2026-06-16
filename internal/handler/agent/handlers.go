@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -19,6 +20,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type directoryBroadcaster func(context.Context, string, map[string]any)
+
 // Handlers 封装 Agent / Session 域 HTTP handlers。
 type Handlers struct {
 	api          *handlershared.API
@@ -27,6 +30,7 @@ type Handlers struct {
 	runtime      *runtimectx.Manager
 	roomRealtime *roompkg.RealtimeService
 	prefs        *preferencessvc.Service
+	directory    directoryBroadcaster
 }
 
 // New 创建 Agent / Session 域 handlers。
@@ -36,6 +40,7 @@ func New(
 	sessions *sessionpkg.Service,
 	runtime *runtimectx.Manager,
 	roomRealtime *roompkg.RealtimeService,
+	directory directoryBroadcaster,
 	prefs ...*preferencessvc.Service,
 ) *Handlers {
 	var prefService *preferencessvc.Service
@@ -49,6 +54,7 @@ func New(
 		runtime:      runtime,
 		roomRealtime: roomRealtime,
 		prefs:        prefService,
+		directory:    directory,
 	}
 }
 
@@ -142,6 +148,9 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "agent_created", map[string]any{
+		"agent_id": created.AgentID,
+	})
 	h.api.WriteSuccess(writer, created)
 }
 
@@ -171,6 +180,9 @@ func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "agent_updated", map[string]any{
+		"agent_id": item.AgentID,
+	})
 	h.api.WriteSuccess(writer, item)
 }
 
@@ -189,7 +201,17 @@ func (h *Handlers) HandleDeleteAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "agent_deleted", map[string]any{
+		"agent_id": chi.URLParam(request, "agent_id"),
+	})
 	h.api.WriteSuccess(writer, map[string]any{"success": true})
+}
+
+func (h *Handlers) broadcastDirectoryChanged(ctx context.Context, reason string, data map[string]any) {
+	if h.directory == nil {
+		return
+	}
+	h.directory(ctx, reason, data)
 }
 
 // HandleListAgentSessions 返回指定 agent 的 session 列表。

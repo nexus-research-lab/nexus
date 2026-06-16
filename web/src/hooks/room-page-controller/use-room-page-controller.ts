@@ -42,7 +42,7 @@ import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conve
 import { UpdateRoomParams } from "@/types/conversation/room";
 import { RoomPageControllerOptions } from "@/types/app/route";
 
-const EXTERNAL_AGENT_SESSION_REFRESH_INTERVAL_MS = 8000;
+const EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS = 60000;
 
 function build_external_room_conversation_views({
   room_id,
@@ -296,7 +296,7 @@ export function useRoomPageController({
     };
 
     refresh_external_sessions();
-    const interval_id = window.setInterval(refresh_if_visible, EXTERNAL_AGENT_SESSION_REFRESH_INTERVAL_MS);
+    const interval_id = window.setInterval(refresh_if_visible, EXTERNAL_AGENT_SESSION_FALLBACK_REFRESH_INTERVAL_MS);
     window.addEventListener("focus", refresh_if_visible);
     document.addEventListener("visibilitychange", refresh_if_visible);
 

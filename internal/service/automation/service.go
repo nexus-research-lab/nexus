@@ -52,6 +52,21 @@ type runtimeSessionCloser interface {
 	CloseSession(context.Context, string) error
 }
 
+// TaskEventNotifier 接收定时任务变更事件。
+type TaskEventNotifier interface {
+	NotifyTaskEvent(context.Context, protocol.CronTaskEvent)
+}
+
+// TaskEventNotifierFunc 适配函数式定时任务事件通知器。
+type TaskEventNotifierFunc func(context.Context, protocol.CronTaskEvent)
+
+// NotifyTaskEvent 实现 TaskEventNotifier。
+func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event protocol.CronTaskEvent) {
+	if fn != nil {
+		fn(ctx, event)
+	}
+}
+
 // Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
 type Service struct {
 	config        config.Config
@@ -65,6 +80,7 @@ type Service struct {
 	delivery      deliveryRouter
 	logger        *slog.Logger
 	sessionCloser runtimeSessionCloser
+	taskNotifier  TaskEventNotifier
 
 	nowFn     func() time.Time
 	idFactory func(string) string
@@ -125,6 +141,11 @@ func (s *Service) SetRuntimeSessionCloser(sessionCloser runtimeSessionCloser) {
 // SetProviderResolver 注入 Provider 解析器，用于判断后台运行时是否可默认开放图片生成工具。
 func (s *Service) SetProviderResolver(resolver imagegenDefaultResolver) {
 	s.providers = resolver
+}
+
+// SetTaskEventNotifier 注入定时任务事件通知器。
+func (s *Service) SetTaskEventNotifier(notifier TaskEventNotifier) {
+	s.taskNotifier = notifier
 }
 
 // Start 启动后台调度循环。

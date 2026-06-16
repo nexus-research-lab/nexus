@@ -355,6 +355,10 @@ export function useChatCompletionNotifications(): void {
 
   const handle_websocket_message = useCallback((raw_message: unknown) => {
     const event = raw_message as EventMessage;
+    if (event.event_type === "directory_changed") {
+      notify_room_directory_updated();
+      return;
+    }
     if (event.room_id && typeof event.room_seq === "number") {
       room_seq_cursor_ref.current[event.room_id] = Math.max(
         room_seq_cursor_ref.current[event.room_id] ?? 0,
@@ -421,6 +425,16 @@ export function useChatCompletionNotifications(): void {
     heartbeat_interval: 30000,
     on_message: handle_websocket_message,
   });
+
+  useEffect(() => {
+    if (ws_state !== "connected") {
+      return;
+    }
+    ws_send({ type: "subscribe_app_events" });
+    return () => {
+      ws_send({ type: "unsubscribe_app_events" });
+    };
+  }, [ws_send, ws_state]);
 
   useEffect(() => {
     if (ws_state !== "connected" || room_ids.length === 0) {

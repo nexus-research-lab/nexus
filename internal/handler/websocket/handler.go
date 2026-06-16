@@ -39,6 +39,7 @@ type Handler struct {
 	channels       *channelspkg.Router
 	roomSubs       *roomSubscriptionRegistry
 	workspaceSubs  *workspaceSubscriptionRegistry
+	appEventSubs   *appEventSubscriptionRegistry
 	goalRPCSubs    *appServerGoalRPCRegistry
 	allowedOrigins []string
 }
@@ -68,6 +69,7 @@ func NewHandler(
 		channels:       channels,
 		roomSubs:       newRoomSubscriptionRegistry(128),
 		workspaceSubs:  newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		appEventSubs:   newAppEventSubscriptionRegistry(),
 		goalRPCSubs:    newAppServerGoalRPCRegistry(),
 		allowedOrigins: allowedOrigins,
 	}
@@ -105,6 +107,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		if h.roomSubs != nil {
 			h.roomSubs.UnregisterSender(sender)
 		}
+		if h.appEventSubs != nil {
+			h.appEventSubs.UnregisterSender(sender)
+		}
 		if h.goalRPCSubs != nil {
 			h.goalRPCSubs.UnregisterSender(sender)
 		}
@@ -139,6 +144,9 @@ func (h *Handler) BroadcastRoomEvent(
 	event := protocol.NewEvent(eventType, data)
 	event.RoomID = strings.TrimSpace(roomID)
 	h.roomSubs.Broadcast(ctx, event.RoomID, event)
+	h.BroadcastDirectoryChanged(ctx, string(eventType), map[string]any{
+		"room_id": event.RoomID,
+	})
 }
 
 // BroadcastRoomResyncRequired 广播 chat resync 通知。
@@ -159,6 +167,36 @@ func (h *Handler) BroadcastRoomResyncRequired(
 	event := protocol.NewEvent(protocol.EventTypeRoomResyncRequired, data)
 	event.RoomID = data["room_id"].(string)
 	h.roomSubs.Broadcast(ctx, event.RoomID, event)
+	h.BroadcastDirectoryChanged(ctx, reason, data)
+}
+
+// BroadcastDirectoryChanged 广播目录失效事件，前端收到后通过 REST 重新拉取快照。
+func (h *Handler) BroadcastDirectoryChanged(ctx context.Context, reason string, data map[string]any) {
+	if h.appEventSubs == nil {
+		return
+	}
+	payload := map[string]any{}
+	for key, value := range data {
+		payload[key] = value
+	}
+	payload["reason"] = strings.TrimSpace(reason)
+	h.appEventSubs.Broadcast(ctx, protocol.NewEvent(protocol.EventTypeDirectoryChanged, payload))
+}
+
+// BroadcastScheduledTaskChanged 广播定时任务失效事件，避免前端高频轮询。
+func (h *Handler) BroadcastScheduledTaskChanged(ctx context.Context, event protocol.CronTaskEvent) {
+	if h.appEventSubs == nil {
+		return
+	}
+	message := protocol.NewEvent(protocol.EventTypeScheduledTaskChanged, map[string]any{
+		"event_id": event.EventID,
+		"job_id":   event.JobID,
+		"agent_id": event.AgentID,
+		"action":   event.Action,
+		"run_id":   event.RunID,
+	})
+	message.AgentID = strings.TrimSpace(event.AgentID)
+	h.appEventSubs.Broadcast(ctx, message)
 }
 
 // RemoveRoom 从 chat 广播注册表中移除目标 room。
@@ -213,6 +251,10 @@ func (h *Handler) dispatchWebSocketMessage(
 		h.handleSubscribeWorkspace(ctx, sender, inbound)
 	case "unsubscribe_workspace":
 		h.handleUnsubscribeWorkspace(sender, inbound)
+	case "subscribe_app_events":
+		h.handleSubscribeAppEvents(sender)
+	case "unsubscribe_app_events":
+		h.handleUnsubscribeAppEvents(sender)
 	case "subscribe_room":
 		h.handleSubscribeRoom(ctx, sender, inbound)
 	case "unsubscribe_room":
@@ -231,6 +273,20 @@ func (h *Handler) dispatchWebSocketMessage(
 			map[string]any{"type": msgType},
 		))
 	}
+}
+
+func (h *Handler) handleSubscribeAppEvents(sender *handlershared.WebSocketSender) {
+	if h.appEventSubs == nil {
+		return
+	}
+	h.appEventSubs.Subscribe(sender)
+}
+
+func (h *Handler) handleUnsubscribeAppEvents(sender *handlershared.WebSocketSender) {
+	if h.appEventSubs == nil {
+		return
+	}
+	h.appEventSubs.Unsubscribe(sender)
 }
 
 func (h *Handler) handleSubscribeRoom(

@@ -36,6 +36,21 @@ type UpdateRequest struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// DirectoryNotifier 接收会话目录变更通知。
+type DirectoryNotifier interface {
+	NotifyDirectoryChanged(context.Context, string, protocol.Session)
+}
+
+// DirectoryNotifierFunc 适配函数式会话目录通知器。
+type DirectoryNotifierFunc func(context.Context, string, protocol.Session)
+
+// NotifyDirectoryChanged 实现 DirectoryNotifier。
+func (fn DirectoryNotifierFunc) NotifyDirectoryChanged(ctx context.Context, reason string, session protocol.Session) {
+	if fn != nil {
+		fn(ctx, reason, session)
+	}
+}
+
 // MessagePageRequest 表示消息分页读取请求。
 type MessagePageRequest struct {
 	Limit                int
@@ -52,11 +67,17 @@ type Service struct {
 	history      *workspacestore.AgentHistoryStore
 	roomHistory  *workspacestore.RoomHistoryStore
 	runtime      *runtimectx.Manager
+	notifier     DirectoryNotifier
 }
 
 // SetRuntimeManager 注入运行时管理器，用于历史读取时识别活跃轮次。
 func (s *Service) SetRuntimeManager(runtimeManager *runtimectx.Manager) {
 	s.runtime = runtimeManager
+}
+
+// SetDirectoryNotifier 注入目录变更通知器。
+func (s *Service) SetDirectoryNotifier(notifier DirectoryNotifier) {
+	s.notifier = notifier
 }
 
 // NewService 使用已注入的依赖创建 Session 服务。
@@ -198,6 +219,7 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*pr
 	if err != nil {
 		return nil, err
 	}
+	s.notifyDirectoryChanged(ctx, "session_created", *created)
 	return created, nil
 }
 
@@ -223,9 +245,11 @@ func (s *Service) UpdateSession(ctx context.Context, rawSessionKey string, reque
 	}
 	if updated == nil {
 		projected := s.applyRuntimeStateToSession(next)
+		s.notifyDirectoryChanged(ctx, "session_updated", projected)
 		return &projected, nil
 	}
 	projected := s.applyRuntimeStateToSession(*updated)
+	s.notifyDirectoryChanged(ctx, "session_updated", projected)
 	return &projected, nil
 }
 
@@ -259,7 +283,17 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 			return err
 		}
 	}
+	if item != nil {
+		s.notifyDirectoryChanged(ctx, "session_deleted", *item)
+	}
 	return nil
+}
+
+func (s *Service) notifyDirectoryChanged(ctx context.Context, reason string, session protocol.Session) {
+	if s.notifier == nil {
+		return
+	}
+	s.notifier.NotifyDirectoryChanged(ctx, strings.TrimSpace(reason), session)
 }
 
 // GetSessionMessages 读取 session 历史消息。

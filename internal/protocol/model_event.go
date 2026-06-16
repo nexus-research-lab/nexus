@@ -30,6 +30,8 @@ const (
 	EventTypePermissionRequestResolved   EventType = "permission_request_resolved"
 	EventTypeAgentRuntimeEvent           EventType = "agent_runtime_event"
 	EventTypeWorkspaceEvent              EventType = "workspace_event"
+	EventTypeDirectoryChanged            EventType = "directory_changed"
+	EventTypeScheduledTaskChanged        EventType = "scheduled_task_changed"
 	EventTypeRoomMemberAdded             EventType = "room_member_added"
 	EventTypeRoomMemberRemoved           EventType = "room_member_removed"
 	EventTypeRoomDeleted                 EventType = "room_deleted"

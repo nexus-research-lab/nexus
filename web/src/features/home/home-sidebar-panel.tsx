@@ -102,7 +102,7 @@ interface SidebarDirectorySnapshot {
 
 let sidebar_directory_cache: SidebarDirectorySnapshot | null = null;
 
-const SIDEBAR_DIRECTORY_REFRESH_INTERVAL_MS = 10000;
+const SIDEBAR_DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS = 120000;
 
 function normalize_query(value: string): string {
   return value.trim().toLowerCase();
@@ -240,7 +240,7 @@ function useSidebarDirectory(): SidebarDirectoryState {
       refresh_directory();
     };
 
-    const interval_id = window.setInterval(refresh_if_visible, SIDEBAR_DIRECTORY_REFRESH_INTERVAL_MS);
+    const interval_id = window.setInterval(refresh_if_visible, SIDEBAR_DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS);
     window.addEventListener("focus", refresh_if_visible);
     document.addEventListener("visibilitychange", refresh_if_visible);
     return () => {

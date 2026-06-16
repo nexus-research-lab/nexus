@@ -269,6 +269,8 @@ export interface EventMessage {
     | "permission_request"
     | "agent_runtime_event"
     | "workspace_event"
+    | "directory_changed"
+    | "scheduled_task_changed"
     | "pong"
     | "error"
     | "room_collaboration"
