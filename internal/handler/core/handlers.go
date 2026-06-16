@@ -77,6 +77,7 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	prefs, _ = applyImagegenDefaultTool(prefs, providerOptions)
 	defaultProvider := providerOptions.DefaultProvider
 	defaultModel := providerOptions.DefaultModel
 	if strings.TrimSpace(prefs.DefaultAgentOptions.Provider) != "" && strings.TrimSpace(prefs.DefaultAgentOptions.Model) != "" {
@@ -106,6 +107,11 @@ func (h *Handlers) HandleGetPreferences(writer http.ResponseWriter, request *htt
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	prefs, err = h.withProviderPreferenceDefaults(request, prefs)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
 	h.api.WriteSuccess(writer, prefs)
 }
 
@@ -120,6 +126,11 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 		return
 	}
 	item, err := h.prefs.Update(request.Context(), currentOwnerUserID(request), payload)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	item, err = h.persistProviderPreferenceDefaults(request, item)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return

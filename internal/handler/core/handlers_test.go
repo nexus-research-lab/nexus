@@ -14,6 +14,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	sqlitestorage "github.com/nexus-research-lab/nexus/internal/storage/sqlite"
 	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
@@ -125,6 +127,11 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 			DefaultAgentAvatar   string  `json:"default_agent_avatar"`
 			DefaultAgentProvider *string `json:"default_agent_provider"`
 			DefaultAgentModel    *string `json:"default_agent_model"`
+			Preferences          struct {
+				DefaultAgentOptions struct {
+					AllowedTools []string `json:"allowed_tools"`
+				} `json:"default_agent_options"`
+			} `json:"preferences"`
 		} `json:"data"`
 	}
 	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -141,6 +148,75 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	}
 	if payload.Data.DefaultAgentAvatar != avatar {
 		t.Fatalf("default_agent_avatar 不正确: got=%s want=%s", payload.Data.DefaultAgentAvatar, avatar)
+	}
+	if stringSliceContains(payload.Data.Preferences.DefaultAgentOptions.AllowedTools, "nexus_imagegen") {
+		t.Fatalf("未配置生图 provider 时不应默认打开 nexus_imagegen: %+v", payload.Data.Preferences.DefaultAgentOptions.AllowedTools)
+	}
+}
+
+func TestHandleRuntimeOptionsEnablesImagegenDefaultTool(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	defer func() { _ = db.Close() }()
+	providers := providercfg.NewServiceWithDB(cfg, db)
+	imageProvider, err := providers.Create(context.Background(), providercfg.CreateInput{
+		ProviderKind: providercfg.ProviderKindImageGeneration,
+		Provider:     "image-default",
+		PresetKey:    "custom",
+		APIFormat:    providercfg.APIFormatOpenAIImageGeneration,
+		AuthToken:    "image-token",
+		BaseURL:      "https://image.example.com/v1",
+		ModelsPath:   "/models",
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("创建生图 provider 失败: %v", err)
+	}
+	if _, err = providers.UpdateModel(context.Background(), imageProvider.Provider, "image-model", providercfg.UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置默认生图模型失败: %v", err)
+	}
+	prefs := preferencessvc.NewService(cfg)
+	if _, err = prefs.Update(context.Background(), authsvc.SystemUserID, preferencessvc.UpdateRequest{
+		DefaultAgentOptions: &protocol.Options{
+			PermissionMode: "default",
+			AllowedTools:   []string{"Read"},
+			SettingSources: []string{"project"},
+		},
+	}); err != nil {
+		t.Fatalf("写入默认工具偏好失败: %v", err)
+	}
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
+	recorder := httptest.NewRecorder()
+	server.Router().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+
+	var payload struct {
+		Data struct {
+			Preferences struct {
+				DefaultAgentOptions struct {
+					AllowedTools []string `json:"allowed_tools"`
+				} `json:"default_agent_options"`
+			} `json:"preferences"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("解析响应失败: %v", err)
+	}
+	if !stringSliceContains(payload.Data.Preferences.DefaultAgentOptions.AllowedTools, "nexus_imagegen") {
+		t.Fatalf("配置生图 provider 后默认工具应打开 nexus_imagegen: %+v", payload.Data.Preferences.DefaultAgentOptions.AllowedTools)
 	}
 }
 
@@ -192,6 +268,15 @@ func TestHandleProviderOptionsUsesRuntimeKind(t *testing.T) {
 	if providerOptionsContains(claudeOptions.Items, "openai") {
 		t.Fatalf("显式 Claude runtime 不应返回 OpenAI: %+v", claudeOptions.Items)
 	}
+}
+
+func stringSliceContains(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }
 
 type routerServer interface {

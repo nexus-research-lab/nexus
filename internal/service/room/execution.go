@@ -212,7 +212,7 @@ func (s *RealtimeService) runSlot(
 		Model:                      runtimeSelection.Model,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
-		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
+		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools), s.runtimeImagegenDefaultEnabled(slotCtx)),
 		DisallowedTools:            roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,

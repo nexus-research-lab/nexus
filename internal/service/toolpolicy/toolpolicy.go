@@ -28,6 +28,14 @@ var managedGoalAllowedTools = []string{
 	"Skill",
 }
 
+var managedImagegenAllowedTools = []string{
+	"nexus_imagegen",
+	"mcp__nexus_imagegen__generate_image",
+	"mcp__nexus_imagegen__edit_image",
+	"generate_image",
+	"edit_image",
+}
+
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
 func NormalizeSet(items []string) map[string]struct{} {
 	if len(items) == 0 {
@@ -168,6 +176,53 @@ func WithManagedGoalAllowedTools(tools []string) []string {
 		return tools
 	}
 	return appendDistinctTools(tools, managedGoalAllowedTools...)
+}
+
+// WithManagedImagegenAllowedTools 预授权图片生成 MCP 工具，保留用户原有工具设置。
+func WithManagedImagegenAllowedTools(tools []string) []string {
+	approved := NormalizeSet(tools)
+	if len(approved) == 0 {
+		return tools
+	}
+	if !Contains(approved, "mcp__nexus_imagegen__generate_image") &&
+		!Contains(approved, "mcp__nexus_imagegen__edit_image") {
+		return tools
+	}
+	return appendDistinctTools(tools, managedImagegenAllowedTools...)
+}
+
+// WithManagedRuntimeAllowedTools 追加运行时内建 MCP 工具的必要白名单。
+func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool) []string {
+	result := WithManagedGoalAllowedTools(tools)
+	if len(NormalizeSet(result)) == 0 {
+		return result
+	}
+	if !imagegenDefaultEnabled {
+		return withoutManagedImagegenAllowedTools(result)
+	}
+	result = appendDistinctTools(result, "nexus_imagegen")
+	return WithManagedImagegenAllowedTools(result)
+}
+
+func withoutManagedImagegenAllowedTools(tools []string) []string {
+	result := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if isManagedImagegenAllowedTool(tool) {
+			continue
+		}
+		result = append(result, tool)
+	}
+	return result
+}
+
+func isManagedImagegenAllowedTool(tool string) bool {
+	normalized := strings.TrimSpace(tool)
+	for _, managed := range managedImagegenAllowedTools {
+		if normalized == managed {
+			return true
+		}
+	}
+	return false
 }
 
 func toolNameLeaf(toolName string) string {

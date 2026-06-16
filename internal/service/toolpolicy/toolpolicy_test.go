@@ -146,3 +146,64 @@ func TestWithManagedGoalAllowedToolsPreservesEmptyPolicy(t *testing.T) {
 		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
 	}
 }
+
+func TestWithManagedImagegenAllowedToolsAppendsDistinctTools(t *testing.T) {
+	tools := WithManagedImagegenAllowedTools([]string{"Read", "nexus_imagegen"})
+	approved := NormalizeSet(tools)
+	for _, toolName := range []string{
+		"Read",
+		"nexus_imagegen",
+		"mcp__nexus_imagegen__generate_image",
+		"mcp__nexus_imagegen__edit_image",
+		"generate_image",
+		"edit_image",
+	} {
+		if !Contains(approved, toolName) {
+			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
+		}
+	}
+}
+
+func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testing.T) {
+	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, true)
+	approved := NormalizeSet(tools)
+	for _, toolName := range []string{
+		"Read",
+		"nexus_imagegen",
+		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_imagegen__generate_image",
+		"mcp__nexus_imagegen__edit_image",
+	} {
+		if !Contains(approved, toolName) {
+			t.Fatalf("expected runtime allowed tools to include %q: %+v", toolName, tools)
+		}
+	}
+}
+
+func TestWithManagedRuntimeAllowedToolsEnablesDefaultImagegen(t *testing.T) {
+	tools := WithManagedRuntimeAllowedTools([]string{"Read"}, true)
+	approved := NormalizeSet(tools)
+	if !Contains(approved, "mcp__nexus_imagegen__generate_image") {
+		t.Fatalf("configured imagegen should be enabled by default: %+v", tools)
+	}
+}
+
+func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testing.T) {
+	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, false)
+	approved := NormalizeSet(tools)
+	if Contains(approved, "mcp__nexus_imagegen__generate_image") {
+		t.Fatalf("unconfigured imagegen should stay disabled: %+v", tools)
+	}
+	if !Contains(approved, "mcp__nexus_goal__get_goal") {
+		t.Fatalf("managed goal should still be included: %+v", tools)
+	}
+}
+
+func TestWithManagedRuntimeAllowedToolsPreservesEmptyPolicy(t *testing.T) {
+	if tools := WithManagedRuntimeAllowedTools(nil, true); tools != nil {
+		t.Fatalf("nil allow policy should stay nil, got %+v", tools)
+	}
+	if tools := WithManagedRuntimeAllowedTools([]string{}, true); len(tools) != 0 {
+		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
+	}
+}
