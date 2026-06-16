@@ -1042,6 +1042,14 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     if (!selected_record || pending_action || !selected_can_manage) {
       return;
     }
+    if (model.is_default && !enabled) {
+      set_feedback({
+        tone: "error",
+        title: t("settings.providers.default_model_disable_title"),
+        message: t("settings.providers.default_model_disable_message", { model: model.display_name || model.model_id }),
+      });
+      return;
+    }
     try {
       set_pending_action(`model:${model.model_id}`);
       await update_provider_model_api(
@@ -1533,6 +1541,10 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                         const pending_model = pending_action?.endsWith(model.model_id) ?? false;
                         const display_name = model.display_name || model.model_id;
                         const show_model_id = model.model_id !== display_name;
+                        const disable_model_toggle = pending_action !== null || !selected_can_manage || model.is_default;
+                        const model_toggle_title = model.is_default
+                          ? t("settings.providers.default_model_disable_tooltip")
+                          : undefined;
                         return (
                           <div
                             className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0"
@@ -1568,12 +1580,26 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
                               {pending_model ? (
                                 <Loader2 className="h-4 w-4 animate-spin text-(--text-muted)" />
                               ) : (
-                                <GlassSwitch
-                                  checked={model.enabled}
-                                  disabled={pending_action !== null || !selected_can_manage}
-                                  size="xs"
-                                  on_change={(checked) => void handle_toggle_model(model, checked)}
-                                />
+                                <span
+                                  onClick={() => {
+                                    if (!model.is_default) {
+                                      return;
+                                    }
+                                    set_feedback({
+                                      tone: "error",
+                                      title: t("settings.providers.default_model_disable_title"),
+                                      message: t("settings.providers.default_model_disable_message", { model: display_name }),
+                                    });
+                                  }}
+                                  title={model_toggle_title}
+                                >
+                                  <GlassSwitch
+                                    checked={model.enabled}
+                                    disabled={disable_model_toggle}
+                                    size="xs"
+                                    on_change={(checked) => void handle_toggle_model(model, checked)}
+                                  />
+                                </span>
                               )}
                             </div>
                           </div>
