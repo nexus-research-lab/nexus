@@ -35,8 +35,8 @@ const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {
 
 const ACTION_TONE_CLASS_MAP: Record<MessageActionTone, string> = {
   default: "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-  success: "text-green-500 hover:bg-emerald-500/10 hover:text-emerald-500",
-  danger: "hover:bg-rose-500/10 hover:text-rose-500",
+  success: "text-(--success) hover:bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] hover:text-(--success)",
+  danger: "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] hover:text-(--destructive)",
 };
 
 function get_first_visible_spinner_frame_index(name: BrailleSpinnerName): number {
@@ -60,10 +60,10 @@ const ACTIVITY_TONE_CLASS_MAP: Record<MessageActivityState, string> = {
   sending: "text-(--text-muted)",
   thinking: "text-(--text-muted)",
   replying: "text-(--text-default)",
-  browsing: "text-cyan-600",
-  executing: "text-indigo-600",
-  waiting_permission: "text-amber-700",
-  waiting_input: "text-violet-600",
+  browsing: "text-[color:color-mix(in_srgb,var(--primary)_76%,var(--accent)_24%)]",
+  executing: "text-(--primary)",
+  waiting_permission: "text-(--warning)",
+  waiting_input: "text-[color:color-mix(in_srgb,var(--primary)_72%,var(--text-strong)_28%)]",
 };
 
 const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {

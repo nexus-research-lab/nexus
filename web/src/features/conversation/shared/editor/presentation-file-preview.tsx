@@ -293,7 +293,7 @@ export function PresentationFilePreview({
                 加载失败
               </span>
             ) : is_loaded ? (
-              <span className="flex items-center gap-1 text-emerald-600">
+              <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载 {status.slide_count} 页
               </span>
@@ -405,7 +405,7 @@ function PresentationSlideCanvas({
     <svg
       aria-label={slide.title}
       className={cn(
-        "block w-full bg-white shadow-[0_18px_42px_rgba(15,23,42,0.16)]",
+        "block w-full bg-(--surface-paper-background) shadow-(--surface-paper-shadow)",
         thumbnail ? "rounded-[2px] shadow-sm" : "rounded-[2px]",
         class_name,
       )}

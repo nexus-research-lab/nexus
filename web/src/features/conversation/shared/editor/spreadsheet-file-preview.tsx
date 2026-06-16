@@ -251,7 +251,7 @@ function SpreadsheetPreviewMeta({ status }: { status: SpreadsheetPreviewStatus }
         xlsx 预览
       </span>
       {status.state === "loaded" ? (
-        <span className="flex items-center gap-1 text-emerald-600">
+        <span className="flex items-center gap-1 text-(--success)">
           <Eye className="h-3 w-3" />
           已加载 {status.sheet_count} 个工作表
         </span>

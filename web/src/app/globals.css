@@ -16,3 +16,6 @@
 @import "./styles/theme-tokens.css";
 @import "./styles/theme-base.css";
 @import "./styles/theme-recipes.css";
+
+/* 中文注释：Nexus 主题通过 data-theme 驱动，Tailwind dark 变体需要跟随同一合同。 */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, [data-theme="rain"], [data-theme="rain"] *));

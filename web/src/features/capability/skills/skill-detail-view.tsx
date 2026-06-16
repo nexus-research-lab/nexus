@@ -145,7 +145,7 @@ export function SkillDetailView({
                 <div
                   className={cn(
                     "flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-                    skill.locked ? "text-amber-700" : skill.source_type === "external" ? "text-sky-600" : "text-(--icon-default)",
+                    skill.locked ? "text-(--warning)" : skill.source_type === "external" ? "text-(--status-info-soft-text)" : "text-(--icon-default)",
                   )}
                 >
                   {skill.locked ? <Lock className="h-9 w-9" /> : <Puzzle className="h-9 w-9" />}

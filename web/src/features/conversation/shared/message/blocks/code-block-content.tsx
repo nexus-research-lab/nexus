@@ -20,7 +20,7 @@ const MESSAGE_CODE_FONT_FAMILY = "\"KingHwa_OldSong\", var(--font-mono), monospa
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();
   const { copied, copy } = useCopyToClipboard();
-  const is_dark_theme = theme === "dark";
+  const is_dark_theme = theme === "dark" || theme === "rain";
 
   const handle_copy = () => {
     void copy(value);
@@ -34,8 +34,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
         <button
           className={cn(
             "inline-flex h-3 w-3 items-center justify-center rounded-[6px] border border-transparent transition-colors duration-(--motion-duration-fast)",
-            copied && !is_dark_theme && "bg-emerald-100/80 text-emerald-600",
-            copied && is_dark_theme && "bg-green-950/38 text-emerald-300",
+            copied && "bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-(--success)",
           )}
           style={copied ? undefined : {
             color: "var(--text-muted)",

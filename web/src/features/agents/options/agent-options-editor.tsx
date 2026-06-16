@@ -492,7 +492,7 @@ export function AgentOptionsEditor({
       <span
         className={cn(
           "max-w-[280px] truncate text-[12px]",
-          saveFeedback.tone === "success" ? "text-emerald-600" : "text-(--destructive)",
+          saveFeedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
         )}
         title={saveFeedback.message}
       >
@@ -644,7 +644,7 @@ export function AgentOptionsEditor({
           <span
             className={cn(
               "max-w-[260px] truncate text-[12px]",
-              saveFeedback.tone === "success" ? "text-emerald-600" : "text-(--destructive)",
+              saveFeedback.tone === "success" ? "text-(--success)" : "text-(--destructive)",
             )}
             title={saveFeedback.message}
           >

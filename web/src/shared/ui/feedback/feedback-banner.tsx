@@ -34,20 +34,32 @@ export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBan
   const auto_dismiss_ms = is_success ? 2200 : is_warning ? 2800 : 3600;
   const shell_class_name = cn(
     "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-[0_10px_28px_rgba(0,0,0,0.10)]",
-    is_success ? "border-emerald-500/20" : is_warning ? "border-amber-500/20" : "border-rose-500/20",
+    is_success
+      ? "border-[color:color-mix(in_srgb,var(--success)_22%,transparent)]"
+      : is_warning
+        ? "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)]"
+        : "border-[color:color-mix(in_srgb,var(--destructive)_22%,transparent)]",
   );
   const icon_class_name = cn(
     "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-    is_success ? "bg-emerald-500/12 text-emerald-500" : is_warning ? "bg-amber-500/12 text-amber-600" : "bg-rose-500/12 text-rose-500",
+    is_success
+      ? "bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-(--success)"
+      : is_warning
+        ? "bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-(--warning)"
+        : "bg-[color:color-mix(in_srgb,var(--destructive)_12%,transparent)] text-(--destructive)",
   );
   const title_class_name = cn(
     "text-[12px] font-bold",
-    is_success ? "text-emerald-500" : is_warning ? "text-amber-600" : "text-rose-500",
+    is_success ? "text-(--success)" : is_warning ? "text-(--warning)" : "text-(--destructive)",
   );
   const item_class_name = cn(
     "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-[10px] font-medium",
-    is_success ? "text-emerald-500" : is_warning ? "text-amber-600" : "text-rose-500",
-    is_success ? "border-emerald-500/18" : is_warning ? "border-amber-500/18" : "border-rose-500/18",
+    is_success ? "text-(--success)" : is_warning ? "text-(--warning)" : "text-(--destructive)",
+    is_success
+      ? "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)]"
+      : is_warning
+        ? "border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)]"
+        : "border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)]",
   );
 
   useEffect(() => {

@@ -1112,12 +1112,12 @@ const ComposerPanelView = memo(({
             ) : null}
 
             {is_dispatching ? (
-              <span className="flex items-center gap-2 text-emerald-900/90">
+              <span className="flex items-center gap-2 text-(--success)">
                 <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
                 <span className="animate-pulse">{t("status.sending")}</span>
               </span>
             ) : can_stop_generation ? (
-              <span className="flex items-center gap-2 text-emerald-900/90">
+              <span className="flex items-center gap-2 text-(--success)">
                 <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
                 <span className="animate-pulse">{t("status.replying")}…</span>
                 <span className="text-(--text-soft)">[{t("composer.esc_stop")}]</span>

@@ -304,7 +304,7 @@ function HtmlFilePreview({
       className="soft-scrollbar flex h-full min-h-0 w-full items-start justify-center overflow-auto bg-(--surface-panel-subtle-background) p-4"
     >
       <div
-        className="shrink-0 overflow-hidden rounded-[10px] border border-(--divider-subtle-color) bg-white shadow-[0_20px_60px_rgba(15,23,42,0.10)]"
+        className="shrink-0 overflow-hidden rounded-[10px] border border-(--surface-paper-border) bg-(--surface-paper-background) shadow-(--surface-paper-shadow)"
         style={{
           height: HTML_PREVIEW_HEIGHT * scale,
           width: HTML_PREVIEW_WIDTH * scale,
@@ -319,7 +319,7 @@ function HtmlFilePreview({
           }}
         >
           <iframe
-            className="h-full w-full bg-white"
+            className="h-full w-full bg-(--surface-paper-background)"
             sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
             srcDoc={preview_document}
             title={title}
@@ -428,7 +428,7 @@ function PdfPreview({
               PDF 预览
             </span>
             {is_loaded ? (
-              <span className="flex items-center gap-1 text-emerald-600">
+              <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载
               </span>
@@ -511,7 +511,7 @@ function ImagePreview({
                 加载失败
               </span>
             ) : is_loaded ? (
-              <span className="flex items-center gap-1 text-emerald-600">
+              <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载
               </span>
@@ -1128,7 +1128,7 @@ export function EditorPanel({
                         </>
                       ) : (
                         <>
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--success)" />
                           <span className="truncate">
                             已同步最新内容
                             {live_state.diff_stats

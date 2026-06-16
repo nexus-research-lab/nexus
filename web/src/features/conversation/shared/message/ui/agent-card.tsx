@@ -21,11 +21,11 @@ function StatusIndicator({ status }: { status: AgentRoundStatus }) {
     case "pending":
       return <MessageLoadingDots size="sm" name="braille" />;
     case "streaming":
-      return <MessageLoadingDots size="sm" name="dna" class_name="text-blue-500" />;
+      return <MessageLoadingDots size="sm" name="dna" class_name="text-(--primary)" />;
     case "done":
-      return <Check className="h-3.5 w-3.5 text-emerald-500" />;
+      return <Check className="h-3.5 w-3.5 text-(--success)" />;
     case "error":
-      return <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />;
+      return <AlertTriangle className="h-3.5 w-3.5 text-(--destructive)" />;
     case "cancelled":
       return <Square className="h-3 w-3 text-(--icon-muted)" />;
   }

@@ -178,7 +178,7 @@ function QuestionCard({
                 className={cn(
                     "message-cjk-font flex cursor-pointer select-none items-center gap-2 px-3 py-2 transition duration-(--motion-duration-fast) ease-out",
                     isExpanded && "border-b border-(--divider-subtle-color)",
-                    !isExpanded && "hover:bg-white/4",
+                    !isExpanded && "hover:bg-(--surface-interactive-hover-background)",
                 )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
@@ -247,7 +247,7 @@ function QuestionCard({
                                         "w-full border-b border-(--divider-subtle-color) px-3 py-2 text-left transition duration-(--motion-duration-fast) ease-out last:border-b-0",
                                         isSelected
                                             ? "bg-primary/4"
-                                            : "bg-transparent hover:bg-white/4",
+                                            : "bg-transparent hover:bg-(--surface-interactive-hover-background)",
                                         is_submitted && "cursor-not-allowed opacity-60",
                                     )}
                                     disabled={is_submitted}

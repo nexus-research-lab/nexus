@@ -322,11 +322,11 @@ function LoginQRCode({ payload }: { payload?: string }) {
       {image_url ? (
         <img
           alt="微信扫码登录二维码"
-          className="h-[220px] w-[220px] rounded-[8px] bg-white p-2"
+          className="h-[220px] w-[220px] rounded-[8px] bg-(--surface-paper-background) p-2"
           src={image_url}
         />
       ) : (
-        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-white p-4 text-center text-[12px] leading-5 text-neutral-700">
+        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-[12px] leading-5 text-(--surface-paper-muted)">
           二维码生成失败，请使用下方链接
         </div>
       )}

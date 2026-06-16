@@ -51,7 +51,7 @@ export function WorkspaceTaskStrip({
 
   const render_status_marker = (status: TodoItem["status"]) => {
     if (status === "completed") {
-      return <Check className="h-3.5 w-3.5 text-emerald-600" />;
+      return <Check className="h-3.5 w-3.5 text-(--success)" />;
     }
 
     if (status === "in_progress") {
@@ -189,7 +189,7 @@ export function WorkspaceTaskStrip({
                           <span
                             className={cn(
                             "inline-flex items-center justify-center gap-1.5 pt-0.25 text-[10.5px] font-medium",
-                              is_completed && "text-emerald-600",
+                              is_completed && "text-(--success)",
                               is_running && "text-primary",
                               todo.status === "pending" && "text-(--text-muted)",
                             )}
