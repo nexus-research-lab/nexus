@@ -166,6 +166,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/channels"), s.handlers.channel.HandleListChannels)
 	s.router.Put(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleUpsertChannelConfig)
 	s.router.Delete(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleDeleteChannelConfig)
+	s.router.Delete(s.prefixPath("/capability/channels/{channel_type}/accounts/{account_id}"), s.handlers.channel.HandleDeleteChannelAccount)
 	s.router.Post(s.prefixPath("/capability/channels/{channel_type}/login"), s.handlers.channel.HandleStartChannelLogin)
 	s.router.Get(s.prefixPath("/capability/channels/{channel_type}/login/{login_id}"), s.handlers.channel.HandleGetChannelLogin)
 	s.router.Post(s.prefixPath("/capability/channels/{channel_type}/login/{login_id}/verify-code"), s.handlers.channel.HandleSubmitChannelLoginVerifyCode)

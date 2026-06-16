@@ -1,4 +1,4 @@
-package channels
+package management
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestPairingApprovalNoticeTextIncludesPairingID(t *testing.T) {
-	text := pairingApprovalNoticeText(&pairingApprovalError{
+	text := PairingApprovalNoticeText(&PairingApprovalError{
 		PairingID: "pair_123",
 		Message:   "IM 对象尚未配对授权，请先在配对控制台批准",
 	})
@@ -19,7 +19,7 @@ func TestPairingApprovalNoticeTextIncludesPairingID(t *testing.T) {
 }
 
 func TestPairingApprovalNoticeTextIgnoresOtherErrors(t *testing.T) {
-	if got := pairingApprovalNoticeText(nil); got != "" {
+	if got := PairingApprovalNoticeText(nil); got != "" {
 		t.Fatalf("nil error should not produce notice: %q", got)
 	}
 }

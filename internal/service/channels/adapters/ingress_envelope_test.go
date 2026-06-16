@@ -1,7 +1,8 @@
-package channels
+package adapters
 
 import (
 	"context"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
@@ -10,7 +11,7 @@ import (
 func TestDiscordBuildIngressRequestIncludesMessageEnvelope(t *testing.T) {
 	t.Parallel()
 
-	channel := newDiscordChannel("token", nil).WithOwner("owner-a")
+	channel := NewDiscordChannel("token", nil).WithOwner("owner-a")
 	request, err := channel.buildIngressRequest(&discordgo.Session{}, &discordgo.MessageCreate{
 		Message: &discordgo.Message{
 			ID:        "discord-message-1",
@@ -27,7 +28,7 @@ func TestDiscordBuildIngressRequestIncludesMessageEnvelope(t *testing.T) {
 	}
 
 	if request.OwnerUserID != "owner-a" ||
-		request.Channel != ChannelTypeDiscord ||
+		request.Channel != channelcontract.ChannelTypeDiscord ||
 		request.ChatType != "dm" ||
 		request.Ref != "discord-user-1" ||
 		request.RoundID != "discord-message-1" ||
@@ -35,7 +36,7 @@ func TestDiscordBuildIngressRequestIncludesMessageEnvelope(t *testing.T) {
 		t.Fatalf("Discord ingress 基础字段不正确: %+v", request)
 	}
 	if request.Message == nil ||
-		request.Message.Channel != ChannelTypeDiscord ||
+		request.Message.Channel != channelcontract.ChannelTypeDiscord ||
 		request.Message.Target != "discord-user-1" ||
 		request.Message.PlatformMessageID != "discord-message-1" ||
 		request.Message.ReplyToID != "discord-message-0" ||
@@ -49,7 +50,7 @@ func TestDiscordBuildIngressRequestIncludesMessageEnvelope(t *testing.T) {
 func TestDiscordBuildIngressRequestKeepsDMUsersSeparate(t *testing.T) {
 	t.Parallel()
 
-	channel := newDiscordChannel("token", nil).WithOwner("owner-a")
+	channel := NewDiscordChannel("token", nil).WithOwner("owner-a")
 	users := []struct {
 		id        string
 		channelID string
@@ -85,7 +86,7 @@ func TestDiscordBuildIngressRequestKeepsDMUsersSeparate(t *testing.T) {
 func TestTelegramChannelHandleUpdateKeepsDMUsersSeparate(t *testing.T) {
 	t.Parallel()
 
-	channel := newTelegramChannel("token", nil).WithOwner("owner-a")
+	channel := NewTelegramChannel("token", nil).WithOwner("owner-a")
 	ingress := &recordingIngressAcceptor{}
 	channel.SetIngress(ingress)
 	for _, userID := range []int64{101, 202} {
@@ -142,7 +143,7 @@ func TestDecodeDingTalkIngressCallbackIncludesMessageEnvelope(t *testing.T) {
 		t.Fatalf("钉钉回投应优先使用 sessionWebhook: %+v", request.Delivery)
 	}
 	if request.Message == nil ||
-		request.Message.Channel != ChannelTypeDingTalk ||
+		request.Message.Channel != channelcontract.ChannelTypeDingTalk ||
 		request.Message.Target != "cid-1" ||
 		request.Message.PlatformMessageID != "ding-message-1" ||
 		request.Message.SenderID != "staff-1" ||

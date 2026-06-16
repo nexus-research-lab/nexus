@@ -23,10 +23,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { get_agents } from "@/lib/api/agent-manage-api";
 import {
+  ChannelAccountView,
   ChannelLoginView,
   ChannelConfigView,
   ChannelCredentialField,
   ImChannelType,
+  delete_channel_account_api,
   delete_channel_config_api,
   get_channel_login_api,
   list_channels_api,
@@ -47,6 +49,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
+import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
   get_dialog_note_class_name,
   get_dialog_note_style,
@@ -71,8 +74,13 @@ import {
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { Agent } from "@/types/agent/agent";
 
+import { notify_capability_summary_mutated } from "../capability-summary-events";
+
 const CHANNEL_ORDER: ImChannelType[] = ["dingtalk", "wechat", "weixin-personal", "feishu", "telegram", "discord"];
 type ChannelFilter = "all" | "connected" | "configured" | "unconfigured" | "planned";
+type PendingChannelDelete =
+  | { kind: "channel" }
+  | { kind: "account"; account: ChannelAccountView };
 
 const CHANNEL_FILTER_OPTIONS: ReadonlyArray<{ value: ChannelFilter; label_key: TranslationKey }> = [
   { value: "all", label_key: "capability.channels_filter_all" },
@@ -418,6 +426,90 @@ function ChannelLoginPanel({
   );
 }
 
+function channel_account_status_label(status: string) {
+  switch (status) {
+  case "connected":
+    return "已连接";
+  case "configured":
+    return "已配置";
+  case "pending":
+    return "待确认";
+  case "error":
+    return "异常";
+  case "disabled":
+    return "已停用";
+  default:
+    return status || "未知";
+  }
+}
+
+function ChannelAccountsPanel({
+  accounts,
+  deleting_account_id,
+  on_delete,
+}: {
+  accounts: ChannelAccountView[];
+  deleting_account_id: string;
+  on_delete: (account: ChannelAccountView) => void;
+}) {
+  return (
+    <div className="rounded-[14px] border border-(--divider-subtle-color) bg-transparent px-4 py-3">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold text-(--text-strong)">已连接账号</div>
+        </div>
+        <UiBadge size="xs">{accounts.length} 个</UiBadge>
+      </div>
+      {accounts.length === 0 ? (
+        <div className="mt-3 rounded-[10px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-[12px] text-(--text-muted)">
+          暂无已连接账号
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {accounts.map((account) => (
+            <div
+              className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) px-3 py-2"
+              key={account.account_id}
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <code className="min-w-0 truncate text-[12px] font-semibold text-(--text-strong)" title={account.account_id}>
+                    {account.account_id}
+                  </code>
+                  <UiBadge size="xs" tone={account.status === "error" ? "danger" : "success"}>
+                    {channel_account_status_label(account.status)}
+                  </UiBadge>
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-(--text-muted)">
+                  {account.user_id ? `用户 ${account.user_id} · ` : ""}更新 {new Date(account.updated_at).toLocaleString()}
+                </div>
+                {account.last_error ? (
+                  <div className="mt-0.5 truncate text-[11px] text-(--destructive)" title={account.last_error}>
+                    {account.last_error}
+                  </div>
+                ) : null}
+              </div>
+              <UiListActionButton
+                disabled={deleting_account_id === account.account_id}
+                onClick={() => on_delete(account)}
+                size="sm"
+                stop_propagation
+                title="删除该账号"
+              >
+                {deleting_account_id === account.account_id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+              </UiListActionButton>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on_error }: ChannelDialogProps) {
   const [current_item, set_current_item] = useState(item);
   const [agent_id, set_agent_id] = useState(item.agent_id || agents[0]?.agent_id || "");
@@ -425,6 +517,8 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
   const [credentials, set_credentials] = useState<Record<string, string>>({});
   const [saving, set_saving] = useState(false);
   const [deleting, set_deleting] = useState(false);
+  const [deleting_account_id, set_deleting_account_id] = useState("");
+  const [pending_delete, set_pending_delete] = useState<PendingChannelDelete | null>(null);
   const [login_loading, set_login_loading] = useState(false);
   const [login_view, set_login_view] = useState<ChannelLoginView | null>(null);
   const is_planned = is_channel_planned(current_item);
@@ -442,6 +536,8 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
     set_login_view(null);
     set_login_loading(false);
     set_deleting(false);
+    set_deleting_account_id("");
+    set_pending_delete(null);
   }, [agents, item]);
 
   const handle_field_change = (field: ChannelCredentialField, value: string) => {
@@ -465,6 +561,14 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
     }
   }, [current_item.channel_type, login_id, on_error, supports_personal_weixin_login]);
 
+  const refresh_current_channel = useCallback(async () => {
+    const items = await list_channels_api();
+    const updated = items.find((value) => value.channel_type === current_item.channel_type);
+    if (!updated) return;
+    set_current_item(updated);
+    on_saved(updated, false);
+  }, [current_item.channel_type, on_saved]);
+
   useEffect(() => {
     if (!supports_personal_weixin_login || !login_id || login_status !== "running") {
       return;
@@ -473,13 +577,16 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
       try {
         const next_login = await get_channel_login_api(current_item.channel_type, login_id);
         set_login_view(next_login);
+        if (next_login.status === "succeeded") {
+          void refresh_current_channel();
+        }
       } catch (error) {
         window.clearInterval(timer);
         on_error(error instanceof Error ? error.message : "扫码登录状态刷新失败");
       }
     }, 1500);
     return () => window.clearInterval(timer);
-  }, [current_item.channel_type, login_id, login_status, on_error, supports_personal_weixin_login]);
+  }, [current_item.channel_type, login_id, login_status, on_error, refresh_current_channel, supports_personal_weixin_login]);
 
   const save_channel = useCallback(async (close_on_success: boolean) => {
     if (!agent_id) return;
@@ -509,13 +616,17 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
     }
   }, [agent_id, config, credentials, current_item.channel_type, is_planned, on_close, on_error, on_saved]);
 
+  const request_delete_channel = useCallback(() => {
+    if (!current_item.configured || is_planned || deleting) return;
+    set_pending_delete({ kind: "channel" });
+  }, [current_item.configured, deleting, is_planned]);
+
   const delete_channel = useCallback(async () => {
     if (!current_item.configured || is_planned || deleting) return;
-    const confirmed = window.confirm(`确认断开 ${current_item.title} 吗？这会停止该频道的机器人连接，但不会删除已有配对。`);
-    if (!confirmed) return;
     set_deleting(true);
     try {
       await delete_channel_config_api(current_item.channel_type);
+      notify_capability_summary_mutated({ source: "channels", action: "delete", channel_type: current_item.channel_type });
       await on_deleted(current_item);
       set_deleting(false);
       on_close();
@@ -525,27 +636,59 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
     }
   }, [current_item, deleting, is_planned, on_close, on_deleted, on_error]);
 
+  const request_delete_account = useCallback((account: ChannelAccountView) => {
+    if (!account.account_id || deleting_account_id) return;
+    set_pending_delete({ kind: "account", account });
+  }, [deleting_account_id]);
+
+  const delete_account = useCallback(async (account: ChannelAccountView) => {
+    if (!account.account_id || deleting_account_id) return;
+    set_deleting_account_id(account.account_id);
+    try {
+      const updated = await delete_channel_account_api(current_item.channel_type, account.account_id);
+      set_current_item(updated);
+      notify_capability_summary_mutated({ source: "channels", action: "delete_account", channel_type: current_item.channel_type });
+      on_saved(updated, false);
+    } catch (error) {
+      on_error(error instanceof Error ? error.message : "删除账号失败");
+    } finally {
+      set_deleting_account_id("");
+    }
+  }, [current_item.channel_type, deleting_account_id, on_error, on_saved]);
+
+  const confirm_delete = useCallback(() => {
+    const target = pending_delete;
+    if (!target) return;
+    set_pending_delete(null);
+    if (target.kind === "channel") {
+      void delete_channel();
+      return;
+    }
+    void delete_account(target.account);
+  }, [delete_account, delete_channel, pending_delete]);
+
   const handle_submit = async (event: FormEvent) => {
     event.preventDefault();
     await save_channel(true);
   };
 
   return (
-    <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={on_close}>
-        <UiDialogFormShell
-          autoComplete="off"
-          class_name="max-h-[86vh]"
-          onSubmit={handle_submit}
-          size="lg"
-        >
-          <UiDialogHeader
-            icon={<ChannelIcon type={current_item.channel_type} size="dialog" />}
-            icon_class_name="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
-            on_close={on_close}
-            title={`连接 ${current_item.title}`}
-            title_id="channel-connect-dialog-title"
-          />
+    <>
+      <UiDialogPortal>
+        <UiDialogBackdrop class_name="z-[9999]" labelled_by="channel-connect-dialog-title" on_close={on_close}>
+          <UiDialogFormShell
+            autoComplete="off"
+            class_name="max-h-[86vh]"
+            onSubmit={handle_submit}
+            size="lg"
+          >
+            <UiDialogHeader
+              icon={<ChannelIcon type={current_item.channel_type} size="dialog" />}
+              icon_class_name="h-[52px] w-[52px] overflow-visible border-0 bg-transparent p-0 shadow-none"
+              on_close={on_close}
+              title={`连接 ${current_item.title}`}
+              title_id="channel-connect-dialog-title"
+            />
 
           <UiDialogBody class_name="space-y-5" scrollable>
             {is_planned ? (
@@ -570,6 +713,14 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
                     loading={login_loading || saving}
                     login_view={login_view}
                     on_submit_verify_code={submit_verify_code}
+                  />
+                ) : null}
+
+                {supports_personal_weixin_login ? (
+                  <ChannelAccountsPanel
+                    accounts={current_item.accounts || []}
+                    deleting_account_id={deleting_account_id}
+                    on_delete={request_delete_account}
                   />
                 ) : null}
 
@@ -643,7 +794,7 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
                   <UiButton
                     class_name="min-w-[118px]"
                     disabled={saving || deleting || login_loading}
-                    onClick={delete_channel}
+                    onClick={request_delete_channel}
                     size="lg"
                     tone="danger"
                     type="button"
@@ -688,8 +839,22 @@ function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on
             </div>
           </UiDialogFooter>
         </UiDialogFormShell>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
+        </UiDialogBackdrop>
+      </UiDialogPortal>
+      <ConfirmDialog
+        confirm_text={pending_delete?.kind === "channel" ? "断开频道" : "删除账号"}
+        is_open={pending_delete !== null}
+        message={pending_delete?.kind === "channel"
+          ? `确认断开 ${current_item.title} 吗？这会停止该频道的机器人连接，但不会删除已有配对。`
+          : pending_delete
+            ? `确认删除微信账号 ${pending_delete.account.user_id || pending_delete.account.account_id} 吗？已有配对不会删除，但该账号会停止接收和回投消息。`
+            : ""}
+        on_cancel={() => set_pending_delete(null)}
+        on_confirm={confirm_delete}
+        title={pending_delete?.kind === "channel" ? "断开频道" : "删除微信账号"}
+        variant="danger"
+      />
+    </>
   );
 }
 
@@ -888,6 +1053,7 @@ export function ChannelsDirectory() {
 
   const handle_channel_saved = useCallback((item: ChannelConfigView, announce = true) => {
     set_channels((current) => current.map((value) => value.channel_type === item.channel_type ? item : value));
+    notify_capability_summary_mutated({ source: "channels", action: "save", channel_type: item.channel_type });
     if (announce) {
       set_feedback({ tone: "success", title: "连接成功", message: `${item.title} 已完成配置` });
     }

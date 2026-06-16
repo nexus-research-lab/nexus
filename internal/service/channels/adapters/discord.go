@@ -1,8 +1,9 @@
-package channels
+package adapters
 
 import (
 	"context"
 	"fmt"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"net/http"
 	"strings"
 	"sync"
@@ -10,16 +11,17 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
+	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
-type discordChannel struct {
+type DiscordChannel struct {
 	token       string
 	client      *http.Client
 	baseURL     string
 	ownerUserID string
 
 	mu      sync.RWMutex
-	ingress IngressAcceptor
+	ingress channelcontract.IngressAcceptor
 	session *discordgo.Session
 }
 
@@ -27,33 +29,44 @@ type discordSendMessageResponse struct {
 	ID string `json:"id"`
 }
 
-func newDiscordChannel(token string, client *http.Client) *discordChannel {
+func NewDiscordChannel(token string, client *http.Client) *DiscordChannel {
 	if client == nil {
-		client = defaultChannelHTTPClient
+		client = channeltransport.DefaultHTTPClient
 	}
-	return &discordChannel{
+	return &DiscordChannel{
 		token:   strings.TrimSpace(token),
 		client:  client,
 		baseURL: "https://discord.com/api/v10",
 	}
 }
 
-func (c *discordChannel) WithOwner(ownerUserID string) *discordChannel {
+func (c *DiscordChannel) WithOwner(ownerUserID string) *DiscordChannel {
 	c.ownerUserID = strings.TrimSpace(ownerUserID)
 	return c
 }
 
-func (c *discordChannel) ChannelType() string {
-	return ChannelTypeDiscord
+func (c *DiscordChannel) WithBaseURL(baseURL string) *DiscordChannel {
+	if baseURL = strings.TrimSpace(baseURL); baseURL != "" {
+		c.baseURL = strings.TrimRight(baseURL, "/")
+	}
+	return c
 }
 
-func (c *discordChannel) SetIngress(ingress IngressAcceptor) {
+func (c *DiscordChannel) BaseURL() string {
+	return c.baseURL
+}
+
+func (c *DiscordChannel) ChannelType() string {
+	return channelcontract.ChannelTypeDiscord
+}
+
+func (c *DiscordChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ingress = ingress
 }
 
-func (c *discordChannel) Start(context.Context) error {
+func (c *DiscordChannel) Start(context.Context) error {
 	if strings.TrimSpace(c.token) == "" {
 		return nil
 	}
@@ -69,7 +82,7 @@ func (c *discordChannel) Start(context.Context) error {
 		return err
 	}
 	session.Client = c.client
-	session.Dialer = newChannelWebsocketDialer()
+	session.Dialer = channeltransport.NewWebsocketDialer()
 	session.Identify.Intents = discordgo.IntentsGuildMessages |
 		discordgo.IntentsDirectMessages |
 		discordgo.IntentsMessageContent
@@ -89,7 +102,7 @@ func (c *discordChannel) Start(context.Context) error {
 	return nil
 }
 
-func (c *discordChannel) Stop(context.Context) error {
+func (c *DiscordChannel) Stop(context.Context) error {
 	c.mu.Lock()
 	session := c.session
 	c.session = nil
@@ -100,18 +113,18 @@ func (c *discordChannel) Stop(context.Context) error {
 	return session.Close()
 }
 
-func (c *discordChannel) SendDeliveryMessage(ctx context.Context, target DeliveryTarget, text string) (DeliveryResult, error) {
+func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
-		return DeliveryResult{}, fmt.Errorf("discord channel is not configured")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("discord channel is not configured")
 	}
-	targetID := firstNonEmpty(target.ThreadID, target.To)
+	targetID := channelcontract.FirstNonEmpty(target.ThreadID, target.To)
 	if targetID == "" {
-		return DeliveryResult{}, fmt.Errorf("discord delivery target requires to or thread_id")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("discord delivery target requires to or thread_id")
 	}
 
 	parts := make([]channelmessage.ReceiptPart, 0)
-	for _, chunk := range splitText(strings.TrimSpace(text), 1900) {
+	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 1900) {
 		payload := map[string]any{
 			"content": chunk,
 			"allowed_mentions": map[string]any{
@@ -119,7 +132,7 @@ func (c *discordChannel) SendDeliveryMessage(ctx context.Context, target Deliver
 			},
 		}
 		var response discordSendMessageResponse
-		if err := doChannelJSONExpectSuccessDecode(
+		if err := channeltransport.DoJSONExpectSuccessDecode(
 			ctx,
 			c.client,
 			http.MethodPost,
@@ -128,33 +141,33 @@ func (c *discordChannel) SendDeliveryMessage(ctx context.Context, target Deliver
 			map[string]string{"Authorization": "Bot " + c.token},
 			&response,
 		); err != nil {
-			return DeliveryResult{}, err
+			return channelcontract.DeliveryResult{}, err
 		}
 		if strings.TrimSpace(response.ID) != "" {
 			parts = append(parts, channelmessage.TextPart(response.ID))
 		}
 	}
-	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
-		Channel:  ChannelTypeDiscord,
+	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  channelcontract.ChannelTypeDiscord,
 		Target:   targetID,
 		ThreadID: target.ThreadID,
 		Parts:    parts,
 	})), nil
 }
 
-func (c *discordChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
+func (c *DiscordChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {
 	if !active {
 		return nil
 	}
 	if strings.TrimSpace(c.token) == "" {
 		return fmt.Errorf("discord channel is not configured")
 	}
-	targetID := firstNonEmpty(target.ThreadID, target.To)
+	targetID := channelcontract.FirstNonEmpty(target.ThreadID, target.To)
 	if targetID == "" {
 		return fmt.Errorf("discord typing target requires to or thread_id")
 	}
 
-	return doChannelJSONExpectSuccess(
+	return channeltransport.DoJSONExpectSuccess(
 		ctx,
 		c.client,
 		http.MethodPost,
@@ -164,7 +177,7 @@ func (c *discordChannel) SendDeliveryTyping(ctx context.Context, target Delivery
 	)
 }
 
-func (c *discordChannel) handleMessageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
+func (c *DiscordChannel) handleMessageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
 	if session == nil || message == nil || message.Author == nil || message.Author.Bot {
 		return
 	}
@@ -182,7 +195,7 @@ func (c *discordChannel) handleMessageCreate(session *discordgo.Session, message
 	if err != nil {
 		_, _ = session.ChannelMessageSend(
 			message.ChannelID,
-			"⚠️ Discord 消息路由失败: "+truncateChannelError(err),
+			"⚠️ Discord 消息路由失败: "+TruncateError(err),
 		)
 		return
 	}
@@ -190,40 +203,40 @@ func (c *discordChannel) handleMessageCreate(session *discordgo.Session, message
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	if _, err = ingress.Accept(ctx, request); err != nil {
-		if isPairingApprovalRequired(err) {
-			if notice := pairingApprovalNoticeText(err); notice != "" {
+		if IsPairingApprovalRequired(err) {
+			if notice := PairingApprovalNoticeText(err); notice != "" {
 				_, _ = session.ChannelMessageSend(message.ChannelID, notice)
 			}
 			return
 		}
 		_, _ = session.ChannelMessageSend(
 			message.ChannelID,
-			"⚠️ Discord 消息处理失败: "+truncateChannelError(err),
+			"⚠️ Discord 消息处理失败: "+TruncateError(err),
 		)
 	}
 }
 
-func (c *discordChannel) buildIngressRequest(
+func (c *DiscordChannel) buildIngressRequest(
 	session *discordgo.Session,
 	message *discordgo.MessageCreate,
 	content string,
-) (IngressRequest, error) {
+) (channelcontract.IngressRequest, error) {
 	chatType := "group"
 	ref := strings.TrimSpace(message.ChannelID)
 	threadID := ""
-	delivery := &DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeDiscord,
+	delivery := &channelcontract.DeliveryTarget{
+		Mode:    channelcontract.DeliveryModeExplicit,
+		Channel: channelcontract.ChannelTypeDiscord,
 		To:      strings.TrimSpace(message.ChannelID),
 	}
 
 	if strings.TrimSpace(message.GuildID) == "" {
 		chatType = "dm"
 		ref = strings.TrimSpace(message.Author.ID)
-		return IngressRequest{
-			Channel:     ChannelTypeDiscord,
+		return channelcontract.IngressRequest{
+			Channel:     channelcontract.ChannelTypeDiscord,
 			OwnerUserID: c.ownerUserID,
-			AccountID:   channelAccountIDFromSecret("dg", c.token),
+			AccountID:   AccountIDFromSecret("dg", c.token),
 			ChatType:    chatType,
 			Ref:         ref,
 			Content:     content,
@@ -231,7 +244,7 @@ func (c *discordChannel) buildIngressRequest(
 			ReqID:       strings.TrimSpace(message.ID),
 			Delivery:    delivery,
 			Message: channelmessage.NewInbound(channelmessage.InboundParams{
-				Channel:           ChannelTypeDiscord,
+				Channel:           channelcontract.ChannelTypeDiscord,
 				Target:            ref,
 				PlatformMessageID: strings.TrimSpace(message.ID),
 				ThreadID:          threadID,
@@ -254,10 +267,10 @@ func (c *discordChannel) buildIngressRequest(
 	delivery.AccountID = strings.TrimSpace(message.GuildID)
 	ref = joinDiscordRoute(strings.TrimSpace(message.GuildID), channelID)
 
-	return IngressRequest{
-		Channel:     ChannelTypeDiscord,
+	return channelcontract.IngressRequest{
+		Channel:     channelcontract.ChannelTypeDiscord,
 		OwnerUserID: c.ownerUserID,
-		AccountID:   channelAccountIDFromSecret("dg", c.token),
+		AccountID:   AccountIDFromSecret("dg", c.token),
 		ChatType:    chatType,
 		Ref:         ref,
 		ThreadID:    threadID,
@@ -266,7 +279,7 @@ func (c *discordChannel) buildIngressRequest(
 		ReqID:       strings.TrimSpace(message.ID),
 		Delivery:    delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
-			Channel:           ChannelTypeDiscord,
+			Channel:           channelcontract.ChannelTypeDiscord,
 			Target:            ref,
 			PlatformMessageID: strings.TrimSpace(message.ID),
 			ThreadID:          threadID,
@@ -286,7 +299,7 @@ func discordReplyToID(message *discordgo.MessageCreate) string {
 	return strings.TrimSpace(message.ReferencedMessage.ID)
 }
 
-func (c *discordChannel) resolveDiscordThreadRoute(session *discordgo.Session, channelID string) (string, string) {
+func (c *DiscordChannel) resolveDiscordThreadRoute(session *discordgo.Session, channelID string) (string, string) {
 	channel, err := session.State.Channel(strings.TrimSpace(channelID))
 	if err != nil || channel == nil {
 		channel, err = session.Channel(strings.TrimSpace(channelID))
@@ -304,7 +317,7 @@ func (c *discordChannel) resolveDiscordThreadRoute(session *discordgo.Session, c
 	return parentID, strings.TrimSpace(channel.ID)
 }
 
-func (c *discordChannel) currentIngress() IngressAcceptor {
+func (c *DiscordChannel) currentIngress() channelcontract.IngressAcceptor {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.ingress

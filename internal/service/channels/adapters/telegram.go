@@ -1,10 +1,11 @@
-package channels
+package adapters
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,11 +16,12 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
+	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
 const telegramGeneralTopicID int64 = 1
 
-type telegramChannel struct {
+type TelegramChannel struct {
 	token       string
 	client      *http.Client
 	baseURL     string
@@ -27,7 +29,7 @@ type telegramChannel struct {
 	logger      *slog.Logger
 
 	mu      sync.RWMutex
-	ingress IngressAcceptor
+	ingress channelcontract.IngressAcceptor
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 }
@@ -40,11 +42,11 @@ type telegramSendMessageResponse struct {
 	} `json:"result"`
 }
 
-func newTelegramChannel(token string, client *http.Client) *telegramChannel {
+func NewTelegramChannel(token string, client *http.Client) *TelegramChannel {
 	if client == nil {
-		client = defaultChannelHTTPClient
+		client = channeltransport.DefaultHTTPClient
 	}
-	return &telegramChannel{
+	return &TelegramChannel{
 		token:   strings.TrimSpace(token),
 		client:  client,
 		baseURL: "https://api.telegram.org",
@@ -52,22 +54,33 @@ func newTelegramChannel(token string, client *http.Client) *telegramChannel {
 	}
 }
 
-func (c *telegramChannel) WithOwner(ownerUserID string) *telegramChannel {
+func (c *TelegramChannel) WithOwner(ownerUserID string) *TelegramChannel {
 	c.ownerUserID = strings.TrimSpace(ownerUserID)
 	return c
 }
 
-func (c *telegramChannel) ChannelType() string {
-	return ChannelTypeTelegram
+func (c *TelegramChannel) WithBaseURL(baseURL string) *TelegramChannel {
+	if baseURL = strings.TrimSpace(baseURL); baseURL != "" {
+		c.baseURL = strings.TrimRight(baseURL, "/")
+	}
+	return c
 }
 
-func (c *telegramChannel) SetIngress(ingress IngressAcceptor) {
+func (c *TelegramChannel) BaseURL() string {
+	return c.baseURL
+}
+
+func (c *TelegramChannel) ChannelType() string {
+	return channelcontract.ChannelTypeTelegram
+}
+
+func (c *TelegramChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ingress = ingress
 }
 
-func (c *telegramChannel) SetLogger(logger *slog.Logger) {
+func (c *TelegramChannel) SetLogger(logger *slog.Logger) {
 	if logger == nil {
 		logger = logx.NewDiscardLogger()
 	}
@@ -76,7 +89,7 @@ func (c *telegramChannel) SetLogger(logger *slog.Logger) {
 	c.logger = logger
 }
 
-func (c *telegramChannel) Start(ctx context.Context) error {
+func (c *TelegramChannel) Start(ctx context.Context) error {
 	if strings.TrimSpace(c.token) == "" {
 		return nil
 	}
@@ -95,7 +108,7 @@ func (c *telegramChannel) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *telegramChannel) Stop(context.Context) error {
+func (c *TelegramChannel) Stop(context.Context) error {
 	c.mu.Lock()
 	cancel := c.cancel
 	c.cancel = nil
@@ -108,31 +121,31 @@ func (c *telegramChannel) Stop(context.Context) error {
 	return nil
 }
 
-func (c *telegramChannel) SendDeliveryMessage(
+func (c *TelegramChannel) SendDeliveryMessage(
 	ctx context.Context,
-	target DeliveryTarget,
+	target channelcontract.DeliveryTarget,
 	text string,
-) (DeliveryResult, error) {
+) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
-		return DeliveryResult{}, fmt.Errorf("telegram channel is not configured")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("telegram channel is not configured")
 	}
 	if strings.TrimSpace(target.To) == "" {
-		return DeliveryResult{}, fmt.Errorf("telegram delivery target requires to")
+		return channelcontract.DeliveryResult{}, fmt.Errorf("telegram delivery target requires to")
 	}
 
 	parts := make([]channelmessage.ReceiptPart, 0)
-	for _, chunk := range splitText(strings.TrimSpace(text), 4000) {
+	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4000) {
 		payload := map[string]any{
 			"chat_id":                  target.To,
 			"text":                     chunk,
 			"disable_web_page_preview": true,
 		}
 		if err := applyTelegramSendThreadID(payload, target.ThreadID); err != nil {
-			return DeliveryResult{}, err
+			return channelcontract.DeliveryResult{}, err
 		}
 		var response telegramSendMessageResponse
-		if err := doChannelJSONExpectSuccessDecode(
+		if err := channeltransport.DoJSONExpectSuccessDecode(
 			ctx,
 			c.client,
 			http.MethodPost,
@@ -141,28 +154,28 @@ func (c *telegramChannel) SendDeliveryMessage(
 			nil,
 			&response,
 		); err != nil {
-			return DeliveryResult{}, c.redactError(err)
+			return channelcontract.DeliveryResult{}, c.redactError(err)
 		}
 		if response.OK != nil && !*response.OK {
 			description := strings.TrimSpace(response.Description)
 			if description == "" {
 				description = "ok=false"
 			}
-			return DeliveryResult{}, fmt.Errorf("telegram sendMessage failed: %s", description)
+			return channelcontract.DeliveryResult{}, fmt.Errorf("telegram sendMessage failed: %s", description)
 		}
 		if response.Result.MessageID != 0 {
 			parts = append(parts, channelmessage.TextPart(strconv.FormatInt(response.Result.MessageID, 10)))
 		}
 	}
-	return newDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
-		Channel:  ChannelTypeTelegram,
+	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+		Channel:  channelcontract.ChannelTypeTelegram,
 		Target:   target.To,
 		ThreadID: target.ThreadID,
 		Parts:    parts,
 	})), nil
 }
 
-func (c *telegramChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
+func (c *TelegramChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {
 	if !active {
 		return nil
 	}
@@ -180,7 +193,7 @@ func (c *telegramChannel) SendDeliveryTyping(ctx context.Context, target Deliver
 	if err := applyTelegramTypingThreadID(payload, target.ThreadID); err != nil {
 		return err
 	}
-	if err := doChannelJSONExpectSuccess(
+	if err := channeltransport.DoJSONExpectSuccess(
 		ctx,
 		c.client,
 		http.MethodPost,
@@ -193,7 +206,7 @@ func (c *telegramChannel) SendDeliveryTyping(ctx context.Context, target Deliver
 	return nil
 }
 
-func (c *telegramChannel) pollUpdates(ctx context.Context) {
+func (c *TelegramChannel) pollUpdates(ctx context.Context) {
 	defer c.wg.Done()
 
 	offset := 0
@@ -241,13 +254,13 @@ func (c *telegramChannel) pollUpdates(ctx context.Context) {
 	}
 }
 
-func (c *telegramChannel) fetchUpdates(ctx context.Context, offset int) ([]telegramUpdate, int, error) {
+func (c *TelegramChannel) fetchUpdates(ctx context.Context, offset int) ([]telegramUpdate, int, error) {
 	payload := map[string]any{
 		"offset":          offset,
 		"timeout":         30,
 		"allowed_updates": []string{"message", "edited_message"},
 	}
-	response, err := doChannelJSON(
+	response, err := channeltransport.DoJSON(
 		ctx,
 		c.client,
 		http.MethodPost,
@@ -312,7 +325,7 @@ func applyTelegramThreadID(payload map[string]any, rawThreadID string, includeGe
 	return nil
 }
 
-func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdate) {
+func (c *TelegramChannel) handleUpdate(ctx context.Context, update telegramUpdate) {
 	message := update.Message
 	edited := false
 	if message == nil {
@@ -343,9 +356,9 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 	chatType := "group"
 	ref := strconv.FormatInt(message.Chat.ID, 10)
 	threadID := ""
-	delivery := &DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeTelegram,
+	delivery := &channelcontract.DeliveryTarget{
+		Mode:    channelcontract.DeliveryModeExplicit,
+		Channel: channelcontract.ChannelTypeTelegram,
 		To:      strconv.FormatInt(message.Chat.ID, 10),
 	}
 	if strings.EqualFold(message.Chat.Type, "private") {
@@ -373,10 +386,10 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		"edited", edited,
 		"chars", len([]rune(content)),
 	)
-	if _, err := ingress.Accept(requestCtx, IngressRequest{
-		Channel:     ChannelTypeTelegram,
+	if _, err := ingress.Accept(requestCtx, channelcontract.IngressRequest{
+		Channel:     channelcontract.ChannelTypeTelegram,
 		OwnerUserID: c.ownerUserID,
-		AccountID:   channelAccountIDFromSecret("tg", c.token),
+		AccountID:   AccountIDFromSecret("tg", c.token),
 		ChatType:    chatType,
 		Ref:         ref,
 		ThreadID:    threadID,
@@ -384,7 +397,7 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		ReqID:       reqID,
 		Delivery:    delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
-			Channel:           ChannelTypeTelegram,
+			Channel:           channelcontract.ChannelTypeTelegram,
 			Target:            ref,
 			PlatformMessageID: messageID,
 			ThreadID:          threadID,
@@ -394,8 +407,8 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 			Edited:            edited,
 		}),
 	}); err != nil {
-		if isPairingApprovalRequired(err) {
-			if notice := pairingApprovalNoticeText(err); notice != "" {
+		if IsPairingApprovalRequired(err) {
+			if notice := PairingApprovalNoticeText(err); notice != "" {
 				_, _ = c.SendDeliveryMessage(requestCtx, *delivery, notice)
 			}
 			return
@@ -408,7 +421,7 @@ func (c *telegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 			"message_id", messageID,
 			"err", err,
 		)
-		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+truncateChannelError(err))
+		_, _ = c.SendDeliveryMessage(requestCtx, *delivery, "⚠️ Telegram 消息处理失败: "+TruncateError(err))
 	}
 }
 
@@ -420,7 +433,7 @@ func telegramEditedMessageReqID(messageID string, updateID int) string {
 	return fmt.Sprintf("%s:edited:%d", trimmed, updateID)
 }
 
-func (c *telegramChannel) redactError(err error) error {
+func (c *TelegramChannel) redactError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -436,13 +449,13 @@ func (c *telegramChannel) redactError(err error) error {
 	return errors.New(text)
 }
 
-func (c *telegramChannel) currentIngress() IngressAcceptor {
+func (c *TelegramChannel) currentIngress() channelcontract.IngressAcceptor {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.ingress
 }
 
-func (c *telegramChannel) loggerFor(ctx context.Context) *slog.Logger {
+func (c *TelegramChannel) loggerFor(ctx context.Context) *slog.Logger {
 	c.mu.RLock()
 	logger := c.logger
 	c.mu.RUnlock()

@@ -54,6 +54,30 @@ ORDER BY updated_at DESC, account_id DESC`
 	return result, rows.Err()
 }
 
+func (s *ControlService) channelAccountsByType(ctx context.Context, ownerUserID string) (map[string][]channelAccountRow, error) {
+	query := `
+SELECT owner_user_id, channel_type, account_id, user_id, status, config_json,
+       credentials_encrypted, last_error, created_at, updated_at
+FROM im_channel_accounts
+WHERE owner_user_id = ` + s.bind(1) + `
+ORDER BY channel_type ASC, updated_at DESC, account_id DESC`
+	rows, err := s.db.QueryContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := map[string][]channelAccountRow{}
+	for rows.Next() {
+		item, scanErr := scanChannelAccountScanner(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		result[item.ChannelType] = append(result[item.ChannelType], *item)
+	}
+	return result, rows.Err()
+}
+
 func (s *ControlService) upsertChannelAccountRow(ctx context.Context, row channelAccountRow) error {
 	if s.driver == "pgx" {
 		query := `
@@ -115,29 +139,25 @@ func (s *ControlService) deleteChannelAccountRows(ctx context.Context, ownerUser
 	return err
 }
 
-func (s *ControlService) channelAccountCounts(ctx context.Context, ownerUserID string) (map[string]int, error) {
-	query := `
-SELECT channel_type, COUNT(1)
-FROM im_channel_accounts
-WHERE owner_user_id = ` + s.bind(1) + `
-  AND status <> ` + s.bind(2) + `
-GROUP BY channel_type`
-	rows, err := s.db.QueryContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID), ChannelConfigStatusDisabled)
+func (s *ControlService) deleteChannelAccountRow(
+	ctx context.Context,
+	ownerUserID string,
+	channelType string,
+	accountID string,
+) (bool, error) {
+	query := "DELETE FROM im_channel_accounts WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2) + " AND account_id = " + s.bind(3)
+	result, err := s.db.ExecContext(
+		ctx,
+		query,
+		normalizeChannelOwnerUserID(ownerUserID),
+		normalizeIMChannelType(channelType),
+		strings.TrimSpace(accountID),
+	)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	defer rows.Close()
-
-	result := map[string]int{}
-	for rows.Next() {
-		var channelType string
-		var count int
-		if err = rows.Scan(&channelType, &count); err != nil {
-			return nil, err
-		}
-		result[normalizeIMChannelType(channelType)] = count
-	}
-	return result, rows.Err()
+	affected, _ := result.RowsAffected()
+	return affected > 0, nil
 }
 
 func scanChannelAccountScanner(row sqlScanner) (*channelAccountRow, error) {
@@ -163,4 +183,31 @@ func scanChannelAccountScanner(row sqlScanner) (*channelAccountRow, error) {
 	item.UserID = strings.TrimSpace(item.UserID)
 	item.Status = normalizeChannelConfigStatus(item.Status)
 	return &item, nil
+}
+
+func channelAccountViews(rows []channelAccountRow) []ChannelAccountView {
+	result := make([]ChannelAccountView, 0, len(rows))
+	for _, row := range rows {
+		if row.Status == ChannelConfigStatusDisabled {
+			continue
+		}
+		result = append(result, ChannelAccountView{
+			AccountID: row.AccountID,
+			UserID:    row.UserID,
+			Status:    firstNonEmpty(row.Status, ChannelConfigStatusConnected),
+			LastError: nullStringValue(row.LastError),
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		})
+	}
+	return result
+}
+
+func hasConnectedChannelAccount(rows []channelAccountRow) bool {
+	for _, row := range rows {
+		if row.Status == ChannelConfigStatusConnected {
+			return true
+		}
+	}
+	return false
 }

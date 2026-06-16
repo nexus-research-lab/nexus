@@ -1,20 +1,21 @@
-package channels
+package adapters
 
 import (
 	"context"
 	"fmt"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"strings"
 	"sync"
 )
 
-type personalWeixinMultiAccountChannel struct {
+type PersonalWeixinMultiAccountChannel struct {
 	mu       sync.RWMutex
-	accounts map[string]*personalWeixinChannel
+	accounts map[string]*PersonalWeixinChannel
 }
 
-func newPersonalWeixinMultiAccountChannel(accounts []*personalWeixinChannel) *personalWeixinMultiAccountChannel {
-	result := &personalWeixinMultiAccountChannel{
-		accounts: make(map[string]*personalWeixinChannel, len(accounts)),
+func NewPersonalWeixinMultiAccountChannel(accounts []*PersonalWeixinChannel) *PersonalWeixinMultiAccountChannel {
+	result := &PersonalWeixinMultiAccountChannel{
+		accounts: make(map[string]*PersonalWeixinChannel, len(accounts)),
 	}
 	for _, account := range accounts {
 		if account == nil {
@@ -29,39 +30,56 @@ func newPersonalWeixinMultiAccountChannel(accounts []*personalWeixinChannel) *pe
 	return result
 }
 
-func (c *personalWeixinMultiAccountChannel) ChannelType() string {
-	return ChannelTypeWeixinPersonal
+func (c *PersonalWeixinMultiAccountChannel) ChannelType() string {
+	return channelcontract.ChannelTypeWeixinPersonal
 }
 
-func (c *personalWeixinMultiAccountChannel) Start(ctx context.Context) error {
-	for _, account := range c.snapshotAccounts() {
-		if err := account.Start(ctx); err != nil {
+func (c *PersonalWeixinMultiAccountChannel) Start(ctx context.Context) error {
+	return startPersonalWeixinAccounts(ctx, c.snapshotAccounts(), (*PersonalWeixinChannel).Start, (*PersonalWeixinChannel).Stop)
+}
+
+func startPersonalWeixinAccounts(
+	ctx context.Context,
+	accounts []*PersonalWeixinChannel,
+	start func(*PersonalWeixinChannel, context.Context) error,
+	stop func(*PersonalWeixinChannel, context.Context) error,
+) error {
+	started := make([]*PersonalWeixinChannel, 0, len(accounts))
+	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+		if err := start(account, ctx); err != nil {
+			for _, item := range started {
+				_ = stop(item, ctx)
+			}
 			return err
 		}
+		started = append(started, account)
 	}
 	return nil
 }
 
-func (c *personalWeixinMultiAccountChannel) Stop(ctx context.Context) error {
+func (c *PersonalWeixinMultiAccountChannel) Stop(ctx context.Context) error {
 	for _, account := range c.snapshotAccounts() {
 		_ = account.Stop(ctx)
 	}
 	return nil
 }
 
-func (c *personalWeixinMultiAccountChannel) SetIngress(ingress IngressAcceptor) {
+func (c *PersonalWeixinMultiAccountChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
 	for _, account := range c.snapshotAccounts() {
 		account.SetIngress(ingress)
 	}
 }
 
-func (c *personalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced DeliveryChannel) bool {
+func (c *PersonalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced channelcontract.DeliveryChannel) bool {
 	accounts := personalWeixinAccountsByKey(replaced)
 	if len(accounts) == 0 {
 		return false
 	}
 	adopted := false
-	stale := make([]*personalWeixinChannel, 0)
+	stale := make([]*PersonalWeixinChannel, 0)
 	c.mu.Lock()
 	for key, account := range accounts {
 		if key == "" || account == nil {
@@ -81,19 +99,19 @@ func (c *personalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced Delive
 	return adopted
 }
 
-func (c *personalWeixinMultiAccountChannel) SendDeliveryMessage(
+func (c *PersonalWeixinMultiAccountChannel) SendDeliveryMessage(
 	ctx context.Context,
-	target DeliveryTarget,
+	target channelcontract.DeliveryTarget,
 	text string,
-) (DeliveryResult, error) {
+) (channelcontract.DeliveryResult, error) {
 	account, err := c.accountForTarget(target)
 	if err != nil {
-		return DeliveryResult{}, err
+		return channelcontract.DeliveryResult{}, err
 	}
 	return account.SendDeliveryMessage(ctx, target, text)
 }
 
-func (c *personalWeixinMultiAccountChannel) SendDeliveryTyping(ctx context.Context, target DeliveryTarget, active bool) error {
+func (c *PersonalWeixinMultiAccountChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {
 	account, err := c.accountForTarget(target)
 	if err != nil {
 		return err
@@ -101,7 +119,7 @@ func (c *personalWeixinMultiAccountChannel) SendDeliveryTyping(ctx context.Conte
 	return account.SendDeliveryTyping(ctx, target, active)
 }
 
-func (c *personalWeixinMultiAccountChannel) accountForTarget(target DeliveryTarget) (*personalWeixinChannel, error) {
+func (c *PersonalWeixinMultiAccountChannel) accountForTarget(target channelcontract.DeliveryTarget) (*PersonalWeixinChannel, error) {
 	normalized := target.Normalized()
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -122,10 +140,10 @@ func (c *personalWeixinMultiAccountChannel) accountForTarget(target DeliveryTarg
 	return nil, fmt.Errorf("personal weixin delivery target requires account_id when multiple accounts are connected")
 }
 
-func (c *personalWeixinMultiAccountChannel) snapshotAccounts() []*personalWeixinChannel {
+func (c *PersonalWeixinMultiAccountChannel) snapshotAccounts() []*PersonalWeixinChannel {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	result := make([]*personalWeixinChannel, 0, len(c.accounts))
+	result := make([]*PersonalWeixinChannel, 0, len(c.accounts))
 	for _, account := range c.accounts {
 		if account == nil {
 			continue
@@ -135,10 +153,10 @@ func (c *personalWeixinMultiAccountChannel) snapshotAccounts() []*personalWeixin
 	return result
 }
 
-func (c *personalWeixinMultiAccountChannel) snapshotAccountMap() map[string]*personalWeixinChannel {
+func (c *PersonalWeixinMultiAccountChannel) snapshotAccountMap() map[string]*PersonalWeixinChannel {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	result := make(map[string]*personalWeixinChannel, len(c.accounts))
+	result := make(map[string]*PersonalWeixinChannel, len(c.accounts))
 	for key, account := range c.accounts {
 		key = strings.TrimSpace(key)
 		if key == "" || account == nil {
@@ -149,22 +167,22 @@ func (c *personalWeixinMultiAccountChannel) snapshotAccountMap() map[string]*per
 	return result
 }
 
-func personalWeixinAccountsByKey(channel DeliveryChannel) map[string]*personalWeixinChannel {
+func personalWeixinAccountsByKey(channel channelcontract.DeliveryChannel) map[string]*PersonalWeixinChannel {
 	switch typed := channel.(type) {
-	case *personalWeixinChannel:
+	case *PersonalWeixinChannel:
 		key := personalWeixinAccountKey(typed)
 		if key == "" {
 			return nil
 		}
-		return map[string]*personalWeixinChannel{key: typed}
-	case *personalWeixinMultiAccountChannel:
+		return map[string]*PersonalWeixinChannel{key: typed}
+	case *PersonalWeixinMultiAccountChannel:
 		return typed.snapshotAccountMap()
 	default:
 		return nil
 	}
 }
 
-func personalWeixinAccountKey(account *personalWeixinChannel) string {
+func personalWeixinAccountKey(account *PersonalWeixinChannel) string {
 	if account == nil {
 		return ""
 	}
