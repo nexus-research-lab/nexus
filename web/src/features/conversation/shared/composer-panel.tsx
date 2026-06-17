@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Plus,
   Paperclip,
+  Repeat2,
   Send,
   StopCircle,
   Target,
@@ -50,6 +51,8 @@ import {
   PreparedComposerAttachment,
 } from "./composer-attachments";
 import { MentionTargetItem, MentionTargetPopover } from "./mention-popover";
+import { LoopPickerDialog } from "./loop-picker-dialog";
+import type { LoopCatalogItem } from "@/types/capability/loop";
 
 interface AttachmentFile {
   id: string;
@@ -248,6 +251,7 @@ const ComposerPanelView = memo(({
   const [is_pending_queue_collapsed, set_is_pending_queue_collapsed] = useState(false);
   const [is_queue_action_running, set_is_queue_action_running] = useState(false);
   const [is_action_menu_open, set_is_action_menu_open] = useState(false);
+  const [is_loop_picker_open, set_is_loop_picker_open] = useState(false);
   const [is_goal_creating, set_is_goal_creating] = useState(false);
   const [goal_error, set_goal_error] = useState<string | null>(null);
 
@@ -545,6 +549,31 @@ const ComposerPanelView = memo(({
     cancel_goal_input();
   }, [cancel_goal_input, start_goal_input]);
 
+  const open_loop_picker = useCallback(() => {
+    set_is_action_menu_open(false);
+    set_is_loop_picker_open(true);
+  }, []);
+
+  const apply_loop_prompt = useCallback((loop: LoopCatalogItem) => {
+    set_input_mode("message");
+    set_goal_error(null);
+    setInput(loop.kickoff_prompt);
+    set_mention_active(false);
+    requestAnimationFrame(() => textarea_ref.current?.focus());
+  }, []);
+
+  const apply_loop_goal = useCallback((loop: LoopCatalogItem) => {
+    if (!can_create_goal) {
+      apply_loop_prompt(loop);
+      return;
+    }
+    set_input_mode("goal");
+    set_goal_error(null);
+    setInput(loop.kickoff_prompt);
+    set_mention_active(false);
+    requestAnimationFrame(() => textarea_ref.current?.focus());
+  }, [apply_loop_prompt, can_create_goal]);
+
   const remove_pending_message = useCallback(async (id: string) => {
     await on_delete_queued_message?.(id);
   }, [on_delete_queued_message]);
@@ -774,6 +803,12 @@ const ComposerPanelView = memo(({
         multiple
         onChange={handle_file_select}
         type="file"
+      />
+      <LoopPickerDialog
+        is_open={is_loop_picker_open}
+        on_close={() => set_is_loop_picker_open(false)}
+        on_select={apply_loop_prompt}
+        on_select_goal={can_create_goal ? apply_loop_goal : undefined}
       />
 
       <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
@@ -1058,6 +1093,12 @@ const ComposerPanelView = memo(({
                     disabled: is_input_locked || is_preparing_attachments || is_goal_mode,
                   },
                   {
+                    value: "loop",
+                    label: t("composer.insert_loop"),
+                    icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
+                    disabled: is_input_locked,
+                  },
+                  {
                     value: "goal",
                     label: t("composer.start_goal"),
                     icon: <Target className="h-4 w-4 text-(--primary)" />,
@@ -1084,6 +1125,10 @@ const ComposerPanelView = memo(({
                 on_select={(value) => {
                   if (value === "attachment") {
                     open_attachment_picker();
+                    return;
+                  }
+                  if (value === "loop") {
+                    open_loop_picker();
                     return;
                   }
                   if (value === "goal") {

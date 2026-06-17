@@ -8,6 +8,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
+	loopspkg "github.com/nexus-research-lab/nexus/internal/service/loops"
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 )
 
@@ -96,5 +97,6 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 		"connected_channels_count":      connectedChannelCount,
 		"configured_channels_count":     configuredChannelCount,
 		"active_pairings_count":         activePairingCount,
+		"loops_count":                   loopspkg.StaticCount(),
 	})
 }

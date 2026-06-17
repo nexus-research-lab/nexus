@@ -48,6 +48,9 @@ const SkillsPage = lazy(() =>
 const ConnectorsPage = lazy(() =>
   import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
 );
+const LoopsPage = lazy(() =>
+  import("@/pages/loops/loops-page").then((m) => ({ default: m.LoopsPage })),
+);
 const ConnectorOAuthCallbackPage = lazy(() =>
   import("@/pages/connectors/connector-oauth-callback-page").then((m) => ({
     default: m.ConnectorOAuthCallbackPage,
@@ -110,6 +113,8 @@ export function AppRouter() {
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skill_detail} />
 
                   {/* 能力子路由 */}
+                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loops} />
+                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loop_detail} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connector_detail} />
                   <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />

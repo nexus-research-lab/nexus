@@ -19,6 +19,7 @@ import (
 	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
+	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -51,6 +52,7 @@ type AppServices struct {
 	Automation     *automationsvc.Service
 	Imagegen       *imagegensvc.Service
 	Goal           *goalsvc.Service
+	Loops          *loopsvc.Service
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -75,6 +77,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	preferencesService := preferencessvc.NewService(cfg)
 	imagegenService := imagegensvc.NewService(providerService)
+	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
@@ -174,6 +177,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Automation:     automationService,
 		Imagegen:       imagegenService,
 		Goal:           goalService,
+		Loops:          loopService,
 	}
 }
 

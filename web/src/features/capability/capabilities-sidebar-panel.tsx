@@ -14,6 +14,7 @@ import {
   type LucideIcon,
   Puzzle,
   Radio,
+  Repeat2,
   Users2,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -56,6 +57,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     connected_channels_count: 0,
     configured_channels_count: 0,
     active_pairings_count: 0,
+    loops_count: 0,
   });
 
   const refresh_capability_summary = useCallback(async (options?: { force?: boolean; reset_on_error?: boolean }) => {
@@ -92,6 +94,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
             connected_channels_count: 0,
             configured_channels_count: 0,
             active_pairings_count: 0,
+            loops_count: 0,
           });
         }
       } finally {
@@ -153,6 +156,13 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       label: t("capability.skills"),
       meta: String(summary.skills_count),
       path: AppRouteBuilders.skills(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.loops,
+      icon: Repeat2,
+      label: t("capability.loops"),
+      meta: String(summary.loops_count ?? 0),
+      path: AppRouteBuilders.loops(),
     },
     {
       id: SIDEBAR_CAPABILITY_ITEM_IDS.connectors,

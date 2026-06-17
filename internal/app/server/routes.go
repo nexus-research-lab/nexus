@@ -128,6 +128,8 @@ func (s *Server) mountRoomRoutes() {
 // mountCapabilityRoutes 挂载技能、连接器、通道与自动化能力路由。
 func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/summary"), s.handlers.capability.HandleCapabilitySummary)
+	s.router.Get(s.prefixPath("/capability/loops"), s.handlers.loop.HandleListLoops)
+	s.router.Get(s.prefixPath("/capability/loops/{slug}"), s.handlers.loop.HandleGetLoopDetail)
 
 	s.router.Get(s.prefixPath("/skills"), s.handlers.skill.HandleListSkills)
 	s.router.Get(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleGetSkillDetail)
