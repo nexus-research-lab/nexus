@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, Circle, ListChecks, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -28,12 +28,31 @@ export function WorkspaceTaskStrip({
   const progress = total_count === 0 ? 0 : Math.round((completed_count / total_count) * 100);
   const [is_open, set_is_open] = useState(false);
   const [expanded_task_index, set_expanded_task_index] = useState<number | null>(null);
+  const root_ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (todos.length === 0 || (expanded_task_index !== null && expanded_task_index >= todos.length)) {
       set_expanded_task_index(null);
     }
   }, [expanded_task_index, todos.length]);
+
+  useEffect(() => {
+    if (!is_open) {
+      return;
+    }
+
+    const handle_pointer_down = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && root_ref.current?.contains(target)) {
+        return;
+      }
+      set_expanded_task_index(null);
+      set_is_open(false);
+    };
+
+    document.addEventListener("pointerdown", handle_pointer_down, true);
+    return () => document.removeEventListener("pointerdown", handle_pointer_down, true);
+  }, [is_open]);
 
   const handle_toggle_panel = () => {
     set_expanded_task_index(null);
@@ -72,19 +91,7 @@ export function WorkspaceTaskStrip({
   };
 
   return (
-    <div className="relative">
-      {is_open ? (
-        <button
-          aria-label={t("tasks.close_panel")}
-          className="fixed inset-0 z-30"
-          onClick={() => {
-            set_expanded_task_index(null);
-            set_is_open(false);
-          }}
-          type="button"
-        />
-      ) : null}
-
+    <div ref={root_ref} className="relative">
       <div className="relative z-40">
         <button
           className={cn(
