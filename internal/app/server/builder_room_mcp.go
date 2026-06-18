@@ -6,6 +6,7 @@ import (
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roommcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/room"
 	roommcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/room/contract"
@@ -16,6 +17,7 @@ import (
 func newRoomMCPBuilder(
 	svc roommcpcontract.Service,
 	agents *agent.Service,
+	getRoom func(context.Context, string) (*protocol.RoomAggregate, error),
 ) func(string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
 		agentID string,
@@ -42,6 +44,15 @@ func newRoomMCPBuilder(
 		if agents != nil && strings.TrimSpace(agentID) != "" {
 			if record, err := agents.GetAgent(context.Background(), agentID); err == nil && record != nil {
 				sctx.OwnerUserID = strings.TrimSpace(record.OwnerUserID)
+			}
+		}
+		if getRoom != nil && strings.TrimSpace(sctx.RoomID) != "" {
+			roomCtx := context.Background()
+			if sctx.OwnerUserID != "" {
+				roomCtx = authctx.WithPrincipal(roomCtx, &authctx.Principal{UserID: sctx.OwnerUserID})
+			}
+			if record, err := getRoom(roomCtx, sctx.RoomID); err == nil && record != nil {
+				sctx.PrivateMessagesEnabled = record.Room.PrivateMessagesEnabled
 			}
 		}
 		return map[string]sdkmcp.ServerConfig{

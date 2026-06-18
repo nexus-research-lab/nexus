@@ -28,6 +28,11 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
+const (
+	roomPublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
+	roomSendDirectedMessageTool  = "mcp__nexus_room__send_directed_message"
+)
+
 func (s *RealtimeService) runRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
@@ -158,7 +163,9 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt())
+	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt(
+		roundValue.Context.Room.PrivateMessagesEnabled,
+	))
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, s.buildRoomMemorySystemPrompt(slotCtx, roundValue))
 	roomSkillPrompt, err := s.rooms.BuildRoomSkillPrompt(slotCtx, roundValue.Context.Room.SkillNames)
 	if err != nil {
@@ -198,7 +205,7 @@ func (s *RealtimeService) runSlot(
 			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
 		}
 	}
-	permissionHandler = roomRuntimePermissionHandler(permissionHandler)
+	permissionHandler = roomRuntimePermissionHandler(permissionHandler, roundValue.Context.Room.PrivateMessagesEnabled)
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
 	if err != nil {
@@ -212,8 +219,8 @@ func (s *RealtimeService) runSlot(
 		Model:                      runtimeSelection.Model,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
-		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools), s.runtimeImagegenDefaultEnabled(slotCtx)),
-		DisallowedTools:            roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
+		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools, roundValue.Context.Room.PrivateMessagesEnabled), s.runtimeImagegenDefaultEnabled(slotCtx)),
+		DisallowedTools:            roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools, roundValue.Context.Room.PrivateMessagesEnabled),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,
 		ResumeSessionID:            slot.getSDKSessionID(),
@@ -622,20 +629,29 @@ func roomSourceContextLabel(roundValue *activeRoomRound) string {
 	return strings.TrimSpace(roundValue.Context.Conversation.Title)
 }
 
-func roomRuntimeAllowedTools(values []string) []string {
+func roomRuntimeAllowedTools(values []string, privateMessagesEnabled bool) []string {
 	if len(toolpolicy.NormalizeSet(values)) == 0 {
 		return values
 	}
-	return appendDistinctRoomRuntimeTools(values, "nexus_room")
+	extra := []string{roomPublishPublicMessageTool}
+	if privateMessagesEnabled {
+		extra = append(extra, roomSendDirectedMessageTool)
+	}
+	return appendDistinctRoomRuntimeTools(values, extra...)
 }
 
-func roomRuntimeDisallowedTools(values []string) []string {
-	result := make([]string, 0, len(values))
+func roomRuntimeDisallowedTools(values []string, privateMessagesEnabled bool) []string {
+	result := make([]string, 0, len(values)+1)
 	for _, value := range values {
-		if isRoomRuntimeTool(value) {
+		if isRoomPublicMessageTool(value) ||
+			strings.TrimSpace(value) == "nexus_room" ||
+			(privateMessagesEnabled && isRoomPrivateMessageTool(value)) {
 			continue
 		}
 		result = append(result, value)
+	}
+	if !privateMessagesEnabled {
+		result = appendDistinctRoomRuntimeTools(result, roomSendDirectedMessageTool)
 	}
 	return result
 }
@@ -657,10 +673,14 @@ func appendDistinctRoomRuntimeTools(values []string, extra ...string) []string {
 	return result
 }
 
-func roomRuntimePermissionHandler(next sdkpermission.Handler) sdkpermission.Handler {
+func roomRuntimePermissionHandler(next sdkpermission.Handler, privateMessagesEnabled bool) sdkpermission.Handler {
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if isRoomRuntimeTool(request.ToolName) {
+		if isRoomPublicMessageTool(request.ToolName) ||
+			(isRoomPrivateMessageTool(request.ToolName) && privateMessagesEnabled) {
 			return sdkpermission.Allow(request.Input, nil), nil
+		}
+		if isRoomPrivateMessageTool(request.ToolName) {
+			return sdkpermission.Deny("Room private messages are disabled", false), nil
 		}
 		if next == nil {
 			return sdkpermission.Allow(request.Input, nil), nil
@@ -669,10 +689,24 @@ func roomRuntimePermissionHandler(next sdkpermission.Handler) sdkpermission.Hand
 	}
 }
 
-func isRoomRuntimeTool(toolName string) bool {
+func isRoomPublicMessageTool(toolName string) bool {
+	return isRoomTool(toolName, "publish_public_message")
+}
+
+func isRoomPrivateMessageTool(toolName string) bool {
+	return isRoomTool(toolName, "send_directed_message")
+}
+
+func isRoomTool(toolName string, leaf string) bool {
 	normalized := strings.TrimSpace(toolName)
-	return normalized == "nexus_room" ||
-		strings.HasPrefix(normalized, "mcp__nexus_room__") ||
-		strings.HasPrefix(normalized, "nexus_room__") ||
-		strings.HasPrefix(normalized, "nexus_room.")
+	switch normalized {
+	case leaf,
+		"mcp__nexus_room__" + leaf,
+		"nexus_room__" + leaf,
+		"nexus_room." + leaf,
+		"nexus_room/" + leaf:
+		return true
+	default:
+		return false
+	}
 }

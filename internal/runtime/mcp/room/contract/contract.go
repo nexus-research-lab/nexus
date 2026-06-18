@@ -12,13 +12,14 @@ const ServerName = "nexus_room"
 
 // ServerContext 承载当前 Room 成员运行时上下文。
 type ServerContext struct {
-	OwnerUserID        string
-	CurrentAgentID     string
-	CurrentSessionKey  string
-	RoomID             string
-	ConversationID     string
-	SourceContextType  string
-	SourceContextLabel string
+	OwnerUserID            string
+	CurrentAgentID         string
+	CurrentSessionKey      string
+	RoomID                 string
+	ConversationID         string
+	SourceContextType      string
+	SourceContextLabel     string
+	PrivateMessagesEnabled bool
 }
 
 // Service 是 nexus_room MCP server 依赖的 Room runtime 子集。

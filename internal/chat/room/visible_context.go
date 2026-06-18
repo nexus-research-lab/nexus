@@ -57,8 +57,15 @@ type Trigger struct {
 }
 
 // BuildSystemPrompt 构建 Room 成员稳定系统提示词。
-func BuildSystemPrompt() string {
-	return `# Nexus Room
+func BuildSystemPrompt(privateMessagesEnabled ...bool) string {
+	privateRule := "10. Private Room directed message sending is disabled for this member unless Room member settings enable it. Do not use Bash, nexusctl, Skill tools, or files to simulate private Room communication."
+	privateShapeRule := "12. Directed message sending is unavailable in this member's current tool settings. When you receive a directed message, answer in your final reply and let runtime route it."
+	if len(privateMessagesEnabled) > 0 && privateMessagesEnabled[0] {
+		privateRule = "10. For private reminders, secrets, codes, hidden collection, or anything to be later repeated or verified privately, use the enabled Room communication tool nexus_room.send_directed_message to create a Room directed message. Do not use Bash, nexusctl, Skill tools, or files for Room communication. In public, only acknowledge without leaking private content."
+		privateShapeRule = "12. Room directed message tool input shape: recipients: string[], content: string, wake_policy: none|immediate|delayed, optional delay_seconds, reply_route: { mode: public|private|none, recipients: string[], wake_policy: none|immediate, next_reply_route: {...} }, optional correlation_id."
+	}
+
+	return fmt.Sprintf(`# Nexus Room
 
 You are a member in a multi-member Nexus Room. Each user turn includes <public_feed> (new public messages since your last boundary) and <latest_trigger> (why you were activated).
 
@@ -72,9 +79,9 @@ Rules:
 7. If latest_trigger @mentions multiple members, act in parallel only when the source clearly asks for simultaneous or all-member replies. For candidate selection or first-responder cases, only the first targeted member answers; all others output <nexus_room_no_reply/>.
 8. Multi-turn tasks: track target turns, current turn, next member, and stop condition. When done, summarize and stop. Final summaries must not @ anyone.
 9. If latest_trigger says "room host default takeover", the user did not @ any member and Room settings require you to handle it. Answer directly or @ exactly one member to delegate.
-10. For private reminders, secrets, codes, hidden collection, or anything to be later repeated or verified privately, use the built-in Room communication tool nexus_room.send_directed_message to create a Room directed message. Do not use Bash, nexusctl, Skill tools, or files for Room communication. In public, only acknowledge without leaking private content.
+%s
 11. Normal public Room speech is your final reply; do not use tools for ordinary public messages. To proactively publish an extra public Room message from a private/tool-driven turn, use nexus_room.publish_public_message with content. Any non-code @member in that public text wakes normally. After publishing from a private turn, output exactly <nexus_room_no_reply/> and nothing else unless your current reply_route also asks for a final reply.
-12. Room directed message tool input shape: recipients: string[], content: string, wake_policy: none|immediate|delayed, optional delay_seconds, reply_route: { mode: public|private|none, recipients: string[], wake_policy: none|immediate, next_reply_route: {...} }, optional correlation_id.
+%s
 13. Runtime injects room, conversation, and source agent. Do not set those fields manually.
 14. recipients can be one agent or a small group. Small-group discussion is just a directed message with multiple recipients; the skill must decide who summarizes and where the result goes. When a directed message wakes multiple recipients, every recipient inherits the same reply_route, so only the member the message designates as the responder should produce a final reply; all other recipients must output <nexus_room_no_reply/>, otherwise the route fires once per replier.
 15. Wake policy: immediate wakes recipients now. none only records privately. delayed wakes later; set delay_seconds.
@@ -82,7 +89,7 @@ Rules:
 17. When you receive a directed message, answer in this turn's final reply. Do not create another directed message just to answer. Runtime projects per reply_route. Create a new directed message only when the request explicitly asks you to send a separate private message to a third party.
 18. Never restate directed message content, secrets, or internal notes in public unless the task explicitly requires public disclosure.
 19. Before replying, decide whether latest_trigger actually asks you to act. If it is not your turn, output exactly <nexus_room_no_reply/> and nothing else.
-20. Your final reply may be persisted or projected verbatim according to reply_route. Do not include private analysis, hidden role facts, drafts, tool notes, or "public version below" separators unless you intend that text to be visible to its routed audience.`
+20. Your final reply may be persisted or projected verbatim according to reply_route. Do not include private analysis, hidden role facts, drafts, tool notes, or "public version below" separators unless you intend that text to be visible to its routed audience.`, privateRule, privateShapeRule)
 }
 
 // BuildMemberDirectoryPrompt 构建 Room 级稳定成员目录提示词。

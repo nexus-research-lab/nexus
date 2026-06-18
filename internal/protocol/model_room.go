@@ -33,17 +33,18 @@ type MemberRecord struct {
 
 // RoomRecord 表示房间记录。
 type RoomRecord struct {
-	ID                   string    `json:"id"`
-	OwnerUserID          string    `json:"-"`
-	RoomType             string    `json:"room_type"`
-	Name                 string    `json:"name,omitempty"`
-	Description          string    `json:"description"`
-	Avatar               string    `json:"avatar,omitempty"`
-	SkillNames           []string  `json:"skill_names"`
-	HostAgentID          string    `json:"host_agent_id,omitempty"`
-	HostAutoReplyEnabled bool      `json:"host_auto_reply_enabled"`
-	CreatedAt            time.Time `json:"created_at,omitempty"`
-	UpdatedAt            time.Time `json:"updated_at,omitempty"`
+	ID                     string    `json:"id"`
+	OwnerUserID            string    `json:"-"`
+	RoomType               string    `json:"room_type"`
+	Name                   string    `json:"name,omitempty"`
+	Description            string    `json:"description"`
+	Avatar                 string    `json:"avatar,omitempty"`
+	SkillNames             []string  `json:"skill_names"`
+	HostAgentID            string    `json:"host_agent_id,omitempty"`
+	HostAutoReplyEnabled   bool      `json:"host_auto_reply_enabled"`
+	PrivateMessagesEnabled bool      `json:"private_messages_enabled"`
+	CreatedAt              time.Time `json:"created_at,omitempty"`
+	UpdatedAt              time.Time `json:"updated_at,omitempty"`
 }
 
 // RoomAggregate 表示房间聚合。

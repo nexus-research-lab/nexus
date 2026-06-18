@@ -131,7 +131,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		TargetAgentID: "agent-devin",
 	}
 
-	systemPrompt := BuildSystemPrompt()
+	systemPrompt := BuildSystemPrompt(true)
 
 	for _, expected := range []string{
 		"# Nexus Room",
@@ -216,6 +216,16 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	if strings.Contains(contextValue, "private_context") ||
 		strings.Contains(contextValue, "collaboration_actions") {
 		t.Fatalf("Room 公区 prompt 不应注入私聊或协作动作实现:\n%s", contextValue)
+	}
+}
+
+func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
+	systemPrompt := BuildSystemPrompt()
+	if strings.Contains(systemPrompt, "nexus_room.send_directed_message") {
+		t.Fatalf("Room 默认提示词不应注入私信工具:\n%s", systemPrompt)
+	}
+	if !strings.Contains(systemPrompt, "Private Room directed message sending is disabled") {
+		t.Fatalf("Room 默认提示词应说明私信发送未开启:\n%s", systemPrompt)
 	}
 }
 

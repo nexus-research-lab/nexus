@@ -34,6 +34,7 @@ interface GroupConversationHeaderProps {
   room_avatar?: string | null;
   room_host_agent_id?: string | null;
   room_host_auto_reply_enabled: boolean;
+  room_private_messages_enabled: boolean;
   conversations: RoomConversationView[];
   room_members: Agent[];
   available_room_agents: Agent[];
@@ -100,6 +101,7 @@ const GroupConversationHeaderView = memo(({
   room_avatar,
   room_host_agent_id,
   room_host_auto_reply_enabled,
+  room_private_messages_enabled,
   conversations,
   room_members,
   available_room_agents,
@@ -208,13 +210,14 @@ const GroupConversationHeaderView = memo(({
         initial_avatar={room_avatar ?? ""}
         initial_host_agent_id={room_host_agent_id ?? null}
         initial_host_auto_reply_enabled={room_host_auto_reply_enabled}
+        initial_private_messages_enabled={room_private_messages_enabled}
         initial_name={header_title}
         initial_selected_agent_ids={member_agent_ids}
         initial_room_skill_names={room_skill_names}
         is_open={is_member_list_open}
         mode="manage"
         on_cancel={() => set_is_member_list_open(false)}
-        on_confirm={async (next_agent_ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled) => {
+        on_confirm={async (next_agent_ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled, private_messages_enabled) => {
           if (!room_id) {
             return;
           }
@@ -234,6 +237,7 @@ const GroupConversationHeaderView = memo(({
             skill_names,
             host_agent_id,
             host_auto_reply_enabled,
+            private_messages_enabled,
           });
 
           for (const agent_id of agent_ids_to_remove) {

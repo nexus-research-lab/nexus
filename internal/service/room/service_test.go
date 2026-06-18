@@ -59,12 +59,13 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	agentC := createTestAgent(t, agentService, ctx, "测试助手C")
 
 	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs:             []string{agentA.AgentID, agentB.AgentID},
-		Name:                 "产品讨论",
-		Title:                "主对话",
-		Avatar:               "7",
-		HostAgentID:          agentA.AgentID,
-		HostAutoReplyEnabled: true,
+		AgentIDs:               []string{agentA.AgentID, agentB.AgentID},
+		Name:                   "产品讨论",
+		Title:                  "主对话",
+		Avatar:                 "7",
+		HostAgentID:            agentA.AgentID,
+		HostAutoReplyEnabled:   true,
+		PrivateMessagesEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
@@ -87,6 +88,9 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if mainContext.Room.HostAgentID != agentA.AgentID || !mainContext.Room.HostAutoReplyEnabled {
 		t.Fatalf("room 群主设置不正确: %+v", mainContext.Room)
 	}
+	if !mainContext.Room.PrivateMessagesEnabled {
+		t.Fatalf("room 私信设置不正确: %+v", mainContext.Room)
+	}
 
 	rooms, err := roomService.ListRooms(ctx, 20)
 	if err != nil {
@@ -98,14 +102,19 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if rooms[0].Room.Avatar != "7" {
 		t.Fatalf("list room avatar 不正确: got=%q want=%q", rooms[0].Room.Avatar, "7")
 	}
+	if !rooms[0].Room.PrivateMessagesEnabled {
+		t.Fatalf("list room 私信设置不正确: %+v", rooms[0].Room)
+	}
 
 	updatedAvatar := "12"
 	disableHostAutoReply := false
+	disablePrivateMessages := false
 	nextHostAgentID := agentB.AgentID
 	mainContext, err = roomService.UpdateRoom(ctx, mainContext.Room.ID, protocol.UpdateRoomRequest{
-		Avatar:               &updatedAvatar,
-		HostAgentID:          &nextHostAgentID,
-		HostAutoReplyEnabled: &disableHostAutoReply,
+		Avatar:                 &updatedAvatar,
+		HostAgentID:            &nextHostAgentID,
+		HostAutoReplyEnabled:   &disableHostAutoReply,
+		PrivateMessagesEnabled: &disablePrivateMessages,
 	})
 	if err != nil {
 		t.Fatalf("更新 room avatar 失败: %v", err)
@@ -115,6 +124,9 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	}
 	if mainContext.Room.HostAgentID != agentB.AgentID || mainContext.Room.HostAutoReplyEnabled {
 		t.Fatalf("更新后 room 群主设置不正确: %+v", mainContext.Room)
+	}
+	if mainContext.Room.PrivateMessagesEnabled {
+		t.Fatalf("更新后 room 私信设置不正确: %+v", mainContext.Room)
 	}
 
 	topicContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{})

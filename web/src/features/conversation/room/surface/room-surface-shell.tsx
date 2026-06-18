@@ -24,6 +24,7 @@ interface RoomSurfaceShellProps {
   room_skill_names: string[];
   room_host_agent_id?: string | null;
   room_host_auto_reply_enabled: boolean;
+  room_private_messages_enabled: boolean;
   current_room_conversation: RoomConversationView | null;
   current_agent_session_identity: AgentConversationIdentity | null;
   conversation_id: string | null;
@@ -69,6 +70,7 @@ export function RoomSurfaceShell({
   room_skill_names,
   room_host_agent_id,
   room_host_auto_reply_enabled,
+  room_private_messages_enabled,
   current_room_conversation,
   current_agent_session_identity,
   conversation_id,
@@ -166,6 +168,7 @@ export function RoomSurfaceShell({
       room_skill_names={room_skill_names}
       room_host_agent_id={room_host_agent_id}
       room_host_auto_reply_enabled={room_host_auto_reply_enabled}
+      room_private_messages_enabled={room_private_messages_enabled}
       current_agent_session_identity={current_agent_session_identity}
       conversation_id={conversation_id}
       current_room_conversations={current_room_conversations}

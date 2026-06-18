@@ -768,6 +768,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     skill_names?: string[],
     host_agent_id?: string | null,
     host_auto_reply_enabled?: boolean,
+    private_messages_enabled?: boolean,
   ) => {
     set_is_creating_room(true);
     try {
@@ -778,6 +779,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         skill_names,
         host_agent_id,
         host_auto_reply_enabled,
+        private_messages_enabled,
       });
       set_is_create_room_open(false);
       refresh_directory();
@@ -888,8 +890,8 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         is_creating={is_creating_room}
         is_open={is_create_room_open}
         on_cancel={() => set_is_create_room_open(false)}
-        on_confirm={(ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled) =>
-          void handle_confirm_create_room(ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled)}
+        on_confirm={(ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled, private_messages_enabled) =>
+          void handle_confirm_create_room(ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled, private_messages_enabled)}
       />
     </div>
   );

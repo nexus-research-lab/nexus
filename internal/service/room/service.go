@@ -33,7 +33,7 @@ type Repository interface {
 	GetConversationContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
 	FindDMRoomContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
 	CreateRoom(context.Context, roomrepo.CreateRoomBundle) (*protocol.ConversationContextAggregate, error)
-	UpdateRoom(context.Context, string, string, *string, *string, *string, *string, *[]string, *string, *bool) (*protocol.ConversationContextAggregate, error)
+	UpdateRoom(context.Context, string, string, *string, *string, *string, *string, *[]string, *string, *bool, *bool) (*protocol.ConversationContextAggregate, error)
 	AddRoomMember(context.Context, string, string, roomrepo.AgentRuntimeRef) (*protocol.ConversationContextAggregate, error)
 	RemoveRoomMember(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
 	DeleteRoom(context.Context, string, string) (bool, error)
@@ -200,15 +200,16 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 	}
 	bundle := roomrepo.CreateRoomBundle{
 		Room: protocol.RoomRecord{
-			ID:                   roomID,
-			OwnerUserID:          ownerUserID,
-			RoomType:             normalizedRoomType,
-			Name:                 roomName,
-			Description:          roomdomain.NormalizeOptionalText(request.Description),
-			Avatar:               roomdomain.NormalizeOptionalText(request.Avatar),
-			SkillNames:           skillNames,
-			HostAgentID:          hostAgentID,
-			HostAutoReplyEnabled: hostAutoReplyEnabled,
+			ID:                     roomID,
+			OwnerUserID:            ownerUserID,
+			RoomType:               normalizedRoomType,
+			Name:                   roomName,
+			Description:            roomdomain.NormalizeOptionalText(request.Description),
+			Avatar:                 roomdomain.NormalizeOptionalText(request.Avatar),
+			SkillNames:             skillNames,
+			HostAgentID:            hostAgentID,
+			HostAutoReplyEnabled:   hostAutoReplyEnabled,
+			PrivateMessagesEnabled: normalizedRoomType == protocol.RoomTypeGroup && request.PrivateMessagesEnabled,
 		},
 		Members: roomdomain.BuildMembers(roomID, ownerUserID, normalizedAgentIDs),
 		Conversation: protocol.ConversationRecord{
@@ -280,6 +281,7 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request protoco
 	}
 	var hostAgentIDPtr *string
 	var hostAutoReplyEnabledPtr *bool
+	var privateMessagesEnabledPtr *bool
 	if request.HostAgentID != nil || request.HostAutoReplyEnabled != nil {
 		existing, err := loadExistingRoom()
 		if err != nil {
@@ -291,6 +293,17 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request protoco
 		}
 		hostAgentIDPtr = &hostAgentID
 		hostAutoReplyEnabledPtr = &hostAutoReplyEnabled
+	}
+	if request.PrivateMessagesEnabled != nil {
+		existing, err := loadExistingRoom()
+		if err != nil {
+			return nil, err
+		}
+		if existing.Room.RoomType == protocol.RoomTypeDM && *request.PrivateMessagesEnabled {
+			return nil, errors.New("DM room 不支持启用 Room 私信")
+		}
+		privateMessagesEnabledValue := *request.PrivateMessagesEnabled
+		privateMessagesEnabledPtr = &privateMessagesEnabledValue
 	}
 
 	contextValue, err := s.repository.UpdateRoom(
@@ -304,6 +317,7 @@ func (s *Service) UpdateRoom(ctx context.Context, roomID string, request protoco
 		skillNamesPtr,
 		hostAgentIDPtr,
 		hostAutoReplyEnabledPtr,
+		privateMessagesEnabledPtr,
 	)
 	if err != nil {
 		return nil, err

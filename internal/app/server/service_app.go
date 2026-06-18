@@ -142,7 +142,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
 	goalBuilder := newGoalMCPBuilder(cfg, goalService)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
-	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent)
+	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
 		automationBuilder,
 		connectorBuilder,

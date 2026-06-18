@@ -379,12 +379,8 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
 		"Each user turn includes <public_feed>",
-		"create a Room directed message",
+		"Private Room directed message sending is disabled",
 		`nexus_room.publish_public_message`,
-		`nexus_room.send_directed_message`,
-		`recipients: string[]`,
-		`reply_route: { mode: public|private|none`,
-		`next_reply_route`,
 		"Small-group discussion is just a directed message with multiple recipients",
 		`latest_trigger says "room host default takeover"`,
 		"When you receive a directed message, answer in this turn's final reply",
@@ -398,6 +394,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		}
 	}
 	for _, unexpected := range []string{
+		`nexus_room.send_directed_message`,
 		"以成员 单聊助手",
 		"<current_room_member>",
 	} {
@@ -1311,12 +1308,16 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("执行 room 内建通讯工具权限处理器失败: %v", err)
 	}
-	if roomDecision.Behavior != sdkpermission.BehaviorAllow || len(handledTools) != 1 {
-		t.Fatalf("nexus_room 应由 Room runtime 内建放行: decision=%+v tools=%+v", roomDecision, handledTools)
+	if roomDecision.Behavior != sdkpermission.BehaviorDeny ||
+		len(handledTools) != 1 ||
+		handledTools[0] != "Write" {
+		t.Fatalf("Room 私信工具默认应直接拒绝: decision=%+v tools=%+v", roomDecision, handledTools)
 	}
-	if roomTestStringSliceContains(options.Tools.Deny, "nexus_room") ||
-		roomTestStringSliceContains(options.Tools.Deny, "mcp__nexus_room__send_directed_message") {
-		t.Fatalf("Room runtime 不应让 agent deny 列表屏蔽内建通讯工具: %+v", options.Tools.Deny)
+	if roomTestStringSliceContains(options.Tools.Deny, "nexus_room") {
+		t.Fatalf("Room runtime 不应让 broad nexus_room deny 屏蔽公开通讯工具: %+v", options.Tools.Deny)
+	}
+	if !roomTestStringSliceContains(options.Tools.Deny, "mcp__nexus_room__send_directed_message") {
+		t.Fatalf("Room 私信工具 deny 配置应保留: %+v", options.Tools.Deny)
 	}
 	if !roomTestStringSliceContains(options.Tools.Deny, "Write") {
 		t.Fatalf("Room runtime 应保留非通讯工具 deny 配置: %+v", options.Tools.Deny)

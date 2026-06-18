@@ -65,7 +65,7 @@ func (s *stubRoomService) HandlePublicMessage(
 	}, nil
 }
 
-func TestToolsListIncludesRoomCommunicationTools(t *testing.T) {
+func TestToolsListIncludesPublicToolByDefault(t *testing.T) {
 	tools := listRoomTools(t, &stubRoomService{}, contract.ServerContext{})
 	names := map[string]bool{}
 	for _, item := range tools {
@@ -82,6 +82,21 @@ func TestToolsListIncludesRoomCommunicationTools(t *testing.T) {
 			t.Fatalf("%s should always load", name)
 		}
 	}
+	if !names["publish_public_message"] {
+		t.Fatalf("missing room tool publish_public_message: %+v", tools)
+	}
+	if names["send_directed_message"] {
+		t.Fatalf("Room 未开启私信时不应暴露 send_directed_message: %+v", tools)
+	}
+}
+
+func TestToolsListIncludesDirectedToolWhenEnabled(t *testing.T) {
+	tools := listRoomTools(t, &stubRoomService{}, contract.ServerContext{PrivateMessagesEnabled: true})
+	names := map[string]bool{}
+	for _, item := range tools {
+		name, _ := item["name"].(string)
+		names[name] = true
+	}
 	for _, name := range []string{"send_directed_message", "publish_public_message"} {
 		if !names[name] {
 			t.Fatalf("missing room tool %s: %+v", name, tools)
@@ -92,11 +107,12 @@ func TestToolsListIncludesRoomCommunicationTools(t *testing.T) {
 func TestSendDirectedMessageUsesInjectedRoomScope(t *testing.T) {
 	svc := &stubRoomService{}
 	result, isError := callRoomTool(t, svc, contract.ServerContext{
-		OwnerUserID:       "user-1",
-		CurrentAgentID:    "agent-host",
-		RoomID:            "room-1",
-		ConversationID:    "conversation-1",
-		SourceContextType: "room",
+		OwnerUserID:            "user-1",
+		CurrentAgentID:         "agent-host",
+		RoomID:                 "room-1",
+		ConversationID:         "conversation-1",
+		SourceContextType:      "room",
+		PrivateMessagesEnabled: true,
 	}, "send_directed_message", map[string]any{
 		"recipients":  []any{"agent-amy"},
 		"content":     "今晚查验谁？",
