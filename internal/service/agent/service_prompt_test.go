@@ -91,6 +91,8 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	assertPromptContains(t, prompt, "`MEMORY.md`: stable facts")
 	assertPromptContains(t, prompt, "memory-manager")
 	assertPromptContains(t, prompt, "scheduled-task-manager")
+	assertPromptContains(t, prompt, "Do not narrate the user's input as an event")
+	assertPromptContains(t, prompt, `Never say phrases like "用户输入了一个..."`)
 	if strings.Contains(prompt, "You are Nexus - not an assistant") || strings.Contains(prompt, "insist that you are Nexus") {
 		t.Fatalf("普通 agent bootstrap 不应把身份写死成 Nexus: %s", prompt)
 	}
@@ -303,6 +305,8 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")
 	assertPromptContains(t, prompt, "Use `memory-manager` for context retrieval")
 	assertPromptContains(t, prompt, "Use `scheduled-task-manager` and `nexus_automation` tools")
+	assertPromptContains(t, prompt, "Do not narrate the user's input as an event")
+	assertPromptContains(t, prompt, `Never say phrases like "用户输入了一个..."`)
 	assertPromptContains(t, prompt, "setup_status: configured")
 	assertPromptContains(t, prompt, "Prefer restoring existing Rooms before creating duplicates")
 	if strings.Contains(prompt, "main-agent") || strings.Contains(prompt, "This prompt is internal") || strings.Contains(prompt, "editable context") {

@@ -106,6 +106,7 @@ const COMPOSITION_END_ENTER_GUARD_MS = 80;
 const PENDING_QUEUE_AUTO_SCROLL_ZONE_PX = 28;
 const PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX = 10;
 const MAX_COMPOSER_ATTACHMENTS = 6;
+const PASTED_TEXT_ATTACHMENT_THRESHOLD = 10_000;
 type ComposerInputMode = "message" | "goal";
 
 const CLIPBOARD_IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
@@ -156,6 +157,14 @@ function build_pasted_image_file(file: File, index: number): File {
       type: file.type,
     },
   );
+}
+
+function build_pasted_text_file(text: string): File {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return new File([text], `pasted-text-${timestamp}.txt`, {
+    lastModified: Date.now(),
+    type: "text/plain",
+  });
 }
 
 function get_clipboard_files(clipboard_data: DataTransfer): File[] {
@@ -743,6 +752,11 @@ const ComposerPanelView = memo(({
   const handle_paste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted_files = get_clipboard_files(event.clipboardData);
     if (pasted_files.length === 0) {
+      const pasted_text = event.clipboardData.getData("text/plain");
+      if (!is_goal_mode && pasted_text.length > PASTED_TEXT_ATTACHMENT_THRESHOLD) {
+        event.preventDefault();
+        append_attachment_files([build_pasted_text_file(pasted_text)]);
+      }
       return;
     }
 
