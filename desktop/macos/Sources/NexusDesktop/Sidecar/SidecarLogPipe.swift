@@ -41,13 +41,14 @@ final class SidecarLogPipe {
 }
 
 private final class SidecarLogTail {
+  private let lineLimit = 200
   private let lock = NSLock()
   private var lines: [String] = []
 
   func append(_ line: String) {
     lock.lock()
     lines.append(line)
-    if lines.count > 20 {
+    if lines.count > lineLimit {
       lines.removeFirst()
     }
     lock.unlock()

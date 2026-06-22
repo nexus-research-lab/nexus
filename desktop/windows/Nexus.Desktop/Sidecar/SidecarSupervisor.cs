@@ -8,6 +8,8 @@ namespace Nexus.Desktop.Sidecar;
 
 internal sealed class SidecarSupervisor : IDisposable
 {
+    private const int OutputTailLineLimit = 200;
+
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly SidecarBundle locator;
     private readonly SidecarRuntimeConfig runtime;
@@ -315,7 +317,7 @@ internal sealed class SidecarSupervisor : IDisposable
         lock (outputSync)
         {
             target.Add(line);
-            if (target.Count > 20)
+            if (target.Count > OutputTailLineLimit)
             {
                 target.RemoveAt(0);
             }
