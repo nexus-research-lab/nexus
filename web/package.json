@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "private": true,
   "packageManager": "pnpm@9.15.2",
   "scripts": {

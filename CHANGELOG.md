@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-06-22
+
+### Fixed
+- Captured sidecar startup failure output so desktop startup failures include the process error details.
+
 ## [0.1.21] - 2026-06-18
 
 ### Fixed
