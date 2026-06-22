@@ -23,7 +23,7 @@ import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import { GlassSwitch } from "@/shared/ui/liquid-glass";
-import { UiActionMenu } from "@/shared/ui/action-menu";
+import { UiActionMenu, type UiActionMenuItem } from "@/shared/ui/action-menu";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   AgentConversationDefaultDeliveryPolicy,
@@ -90,6 +90,8 @@ interface ComposerPanelProps {
   mention_unavailable_agent_ids?: string[];
   on_prepare_attachments?: (files: File[]) => Promise<PreparedComposerAttachment[]>;
   on_create_goal?: (objective: string) => Promise<void>;
+  enable_loops?: boolean;
+  on_create_loop_goal?: (loop: LoopCatalogItem) => Promise<void>;
   goal_create_disabled_reason?: string | null;
   goal_mode_extra?: ReactNode;
   goal_scope_label?: string;
@@ -237,6 +239,8 @@ const ComposerPanelView = memo(({
   mention_unavailable_agent_ids = [],
   on_prepare_attachments,
   on_create_goal,
+  enable_loops = false,
+  on_create_loop_goal,
   goal_create_disabled_reason = null,
   goal_mode_extra = null,
   goal_scope_label = "会话 Goal",
@@ -296,6 +300,7 @@ const ComposerPanelView = memo(({
   const is_textarea_locked = is_input_locked || (is_goal_mode && is_goal_creating);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
   const can_create_goal = Boolean(on_create_goal);
+  const can_use_loop = enable_loops && Boolean(on_create_loop_goal);
   const goal_create_blocked_reason =
     goal_create_disabled_reason?.trim() || null;
 
@@ -559,29 +564,23 @@ const ComposerPanelView = memo(({
   }, [cancel_goal_input, start_goal_input]);
 
   const open_loop_picker = useCallback(() => {
-    set_is_action_menu_open(false);
-    set_is_loop_picker_open(true);
-  }, []);
-
-  const apply_loop_prompt = useCallback((loop: LoopCatalogItem) => {
-    set_input_mode("message");
-    set_goal_error(null);
-    setInput(loop.kickoff_prompt);
-    set_mention_active(false);
-    requestAnimationFrame(() => textarea_ref.current?.focus());
-  }, []);
-
-  const apply_loop_goal = useCallback((loop: LoopCatalogItem) => {
-    if (!can_create_goal) {
-      apply_loop_prompt(loop);
+    if (!can_use_loop) {
       return;
     }
-    set_input_mode("goal");
+    set_is_action_menu_open(false);
+    set_is_loop_picker_open(true);
+  }, [can_use_loop]);
+
+  const create_loop_goal = useCallback(async (loop: LoopCatalogItem) => {
+    if (!on_create_loop_goal) {
+      return;
+    }
     set_goal_error(null);
-    setInput(loop.kickoff_prompt);
     set_mention_active(false);
-    requestAnimationFrame(() => textarea_ref.current?.focus());
-  }, [apply_loop_prompt, can_create_goal]);
+    await on_create_loop_goal(loop);
+    set_input_mode("message");
+    setInput("");
+  }, [on_create_loop_goal]);
 
   const remove_pending_message = useCallback(async (id: string) => {
     await on_delete_queued_message?.(id);
@@ -800,6 +799,43 @@ const ComposerPanelView = memo(({
   if (is_goal_mode) {
     composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1.5" : "px-3 pb-3 pt-2";
   }
+  const action_menu_items: UiActionMenuItem[] = [
+    {
+      value: "attachment",
+      label: t("composer.add_attachment"),
+      icon: <Paperclip className="h-4 w-4 text-(--icon-muted)" />,
+      disabled: is_input_locked || is_preparing_attachments || is_goal_mode,
+    },
+    ...(can_use_loop
+      ? [{
+          value: "loop",
+          label: t("composer.insert_loop"),
+          icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
+          disabled: is_input_locked,
+        }]
+      : []),
+    {
+      value: "goal",
+      label: t("composer.start_goal"),
+      icon: <Target className="h-4 w-4 text-(--primary)" />,
+      trailing: (
+        <span
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <GlassSwitch
+            checked={is_goal_mode}
+            disabled={!can_create_goal || is_input_locked || is_goal_creating}
+            on_change={toggle_goal_input}
+            size="xs"
+          />
+        </span>
+      ),
+      active: is_goal_mode,
+      disabled: !can_create_goal || is_input_locked || is_goal_creating,
+      tone: "primary",
+    },
+  ];
 
   return (
     <section
@@ -818,12 +854,13 @@ const ComposerPanelView = memo(({
         onChange={handle_file_select}
         type="file"
       />
-      <LoopPickerDialog
-        is_open={is_loop_picker_open}
-        on_close={() => set_is_loop_picker_open(false)}
-        on_select={apply_loop_prompt}
-        on_select_goal={can_create_goal ? apply_loop_goal : undefined}
-      />
+      {can_use_loop ? (
+        <LoopPickerDialog
+          is_open={is_loop_picker_open}
+          on_close={() => set_is_loop_picker_open(false)}
+          on_select={create_loop_goal}
+        />
+      ) : null}
 
       <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
         {has_pending_queue ? (
@@ -1099,41 +1136,7 @@ const ComposerPanelView = memo(({
                 anchor_ref={action_button_ref}
                 aria_label={t("composer.open_actions")}
                 is_open={is_action_menu_open}
-                items={[
-                  {
-                    value: "attachment",
-                    label: t("composer.add_attachment"),
-                    icon: <Paperclip className="h-4 w-4 text-(--icon-muted)" />,
-                    disabled: is_input_locked || is_preparing_attachments || is_goal_mode,
-                  },
-                  {
-                    value: "loop",
-                    label: t("composer.insert_loop"),
-                    icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
-                    disabled: is_input_locked,
-                  },
-                  {
-                    value: "goal",
-                    label: t("composer.start_goal"),
-                    icon: <Target className="h-4 w-4 text-(--primary)" />,
-                    trailing: (
-                      <span
-                        onClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => event.stopPropagation()}
-                      >
-                        <GlassSwitch
-                          checked={is_goal_mode}
-                          disabled={!can_create_goal || is_input_locked || is_goal_creating}
-                          on_change={toggle_goal_input}
-                          size="xs"
-                        />
-                      </span>
-                    ),
-                    active: is_goal_mode,
-                    disabled: !can_create_goal || is_input_locked || is_goal_creating,
-                    tone: "primary",
-                  },
-                ]}
+                items={action_menu_items}
                 placement="top"
                 on_close={() => set_is_action_menu_open(false)}
                 on_select={(value) => {

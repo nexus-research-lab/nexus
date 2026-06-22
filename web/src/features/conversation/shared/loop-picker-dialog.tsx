@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Repeat2 } from "lucide-react";
 
 import { list_loops_api } from "@/lib/api/loop-api";
@@ -22,8 +22,7 @@ const ALL_CATEGORIES = "__all__";
 interface LoopPickerDialogProps {
   is_open: boolean;
   on_close: () => void;
-  on_select: (loop: LoopCatalogItem) => void;
-  on_select_goal?: (loop: LoopCatalogItem) => void;
+  on_select: (loop: LoopCatalogItem) => void | Promise<void>;
 }
 
 function matches_loop(loop: LoopCatalogItem, query: string): boolean {
@@ -44,13 +43,13 @@ export function LoopPickerDialog({
   is_open,
   on_close,
   on_select,
-  on_select_goal,
 }: LoopPickerDialogProps) {
   const { locale, t } = useI18n();
   const [loops, set_loops] = useState<LoopCatalogItem[]>([]);
   const [query, set_query] = useState("");
   const [category, set_category] = useState(ALL_CATEGORIES);
   const [loading, set_loading] = useState(false);
+  const [busy_slug, set_busy_slug] = useState<string | null>(null);
   const [error, set_error] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,6 +95,19 @@ export function LoopPickerDialog({
       matches_loop(loop, normalized_query),
     );
   }, [category, loops, query]);
+
+  const handle_select = useCallback(async (loop: LoopCatalogItem) => {
+    set_busy_slug(loop.slug);
+    set_error(null);
+    try {
+      await on_select(loop);
+      on_close();
+    } catch (err) {
+      set_error(err instanceof Error ? err.message : t("composer.loop_picker_failed"));
+    } finally {
+      set_busy_slug(null);
+    }
+  }, [on_close, on_select, t]);
 
   if (!is_open) {
     return null;
@@ -157,11 +169,9 @@ export function LoopPickerDialog({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button
+                        disabled={busy_slug !== null}
                         className="min-w-0 flex-1 text-left"
-                        onClick={() => {
-                          on_select(loop);
-                          on_close();
-                        }}
+                        onClick={() => void handle_select(loop)}
                         type="button"
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -181,28 +191,14 @@ export function LoopPickerDialog({
                       </button>
                       <div className="mt-1 flex shrink-0 flex-col gap-1.5">
                         <UiButton
-                          onClick={() => {
-                            on_select(loop);
-                            on_close();
-                          }}
+                          disabled={busy_slug !== null}
+                          onClick={() => void handle_select(loop)}
                           size="xs"
                           tone="primary"
                           variant="solid"
                         >
-                          {t("composer.use_loop")}
+                          {busy_slug === loop.slug ? t("composer.loop_starting") : t("composer.use_loop")}
                         </UiButton>
-                        {on_select_goal ? (
-                          <UiButton
-                            onClick={() => {
-                              on_select_goal(loop);
-                              on_close();
-                            }}
-                            size="xs"
-                            variant="surface"
-                          >
-                            {t("composer.use_loop_as_goal")}
-                          </UiButton>
-                        ) : null}
                       </div>
                     </div>
                   </div>

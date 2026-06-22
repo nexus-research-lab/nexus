@@ -16,6 +16,7 @@ import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { RoomConversationSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 import { Agent } from "@/types/agent/agent";
+import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
@@ -40,6 +41,8 @@ import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { RoomGoalPanel } from "./room-goal-panel";
 import {
   build_room_goal_metadata,
+  build_room_loop_goal_metadata,
+  build_room_loop_goal_objective,
   resolve_default_room_goal_lead,
 } from "./room-goal-model";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
@@ -418,6 +421,27 @@ export function GroupChatPanel({
     room_members,
     session_key,
   ]);
+  const handle_create_loop_goal = useCallback(async (loop: LoopCatalogItem) => {
+    if (!session_key) {
+      throw new Error("当前房间会话尚未准备好，暂时无法启动 Loop。");
+    }
+    const lead_agent_id = room_goal_lead_agent_id.trim();
+    if (!lead_agent_id) {
+      throw new Error("请选择 Room Goal 负责人。");
+    }
+    await create_goal_api({
+      session_key,
+      objective: build_room_loop_goal_objective(loop),
+      token_budget: null,
+      metadata: build_room_loop_goal_metadata(room_members, lead_agent_id, loop),
+    });
+    refresh_goal_panel();
+  }, [
+    refresh_goal_panel,
+    room_goal_lead_agent_id,
+    room_members,
+    session_key,
+  ]);
   useRoomThreadPanelData({
     agent_avatar_map,
     agent_name_map,
@@ -526,6 +550,7 @@ export function GroupChatPanel({
             allow_send_while_loading
             compact={is_mobile_layout}
             default_delivery_policy={default_delivery_policy}
+            enable_loops
             goal_create_disabled_reason={room_goal_create_disabled_reason}
             goal_mode_extra={room_goal_lead_control}
             goal_scope_label={ROOM_GOAL_SCOPE_LABEL}
@@ -533,6 +558,7 @@ export function GroupChatPanel({
             is_loading={is_loading}
             queue_when_session_busy={false}
             runtime_phase={runtime_phase}
+            on_create_loop_goal={session_key && can_control_session ? handle_create_loop_goal : undefined}
             on_create_goal={session_key && can_control_session ? handle_create_goal : undefined}
             on_delete_queued_message={delete_input_queue_message}
             on_enqueue_message={enqueue_input_queue_message}
