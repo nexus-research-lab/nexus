@@ -206,7 +206,7 @@ export interface SystemMessageMetadata extends Record<string, any> {
   attempt?: number;
   max_retries?: number;
   retry_delay_ms?: number;
-  error_status?: string | null;
+  error_status?: string | number | null;
   error?: string | null;
 }
 
