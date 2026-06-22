@@ -35,3 +35,17 @@ func TestChatErrorDetailExplainsProviderConfig(t *testing.T) {
 		t.Fatalf("Provider 配置错误时应返回配置提示: %q", message)
 	}
 }
+
+func TestChatErrorDetailExplainsProviderOverload(t *testing.T) {
+	message := chatErrorDetail(errors.New(`client: runtime startup failed: provider_error=server_overload stderr="API error: 529 {\"type\":\"overloaded_error\"}": context deadline exceeded`))
+	if !strings.Contains(message, "模型请求暂时受限") || !strings.Contains(message, "LLM Provider") {
+		t.Fatalf("Provider 过载时应返回受限提示: %q", message)
+	}
+}
+
+func TestChatErrorDetailExplainsProviderRateLimit(t *testing.T) {
+	message := chatErrorDetail(errors.New(`client: runtime startup failed: provider_error=rate_limit stderr="API error: 429 rate_limit_error": context deadline exceeded`))
+	if !strings.Contains(message, "模型请求暂时受限") || !strings.Contains(message, "LLM Provider") {
+		t.Fatalf("Provider 限流时应返回受限提示: %q", message)
+	}
+}

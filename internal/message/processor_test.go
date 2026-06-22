@@ -379,6 +379,56 @@ func TestProcessorDoesNotPersistApiRetrySystemMessage(t *testing.T) {
 	}
 }
 
+func TestProcessorNormalizesSystemAPIErrorMessage(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-api-error",
+		ParentID:   "round-api-error",
+	}, "sdk-session-api-error")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:    sdkprotocol.MessageTypeSystem,
+		Subtype: "api_error",
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "api_error",
+			Data: map[string]any{
+				"retryAttempt": 4,
+				"maxRetries":   11,
+				"retryInMs":    3000,
+				"error": map[string]any{
+					"status": 529,
+					"type":   "overloaded_error",
+				},
+			},
+		},
+	})
+
+	if len(output.DurableMessages) != 0 || len(output.EphemeralMessages) != 1 {
+		t.Fatalf("api_error 应只生成 ephemeral 消息: %+v", output)
+	}
+	message := output.EphemeralMessages[0]
+	if message["content"] != "模型请求暂时受限，正在自动重试。" {
+		t.Fatalf("content = %#v", message["content"])
+	}
+	metadata, ok := message["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata 类型不正确: %#v", message["metadata"])
+	}
+	for key, want := range map[string]any{
+		"subtype":        "api_retry",
+		"attempt":        4,
+		"max_retries":    11,
+		"retry_delay_ms": 3000,
+		"error_status":   529,
+		"error":          "rate_limit",
+	} {
+		if got := metadata[key]; got != want {
+			t.Fatalf("%s = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
 func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

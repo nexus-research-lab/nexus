@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CornerDownRight, Info, LoaderCircle, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -35,6 +35,9 @@ import {
   get_system_message_icon_class_name,
   get_system_message_label_class_name,
 } from "./message-item-support";
+
+const API_RETRY_VISIBLE_ATTEMPT = 4;
+const MAX_API_RETRY_ERROR_CHARS = 1000;
 
 interface ContentRendererProps {
   content: string | ContentBlock[];
@@ -122,6 +125,55 @@ function TimelineBlock({
         {children}
       </div>
     </div>
+  );
+}
+
+function is_hidden_api_retry_block(block: SystemEventContent): boolean {
+  return block.subtype === "api_retry" &&
+    typeof block.attempt === "number" &&
+    block.attempt < API_RETRY_VISIBLE_ATTEMPT;
+}
+
+function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
+  const retry_delay_ms =
+    typeof block.retry_delay_ms === "number" && block.retry_delay_ms > 0
+      ? block.retry_delay_ms
+      : 0;
+  const [now_ms, set_now_ms] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (retry_delay_ms <= 0) {
+      return;
+    }
+    set_now_ms(Date.now());
+    const interval_id = window.setInterval(() => set_now_ms(Date.now()), 1000);
+    return () => window.clearInterval(interval_id);
+  }, [block.timestamp, retry_delay_ms]);
+
+  const retry_due_at = block.timestamp + retry_delay_ms;
+  const retry_in_seconds = Math.max(
+    0,
+    Math.round((retry_due_at - now_ms) / 1000),
+  );
+  const retry_unit = retry_in_seconds === 1 ? "second" : "seconds";
+  const attempt_text =
+    typeof block.attempt === "number" && typeof block.max_retries === "number"
+      ? `(attempt ${block.attempt}/${block.max_retries})`
+      : null;
+  const retry_text = retry_delay_ms > 0
+    ? `Retrying in ${retry_in_seconds} ${retry_unit}…${attempt_text ? ` ${attempt_text}` : ""}`
+    : `Retrying…${attempt_text ? ` ${attempt_text}` : ""}`;
+  const content = block.content.length > MAX_API_RETRY_ERROR_CHARS
+    ? `${block.content.slice(0, MAX_API_RETRY_ERROR_CHARS)}…`
+    : block.content;
+
+  return (
+    <>
+      <div>{content}</div>
+      <div className="mt-0.5 text-[13px] leading-5 text-(--text-muted)">
+        {retry_text}
+      </div>
+    </>
   );
 }
 
@@ -284,6 +336,9 @@ export function ContentRenderer(
         }
 
         if (block.type === 'system_event') {
+          if (is_hidden_api_retry_block(block)) {
+            return null;
+          }
           return wrap_block(index, (
             <MessageRail class_name="min-w-0">
               <MessageRailLabel class_name={cn("flex-1", get_system_message_label_class_name(block.tone))}>
@@ -300,7 +355,11 @@ export function ContentRenderer(
                 <span>{block.label}</span>
               </MessageRailLabel>
               <MessageRailBody class_name="pt-1 text-[14px] leading-6 text-(--text-default)">
-                {block.content}
+                {block.subtype === "api_retry" ? (
+                  <ApiRetrySystemEventBody block={block} />
+                ) : (
+                  block.content
+                )}
               </MessageRailBody>
             </MessageRail>
           ));

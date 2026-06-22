@@ -628,6 +628,8 @@ func chatErrorDetail(err error) string {
 	}
 	message := strings.TrimSpace(err.Error())
 	switch {
+	case isProviderCapacityError(message):
+		return "模型请求暂时受限，当前 LLM Provider 返回限流或过载。请稍后重试，或临时切换到可用 Provider/模型。"
 	case strings.Contains(message, "nxs"):
 		return "未找到 nxs runtime，Agent 无法启动。打包版 Nexus 应由桌面 sidecar 注入随包 nxs 路径；开发环境请设置 NEXUS_NXS_COMMAND_PATH 指向本地 nxs，或在 Settings 将 Agent Runtime 切回 Claude。"
 	case strings.Contains(message, "cli executable") ||
@@ -645,6 +647,17 @@ func chatErrorDetail(err error) string {
 		}
 		return "Agent 启动失败，请检查 Claude Code、Provider 配置和日志后重试。"
 	}
+}
+
+func isProviderCapacityError(message string) bool {
+	normalized := strings.ToLower(message)
+	return strings.Contains(normalized, "provider_error=server_overload") ||
+		strings.Contains(normalized, "provider_error=rate_limit") ||
+		strings.Contains(normalized, "overloaded_error") ||
+		strings.Contains(normalized, "rate_limit_error") ||
+		strings.Contains(normalized, "repeated 529") ||
+		strings.Contains(normalized, " 529 ") ||
+		strings.Contains(normalized, " 429 ")
 }
 
 func (h *Handler) newGatewayErrorEvent(

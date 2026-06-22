@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Clarified conversation connection error copy and provider retry UI so runtime stalls are not presented as a stopped backend service.
+
 ## [0.1.22] - 2026-06-22
 
 ### Fixed

@@ -95,6 +95,11 @@ export interface SystemEventContent {
   timestamp: number;
   subtype?: string;
   tool_use_id?: string | null;
+  attempt?: number;
+  max_retries?: number;
+  retry_delay_ms?: number;
+  error_status?: string | number | null;
+  error?: string | null;
 }
 
 export type ContentBlock =

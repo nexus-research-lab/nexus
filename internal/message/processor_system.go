@@ -112,13 +112,9 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 			"task_type":   firstNonEmpty(normalizeString(message.Data["task_type"]), firstTaskStartedTaskType(message)),
 			"tool_use_id": firstNonEmpty(normalizeString(message.Data["tool_use_id"]), firstTaskStartedToolUseID(message)),
 		}
-	case "api_retry":
-		content = firstNonEmpty(normalizeString(message.Data["message"]), "API 正在重试")
-		metadata = cloneMap(message.Data)
-		if metadata == nil {
-			metadata = map[string]any{}
-		}
-		metadata["subtype"] = "api_retry"
+	case "api_retry", "api_error":
+		metadata = normalizeAPIRetryMetadata(message.Data)
+		content = firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata))
 		explicitMessageID = "system_api_retry_" + p.ctx.RoundID
 		ephemeral = true
 	default:
@@ -134,6 +130,67 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	payload["metadata"] = metadata
 	messageValue := protocol.Message(payload)
 	return &messageValue, ephemeral
+}
+
+func normalizeAPIRetryMetadata(data map[string]any) map[string]any {
+	metadata := cloneMap(data)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	metadata["subtype"] = "api_retry"
+	setAPIRetryInt(metadata, data, "attempt", "attempt", "retryAttempt", "retry_attempt")
+	setAPIRetryInt(metadata, data, "max_retries", "max_retries", "maxRetries")
+	setAPIRetryInt(metadata, data, "retry_delay_ms", "retry_delay_ms", "retryInMs")
+	setAPIRetryInt(metadata, data, "error_status", "error_status", "status")
+	if normalizeInt(metadata["error_status"]) <= 0 {
+		if status := normalizeInt(mapValue(data["error"])["status"]); status > 0 {
+			metadata["error_status"] = status
+		}
+	}
+	if rawError, ok := data["error"]; ok && rawError != nil {
+		if _, isString := rawError.(string); !isString {
+			metadata["raw_error"] = rawError
+		}
+		metadata["error"] = normalizeAPIRetryError(fmt.Sprint(rawError))
+	}
+	return metadata
+}
+
+func setAPIRetryInt(metadata map[string]any, data map[string]any, target string, keys ...string) {
+	if normalizeInt(metadata[target]) > 0 {
+		return
+	}
+	for _, key := range keys {
+		if value := normalizeInt(data[key]); value > 0 {
+			metadata[target] = value
+			return
+		}
+	}
+}
+
+func apiRetryDefaultMessage(metadata map[string]any) string {
+	if normalizeString(metadata["error"]) == "rate_limit" {
+		return "模型请求暂时受限，正在自动重试。"
+	}
+	return "API 请求失败，正在自动重试。"
+}
+
+func normalizeAPIRetryError(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.Contains(normalized, "rate_limit"),
+		strings.Contains(normalized, "rate limit"),
+		strings.Contains(normalized, "overloaded_error"),
+		strings.Contains(normalized, "529"),
+		strings.Contains(normalized, "429"):
+		return "rate_limit"
+	case strings.Contains(normalized, "timeout") || strings.Contains(normalized, "timed out"):
+		return "timeout"
+	case strings.Contains(normalized, "connection") || strings.Contains(normalized, "connect"):
+		return "connection"
+	default:
+		return firstNonEmpty(normalized, "api_error")
+	}
 }
 
 func firstTaskProgressTaskID(message *sdkprotocol.SystemMessage) string {

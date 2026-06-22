@@ -82,6 +82,17 @@ function get_result_summary_display_text(
   return null;
 }
 
+function metadata_number(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function useMessageItemState({
   is_last_round,
   is_loading,
@@ -144,6 +155,14 @@ export function useMessageItemState({
           tool_use_id:
             typeof message.metadata?.tool_use_id === "string"
               ? message.metadata.tool_use_id
+              : null,
+          attempt: metadata_number(message.metadata?.attempt),
+          max_retries: metadata_number(message.metadata?.max_retries),
+          retry_delay_ms: metadata_number(message.metadata?.retry_delay_ms),
+          error_status: message.metadata?.error_status ?? null,
+          error:
+            typeof message.metadata?.error === "string"
+              ? message.metadata.error
               : null,
         };
       }),

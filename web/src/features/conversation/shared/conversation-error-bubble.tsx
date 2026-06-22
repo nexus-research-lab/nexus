@@ -20,20 +20,36 @@ function resolve_error_presentation(error: string): ErrorPresentation {
   const normalized_error = error.toLowerCase();
 
   if (
+    normalized_error.includes("provider_error=server_overload") ||
+    normalized_error.includes("provider_error=rate_limit") ||
+    normalized_error.includes("overloaded_error") ||
+    normalized_error.includes("rate_limit_error") ||
+    normalized_error.includes("repeated 529") ||
+    normalized_error.includes(" 529 ") ||
+    normalized_error.includes(" 429 ") ||
+    error.includes("模型请求暂时受限")
+  ) {
+    return {
+      title: "模型请求暂时受限",
+      detail: "当前 LLM Provider 返回限流或过载。请稍后重试；如果持续失败，临时切换到可用 Provider 或模型。",
+    };
+  }
+
+  if (
     normalized_error.includes("websocket") ||
     error.includes("WebSocket未连接") ||
     error.includes("连接")
   ) {
     return {
       title: "连接中断",
-      detail: "浏览器与 Nexus 后端的实时连接异常，系统会自动尝试重连。请先确认网络和后端服务状态；连接恢复后，如果刚才的消息没有继续处理，可以刷新页面后重新发送。",
+      detail: "浏览器与 Nexus 的实时通道暂时没有响应，系统会自动尝试重连。可能是网络、后端负载或运行时模型服务阻塞；如果刚才的消息没有继续处理，可以刷新页面后重新发送。",
     };
   }
 
   if (error.includes("服务器") || error.includes("后端")) {
     return {
-      title: "无法连接到后端服务",
-      detail: "请确认后端服务正在运行，并检查本地开发端口或部署代理配置。服务恢复后，可以刷新页面重新进入当前对话。",
+      title: "后端响应异常",
+      detail: "Nexus 后端已返回异常或长时间没有响应。请稍后重试；如果健康检查正常，优先检查当前会话的运行时和模型 provider 状态。",
     };
   }
 
