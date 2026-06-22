@@ -383,6 +383,14 @@ export function get_system_message_display_meta(
     };
   }
 
+  if (subtype === "compact_boundary") {
+    return {
+      label: "上下文压缩",
+      tone: "neutral",
+      icon: "status",
+    };
+  }
+
   if (subtype === "guided_input") {
     return {
       label: "已引导对话",

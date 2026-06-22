@@ -429,6 +429,48 @@ func TestProcessorNormalizesSystemAPIErrorMessage(t *testing.T) {
 	}
 }
 
+func TestProcessorPersistsCompactBoundarySystemMessage(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-compact",
+		ParentID:   "round-compact",
+	}, "sdk-session-compact")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:    sdkprotocol.MessageTypeSystem,
+		Subtype: "compact_boundary",
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "compact_boundary",
+			Data: map[string]any{
+				"compact_metadata": map[string]any{
+					"trigger":    "auto",
+					"pre_tokens": 120000,
+				},
+			},
+		},
+	})
+
+	if len(output.EphemeralMessages) != 0 || len(output.DurableMessages) != 1 {
+		t.Fatalf("compact_boundary 应生成 durable 消息: %+v", output)
+	}
+	message := output.DurableMessages[0]
+	if message["message_id"] != "system_compact_boundary_round-compact" {
+		t.Fatalf("message_id 不正确: %+v", message)
+	}
+	if message["content"] != "上下文已压缩" {
+		t.Fatalf("content = %#v", message["content"])
+	}
+	metadata, ok := message["metadata"].(map[string]any)
+	if !ok || metadata["subtype"] != "compact_boundary" {
+		t.Fatalf("metadata 不正确: %+v", message["metadata"])
+	}
+	compactMetadata, ok := metadata["compact_metadata"].(map[string]any)
+	if !ok || compactMetadata["trigger"] != "auto" || compactMetadata["pre_tokens"] != 120000 {
+		t.Fatalf("compact_metadata 未保留: %+v", metadata)
+	}
+}
+
 func TestProcessorDefersAssistantCompletionUntilStreamTerminal(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

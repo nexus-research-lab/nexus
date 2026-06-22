@@ -117,6 +117,10 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 		content = firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata))
 		explicitMessageID = "system_api_retry_" + p.ctx.RoundID
 		ephemeral = true
+	case "compact_boundary":
+		metadata = normalizeCompactBoundaryMetadata(message.Data)
+		content = firstNonEmpty(normalizeString(message.Data["content"]), "上下文已压缩")
+		explicitMessageID = "system_compact_boundary_" + p.ctx.RoundID
 	default:
 		return nil, false
 	}
@@ -191,6 +195,20 @@ func normalizeAPIRetryError(value string) string {
 	default:
 		return firstNonEmpty(normalized, "api_error")
 	}
+}
+
+func normalizeCompactBoundaryMetadata(data map[string]any) map[string]any {
+	metadata := cloneMap(data)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	metadata["subtype"] = "compact_boundary"
+	if metadata["compact_metadata"] == nil {
+		if compactMetadata := mapValue(data["compactMetadata"]); len(compactMetadata) > 0 {
+			metadata["compact_metadata"] = compactMetadata
+		}
+	}
+	return metadata
 }
 
 func firstTaskProgressTaskID(message *sdkprotocol.SystemMessage) string {

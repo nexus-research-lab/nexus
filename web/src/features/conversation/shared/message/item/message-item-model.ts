@@ -135,7 +135,8 @@ export function useMessageItemState({
         Boolean(message.content.trim()) &&
         (
           (is_last_round && is_loading) ||
-          message.metadata?.subtype === "guided_input"
+          message.metadata?.subtype === "guided_input" ||
+          message.metadata?.subtype === "compact_boundary"
         ),
     );
   }, [is_last_round, is_loading, messages]);
