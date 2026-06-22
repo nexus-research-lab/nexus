@@ -201,6 +201,8 @@ final class SidecarSupervisor {
     let deadline = Date().addingTimeInterval(45)
     while Date() < deadline {
       if let process, !process.isRunning {
+        process.waitUntilExit()
+        startupTimeline?.mark("sidecar.process_exited", metadata: processExitMetadata(process))
         throw DesktopShellError.sidecarExited
       }
       if await isHealthy() {
@@ -208,7 +210,27 @@ final class SidecarSupervisor {
       }
       try await Task.sleep(nanoseconds: 300_000_000)
     }
+    startupTimeline?.mark("sidecar.health_timeout", metadata: outputMetadata())
     throw DesktopShellError.sidecarExited
+  }
+
+  private func processExitMetadata(_ process: Process) -> [String: String] {
+    var metadata = outputMetadata()
+    metadata["exit_code"] = "\(process.terminationStatus)"
+    return metadata
+  }
+
+  private func outputMetadata() -> [String: String] {
+    var metadata: [String: String] = [:]
+    let stdout = stdoutPipe.tailText()
+    if !stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      metadata["stdout_tail"] = stdout
+    }
+    let stderr = stderrPipe.tailText()
+    if !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      metadata["stderr_tail"] = stderr
+    }
+    return metadata
   }
 
   private func isHealthy() async -> Bool {

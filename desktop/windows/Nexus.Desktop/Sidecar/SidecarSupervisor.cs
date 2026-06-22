@@ -11,6 +11,9 @@ internal sealed class SidecarSupervisor : IDisposable
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly SidecarBundle locator;
     private readonly SidecarRuntimeConfig runtime;
+    private readonly object outputSync = new();
+    private readonly List<string> stdoutTail = [];
+    private readonly List<string> stderrTail = [];
     private Process? process;
 
     public SidecarSupervisor(DesktopStartupTimeline startupTimeline)
@@ -40,6 +43,7 @@ internal sealed class SidecarSupervisor : IDisposable
         {
             if (!string.IsNullOrWhiteSpace(args.Data))
             {
+                RecordOutputTail(stdoutTail, args.Data);
                 Trace.WriteLine($"[Nexus Sidecar stdout] {args.Data}");
             }
         };
@@ -47,6 +51,7 @@ internal sealed class SidecarSupervisor : IDisposable
         {
             if (!string.IsNullOrWhiteSpace(args.Data))
             {
+                RecordOutputTail(stderrTail, args.Data);
                 Trace.WriteLine($"[Nexus Sidecar stderr] {args.Data}");
             }
         };
@@ -251,6 +256,8 @@ internal sealed class SidecarSupervisor : IDisposable
         {
             if (process is { HasExited: true })
             {
+                process.WaitForExit();
+                startupTimeline.Mark("sidecar.process_exited", ProcessExitMetadata(process));
                 throw new InvalidOperationException("nexus-server 在启动完成前退出。");
             }
 
@@ -270,6 +277,56 @@ internal sealed class SidecarSupervisor : IDisposable
             await Task.Delay(300);
         }
 
+        startupTimeline.Mark("sidecar.health_timeout", OutputMetadata());
         throw new TimeoutException("等待 nexus-server 健康检查超时。");
+    }
+
+    private Dictionary<string, string> ProcessExitMetadata(Process exitedProcess)
+    {
+        Dictionary<string, string> metadata = new()
+        {
+            ["exit_code"] = exitedProcess.ExitCode.ToString(),
+        };
+        foreach (KeyValuePair<string, string> entry in OutputMetadata())
+        {
+            metadata[entry.Key] = entry.Value;
+        }
+        return metadata;
+    }
+
+    private Dictionary<string, string> OutputMetadata()
+    {
+        Dictionary<string, string> metadata = new();
+        string stdout = OutputTail(stdoutTail);
+        if (!string.IsNullOrWhiteSpace(stdout))
+        {
+            metadata["stdout_tail"] = stdout;
+        }
+        string stderr = OutputTail(stderrTail);
+        if (!string.IsNullOrWhiteSpace(stderr))
+        {
+            metadata["stderr_tail"] = stderr;
+        }
+        return metadata;
+    }
+
+    private void RecordOutputTail(List<string> target, string line)
+    {
+        lock (outputSync)
+        {
+            target.Add(line);
+            if (target.Count > 20)
+            {
+                target.RemoveAt(0);
+            }
+        }
+    }
+
+    private string OutputTail(List<string> target)
+    {
+        lock (outputSync)
+        {
+            return string.Join("\n", target);
+        }
     }
 }

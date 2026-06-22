@@ -3,10 +3,11 @@ import Foundation
 final class SidecarLogPipe {
   private let pipe = Pipe()
   private let label: String?
+  private let tail = SidecarLogTail()
 
   init(label: String? = nil) {
     self.label = label
-    pipe.fileHandleForReading.readabilityHandler = { [label] handle in
+    pipe.fileHandleForReading.readabilityHandler = { [label, tail] handle in
       let data = handle.availableData
       guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else {
         return
@@ -15,6 +16,7 @@ final class SidecarLogPipe {
         let value = line.trimmingCharacters(in: .whitespacesAndNewlines)
         if !value.isEmpty {
           let output = stripSidecarPrettyTimestamp(value)
+          tail.append(output)
           if let label {
             NSLog("[\(label)] %@", output)
           } else {
@@ -31,6 +33,31 @@ final class SidecarLogPipe {
 
   func close() {
     pipe.fileHandleForReading.readabilityHandler = nil
+  }
+
+  func tailText() -> String {
+    tail.text()
+  }
+}
+
+private final class SidecarLogTail {
+  private let lock = NSLock()
+  private var lines: [String] = []
+
+  func append(_ line: String) {
+    lock.lock()
+    lines.append(line)
+    if lines.count > 20 {
+      lines.removeFirst()
+    }
+    lock.unlock()
+  }
+
+  func text() -> String {
+    lock.lock()
+    let value = lines.joined(separator: "\n")
+    lock.unlock()
+    return value
   }
 }
 
