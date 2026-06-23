@@ -8,9 +8,9 @@ const STAGE_MANAGER_BACKGROUND_POSITIONS = [
   "left-[3.5%] top-[66%] h-[13%] w-[10%]",
 ];
 
-const PRIMARY_WORKSPACE = "left-[14%] top-[11%] h-[61%] w-[61%]";
-const PRIMARY_REVIEW_WORKSPACE = "left-[14%] top-[10%] h-[60%] w-[59%]";
-const COMPACT_REVIEW_WORKSPACE = "left-[22%] top-[13%] h-[54%] w-[58%]";
+const PRIMARY_WORKSPACE = "left-[14%] top-[6%] h-[61%] w-[61%]";
+const PRIMARY_REVIEW_WORKSPACE = "left-[14%] top-[6%] h-[60%] w-[59%]";
+const COMPACT_REVIEW_WORKSPACE = "left-[22%] top-[9%] h-[54%] w-[58%]";
 
 export function position_for_window(
   window: StageWindowState,
