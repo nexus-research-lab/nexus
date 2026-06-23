@@ -50,6 +50,7 @@ import {
 import {
   is_meaningful_stage_window_drag,
   normalize_stage_window_drag_offset,
+  normalize_stage_window_resize_size,
 } from "./operation-stage-window-drag";
 import { build_stage_window_launch_state } from "./operation-stage-window-launch";
 import {
@@ -267,6 +268,21 @@ export function OperationStageDesktop({
     }));
   };
 
+  const resize_window = (window_id: string, size: { height: number; width: number }) => {
+    const normalized_size = normalize_stage_window_resize_size(size);
+    set_focused_window_id(window_id);
+    set_window_overrides((current) => ({
+      ...current,
+      [window_id]: {
+        ...current[window_id],
+        maximized: false,
+        minimized: false,
+        resize_height: normalized_size.height,
+        resize_width: normalized_size.width,
+      },
+    }));
+  };
+
   const toggle_zoom_window = (window_id: string) => {
     set_focused_window_id(window_id);
     set_window_overrides((current) => {
@@ -399,8 +415,9 @@ export function OperationStageDesktop({
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
       {visible_windows.length ? visible_windows.map((window, index) => {
+        const window_override = window_overrides[window.id];
         const is_active = active_window_id === window.id && window.phase !== "minimized";
-        const is_maximized = Boolean(window_overrides[window.id]?.maximized);
+        const is_maximized = Boolean(window_override?.maximized);
         const background_window_index = visible_windows
           .filter((item) => is_stage_manager_background_window(item, narrative.phase))
           .findIndex((item) => item.id === window.id);
@@ -412,8 +429,8 @@ export function OperationStageDesktop({
             delay_ms={launch.delay_ms}
             dimmed={!is_active && window.phase !== "minimized"}
             drag_offset={is_maximized ? { x: 0, y: 0 } : {
-              x: window_overrides[window.id]?.offset_x ?? 0,
-              y: window_overrides[window.id]?.offset_y ?? 0,
+              x: window_override?.offset_x ?? 0,
+              y: window_override?.offset_y ?? 0,
             }}
             focus={is_active}
             icon={icon_for_window_kind(window.kind)}
@@ -427,13 +444,18 @@ export function OperationStageDesktop({
             on_drag={(offset) => move_window(window.id, offset)}
             on_focus={() => focus_window(window.id)}
             on_minimize={() => minimize_window(window.id)}
+            on_resize={(size) => resize_window(window.id, size)}
             on_zoom={() => toggle_zoom_window(window.id)}
             on_cycle_focus={cycle_window_focus}
             position_class_name={is_maximized
               ? "inset-x-4 top-14 bottom-0 h-auto w-auto"
               : position_for_window(window, narrative.phase, background_window_index)}
             preview_mode={is_stage_manager_preview ? "stage-manager" : undefined}
-            restore_token={window_overrides[window.id]?.restore_token}
+            resize_size={!is_maximized && window_override?.resize_width && window_override.resize_height ? {
+              height: window_override.resize_height,
+              width: window_override.resize_width,
+            } : undefined}
+            restore_token={window_override?.restore_token}
             title={window.title}
             tone={window.kind === "terminal" ? "terminal" : "default"}
             z_index={is_active ? 44 : 8 + index}

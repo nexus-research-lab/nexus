@@ -168,6 +168,7 @@ const {
 const {
   is_meaningful_stage_window_drag,
   normalize_stage_window_drag_offset,
+  normalize_stage_window_resize_size,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-window-drag.js")));
 const {
   build_stage_window_launch_state,
@@ -1129,6 +1130,8 @@ function verify_stage_window_drag_model() {
   assert(is_meaningful_stage_window_drag({ x: 12, y: 0 }), "Visible window drag should be meaningful");
   const invalid = normalize_stage_window_drag_offset({ x: Number.NaN, y: Infinity });
   assert(invalid.x === 0 && invalid.y === 0, `Invalid drag offsets should reset to zero, got ${invalid.x}, ${invalid.y}`);
+  const resized = normalize_stage_window_resize_size({ height: 9999, width: 10 });
+  assert(resized.height === 1000 && resized.width === 320, `Window resize should clamp to usable bounds, got ${resized.width}x${resized.height}`);
 }
 
 function verify_stage_window_launch_model() {

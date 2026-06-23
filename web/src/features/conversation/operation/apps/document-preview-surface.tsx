@@ -172,7 +172,7 @@ export function DocumentPreview({
             <ImageIcon className="h-4 w-4 text-(--icon-muted)" />
           </div>
         </div>
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_150px] max-sm:grid-cols-1">
+        <div className="grid min-h-0 flex-1">
           <div className="grid min-h-0 place-items-center overflow-auto p-5">
             <div className="rounded-[14px] border border-white/76 bg-[linear-gradient(45deg,#dfe6ee_25%,transparent_25%,transparent_75%,#dfe6ee_75%),linear-gradient(45deg,#dfe6ee_25%,transparent_25%,transparent_75%,#dfe6ee_75%)] bg-[length:22px_22px] bg-[position:0_0,11px_11px] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
               {image_src ? (
@@ -188,13 +188,6 @@ export function DocumentPreview({
               )}
             </div>
           </div>
-          <aside className="hidden border-l border-(--divider-subtle-color) bg-white/58 p-3 text-[10px] sm:block">
-            <p className="font-black uppercase tracking-[0.14em] text-(--text-soft)">检查器</p>
-            <PreviewInspectorRow label="类型" value={image_format_label(display_title)} />
-            <PreviewInspectorRow label="名称" value={display_title} />
-            <PreviewInspectorRow label="尺寸" value="预览尺寸" />
-            <PreviewInspectorRow label="状态" value={summary ?? "就绪"} />
-          </aside>
         </div>
       </div>
     );
@@ -590,15 +583,6 @@ function spreadsheet_column_label(index: number): string {
 function image_format_label(title: string): string {
   const extension = title.includes(".") ? title.slice(title.lastIndexOf(".") + 1).toUpperCase() : "IMAGE";
   return extension || "IMAGE";
-}
-
-function PreviewInspectorRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="mt-3 min-w-0">
-      <p className="text-(--text-soft)">{label}</p>
-      <p className="mt-0.5 truncate font-semibold text-(--text-strong)" title={value}>{value}</p>
-    </div>
-  );
 }
 
 function FileRow({

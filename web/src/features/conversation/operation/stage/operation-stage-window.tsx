@@ -20,6 +20,7 @@ interface OperationStageWindowProps {
   minimized?: boolean;
   dimmed?: boolean;
   drag_offset?: { x: number; y: number };
+  resize_size?: { height: number; width: number };
   mobile_hidden?: boolean;
   content_mode?: "flush" | "inset";
   preview_mode?: "stage-manager";
@@ -30,6 +31,7 @@ interface OperationStageWindowProps {
   on_drag?: (offset: { x: number; y: number }) => void;
   on_focus?: () => void;
   on_minimize?: () => void;
+  on_resize?: (size: { height: number; width: number }) => void;
   on_zoom?: () => void;
   on_cycle_focus?: (direction: "next" | "previous") => void;
 }
@@ -47,6 +49,7 @@ export function OperationStageWindow({
   minimized = false,
   dimmed = false,
   drag_offset = { x: 0, y: 0 },
+  resize_size,
   mobile_hidden = false,
   content_mode = "inset",
   preview_mode,
@@ -57,15 +60,25 @@ export function OperationStageWindow({
   on_drag,
   on_focus,
   on_minimize,
+  on_resize,
   on_zoom,
   on_cycle_focus,
 }: OperationStageWindowProps) {
+  const window_ref = useRef<HTMLDivElement | null>(null);
   const drag_state_ref = useRef<{
     pointer_id: number;
     start_x: number;
     start_y: number;
     origin_x: number;
     origin_y: number;
+  } | null>(null);
+  const resize_state_ref = useRef<{
+    edge: "bottom" | "corner" | "right";
+    origin_height: number;
+    origin_width: number;
+    pointer_id: number;
+    start_x: number;
+    start_y: number;
   } | null>(null);
   const cleanup_mouse_drag_ref = useRef<(() => void) | null>(null);
   const [is_dragging, set_is_dragging] = useState(false);
@@ -186,8 +199,65 @@ export function OperationStageWindow({
     set_is_dragging(false);
   };
 
+  const start_resize = (
+    event: PointerEvent<HTMLDivElement>,
+    edge: "bottom" | "corner" | "right",
+  ) => {
+    if (event.button !== 0 || minimized || maximized || resize_state_ref.current) {
+      return;
+    }
+    const rect = window_ref.current?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    on_focus?.();
+    resize_state_ref.current = {
+      edge,
+      origin_height: resize_size?.height ?? rect.height,
+      origin_width: resize_size?.width ?? rect.width,
+      pointer_id: event.pointerId,
+      start_x: event.clientX,
+      start_y: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    set_is_dragging(true);
+  };
+
+  const move_resize = (event: PointerEvent<HTMLDivElement>) => {
+    const resize_state = resize_state_ref.current;
+    if (!resize_state || resize_state.pointer_id !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    on_resize?.({
+      height: resize_state.edge === "right"
+        ? resize_state.origin_height
+        : resize_state.origin_height + event.clientY - resize_state.start_y,
+      width: resize_state.edge === "bottom"
+        ? resize_state.origin_width
+        : resize_state.origin_width + event.clientX - resize_state.start_x,
+    });
+  };
+
+  const end_resize = (event: PointerEvent<HTMLDivElement>) => {
+    const resize_state = resize_state_ref.current;
+    if (!resize_state || resize_state.pointer_id !== event.pointerId) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    resize_state_ref.current = null;
+    set_is_dragging(false);
+  };
+
+  const show_resize_handles = !maximized && !minimized && preview_mode !== "stage-manager";
+
   return (
     <div
+      ref={window_ref}
       aria-label={titlebar.aria_label}
       aria-roledescription="window"
       className={cn(
@@ -236,8 +306,10 @@ export function OperationStageWindow({
         "--operation-delay": `${delay_ms}ms`,
         "--operation-window-drag-x": `${drag_offset.x}px`,
         "--operation-window-drag-y": `${drag_offset.y}px`,
+        height: resize_size && !maximized ? `${resize_size.height}px` : undefined,
         zIndex: z_index,
         translate: `${drag_offset.x}px ${drag_offset.y}px`,
+        width: resize_size && !maximized ? `${resize_size.width}px` : undefined,
       } as CSSProperties}
       tabIndex={0}
     >
@@ -382,6 +454,39 @@ export function OperationStageWindow({
         ) : null}
         {preview_mode === "stage-manager" ? null : children}
       </div>
+      {show_resize_handles ? (
+        <>
+          <div
+            aria-hidden="true"
+            className="absolute bottom-0 right-1 top-8 z-20 w-2 cursor-ew-resize"
+            onPointerCancel={end_resize}
+            onLostPointerCapture={end_resize}
+            onPointerDown={(event) => start_resize(event, "right")}
+            onPointerMove={move_resize}
+            onPointerUp={end_resize}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-1 bottom-0 z-20 h-2 cursor-ns-resize"
+            onPointerCancel={end_resize}
+            onLostPointerCapture={end_resize}
+            onPointerDown={(event) => start_resize(event, "bottom")}
+            onPointerMove={move_resize}
+            onPointerUp={end_resize}
+          />
+          <div
+            aria-label="调整窗口大小"
+            className="absolute bottom-1 right-1 z-30 h-5 w-5 cursor-nwse-resize rounded-[8px] border border-white/50 bg-white/42 opacity-0 transition-opacity hover:opacity-80 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)]"
+            onPointerCancel={end_resize}
+            onLostPointerCapture={end_resize}
+            onPointerDown={(event) => start_resize(event, "corner")}
+            onPointerMove={move_resize}
+            onPointerUp={end_resize}
+            role="separator"
+            tabIndex={0}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -6,6 +6,8 @@ export interface StageWindowOverride {
   minimized?: boolean;
   offset_x?: number;
   offset_y?: number;
+  resize_height?: number;
+  resize_width?: number;
   restore_token?: number;
 }
 

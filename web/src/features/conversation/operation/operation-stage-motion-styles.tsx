@@ -193,6 +193,7 @@ export function OperationStageMotionStyles() {
 
         .operation-stage-window-dragging {
           animation-play-state: paused;
+          transition-duration: 0ms;
           box-shadow:
             0 36px 90px rgba(34,48,72,.22),
             0 0 0 1px rgba(255,255,255,.78),
