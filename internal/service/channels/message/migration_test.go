@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-func TestMigrateInboundMergesEnvelopeWithFallback(t *testing.T) {
+func TestNormalizeInboundMergesEnvelopeWithFallback(t *testing.T) {
 	t.Parallel()
 
 	receivedAt := time.UnixMilli(1000).UTC()
-	message := MigrateInbound(&Inbound{
+	message := NormalizeInbound(&Inbound{
 		Channel:           " telegram ",
 		PlatformMessageID: "msg-1",
 		ThreadID:          "topic-1",

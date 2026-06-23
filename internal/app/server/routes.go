@@ -5,6 +5,7 @@ import "strings"
 // mountRoutes 按功能域挂载全部 HTTP 路由。
 func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
+	s.mountProviderRoutes()
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
@@ -32,18 +33,22 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
-	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.core.HandleListProviderPresets)
-	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.core.HandleListProviderConfigs)
-	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.core.HandleListProviderOptions)
-	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.core.HandleCreateProviderConfig)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.core.HandleFetchProviderModels)
-	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.core.HandleUpdateProviderModel)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/default"), s.handlers.core.HandleSetDefaultProviderModel)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/test"), s.handlers.core.HandleTestProviderConfig)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/test"), s.handlers.core.HandleTestProviderModel)
-	s.router.Put(s.prefixPath("/settings/providers/{provider}"), s.handlers.core.HandleUpdateProviderConfig)
-	s.router.Delete(s.prefixPath("/settings/providers/{provider}"), s.handlers.core.HandleDeleteProviderConfig)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
+}
+
+// mountProviderRoutes 挂载 Provider 配置与模型管理路由。
+func (s *Server) mountProviderRoutes() {
+	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.provider.HandleListProviderPresets)
+	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.provider.HandleListProviderConfigs)
+	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.provider.HandleListProviderOptions)
+	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.provider.HandleCreateProviderConfig)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchProviderModels)
+	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateProviderModel)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/default"), s.handlers.provider.HandleSetDefaultProviderModel)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/test"), s.handlers.provider.HandleTestProviderConfig)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/test"), s.handlers.provider.HandleTestProviderModel)
+	s.router.Put(s.prefixPath("/settings/providers/{provider}"), s.handlers.provider.HandleUpdateProviderConfig)
+	s.router.Delete(s.prefixPath("/settings/providers/{provider}"), s.handlers.provider.HandleDeleteProviderConfig)
 }
 
 // mountAgentRoutes 挂载 Agent、Session 与工作区相关路由。

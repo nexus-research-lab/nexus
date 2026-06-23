@@ -46,20 +46,25 @@ func (s MemoryScope) Key() string {
 }
 
 func (s MemoryScope) inferredKey() string {
-	if strings.TrimSpace(s.RoomID) != "" && strings.TrimSpace(s.ConversationID) != "" && strings.TrimSpace(s.AgentID) != "" {
-		return buildScopeKey(ScopeKindRoomAgentSession, s.RoomID, s.ConversationID, s.AgentID)
+	roomID := strings.TrimSpace(s.RoomID)
+	conversationID := strings.TrimSpace(s.ConversationID)
+	agentID := strings.TrimSpace(s.AgentID)
+	sessionKey := strings.TrimSpace(s.SessionKey)
+	userID := strings.TrimSpace(s.UserID)
+	if roomID != "" && conversationID != "" && agentID != "" {
+		return buildScopeKey(ScopeKindRoomAgentSession, roomID, conversationID, agentID)
 	}
-	if strings.TrimSpace(s.AgentID) != "" && strings.TrimSpace(s.SessionKey) != "" {
-		return buildScopeKey(ScopeKindDMSession, s.AgentID, s.SessionKey)
+	if agentID != "" && sessionKey != "" {
+		return buildScopeKey(ScopeKindDMSession, agentID, sessionKey)
 	}
-	if strings.TrimSpace(s.AgentID) != "" {
-		return buildScopeKey(ScopeKindAgent, s.AgentID)
+	if agentID != "" {
+		return buildScopeKey(ScopeKindAgent, agentID)
 	}
-	if strings.TrimSpace(s.UserID) != "" {
-		return buildScopeKey(ScopeKindUser, s.UserID)
+	if userID != "" {
+		return buildScopeKey(ScopeKindUser, userID)
 	}
-	if strings.TrimSpace(s.RoomID) != "" && strings.TrimSpace(s.ConversationID) != "" {
-		return buildScopeKey(ScopeKindRoomShared, s.RoomID, s.ConversationID)
+	if roomID != "" && conversationID != "" {
+		return buildScopeKey(ScopeKindRoomShared, roomID, conversationID)
 	}
 	return ""
 }

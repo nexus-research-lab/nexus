@@ -150,24 +150,12 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 		p.streamTerminalObserved = false
 		p.lastDurableAssistantSnapshot = nil
 		output.StreamStarted = true
-		output.StreamEvents = append(output.StreamEvents, StreamPayload{
-			MessageID: p.segment.MessageID(),
-			Data: map[string]any{
-				"message_id":      p.segment.MessageID(),
-				"session_key":     p.ctx.SessionKey,
-				"room_id":         emptyToNil(p.ctx.RoomID),
-				"conversation_id": emptyToNil(p.ctx.ConversationID),
-				"agent_id":        p.ctx.AgentID,
-				"round_id":        p.ctx.RoundID,
-				"session_id":      emptyToNil(p.sessionID),
-				"type":            "message_start",
-				"message": map[string]any{
-					"model": emptyToNil(p.segment.Model()),
-				},
-				"usage":     p.segment.Usage(),
-				"timestamp": time.Now().UnixMilli(),
-			},
-		})
+		streamPayload := p.buildStreamPayload("message_start")
+		streamPayload.Data["message"] = map[string]any{
+			"model": emptyToNil(p.segment.Model()),
+		}
+		streamPayload.Data["usage"] = p.segment.Usage()
+		output.StreamEvents = append(output.StreamEvents, streamPayload)
 	case "content_block_start":
 		index := normalizeInt(payload["index"])
 		block := normalizeContentBlock(payload["content_block"])
@@ -195,25 +183,13 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 		delta, _ := payload["delta"].(map[string]any)
 		usage, _ := payload["usage"].(map[string]any)
 		p.segment.UpdateMeta("", usage, normalizeString(delta["stop_reason"]))
-		output.StreamEvents = append(output.StreamEvents, StreamPayload{
-			MessageID: p.segment.MessageID(),
-			Data: map[string]any{
-				"message_id":      p.segment.MessageID(),
-				"session_key":     p.ctx.SessionKey,
-				"room_id":         emptyToNil(p.ctx.RoomID),
-				"conversation_id": emptyToNil(p.ctx.ConversationID),
-				"agent_id":        p.ctx.AgentID,
-				"round_id":        p.ctx.RoundID,
-				"session_id":      emptyToNil(p.sessionID),
-				"type":            "message_delta",
-				"message": map[string]any{
-					"model":       emptyToNil(p.segment.Model()),
-					"stop_reason": emptyToNil(p.segment.StopReason()),
-				},
-				"usage":     p.segment.Usage(),
-				"timestamp": time.Now().UnixMilli(),
-			},
-		})
+		streamPayload := p.buildStreamPayload("message_delta")
+		streamPayload.Data["message"] = map[string]any{
+			"model":       emptyToNil(p.segment.Model()),
+			"stop_reason": emptyToNil(p.segment.StopReason()),
+		}
+		streamPayload.Data["usage"] = p.segment.Usage()
+		output.StreamEvents = append(output.StreamEvents, streamPayload)
 		if p.segment.HasContent() && strings.TrimSpace(p.segment.StopReason()) != "" {
 			p.streamTerminalObserved = true
 			if durable := p.buildAssistantDurableMessage(true, true, ""); durable != nil {
@@ -222,25 +198,13 @@ func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, outp
 			}
 		}
 	case "message_stop":
-		output.StreamEvents = append(output.StreamEvents, StreamPayload{
-			MessageID: p.segment.MessageID(),
-			Data: map[string]any{
-				"message_id":      p.segment.MessageID(),
-				"session_key":     p.ctx.SessionKey,
-				"room_id":         emptyToNil(p.ctx.RoomID),
-				"conversation_id": emptyToNil(p.ctx.ConversationID),
-				"agent_id":        p.ctx.AgentID,
-				"round_id":        p.ctx.RoundID,
-				"session_id":      emptyToNil(p.sessionID),
-				"type":            "message_stop",
-				"message": map[string]any{
-					"model":       emptyToNil(p.segment.Model()),
-					"stop_reason": emptyToNil(p.segment.StopReason()),
-				},
-				"usage":     p.segment.Usage(),
-				"timestamp": time.Now().UnixMilli(),
-			},
-		})
+		streamPayload := p.buildStreamPayload("message_stop")
+		streamPayload.Data["message"] = map[string]any{
+			"model":       emptyToNil(p.segment.Model()),
+			"stop_reason": emptyToNil(p.segment.StopReason()),
+		}
+		streamPayload.Data["usage"] = p.segment.Usage()
+		output.StreamEvents = append(output.StreamEvents, streamPayload)
 	}
 	return output
 }
@@ -275,6 +239,13 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 }
 
 func (p *Processor) buildBlockStreamPayload(streamType string, index int, block map[string]any) StreamPayload {
+	payload := p.buildStreamPayload(streamType)
+	payload.Data["index"] = index
+	payload.Data["content_block"] = cloneMap(block)
+	return payload
+}
+
+func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 	return StreamPayload{
 		MessageID: p.segment.MessageID(),
 		Data: map[string]any{
@@ -286,8 +257,6 @@ func (p *Processor) buildBlockStreamPayload(streamType string, index int, block 
 			"round_id":        p.ctx.RoundID,
 			"session_id":      emptyToNil(p.sessionID),
 			"type":            streamType,
-			"index":           index,
-			"content_block":   cloneMap(block),
 			"timestamp":       time.Now().UnixMilli(),
 		},
 	}
@@ -321,6 +290,10 @@ func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) (stri
 }
 
 func baseMessageEnvelope(ctx MessageContext, sessionID string, messageID string, role string) map[string]any {
+	sessionID = strings.TrimSpace(sessionID)
+	parentID := strings.TrimSpace(ctx.ParentID)
+	roomID := strings.TrimSpace(ctx.RoomID)
+	conversationID := strings.TrimSpace(ctx.ConversationID)
 	payload := map[string]any{
 		"message_id":  strings.TrimSpace(messageID),
 		"session_key": ctx.SessionKey,
@@ -329,17 +302,17 @@ func baseMessageEnvelope(ctx MessageContext, sessionID string, messageID string,
 		"role":        role,
 		"timestamp":   time.Now().UnixMilli(),
 	}
-	if strings.TrimSpace(sessionID) != "" {
-		payload["session_id"] = strings.TrimSpace(sessionID)
+	if sessionID != "" {
+		payload["session_id"] = sessionID
 	}
-	if strings.TrimSpace(ctx.ParentID) != "" && role != "user" {
-		payload["parent_id"] = strings.TrimSpace(ctx.ParentID)
+	if parentID != "" && role != "user" {
+		payload["parent_id"] = parentID
 	}
-	if strings.TrimSpace(ctx.RoomID) != "" {
-		payload["room_id"] = strings.TrimSpace(ctx.RoomID)
+	if roomID != "" {
+		payload["room_id"] = roomID
 	}
-	if strings.TrimSpace(ctx.ConversationID) != "" {
-		payload["conversation_id"] = strings.TrimSpace(ctx.ConversationID)
+	if conversationID != "" {
+		payload["conversation_id"] = conversationID
 	}
 	return payload
 }
@@ -354,8 +327,9 @@ func (p *Processor) buildAssistantDurableMessage(
 		delete(payload, "stop_reason")
 		payload["is_complete"] = false
 	}
-	if strings.TrimSpace(parentID) != "" {
-		payload["parent_id"] = strings.TrimSpace(parentID)
+	parentID = strings.TrimSpace(parentID)
+	if parentID != "" {
+		payload["parent_id"] = parentID
 	}
 	if assistantMessagesEqual(p.lastDurableAssistantSnapshot, payload) {
 		return nil

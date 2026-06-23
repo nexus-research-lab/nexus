@@ -7,24 +7,33 @@ import (
 )
 
 func nullString(value string) any {
-	if strings.TrimSpace(value) == "" {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
 		return nil
 	}
-	return strings.TrimSpace(value)
+	return trimmed
 }
 
 func nullableString(value *string) any {
-	if value == nil || strings.TrimSpace(*value) == "" {
+	if value == nil {
 		return nil
 	}
-	return strings.TrimSpace(*value)
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return trimmed
 }
 
 func nullStringPointer(value *string) any {
-	if value == nil || strings.TrimSpace(*value) == "" {
+	if value == nil {
 		return nil
 	}
-	return strings.TrimSpace(*value)
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return trimmed
 }
 
 func nullIntPointer(value *int) any {

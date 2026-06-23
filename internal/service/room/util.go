@@ -68,15 +68,6 @@ func intValue(value any) int {
 	}
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func roomTargetResolution(targetAgentIDs []string) string {
 	if len(targetAgentIDs) > 0 {
 		return "mention"

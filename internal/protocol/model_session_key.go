@@ -194,10 +194,11 @@ func ParseSessionKey(raw string) SessionKey {
 		if len(parts) > 2 {
 			result.Channel = strings.TrimSpace(parts[2])
 		}
-		if len(parts) > 3 && strings.TrimSpace(parts[3]) != "" {
-			result.ChatType = strings.TrimSpace(parts[3])
-		} else {
-			result.ChatType = "dm"
+		result.ChatType = "dm"
+		if len(parts) > 3 {
+			if chatType := strings.TrimSpace(parts[3]); chatType != "" {
+				result.ChatType = chatType
+			}
 		}
 
 		// `:topic:` 是保留边界，ref 允许带冒号，但不能跨过这个边界。
@@ -227,10 +228,11 @@ func ParseSessionKey(raw string) SessionKey {
 		}
 		result.Kind = SessionKeyKindRoom
 		result.IsShared = validationError == ""
-		if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
-			result.ChatType = strings.TrimSpace(parts[1])
-		} else {
-			result.ChatType = roomSharedChatType
+		result.ChatType = roomSharedChatType
+		if len(parts) > 1 {
+			if chatType := strings.TrimSpace(parts[1]); chatType != "" {
+				result.ChatType = chatType
+			}
 		}
 		result.Ref = conversationID
 		result.RoomRef = conversationID

@@ -10,6 +10,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      target: runtime-base
       cache_from:
         - "type=local,src=../.buildx-cache/nexus"
       cache_to:
@@ -47,7 +48,6 @@ services:
       NEXUS_APP_MODE: ${NEXUS_DOCKER_APP_MODE:-}
       NEXUS_CONFIG_DIR: /home/agent/.nexus
       CLAUDE_CONFIG_DIR: /home/agent/.claude
-      WEB_DIST_DIR: /opt/app/web/dist
       NEXUSCTL_COMMAND_PATH: /usr/local/bin/nexusctl
       NEXUS_NXS_COMMAND_PATH: ${NEXUS_DOCKER_NXS_COMMAND_PATH:-/opt/app/bin/nxs}
       NEXUS_NXS_RUNTIME_CACHE_DIR: ${NEXUS_DOCKER_NXS_RUNTIME_CACHE_DIR:-}
@@ -87,7 +87,6 @@ services:
       cache_to:
         - "type=local,dest=../.buildx-cache/nginx,mode=max"
       args:
-        APK_MIRROR: ${APK_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/alpine}
         PNPM_REGISTRY: ${PNPM_REGISTRY:-https://registry.npmjs.org/}
         PNPM_VERSION: ${PNPM_VERSION:-9.15.2}
         VITE_WS_URL: ${VITE_WS_URL:-}

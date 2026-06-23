@@ -9,6 +9,7 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 func (h *Handler) handleAppServerRPC(
@@ -18,8 +19,8 @@ func (h *Handler) handleAppServerRPC(
 ) {
 	request, err := decodeAppServerRPCRequest(inbound)
 	if err != nil {
-		h.sendAppServerRPCError(ctx, sender, protocol.AppServerRequestID{}, protocol.NewAppServerRPCError(
-			protocol.AppServerRPCInvalidRequestCode,
+		h.sendAppServerRPCError(ctx, sender, goalappserver.AppServerRequestID{}, goalappserver.NewAppServerRPCError(
+			goalappserver.AppServerRPCInvalidRequestCode,
 			"Invalid request: "+err.Error(),
 		))
 		return
@@ -28,8 +29,8 @@ func (h *Handler) handleAppServerRPC(
 		return
 	}
 	if h.goals == nil {
-		h.sendAppServerRPCError(ctx, sender, request.ID, protocol.NewAppServerRPCError(
-			protocol.AppServerRPCInternalErrorCode,
+		h.sendAppServerRPCError(ctx, sender, request.ID, goalappserver.NewAppServerRPCError(
+			goalappserver.AppServerRPCInternalErrorCode,
 			"goals service is unavailable",
 		))
 		return
@@ -43,8 +44,8 @@ func (h *Handler) handleAppServerRPC(
 	case "thread/goal/clear":
 		h.handleThreadGoalClearRPC(ctx, sender, request)
 	default:
-		h.sendAppServerRPCError(ctx, sender, request.ID, protocol.NewAppServerRPCError(
-			protocol.AppServerRPCMethodNotFoundCode,
+		h.sendAppServerRPCError(ctx, sender, request.ID, goalappserver.NewAppServerRPCError(
+			goalappserver.AppServerRPCMethodNotFoundCode,
 			"method not found: "+strings.TrimSpace(request.Method),
 		))
 	}
@@ -53,9 +54,9 @@ func (h *Handler) handleAppServerRPC(
 func (h *Handler) handleThreadGoalSetRPC(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	request protocol.AppServerJSONRPCRequest,
+	request goalappserver.AppServerJSONRPCRequest,
 ) {
-	var params protocol.ThreadGoalSetParams
+	var params goalappserver.ThreadGoalSetParams
 	if !h.decodeAppServerRPCParams(ctx, sender, request, &params) {
 		return
 	}
@@ -65,8 +66,8 @@ func (h *Handler) handleThreadGoalSetRPC(
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
 		return
 	}
-	goal := protocol.ThreadGoalFromGoal(*item)
-	h.sendAppServerRPCResponse(ctx, sender, request.ID, protocol.ThreadGoalSetResponse{Goal: goal})
+	goal := goalappserver.ThreadGoalFromGoal(*item)
+	h.sendAppServerRPCResponse(ctx, sender, request.ID, goalappserver.ThreadGoalSetResponse{Goal: goal})
 	h.broadcastThreadGoalSetNotification(ctx, sender, *item, goal)
 	h.goals.DispatchActiveGoalContinuation(ctx, *item)
 }
@@ -74,9 +75,9 @@ func (h *Handler) handleThreadGoalSetRPC(
 func (h *Handler) handleThreadGoalGetRPC(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	request protocol.AppServerJSONRPCRequest,
+	request goalappserver.AppServerJSONRPCRequest,
 ) {
-	var params protocol.ThreadGoalGetParams
+	var params goalappserver.ThreadGoalGetParams
 	if !h.decodeAppServerRPCParams(ctx, sender, request, &params) {
 		return
 	}
@@ -86,17 +87,17 @@ func (h *Handler) handleThreadGoalGetRPC(
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
 		return
 	}
-	h.sendAppServerRPCResponse(ctx, sender, request.ID, protocol.ThreadGoalGetResponse{
-		Goal: protocol.ThreadGoalPointerFromGoal(item),
+	h.sendAppServerRPCResponse(ctx, sender, request.ID, goalappserver.ThreadGoalGetResponse{
+		Goal: goalappserver.ThreadGoalPointerFromGoal(item),
 	})
 }
 
 func (h *Handler) handleThreadGoalClearRPC(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	request protocol.AppServerJSONRPCRequest,
+	request goalappserver.AppServerJSONRPCRequest,
 ) {
-	var params protocol.ThreadGoalClearParams
+	var params goalappserver.ThreadGoalClearParams
 	if !h.decodeAppServerRPCParams(ctx, sender, request, &params) {
 		return
 	}
@@ -106,25 +107,25 @@ func (h *Handler) handleThreadGoalClearRPC(
 		h.sendGoalRPCError(ctx, sender, request.ID, err)
 		return
 	}
-	h.sendAppServerRPCResponse(ctx, sender, request.ID, protocol.ThreadGoalClearResponse{Cleared: cleared})
+	h.sendAppServerRPCResponse(ctx, sender, request.ID, goalappserver.ThreadGoalClearResponse{Cleared: cleared})
 	if cleared {
-		h.broadcastAppServerGoalNotification(ctx, sender, params.ThreadID, protocol.AppServerJSONRPCNotification{
+		h.broadcastAppServerGoalNotification(ctx, sender, params.ThreadID, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/cleared",
-			Params: protocol.ThreadGoalClearedNotification{
+			Params: goalappserver.ThreadGoalClearedNotification{
 				ThreadID: params.ThreadID,
 			},
 		})
 	}
 }
 
-func decodeAppServerRPCRequest(inbound map[string]any) (protocol.AppServerJSONRPCRequest, error) {
+func decodeAppServerRPCRequest(inbound map[string]any) (goalappserver.AppServerJSONRPCRequest, error) {
 	payload, err := json.Marshal(inbound)
 	if err != nil {
-		return protocol.AppServerJSONRPCRequest{}, err
+		return goalappserver.AppServerJSONRPCRequest{}, err
 	}
-	var request protocol.AppServerJSONRPCRequest
+	var request goalappserver.AppServerJSONRPCRequest
 	if err := json.Unmarshal(payload, &request); err != nil {
-		return protocol.AppServerJSONRPCRequest{}, err
+		return goalappserver.AppServerJSONRPCRequest{}, err
 	}
 	return request, nil
 }
@@ -132,7 +133,7 @@ func decodeAppServerRPCRequest(inbound map[string]any) (protocol.AppServerJSONRP
 func (h *Handler) decodeAppServerRPCParams(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	request protocol.AppServerJSONRPCRequest,
+	request goalappserver.AppServerJSONRPCRequest,
 	target any,
 ) bool {
 	params := request.Params
@@ -140,8 +141,8 @@ func (h *Handler) decodeAppServerRPCParams(
 		params = []byte("{}")
 	}
 	if err := json.Unmarshal(params, target); err != nil {
-		h.sendAppServerRPCError(ctx, sender, request.ID, protocol.NewAppServerRPCError(
-			protocol.AppServerRPCInvalidRequestCode,
+		h.sendAppServerRPCError(ctx, sender, request.ID, goalappserver.NewAppServerRPCError(
+			goalappserver.AppServerRPCInvalidRequestCode,
 			"Invalid request: "+err.Error(),
 		))
 		return false
@@ -152,10 +153,10 @@ func (h *Handler) decodeAppServerRPCParams(
 func (h *Handler) sendGoalRPCError(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	id protocol.AppServerRequestID,
+	id goalappserver.AppServerRequestID,
 	err error,
 ) {
-	code := protocol.AppServerRPCInternalErrorCode
+	code := goalappserver.AppServerRPCInternalErrorCode
 	message := strings.TrimSpace(err.Error())
 	if errors.Is(err, goalsvc.ErrGoalDisabled) ||
 		errors.Is(err, goalsvc.ErrGoalInvalidInput) ||
@@ -163,18 +164,18 @@ func (h *Handler) sendGoalRPCError(
 		errors.Is(err, goalsvc.ErrGoalNotFound) ||
 		errors.Is(err, goalsvc.ErrGoalConflict) ||
 		errors.Is(err, goalsvc.ErrGoalVersionStale) {
-		code = protocol.AppServerRPCInvalidRequestCode
+		code = goalappserver.AppServerRPCInvalidRequestCode
 	}
-	h.sendAppServerRPCError(ctx, sender, id, protocol.NewAppServerRPCError(code, message))
+	h.sendAppServerRPCError(ctx, sender, id, goalappserver.NewAppServerRPCError(code, message))
 }
 
 func (h *Handler) sendAppServerRPCResponse(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	id protocol.AppServerRequestID,
+	id goalappserver.AppServerRequestID,
 	result any,
 ) {
-	_ = sender.SendJSON(ctx, protocol.AppServerJSONRPCResponse{
+	_ = sender.SendJSON(ctx, goalappserver.AppServerJSONRPCResponse{
 		ID:     id,
 		Result: result,
 	})
@@ -183,13 +184,13 @@ func (h *Handler) sendAppServerRPCResponse(
 func (h *Handler) sendAppServerRPCError(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
-	id protocol.AppServerRequestID,
-	rpcError protocol.AppServerRPCErrorBody,
+	id goalappserver.AppServerRequestID,
+	rpcError goalappserver.AppServerRPCErrorBody,
 ) {
 	if id.IsZero() {
 		return
 	}
-	_ = sender.SendJSON(ctx, protocol.AppServerJSONRPCError{
+	_ = sender.SendJSON(ctx, goalappserver.AppServerJSONRPCError{
 		ID:    id,
 		Error: rpcError,
 	})
@@ -199,7 +200,7 @@ func (h *Handler) broadcastAppServerGoalNotification(
 	ctx context.Context,
 	current *handlershared.WebSocketSender,
 	threadID string,
-	notification protocol.AppServerJSONRPCNotification,
+	notification goalappserver.AppServerJSONRPCNotification,
 ) {
 	if h.goalRPCSubs == nil {
 		_ = current.SendJSON(ctx, notification)
@@ -212,21 +213,21 @@ func (h *Handler) broadcastThreadGoalSetNotification(
 	ctx context.Context,
 	current *handlershared.WebSocketSender,
 	item protocol.Goal,
-	goal protocol.ThreadGoal,
+	goal goalappserver.ThreadGoal,
 ) {
 	threadID := strings.TrimSpace(item.SessionKey)
 	if protocol.NormalizeGoalStatus(item.Status) == protocol.GoalStatusComplete {
-		h.broadcastAppServerGoalNotification(ctx, current, threadID, protocol.AppServerJSONRPCNotification{
+		h.broadcastAppServerGoalNotification(ctx, current, threadID, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/cleared",
-			Params: protocol.ThreadGoalClearedNotification{
+			Params: goalappserver.ThreadGoalClearedNotification{
 				ThreadID: threadID,
 			},
 		})
 		return
 	}
-	h.broadcastAppServerGoalNotification(ctx, current, threadID, protocol.AppServerJSONRPCNotification{
+	h.broadcastAppServerGoalNotification(ctx, current, threadID, goalappserver.AppServerJSONRPCNotification{
 		Method: "thread/goal/updated",
-		Params: protocol.ThreadGoalUpdatedNotification{
+		Params: goalappserver.ThreadGoalUpdatedNotification{
 			ThreadID: threadID,
 			TurnID:   nil,
 			Goal:     goal,

@@ -1,7 +1,7 @@
 package management
 
 import (
-	"sort"
+	"slices"
 
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
@@ -122,24 +122,17 @@ func ChannelCatalog() []ChannelCatalogItem {
 
 func ChannelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
 	channelType = channelcontract.NormalizeChannelType(channelType)
-	for _, item := range ChannelCatalog() {
-		if item.ChannelType == channelType {
-			return item, true
-		}
+	items := ChannelCatalog()
+	index := slices.IndexFunc(items, func(item ChannelCatalogItem) bool {
+		return item.ChannelType == channelType
+	})
+	if index < 0 {
+		return ChannelCatalogItem{}, false
 	}
-	return ChannelCatalogItem{}, false
+	return items[index], true
 }
 
 func IsPlannedChannel(channelType string) bool {
 	item, ok := ChannelCatalogByType(channelType)
 	return ok && item.RuntimeStatus == "planned"
-}
-
-func SortedChannelTypes() []string {
-	items := make([]string, 0, len(ChannelCatalog()))
-	for _, item := range ChannelCatalog() {
-		items = append(items, item.ChannelType)
-	}
-	sort.Strings(items)
-	return items
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -371,10 +372,5 @@ func extractHTTPAssistantText(message protocol.Message) string {
 }
 
 func containsString(items []string, expected string) bool {
-	for _, item := range items {
-		if item == expected {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(items, expected)
 }

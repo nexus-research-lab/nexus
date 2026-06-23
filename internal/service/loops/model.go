@@ -1,6 +1,9 @@
 package loops
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Loop 表示可复制到聊天里的预制 agent loop。
 type Loop struct {
@@ -76,7 +79,7 @@ func (l Loop) Localized(locale string) Loop {
 	if l.CategoryZH != "" {
 		l.Category = l.CategoryZH
 	}
-	l.Steps = append([]Step(nil), l.Steps...)
+	l.Steps = slices.Clone(l.Steps)
 	for i := range l.Steps {
 		if l.Steps[i].NameZH != "" {
 			l.Steps[i].Name = l.Steps[i].NameZH
@@ -89,9 +92,9 @@ func (l Loop) Localized(locale string) Loop {
 		l.ExitCondition.Description = l.ExitCondition.DescriptionZH
 	}
 	if len(l.GuardrailsZH) > 0 {
-		l.Guardrails = append([]string(nil), l.GuardrailsZH...)
+		l.Guardrails = slices.Clone(l.GuardrailsZH)
 	}
-	l.Examples = append([]Example(nil), l.Examples...)
+	l.Examples = slices.Clone(l.Examples)
 	for i := range l.Examples {
 		if l.Examples[i].TitleZH != "" {
 			l.Examples[i].Title = l.Examples[i].TitleZH

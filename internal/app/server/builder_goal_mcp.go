@@ -6,9 +6,9 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	goalmcp "github.com/nexus-research-lab/nexus/internal/mcp/goal"
+	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalmcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/goal"
-	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/goal/contract"
 )
 
 func newGoalMCPBuilder(

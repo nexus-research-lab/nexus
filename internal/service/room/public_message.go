@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -32,7 +33,7 @@ func (s *RealtimeService) HandlePublicMessage(
 		return nil, errors.New("source_agent_id is required")
 	}
 	memberAgentIDs := roomdomain.ListAgentIDs(contextValue.Members)
-	if !roomdomain.ContainsString(memberAgentIDs, sourceAgentID) {
+	if !slices.Contains(memberAgentIDs, sourceAgentID) {
 		return nil, ErrRoomMemberNotFound
 	}
 

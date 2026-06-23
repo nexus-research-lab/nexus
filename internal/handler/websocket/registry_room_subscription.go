@@ -2,7 +2,8 @@ package websocket
 
 import (
 	"context"
-	"sort"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -79,7 +80,7 @@ func (r *roomSubscriptionRegistry) SubscribeRoom(
 	}
 
 	latestRoomSeq := r.roomSequences[roomID]
-	buffer := append([]protocol.EventMessage(nil), r.roomReplay[roomID]...)
+	buffer := slices.Clone(r.roomReplay[roomID])
 	r.mu.Unlock()
 
 	return r.replayRoomEvents(ctx, sender, roomID, conversationID, *lastSeenRoomSeq, latestRoomSeq, buffer)
@@ -179,7 +180,7 @@ func (r *roomSubscriptionRegistry) Broadcast(ctx context.Context, roomID string,
 
 	r.mu.Lock()
 	prepared := r.prepareRoomEventLocked(roomID, event)
-	roomSubscribers := append([]roomSubscription(nil), r.matchingSubscribersLocked(roomID, prepared.ConversationID)...)
+	roomSubscribers := slices.Clone(r.matchingSubscribersLocked(roomID, prepared.ConversationID))
 	r.mu.Unlock()
 
 	if len(roomSubscribers) == 0 {
@@ -254,7 +255,7 @@ func (r *roomSubscriptionRegistry) prepareRoomEventLocked(roomID string, event p
 
 	buffer := append(r.roomReplay[roomID], prepared)
 	if len(buffer) > r.replayBufferCap {
-		buffer = append([]protocol.EventMessage(nil), buffer[len(buffer)-r.replayBufferCap:]...)
+		buffer = slices.Clone(buffer[len(buffer)-r.replayBufferCap:])
 	}
 	r.roomReplay[roomID] = buffer
 	return prepared
@@ -266,11 +267,7 @@ func (r *roomSubscriptionRegistry) matchingSubscribersLocked(roomID string, conv
 		return nil
 	}
 
-	keys := make([]string, 0, len(roomSubscribers))
-	for senderKey := range roomSubscribers {
-		keys = append(keys, senderKey)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(roomSubscribers))
 
 	result := make([]roomSubscription, 0, len(keys))
 	for _, senderKey := range keys {

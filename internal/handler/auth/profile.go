@@ -192,13 +192,9 @@ func buildPrincipalFromUser(user *authsvc.User, authMethod string) *authsvc.Prin
 
 func (h *Handlers) buildTokenUsageSummary(ctx context.Context) (usagesvc.Summary, error) {
 	if h.usage != nil {
-		return h.usage.Summary(ctx, currentOwnerUserID(ctx))
+		return h.usage.Summary(ctx, authsvc.OwnerUserID(ctx))
 	}
 	return usagesvc.Summary{
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}, nil
-}
-
-func currentOwnerUserID(ctx context.Context) string {
-	return authsvc.OwnerUserID(ctx)
 }

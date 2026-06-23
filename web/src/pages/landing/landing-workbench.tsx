@@ -1,0 +1,382 @@
+import { useMemo, useState, type MouseEvent } from "react";
+import {
+  Compass,
+  FilePlus,
+  FolderOpen,
+  FolderPlus,
+  FolderTree,
+  History,
+  Info,
+  LogOut,
+  type LucideIcon,
+  MessageCircle,
+  Paperclip,
+  PanelLeftClose,
+  Plus,
+  Puzzle,
+  Send,
+  Settings,
+  Upload,
+  Users2,
+  X,
+} from "lucide-react";
+
+import {
+  COMPOSER_ACTION_BUTTON_CLASS_NAME,
+  COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
+  get_composer_shell_class_name,
+} from "@/features/conversation/shared/composer-styles";
+import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
+import { MessageItem } from "@/features/conversation/shared/message";
+import { WorkspaceFileTree } from "@/features/conversation/room/workspace/workspace-file-tree";
+import { cn } from "@/lib/utils";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/avatar";
+import { UiBadge, UiCounterBadge } from "@/shared/ui/badge";
+import { UiSearchInput } from "@/shared/ui/form-control";
+import { UiListRow } from "@/shared/ui/list-row";
+import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
+import {
+  WorkspaceSurfaceHeader,
+  WorkspaceSurfaceToolbarAction,
+  WorkspaceTaskStrip,
+} from "@/shared/ui/workspace/surface/workspace-surface-header";
+import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
+import type { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
+
+import {
+  demo_conversations,
+  demo_rounds,
+  demo_todos,
+  demo_workspace_entries,
+} from "./landing-demo-data";
+
+type LandingSidebarTab = "chat" | "contacts" | "capabilities";
+
+function LandingWorkbenchSidebar() {
+  const [active_tab, set_active_tab] = useState<LandingSidebarTab>("chat");
+  const [query, set_query] = useState("");
+  const sidebar_items = useMemo(() => [
+    {
+      id: "amy",
+      title: "Amy",
+      description: "Landing review",
+      time: "10:03",
+      active: true,
+      leading: <UiAgentAvatar avatar="/icon/agent/8.png" is_working name="Amy" />,
+      status: <UiBadge size="xs" tone="primary">Working</UiBadge>,
+    },
+    {
+      id: "design-room",
+      title: "Design Room",
+      description: "Visual pass",
+      time: "5/18",
+      active: false,
+      leading: (
+        <UiRoomAvatar
+          members={[
+            { id: "amy", name: "Amy", avatar: "/icon/agent/8.png" },
+            { id: "nexus", name: "Nexus", avatar: "/logo.webp" },
+            { id: "lee", name: "Lee", avatar: "/icon/agent/17.png" },
+          ]}
+          room_id="design-room"
+          title="Design Room"
+        />
+      ),
+      status: null,
+    },
+    {
+      id: "runtime",
+      title: "Runtime QA",
+      description: "Typecheck, lint",
+      time: "5/12",
+      active: false,
+      leading: <UiRoomAvatar members={[]} room_id="runtime" title="Runtime QA" />,
+      status: <UiCounterBadge count={2} />,
+    },
+  ], []);
+  const visible_items = sidebar_items.filter((item) => (
+    item.title.toLowerCase().includes(query.trim().toLowerCase()) ||
+    item.description.toLowerCase().includes(query.trim().toLowerCase())
+  ));
+  const tabs: Array<{ key: LandingSidebarTab; label: string; Icon: LucideIcon }> = [
+    { key: "chat", label: "聊天", Icon: MessageCircle },
+    { key: "contacts", label: "联系人", Icon: Users2 },
+    { key: "capabilities", label: "能力", Icon: Puzzle },
+  ];
+
+  return (
+    <aside className="landing-real-sidebar">
+      <div className="landing-real-sidebar-header">
+        <button className="landing-real-nexus-button" type="button">
+          <img alt="Nexus" src="/logo.webp" />
+        </button>
+        <span>NEXUS</span>
+      </div>
+
+      <div className="landing-real-sidebar-tabs" role="tablist" aria-label="Landing workbench sidebar tabs">
+        {tabs.map(({ key, label, Icon }) => {
+          const is_active = active_tab === key;
+          return (
+            <button
+              aria-selected={is_active}
+              className={cn("landing-real-sidebar-tab", is_active && "is-active")}
+              key={key}
+              onClick={() => set_active_tab(key)}
+              role="tab"
+              type="button"
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="landing-real-sidebar-search">
+        <UiSearchInput
+          class_name="flex-1"
+          input_class_name="text-[13px]"
+          on_change={set_query}
+          placeholder="搜索聊天"
+          value={query}
+        />
+        <button className="landing-real-sidebar-create" title="创建群聊" type="button">
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="landing-real-sidebar-list">
+        {visible_items.map((item) => (
+          <UiListRow
+            active={item.active}
+            description={item.description}
+            key={item.id}
+            leading={item.leading}
+            meta={<span className="text-[11px] tabular-nums text-(--text-soft)">{item.time}</span>}
+            subtitle_trailing={item.status}
+            title={item.title}
+          />
+        ))}
+      </div>
+
+      <div className="landing-real-sidebar-footer">
+        <div className="landing-real-sidebar-footer-group">
+          <button aria-label="Settings" type="button">
+            <Settings className="h-4 w-4" />
+          </button>
+          <button aria-label="Guide center" type="button">
+            <Compass className="h-4 w-4" />
+          </button>
+        </div>
+        <span />
+        <div className="landing-real-sidebar-footer-group">
+          <button aria-label="Logout" type="button">
+            <LogOut className="h-4 w-4" />
+          </button>
+          <button aria-label="Collapse sidebar" type="button">
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function LandingWorkbenchChat() {
+  return (
+    <section className="landing-real-chat">
+      <div className="landing-real-feed nexus-chat-feed soft-scrollbar">
+        {demo_rounds.map((round, index) => (
+          <MessageItem
+            assistant_content_mode="dm_archived"
+            current_agent_avatar="/icon/agent/8.png"
+            current_agent_name="Amy"
+            current_user_avatar="/icon/agent/17.png"
+            is_last_round={index === demo_rounds.length - 1}
+            key={round.round_id}
+            messages={round.messages}
+            round_id={round.round_id}
+            workspace_agent_id="agent-amy"
+          />
+        ))}
+      </div>
+
+      <div className="landing-real-composer">
+        <div className={cn(get_composer_shell_class_name(false), "landing-real-composer-shell")}>
+          <button className={COMPOSER_ACTION_BUTTON_CLASS_NAME} type="button">
+            <Paperclip className="h-4 w-4" />
+          </button>
+          <div className="landing-real-composer-copy">
+            Message Amy, paste images, or attach workspace files...
+          </div>
+          <button className={COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME} type="button">
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LandingWorkbenchMain() {
+  const [active_tab, set_active_tab] = useState<RoomSurfaceTabKey>("workspace");
+
+  return (
+    <section className="landing-real-main">
+      <WorkspaceSurfaceScaffold
+        body_class_name="relative"
+        header={(
+          <WorkspaceSurfaceHeader
+            active_tab={active_tab}
+            badge="DM"
+            density="compact"
+            leading={<UiAgentAvatar avatar="/icon/agent/8.png" class_name="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
+            on_change_tab={set_active_tab}
+            tabs={[
+              { key: "history", label: "历史", icon: History },
+              { key: "workspace", label: "工作区", icon: FolderTree },
+              { key: "about", label: "关于", icon: Info },
+            ]}
+            tabs_leading={(
+              <WorkspaceConversationTabs
+                conversation_id="conv-landing"
+                conversations={demo_conversations}
+                on_create_conversation={async () => "conv-new"}
+                on_select_conversation={() => undefined}
+              />
+            )}
+            tabs_trailing={<WorkspaceTaskStrip todos={demo_todos} />}
+            title="Amy"
+            trailing={(
+              <WorkspaceSurfaceToolbarAction>
+                <Compass className="h-3.5 w-3.5" />
+                查看指南
+              </WorkspaceSurfaceToolbarAction>
+            )}
+          />
+        )}
+      >
+        <div className="landing-real-main-body">
+          <LandingWorkbenchChat />
+          <section className="landing-real-aux-panel">
+            <ConversationResizeHandle
+              aria_label="调整右侧面板宽度"
+              on_mouse_down={() => undefined}
+            />
+            <LandingWorkbenchFiles />
+          </section>
+        </div>
+      </WorkspaceSurfaceScaffold>
+    </section>
+  );
+}
+
+function LandingWorkbenchFiles() {
+  const noop_file = () => undefined;
+  const noop_menu = (event: MouseEvent) => {
+    event.preventDefault();
+  };
+
+  return (
+    <aside className="landing-real-workspace">
+      <WorkspaceSurfaceView
+        action={(
+          <WorkspaceSurfaceToolbarAction>
+            <X className="h-3.5 w-3.5" />
+            关闭
+          </WorkspaceSurfaceToolbarAction>
+        )}
+        body_class_name="px-3 py-2 sm:px-3 xl:px-4"
+        body_scrollable={false}
+        content_class_name="landing-real-workspace-content"
+        eyebrow="Workspace"
+        max_width_class_name="max-w-none"
+        show_eyebrow={false}
+        title="Workspace"
+      >
+        <div className="landing-real-workspace-split">
+          <div className="landing-real-editor-preview">
+            <div className="landing-real-editor-head">
+              <strong>landing-page.tsx</strong>
+              <span>TypeScript React</span>
+            </div>
+            <pre aria-label="Workspace file preview">{`function WorkbenchSection() {
+  return (
+    <section id="workbench">
+      <LandingWorkbenchSidebar />
+      <LandingWorkbenchMain />
+    </section>
+  );
+}`}</pre>
+          </div>
+
+          <div className="landing-real-file-list">
+            <div className="landing-real-directory-chip">
+              <FolderOpen className="h-3 w-3" />
+              <span>landing</span>
+            </div>
+
+            <div className="landing-real-file-actions">
+              <button
+                aria-label="上传"
+                className="landing-real-file-action-icon is-primary"
+                title="上传"
+                type="button"
+              >
+                <Upload className="h-3 w-3" />
+              </button>
+              <button
+                aria-label="新建文件夹"
+                className="landing-real-file-action-icon"
+                title="新建文件夹"
+                type="button"
+              >
+                <FolderPlus className="h-3 w-3" />
+              </button>
+              <button
+                aria-label="新建文件"
+                className="landing-real-file-action-icon"
+                title="新建文件"
+                type="button"
+              >
+                <FilePlus className="h-3 w-3" />
+              </button>
+            </div>
+
+            <div className="landing-real-file-tree soft-scrollbar">
+              <WorkspaceFileTree
+                active_path="web/src/pages/landing/landing-page.tsx"
+                entries={demo_workspace_entries}
+                focused_directory_path="web/src/pages/landing"
+                on_click_directory={noop_file}
+                on_click_file={noop_file}
+                on_context_menu={noop_menu}
+                on_delete_entry={noop_file}
+                on_rename_entry={noop_file}
+              />
+            </div>
+          </div>
+        </div>
+      </WorkspaceSurfaceView>
+    </aside>
+  );
+}
+
+export function WorkbenchSection() {
+  return (
+    <section className="landing-section landing-workbench-section" id="workbench">
+      <div className="landing-section-heading-row">
+        <h2>The Nexus workbench.</h2>
+        <p>
+          Conversation, workspace files, tasks, history, and review stay together in the same operating surface.
+        </p>
+      </div>
+
+      <div className="landing-real-shell" aria-label="Nexus real workbench preview">
+        <LandingWorkbenchSidebar />
+        <LandingWorkbenchMain />
+      </div>
+    </section>
+  );
+}

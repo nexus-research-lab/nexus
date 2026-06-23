@@ -202,12 +202,3 @@ func channelAccountViews(rows []channelAccountRow) []ChannelAccountView {
 	}
 	return result
 }
-
-func hasConnectedChannelAccount(rows []channelAccountRow) bool {
-	for _, row := range rows {
-		if row.Status == ChannelConfigStatusConnected {
-			return true
-		}
-	}
-	return false
-}

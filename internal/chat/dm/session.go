@@ -57,8 +57,8 @@ func NormalizeString(value any) string {
 // FirstNonEmpty 返回首个非空字符串。
 func FirstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

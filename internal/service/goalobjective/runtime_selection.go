@@ -1,6 +1,7 @@
 package goalobjective
 
 import (
+	"cmp"
 	"context"
 	"strings"
 
@@ -120,7 +121,8 @@ func (s *Service) runtimeSelectionForAgent(ctx context.Context, ownerUserID stri
 	if provider != "" && model != "" {
 		return provider, model, true, nil
 	}
-	defaultProvider, defaultModel, err := s.defaultAgentRuntimeSelection(ctx, firstNonEmpty(ownerUserID, agentValue.OwnerUserID))
+	ownerUserID = cmp.Or(strings.TrimSpace(ownerUserID), strings.TrimSpace(agentValue.OwnerUserID))
+	defaultProvider, defaultModel, err := s.defaultAgentRuntimeSelection(ctx, ownerUserID)
 	if err != nil {
 		return "", "", false, err
 	}
@@ -148,13 +150,4 @@ func (s *Service) defaultAgentRuntimeSelection(ctx context.Context, ownerUserID 
 		return "", "", nil
 	}
 	return provider, model, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

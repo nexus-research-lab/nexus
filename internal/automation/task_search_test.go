@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -30,7 +31,7 @@ func TestQueryVariantsExpandsChannelAliases(t *testing.T) {
 	variants := QueryVariants("飞书群")
 
 	for _, expected := range []string{"飞书群", "feishu", "fs", "飞书"} {
-		if !containsString(variants, expected) {
+		if !slices.Contains(variants, expected) {
 			t.Fatalf("expected variants to contain %q, got %#v", expected, variants)
 		}
 	}
@@ -86,13 +87,4 @@ func TestBestMatchingCronJobsKeepsEqualTopCandidatesAmbiguous(t *testing.T) {
 	if len(matches) != 2 {
 		t.Fatalf("expected two equally strong news candidates, got %+v", matches)
 	}
-}
-
-func containsString(values []string, expected string) bool {
-	for _, value := range values {
-		if value == expected {
-			return true
-		}
-	}
-	return false
 }

@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
-
-func (s *Service) runCommand(ctx context.Context, workDir string, command ...string) (string, error) {
-	return s.runCommandWithEnv(ctx, workDir, nil, command...)
-}
 
 func (s *Service) runCommandWithEnv(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error) {
 	if len(command) == 0 {
@@ -61,25 +58,10 @@ func (s *Service) cloneGitRepository(ctx context.Context, repositoryURL string, 
 
 func (s *Service) runGitCloneAttempt(ctx context.Context, repositoryURL string, destination string, options gitCloneOptions) (string, error) {
 	branch := strings.TrimSpace(options.Branch)
-	branchWasExplicit := branch != ""
 	if branch == "" {
 		branch = s.resolveGitDefaultBranch(ctx, repositoryURL, options)
 	}
-
-	output, runErr := s.runGitCloneCommand(ctx, repositoryURL, destination, branch, options)
-	if runErr == nil || branchWasExplicit || branch != "" {
-		return output, runErr
-	}
-
-	_ = os.RemoveAll(destination)
-	fallbackOutput, fallbackErr := s.runGitCloneCommand(ctx, repositoryURL, destination, "master", options)
-	if strings.TrimSpace(output) == "" {
-		return fallbackOutput, fallbackErr
-	}
-	if strings.TrimSpace(fallbackOutput) == "" {
-		return output, fallbackErr
-	}
-	return strings.TrimSpace(output + "\n" + fallbackOutput), fallbackErr
+	return s.runGitCloneCommand(ctx, repositoryURL, destination, branch, options)
 }
 
 func (s *Service) runGitCloneCommand(ctx context.Context, repositoryURL string, destination string, branch string, options gitCloneOptions) (string, error) {
@@ -170,10 +152,7 @@ func isTransientGitCloneError(output string, err error) bool {
 		"temporary failure",
 		"temporarily unavailable",
 	}
-	for _, marker := range transientMarkers {
-		if strings.Contains(text, marker) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(transientMarkers, func(marker string) bool {
+		return strings.Contains(text, marker)
+	})
 }

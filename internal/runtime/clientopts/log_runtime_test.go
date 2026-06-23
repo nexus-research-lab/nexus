@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -86,11 +87,11 @@ func TestRuntimeStartupLogFieldsUsesBridgeSnapshot(t *testing.T) {
 		t.Fatalf("fingerprints missing: %+v", values)
 	}
 	envKeys, ok := values["runtime_env_keys"].([]string)
-	if !ok || !stringSliceContainsForLogTest(envKeys, "ANTHROPIC_AUTH_TOKEN") {
+	if !ok || !slices.Contains(envKeys, "ANTHROPIC_AUTH_TOKEN") {
 		t.Fatalf("runtime_env_keys = %+v", values["runtime_env_keys"])
 	}
 	args, ok := values["runtime_args"].([]string)
-	if !ok || !stringSliceContainsForLogTest(args, "<redacted>") {
+	if !ok || !slices.Contains(args, "<redacted>") {
 		t.Fatalf("runtime_args = %+v", values["runtime_args"])
 	}
 	raw := fieldsToString(fields)
@@ -153,13 +154,4 @@ func toLogTestString(value any) string {
 	default:
 		return ""
 	}
-}
-
-func stringSliceContainsForLogTest(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
 }

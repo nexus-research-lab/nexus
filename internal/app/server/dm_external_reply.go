@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -39,7 +40,7 @@ func (d dmExternalReplyDispatcher) DeliverExternalReply(
 	}
 	if result.Receipt != nil {
 		reply.PrimaryPlatformMessageID = result.Receipt.PrimaryPlatformMessageID
-		reply.PlatformMessageIDs = append([]string(nil), result.Receipt.PlatformMessageIDs...)
+		reply.PlatformMessageIDs = slices.Clone(result.Receipt.PlatformMessageIDs)
 	}
 	return reply, nil
 }

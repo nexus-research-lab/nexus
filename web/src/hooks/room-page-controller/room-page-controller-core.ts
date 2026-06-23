@@ -223,3 +223,75 @@ export function resolve_room_member_agents(room_contexts: RoomContextAggregate[]
     build_fallback_room_member_agent(agent_id, room_contexts)
   ));
 }
+
+export function apply_conversation_snapshot_to_room_contexts(
+  contexts: RoomContextAggregate[],
+  snapshot: {
+    conversation_id: string | null;
+    room_session_id: string | null;
+    session_id?: string | null;
+    last_activity_at?: number | string | null;
+  },
+): RoomContextAggregate[] {
+  if (!snapshot.conversation_id) {
+    return contexts;
+  }
+
+  const next_last_activity_at = snapshot.last_activity_at
+    ? new Date(snapshot.last_activity_at).toISOString()
+    : undefined;
+  let has_changed = false;
+
+  const next_contexts = contexts.map((context) => {
+    if (context.conversation.id !== snapshot.conversation_id) {
+      return context;
+    }
+
+    let context_changed = false;
+    const next_conversation_updated_at =
+      next_last_activity_at ?? context.conversation.updated_at;
+    const conversation_changed =
+      context.conversation.updated_at !== next_conversation_updated_at;
+
+    const next_sessions = context.sessions.map((session) => {
+      if (!snapshot.room_session_id || session.id !== snapshot.room_session_id) {
+        return session;
+      }
+
+      const next_sdk_session_id = snapshot.session_id ?? session.sdk_session_id;
+      const next_session_last_activity_at =
+        next_last_activity_at ?? session.last_activity_at;
+      const session_changed =
+        session.sdk_session_id !== next_sdk_session_id ||
+        session.last_activity_at !== next_session_last_activity_at;
+
+      if (!session_changed) {
+        return session;
+      }
+
+      has_changed = true;
+      context_changed = true;
+      return {
+        ...session,
+        sdk_session_id: next_sdk_session_id,
+        last_activity_at: next_session_last_activity_at,
+      };
+    });
+
+    if (!context_changed && !conversation_changed) {
+      return context;
+    }
+
+    has_changed = true;
+    return {
+      ...context,
+      conversation: {
+        ...context.conversation,
+        updated_at: next_conversation_updated_at,
+      },
+      sessions: next_sessions,
+    };
+  });
+
+  return has_changed ? next_contexts : contexts;
+}

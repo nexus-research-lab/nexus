@@ -2,6 +2,7 @@ package dm
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -89,7 +90,7 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 		Target:                   result.To,
 		ThreadID:                 result.ThreadID,
 		PrimaryPlatformMessageID: result.PrimaryPlatformMessageID,
-		PlatformMessageIDs:       append([]string(nil), result.PlatformMessageIDs...),
+		PlatformMessageIDs:       slices.Clone(result.PlatformMessageIDs),
 		Timestamp:                time.Now().UTC(),
 	}
 	if err := r.service.history.AppendExternalDeliveryReceipt(r.workspacePath, r.session.SessionKey, receipt); err != nil {

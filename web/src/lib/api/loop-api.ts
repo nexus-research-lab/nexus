@@ -14,11 +14,9 @@ export async function list_loops_api(locale: string): Promise<LoopCatalogItem[]>
     { method: "GET" },
   );
 }
-
 export async function get_loop_api(slug: string, locale: string): Promise<LoopCatalogItem> {
   return request_api<LoopCatalogItem>(
     `${AGENT_API_BASE_URL}/capability/loops/${encodeURIComponent(slug)}${locale_query(locale)}`,
     { method: "GET" },
   );
 }
-

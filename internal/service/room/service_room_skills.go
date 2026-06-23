@@ -88,9 +88,9 @@ func stripSkillFrontmatter(content string) string {
 		return normalized
 	}
 	rest := strings.TrimPrefix(normalized, "---")
-	index := strings.Index(rest, "\n---")
-	if index < 0 {
+	_, body, ok := strings.Cut(rest, "\n---")
+	if !ok {
 		return normalized
 	}
-	return strings.TrimLeft(rest[index+len("\n---"):], "\r\n")
+	return strings.TrimLeft(body, "\r\n")
 }

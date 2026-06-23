@@ -3,6 +3,7 @@ package clientopts
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -39,19 +40,19 @@ func RuntimeStartupLogFields(options agentclient.Options) []any {
 		"path_to_executable", strings.TrimSpace(options.PathToExecutable),
 		"runtime_transport", snapshot.Transport,
 		"command_path", strings.TrimSpace(snapshot.CommandPath),
-		"runtime_args", append([]string(nil), snapshot.Args...),
+		"runtime_args", slices.Clone(snapshot.Args),
 		"runtime_arg_fingerprint", snapshot.ArgFingerprint,
 		"cwd", strings.TrimSpace(snapshot.CWD),
 		"resume_id_present", strings.TrimSpace(options.Session.ResumeID) != "",
 		"max_thinking_tokens", options.Runtime.MaxThinkingTokens,
 		"max_turns", options.Runtime.MaxTurns,
-		"setting_sources", append([]string(nil), options.SettingSources...),
+		"setting_sources", slices.Clone(options.SettingSources),
 		"allowed_tools_count", len(options.Tools.Allow),
 		"denied_tools_count", len(options.Tools.Deny),
 		"mcp_servers_count", len(options.MCP.Servers),
-		"runtime_env_keys", append([]string(nil), snapshot.EnvKeys...),
-		"runtime_explicit_env_keys", append([]string(nil), snapshot.ExplicitEnvKeys...),
-		"runtime_sdk_env_keys", append([]string(nil), snapshot.SDKEnvKeys...),
+		"runtime_env_keys", slices.Clone(snapshot.EnvKeys),
+		"runtime_explicit_env_keys", slices.Clone(snapshot.ExplicitEnvKeys),
+		"runtime_sdk_env_keys", slices.Clone(snapshot.SDKEnvKeys),
 		"runtime_env_fingerprint", snapshot.EnvFingerprint,
 		"options_fingerprint", snapshot.Fingerprint.Full,
 		"restart_sensitive_fingerprint", snapshot.Fingerprint.RestartSensitive,
@@ -101,7 +102,7 @@ func legacyRuntimeStartupLogFields(options agentclient.Options) []any {
 		"resume_id_present", strings.TrimSpace(options.Session.ResumeID) != "",
 		"max_thinking_tokens", options.Runtime.MaxThinkingTokens,
 		"max_turns", options.Runtime.MaxTurns,
-		"setting_sources", append([]string(nil), options.SettingSources...),
+		"setting_sources", slices.Clone(options.SettingSources),
 		"allowed_tools_count", len(options.Tools.Allow),
 		"denied_tools_count", len(options.Tools.Deny),
 		"mcp_servers_count", len(options.MCP.Servers),
@@ -221,8 +222,9 @@ func summarizeRuntimeArgs(value any) map[string]any {
 }
 
 func runtimeArgName(arg string) string {
-	if equalIndex := strings.Index(arg, "="); equalIndex >= 0 {
-		return strings.TrimSpace(arg[:equalIndex])
+	name, _, found := strings.Cut(arg, "=")
+	if found {
+		return strings.TrimSpace(name)
 	}
 	return strings.TrimSpace(arg)
 }

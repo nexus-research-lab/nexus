@@ -3,9 +3,10 @@ package adapters
 import (
 	"context"
 	"fmt"
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"strings"
 	"sync"
+
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
 
 type PersonalWeixinMultiAccountChannel struct {

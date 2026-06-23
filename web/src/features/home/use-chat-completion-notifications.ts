@@ -8,7 +8,7 @@ import {
   notify_room_directory_updated,
   subscribe_room_directory_updates,
 } from "@/lib/api/room-api";
-import { useWebSocket } from "@/lib/websocket";
+import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import {
   type ChatNotificationTargetState,
   useSidebarStore,
@@ -426,15 +426,7 @@ export function useChatCompletionNotifications(): void {
     on_message: handle_websocket_message,
   });
 
-  useEffect(() => {
-    if (ws_state !== "connected") {
-      return;
-    }
-    ws_send({ type: "subscribe_app_events" });
-    return () => {
-      ws_send({ type: "unsubscribe_app_events" });
-    };
-  }, [ws_send, ws_state]);
+  useAppEventSubscription(ws_send, ws_state);
 
   useEffect(() => {
     if (ws_state !== "connected" || room_ids.length === 0) {

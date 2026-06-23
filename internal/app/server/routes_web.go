@@ -44,17 +44,20 @@ func (s *Server) mountWebAppRoutes() {
 		relativePath := cleanWebRequestPath(request.URL.Path)
 		if relativePath == "" {
 			targetPath := webFallbackPath(root, relativePath, indexPath)
+			setWebStaticCacheHeaders(writer, relativePath, true)
 			http.ServeFile(recorder, request, targetPath)
 			logWebStaticRequest(s.api.BaseLogger(), request, relativePath, targetPath, true, recorder, time.Since(start))
 			return
 		}
 		targetPath := filepath.Join(root, relativePath)
 		if info, statErr := os.Stat(targetPath); statErr == nil && !info.IsDir() {
+			setWebStaticCacheHeaders(writer, relativePath, false)
 			fileServer.ServeHTTP(recorder, request)
 			logWebStaticRequest(s.api.BaseLogger(), request, relativePath, targetPath, false, recorder, time.Since(start))
 			return
 		}
 		targetPath = webFallbackPath(root, relativePath, indexPath)
+		setWebStaticCacheHeaders(writer, relativePath, true)
 		http.ServeFile(recorder, request, targetPath)
 		logWebStaticRequest(s.api.BaseLogger(), request, relativePath, targetPath, true, recorder, time.Since(start))
 	}
@@ -205,4 +208,20 @@ func webStaticRequestKind(relativePath string, targetPath string, usedFallback b
 		return "html_file"
 	}
 	return "file"
+}
+
+func setWebStaticCacheHeaders(writer http.ResponseWriter, relativePath string, usedFallback bool) {
+	if cacheControl := webStaticCacheControl(relativePath, usedFallback); cacheControl != "" {
+		writer.Header().Set("Cache-Control", cacheControl)
+	}
+}
+
+func webStaticCacheControl(relativePath string, usedFallback bool) string {
+	if usedFallback || strings.HasSuffix(relativePath, ".html") || relativePath == "" {
+		return "no-cache"
+	}
+	if strings.HasPrefix(relativePath, "assets/") {
+		return "public, max-age=31536000, immutable"
+	}
+	return ""
 }

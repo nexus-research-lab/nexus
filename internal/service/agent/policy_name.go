@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
@@ -41,10 +42,7 @@ func BuildWorkspaceDirName(agentName string) string {
 		}
 	}
 	result := strings.Trim(builder.String(), "._-")
-	if result == "" {
-		return "agent"
-	}
-	return result
+	return cmp.Or(result, "agent")
 }
 
 // ValidateName 校验名称格式。

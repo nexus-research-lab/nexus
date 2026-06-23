@@ -74,13 +74,7 @@ func DoJSONExpectSuccessDecode(
 }
 
 func ExpectSuccess(response *http.Response) error {
-	defer response.Body.Close()
-	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
-		_, _ = io.Copy(io.Discard, response.Body)
-		return nil
-	}
-	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("delivery request failed: status=%d body=%s", response.StatusCode, strings.TrimSpace(string(body)))
+	return ExpectSuccessDecode(response, nil)
 }
 
 func ExpectSuccessDecode(response *http.Response, output any) error {

@@ -11,6 +11,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -109,7 +110,7 @@ func (s *Service) ensureClient(
 	)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
-		if !shouldRetryDMClientWithoutResume(options.Session.ResumeID, err) {
+		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
 			return nil, "", "", "", "", "", permissionMode, err
 		}
 		s.loggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
@@ -145,18 +146,14 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 		s.loggerFor(ctx).Warn("读取 Goal runtime context 失败", "session_key", sessionKey, "err", err)
 		return "", ""
 	}
-	goalID := goalIDForRuntimeUsage(goal)
+	goalID := ""
+	if goal != nil {
+		goalID = strings.TrimSpace(goal.ID)
+	}
 	if strings.TrimSpace(goalContext) == "" {
 		return "", goalID
 	}
 	return strings.TrimSpace(goalContext), goalID
-}
-
-func goalIDForRuntimeUsage(goal *protocol.Goal) string {
-	if goal == nil {
-		return ""
-	}
-	return strings.TrimSpace(goal.ID)
 }
 
 func (s *Service) resolveAgentRuntimeSelection(
@@ -166,6 +163,19 @@ func (s *Service) resolveAgentRuntimeSelection(
 	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent: agentValue,
 	})
+}
+
+type imagegenDefaultResolver interface {
+	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
+}
+
+func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {
+	resolver, ok := s.providers.(imagegenDefaultResolver)
+	if !ok || resolver == nil {
+		return false
+	}
+	_, err := resolver.ResolveImageConfig(ctx, "")
+	return err == nil
 }
 
 func (s *Service) resolveReusableSDKSessionID(
@@ -369,8 +379,4 @@ func (s *Service) withRuntimeDiagnosticsLogger(
 		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
 	)
 	return options
-}
-
-func shouldRetryDMClientWithoutResume(resumeID string, err error) bool {
-	return strings.TrimSpace(resumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err)
 }

@@ -3,6 +3,8 @@ package permission
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +47,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           strings.TrimSpace(request.ToolName),
 		ToolInput:          cloneMap(request.Input),
-		Suggestions:        append([]sdkpermission.Update(nil), request.PermissionSuggestions...),
+		Suggestions:        slices.Clone(request.PermissionSuggestions),
 		ExpiresAt:          now.Add(c.requestTimeout),
 		Route:              route,
 		ResponseCh:         make(chan sdkpermission.Decision, 1),
@@ -147,11 +149,11 @@ func buildPermissionEvent(pending *PendingRequest) protocol.EventMessage {
 	data := buildPermissionPayload(pending)
 	event := protocol.NewEvent(protocol.EventTypePermissionRequest, data)
 	event.SessionKey = pending.DispatchSessionKey
-	event.RoomID = emptyStringToOmit(pending.Route.RoomID)
-	event.ConversationID = emptyStringToOmit(pending.Route.ConversationID)
-	event.AgentID = emptyStringToOmit(firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey)))
-	event.MessageID = emptyStringToOmit(pending.Route.MessageID)
-	event.CausedBy = emptyStringToOmit(pending.Route.CausedBy)
+	event.RoomID = strings.TrimSpace(pending.Route.RoomID)
+	event.ConversationID = strings.TrimSpace(pending.Route.ConversationID)
+	event.AgentID = firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
+	event.MessageID = strings.TrimSpace(pending.Route.MessageID)
+	event.CausedBy = strings.TrimSpace(pending.Route.CausedBy)
 	return event
 }
 
@@ -164,11 +166,11 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 		pending.RequestID,
 		status,
 	)
-	event.RoomID = emptyStringToOmit(pending.Route.RoomID)
-	event.ConversationID = emptyStringToOmit(pending.Route.ConversationID)
-	event.AgentID = emptyStringToOmit(firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey)))
-	event.MessageID = emptyStringToOmit(pending.Route.MessageID)
-	event.CausedBy = emptyStringToOmit(pending.Route.CausedBy)
+	event.RoomID = strings.TrimSpace(pending.Route.RoomID)
+	event.ConversationID = strings.TrimSpace(pending.Route.ConversationID)
+	event.AgentID = firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
+	event.MessageID = strings.TrimSpace(pending.Route.MessageID)
+	event.CausedBy = strings.TrimSpace(pending.Route.CausedBy)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -286,21 +288,13 @@ func cloneMap(raw map[string]any) map[string]any {
 	if raw == nil {
 		return map[string]any{}
 	}
-	result := make(map[string]any, len(raw))
-	for key, value := range raw {
-		result[key] = value
-	}
-	return result
-}
-
-func emptyStringToOmit(value string) string {
-	return strings.TrimSpace(value)
+	return maps.Clone(raw)
 }
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

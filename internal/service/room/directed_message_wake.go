@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -127,19 +128,10 @@ func roomDirectedMessageWakeTargetAgentIDs(message protocol.RoomDirectedMessageR
 	result := make([]string, 0, len(message.Recipients))
 	for _, agentID := range message.Recipients {
 		normalized := strings.TrimSpace(agentID)
-		if normalized == "" || containsRoomDirectedMessageWakeTarget(result, normalized) {
+		if normalized == "" || slices.Contains(result, normalized) {
 			continue
 		}
 		result = append(result, normalized)
 	}
 	return result
-}
-
-func containsRoomDirectedMessageWakeTarget(values []string, target string) bool {
-	for _, value := range values {
-		if strings.TrimSpace(value) == target {
-			return true
-		}
-	}
-	return false
 }

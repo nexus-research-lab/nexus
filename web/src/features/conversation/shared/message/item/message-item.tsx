@@ -14,9 +14,10 @@ import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 import { MessageShell } from "../ui/message-primitives";
-import { MessageAssistantSection, MessageUserSection } from "./message-item-view";
+import { MessageAssistantSection } from "./message-assistant-section";
 import type { MessageItemProps } from "./message-item-types";
-import { useMessageItemState } from "./message-item-model";
+import { MessageUserSection } from "./message-user-section";
+import { useMessageItemState } from "./use-message-item-state";
 
 function MessageItemInner({
   compact = false,

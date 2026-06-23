@@ -61,10 +61,10 @@ func (s *ControlService) PrepareFeishuIngress(ctx context.Context, raw []byte, h
 	if config == nil {
 		// 飞书 URL 校验 payload 通常没有 app_id。开发态只保存 App ID/App Secret 时，
 		// 这里不能因为飞书侧携带了 token 就拒绝 challenge；真实消息事件仍按 app_id 绑定配置。
-		if strings.TrimSpace(callback.Challenge) != "" && strings.TrimSpace(callback.AppID) == "" {
+		if callback.Challenge != "" && callback.AppID == "" {
 			return FeishuIngressPreparation{Body: raw}, nil
 		}
-		if strings.TrimSpace(callback.AppID) == "" && strings.TrimSpace(callback.Token) == "" {
+		if callback.AppID == "" && strings.TrimSpace(callback.Token) == "" {
 			return FeishuIngressPreparation{Body: raw}, nil
 		}
 		return FeishuIngressPreparation{}, fmt.Errorf("%w: unknown feishu app", ErrFeishuCallbackUnauthorized)
@@ -100,7 +100,7 @@ func (s *ControlService) prepareEncryptedFeishuIngress(
 		if decodeErr != nil {
 			continue
 		}
-		if strings.TrimSpace(callback.AppID) != "" && strings.TrimSpace(callback.AppID) != strings.TrimSpace(config.AppID) {
+		if callback.AppID != "" && callback.AppID != config.AppID {
 			continue
 		}
 		if err := channeladapters.VerifyFeishuCallbackSignature(raw, header, config.EncryptKey); err != nil {
@@ -147,11 +147,11 @@ func (s *ControlService) listFeishuIngressConfigs(ctx context.Context) ([]feishu
 }
 
 func matchFeishuIngressConfig(configs []feishuIngressConfig, callback FeishuIngressCallback) *feishuIngressConfig {
-	appID := strings.TrimSpace(callback.AppID)
+	appID := callback.AppID
 	token := strings.TrimSpace(callback.Token)
 	for index := range configs {
 		config := &configs[index]
-		if appID != "" && strings.TrimSpace(config.AppID) == appID {
+		if appID != "" && config.AppID == appID {
 			return config
 		}
 	}
@@ -160,7 +160,7 @@ func matchFeishuIngressConfig(configs []feishuIngressConfig, callback FeishuIngr
 	}
 	for index := range configs {
 		config := &configs[index]
-		if token != "" && strings.TrimSpace(config.VerificationToken) == token {
+		if token != "" && config.VerificationToken == token {
 			return config
 		}
 	}

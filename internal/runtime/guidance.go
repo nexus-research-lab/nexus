@@ -3,7 +3,8 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,11 +42,7 @@ func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content 
 		return nil, ErrNoRunningRound
 	}
 
-	roundIDs := make([]string, 0, len(state.RunningRounds))
-	for runningRoundID := range state.RunningRounds {
-		roundIDs = append(roundIDs, runningRoundID)
-	}
-	sort.Strings(roundIDs)
+	roundIDs := slices.Sorted(maps.Keys(state.RunningRounds))
 	state.GuidedInputs = append(state.GuidedInputs, GuidedInput{
 		RoundID:     strings.TrimSpace(roundID),
 		Content:     content,
@@ -143,7 +140,7 @@ func (m *Manager) drainGuidanceInputs(sessionKey string) []GuidedInput {
 	if !ok || state == nil || len(state.GuidedInputs) == 0 {
 		return nil
 	}
-	inputs := append([]GuidedInput(nil), state.GuidedInputs...)
+	inputs := slices.Clone(state.GuidedInputs)
 	state.GuidedInputs = nil
 	m.touchStateLocked(state)
 	return inputs
@@ -229,7 +226,7 @@ func cloneSDKHooks(input map[sdkhook.Event][]sdkhook.Matcher) map[sdkhook.Event]
 		copied := make([]sdkhook.Matcher, 0, len(matchers))
 		for _, matcher := range matchers {
 			next := matcher
-			next.Hooks = append([]sdkhook.Callback(nil), matcher.Hooks...)
+			next.Hooks = slices.Clone(matcher.Hooks)
 			copied = append(copied, next)
 		}
 		output[event] = copied
