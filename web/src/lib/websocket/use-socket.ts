@@ -228,6 +228,36 @@ export function useWebSocket(options: UseWebSocketOptions) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 回调已通过 ref 稳定化；共享连接按 url 和 protocol 维度创建，配置由首个订阅者固定。
   }, [channel_key, options.url]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const reconnect_when_recoverable = () => {
+      const snapshot = channel_ref.current?.get_snapshot();
+      if (!snapshot) {
+        return;
+      }
+      if (snapshot.state !== "failed") {
+        return;
+      }
+      channel_ref.current?.reconnect();
+    };
+
+    const handle_visibility_change = () => {
+      if (document.visibilityState === "visible") {
+        reconnect_when_recoverable();
+      }
+    };
+
+    window.addEventListener("online", reconnect_when_recoverable);
+    document.addEventListener("visibilitychange", handle_visibility_change);
+    return () => {
+      window.removeEventListener("online", reconnect_when_recoverable);
+      document.removeEventListener("visibilitychange", handle_visibility_change);
+    };
+  }, [channel_key]);
+
   const send = useCallback((data: WebSocketMessage): WebSocketSendResult => {
     if (!channel_ref.current) {
       return { disposition: "dropped" };
