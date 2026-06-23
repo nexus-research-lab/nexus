@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   get_agent_ws_url,
@@ -61,9 +62,7 @@ import {
 } from "./conversation-actions";
 import {
   AgentConversationRuntimeMachine,
-  AgentConversationRuntimeSnapshot,
 } from "./agent-conversation-runtime-machine";
-import { are_runtime_snapshots_equal } from "./conversation-runtime-state";
 import {
   apply_terminal_round_message_status,
   cancel_running_agent_slots,
@@ -118,10 +117,10 @@ export function useAgentConversation(
   const runtime_machine_ref = useRef(
     new AgentConversationRuntimeMachine(chat_type),
   );
-  const [runtime_snapshot, set_runtime_snapshot] =
-    useState<AgentConversationRuntimeSnapshot>(() =>
-      runtime_machine_ref.current.snapshot(),
-    );
+  const runtime_snapshot = useSyncExternalStore(
+    useCallback((cb) => runtime_machine_ref.current.subscribe(cb), []),
+    useCallback(() => runtime_machine_ref.current.snapshot(), []),
+  );
 
   const [messages, set_messages_state] = useState<Message[]>([]);
   const [error, set_error] = useState<string | null>(null);
@@ -213,21 +212,12 @@ export function useAgentConversation(
     set_history_prepend_token(0);
   }, [reset_history_state]);
 
-  const sync_runtime_snapshot = useCallback(() => {
-    const next_snapshot = runtime_machine_ref.current.snapshot();
-    set_runtime_snapshot((current_snapshot) =>
-      are_runtime_snapshots_equal(current_snapshot, next_snapshot)
-        ? current_snapshot
-        : next_snapshot,
-    );
-  }, []);
-
   const apply_runtime_transition = useCallback(
     (transition: (machine: AgentConversationRuntimeMachine) => void) => {
       transition(runtime_machine_ref.current);
-      sync_runtime_snapshot();
+      runtime_machine_ref.current.emit();
     },
-    [sync_runtime_snapshot],
+    [],
   );
 
   const set_pending_agent_slots = useCallback(
@@ -729,8 +719,8 @@ export function useAgentConversation(
 
   useEffect(() => {
     runtime_machine_ref.current.set_chat_type(chat_type);
-    sync_runtime_snapshot();
-  }, [chat_type, sync_runtime_snapshot]);
+    runtime_machine_ref.current.emit();
+  }, [chat_type]);
 
   useEffect(() => {
     const next_identity_key = get_agent_conversation_identity_key(identity);

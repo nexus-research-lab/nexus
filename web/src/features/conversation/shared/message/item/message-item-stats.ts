@@ -1,5 +1,6 @@
 import type { AssistantMessage } from "@/types/conversation/message";
 
+import { strip_room_control_markers } from "./message-item-support";
 import type { MessageStatsData } from "./message-item-types";
 
 function format_compact_count(value: number): string {
@@ -18,7 +19,7 @@ function format_compact_count(value: number): string {
 export function get_result_summary_display_text(
   result_summary: AssistantMessage["result_summary"] | undefined,
 ): string | null {
-  const result_text = result_summary?.result?.trim();
+  const result_text = strip_room_control_markers(result_summary?.result ?? "");
   if (result_text) {
     return result_text;
   }

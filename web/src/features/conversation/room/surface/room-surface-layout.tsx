@@ -19,7 +19,8 @@ import { UpdateRoomParams } from "@/types/conversation/room";
 import { GroupConversationHeader } from "../group/header/group-conversation-header";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";
 import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
-import { useGroupThread, useGroupThreadPanelData } from "../group/thread/group-thread-state";
+import { useGroupThread } from "../group/thread/group-thread-state";
+import { useRoomThreadPanel } from "../group/chat/use-room-thread-panel-data";
 import { RoomWorkspaceView } from "../workspace/room-workspace-view";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { RoomAgentAboutSurface } from "./room-agent-about-surface";
@@ -104,8 +105,11 @@ export function RoomSurfaceLayout(props: RoomSurfaceLayoutProps) {
 }
 
 function RoomSurfaceLayoutWithThreadState(props: RoomSurfaceLayoutProps) {
+  // 只读 active_thread（ControlContext，稳定），不订阅 thread_panel_data 对象：
+  // 该对象每次产出新引用，而本组件是 GroupChatPanel（数据生产者）的祖先，
+  // 一旦订阅就会形成「bump → 祖先重渲染 → 生产者重跑 → 再 bump」的死循环。
+  // 真正需要数据的 GroupThreadDetailPanel 是生产者的兄弟叶子，自行订阅即可。
   const { active_thread, close_thread } = useGroupThread();
-  const { thread_panel_data } = useGroupThreadPanelData();
 
   useEffect(() => {
     if (props.active_surface_tab !== "chat" && active_thread) {
@@ -116,7 +120,7 @@ function RoomSurfaceLayoutWithThreadState(props: RoomSurfaceLayoutProps) {
   return (
     <RoomSurfaceLayoutInner
       {...props}
-      is_thread_panel_open={Boolean(active_thread && thread_panel_data)}
+      is_thread_panel_open={Boolean(active_thread)}
     />
   );
 }
@@ -416,7 +420,7 @@ function GroupThreadInlinePanel({
   on_start_editor_resize: () => void;
 }) {
   const { active_thread, close_thread } = useGroupThread();
-  const { thread_panel_data } = useGroupThreadPanelData();
+  const thread_panel_data = useRoomThreadPanel();
 
   if (active_surface_tab !== "chat" || !active_thread || !thread_panel_data) {
     return null;

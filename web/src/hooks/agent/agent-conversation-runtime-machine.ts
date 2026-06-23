@@ -18,6 +18,7 @@ import {
   AgentConversationChatType,
   AgentConversationRuntimePhase,
 } from '@/types/agent/agent-conversation';
+import { are_runtime_snapshots_equal } from './conversation-runtime-state';
 
 export interface ActiveMessageTracker {
   round_id: string;
@@ -64,8 +65,35 @@ export class AgentConversationRuntimeMachine {
 
   private pending_permission_count = 0;
 
+  private listeners = new Set<() => void>();
+
+  private snapshot_cache: AgentConversationRuntimeSnapshot | null = null;
+
   public constructor(chat_type: AgentConversationChatType) {
     this.chat_type = chat_type;
+  }
+
+  // useSyncExternalStore subscription. Returns an unsubscribe fn.
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  // Call after any mutation. Recomputes the snapshot, and only notifies
+  // subscribers when it actually changed — so the cached snapshot stays
+  // referentially stable across no-op transitions (required by
+  // useSyncExternalStore to avoid render loops).
+  public emit(): void {
+    const next = this.compute_snapshot();
+    if (this.snapshot_cache && are_runtime_snapshots_equal(this.snapshot_cache, next)) {
+      return;
+    }
+    this.snapshot_cache = next;
+    for (const listener of this.listeners) {
+      listener();
+    }
   }
 
   public set_chat_type(chat_type: AgentConversationChatType): void {
@@ -257,7 +285,12 @@ export class AgentConversationRuntimeMachine {
     this.active_message_trackers = next_trackers;
   }
 
+  // getSnapshot for useSyncExternalStore: stable ref between emits.
   public snapshot(): AgentConversationRuntimeSnapshot {
+    return (this.snapshot_cache ??= this.compute_snapshot());
+  }
+
+  private compute_snapshot(): AgentConversationRuntimeSnapshot {
     const phase = this.resolve_phase();
     const live_round_ids = new Set<string>([
       ...this.sending_round_ids,

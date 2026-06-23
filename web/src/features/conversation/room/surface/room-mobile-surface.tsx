@@ -12,7 +12,8 @@ import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
 import { GroupChatPanel } from "../group/chat/group-chat-panel";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";
 import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
-import { useGroupThread, useGroupThreadPanelData } from "../group/thread/group-thread-state";
+import { useGroupThread } from "../group/thread/group-thread-state";
+import { useRoomThreadPanel } from "../group/chat/use-room-thread-panel-data";
 
 interface RoomMobileSurfaceProps {
   current_agent: Agent;
@@ -219,7 +220,7 @@ export function RoomMobileSurface({
 /** 移动端 Thread 全屏覆盖 — 在 GroupThreadContextProvider 内部使用 */
 function MobileThreadOverlay() {
   const { active_thread, close_thread } = useGroupThread();
-  const { thread_panel_data } = useGroupThreadPanelData();
+  const thread_panel_data = useRoomThreadPanel();
 
   if (!active_thread || !thread_panel_data) return null;
 

@@ -333,6 +333,8 @@ func (s *RealtimeService) runSlot(
 			if slot.shouldSuppressOutput() {
 				return nil
 			}
+			// 剥离混合内容里的无回复标记，确保它不进入存储与公区。
+			messageValue = roomdomain.StripNoReplyMarker(messageValue)
 			if !roomSlotPublishesPublicOutput(slot) {
 				if !protocol.IsTranscriptNativeMessage(protocol.Message(messageValue)) {
 					if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {

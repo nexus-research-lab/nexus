@@ -40,7 +40,7 @@ import {
   group_room_messages_by_round,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
-import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
+import { useRoomThreadSource } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { RoomGoalPanel } from "./room-goal-panel";
 import {
@@ -407,13 +407,12 @@ export function GroupChatPanel({
     room_members,
     session_key,
   ]);
-  useRoomThreadPanelData({
+  useRoomThreadSource({
     agent_avatar_map,
     agent_name_map,
     can_control_session,
     conversation_id,
     current_user_avatar,
-    is_loading,
     message_groups,
     observer_read_only_reason,
     on_open_workspace_file,

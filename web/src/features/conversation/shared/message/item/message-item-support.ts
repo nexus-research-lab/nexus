@@ -178,6 +178,14 @@ export function projection_from_ordered_entries(
   return { content, streaming_indexes };
 }
 
+// Backend room control token, never shown to humans.
+// Mirrors NoReplyMarker in internal/chat/room/no_reply.go.
+const ROOM_CONTROL_MARKER = /<nexus_room_no_reply\s*\/>/g;
+
+export function strip_room_control_markers(text: string): string {
+  return text.replace(ROOM_CONTROL_MARKER, "").trim();
+}
+
 export function extract_text_from_content_blocks(
   content?: ContentBlock[] | null,
 ): string {
@@ -191,7 +199,7 @@ export function extract_text_from_content_blocks(
       texts.push(block.text);
     }
   });
-  return texts.join("\n\n");
+  return strip_room_control_markers(texts.join("\n\n"));
 }
 
 export function format_message_time(timestamp?: number | null): string {

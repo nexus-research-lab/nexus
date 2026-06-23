@@ -17,7 +17,7 @@ interface ThreadTarget {
   agent_id: string;
 }
 
-/** Thread 面板数据，由 GroupChatPanel 设置，由布局层读取后渲染。 */
+/** Thread 面板展示数据，由消费侧从 room-thread-live store 派生（见 use-room-thread-panel-data）。 */
 export interface ThreadPanelData {
   messages: Message[];
   agent_name: string | null;
@@ -38,17 +38,7 @@ interface ThreadControlState {
   close_thread: () => void;
 }
 
-interface ThreadDataState {
-  thread_panel_data: ThreadPanelData | null;
-}
-
-interface ThreadDataDispatchState {
-  set_thread_panel_data: (data: ThreadPanelData | null) => void;
-}
-
 export const ThreadControlContext = createContext<ThreadControlState | null>(null);
-export const ThreadDataContext = createContext<ThreadDataState | null>(null);
-export const ThreadDataDispatchContext = createContext<ThreadDataDispatchState | null>(null);
 
 export function useGroupThread(): ThreadControlState {
   const context = useContext(ThreadControlContext);
@@ -58,25 +48,7 @@ export function useGroupThread(): ThreadControlState {
   return context;
 }
 
-export function useGroupThreadPanelData(): ThreadDataState {
-  const context = useContext(ThreadDataContext);
-  if (!context) {
-    throw new Error("useGroupThreadPanelData must be used within GroupThreadContextProvider");
-  }
-  return context;
-}
-
-export function useSetGroupThreadPanelData(): ThreadDataDispatchState {
-  const context = useContext(ThreadDataDispatchContext);
-  if (!context) {
-    throw new Error("useSetGroupThreadPanelData must be used within GroupThreadContextProvider");
-  }
-  return context;
-}
-
 export type {
   ThreadControlState,
-  ThreadDataState,
-  ThreadDataDispatchState,
   ThreadTarget,
 };
