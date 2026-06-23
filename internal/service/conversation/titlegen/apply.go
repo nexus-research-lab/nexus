@@ -7,7 +7,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func (s *Service) applySessionTitle(ctx context.Context, sessionKey string, title string) (bool, error) {
+func (s *Service) applySessionTitle(ctx context.Context, sessionKey string, title string, fallbackTitle string) (bool, error) {
 	if s.sessions == nil {
 		return false, nil
 	}
@@ -15,7 +15,7 @@ func (s *Service) applySessionTitle(ctx context.Context, sessionKey string, titl
 	if err != nil {
 		return false, err
 	}
-	if current == nil || !isDefaultSessionTitle(current.Title) {
+	if current == nil || !canReplaceSessionTitle(current.Title, fallbackTitle) {
 		return false, nil
 	}
 	nextTitle := strings.TrimSpace(title)
@@ -29,7 +29,7 @@ func (s *Service) applySessionTitle(ctx context.Context, sessionKey string, titl
 	return true, nil
 }
 
-func (s *Service) canAutoUpdateSession(ctx context.Context, sessionKey string) (bool, error) {
+func (s *Service) canAutoUpdateSession(ctx context.Context, sessionKey string, fallbackTitle string) (bool, error) {
 	if s.sessions == nil {
 		return false, nil
 	}
@@ -40,7 +40,7 @@ func (s *Service) canAutoUpdateSession(ctx context.Context, sessionKey string) (
 	if current == nil {
 		return false, nil
 	}
-	return isDefaultSessionTitle(current.Title), nil
+	return canReplaceSessionTitle(current.Title, fallbackTitle), nil
 }
 
 func (s *Service) applyConversationTitle(
@@ -48,6 +48,7 @@ func (s *Service) applyConversationTitle(
 	conversationID string,
 	roomID string,
 	title string,
+	fallbackTitle string,
 ) (bool, error) {
 	if s.rooms == nil {
 		return false, nil
@@ -56,7 +57,7 @@ func (s *Service) applyConversationTitle(
 	if err != nil {
 		return false, err
 	}
-	if current == nil || !isDefaultConversationTitle(current.Conversation.Title, current.Room.Name) {
+	if current == nil || !canReplaceConversationTitle(current.Conversation.Title, current.Room.Name, fallbackTitle) {
 		return false, nil
 	}
 	resolvedRoomID := strings.TrimSpace(roomID)
@@ -78,6 +79,7 @@ func (s *Service) canAutoUpdateConversation(
 	ctx context.Context,
 	conversationID string,
 	roomID string,
+	fallbackTitle string,
 ) (bool, string, error) {
 	if s.rooms == nil {
 		return false, "", nil
@@ -93,7 +95,7 @@ func (s *Service) canAutoUpdateConversation(
 	if resolvedRoomID == "" {
 		resolvedRoomID = current.Room.ID
 	}
-	return isDefaultConversationTitle(current.Conversation.Title, current.Room.Name), resolvedRoomID, nil
+	return canReplaceConversationTitle(current.Conversation.Title, current.Room.Name, fallbackTitle), resolvedRoomID, nil
 }
 
 func (s *Service) broadcastResync(ctx context.Context, request Request) {

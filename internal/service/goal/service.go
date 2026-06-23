@@ -85,7 +85,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if err != nil {
 		return nil, err
 	}
-	s.fillEmptyPreviewFromGoal(ctx, *created)
+	s.updatePreviewFromGoal(ctx, *created, request.OwnerUserID)
 	if err := s.appendEvent(ctx, *created, "created", createGoalEventSource(created.CreatedBy), strings.TrimSpace(request.RoundID), map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 		return nil, err
 	}
 	if request.Objective != nil {
-		s.fillEmptyPreviewFromGoal(ctx, *updated)
+		s.updatePreviewFromGoal(ctx, *updated, request.OwnerUserID)
 	}
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusBudgetLimited && !s.goalBudgetExhausted(*updated) {
 		resumed, err := s.persistTransition(ctx, *updated, protocol.GoalStatusActive, protocol.GoalUpdateSourceUser, "resumed", "", map[string]any{

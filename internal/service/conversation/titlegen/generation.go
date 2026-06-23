@@ -28,7 +28,7 @@ var errEmptyGeneratedTitle = errors.New("标题生成返回空结果")
 func (s *Service) generateAndApply(ctx context.Context, request Request) {
 	sessionEligible := false
 	if request.shouldCheckSessionTitle() {
-		ok, err := s.canAutoUpdateSession(ctx, request.SessionKey)
+		ok, err := s.canAutoUpdateSession(ctx, request.SessionKey, request.FallbackTitle)
 		if err != nil {
 			s.logger.Warn("检查 session 标题状态失败",
 				"session_key", request.SessionKey,
@@ -45,6 +45,7 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			ctx,
 			request.ConversationID,
 			request.ConversationRoomID,
+			request.FallbackTitle,
 		)
 		if err != nil {
 			s.logger.Warn("检查 room 对话标题状态失败",
@@ -96,7 +97,7 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 
 	updated := false
 	if sessionEligible {
-		ok, err := s.applySessionTitle(ctx, request.SessionKey, title)
+		ok, err := s.applySessionTitle(ctx, request.SessionKey, title, request.FallbackTitle)
 		if err != nil {
 			s.logger.Warn("更新 session 标题失败",
 				"session_key", request.SessionKey,
@@ -117,6 +118,7 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			request.ConversationID,
 			resolvedRoomID,
 			title,
+			request.FallbackTitle,
 		)
 		if err != nil {
 			s.logger.Warn("更新 room 对话标题失败",

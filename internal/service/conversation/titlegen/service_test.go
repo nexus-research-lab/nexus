@@ -118,6 +118,68 @@ func TestScheduleUpdatesSessionAndConversationTitle(t *testing.T) {
 	}
 }
 
+func TestScheduleReplacesGoalFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "Knip 清理",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "协作房间",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: "Knip Until Clean",
+				},
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "kimi",
+				AuthToken: "token-1",
+				BaseURL:   server.URL,
+				Model:     "kimi-k2.5",
+			},
+		},
+		nil,
+		roomStore,
+		&fakeEventBroadcaster{},
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:               "room:group:conv_1",
+		Content:                  "按 Loop「Knip Until Clean」推进这个 Room Goal。",
+		FallbackTitle:            "Knip Until Clean",
+		SessionMessageCount:      -1,
+		ConversationID:           "conv_1",
+		ConversationRoomID:       "room_1",
+		ConversationMessageCount: 0,
+	})
+
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "Knip 清理" {
+		t.Fatalf("conversation title = %q, want generated title", got)
+	}
+}
+
 func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	t.Parallel()
 

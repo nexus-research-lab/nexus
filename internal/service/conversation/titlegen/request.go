@@ -9,6 +9,7 @@ type Request struct {
 	Provider                 string
 	Model                    string
 	Content                  string
+	FallbackTitle            string
 	SessionTitle             string
 	SessionMessageCount      int
 	ConversationID           string
