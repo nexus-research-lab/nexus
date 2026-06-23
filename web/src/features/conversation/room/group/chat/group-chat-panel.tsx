@@ -24,6 +24,7 @@ import { prepare_room_conversation_attachments } from "@/features/conversation/s
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
+import { SubagentStatusStrip } from "@/features/conversation/shared/subagent-status-strip";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
@@ -489,6 +490,12 @@ export function GroupChatPanel({
           {show_provider_warning ? (
             <ProviderUnavailableBanner compact={is_mobile_layout} />
           ) : null}
+
+          <SubagentStatusStrip
+            compact={is_mobile_layout}
+            live_round_ids={live_round_ids}
+            messages={messages}
+          />
 
           <RoomGoalPanel
             activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}

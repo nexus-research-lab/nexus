@@ -72,6 +72,55 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 	)
 }
 
+func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.TaskStarted == nil {
+		return nil
+	}
+	started := message.TaskStarted
+	return p.buildTaskStartedMessage(
+		firstNonEmpty(started.TaskID, started.ToolUseID),
+		firstNonEmpty(started.Description, started.Prompt, "任务已开始"),
+		strings.TrimSpace(started.TaskType),
+		strings.TrimSpace(started.ToolUseID),
+	)
+}
+
+func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.TaskNotification == nil {
+		return nil
+	}
+	notification := message.TaskNotification
+	return p.buildTaskNotificationMessage(
+		firstNonEmpty(notification.TaskID, notification.ToolUseID),
+		firstNonEmpty(notification.Summary, taskNotificationDefaultContent(notification.Status)),
+		strings.TrimSpace(notification.ToolUseID),
+		strings.TrimSpace(notification.Status),
+		strings.TrimSpace(notification.OutputFile),
+		taskUsageMap(notification.Usage),
+	)
+}
+
+func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskType string, toolUseID string) *protocol.Message {
+	if strings.TrimSpace(taskID) == "" {
+		return nil
+	}
+	payload := baseMessageEnvelope(
+		p.ctx,
+		p.sessionID,
+		fmt.Sprintf("system_task_started_%s_%s", p.ctx.RoundID, strings.TrimSpace(taskID)),
+		"system",
+	)
+	payload["content"] = firstNonEmpty(content, "任务已开始")
+	payload["metadata"] = map[string]any{
+		"subtype":     "task_started",
+		"task_id":     strings.TrimSpace(taskID),
+		"task_type":   emptyToNil(taskType),
+		"tool_use_id": emptyToNil(toolUseID),
+	}
+	messageValue := protocol.Message(payload)
+	return &messageValue
+}
+
 func (p *Processor) buildTaskProgressMessage(taskID string, description string, toolUseID string, lastToolName string, usage map[string]any) *protocol.Message {
 	if strings.TrimSpace(taskID) == "" {
 		return nil
@@ -87,6 +136,29 @@ func (p *Processor) buildTaskProgressMessage(taskID string, description string, 
 	return p.buildAssistantDurableMessage(false, false, "")
 }
 
+func (p *Processor) buildTaskNotificationMessage(taskID string, content string, toolUseID string, status string, outputFile string, usage map[string]any) *protocol.Message {
+	if strings.TrimSpace(taskID) == "" {
+		return nil
+	}
+	payload := baseMessageEnvelope(
+		p.ctx,
+		p.sessionID,
+		fmt.Sprintf("system_task_notification_%s_%s", p.ctx.RoundID, strings.TrimSpace(taskID)),
+		"system",
+	)
+	payload["content"] = firstNonEmpty(content, "任务状态已更新")
+	payload["metadata"] = map[string]any{
+		"subtype":     "task_notification",
+		"task_id":     strings.TrimSpace(taskID),
+		"tool_use_id": emptyToNil(toolUseID),
+		"status":      emptyToNil(status),
+		"output_file": emptyToNil(outputFile),
+		"usage":       firstNonNilMap(usage, map[string]any{}),
+	}
+	messageValue := protocol.Message(payload)
+	return &messageValue
+}
+
 func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) (*protocol.Message, bool) {
 	if message == nil {
 		return nil, false
@@ -100,18 +172,30 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	)
 	switch subtype {
 	case "task_started":
-		content = firstNonEmpty(
-			normalizeString(message.Data["description"]),
-			normalizeString(message.Data["prompt"]),
-			firstTaskStartedDescription(message),
-			"任务已开始",
-		)
-		metadata = map[string]any{
-			"subtype":     "task_started",
-			"task_id":     firstNonEmpty(normalizeString(message.Data["task_id"]), firstTaskStartedTaskID(message)),
-			"task_type":   firstNonEmpty(normalizeString(message.Data["task_type"]), firstTaskStartedTaskType(message)),
-			"tool_use_id": firstNonEmpty(normalizeString(message.Data["tool_use_id"]), firstTaskStartedToolUseID(message)),
-		}
+		return p.buildTaskStartedMessage(
+			firstNonEmpty(normalizeString(message.Data["task_id"]), firstTaskStartedTaskID(message)),
+			firstNonEmpty(
+				normalizeString(message.Data["description"]),
+				normalizeString(message.Data["prompt"]),
+				firstTaskStartedDescription(message),
+				"任务已开始",
+			),
+			firstNonEmpty(normalizeString(message.Data["task_type"]), firstTaskStartedTaskType(message)),
+			firstNonEmpty(normalizeString(message.Data["tool_use_id"]), firstTaskStartedToolUseID(message)),
+		), false
+	case "task_notification":
+		return p.buildTaskNotificationMessage(
+			firstNonEmpty(normalizeString(message.Data["task_id"]), firstTaskNotificationTaskID(message)),
+			firstNonEmpty(
+				normalizeString(message.Data["summary"]),
+				firstTaskNotificationSummary(message),
+				taskNotificationDefaultContent(firstNonEmpty(normalizeString(message.Data["status"]), firstTaskNotificationStatus(message))),
+			),
+			firstNonEmpty(normalizeString(message.Data["tool_use_id"]), firstTaskNotificationToolUseID(message)),
+			firstNonEmpty(normalizeString(message.Data["status"]), firstTaskNotificationStatus(message)),
+			firstNonEmpty(normalizeString(message.Data["output_file"]), firstTaskNotificationOutputFile(message)),
+			firstNonNilMap(mapValue(message.Data["usage"]), firstTaskNotificationUsage(message)),
+		), false
 	case "api_retry", "api_error":
 		metadata = normalizeAPIRetryMetadata(message.Data)
 		content = firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata))
@@ -286,4 +370,59 @@ func firstTaskStartedToolUseID(message *sdkprotocol.SystemMessage) string {
 		return ""
 	}
 	return strings.TrimSpace(message.TaskStarted.ToolUseID)
+}
+
+func firstTaskNotificationTaskID(message *sdkprotocol.SystemMessage) string {
+	if message == nil || message.TaskNotification == nil {
+		return ""
+	}
+	return strings.TrimSpace(message.TaskNotification.TaskID)
+}
+
+func firstTaskNotificationToolUseID(message *sdkprotocol.SystemMessage) string {
+	if message == nil || message.TaskNotification == nil {
+		return ""
+	}
+	return strings.TrimSpace(message.TaskNotification.ToolUseID)
+}
+
+func firstTaskNotificationStatus(message *sdkprotocol.SystemMessage) string {
+	if message == nil || message.TaskNotification == nil {
+		return ""
+	}
+	return strings.TrimSpace(message.TaskNotification.Status)
+}
+
+func firstTaskNotificationSummary(message *sdkprotocol.SystemMessage) string {
+	if message == nil || message.TaskNotification == nil {
+		return ""
+	}
+	return strings.TrimSpace(message.TaskNotification.Summary)
+}
+
+func firstTaskNotificationOutputFile(message *sdkprotocol.SystemMessage) string {
+	if message == nil || message.TaskNotification == nil {
+		return ""
+	}
+	return strings.TrimSpace(message.TaskNotification.OutputFile)
+}
+
+func firstTaskNotificationUsage(message *sdkprotocol.SystemMessage) map[string]any {
+	if message == nil || message.TaskNotification == nil {
+		return nil
+	}
+	return taskUsageMap(message.TaskNotification.Usage)
+}
+
+func taskNotificationDefaultContent(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed", "success", "done":
+		return "任务已完成"
+	case "stopped", "cancelled", "canceled", "killed", "interrupted":
+		return "任务已停止"
+	case "failed", "error":
+		return "任务执行失败"
+	default:
+		return "任务状态已更新"
+	}
 }

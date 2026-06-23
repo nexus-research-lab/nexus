@@ -27,6 +27,7 @@ import { goal_continuation_hold_for_permission } from "@/features/conversation/s
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { SubagentStatusStrip } from "@/features/conversation/shared/subagent-status-strip";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
@@ -318,6 +319,12 @@ export function DmChatPanel({
       {show_provider_warning ? (
         <ProviderUnavailableBanner compact={is_mobile_layout} />
       ) : null}
+
+      <SubagentStatusStrip
+        compact={is_mobile_layout}
+        live_round_ids={live_round_ids}
+        messages={messages}
+      />
 
       <GoalPanel
         activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}

@@ -172,6 +172,77 @@ func TestMessageMapperMapsSystemTaskProgress(t *testing.T) {
 	}
 }
 
+func TestMessageMapperMapsTaskStarted(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-started")
+
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeTaskStarted,
+		SessionID: "sdk-session-task",
+		TaskStarted: &sdkprotocol.TaskStartedMessage{
+			TaskID:      "task-1",
+			Description: "子 Agent 开始排查",
+			TaskType:    "general-purpose",
+			ToolUseID:   "toolu-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("task_started 映射失败: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("task_started 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "durable" {
+		t.Fatalf("task_started 事件类型不正确: %+v", events[0])
+	}
+	if events[0].Data["role"] != "system" || events[0].Data["content"] != "子 Agent 开始排查" {
+		t.Fatalf("task_started 内容不正确: %+v", events[0].Data)
+	}
+	metadata, _ := events[0].Data["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_started" || metadata["task_id"] != "task-1" || metadata["task_type"] != "general-purpose" {
+		t.Fatalf("task_started metadata 不正确: %+v", metadata)
+	}
+}
+
+func TestMessageMapperMapsTaskNotification(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task")
+
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeTaskNotification,
+		SessionID: "sdk-session-task",
+		TaskNotification: &sdkprotocol.TaskNotificationMessage{
+			TaskID:    "task-1",
+			Status:    "completed",
+			Summary:   "子 Agent 已完成排查",
+			ToolUseID: "toolu-1",
+			Usage: sdkprotocol.TaskUsage{
+				TotalTokens: 1234,
+				ToolUses:    5,
+				DurationMS:  6789,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("task_notification 映射失败: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("task_notification 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "durable" {
+		t.Fatalf("task_notification 事件类型不正确: %+v", events[0])
+	}
+	if events[0].Data["role"] != "system" || events[0].Data["content"] != "子 Agent 已完成排查" {
+		t.Fatalf("task_notification 内容不正确: %+v", events[0].Data)
+	}
+	metadata, _ := events[0].Data["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_notification" || metadata["task_id"] != "task-1" || metadata["status"] != "completed" {
+		t.Fatalf("task_notification metadata 不正确: %+v", metadata)
+	}
+	usage, _ := metadata["usage"].(map[string]any)
+	if usage["total_tokens"] != 1234 || usage["tool_uses"] != 5 || usage["duration_ms"] != 6789 {
+		t.Fatalf("task_notification usage 不正确: %+v", usage)
+	}
+}
+
 func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
 	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry")
 
