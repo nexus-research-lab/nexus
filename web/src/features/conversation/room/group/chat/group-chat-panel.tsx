@@ -19,6 +19,7 @@ import { Agent } from "@/types/agent/agent";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
+import { BackgroundTasksDialog } from "@/features/conversation/shared/background-tasks-dialog";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepare_room_conversation_attachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
@@ -110,6 +111,14 @@ export function GroupChatPanel({
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const [background_tasks_open, set_background_tasks_open] = useState(false);
+  const background_tasks_source = useMemo(
+    () =>
+      room_id && conversation_id
+        ? { kind: "room" as const, room_id, conversation_id }
+        : null,
+    [conversation_id, room_id],
+  );
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -495,6 +504,14 @@ export function GroupChatPanel({
             compact={is_mobile_layout}
             live_round_ids={live_round_ids}
             messages={messages}
+            on_open_background_tasks={() => set_background_tasks_open(true)}
+          />
+
+          <BackgroundTasksDialog
+            compact={is_mobile_layout}
+            open={background_tasks_open}
+            source={background_tasks_source}
+            on_close={() => set_background_tasks_open(false)}
           />
 
           <RoomGoalPanel

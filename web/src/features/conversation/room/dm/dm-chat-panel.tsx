@@ -17,6 +17,7 @@ import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
+import { BackgroundTasksDialog } from "@/features/conversation/shared/background-tasks-dialog";
 import {
   prepare_workspace_attachments,
 } from "@/features/conversation/shared/composer-attachments";
@@ -80,6 +81,11 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
+  const [background_tasks_open, set_background_tasks_open] = useState(false);
+  const background_tasks_source = useMemo(
+    () => (session_key ? { kind: "session" as const, session_key } : null),
+    [session_key],
+  );
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -324,6 +330,14 @@ export function DmChatPanel({
         compact={is_mobile_layout}
         live_round_ids={live_round_ids}
         messages={messages}
+        on_open_background_tasks={() => set_background_tasks_open(true)}
+      />
+
+      <BackgroundTasksDialog
+        compact={is_mobile_layout}
+        open={background_tasks_open}
+        source={background_tasks_source}
+        on_close={() => set_background_tasks_open(false)}
       />
 
       <GoalPanel

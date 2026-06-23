@@ -15,6 +15,7 @@ interface SubagentStatusStripProps {
   compact?: boolean;
   live_round_ids: string[];
   messages: Message[];
+  on_open_background_tasks?: () => void;
 }
 
 interface SubagentStatusItem {
@@ -223,6 +224,7 @@ export function SubagentStatusStrip({
   compact = false,
   live_round_ids,
   messages,
+  on_open_background_tasks,
 }: SubagentStatusStripProps) {
   const live_tasks = useMemo(
     () => extract_subagent_statuses(messages, live_round_ids),
@@ -273,16 +275,13 @@ export function SubagentStatusStrip({
         {tasks.map((task) => {
           const metrics = metric_label(task);
           const is_running = !is_terminal_status(task.status);
-          return (
-            <div
-              key={task.task_id}
-              className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2"
-            >
+          const content = (
+            <>
               <span className={cn("flex h-7 w-7 items-center justify-center rounded-[7px]", status_class_name(task.status))}>
                 <Bot className="h-3.5 w-3.5" />
               </span>
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
+              <span className="min-w-0">
+                <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
                   {is_running ? (
                     <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
                   ) : null}
@@ -305,12 +304,32 @@ export function SubagentStatusStrip({
                       <span className="truncate">{metrics}</span>
                     </span>
                   ) : null}
-                </div>
-                <div className="mt-0.5 truncate text-[13px] font-medium leading-5 text-(--text-strong)">
+                </span>
+                <span className="mt-0.5 block truncate text-[13px] font-medium leading-5 text-(--text-strong)">
                   {task.description}
-                </div>
+                </span>
+              </span>
+            </>
+          );
+          return (
+            on_open_background_tasks ? (
+              <button
+                key={task.task_id}
+                className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2 text-left transition-colors hover:bg-(--surface-hover-background)"
+                onClick={on_open_background_tasks}
+                title="查看后台 Subagent"
+                type="button"
+              >
+                {content}
+              </button>
+            ) : (
+              <div
+                key={task.task_id}
+                className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2"
+              >
+                {content}
               </div>
-            </div>
+            )
           );
         })}
       </div>
