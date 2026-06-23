@@ -1,4 +1,4 @@
-import { LayoutDashboard, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -8,7 +8,7 @@ import {
   display_stage_event_title,
 } from "../operation-stage-labels";
 import { resolve_operation_tool_profile } from "../operation-tool-catalog";
-import type { NexusOperationEvent, NexusOperationSnapshot, OperationPhase } from "../operation-types";
+import type { NexusOperationEvent, OperationPhase } from "../operation-types";
 import { basename } from "../operation-scene-planner-helpers";
 import {
   event_sequence_label,
@@ -26,7 +26,6 @@ export function StageWorkspaceSwitchboard({
   events,
   on_focus_event,
   on_restore_window,
-  snapshot,
   windows,
 }: {
   active_event: NexusOperationEvent;
@@ -34,12 +33,10 @@ export function StageWorkspaceSwitchboard({
   events: NexusOperationEvent[];
   on_focus_event: (event: NexusOperationEvent) => void;
   on_restore_window: (window_id: string) => void;
-  snapshot: NexusOperationSnapshot | null;
   windows: StageWindowState[];
 }) {
   const event_items = switchboard_event_items(events, active_event);
   const window_items = switchboard_window_items(windows, active_window_id);
-  const workspace_label = switchboard_workspace_label(snapshot, active_event);
 
   if (!event_items.length && !window_items.length) {
     return null;
@@ -48,18 +45,8 @@ export function StageWorkspaceSwitchboard({
   return (
     <div className="pointer-events-none absolute left-4 top-[58px] z-30 hidden w-[136px] md:block">
       <div className="pointer-events-auto rounded-[18px] border border-white/62 bg-[rgba(255,255,255,0.48)] p-2 shadow-[0_18px_46px_rgba(18,28,42,0.13),inset_0_1px_0_rgba(255,255,255,0.78)] backdrop-blur-2xl">
-        <div className="flex items-center gap-2 rounded-[13px] border border-white/54 bg-white/44 px-2 py-1.5">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[10px] border border-white/64 bg-[linear-gradient(135deg,rgba(91,114,255,0.16),rgba(255,255,255,0.74),rgba(79,162,159,0.14))] text-[color:var(--primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]">
-            <LayoutDashboard className="h-3.5 w-3.5" />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-[10px] font-black text-(--text-strong)">工作现场</span>
-            <span className="block truncate text-[8px] font-bold text-(--text-soft)">{workspace_label}</span>
-          </span>
-        </div>
-
         {event_items.length ? (
-          <div className="mt-2 rounded-[14px] border border-white/52 bg-white/34 px-2 py-2">
+          <div className="rounded-[14px] border border-white/52 bg-white/34 px-2 py-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] font-black text-(--text-strong)">工具队列</span>
               <span className="rounded-full bg-white/54 px-1.5 py-px text-[7px] font-black text-(--text-soft)">
@@ -193,17 +180,6 @@ function switchboard_window_items(windows: StageWindowState[], active_window_id:
         window,
       };
     });
-}
-
-function switchboard_workspace_label(snapshot: NexusOperationSnapshot | null, active_event: NexusOperationEvent): string {
-  const key = snapshot?.key ?? active_event.session_key;
-  if (!key) {
-    return active_event.agent_id || "Nexus session";
-  }
-  return key
-    .replace(/^session:/, "")
-    .replace(/^room-session:/, "room:")
-    .slice(0, 34);
 }
 
 function compact_window_title(window: StageWindowState): string {

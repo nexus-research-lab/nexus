@@ -397,7 +397,6 @@ export function OperationStageDesktop({
         events={narrative_events}
         on_focus_event={focus_event_window}
         on_restore_window={restore_window}
-        snapshot={snapshot}
         windows={window_states}
       />
       <StageAgentCursor active_window={active_window} />
