@@ -52,6 +52,9 @@ func (s *RealtimeService) runRound(
 		mapTerminalSubtype(finalStatus),
 	))
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
+	if roundValue.RunningSubagents {
+		s.startIdleSubagentNotificationDrains(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
+	}
 	if finalStatus == "finished" {
 		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
 	}

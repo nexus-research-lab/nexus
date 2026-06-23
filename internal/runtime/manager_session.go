@@ -97,6 +97,9 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 	if !ok || state.Client == nil {
 		return nil
 	}
+	if state.IdleMessageCancel != nil {
+		state.IdleMessageCancel()
+	}
 	for _, cancel := range state.RoundCancels {
 		if cancel != nil {
 			cancel()

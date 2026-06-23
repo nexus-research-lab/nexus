@@ -173,6 +173,9 @@ func (r *roundRunner) recordGoalContinuationProgress(result runtimectx.RoundExec
 		return
 	}
 	progressed := r.hasGoalToolProgress()
+	if !progressed && r.hasRunningSubagentTask() {
+		return
+	}
 	_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
 		r.service.loggerFor(context.Background()).Warn("记录 Goal 续跑进展失败",

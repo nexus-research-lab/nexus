@@ -16,6 +16,8 @@ type sessionState struct {
 	GoalAccountingClearers   map[string]GoalAccountingClear
 	GoalAccountingActivators map[string]GoalAccountingActivate
 	GuidedInputs             []GuidedInput
+	IdleMessageCancel        context.CancelFunc
+	IdleMessageDrainID       int64
 	LastUsedAt               time.Time
 }
 

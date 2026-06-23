@@ -71,6 +71,7 @@ type roundRunner struct {
 	goalUsageMu         sync.Mutex
 	goalLastAssistant   protocol.Message
 	goalToolProgress    bool
+	subagentTasks       map[string]struct{}
 	permissionMode      sdkpermission.Mode
 	permissionHandler   sdkpermission.Handler
 	resultUsageWritten  bool
@@ -123,6 +124,10 @@ func (r *roundRunner) run(ctx context.Context) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	if r.hasRunningSubagentTask() {
+		r.startIdleSubagentNotificationDrain()
+		return
+	}
 	r.dispatchPostRoundWork()
 }
 
@@ -172,26 +177,31 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 		HandleDurableMessage: func(message protocol.Message) error {
-			if err := r.persistMessage(message); err != nil {
-				return err
-			}
-			r.rememberGoalAssistantMessage(message)
-			r.recordGoalUsageFromAssistantMessage(message)
-			if message["role"] == "assistant" {
-				r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
-					DispatchSessionKey: r.sessionKey,
-					AgentID:            r.agent.AgentID,
-					MessageID:          dmdomain.NormalizeString(message["message_id"]),
-					CausedBy:           r.roundID,
-				})
-			}
-			return nil
+			return r.handleDurableMessage(message)
 		},
 		EmitEvent: func(event protocol.EventMessage) error {
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			return nil
 		},
 	})
+}
+
+func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
+	if err := r.persistMessage(message); err != nil {
+		return err
+	}
+	r.rememberSubagentTaskMessage(message)
+	r.rememberGoalAssistantMessage(message)
+	r.recordGoalUsageFromAssistantMessage(message)
+	if message["role"] == "assistant" {
+		r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
+			DispatchSessionKey: r.sessionKey,
+			AgentID:            r.agent.AgentID,
+			MessageID:          dmdomain.NormalizeString(message["message_id"]),
+			CausedBy:           r.roundID,
+		})
+	}
+	return nil
 }
 
 func (r *roundRunner) dispatchNextInputQueueItem() {

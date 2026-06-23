@@ -121,6 +121,26 @@ func TestRoundRunnerRecordsEmptyGoalContinuationProgress(t *testing.T) {
 	}
 }
 
+func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testing.T) {
+	goalProvider := &fakeGoalContextProvider{}
+	runner := &roundRunner{
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:test",
+		roundID:        "goal_continuation_1",
+		goalIDForUsage: "goal-1",
+		subagentTasks:  map[string]struct{}{"task-1": {}},
+		inputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	runner.recordGoalContinuationProgress(runtimectx.RoundExecutionResult{})
+
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
+	}
+}
+
 func TestRoundRunnerRecordsGoalContinuationFailure(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{

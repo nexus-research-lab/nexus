@@ -15,6 +15,10 @@ func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.C
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.IdleMessageCancel != nil {
+		state.IdleMessageCancel()
+		state.IdleMessageCancel = nil
+	}
 	state.RunningRounds[roundID] = struct{}{}
 	m.touchStateLocked(state)
 	delete(state.Interruptions, roundID)

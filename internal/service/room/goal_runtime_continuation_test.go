@@ -33,6 +33,28 @@ func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t 
 	}
 }
 
+func TestRecordGoalContinuationProgressForRoomSlotDefersWhileSubagentRuns(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &RealtimeService{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "goal_continuation_1",
+		GoalIDForUsage:    "goal-1",
+		SubagentTasks:     map[string]struct{}{"task-1": {}},
+	}
+	roundValue := &activeRoomRound{
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+
+	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, runtimectx.RoundExecutionResult{}, nil)
+
+	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+		t.Fatalf("progress = %#v, want running subagent to defer empty continuation progress", progress)
+	}
+}
+
 func TestRecordGoalContinuationProgressForRoomSlotRecordsFailure(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &RealtimeService{goals: goalProvider}
