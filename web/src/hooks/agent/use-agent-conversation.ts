@@ -353,6 +353,9 @@ export function useAgentConversation(
         remove_failed_outbound_user_message(prev, round_id),
       );
       set_error(message);
+      if (ws_state_ref.current === "connected") {
+        ws_reconnect_ref.current();
+      }
     },
     [
       apply_runtime_transition,
