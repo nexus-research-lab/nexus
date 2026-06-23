@@ -64,11 +64,6 @@ export function position_for_window(
   if (window.kind === "task_board") {
     return is_review_layout ? COMPACT_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;
   }
-  if (window.kind === "generic_tool") {
-    return window.phase === "focused"
-      ? is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE
-      : is_review_layout ? "left-[17%] top-[16%] h-[44%] w-[34%]" : "left-[16%] top-[15%] h-[45%] w-[36%]";
-  }
   if (window.kind === "run_manifest") {
     return is_review_layout ? PRIMARY_REVIEW_WORKSPACE : PRIMARY_WORKSPACE;
   }

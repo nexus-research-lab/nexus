@@ -12,7 +12,7 @@ export type OperationToolVisualGroup =
   | "knowledge_tool"
   | "human_gate"
   | "handoff"
-  | "generic_tool";
+  | "unclassified_action";
 
 export type OperationToolVisualComponent =
   | "finder"
@@ -24,7 +24,7 @@ export type OperationToolVisualComponent =
   | "knowledge_viewer"
   | "system_gate"
   | "handoff"
-  | "nexus_tool";
+  | "execution_path";
 
 export type OperationSharedControl =
   | "window_close"
@@ -123,11 +123,11 @@ export const OPERATION_TOOL_VISUAL_GROUPS: Record<OperationToolVisualGroup, Oper
     label: "完成收束",
     tools: [],
   },
-  generic_tool: {
+  unclassified_action: {
     app_label: "Nexus",
-    component: "nexus_tool",
-    interaction_label: "用通用工具窗口承载未分类工具",
-    label: "通用工具",
+    component: "execution_path",
+    interaction_label: "只记录在执行路径中，不打开桌面窗口",
+    label: "未分类动作",
     tools: [],
   },
 };
@@ -179,5 +179,5 @@ function resolve_visual_group(
   if (action === "skill" || event.surface === "knowledge") {
     return "knowledge_tool";
   }
-  return "generic_tool";
+  return "unclassified_action";
 }

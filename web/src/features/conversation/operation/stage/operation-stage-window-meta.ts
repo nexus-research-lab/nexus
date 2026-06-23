@@ -13,7 +13,6 @@ import {
   ListTree,
   Search,
   ShieldQuestion,
-  Sparkles,
   PackageCheck,
   Terminal,
 } from "lucide-react";
@@ -103,9 +102,6 @@ export function icon_for_window_kind(kind: StageWindowKind): LucideIcon {
   if (kind === "code_editor") {
     return FileCode2;
   }
-  if (kind === "generic_tool") {
-    return Sparkles;
-  }
   return FileText;
 }
 
@@ -145,9 +141,6 @@ export function stage_app_label_for_window_kind(kind: StageWindowKind): string {
   }
   if (kind === "code_editor") {
     return "Code";
-  }
-  if (kind === "generic_tool") {
-    return "快捷指令";
   }
   if (kind === "markdown_reader" || kind === "word_reader" || kind === "pdf_reader") {
     return kind === "word_reader" ? "Pages" : "预览";

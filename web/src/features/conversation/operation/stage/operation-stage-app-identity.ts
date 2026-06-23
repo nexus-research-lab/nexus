@@ -13,9 +13,6 @@ export function dock_icon_skin_for_kind(kind: StageWindowKind): string {
   if (kind === "code_editor") {
     return "border-[rgba(91,114,255,0.36)] bg-[linear-gradient(135deg,#243b74,#4f6fff)] text-white";
   }
-  if (kind === "generic_tool") {
-    return "border-[rgba(91,114,255,0.34)] bg-[linear-gradient(135deg,#f8fbff_0%,#7aa2ff_48%,#ff8fb3_100%)] text-white";
-  }
   if (kind === "run_manifest" || kind === "evidence") {
     return "border-[rgba(117,131,149,0.30)] bg-[linear-gradient(135deg,#f8fafc,#cbd5e1)] text-[#334155]";
   }

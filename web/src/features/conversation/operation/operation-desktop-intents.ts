@@ -14,8 +14,7 @@ export type StageDesktopIntent =
   | { app: "preview"; action: "preview_artifact"; event_id: string; target?: string | null }
   | { app: "handoff"; action: "summarize_delivery"; event_id: string; target?: string | null }
   | { app: "activity"; action: "track_task"; event_id: string; target?: string | null }
-  | { app: "system"; action: "request_confirmation"; event_id: string; target?: string | null }
-  | { app: "nexus"; action: "run_tool"; event_id: string; target?: string | null };
+  | { app: "system"; action: "request_confirmation"; event_id: string; target?: string | null };
 
 export interface BrowserOpenTarget {
   target: string;
@@ -102,13 +101,6 @@ export function derive_stage_desktop_intents(event: NexusOperationEvent): StageD
     intents.push({
       app: "preview",
       action: "preview_artifact",
-      event_id: event.id,
-      target: event.target,
-    });
-  } else if (visual_contract.group === "generic_tool") {
-    intents.push({
-      app: "nexus",
-      action: "run_tool",
       event_id: event.id,
       target: event.target,
     });
@@ -220,7 +212,7 @@ export function stage_app_session_id_for_intent(
   if (intent.app === "handoff") {
     return `${round_id}:handoff`;
   }
-  return `${round_id}:tool:${normalize_id(intent.target ?? intent.event_id)}`;
+  return `${round_id}:desktop`;
 }
 
 export function find_stage_desktop_intent(

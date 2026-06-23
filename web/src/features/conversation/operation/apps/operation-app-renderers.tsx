@@ -23,7 +23,6 @@ import { ActivityMonitorSurface } from "./activity-monitor-surface";
 import { BrowserSurface } from "./browser-surface";
 import { DocumentPreview } from "./document-preview-surface";
 import { resolve_file_preview_value } from "./file-preview-value";
-import { NexusToolSurface } from "./nexus-tool-surface";
 import { OperationReviewPanel, PermissionCheckpointPanel } from "./operation-review-panels";
 import { HandoffSurface } from "./handoff-surface";
 import { RunManifestSurface } from "./run-manifest-surface";
@@ -160,17 +159,6 @@ export function StageWindowContent({
           />
         </div>
       </div>
-    );
-  }
-
-  if (app_surface_for_window_kind(window.kind) === "nexus_tool") {
-    return (
-      <NexusToolSurface
-        event={event}
-        preview={window.payload.preview}
-        related_events={window.payload.related_events ?? []}
-        target={window.payload.target ?? window.target ?? event.target}
-      />
     );
   }
 

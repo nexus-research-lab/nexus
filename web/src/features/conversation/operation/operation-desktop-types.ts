@@ -23,8 +23,7 @@ export type StageWindowKind =
   | "handoff"
   | "evidence"
   | "summary"
-  | "permission_wait"
-  | "generic_tool";
+  | "permission_wait";
 
 export type StageWindowPhase =
   | "opening"

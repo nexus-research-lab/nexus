@@ -25,7 +25,6 @@ import {
 } from "./operation-file-documents";
 import { find_operation_html_artifact } from "./operation-html-artifacts";
 import { build_operation_continuation_brief } from "./operation-stage-experience";
-import { append_generic_tool_windows } from "./operation-scene-generic-tool-windows";
 import {
   basename,
   collect_round_events,
@@ -332,14 +331,6 @@ function build_windows(
     }));
   }
 
-  append_generic_tool_windows({
-    active_event: event,
-    snapshot,
-    tool_activity_events,
-    windows,
-    window_state,
-  });
-
   if (event.phase === "waiting") {
     const system_intent = find_stage_desktop_intent(event, "system");
     windows.push(window_state(event, snapshot, {
@@ -363,7 +354,7 @@ function build_windows(
         target: "permission-checkpoint.md",
       },
     }));
-  } else if (event.surface === "summary" || event.surface === "fallback" || event.surface === "conversation") {
+  } else if (event.surface === "summary" || event.surface === "conversation" || (event.surface === "fallback" && windows.length === 0)) {
     if (event.kind === "round_summary" || event.phase === "done" || event.phase === "error" || event.phase === "cancelled") {
       const is_successful_handoff = event.kind === "round_summary" && event.phase === "done";
       windows.push(window_state(event, snapshot, {
@@ -544,12 +535,12 @@ function preferred_window_kind_for_event(event: NexusOperationEvent): StageWindo
       event.kind === "workspace_edit" ||
       event.kind === "artifact_update"
     ) {
-      return ["code_editor", "markdown_reader", "word_reader", "pdf_reader", "spreadsheet", "image_viewer", "generic_tool", "finder"];
+      return ["code_editor", "markdown_reader", "word_reader", "pdf_reader", "spreadsheet", "image_viewer", "finder"];
     }
     return ["finder", "code_editor", "markdown_reader", "word_reader", "pdf_reader", "spreadsheet", "image_viewer"];
   }
   if (event.surface === "editor" || event.surface === "knowledge") {
     return ["code_editor", "markdown_reader", "word_reader", "pdf_reader", "spreadsheet", "image_viewer"];
   }
-  return ["generic_tool", "summary"];
+  return ["summary"];
 }

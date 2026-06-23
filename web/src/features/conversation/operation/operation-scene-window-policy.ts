@@ -74,7 +74,6 @@ export function is_round_review_event(event: NexusOperationEvent): boolean {
 
 function is_document_window_kind(kind: StageWindowKind): boolean {
   return kind === "code_editor"
-    || kind === "generic_tool"
     || kind === "image_viewer"
     || kind === "markdown_reader"
     || kind === "pdf_reader"

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Removed the Operation Stage generic tool detail window; unclassified actions now stay in the execution path until a real app/result can represent them.
 - Routed Operation Stage tool results with generated file paths directly into preview apps instead of the generic tool surface.
 - Raised the Operation Stage system bar to give zoomed apps more breathing room.
 - Tightened the Operation Stage menu-to-window spacing so foreground apps sit closer to the system bar.

@@ -51,8 +51,6 @@ copyFileSync(join(operation_dir, "operation-projection-timeline.js"), join(opera
 copyFileSync(join(operation_dir, "operation-types.js"), join(operation_dir, "operation-types"));
 copyFileSync(join(operation_dir, "operation-desktop-types.js"), join(operation_dir, "operation-desktop-types"));
 copyFileSync(join(operation_dir, "operation-preview.js"), join(operation_dir, "operation-preview"));
-copyFileSync(join(operation_dir, "operation-scene-generic-tool-window.js"), join(operation_dir, "operation-scene-generic-tool-window"));
-copyFileSync(join(operation_dir, "operation-scene-generic-tool-windows.js"), join(operation_dir, "operation-scene-generic-tool-windows"));
 copyFileSync(join(operation_dir, "operation-scene-planner-helpers.js"), join(operation_dir, "operation-scene-planner-helpers"));
 copyFileSync(join(operation_dir, "operation-scene-window-policy.js"), join(operation_dir, "operation-scene-window-policy"));
 copyFileSync(join(operation_dir, "operation-stage-labels.js"), join(operation_dir, "operation-stage-labels"));
@@ -86,8 +84,6 @@ copyFileSync(join(operation_dir, "stage/operation-stage-dock-launch.js"), join(o
 mkdirSync(join(operation_dir, "apps"), { recursive: true });
 copyFileSync(join(operation_dir, "apps/terminal-session-model.js"), join(operation_dir, "apps/terminal-session-model"));
 copyFileSync(join(operation_dir, "apps/operation-app-surface-policy.js"), join(operation_dir, "apps/operation-app-surface-policy"));
-copyFileSync(join(operation_dir, "apps/tool-app-intent.js"), join(operation_dir, "apps/tool-app-intent"));
-copyFileSync(join(operation_dir, "apps/nexus-tool-session.js"), join(operation_dir, "apps/nexus-tool-session"));
 copyFileSync(join(operation_dir, "apps/file-preview-value.js"), join(operation_dir, "apps/file-preview-value"));
 copyFileSync(join(operation_dir, "apps/code-editor-session.js"), join(operation_dir, "apps/code-editor-session"));
 copyFileSync(join(operation_dir, "apps/browser-result-items.js"), join(operation_dir, "apps/browser-result-items"));
@@ -194,12 +190,6 @@ const {
   app_surface_for_window_kind,
 } = await import(pathToFileURL(join(operation_dir, "apps/operation-app-surface-policy.js")));
 const {
-  build_nexus_tool_session_view,
-} = await import(pathToFileURL(join(operation_dir, "apps/nexus-tool-session.js")));
-const {
-  tool_app_intent_for_action,
-} = await import(pathToFileURL(join(operation_dir, "apps/tool-app-intent.js")));
-const {
   resolve_file_preview_value,
 } = await import(pathToFileURL(join(operation_dir, "apps/file-preview-value.js")));
 const {
@@ -239,19 +229,14 @@ verify_dock_model_groups_windows_by_mac_app();
 verify_window_keyboard_actions_match_mac_window_controls();
 verify_initial_window_reveal_avoids_desktop_clutter_flash();
 verify_hidden_stage_uses_desktop_state_instead_of_mission_control();
-verify_unclassified_tool_activity_opens_nexus_app_window(now);
-verify_current_unclassified_tool_opens_beside_existing_app_window(now);
-verify_recent_unclassified_tools_remain_as_mac_app_windows(now);
-verify_result_artifact_opens_preview_instead_of_generic_tool(now);
+verify_unclassified_tool_activity_does_not_open_window(now);
+verify_current_unclassified_tool_does_not_steal_existing_app_focus(now);
+verify_result_artifact_opens_preview_instead_of_unclassified_window(now);
 verify_task_planner_opens_activity_monitor(now);
 verify_desktop_intents_drive_app_session_windows(now);
 verify_runtime_events_drive_app_session_windows(now);
 verify_runtime_event_projection(now);
-verify_generic_tool_uses_nexus_tool_surface();
-verify_tool_app_intent_map();
 verify_tool_visual_contract_inventory(now);
-verify_nexus_tool_session_view(now);
-verify_nexus_tool_app_has_own_desktop_identity();
 verify_window_focus_moves_to_next_visible_window();
 verify_desktop_keyboard_target_policy();
 verify_stage_menu_status_tracks_desktop_windows();
@@ -307,7 +292,6 @@ function verify_desktop_window_kind_contract() {
     "browser",
     "code_editor",
     "finder",
-    "generic_tool",
     "handoff",
     "image_viewer",
     "markdown_reader",
@@ -440,11 +424,11 @@ function verify_hidden_stage_uses_desktop_state_instead_of_mission_control() {
   assert(!mixed_summary.label.toLowerCase().includes("mission"), "Hidden desktop summary should not use Mission Control panel language");
 }
 
-function verify_unclassified_tool_activity_opens_nexus_app_window(now) {
+function verify_unclassified_tool_activity_does_not_open_window(now) {
   const event = {
     id: "tool-context-docs",
     session_key: "session:stage",
-    round_id: "round-generic-tool",
+    round_id: "round-unclassified-tool",
     agent_id: "agent-stage",
     tool_use_id: "tool-context",
     tool_name: "Context7",
@@ -472,13 +456,11 @@ function verify_unclassified_tool_activity_opens_nexus_app_window(now) {
       updated_at: now,
     },
   });
-  assert(desktop.windows.length === 1, `Unclassified tool activity should still open one app window, got ${desktop.windows.length}`);
-  assert(desktop.windows[0].kind === "generic_tool", `Unclassified tool activity should open a Nexus app window, got ${desktop.windows[0].kind}`);
-  assert(desktop.active_window_id === desktop.windows[0].id, "Unclassified tool app window should become the active desktop window");
-  assert(desktop.windows[0].payload.related_events?.[0]?.tool_name === "Context7", "Generic app window should keep original tool identity");
+  assert(desktop.windows.length === 0, `Unclassified tool activity should stay in execution path only, got ${desktop.windows.length} windows`);
+  assert(desktop.active_window_id === null, "Unclassified tool activity should not create an active desktop window");
 }
 
-function verify_current_unclassified_tool_opens_beside_existing_app_window(now) {
+function verify_current_unclassified_tool_does_not_steal_existing_app_focus(now) {
   const read_event = {
     id: "tool-read",
     session_key: "session:stage",
@@ -528,64 +510,12 @@ function verify_current_unclassified_tool_opens_beside_existing_app_window(now) 
       updated_at: now,
     },
   });
-  const generic_window = desktop.windows.find((window) => window.kind === "generic_tool");
-  assert(generic_window, "Current unclassified tool should open its own Nexus app window even when prior app windows exist");
-  assert(generic_window.payload.event.id === generic_event.id, "Nexus app window should belong to the current unclassified tool");
-  assert(desktop.active_window_id === generic_window.id, "Current unclassified tool window should become the focused app window");
-  assert(desktop.windows.some((window) => window.kind === "code_editor"), "Existing document app window should remain on the desktop");
+  const code_window = desktop.windows.find((window) => window.kind === "code_editor");
+  assert(code_window, "Existing document app window should remain on the desktop");
+  assert(desktop.active_window_id === code_window.id, "Unclassified tool should not steal focus from the existing document app");
 }
 
-function verify_recent_unclassified_tools_remain_as_mac_app_windows(now) {
-  const first_event = {
-    id: "tool-context",
-    session_key: "session:stage",
-    round_id: "round-tool-sequence",
-    agent_id: "agent-stage",
-    tool_use_id: "tool-context",
-    tool_name: "Context7",
-    kind: "unknown",
-    surface: "fallback",
-    phase: "done",
-    title: "查询文档",
-    target: "React cleanup",
-    result_preview: "cleanup docs",
-    updated_at: now - 10,
-  };
-  const second_event = {
-    id: "tool-rules",
-    session_key: "session:stage",
-    round_id: "round-tool-sequence",
-    agent_id: "agent-stage",
-    tool_use_id: "tool-rules",
-    tool_name: "Rules",
-    kind: "unknown",
-    surface: "fallback",
-    phase: "running",
-    title: "整理规则",
-    target: "cleanup checklist",
-    result_preview: "rules",
-    updated_at: now,
-  };
-  const desktop = plan_operation_desktop({
-    event: second_event,
-    snapshot: {
-      key: "session:stage",
-      session_key: "session:stage",
-      active_event: second_event,
-      events: [first_event, second_event],
-      runtime_events: [],
-      recent_evidence: [],
-      workspace_events: [],
-      updated_at: now,
-    },
-  });
-  const generic_windows = desktop.windows.filter((window) => window.kind === "generic_tool");
-  assert(generic_windows.length === 2, `Recent unclassified tools should remain as separate app windows, got ${generic_windows.length}`);
-  assert(generic_windows.some((window) => window.payload.event.id === first_event.id && window.phase === "background"), "Previous tool app should remain visible as a background window");
-  assert(generic_windows.some((window) => window.payload.event.id === second_event.id && window.phase === "focused"), "Current tool app should be focused");
-}
-
-function verify_result_artifact_opens_preview_instead_of_generic_tool(now) {
+function verify_result_artifact_opens_preview_instead_of_unclassified_window(now) {
   const event = {
     id: "tool-imagegen",
     session_key: "session:stage",
@@ -622,7 +552,7 @@ function verify_result_artifact_opens_preview_instead_of_generic_tool(now) {
   const preview_window = desktop.windows.find((window) => window.kind === "image_viewer");
   assert(preview_window, "Tool result image artifacts should open in Preview instead of the generic tool app");
   assert(preview_window.target === "output/imagegen/cute-kitten.png", `Preview should target the generated image, got ${preview_window?.target}`);
-  assert(!desktop.windows.some((window) => window.kind === "generic_tool"), "Result-backed artifact tools should not also open a generic tool window");
+  assert(desktop.windows.length === 1, `Result-backed artifact tools should only open the preview app, got ${desktop.windows.length} windows`);
   assert(desktop.active_window_id === preview_window.id, "Generated image Preview window should become active");
   assert(resolve_operation_event_window_id(event, desktop.windows) === preview_window.id, "Original image tool event should focus its Preview window");
 }
@@ -941,26 +871,6 @@ function verify_runtime_event_projection(now) {
   )), "Runtime artifact update should preserve tool_use_id and workspace path");
 }
 
-function verify_generic_tool_uses_nexus_tool_surface() {
-  assert(app_surface_for_window_kind("generic_tool") === "nexus_tool", "Generic tool windows should render as the Nexus tool app");
-  assert(app_surface_for_window_kind("handoff") === "specialized", "Handoff windows should render as a specialized Mac app surface");
-  assert(app_surface_for_window_kind("code_editor") === "document", "Code windows should keep document preview rendering");
-  assert(app_surface_for_window_kind("browser") === "specialized", "Browser windows should keep specialized app rendering");
-}
-
-function verify_tool_app_intent_map() {
-  assert(tool_app_intent_for_action("read").app_label === "Code", "Read tools should feel like Code document work");
-  assert(tool_app_intent_for_action("create").group_label === "创建", "Create tools should keep creation semantics");
-  assert(tool_app_intent_for_action("edit").detail_label.includes("修改"), "Edit tools should keep modification semantics");
-  assert(tool_app_intent_for_action("list").app_label === "访达", "List tools should feel like Finder browsing");
-  assert(tool_app_intent_for_action("search").app_label === "访达", "Workspace search should feel like Finder search");
-  assert(tool_app_intent_for_action("run").app_label === "终端", "Run tools should feel like Terminal");
-  assert(tool_app_intent_for_action("web_search").app_label === "Safari", "Web search should feel like Safari");
-  assert(tool_app_intent_for_action("web_fetch").detail_label === "打开网页", "Web fetch should read as opening a page");
-  assert(tool_app_intent_for_action("task").app_label === "活动监视器", "Task delegation should feel like Activity Monitor");
-  assert(tool_app_intent_for_action("plan").sidebar_title === "计划调度", "Plan tools should have scheduling semantics");
-}
-
 function verify_tool_visual_contract_inventory(now) {
   const current_tools = new Set([
     "Task",
@@ -1006,6 +916,7 @@ function verify_tool_visual_contract_inventory(now) {
     { expected_component: "browser", expected_group: "web_browser", kind: "web_research", surface: "web", tool_name: "WebSearch" },
     { expected_component: "activity_monitor", expected_group: "task_planner", kind: "plan_update", surface: "task", tool_name: "TodoWrite" },
     { expected_component: "system_gate", expected_group: "human_gate", kind: "human_gate", surface: "conversation", tool_name: "AskUserQuestion" },
+    { expected_component: "execution_path", expected_group: "unclassified_action", kind: "unknown", surface: "fallback", tool_name: "Rules" },
   ];
 
   for (const test_case of cases) {
@@ -1035,59 +946,6 @@ function verify_tool_visual_contract_inventory(now) {
     tool_name: "AskUserQuestion",
   });
   assert(gate_intents.some((intent) => intent.app === "system" && intent.action === "request_confirmation"), "human gate should derive a system confirmation intent");
-}
-
-function verify_nexus_tool_session_view(now) {
-  const event = {
-    id: "tool-plan",
-    session_key: "session:stage",
-    round_id: "round-tool-app",
-    agent_id: "agent-stage",
-    tool_use_id: "tool-plan",
-    tool_name: "TodoWrite",
-    kind: "plan_update",
-    surface: "summary",
-    phase: "running",
-    title: "更新计划",
-    target: "todos",
-    input_preview: {
-      todos: [{ content: "打开 Safari 预览", status: "pending" }],
-    },
-    result_preview: null,
-    updated_at: now,
-  };
-  const done_event = {
-    ...event,
-    id: "tool-read",
-    tool_name: "Read",
-    kind: "workspace_read",
-    surface: "workspace",
-    phase: "done",
-    title: "读取文件",
-    target: "app.ts",
-  };
-  const view = build_nexus_tool_session_view({
-    event,
-    preview: { ok: true },
-    related_events: [done_event, event],
-    target: "todos",
-  });
-  assert(view.tool_name === "TodoWrite", `Nexus tool app should keep tool name, got ${view.tool_name}`);
-  assert(view.app_intent.app_label === "Nexus", `Plan tool app should keep Nexus intent, got ${view.app_intent.app_label}`);
-  assert(view.app_intent.group_label === "计划", `Plan tool app should expose plan group, got ${view.app_intent.group_label}`);
-  assert(view.display_target === "todos", `Nexus tool app should expose target, got ${view.display_target}`);
-  assert(view.sidebar_items.length === 5, `Nexus tool app should expose sidebar status rows, got ${view.sidebar_items.length}`);
-  assert(view.sidebar_items.some((item) => item.label === "对应应用" && item.value === "Nexus"), "Nexus tool app should expose mapped app intent");
-  assert(view.input_rows.some((row) => row.key === "todos"), "Nexus tool app should expose tool input rows");
-  assert(view.output_text.includes("\"ok\": true"), `Nexus tool app should render structured output, got ${view.output_text}`);
-  assert(view.timeline.length === 2, `Nexus tool app should keep recent tool trace, got ${view.timeline.length}`);
-  assert(view.timeline.at(-1)?.phase_label === "执行中", `Nexus tool app should label active phase, got ${view.timeline.at(-1)?.phase_label}`);
-}
-
-function verify_nexus_tool_app_has_own_desktop_identity() {
-  const nexus_skin = dock_icon_skin_for_kind("generic_tool");
-  assert(nexus_skin.includes("#ff8fb3"), `Shortcut tool Dock skin should use the shortcut app identity, got ${nexus_skin}`);
-  assert(dock_icon_skin_for_kind("code_editor") !== nexus_skin, "Nexus tool Dock skin should differ from Code");
 }
 
 function verify_window_focus_moves_to_next_visible_window() {
