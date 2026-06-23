@@ -134,7 +134,6 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		"<public_feed>",
 		"<latest_trigger>",
 		"<nexus_runtime_context>",
-		"## Date Awareness",
 		"## Emotion State",
 		"Base: focused",
 	} {

@@ -121,7 +121,6 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	for _, expected := range []string{
 		"你好",
 		"<nexus_runtime_context>",
-		"## Date Awareness",
 		"## Emotion State",
 		"Context ID: dm:" + sessionKey,
 		"Base: focused",

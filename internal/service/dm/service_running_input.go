@@ -29,7 +29,7 @@ func (s *Service) queueRunningInput(
 	if err != nil {
 		return false, err
 	}
-	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
+	// 轮内注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
 	if _, err := s.runtime.SendContentToRunningRound(ctx, sessionKey, runtimeContent.Payload()); err != nil {
 		return false, err
 	}
@@ -82,7 +82,7 @@ func (s *Service) guideRunningInput(
 	if err != nil {
 		return false, err
 	}
-	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
+	// 轮内引导注入不带 runtime context（情绪态）：避免逐步污染 prompt 前缀缓存。
 	runningRoundIDs, err := s.runtime.QueueGuidanceInput(ctx, sessionKey, request.RoundID, runtimeContent.PlainText())
 	if err != nil {
 		return false, err

@@ -143,12 +143,8 @@ func TestServiceBuildRuntimeUserMessageSuffixIncludesDateAndEmotion(t *testing.T
 		DisplayName: "规划助手",
 	}, "")
 
+	// 时间不再由本层注入（交给 runtime 基础提示），避免秒级时间戳污染前缀缓存。
 	assertPromptContains(t, suffix, "<nexus_runtime_context>")
-	assertPromptContains(t, suffix, "## Date Awareness")
-	assertPromptContains(t, suffix, "Authoritative local time:")
-	assertPromptContains(t, suffix, "Asia/Shanghai")
-	assertPromptContains(t, suffix, "UTC+08:00")
-	assertPromptContains(t, suffix, "today, yesterday, tomorrow, this year, latest, recent")
 	assertPromptContains(t, suffix, "## Emotion State")
 	assertPromptContains(t, suffix, "Base: focused (energy 6/10, valence 6/10) - clear, proactive, concise")
 	assertPromptContains(t, suffix, "Composite: focused (energy 6/10, valence 6/10) - clear, proactive, concise")

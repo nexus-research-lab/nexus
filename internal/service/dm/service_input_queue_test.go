@@ -74,9 +74,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	if interruptCalls != 0 {
 		t.Fatalf("默认排队不应中断运行中 DM round: interruptCalls=%d", interruptCalls)
 	}
+	// 轮内排队注入不再带 runtime context（情绪态），避免污染前缀缓存。
 	if len(sentContents) != 1 ||
-		!strings.Contains(sentContents[0], "这是补充要求") ||
-		!strings.Contains(sentContents[0], "<nexus_runtime_context>") {
+		!strings.Contains(sentContents[0], "这是补充要求") {
 		t.Fatalf("运行中 DM round 未收到排队输入: %+v", sentContents)
 	}
 	if len(factory.options) != 1 {
