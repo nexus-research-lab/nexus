@@ -72,6 +72,10 @@ func (c *fakeRuntimeClient) StopTask(_ context.Context, taskID string) error {
 	return c.stopTaskErr
 }
 
+func (c *fakeRuntimeClient) SendTaskMessage(context.Context, string, string, string) error {
+	return nil
+}
+
 func (c *fakeRuntimeClient) Disconnect(context.Context) error {
 	c.disconnectCalls++
 	return nil

@@ -1,13 +1,15 @@
 "use client";
 
-import { Bot, CheckCircle2, Clock3, FileText, Loader2, RefreshCcw, Square, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Bot, CheckCircle2, Clock3, FileText, Loader2, RefreshCcw, Send, Square, TriangleAlert } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   get_room_subagent_task_messages_api,
   get_session_subagent_task_messages_api,
   list_room_subagent_tasks_api,
   list_session_subagent_tasks_api,
+  send_room_subagent_task_message_api,
+  send_session_subagent_task_message_api,
   stop_room_subagent_task_api,
   stop_session_subagent_task_api,
   type SubagentTask,
@@ -189,6 +191,23 @@ async function stop_task(source: BackgroundTasksSource, task_id: string): Promis
   await stop_room_subagent_task_api(source.room_id, source.conversation_id, task_id);
 }
 
+async function send_task_message(
+  source: BackgroundTasksSource,
+  task_id: string,
+  message: string,
+): Promise<void> {
+  if (source.kind === "session") {
+    await send_session_subagent_task_message_api(source.session_key, task_id, message);
+    return;
+  }
+  await send_room_subagent_task_message_api(
+    source.room_id,
+    source.conversation_id,
+    task_id,
+    message,
+  );
+}
+
 function TaskTranscript({
   detail,
 }: {
@@ -269,6 +288,8 @@ export function BackgroundTasksDialog({
   const [is_loading_list, set_is_loading_list] = useState(false);
   const [is_loading_detail, set_is_loading_detail] = useState(false);
   const [stopping_task_id, set_stopping_task_id] = useState<string | null>(null);
+  const [task_message, set_task_message] = useState("");
+  const [is_sending_message, set_is_sending_message] = useState(false);
   const current_source_key = source_key(source);
   const selected_task = tasks.find((task) => task.task_id === selected_task_id) ?? null;
   const selected_task_version = selected_task
@@ -347,6 +368,10 @@ export function BackgroundTasksDialog({
     };
   }, [current_source_key, open, selected_task_id, selected_task_version, source]);
 
+  useEffect(() => {
+    set_task_message("");
+  }, [current_source_key, selected_task_id]);
+
   const handle_stop_task = useCallback(async () => {
     if (!source || !selected_task || is_terminal_status(selected_task.status)) {
       return;
@@ -362,6 +387,30 @@ export function BackgroundTasksDialog({
       set_stopping_task_id(null);
     }
   }, [refresh_tasks, selected_task, source]);
+
+  const handle_send_task_message = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!source || !selected_task || is_terminal_status(selected_task.status)) {
+      return;
+    }
+    const message = task_message.trim();
+    if (!message) {
+      return;
+    }
+    set_is_sending_message(true);
+    set_detail_error(null);
+    try {
+      await send_task_message(source, selected_task.task_id, message);
+      set_task_message("");
+      const refreshed = await get_task_messages(source, selected_task.task_id);
+      set_detail(refreshed);
+      await refresh_tasks();
+    } catch (error) {
+      set_detail_error(error instanceof Error ? error.message : String(error));
+    } finally {
+      set_is_sending_message(false);
+    }
+  }, [refresh_tasks, selected_task, source, task_message]);
 
   if (!open || !source) {
     return null;
@@ -479,6 +528,29 @@ export function BackgroundTasksDialog({
               ) : (
                 <TaskTranscript detail={detail} />
               )}
+              {selected_task && !is_terminal_status(selected_task.status) ? (
+                <form className="mt-3 flex items-end gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) p-2" onSubmit={handle_send_task_message}>
+                  <textarea
+                    className="min-h-[64px] flex-1 resize-none rounded-[7px] border border-(--divider-subtle-color) bg-(--surface-canvas-background) px-3 py-2 text-sm leading-5 text-(--text-default) outline-none placeholder:text-(--text-muted) focus:border-(--primary)"
+                    disabled={is_sending_message}
+                    onChange={(event) => set_task_message(event.target.value)}
+                    placeholder="给这个 subagent 发送后续消息"
+                    value={task_message}
+                  />
+                  <button
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] bg-(--primary) text-(--primary-foreground) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+                    disabled={is_sending_message || task_message.trim() === ""}
+                    type="submit"
+                    title="发送"
+                  >
+                    {is_sending_message ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </button>
+                </form>
+              ) : null}
             </section>
           </UiDialogBody>
         </UiDialogShell>

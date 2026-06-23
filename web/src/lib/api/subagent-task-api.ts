@@ -40,6 +40,12 @@ export interface SubagentTaskStopResponse {
   status: string;
 }
 
+export interface SubagentTaskMessageResponse {
+  success: boolean;
+  task_id: string;
+  status: string;
+}
+
 export async function list_session_subagent_tasks_api(
   session_key: string,
 ): Promise<SubagentTask[]> {
@@ -67,6 +73,20 @@ export async function stop_session_subagent_task_api(
   return request_api<SubagentTaskStopResponse>(
     `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(session_key)}/tasks/${encodeURIComponent(task_id)}/stop`,
     { method: "POST" },
+  );
+}
+
+export async function send_session_subagent_task_message_api(
+  session_key: string,
+  task_id: string,
+  message: string,
+): Promise<SubagentTaskMessageResponse> {
+  return request_api<SubagentTaskMessageResponse>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(session_key)}/tasks/${encodeURIComponent(task_id)}/messages`,
+    {
+      body: JSON.stringify({ message }),
+      method: "POST",
+    },
   );
 }
 
@@ -100,5 +120,20 @@ export async function stop_room_subagent_task_api(
   return request_api<SubagentTaskStopResponse>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/tasks/${encodeURIComponent(task_id)}/stop`,
     { method: "POST" },
+  );
+}
+
+export async function send_room_subagent_task_message_api(
+  room_id: string,
+  conversation_id: string,
+  task_id: string,
+  message: string,
+): Promise<SubagentTaskMessageResponse> {
+  return request_api<SubagentTaskMessageResponse>(
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/tasks/${encodeURIComponent(task_id)}/messages`,
+    {
+      body: JSON.stringify({ message }),
+      method: "POST",
+    },
   );
 }

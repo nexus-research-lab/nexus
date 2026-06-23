@@ -17,6 +17,8 @@ const maxSubagentOutputBytes = 2 * 1024 * 1024
 var (
 	// ErrSubagentTaskNotFound 表示指定 subagent task 不存在。
 	ErrSubagentTaskNotFound = errors.New("subagent task not found")
+	// ErrSubagentTaskNotRunning 表示 subagent task 已经不在可交互运行态。
+	ErrSubagentTaskNotRunning = errors.New("subagent task is not running")
 	// ErrSubagentRuntimeUnavailable 表示 task 所属 runtime 当前不可停止。
 	ErrSubagentRuntimeUnavailable = errors.New("subagent runtime unavailable")
 )
@@ -51,6 +53,13 @@ type SubagentTaskMessages struct {
 
 // SubagentTaskStopResult 表示停止 task 的结果。
 type SubagentTaskStopResult struct {
+	Success bool   `json:"success"`
+	TaskID  string `json:"task_id"`
+	Status  string `json:"status"`
+}
+
+// SubagentTaskMessageResult 表示投递 subagent 后续消息的结果。
+type SubagentTaskMessageResult struct {
 	Success bool   `json:"success"`
 	TaskID  string `json:"task_id"`
 	Status  string `json:"status"`
@@ -110,6 +119,45 @@ func (s *Service) StopSubagentTask(ctx context.Context, rawSessionKey string, ta
 		return nil, err
 	}
 	return &SubagentTaskStopResult{Success: true, TaskID: taskID, Status: "stopped"}, nil
+}
+
+// SendSubagentTaskMessage 向 running subagent task 排队一条后续消息。
+func (s *Service) SendSubagentTaskMessage(ctx context.Context, rawSessionKey string, taskID string, message string) (*SubagentTaskMessageResult, error) {
+	sessionKey, _, err := s.requireSessionKey(rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	taskID = strings.TrimSpace(taskID)
+	message = strings.TrimSpace(message)
+	if taskID == "" || message == "" {
+		return nil, ErrSubagentTaskNotFound
+	}
+	task, err := s.getSubagentTask(ctx, sessionKey, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(task.Status) != "running" {
+		return nil, fmt.Errorf("%w: %s", ErrSubagentTaskNotRunning, task.Status)
+	}
+	if s.runtime == nil {
+		return nil, ErrSubagentRuntimeUnavailable
+	}
+	if err := s.runtime.SendTaskMessage(ctx, sessionKey, taskID, message, subagentTaskMessageSummary(message)); err != nil {
+		if runtimectx.IsRuntimeTransportClosedError(err) {
+			return nil, fmt.Errorf("%w: %v", ErrSubagentRuntimeUnavailable, err)
+		}
+		return nil, err
+	}
+	return &SubagentTaskMessageResult{Success: true, TaskID: taskID, Status: "queued"}, nil
+}
+
+func subagentTaskMessageSummary(message string) string {
+	message = strings.TrimSpace(message)
+	runes := []rune(message)
+	if len(runes) <= 80 {
+		return message
+	}
+	return string(runes[:80])
 }
 
 func (s *Service) getSubagentTask(ctx context.Context, rawSessionKey string, taskID string) (*SubagentTask, error) {

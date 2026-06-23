@@ -13,6 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type subagentTaskMessageRequest struct {
+	Message string `json:"message"`
+}
+
 // HandleConversationSubagentTasks 返回 conversation 中的后台 subagent task。
 func (h *Handlers) HandleConversationSubagentTasks(writer http.ResponseWriter, request *http.Request) {
 	sessionKey, ok := h.resolveConversationTaskSessionKey(writer, request)
@@ -50,6 +54,25 @@ func (h *Handlers) HandleStopConversationSubagentTask(writer http.ResponseWriter
 	}
 	taskID := strings.TrimSpace(chi.URLParam(request, "task_id"))
 	result, err := h.sessions.StopSubagentTask(request.Context(), sessionKey, taskID)
+	if err != nil {
+		h.writeConversationSubagentTaskError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+// HandleSendConversationSubagentTaskMessage 向 conversation 中的 subagent task 发送后续消息。
+func (h *Handlers) HandleSendConversationSubagentTaskMessage(writer http.ResponseWriter, request *http.Request) {
+	sessionKey, ok := h.resolveConversationTaskSessionKey(writer, request)
+	if !ok {
+		return
+	}
+	taskID := strings.TrimSpace(chi.URLParam(request, "task_id"))
+	var payload subagentTaskMessageRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	result, err := h.sessions.SendSubagentTaskMessage(request.Context(), sessionKey, taskID, payload.Message)
 	if err != nil {
 		h.writeConversationSubagentTaskError(writer, err)
 		return
@@ -101,6 +124,10 @@ func (h *Handlers) writeConversationSubagentTaskError(writer http.ResponseWriter
 	}
 	if errors.Is(err, sessionpkg.ErrSubagentRuntimeUnavailable) {
 		h.api.WriteFailure(writer, http.StatusConflict, "任务当前不在线或已结束")
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSubagentTaskNotRunning) {
+		h.api.WriteFailure(writer, http.StatusConflict, "任务当前不在运行中")
 		return
 	}
 	h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())

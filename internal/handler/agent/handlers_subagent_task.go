@@ -11,6 +11,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type subagentTaskMessageRequest struct {
+	Message string `json:"message"`
+}
+
 // HandleSessionSubagentTasks 返回 session 中的后台 subagent task。
 func (h *Handlers) HandleSessionSubagentTasks(writer http.ResponseWriter, request *http.Request) {
 	sessionKey := strings.TrimSpace(chi.URLParam(request, "session_key"))
@@ -46,6 +50,22 @@ func (h *Handlers) HandleStopSessionSubagentTask(writer http.ResponseWriter, req
 	h.api.WriteSuccess(writer, result)
 }
 
+// HandleSendSessionSubagentTaskMessage 向 session 中的 subagent task 发送后续消息。
+func (h *Handlers) HandleSendSessionSubagentTaskMessage(writer http.ResponseWriter, request *http.Request) {
+	sessionKey := strings.TrimSpace(chi.URLParam(request, "session_key"))
+	taskID := strings.TrimSpace(chi.URLParam(request, "task_id"))
+	var payload subagentTaskMessageRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	result, err := h.sessions.SendSubagentTaskMessage(request.Context(), sessionKey, taskID, payload.Message)
+	if err != nil {
+		h.writeSubagentTaskError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
 func (h *Handlers) writeSubagentTaskError(writer http.ResponseWriter, err error) {
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
@@ -57,6 +77,10 @@ func (h *Handlers) writeSubagentTaskError(writer http.ResponseWriter, err error)
 	}
 	if errors.Is(err, sessionpkg.ErrSubagentRuntimeUnavailable) {
 		h.api.WriteFailure(writer, http.StatusConflict, "任务当前不在线或已结束")
+		return
+	}
+	if errors.Is(err, sessionpkg.ErrSubagentTaskNotRunning) {
+		h.api.WriteFailure(writer, http.StatusConflict, "任务当前不在运行中")
 		return
 	}
 	h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
