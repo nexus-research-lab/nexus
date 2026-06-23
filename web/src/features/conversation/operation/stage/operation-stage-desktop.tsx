@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import type { PermissionDecisionPayload } from "@/types/conversation/permission";
@@ -62,10 +62,12 @@ import {
 
 export function OperationStageDesktop({
   event,
+  header_action,
   on_permission_response,
   snapshot,
 }: {
   event: NexusOperationEvent;
+  header_action?: ReactNode;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
@@ -392,6 +394,7 @@ export function OperationStageDesktop({
     >
       <StageMacMenuBar
         active_window={active_window}
+        header_action={header_action}
         windows={window_states}
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />

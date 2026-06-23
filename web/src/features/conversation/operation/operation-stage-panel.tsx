@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Bug } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import type { PermissionDecisionPayload } from "@/types/conversation/permission";
@@ -59,7 +57,6 @@ export function OperationStagePanel({
   header_action,
   presentation = "panel",
 }: OperationStagePanelProps) {
-  const [is_debug_open, set_is_debug_open] = useState(false);
   const stage_key = build_operation_stage_key(identity);
   const snapshot = useOperationStageStore((state) => (
     stage_key ? state.snapshots[stage_key] : null
@@ -82,13 +79,11 @@ export function OperationStagePanel({
       <OperationStageMotionStyles />
       <StageSurface
         active_event={display_event}
-        header_action={header_action}
-        is_debug_open={is_debug_open}
+        header_action={presentation === "stage" ? header_action : undefined}
         on_permission_response={permission_response_handler}
         presentation={presentation}
         snapshot={snapshot ?? null}
         subtitle={subtitle}
-        on_toggle_debug={() => set_is_debug_open((value) => !value)}
       />
     </>
   );
@@ -99,15 +94,7 @@ export function OperationStagePanel({
 
   return (
     <WorkspaceSurfaceView
-      action={(
-        <div className="flex items-center gap-2">
-          <WorkspaceSurfaceToolbarAction onClick={() => set_is_debug_open((value) => !value)}>
-            <Bug className="h-3.5 w-3.5" />
-            证据
-          </WorkspaceSurfaceToolbarAction>
-          {header_action}
-        </div>
-      )}
+      action={header_action}
       body_class_name="px-2 py-2 sm:px-3 xl:px-4"
       body_scrollable={false}
       content_class_name="flex h-full min-h-0 max-w-none"
@@ -136,18 +123,14 @@ function StageSurface({
   subtitle,
   presentation,
   header_action,
-  is_debug_open,
   on_permission_response,
-  on_toggle_debug,
 }: {
   active_event: NexusOperationEvent | null;
   snapshot: NexusOperationSnapshot | null;
   subtitle: string;
   presentation: "panel" | "stage";
   header_action?: ReactNode;
-  is_debug_open: boolean;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  on_toggle_debug: () => void;
 }) {
   const is_stage = presentation === "stage";
   const stage_transition = useStageTransition(active_event);
@@ -200,6 +183,7 @@ function StageSurface({
                 >
                   <StageScene
                     event={active_event}
+                    header_action={header_action}
                     on_permission_response={on_permission_response}
                     snapshot={snapshot}
                   />
@@ -211,69 +195,25 @@ function StageSurface({
           </div>
         </div>
       </div>
-
-      {is_stage ? (
-        <StageOverlayControls
-          header_action={header_action}
-          is_debug_open={is_debug_open}
-          on_toggle_debug={on_toggle_debug}
-        />
-      ) : null}
-
-      {is_debug_open ? (
-        <DebugOverlay
-          event={active_event}
-          presentation={presentation}
-          snapshot={snapshot}
-        />
-      ) : null}
     </section>
-  );
-}
-
-function StageOverlayControls({
-  header_action,
-  is_debug_open,
-  on_toggle_debug,
-}: {
-  header_action?: ReactNode;
-  is_debug_open: boolean;
-  on_toggle_debug: () => void;
-}) {
-  return (
-    <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-full border border-white/70 bg-white/72 p-1 text-(--icon-default) opacity-75 shadow-[0_14px_34px_rgba(18,28,42,0.12)] backdrop-blur-xl transition-opacity hover:opacity-100 focus-within:opacity-100">
-      <button
-        aria-label="切换证据摘要"
-        className={cn(
-          "inline-flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-          is_debug_open && "bg-(--surface-interactive-active-background) text-(--text-strong)",
-        )}
-        onClick={on_toggle_debug}
-        type="button"
-      >
-        <Bug className="h-3.5 w-3.5" />
-      </button>
-      {header_action ? (
-        <div className="[&_button]:h-7 [&_button]:w-7 [&_button]:gap-0 [&_button]:rounded-full [&_button]:border-transparent [&_button]:bg-transparent [&_button]:p-0 [&_button]:text-[0px] [&_button]:shadow-none [&_svg]:h-3.5 [&_svg]:w-3.5">
-          {header_action}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
 function StageScene({
   event,
+  header_action,
   on_permission_response,
   snapshot,
 }: {
   event: NexusOperationEvent;
+  header_action?: ReactNode;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   snapshot: NexusOperationSnapshot | null;
 }) {
   return (
     <OperationStageDesktop
       event={event}
+      header_action={header_action}
       on_permission_response={on_permission_response}
       snapshot={snapshot}
     />
@@ -404,35 +344,4 @@ function resolve_stage_transition_intent(event: NexusOperationEvent): StageTrans
     return "editor";
   }
   return "summary";
-}
-
-function DebugOverlay({
-  event,
-  presentation = "panel",
-  snapshot,
-}: {
-  event: NexusOperationEvent | null;
-  presentation?: "panel" | "stage";
-  snapshot: NexusOperationSnapshot | null;
-}) {
-  return (
-    <div className={cn(
-      "surface-popover absolute right-4 z-20 w-[min(460px,calc(100%-2rem))] rounded-[16px] p-3",
-      presentation === "stage" ? "top-14" : "top-4",
-    )}>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[11px] font-semibold text-(--text-strong)">
-          <Bug className="h-3.5 w-3.5" />
-          证据摘要
-        </div>
-        <span className="text-[10px] text-(--text-soft)">{snapshot?.events.length ?? 0} events</span>
-      </div>
-      <pre className="soft-scrollbar max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-[12px] border border-(--divider-subtle-color) bg-white/70 p-3 text-[10.5px] leading-5 text-(--text-default)">
-        {JSON.stringify({
-          active: event,
-          recent_evidence: snapshot?.recent_evidence ?? [],
-        }, null, 2)}
-      </pre>
-    </div>
-  );
 }

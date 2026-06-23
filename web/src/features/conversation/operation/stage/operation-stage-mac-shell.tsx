@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Battery,
   Bell,
@@ -6,6 +7,7 @@ import {
   Command,
   Loader2,
   MousePointer2,
+  Power,
   Search,
   AlertTriangle,
   Activity,
@@ -32,9 +34,11 @@ import type { NexusOperationEvent } from "../operation-types";
 
 export function StageMacMenuBar({
   active_window,
+  header_action,
   windows,
 }: {
   active_window: StageWindowState | null;
+  header_action?: ReactNode;
   windows: StageWindowState[];
 }) {
   const app_name = active_window ? stage_app_label_for_window_kind(active_window.kind) : "Nexus";
@@ -96,6 +100,27 @@ export function StageMacMenuBar({
         <Wifi className="h-3 w-3" />
         <Battery className="h-3 w-3" />
         <span className="font-mono text-[10px] text-(--text-strong)">{time_label}</span>
+        {header_action ? (
+          <StagePowerAction>{header_action}</StagePowerAction>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function StagePowerAction({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="relative ml-1 grid h-7 w-7 place-items-center rounded-full border border-[rgba(223,93,98,0.24)] bg-[rgba(255,246,246,0.72)] text-[color:var(--destructive)] shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] transition hover:bg-[rgba(255,235,235,0.9)] focus-within:ring-2 focus-within:ring-[rgba(223,93,98,0.22)]"
+      title="退出操作舞台"
+    >
+      <Power className="pointer-events-none absolute h-3.5 w-3.5" />
+      <div className="[&_button]:absolute [&_button]:inset-0 [&_button]:h-full [&_button]:w-full [&_button]:gap-0 [&_button]:rounded-full [&_button]:border-0 [&_button]:bg-transparent [&_button]:p-0 [&_button]:text-[0px] [&_button]:shadow-none [&_button]:outline-none [&_button]:ring-0 [&_svg]:opacity-0">
+        {children}
       </div>
     </div>
   );
