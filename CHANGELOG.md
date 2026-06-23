@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded Operation Stage into a visual execution runtime with runtime events, interactive Code/Terminal/Safari/Permission/Finder/Activity/Handoff app surfaces, real Code writer content projection, and stage preview verification.
 
 ### Fixed
+- Kept manually minimized Operation Stage windows in Dock when another window is minimized.
 - Clarified conversation connection error copy and provider retry UI so runtime stalls are not presented as a stopped backend service.
 - Preserved runtime `compact_boundary` system events so context compaction is visible in conversation history.
 

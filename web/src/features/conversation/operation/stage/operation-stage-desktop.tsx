@@ -107,6 +107,11 @@ export function OperationStageDesktop({
   const stage_windows = useMemo(() => (
     [...desktop_windows, ...launched_windows]
   ), [desktop_windows, launched_windows]);
+  const planned_active_window_id = useMemo(() => (
+    desktop_windows.some((window) => window.id === desktop.active_window_id)
+      ? desktop.active_window_id
+      : stage_windows[0]?.id ?? null
+  ), [desktop.active_window_id, desktop_windows, stage_windows]);
   const desktop_active_window_id = useMemo(() => (
     stage_windows.some((window) => window.id === focused_window_id)
       ? focused_window_id
@@ -143,7 +148,7 @@ export function OperationStageDesktop({
   }, [event.id]);
 
   useEffect(() => {
-    const next_active_window_id = desktop_active_window_id;
+    const next_active_window_id = planned_active_window_id;
     if (!next_active_window_id) {
       return;
     }
@@ -157,7 +162,7 @@ export function OperationStageDesktop({
         minimized: false,
       },
     }));
-  }, [active_narrative_event.id, desktop_active_window_id]);
+  }, [active_narrative_event.id, planned_active_window_id]);
 
   const window_states = useMemo(() => (
     windows_for_reveal
