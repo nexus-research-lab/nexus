@@ -30,7 +30,7 @@ func (s *RealtimeService) ShouldDeferGoalContinuation(ctx context.Context, sessi
 	if s.rooms == nil {
 		return false
 	}
-	contextValue, err := s.rooms.GetConversationContext(ctx, parsed.ConversationID)
+	ctx, contextValue, err := s.internalConversationContext(ctx, parsed.ConversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
 			s.loggerFor(ctx).Warn("解析 Room Goal 续跑待发送队列上下文失败", "session_key", sessionKey, "err", err)
@@ -102,7 +102,7 @@ func (s *RealtimeService) GoalContinuationConversationMissing(ctx context.Contex
 	if s == nil || s.rooms == nil || conversationID == "" {
 		return false, nil
 	}
-	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	_, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if errors.Is(err, ErrRoomNotFound) || errors.Is(err, ErrConversationNotFound) {
 		return true, nil
 	}
@@ -293,7 +293,7 @@ func (s *RealtimeService) goalContinuationDispatchTarget(
 	if s == nil || s.rooms == nil {
 		return nil, ""
 	}
-	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
 			s.loggerFor(ctx).Warn("读取 Room Goal 续跑目标失败", "conversation_id", conversationID, "err", err)

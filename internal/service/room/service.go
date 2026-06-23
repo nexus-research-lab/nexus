@@ -27,6 +27,7 @@ type Repository interface {
 	GetRoom(context.Context, string, string) (*protocol.RoomAggregate, error)
 	GetRoomContexts(context.Context, string, string) ([]protocol.ConversationContextAggregate, error)
 	GetConversationContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
+	GetConversationContextForSystem(context.Context, string) (*protocol.ConversationContextAggregate, error)
 	FindDMRoomContext(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
 	CreateRoom(context.Context, roomrepo.CreateRoomBundle) (*protocol.ConversationContextAggregate, error)
 	UpdateRoom(context.Context, string, string, roomrepo.UpdateRoomPatch) (*protocol.ConversationContextAggregate, error)

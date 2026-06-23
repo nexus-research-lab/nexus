@@ -203,6 +203,24 @@ LIMIT 1`, conversationID, ownerUserID)
 	return r.getContextByConversation(ctx, ownerUserID, roomID, conversationID)
 }
 
+// GetConversationContextForSystem 按 conversation_id 读取内部系统续跑所需上下文。
+func (r *SQLRepository) GetConversationContextForSystem(ctx context.Context, conversationID string) (*protocol.ConversationContextAggregate, error) {
+	row := r.db.QueryRowContext(ctx, `
+SELECT c.room_id, r.owner_user_id
+FROM conversations c
+JOIN rooms r ON r.id = c.room_id
+WHERE c.id = `+r.dialect.Bind(1)+`
+LIMIT 1`, conversationID)
+	var roomID string
+	var ownerUserID string
+	if err := row.Scan(&roomID, &ownerUserID); errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return r.getContextByConversation(ctx, ownerUserID, roomID, conversationID)
+}
+
 // FindDMRoomContext 查找指定 Agent 的 DM 上下文。
 func (r *SQLRepository) FindDMRoomContext(ctx context.Context, ownerUserID string, agentID string) (*protocol.ConversationContextAggregate, error) {
 	rows, err := r.db.QueryContext(ctx, `

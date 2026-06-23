@@ -24,7 +24,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		return err
 	}
 
-	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, request.Internal)
 	if err != nil {
 		return err
 	}
