@@ -8,9 +8,3 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
-
-declare module "x-data-spreadsheet/dist/xspreadsheet.js" {
-  import Spreadsheet from "x-data-spreadsheet";
-
-  export default Spreadsheet;
-}
