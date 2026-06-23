@@ -430,7 +430,7 @@ export function OperationStageDesktop({
             on_zoom={() => toggle_zoom_window(window.id)}
             on_cycle_focus={cycle_window_focus}
             position_class_name={is_maximized
-              ? "inset-x-4 top-12 bottom-0 h-auto w-auto"
+              ? "inset-x-4 top-14 bottom-0 h-auto w-auto"
               : position_for_window(window, narrative.phase, background_window_index)}
             preview_mode={is_stage_manager_preview ? "stage-manager" : undefined}
             restore_token={window_overrides[window.id]?.restore_token}
