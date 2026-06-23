@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  ChevronDown,
   MousePointer2,
   Power,
 } from "lucide-react";
@@ -8,6 +9,12 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { StageWindowState } from "../operation-desktop-types";
+import {
+  display_stage_event_target,
+  display_stage_event_title,
+} from "../operation-stage-labels";
+import { resolve_operation_tool_profile } from "../operation-tool-catalog";
+import type { NexusOperationEvent, OperationPhase } from "../operation-types";
 import {
   icon_for_artifact_path,
   stage_app_label_for_window_kind,
@@ -19,20 +26,42 @@ import {
   agent_cursor_anchor_class,
   agent_cursor_intent_for_window_kind,
 } from "./operation-stage-agent-cursor";
+import {
+  event_sequence_label,
+  icon_for_operation_kind,
+} from "./operation-stage-helpers";
+
+interface StageToolQueueItem {
+  action_label: string;
+  active: boolean;
+  event: NexusOperationEvent;
+  step_label: string;
+  target: string;
+  title: string;
+}
 
 export function StageMacMenuBar({
+  active_event,
   active_window,
+  events,
   header_action,
+  on_focus_event,
   windows,
 }: {
+  active_event: NexusOperationEvent;
   active_window: StageWindowState | null;
+  events: NexusOperationEvent[];
   header_action?: ReactNode;
+  on_focus_event: (event: NexusOperationEvent) => void;
   windows: StageWindowState[];
 }) {
   const app_name = active_window ? stage_app_label_for_window_kind(active_window.kind) : "Nexus";
   const menu_status = useMemo(() => (
     build_stage_menu_status(windows, active_window, (window) => stage_app_label_for_window_kind(window.kind))
   ), [active_window, windows]);
+  const tool_queue_items = useMemo(() => (
+    build_stage_tool_queue_items(events, active_event)
+  ), [active_event, events]);
   const [current_time, set_current_time] = useState(() => new Date());
   const time_label = useMemo(() => (
     new Intl.DateTimeFormat("zh-CN", {
@@ -49,7 +78,7 @@ export function StageMacMenuBar({
   return (
     <div
       aria-label={menu_status.activity_label}
-      className="absolute inset-x-4 top-3 z-40 flex h-9 items-center justify-between rounded-[14px] border border-white/64 bg-[rgba(255,255,255,0.62)] px-3 text-[11px] font-semibold text-(--text-strong) shadow-[0_12px_30px_rgba(18,28,42,0.09),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-2xl max-md:hidden"
+      className="absolute inset-x-4 top-3 z-[160] flex h-9 items-center justify-between rounded-[14px] border border-white/64 bg-[rgba(255,255,255,0.62)] px-3 text-[11px] font-semibold text-(--text-strong) shadow-[0_12px_30px_rgba(18,28,42,0.09),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-2xl max-md:hidden"
       title={[
         menu_status.activity_label,
         menu_status.window_label,
@@ -65,6 +94,10 @@ export function StageMacMenuBar({
         <span className="max-w-[160px] truncate font-black">{app_name}</span>
       </div>
       <div className="flex shrink-0 items-center gap-2 text-(--text-soft)">
+        <StageToolQueueMenu
+          items={tool_queue_items}
+          on_focus_event={on_focus_event}
+        />
         <span className="hidden max-w-[220px] truncate rounded-full border border-white/66 bg-white/52 px-2 py-1 text-[9px] font-black text-(--text-strong) lg:inline">
           {menu_status.activity_label}
         </span>
@@ -85,6 +118,103 @@ export function StageMacMenuBar({
   );
 }
 
+function StageToolQueueMenu({
+  items,
+  on_focus_event,
+}: {
+  items: StageToolQueueItem[];
+  on_focus_event: (event: NexusOperationEvent) => void;
+}) {
+  const [is_open, set_is_open] = useState(false);
+
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={is_open}
+        aria-label="查看完整工具执行记录"
+        className={cn(
+          "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[9px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)]",
+          is_open
+            ? "border-[rgba(91,114,255,0.26)] bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)]"
+            : "border-white/66 bg-white/44 text-(--text-strong) hover:bg-white/64",
+        )}
+        onClick={() => set_is_open((value) => !value)}
+        type="button"
+      >
+        工具执行
+        <span className="rounded-full bg-white/62 px-1.5 py-px text-[8px] text-(--text-soft)">
+          {items.length}
+        </span>
+        <ChevronDown className={cn("h-3 w-3 transition-transform", is_open && "rotate-180")} />
+      </button>
+
+      {is_open ? (
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[360px] overflow-hidden rounded-[16px] border border-white/68 bg-[rgba(248,250,252,0.86)] p-2 text-(--text-strong) shadow-[0_22px_60px_rgba(18,28,42,0.18),inset_0_1px_0_rgba(255,255,255,0.76)] backdrop-blur-2xl">
+          <div className="flex items-center justify-between gap-3 border-b border-[rgba(117,131,149,0.16)] px-1 pb-2">
+            <span className="text-[11px] font-black">完整工具执行</span>
+            <span className="rounded-full bg-white/62 px-2 py-0.5 text-[8px] font-black text-(--text-soft)">
+              {items.length} 步
+            </span>
+          </div>
+          <div className="soft-scrollbar mt-2 grid max-h-[360px] gap-1 overflow-auto pr-1">
+            {items.map((item) => {
+              const Icon = icon_for_operation_kind(item.event.kind);
+              return (
+                <button
+                  aria-label={`查看${item.step_label}：${item.title}`}
+                  className={cn(
+                    "grid min-w-0 grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 rounded-[12px] border px-2 py-2 text-left transition hover:bg-white/72 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)]",
+                    item.active
+                      ? "border-[rgba(91,114,255,0.28)] bg-[rgba(91,114,255,0.12)]"
+                      : "border-white/54 bg-white/34",
+                  )}
+                  key={item.event.id}
+                  onClick={() => {
+                    on_focus_event(item.event);
+                    set_is_open(false);
+                  }}
+                  title={`${item.step_label} · ${item.action_label} · ${item.title} · ${item.target}`}
+                  type="button"
+                >
+                  <span className={cn(
+                    "relative grid h-[30px] w-[30px] place-items-center rounded-[10px] border border-white/68 bg-white/62 text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]",
+                    item.active && "text-[color:var(--primary)] ring-2 ring-[rgba(91,114,255,0.18)]",
+                  )}>
+                    <Icon className="h-3.5 w-3.5" />
+                    <span className={cn(
+                      "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-white/82",
+                      phase_dot_class(item.event.phase),
+                    )} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="shrink-0 text-[9px] font-black text-(--text-soft)">{item.step_label}</span>
+                      <span className="truncate text-[10px] font-black text-(--text-strong)">{item.title}</span>
+                    </span>
+                    <span className="mt-0.5 block truncate text-[9px] font-semibold text-(--text-soft)">
+                      {item.action_label} · {item.target}
+                    </span>
+                  </span>
+                  <span className={cn(
+                    "rounded-full px-1.5 py-px text-[8px] font-black",
+                    phase_badge_class(item.event.phase),
+                  )}>
+                    {phase_label(item.event.phase)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function StagePowerAction({
   children,
 }: {
@@ -101,6 +231,78 @@ function StagePowerAction({
       </div>
     </div>
   );
+}
+
+function build_stage_tool_queue_items(events: NexusOperationEvent[], active_event: NexusOperationEvent): StageToolQueueItem[] {
+  const candidates = [...events, active_event].filter(is_tool_queue_event);
+  const deduped = new Map<string, NexusOperationEvent>();
+  for (const event of candidates) {
+    deduped.set(event.id, event);
+  }
+  const ordered_events = [...deduped.values()].sort((left, right) => (
+    (left.started_at ?? left.updated_at) - (right.started_at ?? right.updated_at)
+  ));
+
+  return ordered_events.map((event) => {
+    const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+    return {
+      action_label: profile.action_label,
+      active: event.id === active_event.id,
+      event,
+      step_label: event_sequence_label(event, ordered_events),
+      target: display_stage_event_target(event, profile.action_label),
+      title: display_stage_event_title(event, profile.action_label),
+    };
+  });
+}
+
+function is_tool_queue_event(event: NexusOperationEvent): boolean {
+  return event.surface !== "conversation" || Boolean(event.tool_name) || event.kind === "human_gate";
+}
+
+function phase_label(phase: OperationPhase): string {
+  if (phase === "done") {
+    return "完成";
+  }
+  if (phase === "waiting") {
+    return "等待";
+  }
+  if (phase === "error") {
+    return "异常";
+  }
+  if (phase === "cancelled") {
+    return "取消";
+  }
+  if (phase === "queued") {
+    return "排队";
+  }
+  return "运行";
+}
+
+function phase_dot_class(phase: OperationPhase): string {
+  if (phase === "done") {
+    return "bg-[rgba(47,184,132,0.78)]";
+  }
+  if (phase === "waiting") {
+    return "bg-[rgba(223,157,46,0.84)]";
+  }
+  if (phase === "error" || phase === "cancelled") {
+    return "bg-[rgba(223,93,98,0.82)]";
+  }
+  return "bg-[rgba(91,114,255,0.78)]";
+}
+
+function phase_badge_class(phase: OperationPhase): string {
+  if (phase === "done") {
+    return "bg-[rgba(47,184,132,0.12)] text-[color:var(--success)]";
+  }
+  if (phase === "waiting") {
+    return "bg-[rgba(223,157,46,0.14)] text-[color:var(--warning)]";
+  }
+  if (phase === "error" || phase === "cancelled") {
+    return "bg-[rgba(223,93,98,0.12)] text-[color:var(--destructive)]";
+  }
+  return "bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)]";
 }
 
 export function StageDesktopIcons({

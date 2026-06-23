@@ -53,7 +53,6 @@ import {
   normalize_stage_window_drag_offset,
 } from "./operation-stage-window-drag";
 import { build_stage_window_launch_state } from "./operation-stage-window-launch";
-import { StageWorkspaceSwitchboard } from "./operation-stage-workspace-switchboard";
 import {
   build_stage_dock_launch_window,
   stage_dock_launch_window_id,
@@ -386,19 +385,14 @@ export function OperationStageDesktop({
       on_key_down_capture={handle_desktop_key_down}
     >
       <StageMacMenuBar
+        active_event={active_narrative_event}
         active_window={active_window}
+        events={narrative_events}
         header_action={header_action}
+        on_focus_event={focus_event_window}
         windows={window_states}
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
-      <StageWorkspaceSwitchboard
-        active_event={active_narrative_event}
-        active_window_id={active_window_id}
-        events={narrative_events}
-        on_focus_event={focus_event_window}
-        on_restore_window={restore_window}
-        windows={window_states}
-      />
       <StageAgentCursor active_window={active_window} />
       {visible_windows.length ? visible_windows.map((window, index) => {
         const is_active = active_window_id === window.id && window.phase !== "minimized";
