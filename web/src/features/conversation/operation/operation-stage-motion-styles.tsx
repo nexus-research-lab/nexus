@@ -400,19 +400,11 @@ export function OperationStageMotionStyles() {
           transition: opacity 180ms ease-out;
         }
 
-        .operation-idle-stage-exit .operation-idle-particle-canvas {
-          animation: nexus-operation-idle-particles-yield 920ms cubic-bezier(.16,.84,.24,1) both;
-        }
-
         .operation-idle-stage-exit .operation-idle-agent-pill,
         .operation-idle-stage-exit .operation-idle-status-card,
         .operation-idle-stage-exit .operation-idle-clock {
           opacity: 0;
           transition: opacity 220ms ease-out;
-        }
-
-        .operation-idle-particle-canvas {
-          animation: nexus-operation-idle-pulse 8.5s ease-in-out infinite;
         }
 
         .operation-boot-signal {
@@ -462,8 +454,6 @@ export function OperationStageMotionStyles() {
           .operation-focus-dot,
           .operation-stage-scene-enter,
           .operation-idle-stage-exit,
-          .operation-idle-stage-exit .operation-idle-particle-canvas,
-          .operation-idle-particle-canvas,
           .operation-boot-signal,
           .operation-boot-line,
           .operation-event-signal,
