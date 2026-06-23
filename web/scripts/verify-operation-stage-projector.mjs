@@ -155,7 +155,6 @@ const {
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-hidden-windows.js")));
 const {
   dock_icon_skin_for_kind,
-  stage_menu_items_for_window_kind,
 } = await import(pathToFileURL(join(operation_dir, "stage/operation-stage-app-identity.js")));
 const {
   resolve_next_window_focus,
@@ -1067,9 +1066,6 @@ function verify_nexus_tool_session_view(now) {
 }
 
 function verify_nexus_tool_app_has_own_desktop_identity() {
-  const nexus_menu = stage_menu_items_for_window_kind("generic_tool");
-  assert(nexus_menu.includes("运行"), `Shortcut tool app menu should expose run actions, got ${nexus_menu.join(",")}`);
-  assert(!nexus_menu.includes("终端"), `Nexus tool app menu should not reuse Code terminal menus, got ${nexus_menu.join(",")}`);
   const nexus_skin = dock_icon_skin_for_kind("generic_tool");
   assert(nexus_skin.includes("#ff8fb3"), `Shortcut tool Dock skin should use the shortcut app identity, got ${nexus_skin}`);
   assert(dock_icon_skin_for_kind("code_editor") !== nexus_skin, "Nexus tool Dock skin should differ from Code");

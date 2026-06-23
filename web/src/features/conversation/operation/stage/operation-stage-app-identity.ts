@@ -1,48 +1,5 @@
 import type { StageWindowKind } from "../operation-desktop-types";
 
-export function stage_menu_items_for_window_kind(kind: StageWindowKind | null): string[] {
-  if (kind === "browser") {
-    return ["文件", "编辑", "显示", "历史记录", "书签", "窗口", "帮助"];
-  }
-  if (kind === "terminal") {
-    return ["Shell", "编辑", "显示", "窗口", "帮助"];
-  }
-  if (kind === "finder") {
-    return ["文件", "编辑", "显示", "前往", "窗口", "帮助"];
-  }
-  if (kind === "permission_wait") {
-    return ["隐私与安全", "显示", "账户", "窗口", "帮助"];
-  }
-  if (kind === "task_board") {
-    return ["显示", "进程", "窗口", "帮助"];
-  }
-  if (kind === "run_manifest" || kind === "evidence") {
-    return ["文件", "编辑", "日志", "显示", "窗口", "帮助"];
-  }
-  if (kind === "handoff") {
-    return ["文件", "编辑", "交付", "显示", "窗口", "帮助"];
-  }
-  if (kind === "generic_tool") {
-    return ["文件", "编辑", "运行", "显示", "窗口", "帮助"];
-  }
-  if (kind === "code_editor") {
-    return ["文件", "编辑", "选择", "查找", "运行", "终端", "帮助"];
-  }
-  if (kind === "spreadsheet") {
-    return ["文件", "编辑", "插入", "表格", "排列", "窗口", "帮助"];
-  }
-  if (kind === "word_reader") {
-    return ["文件", "编辑", "插入", "格式", "排列", "窗口", "帮助"];
-  }
-  if (kind === "markdown_reader" || kind === "pdf_reader" || kind === "image_viewer") {
-    return ["文件", "编辑", "显示", "工具", "窗口", "帮助"];
-  }
-  if (kind === "summary") {
-    return ["文件", "编辑", "格式", "显示", "窗口", "帮助"];
-  }
-  return ["文件", "编辑", "显示", "窗口", "帮助"];
-}
-
 export function dock_icon_skin_for_kind(kind: StageWindowKind): string {
   if (kind === "finder") {
     return "border-[rgba(72,152,224,0.42)] bg-[linear-gradient(135deg,#5ac8fa_0%,#e8f5ff_48%,#ffffff_49%,#7dd3fc_100%)] text-[#14517a]";

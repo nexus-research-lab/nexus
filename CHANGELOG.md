@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Simplified the Operation Stage system bar by removing fake app menus and inactive status icons.
 - Removed the Operation Stage workspace summary tile from the left switchboard.
 - Removed the Operation Stage Agent Activity rail to keep focus on the desktop windows and Dock.
 - Added a draggable splitter so the Operation Stage panel can be resized beside the conversation.

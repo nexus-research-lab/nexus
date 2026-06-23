@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  Battery,
-  Command,
   MousePointer2,
   Power,
-  Search,
-  Wifi,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -16,7 +12,6 @@ import {
   icon_for_artifact_path,
   stage_app_label_for_window_kind,
 } from "./operation-stage-window-meta";
-import { stage_menu_items_for_window_kind } from "./operation-stage-app-identity";
 import { build_stage_desktop_icon_items } from "./operation-stage-desktop-icons";
 import { build_stage_menu_status } from "./operation-stage-menu-model";
 import {
@@ -39,10 +34,6 @@ export function StageMacMenuBar({
     build_stage_menu_status(windows, active_window, (window) => stage_app_label_for_window_kind(window.kind))
   ), [active_window, windows]);
   const [current_time, set_current_time] = useState(() => new Date());
-  const menu_items = useMemo(
-    () => stage_menu_items_for_window_kind(active_window?.kind ?? null),
-    [active_window?.kind],
-  );
   const time_label = useMemo(() => (
     new Intl.DateTimeFormat("zh-CN", {
       hour: "2-digit",
@@ -72,9 +63,6 @@ export function StageMacMenuBar({
         <span className="font-black">Nexus OS</span>
         <span className="h-4 w-px bg-[rgba(117,131,149,0.28)]" />
         <span className="max-w-[160px] truncate font-black">{app_name}</span>
-        {menu_items.map((item) => (
-          <span className="text-(--text-soft)" key={item}>{item}</span>
-        ))}
       </div>
       <div className="flex shrink-0 items-center gap-2 text-(--text-soft)">
         <span className="hidden max-w-[220px] truncate rounded-full border border-white/66 bg-white/52 px-2 py-1 text-[9px] font-black text-(--text-strong) lg:inline">
@@ -88,10 +76,6 @@ export function StageMacMenuBar({
             {menu_status.dock_label}
           </span>
         ) : null}
-        <Search className="h-3 w-3" />
-        <Command className="h-3 w-3" />
-        <Wifi className="h-3 w-3" />
-        <Battery className="h-3 w-3" />
         <span className="font-mono text-[10px] text-(--text-strong)">{time_label}</span>
         {header_action ? (
           <StagePowerAction>{header_action}</StagePowerAction>
