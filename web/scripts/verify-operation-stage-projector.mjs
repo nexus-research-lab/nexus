@@ -242,6 +242,7 @@ verify_hidden_stage_uses_desktop_state_instead_of_mission_control();
 verify_unclassified_tool_activity_opens_nexus_app_window(now);
 verify_current_unclassified_tool_opens_beside_existing_app_window(now);
 verify_recent_unclassified_tools_remain_as_mac_app_windows(now);
+verify_result_artifact_opens_preview_instead_of_generic_tool(now);
 verify_task_planner_opens_activity_monitor(now);
 verify_desktop_intents_drive_app_session_windows(now);
 verify_runtime_events_drive_app_session_windows(now);
@@ -582,6 +583,48 @@ function verify_recent_unclassified_tools_remain_as_mac_app_windows(now) {
   assert(generic_windows.length === 2, `Recent unclassified tools should remain as separate app windows, got ${generic_windows.length}`);
   assert(generic_windows.some((window) => window.payload.event.id === first_event.id && window.phase === "background"), "Previous tool app should remain visible as a background window");
   assert(generic_windows.some((window) => window.payload.event.id === second_event.id && window.phase === "focused"), "Current tool app should be focused");
+}
+
+function verify_result_artifact_opens_preview_instead_of_generic_tool(now) {
+  const event = {
+    id: "tool-imagegen",
+    session_key: "session:stage",
+    round_id: "round-imagegen",
+    agent_id: "agent-stage",
+    tool_use_id: "tool-image",
+    tool_name: "mcp__nexus_imagegen__generate_image",
+    kind: "unknown",
+    surface: "fallback",
+    phase: "done",
+    title: "生成图片",
+    target: "A cute fluffy kitten",
+    result_preview: {
+      action: "generate_image",
+      item: {
+        markdown: "![generated image](output/imagegen/cute-kitten.png)",
+      },
+    },
+    updated_at: now,
+  };
+  const desktop = plan_operation_desktop({
+    event,
+    snapshot: {
+      key: "session:stage",
+      session_key: "session:stage",
+      active_event: event,
+      events: [event],
+      runtime_events: [],
+      recent_evidence: [],
+      workspace_events: [],
+      updated_at: now,
+    },
+  });
+  const preview_window = desktop.windows.find((window) => window.kind === "image_viewer");
+  assert(preview_window, "Tool result image artifacts should open in Preview instead of the generic tool app");
+  assert(preview_window.target === "output/imagegen/cute-kitten.png", `Preview should target the generated image, got ${preview_window?.target}`);
+  assert(!desktop.windows.some((window) => window.kind === "generic_tool"), "Result-backed artifact tools should not also open a generic tool window");
+  assert(desktop.active_window_id === preview_window.id, "Generated image Preview window should become active");
+  assert(resolve_operation_event_window_id(event, desktop.windows) === preview_window.id, "Original image tool event should focus its Preview window");
 }
 
 function verify_task_planner_opens_activity_monitor(now) {

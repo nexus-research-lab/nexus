@@ -83,7 +83,11 @@ export function resolve_operation_event_window_id(
 ): string | null {
   const related_windows = windows.filter((window) => (
     window.payload.event.id === event.id ||
-    window.payload.related_events?.some((item) => item.id === event.id)
+    window.payload.related_events?.some((item) => item.id === event.id) ||
+    Boolean(event.tool_use_id && (
+      window.payload.event.tool_use_id === event.tool_use_id ||
+      window.payload.related_events?.some((item) => item.tool_use_id === event.tool_use_id)
+    ))
   ));
   const preferred_kind = preferred_window_kind_for_event(event);
   const preferred_window = related_windows.find((window) => preferred_kind.includes(window.kind));

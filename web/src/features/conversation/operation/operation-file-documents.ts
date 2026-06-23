@@ -32,9 +32,11 @@ export function collect_operation_file_context(
   const workspace_items = collect_round_workspace_items(event, snapshot, round_events);
   const latest_workspace_item = find_latest_workspace_item(event, snapshot, workspace_items);
   const latest_file_event = file_events.at(-1);
-  const latest_file_target = latest_workspace_item?.path ?? latest_file_event?.target ?? (
-    event.surface === "workspace" || event.surface === "editor" ? event.target : null
-  );
+  const latest_result_file_target = extract_file_target_from_event(event);
+  const latest_file_target = latest_workspace_item?.path
+    ?? latest_file_event?.target
+    ?? latest_result_file_target
+    ?? (event.surface === "workspace" || event.surface === "editor" ? event.target : null);
   const latest_file_preview = latest_workspace_item?.live_content
     ?? latest_file_event?.result_preview
     ?? latest_file_event?.input_preview
@@ -141,7 +143,7 @@ function collect_round_workspace_items(
   );
   const round_targets = new Set(
     round_events
-      .map((item) => item.target)
+      .flatMap((item) => [item.target, extract_file_target_from_event(item)])
       .filter((target): target is string => Boolean(target)),
   );
 
@@ -158,6 +160,47 @@ function collect_round_workspace_items(
     ? workspace_items.find((item) => item.path === event.target)
     : null;
   return (event_target_item ? [event_target_item] : []).slice(0, 8);
+}
+
+function extract_file_target_from_event(event: NexusOperationEvent): string | null {
+  return first_local_file_path(event.result_preview)
+    ?? first_local_file_path(event.evidence)
+    ?? null;
+}
+
+function first_local_file_path(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return extract_local_file_path(value);
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const path = first_local_file_path(item);
+      if (path) {
+        return path;
+      }
+    }
+    return null;
+  }
+  if (typeof value === "object") {
+    for (const item of Object.values(value)) {
+      const path = first_local_file_path(item);
+      if (path) {
+        return path;
+      }
+    }
+  }
+  return null;
+}
+
+function extract_local_file_path(text: string): string | null {
+  if (/^(https?:|data:|blob:)/i.test(text.trim())) {
+    return null;
+  }
+  const match = text.match(/(?:\.{0,2}\/)?[\w@./-]+\.(?:png|jpe?g|gif|webp|svg|pdf|mdx?|markdown|csv|tsv|xlsx?|docx?|rtf|odt)\b/i);
+  return match?.[0] ?? null;
 }
 
 function collect_file_documents({

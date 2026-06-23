@@ -15,6 +15,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  get_workspace_file_preview_url,
+} from "@/lib/api/agent-manage-api";
+import {
   basename,
   detect_preview_kind,
   get_preview_lines,
@@ -156,6 +159,7 @@ export function DocumentPreview({
   }
 
   if (kind === "image") {
+    const image_src = resolve_document_image_src(operation_event, target);
     return (
       <div className="flex h-full min-h-[240px] flex-col overflow-hidden bg-[#eef2f6]">
         <div className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) bg-white/62 px-4 py-2.5">
@@ -171,9 +175,17 @@ export function DocumentPreview({
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_150px] max-sm:grid-cols-1">
           <div className="grid min-h-0 place-items-center overflow-auto p-5">
             <div className="rounded-[14px] border border-white/76 bg-[linear-gradient(45deg,#dfe6ee_25%,transparent_25%,transparent_75%,#dfe6ee_75%),linear-gradient(45deg,#dfe6ee_25%,transparent_25%,transparent_75%,#dfe6ee_75%)] bg-[length:22px_22px] bg-[position:0_0,11px_11px] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-              <div className="grid h-32 w-48 place-items-center rounded-[10px] border border-white/80 bg-[radial-gradient(circle_at_34%_30%,rgba(91,114,255,0.26),transparent_30%),linear-gradient(135deg,rgba(47,184,132,0.22),rgba(223,157,46,0.18),rgba(255,255,255,0.72))] shadow-[0_18px_42px_rgba(18,28,42,0.16)]">
-                <ImageIcon className="h-8 w-8 text-white/74 drop-shadow" />
-              </div>
+              {image_src ? (
+                <img
+                  alt={display_title}
+                  className="max-h-[58vh] max-w-full rounded-[10px] border border-white/80 bg-white object-contain shadow-[0_18px_42px_rgba(18,28,42,0.16)]"
+                  src={image_src}
+                />
+              ) : (
+                <div className="grid h-32 w-48 place-items-center rounded-[10px] border border-white/80 bg-[radial-gradient(circle_at_34%_30%,rgba(91,114,255,0.26),transparent_30%),linear-gradient(135deg,rgba(47,184,132,0.22),rgba(223,157,46,0.18),rgba(255,255,255,0.72))] shadow-[0_18px_42px_rgba(18,28,42,0.16)]">
+                  <ImageIcon className="h-8 w-8 text-white/74 drop-shadow" />
+                </div>
+              )}
             </div>
           </div>
           <aside className="hidden border-l border-(--divider-subtle-color) bg-white/58 p-3 text-[10px] sm:block">
@@ -207,6 +219,19 @@ export function DocumentPreview({
       title={display_title}
     />
   );
+}
+
+function resolve_document_image_src(
+  event: NexusOperationEvent | undefined,
+  target?: string | null,
+): string | null {
+  if (!target) {
+    return null;
+  }
+  if (/^(https?:|data:|blob:)/i.test(target)) {
+    return target;
+  }
+  return event?.agent_id ? get_workspace_file_preview_url(event.agent_id, target) : null;
 }
 
 function EditorSurface({

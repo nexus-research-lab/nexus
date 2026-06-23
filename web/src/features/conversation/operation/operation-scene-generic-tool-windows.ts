@@ -26,8 +26,18 @@ export function append_generic_tool_windows({
   windows,
   window_state,
 }: AppendGenericToolWindowsParams): void {
-  const represented_event_ids = new Set(windows.map((window) => window.payload.event.id));
-  const generic_events = tool_activity_events.filter((item) => !represented_event_ids.has(item.id));
+  const represented_event_ids = new Set(windows.flatMap((window) => [
+    window.payload.event.id,
+    ...(window.payload.related_events ?? []).map((item) => item.id),
+  ]));
+  const represented_tool_use_ids = new Set(windows.flatMap((window) => [
+    window.payload.event.tool_use_id,
+    ...(window.payload.related_events ?? []).map((item) => item.tool_use_id),
+  ].filter((tool_use_id): tool_use_id is string => Boolean(tool_use_id))));
+  const generic_events = tool_activity_events.filter((item) => (
+    !represented_event_ids.has(item.id) &&
+    !(item.tool_use_id && represented_tool_use_ids.has(item.tool_use_id))
+  ));
   if (!generic_events.length) {
     return;
   }
