@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Tightened the Operation Stage menu-to-window spacing so foreground apps sit closer to the system bar.
+- Refined the Operation Stage shortcut tool app into a read-only run detail surface with clearer inputs and results.
 - Removed the idle Operation Stage particle canvas animation.
 - Moved the Operation Stage execution path into a clickable system-bar dropdown.
 - Removed the empty-desktop recovery card and refined the Operation Stage static wallpaper.

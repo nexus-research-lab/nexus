@@ -1,13 +1,10 @@
 import {
-  CheckCircle2,
-  ChevronRight,
   CircleDot,
   Clock3,
   FileText,
   ListTree,
   Play,
   RadioTower,
-  Search,
   Settings2,
   Sparkles,
   Workflow,
@@ -47,131 +44,196 @@ export function NexusToolSurface({
   const workflow_steps = build_workflow_steps(session);
 
   return (
-    <div className="grid h-full min-h-[320px] min-w-0 grid-cols-[188px_minmax(0,1fr)] overflow-hidden bg-[#f5f6f8] text-(--text-default) max-md:grid-cols-1">
-      <aside className="soft-scrollbar min-h-0 overflow-auto border-r border-(--divider-subtle-color) bg-[#edf0f5]/92 p-2 max-md:hidden">
-        <div className="flex items-center gap-2 rounded-[10px] bg-white/64 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-white/72 bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)] shadow-[0_8px_20px_rgba(18,28,42,0.06)]">
-            <Sparkles className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[12px] font-black text-(--text-strong)">快捷指令</p>
-            <p className="truncate text-[10px] text-(--text-soft)">{session.app_intent.group_label} · {session.tool_name}</p>
+    <div className="grid h-full min-h-[320px] min-w-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden bg-[#f4f6f8] text-(--text-default) max-md:grid-cols-1">
+      <aside className="soft-scrollbar min-h-0 overflow-auto border-r border-(--divider-subtle-color) bg-[#eaf0f4]/88 p-3 max-md:hidden">
+        <div className="rounded-[14px] border border-white/64 bg-white/64 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.82)]">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] border border-white/78 bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)] shadow-[0_10px_24px_rgba(18,28,42,0.07)]">
+              <Sparkles className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-black text-(--text-strong)">快捷指令</p>
+              <p className="truncate text-[10px] font-semibold text-(--text-soft)">{session.app_intent.group_label} · {profile.action_label}</p>
+            </div>
+          </div>
+          <div className="mt-3 rounded-[10px] border border-(--divider-subtle-color) bg-white/58 px-2.5 py-2">
+            <p className="truncate text-[10px] font-black text-(--text-strong)" title={session.tool_name}>{session.tool_name}</p>
+            <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-(--text-soft)" title={session.display_target}>{session.display_target}</p>
           </div>
         </div>
 
-        <div className="mt-2 flex items-center gap-1.5 rounded-[8px] bg-white/58 px-2 py-1.5 text-[10px] font-semibold text-(--text-soft)">
-          <Search className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">搜索动作</span>
+        <div className="mt-3 px-1 text-[9px] font-black uppercase tracking-[0.12em] text-(--text-soft)">运行信息</div>
+        <div className="mt-1.5 space-y-1">
+          {session.sidebar_items.map((item, index) => (
+            <SidebarMetric
+              icon={sidebar_icon_for_index(index)}
+              key={item.key}
+              label={item.label}
+              value={item.value}
+            />
+          ))}
         </div>
 
-        <div className="mt-2 px-1 text-[9px] font-black uppercase tracking-[0.12em] text-(--text-soft)">动作库</div>
-        <div className="mt-1 space-y-0.5">
-          {session.sidebar_items.map((item, index) => (
+        <div className="mt-4 px-1 text-[9px] font-black uppercase tracking-[0.12em] text-(--text-soft)">最近记录</div>
+        <div className="mt-1.5 space-y-1">
+          {session.timeline.slice(-4).map((item, index) => (
             <div
-              className={cn(
-                "grid w-full min-w-0 grid-cols-[17px_minmax(0,1fr)_10px] items-center gap-1.5 rounded-[7px] px-2 py-1.5 text-left text-[10px] transition",
-                index === 0 ? "bg-white/86 text-(--text-strong) shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]" : "text-(--text-muted) hover:bg-white/54",
-              )}
-              title={`${item.label}: ${item.value}`}
-              key={item.key}
+              className="flex min-w-0 items-center gap-2 rounded-[9px] bg-white/50 px-2 py-1.5 text-[10px]"
+              key={item.id}
+              title={`${item.label} · ${item.phase_label}`}
             >
-              <SidebarIcon index={index} />
-              <span className="min-w-0">
-                <span className="block truncate font-black">{item.label}</span>
-                <span className="block truncate font-semibold text-(--text-soft)">{item.value}</span>
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[rgba(47,184,132,0.12)] text-[9px] font-black text-[color:var(--success)]">
+                {index + 1}
               </span>
-              <ChevronRight className="h-3 w-3 text-(--icon-muted)" />
+              <span className="min-w-0">
+                <span className="block truncate font-black text-(--text-strong)">{item.label}</span>
+                <span className="block truncate font-semibold text-(--text-soft)">{item.phase_label}</span>
+              </span>
             </div>
           ))}
         </div>
       </aside>
 
       <section className="flex min-h-0 min-w-0 flex-col">
-        <header className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-(--divider-subtle-color) bg-white/76 px-4 py-2.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] border px-2.5 text-[11px] font-black ${ACTION_TONE_CLASS[profile.action]}`}>
+        <header className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-(--divider-subtle-color) bg-white/80 px-5 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[11px] border px-2.5 text-[11px] font-black ${ACTION_TONE_CLASS[profile.action]}`}>
               <ActionIcon className="h-4 w-4" />
               {profile.action_label}
             </span>
             <div className="min-w-0">
-              <h3 className="truncate text-[14px] font-black tracking-normal text-(--text-strong)">
-                {session.tool_name} 快捷指令
+              <h3 className="truncate text-[15px] font-black tracking-normal text-(--text-strong)" title={session.tool_name}>
+                {session.tool_name}
               </h3>
-              <p className="mt-0.5 truncate text-[10px] font-semibold text-(--text-soft)">
+              <p className="mt-0.5 truncate text-[10px] font-semibold text-(--text-soft)" title={session.display_target}>
                 {session.app_intent.app_label} · {session.display_target}
               </p>
             </div>
           </div>
-          <button
-            className={cn(
-              "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-black transition",
-              event.phase === "running"
-                ? "border-[rgba(91,114,255,0.22)] bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)]"
-                : "border-(--divider-subtle-color) bg-white/72 text-(--text-soft)",
-            )}
-            type="button"
-          >
-            <Play className={cn("h-3.5 w-3.5", event.phase === "running" && "animate-pulse")} />
-            {PHASE_LABELS[event.phase]}
-          </button>
+          <StatusPill phase={event.phase} />
         </header>
 
-        <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[linear-gradient(180deg,#fbfcfe_0%,#eef2f7_100%)] px-5 py-4">
-          <section className="mx-auto max-w-[740px]">
-            <div className="rounded-[16px] border border-(--divider-subtle-color) bg-white/72 p-3 shadow-[0_18px_52px_rgba(18,28,42,0.08)]">
-              <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+        <div className="soft-scrollbar min-h-0 flex-1 overflow-auto bg-[linear-gradient(180deg,#fbfcfd_0%,#eef3f7_100%)] px-6 py-5">
+          <section className="mx-auto flex max-w-[960px] flex-col gap-3">
+            <div className="rounded-[18px] border border-(--divider-subtle-color) bg-white/78 p-4 shadow-[0_22px_58px_rgba(18,28,42,0.08)]">
+              <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
                 <PaneTitle icon={Workflow} title={session.app_intent.detail_label} subtitle={event.summary ?? session.display_target} />
-                <span className="shrink-0 rounded-full bg-[#eef2f7] px-2.5 py-1 text-[10px] font-black text-(--text-soft)">
-                  {workflow_steps.length} 个动作
-                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <RunStat label="输入" value={`${session.input_rows.length || 1} 项`} />
+                  <RunStat label="动作" value={`${workflow_steps.length} 步`} />
+                  <RunStat label="输出" value={`${output_lines.length || 1} 行`} />
+                </div>
               </div>
-              {workflow_steps.map((step, index) => (
-                <ShortcutActionRow
-                  action_icon={ActionIcon}
-                  is_last={index === workflow_steps.length - 1}
-                  index={index + 1}
-                  key={step.id}
-                  label={step.label}
-                  phase={PHASE_LABELS[event.phase]}
-                  tone={step.tone}
-                  value={step.value}
-                />
-              ))}
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-[13px] border border-[#1c2630]/12 bg-[#111820] shadow-[0_18px_44px_rgba(18,28,42,0.16)]">
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2">
-                <PaneTitle compact icon={RadioTower} title="结果" subtitle={`${output_lines.length || 1} 行输出`} />
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="rounded-[16px] border border-(--divider-subtle-color) bg-white/72 p-3 shadow-[0_16px_44px_rgba(18,28,42,0.06)]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <PaneTitle icon={ListTree} title="输入参数" subtitle="本次调用传入的字段" />
+                  <span className="rounded-full bg-[#eef2f7] px-2.5 py-1 text-[10px] font-black text-(--text-soft)">
+                    {workflow_steps.length} 步
+                  </span>
+                </div>
+                {workflow_steps.map((step, index) => (
+                  <ShortcutActionRow
+                    action_icon={ActionIcon}
+                    is_last={index === workflow_steps.length - 1}
+                    index={index + 1}
+                    key={step.id}
+                    label={step.label}
+                    phase={PHASE_LABELS[event.phase]}
+                    tone={step.tone}
+                    value={step.value}
+                  />
+                ))}
+              </div>
+
+              <div className="rounded-[16px] border border-(--divider-subtle-color) bg-white/68 p-3 shadow-[0_16px_44px_rgba(18,28,42,0.055)]">
+                <PaneTitle icon={Settings2} title="运行摘要" subtitle={PHASE_LABELS[event.phase]} />
+                <div className="mt-3 space-y-2">
+                  <SummaryRow label="目标应用" value={session.app_intent.app_label} />
+                  <SummaryRow label="动作类型" value={session.app_intent.detail_label} />
+                  <SummaryRow label="目标" value={session.display_target} />
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[16px] border border-[#1c2630]/12 bg-[#101821] shadow-[0_18px_46px_rgba(18,28,42,0.16)]">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3.5 py-2.5">
+                <PaneTitle compact icon={RadioTower} title="执行结果" subtitle={`${output_lines.length || 1} 行输出`} />
                 <span className={cn(
-                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                  "h-2 w-2 shrink-0 rounded-full",
                   event.phase === "running" ? "animate-pulse bg-[#8de0ad]" : "bg-[#8de0ad]",
                 )} />
               </div>
-              <pre className="soft-scrollbar max-h-[180px] overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[11px] leading-5 text-[#dbe7ee]">
+              <pre className="soft-scrollbar max-h-[220px] overflow-auto whitespace-pre-wrap break-words px-3.5 py-3 font-mono text-[11px] leading-5 text-[#dbe7ee]">
                 {session.output_text}
               </pre>
             </div>
           </section>
         </div>
-
-        <footer className="grid min-h-[42px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-(--divider-subtle-color) bg-white/74 px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            {session.timeline.slice(-4).map((item, index) => (
-              <span
-                className="inline-flex min-w-0 max-w-[120px] items-center gap-1.5 rounded-full bg-white/66 px-2 py-1 text-[10px] font-bold text-(--text-soft)"
-                key={item.id}
-                title={`${item.label} · ${item.phase_label}`}
-              >
-                <CheckCircle2 className="h-3 w-3 shrink-0 text-[color:var(--success)]" />
-                <span className="truncate">{index + 1}. {item.label}</span>
-              </span>
-            ))}
-          </div>
-          <span className="shrink-0 text-[10px] font-black text-(--text-muted)">运行记录</span>
-        </footer>
       </section>
     </div>
   );
+}
+
+function StatusPill({ phase }: { phase: NexusOperationEvent["phase"] }) {
+  return (
+    <span className={cn(
+      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black",
+      phase === "running"
+        ? "border-[rgba(91,114,255,0.22)] bg-[rgba(91,114,255,0.12)] text-[color:var(--primary)]"
+        : "border-(--divider-subtle-color) bg-white/72 text-(--text-soft)",
+    )}>
+      <Play className={cn("h-3.5 w-3.5", phase === "running" && "animate-pulse")} />
+      {PHASE_LABELS[phase]}
+    </span>
+  );
+}
+
+function RunStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 border-l border-(--divider-subtle-color) px-2.5 py-1">
+      <p className="truncate text-[9px] font-black text-(--text-soft)">{label}</p>
+      <p className="mt-0.5 truncate text-[12px] font-black text-(--text-strong)" title={value}>{value}</p>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 border-t border-(--divider-subtle-color) pt-2 first:border-t-0 first:pt-0">
+      <p className="truncate text-[9px] font-black text-(--text-soft)">{label}</p>
+      <p className="mt-0.5 line-clamp-2 break-words text-[10.5px] font-bold leading-4 text-(--text-strong)" title={value}>{value}</p>
+    </div>
+  );
+}
+
+function SidebarMetric({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[22px_minmax(0,1fr)] items-center gap-2 rounded-[10px] bg-white/52 px-2 py-2">
+      <span className="grid h-5 w-5 place-items-center rounded-[7px] bg-white/58 text-(--icon-muted)">
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[9px] font-black text-(--text-soft)">{label}</span>
+        <span className="block truncate text-[10px] font-bold text-(--text-strong)" title={value}>{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function sidebar_icon_for_index(index: number): LucideIcon {
+  const icons = [Settings2, FileText, CircleDot, Clock3, ListTree];
+  return icons[index] ?? ListTree;
 }
 
 function build_workflow_steps(session: ReturnType<typeof build_nexus_tool_session_view>) {
@@ -271,10 +333,4 @@ function PaneTitle({
       </div>
     </div>
   );
-}
-
-function SidebarIcon({ index }: { index: number }) {
-  const icons = [Settings2, FileText, CircleDot, Clock3, ListTree];
-  const Icon = icons[index] ?? ListTree;
-  return <Icon className="h-3.5 w-3.5 shrink-0" />;
 }
