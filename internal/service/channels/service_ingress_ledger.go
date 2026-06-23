@@ -18,6 +18,7 @@ const (
 type ingressMessageClaimInput struct {
 	OwnerUserID string
 	Channel     string
+	AccountID   string
 	ReqID       string
 	AgentID     string
 	SessionKey  string
@@ -27,6 +28,7 @@ type ingressMessageClaimInput struct {
 type ingressMessageFinishInput struct {
 	OwnerUserID  string
 	Channel      string
+	AccountID    string
 	ReqID        string
 	Status       string
 	ErrorMessage *string
@@ -35,6 +37,7 @@ type ingressMessageFinishInput struct {
 type ingressMessageRow struct {
 	OwnerUserID  string
 	Channel      string
+	AccountID    string
 	ReqID        string
 	AgentID      string
 	SessionKey   string
@@ -62,7 +65,7 @@ func (s *ControlService) claimIngressMessage(ctx context.Context, input ingressM
 	if reclaimed {
 		return true, nil, nil
 	}
-	row, err := s.getIngressMessage(ctx, normalized.OwnerUserID, normalized.Channel, normalized.ReqID)
+	row, err := s.getIngressMessage(ctx, normalized.OwnerUserID, normalized.Channel, normalized.AccountID, normalized.ReqID)
 	if err != nil {
 		return false, nil, err
 	}
@@ -91,13 +94,14 @@ SET status = %s,
     error_message = %s,
     completed_at = CASE WHEN %s IN ('accepted', 'failed') THEN CURRENT_TIMESTAMP ELSE completed_at END,
     updated_at = CURRENT_TIMESTAMP
-WHERE owner_user_id = %s AND channel_type = %s AND req_id = %s`,
+	WHERE owner_user_id = %s AND channel_type = %s AND account_id = %s AND req_id = %s`,
 		s.bind(1),
 		s.bind(2),
 		s.bind(3),
 		s.bind(4),
 		s.bind(5),
 		s.bind(6),
+		s.bind(7),
 	)
 	_, err := s.db.ExecContext(
 		ctx,
@@ -107,6 +111,7 @@ WHERE owner_user_id = %s AND channel_type = %s AND req_id = %s`,
 		status,
 		normalized.OwnerUserID,
 		normalized.Channel,
+		normalized.AccountID,
 		normalized.ReqID,
 	)
 	return err
@@ -115,24 +120,26 @@ WHERE owner_user_id = %s AND channel_type = %s AND req_id = %s`,
 func (s *ControlService) insertIngressMessageClaim(ctx context.Context, input ingressMessageClaimInput) (bool, error) {
 	query := fmt.Sprintf(
 		`INSERT INTO im_ingress_messages (
-    owner_user_id,
-    channel_type,
-    req_id,
+	    owner_user_id,
+	    channel_type,
+	    account_id,
+	    req_id,
     agent_id,
     session_key,
     round_id,
     status,
     created_at,
     updated_at
-) VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT(owner_user_id, channel_type, req_id) DO NOTHING`,
-		s.bindList(7),
+	) VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	ON CONFLICT(owner_user_id, channel_type, account_id, req_id) DO NOTHING`,
+		s.bindList(8),
 	)
 	result, err := s.db.ExecContext(
 		ctx,
 		query,
 		input.OwnerUserID,
 		input.Channel,
+		input.AccountID,
 		input.ReqID,
 		input.AgentID,
 		input.SessionKey,
@@ -159,10 +166,11 @@ SET agent_id = %s,
     error_message = NULL,
     completed_at = NULL,
     updated_at = CURRENT_TIMESTAMP
-WHERE owner_user_id = %s
-  AND channel_type = %s
-  AND req_id = %s
-  AND status = %s`,
+	WHERE owner_user_id = %s
+	  AND channel_type = %s
+	  AND account_id = %s
+	  AND req_id = %s
+	  AND status = %s`,
 		s.bind(1),
 		s.bind(2),
 		s.bind(3),
@@ -171,6 +179,7 @@ WHERE owner_user_id = %s
 		s.bind(6),
 		s.bind(7),
 		s.bind(8),
+		s.bind(9),
 	)
 	result, err := s.db.ExecContext(
 		ctx,
@@ -181,6 +190,7 @@ WHERE owner_user_id = %s
 		ingressMessageStatusProcessing,
 		input.OwnerUserID,
 		input.Channel,
+		input.AccountID,
 		input.ReqID,
 		ingressMessageStatusFailed,
 	)
@@ -194,19 +204,21 @@ WHERE owner_user_id = %s
 	return affected > 0, nil
 }
 
-func (s *ControlService) getIngressMessage(ctx context.Context, ownerUserID string, channel string, reqID string) (*ingressMessageRow, error) {
+func (s *ControlService) getIngressMessage(ctx context.Context, ownerUserID string, channel string, accountID string, reqID string) (*ingressMessageRow, error) {
 	query := fmt.Sprintf(
-		`SELECT owner_user_id, channel_type, req_id, agent_id, session_key, round_id, status, error_message
-FROM im_ingress_messages
-WHERE owner_user_id = %s AND channel_type = %s AND req_id = %s`,
+		`SELECT owner_user_id, channel_type, account_id, req_id, agent_id, session_key, round_id, status, error_message
+	FROM im_ingress_messages
+	WHERE owner_user_id = %s AND channel_type = %s AND account_id = %s AND req_id = %s`,
 		s.bind(1),
 		s.bind(2),
 		s.bind(3),
+		s.bind(4),
 	)
 	var row ingressMessageRow
-	err := s.db.QueryRowContext(ctx, query, ownerUserID, channel, reqID).Scan(
+	err := s.db.QueryRowContext(ctx, query, ownerUserID, channel, strings.TrimSpace(accountID), reqID).Scan(
 		&row.OwnerUserID,
 		&row.Channel,
+		&row.AccountID,
 		&row.ReqID,
 		&row.AgentID,
 		&row.SessionKey,
@@ -237,6 +249,7 @@ func ingressResultFromMessageRow(row ingressMessageRow) *IngressResult {
 func (input ingressMessageClaimInput) normalized() ingressMessageClaimInput {
 	input.OwnerUserID = normalizeChannelOwnerUserID(input.OwnerUserID)
 	input.Channel = normalizeIMChannelType(input.Channel)
+	input.AccountID = strings.TrimSpace(input.AccountID)
 	input.ReqID = strings.TrimSpace(input.ReqID)
 	input.AgentID = strings.TrimSpace(input.AgentID)
 	input.SessionKey = strings.TrimSpace(input.SessionKey)
@@ -247,6 +260,7 @@ func (input ingressMessageClaimInput) normalized() ingressMessageClaimInput {
 func (input ingressMessageFinishInput) normalized() ingressMessageFinishInput {
 	input.OwnerUserID = normalizeChannelOwnerUserID(input.OwnerUserID)
 	input.Channel = normalizeIMChannelType(input.Channel)
+	input.AccountID = strings.TrimSpace(input.AccountID)
 	input.ReqID = strings.TrimSpace(input.ReqID)
 	if input.ErrorMessage != nil {
 		value := strings.TrimSpace(*input.ErrorMessage)

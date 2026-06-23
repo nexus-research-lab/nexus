@@ -5,18 +5,16 @@ namespace Nexus.Desktop.Sidecar;
 
 internal static class SidecarPortAllocator
 {
+    private const int DesktopLoopbackPort = 34343;
+
     public static int Allocate()
     {
-        for (int attempt = 0; attempt < 80; attempt++)
+        if (IsAvailable(DesktopLoopbackPort))
         {
-            int port = RandomNumberGeneratorCompat.Next(20000, 49152);
-            if (IsAvailable(port))
-            {
-                return port;
-            }
+            return DesktopLoopbackPort;
         }
 
-        throw new InvalidOperationException("没有可用的本地端口。");
+        throw new InvalidOperationException($"Nexus 桌面端本地端口 {DesktopLoopbackPort} 已被占用，请关闭占用该端口的进程后重试。");
     }
 
     private static bool IsAvailable(int port)
@@ -31,13 +29,5 @@ internal static class SidecarPortAllocator
         {
             return false;
         }
-    }
-}
-
-internal static class RandomNumberGeneratorCompat
-{
-    public static int Next(int minValue, int maxValue)
-    {
-        return System.Security.Cryptography.RandomNumberGenerator.GetInt32(minValue, maxValue);
     }
 }

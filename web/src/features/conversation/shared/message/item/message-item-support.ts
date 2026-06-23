@@ -147,7 +147,7 @@ export function get_system_message_icon_class_name(
   tone: SystemEventTone,
 ): string {
   if (tone === "warning") {
-    return "text-amber-700/80";
+    return "text-(--warning)";
   }
   return "text-(--icon-muted)";
 }

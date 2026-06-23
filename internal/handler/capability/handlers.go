@@ -8,12 +8,14 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
+	loopspkg "github.com/nexus-research-lab/nexus/internal/service/loops"
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 )
 
 // ChannelSummaryCounter 抽象频道与配对计数能力。
 type ChannelSummaryCounter interface {
 	CountConfiguredChannels(context.Context, string) (int, error)
+	CountConnectedChannels(context.Context, string) (int, error)
 	CountActivePairings(context.Context, string) (int, error)
 }
 
@@ -68,9 +70,15 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 		return
 	}
 	configuredChannelCount := 0
+	connectedChannelCount := 0
 	activePairingCount := 0
 	if h.channels != nil {
 		configuredChannelCount, err = h.channels.CountConfiguredChannels(request.Context(), ownerUserID)
+		if err != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
+		connectedChannelCount, err = h.channels.CountConnectedChannels(request.Context(), ownerUserID)
 		if err != nil {
 			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 			return
@@ -86,7 +94,9 @@ func (h *Handlers) HandleCapabilitySummary(writer http.ResponseWriter, request *
 		"skills_count":                  skillCount,
 		"connected_connectors_count":    connectorCount,
 		"enabled_scheduled_tasks_count": scheduledTaskEnabledCount,
+		"connected_channels_count":      connectedChannelCount,
 		"configured_channels_count":     configuredChannelCount,
 		"active_pairings_count":         activePairingCount,
+		"loops_count":                   loopspkg.StaticCount(),
 	})
 }

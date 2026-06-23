@@ -3,45 +3,16 @@ package clientopts
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"maps"
 	"os"
+	"slices"
 	"strings"
-
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
-const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
-const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
-const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
-const claudeAutoCompactPctOverrideEnvName = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"
-const defaultClaudeAutoCompactPctOverride = "70"
-const thinkingCapabilityName = "thinking"
-const nxsCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
-const nxsAPIClearToolResultsEnvName = "NEXUS_API_CLEAR_TOOL_RESULTS"
-const nxsAPIClearToolUsesEnvName = "NEXUS_API_CLEAR_TOOL_USES"
-const nxsPromptCache1hEligibleEnvName = "NEXUS_PROMPT_CACHE_1H_ELIGIBLE"
-const nxsPromptCache1hAllowlistEnvName = "NEXUS_PROMPT_CACHE_1H_ALLOWLIST"
-const nxsAgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
-const nxsAgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
-const nxsAgentSDKProviderDebugBodyEnvName = "NEXUS_AGENT_SDK_PROVIDER_DEBUG_BODY"
-const nexusAPIProviderEnvName = "NEXUS_API_PROVIDER"
-const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
-const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
-const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
-const anthropicModelEnvName = "ANTHROPIC_MODEL"
-const firstPartyAnthropicAPIHost = "api.anthropic.com"
-
-// NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
-const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
-const nexusRuntimeScopeModeEnvName = "NEXUS_RUNTIME_SCOPE_MODE"
-const nexusRuntimeUserIDEnvName = "NEXUS_RUNTIME_USER_ID"
 const askUserQuestionToolName = "AskUserQuestion"
 
 var agentSessionDeniedTools = []string{
@@ -93,7 +64,8 @@ func BuildAgentClientOptions(
 	if err != nil {
 		return agentclient.Options{}, err
 	}
-	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled)
+	runtimeEnv := defaultRuntimeEnv()
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
@@ -104,21 +76,16 @@ func BuildAgentClientOptions(
 		permissionMode = sdkpermission.ModeDefault
 	}
 	permissionHandler := permissionHandlerForMode(permissionMode, input.PermissionHandler)
-	commandConfig := processRuntimeCommandConfig(effectiveRuntimeKind)
-
 	options := agentclient.Options{
-		CLIPath:                commandConfig.CLIPath,
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
-		SettingSources:         append([]string(nil), input.SettingSources...),
+		SettingSources:         slices.Clone(input.SettingSources),
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
-		Executable:             commandConfig.Executable,
-		PathToExecutable:       commandConfig.PathToExecutable,
 		System: agentclient.SystemOptions{
 			Append: input.AppendSystemPrompt,
 		},
 		Tools: agentclient.ToolOptions{
-			Allow: append([]string(nil), input.AllowedTools...),
+			Allow: slices.Clone(input.AllowedTools),
 			Deny:  appendDistinctTools(input.DisallowedTools, agentSessionDeniedTools...),
 		},
 		Runtime: agentclient.RuntimeOptions{
@@ -145,9 +112,6 @@ func BuildAgentClientOptions(
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
 	}
-	if err := materializeProcessArgFiles(&options); err != nil {
-		return agentclient.Options{}, err
-	}
 	return options, nil
 }
 
@@ -161,7 +125,7 @@ func agentRuntimeKind(runtimeKind string) agentclient.RuntimeKind {
 func appendDistinctTools(base []string, extra ...string) []string {
 	result := make([]string, 0, len(base)+len(extra))
 	seen := make(map[string]struct{}, len(base)+len(extra))
-	for _, tool := range append(append([]string(nil), base...), extra...) {
+	for _, tool := range slices.Concat(base, extra) {
 		normalized := strings.TrimSpace(tool)
 		if normalized == "" {
 			continue
@@ -194,123 +158,7 @@ func clonePermissionInput(input map[string]any) map[string]any {
 	if len(input) == 0 {
 		return nil
 	}
-	result := make(map[string]any, len(input))
-	for key, value := range input {
-		result[key] = value
-	}
-	return result
-}
-
-func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
-	if runtimeConfig == nil {
-		return nil
-	}
-	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
-	switch strings.TrimSpace(runtimeConfig.APIFormat) {
-	case "", apiFormatAnthropicMessages:
-		return anthropicRuntimeEnvFromConfig(runtimeConfig)
-	case apiFormatChatCompletions:
-		if profile.isNXS() {
-			return openAIRuntimeEnvFromConfig(runtimeConfig)
-		}
-	}
-	return nil
-}
-
-func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
-	env := map[string]string{
-		anthropicBaseURLEnvName:          runtimeConfig.BaseURL,
-		anthropicModelEnvName:            runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_OPUS_MODEL":   runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_SONNET_MODEL": runtimeConfig.Model,
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL":  runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL":     runtimeConfig.Model,
-		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
-		nexusAPIProviderEnvName:          "anthropic-compatible",
-	}
-	applyAnthropicCredentialsEnv(env, runtimeConfig)
-	if runtimeConfig.Reasoning {
-		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
-	}
-	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
-		env["ENABLE_TOOL_SEARCH"] = "false"
-	}
-	return env
-}
-
-func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
-	token := strings.TrimSpace(runtimeConfig.AuthToken)
-	if token == "" {
-		return
-	}
-	if isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
-		env[anthropicAPIKeyEnvName] = token
-		return
-	}
-	env[anthropicAuthTokenEnvName] = token
-}
-
-func isFirstPartyAnthropicBaseURL(baseURL string) bool {
-	trimmed := strings.TrimSpace(baseURL)
-	if trimmed == "" {
-		return true
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil {
-		return false
-	}
-	host := parsed.Hostname()
-	if host == "" {
-		return false
-	}
-	return strings.EqualFold(host, firstPartyAnthropicAPIHost)
-}
-
-func openAIRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
-	return map[string]string{
-		"OPENAI_API_KEY":             runtimeConfig.AuthToken,
-		"OPENAI_BASE_URL":            runtimeConfig.BaseURL,
-		"OPENAI_MODEL":               runtimeConfig.Model,
-		"CLAUDE_CODE_SUBAGENT_MODEL": runtimeConfig.Model,
-		NexusRuntimeProviderEnvName:  runtimeConfig.Provider,
-		nexusAPIProviderEnvName:      "openai",
-	}
-}
-
-func applyDefaultModelCapabilitiesEnv(env map[string]string, capabilities ...string) {
-	capabilityValue := strings.Join(capabilities, ",")
-	for _, key := range []string{
-		"ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES",
-		"ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES",
-		"ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES",
-	} {
-		env[key] = capabilityValue
-	}
-}
-
-func defaultRuntimeEnv(runtimeKind string, agentSDKDiagnosticsEnabled bool) map[string]string {
-	env := map[string]string{
-		claudeAutoCompactPctOverrideEnvName: defaultClaudeAutoCompactPctOverride,
-	}
-	if runtimeProfileForKind(runtimeKind).isNXS() {
-		env[nxsCachedMicrocompactEnvName] = "1"
-		env[nxsAPIClearToolResultsEnvName] = "1"
-		env[nxsAPIClearToolUsesEnvName] = "1"
-		env[nxsPromptCache1hEligibleEnvName] = "1"
-		env[nxsPromptCache1hAllowlistEnvName] = "sdk"
-		applyNXSAgentSDKDiagnosticsEnv(env, agentSDKDiagnosticsEnabled)
-	}
-	return env
-}
-
-func applyNXSAgentSDKDiagnosticsEnv(env map[string]string, enabled bool) {
-	if enabled {
-		env[nxsAgentSDKDiagnosticsEnvName] = "stderr"
-		return
-	}
-	env[nxsAgentSDKDiagnosticsEnvName] = ""
-	env[nxsAgentSDKDebugEnvName] = ""
-	env[nxsAgentSDKProviderDebugBodyEnvName] = ""
+	return maps.Clone(input)
 }
 
 func resolveRuntimeConfig(
@@ -363,69 +211,5 @@ func cloneMCPServers(
 	if len(current) == 0 {
 		return nil
 	}
-	result := make(map[string]sdkmcp.ServerConfig, len(current))
-	for key, value := range current {
-		result[key] = value
-	}
-	return result
-}
-
-func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
-	state, hasState := authctx.StateFromContext(ctx)
-	userID, ok := authctx.CurrentUserID(ctx)
-	env := map[string]string{}
-	if ok {
-		trimmedUserID := strings.TrimSpace(userID)
-		if trimmedUserID != "" {
-			env[nexusctlUserIDEnvName] = trimmedUserID
-			env[nexusRuntimeUserIDEnvName] = trimmedUserID
-			env[nexusRuntimeScopeModeEnvName] = "user_scoped"
-		}
-	}
-	if len(env) > 0 {
-		return env
-	}
-	if hasState && !state.AuthRequired {
-		return map[string]string{
-			nexusRuntimeScopeModeEnvName: "single_user",
-			nexusRuntimeUserIDEnvName:    authctx.SystemUserID,
-		}
-	}
-	return nil
-}
-
-func workspaceRuntimeEnv(workspacePath string) map[string]string {
-	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
-	if trimmedWorkspacePath == "" {
-		return nil
-	}
-	binDir := appfs.AgentRuntimeBinDir()
-	env := map[string]string{
-		"NEXUS_PROJECT_ROOT":         strings.TrimSpace(appfs.Root()),
-		nexusctlWorkspacePathEnvName: trimmedWorkspacePath,
-	}
-	currentPath := strings.TrimSpace(os.Getenv("PATH"))
-	if currentPath == "" {
-		env["PATH"] = binDir
-	} else {
-		env["PATH"] = binDir + string(os.PathListSeparator) + currentPath
-	}
-	return env
-}
-
-func mergeRuntimeEnv(
-	base map[string]string,
-	extra map[string]string,
-) map[string]string {
-	if len(base) == 0 && len(extra) == 0 {
-		return nil
-	}
-	result := make(map[string]string, len(base)+len(extra))
-	for key, value := range base {
-		result[key] = value
-	}
-	for key, value := range extra {
-		result[key] = value
-	}
-	return result
+	return maps.Clone(current)
 }

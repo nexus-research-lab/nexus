@@ -38,7 +38,7 @@ func BuildCreateRecord(
 		IsMain:              isMain,
 		Avatar:              request.Avatar,
 		Description:         request.Description,
-		VibeTagsJSON:        mustJSONString(request.VibeTags, "[]"),
+		VibeTagsJSON:        mustJSONString(request.VibeTags),
 		DisplayName:         normalizedName,
 		Headline:            "",
 		ProfileMarkdown:     "",
@@ -47,12 +47,12 @@ func BuildCreateRecord(
 		Provider:            options.Provider,
 		Model:               options.Model,
 		PermissionMode:      options.PermissionMode,
-		AllowedToolsJSON:    mustJSONString(options.AllowedTools, "[]"),
-		DisallowedToolsJSON: mustJSONString(options.DisallowedTools, "[]"),
-		MCPServersJSON:      mustJSONString(options.MCPServers, "{}"),
+		AllowedToolsJSON:    mustJSONString(options.AllowedTools),
+		DisallowedToolsJSON: mustJSONString(options.DisallowedTools),
+		MCPServersJSON:      mustJSONString(options.MCPServers),
 		MaxTurns:            options.MaxTurns,
 		MaxThinkingTokens:   options.MaxThinkingTokens,
-		SettingSourcesJSON:  mustJSONString(options.SettingSources, "[]"),
+		SettingSourcesJSON:  mustJSONString(options.SettingSources),
 		RuntimeVersion:      1,
 	}
 }
@@ -118,10 +118,10 @@ func mergeOptions(base protocol.Options, incoming protocol.Options) protocol.Opt
 	return result
 }
 
-func mustJSONString(value any, fallback string) string {
+func mustJSONString(value any) string {
 	payload, err := json.Marshal(value)
 	if err != nil {
-		return fallback
+		panic(err)
 	}
 	return string(payload)
 }

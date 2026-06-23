@@ -7,7 +7,10 @@ import (
 	"sync"
 )
 
-const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
+const (
+	nexusConfigDirEnvName  = "NEXUS_CONFIG_DIR"
+	claudeConfigDirEnvName = "CLAUDE_CONFIG_DIR"
+)
 
 var (
 	configDirOnce sync.Once
@@ -17,6 +20,9 @@ var (
 // ConfigDir 返回 Nexus 的全局配置目录。
 func ConfigDir() string {
 	if value := strings.TrimSpace(os.Getenv(nexusConfigDirEnvName)); value != "" {
+		return filepath.Clean(expandHome(value))
+	}
+	if value := strings.TrimSpace(os.Getenv(claudeConfigDirEnvName)); value != "" {
 		return filepath.Clean(expandHome(value))
 	}
 	configDirOnce.Do(func() {

@@ -8,6 +8,7 @@ export interface ActiveChatNotificationTarget {
   conversation_id?: string | null;
   key: string;
   room_id?: string | null;
+  session_key?: string | null;
 }
 
 export interface ChatNotificationTargetMatcher {
@@ -56,6 +57,18 @@ export function get_active_chat_target_from_path(
   }
 
   const room_id = decode_route_segment(parts[1]);
+  if (parts[2] === "sessions") {
+    const session_key = decode_route_segment(parts[3]);
+    const key = build_chat_notification_target_key({ session_key });
+    return key
+      ? {
+          key,
+          room_id,
+          session_key,
+        }
+      : null;
+  }
+
   const conversation_id = parts[2] === "conversations"
     ? decode_route_segment(parts[3])
     : "";
@@ -76,8 +89,14 @@ export function is_chat_notification_target_active(
   if (!active_target) {
     return false;
   }
+  if (target.key && target.key === active_target.key) {
+    return true;
+  }
+  if (active_target.session_key) {
+    return false;
+  }
   if (active_target.room_id && target.room_id === active_target.room_id) {
     return true;
   }
-  return Boolean(target.key && target.key === active_target.key);
+  return false;
 }

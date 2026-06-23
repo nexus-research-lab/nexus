@@ -141,6 +141,14 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.46),
     0 8px 18px rgba(94, 108, 127, 0.08);
 
+  --material-paper-background: #ffffff;
+  --material-paper-border: rgba(117, 131, 149, 0.18);
+  --material-paper-foreground: #17212c;
+  --material-paper-muted: rgba(66, 81, 98, 0.72);
+  --material-paper-shadow:
+    0 20px 60px rgba(15, 23, 42, 0.10),
+    0 2px 10px rgba(15, 23, 42, 0.05);
+
   --divider-subtle-color: rgba(117, 131, 149, 0.16);
   --divider-strong-color: rgba(117, 131, 149, 0.24);
 
@@ -297,6 +305,14 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 10px 22px rgba(0, 5, 12, 0.18);
 
+  --material-paper-background: rgba(250, 252, 255, 0.98);
+  --material-paper-border: rgba(182, 199, 223, 0.26);
+  --material-paper-foreground: #17212c;
+  --material-paper-muted: rgba(70, 84, 101, 0.78);
+  --material-paper-shadow:
+    0 22px 68px rgba(0, 5, 12, 0.38),
+    0 4px 18px rgba(0, 5, 12, 0.18);
+
   --divider-subtle-color: rgba(171, 189, 214, 0.1);
   --divider-strong-color: rgba(171, 189, 214, 0.16);
   --text-strong: #edf3fb;
@@ -449,6 +465,14 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 10px 22px rgba(9, 15, 24, 0.18);
 
+  --material-paper-background: rgba(250, 252, 255, 0.98);
+  --material-paper-border: rgba(205, 220, 240, 0.26);
+  --material-paper-foreground: #17212c;
+  --material-paper-muted: rgba(78, 93, 115, 0.76);
+  --material-paper-shadow:
+    0 22px 68px rgba(9, 15, 24, 0.34),
+    0 4px 18px rgba(9, 15, 24, 0.16);
+
   --divider-subtle-color: rgba(205, 220, 240, 0.1);
   --divider-strong-color: rgba(205, 220, 240, 0.16);
   --text-strong: #eef3f8;
@@ -504,6 +528,11 @@
   --surface-avatar-border: var(--material-avatar-border);
   --surface-avatar-foreground: var(--text-default);
   --surface-avatar-shadow: var(--material-avatar-shadow);
+  --surface-paper-background: var(--material-paper-background);
+  --surface-paper-border: var(--material-paper-border);
+  --surface-paper-foreground: var(--material-paper-foreground);
+  --surface-paper-muted: var(--material-paper-muted);
+  --surface-paper-shadow: var(--material-paper-shadow);
   --surface-progress-track: color-mix(in srgb, var(--divider-strong-color) 88%, transparent);
   --surface-progress-fill: color-mix(in srgb, var(--primary) 74%, white 10%);
 

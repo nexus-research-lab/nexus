@@ -10,11 +10,3 @@ export async function get_nxs_runtime_status_api(): Promise<NXSRuntimeStatus> {
     timeout_ms: 8_000,
   });
 }
-
-export async function download_nxs_runtime_api(): Promise<NXSRuntimeStatus> {
-  return request_api<NXSRuntimeStatus>(`${NXS_RUNTIME_API_BASE_URL}/download`, {
-    method: "POST",
-    body: {},
-    timeout_ms: 120_000,
-  });
-}

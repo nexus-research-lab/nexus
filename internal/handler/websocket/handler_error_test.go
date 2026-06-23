@@ -23,19 +23,9 @@ func TestChatErrorDetailExplainsMissingClaudeCommand(t *testing.T) {
 func TestChatErrorDetailExplainsMissingNXSCommand(t *testing.T) {
 	message := chatErrorDetail(errors.New(`client: backend executable "process backend" not found: process: cli executable "nxs" not found`))
 	if !strings.Contains(message, "nxs runtime") ||
-		!strings.Contains(message, "桌面包") ||
-		!strings.Contains(message, "随包预置") ||
+		!strings.Contains(message, "sidecar") ||
 		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
 		t.Fatalf("缺少 nxs 时应返回 nxs 可执行提示: %q", message)
-	}
-}
-
-func TestChatErrorDetailExplainsNXSRuntimeResolverFailure(t *testing.T) {
-	message := chatErrorDetail(errors.New(`client: resolve nxs runtime failed: download nxs runtime manifest: unexpected http status 404 Not Found`))
-	if !strings.Contains(message, "自动解析失败") ||
-		!strings.Contains(message, "manifest") ||
-		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
-		t.Fatalf("nxs 自动解析失败时应返回 resolver 提示: %q", message)
 	}
 }
 
@@ -43,5 +33,19 @@ func TestChatErrorDetailExplainsProviderConfig(t *testing.T) {
 	message := chatErrorDetail(errors.New("provider=default 配置不完整: auth_token, model"))
 	if !strings.Contains(message, "Provider") || !strings.Contains(message, "auth_token") {
 		t.Fatalf("Provider 配置错误时应返回配置提示: %q", message)
+	}
+}
+
+func TestChatErrorDetailExplainsProviderOverload(t *testing.T) {
+	message := chatErrorDetail(errors.New(`client: runtime startup failed: provider_error=server_overload stderr="API error: 529 {\"type\":\"overloaded_error\"}": context deadline exceeded`))
+	if !strings.Contains(message, "模型请求暂时受限") || !strings.Contains(message, "LLM Provider") {
+		t.Fatalf("Provider 过载时应返回受限提示: %q", message)
+	}
+}
+
+func TestChatErrorDetailExplainsProviderRateLimit(t *testing.T) {
+	message := chatErrorDetail(errors.New(`client: runtime startup failed: provider_error=rate_limit stderr="API error: 429 rate_limit_error": context deadline exceeded`))
+	if !strings.Contains(message, "模型请求暂时受限") || !strings.Contains(message, "LLM Provider") {
+		t.Fatalf("Provider 限流时应返回受限提示: %q", message)
 	}
 }

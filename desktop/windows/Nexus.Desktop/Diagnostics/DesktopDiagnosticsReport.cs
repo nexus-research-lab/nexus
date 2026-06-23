@@ -146,6 +146,7 @@ internal static class DesktopDiagnosticsReport
             ["api_base_url"] = runtime.ApiBaseUrl,
             ["websocket_url"] = runtime.WebSocketUrl,
             ["health_url"] = runtime.HealthUrl,
+            ["oauth_redirect_uri"] = runtime.OAuthRedirectUri,
         };
     }
 
@@ -154,7 +155,9 @@ internal static class DesktopDiagnosticsReport
         return new Dictionary<string, object?>
         {
             ["application_data_dir"] = DesktopPaths.ApplicationDataDirectory,
+            ["config_root"] = DesktopPaths.RootDirectory,
             ["config_dir"] = DesktopPaths.ConfigDirectory,
+            ["transcript_projects_dir"] = DesktopPaths.ProjectsDirectory,
             ["workspace_dir"] = DesktopPaths.WorkspaceDirectory,
             ["cache_dir"] = DesktopPaths.CacheDirectory,
             ["logs_dir"] = DesktopPaths.LogsDirectory,
@@ -172,6 +175,7 @@ internal static class DesktopDiagnosticsReport
             ["application_data_exists"] = Directory.Exists(DesktopPaths.ApplicationDataDirectory),
             ["logs_dir_exists"] = Directory.Exists(DesktopPaths.LogsDirectory),
             ["debug_dir_exists"] = Directory.Exists(DesktopPaths.DebugDirectory),
+            ["transcript_projects_dir_exists"] = Directory.Exists(DesktopPaths.ProjectsDirectory),
             ["bundled_web_app_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "app.html")),
             ["bundled_web_settings_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "settings.html")),
             ["bundled_web_oauth_callback_exists"] = File.Exists(Path.Combine(resourceDirectory, "Web", "oauth-callback.html")),

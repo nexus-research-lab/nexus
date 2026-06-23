@@ -2,6 +2,8 @@ package toolpolicy
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -26,6 +28,14 @@ var managedGoalAllowedTools = []string{
 	"create_goal",
 	"update_goal",
 	"Skill",
+}
+
+var managedImagegenAllowedTools = []string{
+	"nexus_imagegen",
+	"mcp__nexus_imagegen__generate_image",
+	"mcp__nexus_imagegen__edit_image",
+	"generate_image",
+	"edit_image",
 }
 
 // NormalizeSet 把工具名列表归一成集合；nil/空列表表示没有显式策略。
@@ -170,6 +180,43 @@ func WithManagedGoalAllowedTools(tools []string) []string {
 	return appendDistinctTools(tools, managedGoalAllowedTools...)
 }
 
+// WithManagedImagegenAllowedTools 预授权图片生成 MCP 工具，保留用户原有工具设置。
+func WithManagedImagegenAllowedTools(tools []string) []string {
+	approved := NormalizeSet(tools)
+	if len(approved) == 0 {
+		return tools
+	}
+	if !Contains(approved, "mcp__nexus_imagegen__generate_image") &&
+		!Contains(approved, "mcp__nexus_imagegen__edit_image") {
+		return tools
+	}
+	return appendDistinctTools(tools, managedImagegenAllowedTools...)
+}
+
+// WithManagedRuntimeAllowedTools 追加运行时内建 MCP 工具的必要白名单。
+func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool) []string {
+	result := WithManagedGoalAllowedTools(tools)
+	if len(NormalizeSet(result)) == 0 {
+		return result
+	}
+	if !imagegenDefaultEnabled {
+		return withoutManagedImagegenAllowedTools(result)
+	}
+	result = appendDistinctTools(result, "nexus_imagegen")
+	return WithManagedImagegenAllowedTools(result)
+}
+
+func withoutManagedImagegenAllowedTools(tools []string) []string {
+	result := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if slices.Contains(managedImagegenAllowedTools, strings.TrimSpace(tool)) {
+			continue
+		}
+		result = append(result, tool)
+	}
+	return result
+}
+
 func toolNameLeaf(toolName string) string {
 	result := strings.TrimSpace(toolName)
 	for _, separator := range []string{"__", ".", "/"} {
@@ -210,17 +257,13 @@ func cloneInput(input map[string]any) map[string]any {
 	if len(input) == 0 {
 		return nil
 	}
-	result := make(map[string]any, len(input))
-	for key, value := range input {
-		result[key] = value
-	}
-	return result
+	return maps.Clone(input)
 }
 
 func appendDistinctTools(base []string, extra ...string) []string {
 	result := make([]string, 0, len(base)+len(extra))
 	seen := make(map[string]struct{}, len(base)+len(extra))
-	for _, tool := range append(append([]string(nil), base...), extra...) {
+	for _, tool := range slices.Concat(base, extra) {
 		normalized := strings.TrimSpace(tool)
 		if normalized == "" {
 			continue
@@ -238,9 +281,7 @@ func appendDistinctTools(base []string, extra ...string) []string {
 func MergeSets(sets ...map[string]struct{}) map[string]struct{} {
 	result := map[string]struct{}{}
 	for _, set := range sets {
-		for item := range set {
-			result[item] = struct{}{}
-		}
+		maps.Copy(result, set)
 	}
 	return result
 }
@@ -250,9 +291,5 @@ func CopySet(items map[string]struct{}) map[string]struct{} {
 	if len(items) == 0 {
 		return nil
 	}
-	result := make(map[string]struct{}, len(items))
-	for key := range items {
-		result[key] = struct{}{}
-	}
-	return result
+	return maps.Clone(items)
 }

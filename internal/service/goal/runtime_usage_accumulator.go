@@ -62,7 +62,7 @@ func (a *RuntimeUsageAccumulator) Delta(snapshot RuntimeUsageSnapshot) (protocol
 	}
 	delta.TotalTokens = delta.BudgetTokens()
 	a.lastUsage = maxGoalUsage(a.lastUsage, currentUsage)
-	a.lastElapsedSeconds = maxInt64(a.lastElapsedSeconds, currentElapsed)
+	a.lastElapsedSeconds = max(a.lastElapsedSeconds, currentElapsed)
 	return delta, !isGoalUsageZero(delta)
 }
 
@@ -90,33 +90,20 @@ func isGoalUsageZero(usage protocol.GoalUsage) bool {
 
 func maxGoalUsage(left protocol.GoalUsage, right protocol.GoalUsage) protocol.GoalUsage {
 	return protocol.GoalUsage{
-		InputTokens:              maxInt64(left.InputTokens, right.InputTokens),
-		OutputTokens:             maxInt64(left.OutputTokens, right.OutputTokens),
-		CacheCreationInputTokens: maxInt64(left.CacheCreationInputTokens, right.CacheCreationInputTokens),
-		CacheReadInputTokens:     maxInt64(left.CacheReadInputTokens, right.CacheReadInputTokens),
-		ReasoningTokens:          maxInt64(left.ReasoningTokens, right.ReasoningTokens),
-		TotalTokens:              maxInt64(left.TotalTokens, right.TotalTokens),
-		RuntimeSeconds:           maxInt64(left.RuntimeSeconds, right.RuntimeSeconds),
+		InputTokens:              max(left.InputTokens, right.InputTokens),
+		OutputTokens:             max(left.OutputTokens, right.OutputTokens),
+		CacheCreationInputTokens: max(left.CacheCreationInputTokens, right.CacheCreationInputTokens),
+		CacheReadInputTokens:     max(left.CacheReadInputTokens, right.CacheReadInputTokens),
+		ReasoningTokens:          max(left.ReasoningTokens, right.ReasoningTokens),
+		TotalTokens:              max(left.TotalTokens, right.TotalTokens),
+		RuntimeSeconds:           max(left.RuntimeSeconds, right.RuntimeSeconds),
 	}
 }
 
 func saturatingSub(current int64, previous int64) int64 {
-	if current <= previous {
-		return 0
-	}
-	return current - previous
+	return max(current-previous, 0)
 }
 
 func positiveInt64(value int64) int64 {
-	if value < 0 {
-		return 0
-	}
-	return value
-}
-
-func maxInt64(left int64, right int64) int64 {
-	if left > right {
-		return left
-	}
-	return right
+	return max(value, 0)
 }

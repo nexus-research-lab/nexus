@@ -2,10 +2,17 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
-import { AuthenticatedAppSessionRoot } from "@/app/router/authenticated-session-root";
 import { AuthGuard } from "@/app/router/auth-guard";
-import { AppLayout } from "@/shared/ui/layout/app-layout";
 import { OnboardingTourProvider } from "@/shared/ui/onboarding/tour-provider";
+
+const AuthenticatedAppSessionRoot = lazy(() =>
+  import("@/app/router/authenticated-session-root").then((m) => ({
+    default: m.AuthenticatedAppSessionRoot,
+  })),
+);
+const AppLayout = lazy(() =>
+  import("@/shared/ui/layout/app-layout").then((m) => ({ default: m.AppLayout })),
+);
 
 // 懒加载页面组件 — 首次导航时按需加载
 const LoginPage = lazy(() =>
@@ -40,6 +47,9 @@ const SkillsPage = lazy(() =>
 );
 const ConnectorsPage = lazy(() =>
   import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
+);
+const LoopsPage = lazy(() =>
+  import("@/pages/loops/loops-page").then((m) => ({ default: m.LoopsPage })),
 );
 const ConnectorOAuthCallbackPage = lazy(() =>
   import("@/pages/connectors/connector-oauth-callback-page").then((m) => ({
@@ -90,6 +100,7 @@ export function AppRouter() {
                   {/* Room 路由 */}
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_conversation} />
+                  <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room_session} />
 
                   {/* /rooms 独立路由重定向到 /app */}
                   <Route element={<Navigate replace to={APP_ROUTE_PATHS.home} />} path="/rooms" />
@@ -102,6 +113,8 @@ export function AppRouter() {
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skill_detail} />
 
                   {/* 能力子路由 */}
+                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loops} />
+                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loop_detail} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connector_detail} />
                   <Route element={<ScheduledTasksPage />} path={APP_ROUTE_PATHS.scheduled_tasks} />

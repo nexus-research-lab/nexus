@@ -13,7 +13,7 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 		return err
 	}
 	for _, item := range jobs {
-		item = s.recoverInterruptedJobRuntime(ctx, item)
+		item = s.recoverJobRuntimeAsCancelled(ctx, item, "scheduler restarted before run completed")
 		state := s.ensureJobState(item)
 		s.persistJobRuntime(ctx, jobRuntimeUpdateFromState(item.JobID, state))
 	}

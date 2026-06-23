@@ -35,11 +35,6 @@ type ModelSelection struct {
 	Model    string `json:"model,omitempty"`
 }
 
-// DefaultAllowedTools 返回新建 Agent 默认预授权工具集合。
-func DefaultAllowedTools() []string {
-	return []string{}
-}
-
 // DefaultPreferences 返回系统默认偏好。
 func DefaultPreferences() Preferences {
 	return normalizePreferences(Preferences{
@@ -47,7 +42,7 @@ func DefaultPreferences() Preferences {
 		AgentRuntimeKind:          "nxs",
 		DefaultAgentOptions: protocol.Options{
 			PermissionMode:  "default",
-			AllowedTools:    DefaultAllowedTools(),
+			AllowedTools:    []string{},
 			DisallowedTools: []string{},
 			SettingSources:  []string{"project"},
 		},
@@ -59,7 +54,7 @@ func normalizePreferences(item Preferences) Preferences {
 	if policy == "" {
 		policy = protocol.ChatDeliveryPolicyQueue
 	}
-	runtimeKind := normalizeRuntimeKind(item.AgentRuntimeKind)
+	runtimeKind := runtimeprovider.NormalizeRuntimeKind(item.AgentRuntimeKind)
 	options := item.DefaultAgentOptions
 	if strings.TrimSpace(options.PermissionMode) == "" {
 		options.PermissionMode = "default"
@@ -89,10 +84,6 @@ func normalizePreferences(item Preferences) Preferences {
 		DefaultBackgroundModelSelection: normalizeModelSelection(item.DefaultBackgroundModelSelection),
 		UpdatedAt:                       strings.TrimSpace(item.UpdatedAt),
 	}
-}
-
-func normalizeRuntimeKind(value string) string {
-	return runtimeprovider.NormalizeRuntimeKind(value)
 }
 
 func normalizeModelSelection(selection ModelSelection) ModelSelection {

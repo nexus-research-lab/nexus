@@ -22,8 +22,8 @@
 | Default browser affordances | Yellow | 默认右键菜单已关闭，返回/前进手势关闭；右键菜单抑制会进入诊断时间线。 | 继续核对链接预览、拖拽、文本输入、IME、Tab / Escape。 |
 | Runtime config injection | Green | Shell 在 document start 注入 API、WebSocket、session token、版本和平台信息。 | 后续把 bridge schema 迁到协议生成。 |
 | Local API protection | Green | Go sidecar 已校验桌面 session token；HTTP 使用 header，WebSocket 可通过 subprotocol 或 WKWebView 本地 cookie 通过校验。 | 增加 token rotate / sidecar restart 设计。 |
-| URL scheme | Yellow | `Info.plist` 注册 `nexus://`，shell 能把 OAuth callback 转到 WebView 回调页。 | 联调真实 provider，确认 provider 后台已登记 custom scheme。 |
-| OAuth desktop redirect | Yellow | 桌面 sidecar 设置 `CONNECTOR_OAUTH_REDIRECT_URI=nexus://connectors/oauth/callback`，后端 state 表记录 `redirect_kind`，前端授权与回调按 desktop runtime 使用相同 redirect URI；GitHub 桌面包已改为 Device Flow，只注入公开 Client ID，不分发 Client Secret。 | 真实 provider 联调后转 Green。 |
+| URL scheme | Yellow | `Info.plist` 注册 `nexus://`，shell 能把内部 OAuth callback deep link 转到 WebView 回调页。 | 继续保留 URL 唤起兼容测试。 |
+| OAuth desktop redirect | Yellow | 桌面 sidecar 固定监听 `127.0.0.1:34343`，设置 `CONNECTOR_OAUTH_REDIRECT_URI=http://127.0.0.1:34343/capability/connectors/oauth/callback`，前端授权与回调按 desktop runtime 使用相同 redirect URI；GitHub 桌面包已改为 Device Flow，只注入公开 Client ID，不分发 Client Secret。 | 真实 provider 联调后转 Green。 |
 | Native bridge | Yellow | 当前支持版本读取、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。 | 用 Go 协议真相源生成 TS / Swift bridge 类型。 |
 | Secure storage | Yellow | macOS shell 在正式签名包中优先用 Keychain 生成并持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。Go sidecar 使用该 key 加密 connector credentials；OAuth App 配置由服务端环境变量或桌面包注入，不再由前端写入。 | 正式签名包验证 Keychain 不降级；后续补 bridge 级 `read_secret` / `write_secret`，把需要原生直接访问的敏感字段逐项迁入 Keychain。 |
 | Global shortcut / launcher | Yellow | `Option + Space` 不再默认注册，历史默认组合会在启动时关闭；窗口菜单和 `nexus://launcher` 都把主窗口导航到完整 launcher 首页；设置页已移除启动器快捷键配置。 | 后续若恢复全局快捷键，再补冲突引导和恢复体验。 |

@@ -19,6 +19,8 @@ export type EventType =
   | 'permission_request_resolved'
   | 'agent_runtime_event'
   | 'workspace_event'
+  | 'directory_changed'
+  | 'scheduled_task_changed'
   | 'room_member_added'
   | 'room_member_removed'
   | 'room_deleted'

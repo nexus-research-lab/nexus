@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -62,9 +63,6 @@ func automationRunArtifactPath(jobID string, runID string) string {
 
 func safeArtifactSegment(value string, fallback string) string {
 	normalized := strings.TrimSpace(value)
-	if normalized == "" {
-		return fallback
-	}
 	var builder strings.Builder
 	for _, item := range normalized {
 		if item >= 'a' && item <= 'z' || item >= 'A' && item <= 'Z' || item >= '0' && item <= '9' || item == '-' || item == '_' {
@@ -74,10 +72,7 @@ func safeArtifactSegment(value string, fallback string) string {
 		}
 	}
 	result := strings.Trim(builder.String(), "_")
-	if result == "" {
-		return fallback
-	}
-	return result
+	return cmp.Or(result, fallback)
 }
 
 func renderRunArtifact(

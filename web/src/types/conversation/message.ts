@@ -95,6 +95,11 @@ export interface SystemEventContent {
   timestamp: number;
   subtype?: string;
   tool_use_id?: string | null;
+  attempt?: number;
+  max_retries?: number;
+  retry_delay_ms?: number;
+  error_status?: string | number | null;
+  error?: string | null;
 }
 
 export type ContentBlock =
@@ -201,7 +206,7 @@ export interface SystemMessageMetadata extends Record<string, any> {
   attempt?: number;
   max_retries?: number;
   retry_delay_ms?: number;
-  error_status?: string | null;
+  error_status?: string | number | null;
   error?: string | null;
 }
 
@@ -269,6 +274,8 @@ export interface EventMessage {
     | "permission_request"
     | "agent_runtime_event"
     | "workspace_event"
+    | "directory_changed"
+    | "scheduled_task_changed"
     | "pong"
     | "error"
     | "room_collaboration"
@@ -371,6 +378,14 @@ export function get_system_message_display_meta(
   if (subtype === "task_notification" || subtype === "status") {
     return {
       label: "状态更新",
+      tone: "neutral",
+      icon: "status",
+    };
+  }
+
+  if (subtype === "compact_boundary") {
+    return {
+      label: "上下文压缩",
       tone: "neutral",
       icon: "status",
     };

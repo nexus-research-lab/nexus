@@ -4,9 +4,23 @@ import { request_api } from "@/lib/api/http";
 const AGENT_API_BASE_URL = get_agent_api_base_url();
 const CHANNEL_API_BASE_URL = `${AGENT_API_BASE_URL}/capability`;
 
-export type ImChannelType = "dingtalk" | "wechat" | "feishu" | "telegram" | "discord";
+export type ImChannelType =
+  | "dingtalk"
+  | "wechat"
+  | "weixin-personal"
+  | "feishu"
+  | "telegram"
+  | "discord";
 export type ImPairingStatus = "pending" | "active" | "disabled" | "rejected";
 export type ImChatType = "dm" | "group";
+export type ImChannelCapability =
+  | "text"
+  | "media"
+  | "typing"
+  | "thread"
+  | "reply"
+  | "receipt"
+  | "durable_final";
 
 export interface ChannelCredentialField {
   key: string;
@@ -28,6 +42,7 @@ export interface ChannelCatalogItem {
   supports_group: boolean;
   supports_qr_code: boolean;
   supports_oauth_link: boolean;
+  capabilities: ImChannelCapability[];
   credential_fields: ChannelCredentialField[];
 }
 
@@ -35,6 +50,15 @@ export interface ChannelStats {
   paired_user_count: number;
   paired_group_count: number;
   pending_count: number;
+}
+
+export interface ChannelAccountView {
+  account_id: string;
+  user_id?: string;
+  status: string;
+  last_error?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ChannelConfigView extends ChannelCatalogItem {
@@ -49,6 +73,7 @@ export interface ChannelConfigView extends ChannelCatalogItem {
   qr_payload?: string;
   updated_at?: string;
   stats: ChannelStats;
+  accounts?: ChannelAccountView[];
 }
 
 export interface UpsertChannelConfigPayload {
@@ -57,12 +82,33 @@ export interface UpsertChannelConfigPayload {
   credentials?: Record<string, string>;
 }
 
+export type ChannelLoginStatus = "running" | "verify_code_required" | "succeeded" | "error" | "expired" | "cancelled";
+
+export interface ChannelLoginView {
+  login_id: string;
+  channel_type: ImChannelType;
+  status: ChannelLoginStatus | string;
+  command?: string;
+  qr_payload?: string;
+  qr_payload_type?: string;
+  output?: string;
+  error?: string;
+  account_id?: string;
+  user_id?: string;
+  verify_code_hint?: string;
+  started_at: string;
+  updated_at: string;
+  finished_at?: string;
+}
+
 export interface PairingView {
   pairing_id: string;
   channel_type: ImChannelType;
+  account_id?: string;
   chat_type: ImChatType;
   external_ref: string;
   thread_id?: string;
+  session_key: string;
   external_name?: string;
   agent_id: string;
   agent_name?: string;
@@ -81,6 +127,7 @@ export interface ListPairingsParams {
 
 export interface CreatePairingPayload {
   channel_type: ImChannelType;
+  account_id?: string;
   chat_type: ImChatType;
   external_ref: string;
   thread_id?: string;
@@ -137,6 +184,55 @@ export async function delete_channel_config_api(
     `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/config`,
     {
       method: "DELETE",
+    },
+  );
+}
+
+export async function delete_channel_account_api(
+  channel_type: ImChannelType,
+  account_id: string,
+): Promise<ChannelConfigView> {
+  return request_api<ChannelConfigView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/accounts/${encodeURIComponent(account_id)}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function start_channel_login_api(
+  channel_type: ImChannelType,
+): Promise<ChannelLoginView> {
+  return request_api<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function get_channel_login_api(
+  channel_type: ImChannelType,
+  login_id: string,
+): Promise<ChannelLoginView> {
+  return request_api<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login/${encodeURIComponent(login_id)}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function submit_channel_login_verify_code_api(
+  channel_type: ImChannelType,
+  login_id: string,
+  verify_code: string,
+): Promise<ChannelLoginView> {
+  return request_api<ChannelLoginView>(
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login/${encodeURIComponent(login_id)}/verify-code`,
+    {
+      method: "POST",
+      body: JSON.stringify({ verify_code }),
     },
   );
 }

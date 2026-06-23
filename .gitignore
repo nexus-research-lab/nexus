@@ -53,5 +53,6 @@ docs/articles
 logs
 
 # dev
+deploy/data/
 skills/werewolf-6p
 skills/room-playbook

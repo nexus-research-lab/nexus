@@ -25,11 +25,11 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 		if message.TaskStarted == nil {
 			return SystemMessageSummary{}, false
 		}
-		content := firstNonEmptySummary(
+		content := strings.TrimSpace(firstNonEmpty(
 			message.TaskStarted.Description,
 			message.TaskStarted.Prompt,
 			"任务已开始",
-		)
+		))
 		return SystemMessageSummary{
 			Subtype: "task_started",
 			Content: content,
@@ -45,12 +45,12 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 		if message.TaskProgress == nil {
 			return SystemMessageSummary{}, false
 		}
-		content := firstNonEmptySummary(
+		content := strings.TrimSpace(firstNonEmpty(
 			message.TaskProgress.Summary,
 			message.TaskProgress.Description,
 			formatTaskProgressContent(message.TaskProgress.LastToolName),
 			"任务正在执行",
-		)
+		))
 		return SystemMessageSummary{
 			Subtype: "task_progress",
 			Content: content,
@@ -66,11 +66,11 @@ func SummarizeSystemMessage(message *sdkprotocol.SystemMessage) (SystemMessageSu
 		if message.TaskNotification == nil {
 			return SystemMessageSummary{}, false
 		}
-		content := firstNonEmptySummary(
+		content := strings.TrimSpace(firstNonEmpty(
 			message.TaskNotification.Summary,
 			formatTaskNotificationContent(message.TaskNotification.Status),
 			"任务状态已更新",
-		)
+		))
 		return SystemMessageSummary{
 			Subtype: "task_notification",
 			Content: content,
@@ -161,13 +161,4 @@ func compactMetadata(metadata map[string]any) map[string]any {
 		return nil
 	}
 	return result
-}
-
-func firstNonEmptySummary(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }

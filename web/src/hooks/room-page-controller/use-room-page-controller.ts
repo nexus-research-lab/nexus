@@ -1,3 +1,5 @@
+/* @refresh reset */
+// 中文注释：Room 控制器聚合多个 hook，开发热更新时直接重挂页面，避免 hook 签名迁移触发错误边界。
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -9,12 +11,18 @@ import {
   create_room_conversation,
   delete_room,
   delete_room_conversation,
+  notify_room_directory_updated,
   remove_room_member,
   update_room,
   update_room_conversation,
 } from "@/lib/api/room-api";
+import {
+  build_external_session_conversation_id,
+  is_external_session_channel,
+} from "@/features/conversation/external-session-labels";
 import { useHomeWorkspaceController } from "@/hooks/home/use-home-workspace-controller";
 import {
+  apply_conversation_snapshot_to_room_contexts,
   build_room_conversation_views,
   resolve_current_agent_session_identity,
   resolve_current_room_context,
@@ -24,9 +32,11 @@ import {
 } from "@/hooks/room-page-controller/room-page-controller-core";
 import { useRoomPageAgentDialog } from "@/hooks/room-page-controller/use-room-page-agent-dialog";
 import { useRoomPageData } from "@/hooks/room-page-controller/use-room-page-data";
+import { useRoomExternalSessions } from "@/hooks/room-page-controller/use-room-external-sessions";
 import { useAgentStore } from "@/store/agent";
 import { useConversationStore } from "@/store/conversation";
 import { AgentIdentityDraft, AgentOptions } from "@/types/agent/agent";
+import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { ConversationSnapshotPayload, RoomConversationView } from "@/types/conversation/conversation";
 import { UpdateRoomParams } from "@/types/conversation/room";
 import { RoomPageControllerOptions } from "@/types/app/route";
@@ -34,6 +44,7 @@ import { RoomPageControllerOptions } from "@/types/app/route";
 export function useRoomPageController({
   room_id,
   conversation_id,
+  session_key,
 }: RoomPageControllerOptions) {
   // 这里坚持使用细粒度 selector，避免 Room 页面因为 store
   // 里无关字段变动而整页重渲染。
@@ -96,25 +107,69 @@ export function useRoomPageController({
     return room_member_agents.map((agent) => agent.agent_id);
   }, [room_member_agents]);
 
-  const room_conversations = useMemo<RoomConversationView[]>(() => {
+  const base_room_conversations = useMemo<RoomConversationView[]>(() => {
     return build_room_conversation_views(scoped_room_contexts);
   }, [scoped_room_contexts]);
+  const route_session_key = useMemo(
+    () => session_key?.trim() || null,
+    [session_key],
+  );
+
+  const selected_base_conversation_id = useMemo(() => {
+    return resolve_selected_conversation_id(conversation_id, base_room_conversations);
+  }, [base_room_conversations, conversation_id]);
+
+  const current_room_context = useMemo(
+    () => resolve_current_room_context(scoped_room_contexts, selected_base_conversation_id),
+    [scoped_room_contexts, selected_base_conversation_id],
+  );
+
+  const active_room_session = useMemo(
+    () =>
+      current_room_context?.sessions.find(
+        (session) => session.agent_id === selected_member_agent_id,
+      ) ??
+      current_room_context?.sessions[0] ??
+      null,
+    [current_room_context, selected_member_agent_id],
+  );
+
+  const current_agent = useMemo(
+    () =>
+      room_member_agents.find(
+        (agent) => agent.agent_id === active_room_session?.agent_id,
+      ) ?? null,
+    [active_room_session?.agent_id, room_member_agents],
+  );
+
+  const {
+    external_agent_sessions,
+    external_room_conversations,
+  } = useRoomExternalSessions({
+    agent_id: current_agent?.agent_id ?? null,
+    room_id: current_room?.id ?? null,
+    room_type: current_room?.room_type ?? null,
+  });
+
+  const current_room_conversations = useMemo(
+    () => [...base_room_conversations, ...external_room_conversations]
+      .sort((left, right) => right.last_activity_at - left.last_activity_at),
+    [base_room_conversations, external_room_conversations],
+  );
 
   const selected_conversation_id = useMemo(() => {
-    return resolve_selected_conversation_id(conversation_id, room_conversations);
-  }, [conversation_id, room_conversations]);
+    if (route_session_key) {
+      return build_external_session_conversation_id(route_session_key);
+    }
+    return selected_base_conversation_id;
+  }, [route_session_key, selected_base_conversation_id]);
 
   const current_room_conversation = useMemo(
     () =>
-      room_conversations.find(
+      current_room_conversations.find(
         (conversation) => conversation.conversation_id === selected_conversation_id,
       ) ?? null,
-    [room_conversations, selected_conversation_id],
-  );
-
-  const current_room_context = useMemo(
-    () => resolve_current_room_context(scoped_room_contexts, selected_conversation_id),
-    [scoped_room_contexts, selected_conversation_id],
+    [current_room_conversations, selected_conversation_id],
   );
 
   useEffect(() => {
@@ -128,19 +183,20 @@ export function useRoomPageController({
     }
   }, [current_room_context, selected_member_agent_id]);
 
-  const active_room_session = useMemo(
-    () =>
-      current_room_context?.sessions.find(
-        (session) => session.agent_id === selected_member_agent_id,
-      ) ??
-      current_room_context?.sessions[0] ??
-      null,
-    [current_room_context, selected_member_agent_id],
-  );
+  // Room 详情页现在直接基于当前 room context 解析 session 身份；
+  // 外部 IM 会话则以 route session_key 作为同一 Agent 下的独立会话。
+  const current_agent_session_identity = useMemo<AgentConversationIdentity | null>(() => {
+    if (route_session_key && current_agent?.agent_id) {
+      const external_session = external_agent_sessions.find((item) => item.session_key === route_session_key);
+      const external_chat_type: AgentConversationIdentity["chat_type"] =
+        external_session?.chat_type === "group" ? "group" : "dm";
+      return {
+        session_key: route_session_key,
+        agent_id: external_session?.agent_id ?? current_agent.agent_id,
+        chat_type: external_chat_type,
+      };
+    }
 
-  // Room 详情页现在直接基于当前 room context 解析 session 身份，
-  // 不再依赖全局 conversations 列表做首屏补全。
-  const current_agent_session_identity = useMemo(() => {
     return resolve_current_agent_session_identity({
       current_room_id: current_room?.id ?? null,
       current_conversation_id: current_room_context?.conversation.id ?? null,
@@ -149,18 +205,13 @@ export function useRoomPageController({
     });
   }, [
     active_room_session,
+    current_agent?.agent_id,
     current_room?.id,
     current_room?.room_type,
     current_room_context?.conversation.id,
+    external_agent_sessions,
+    route_session_key,
   ]);
-
-  const current_agent = useMemo(
-    () =>
-      room_member_agents.find(
-        (agent) => agent.agent_id === active_room_session?.agent_id,
-      ) ?? null,
-    [active_room_session?.agent_id, room_member_agents],
-  );
   const available_room_agents = useMemo(() => {
     const joined_agent_ids = new Set(room_member_agents.map((agent) => agent.agent_id));
     return agents.filter((agent) => (
@@ -196,14 +247,11 @@ export function useRoomPageController({
 
   const handle_conversation_snapshot_change = useCallback((snapshot: ConversationSnapshotPayload) => {
     const snapshot_conversation_id = "conversation_id" in snapshot
-      ? snapshot.conversation_id
+      ? snapshot.conversation_id ?? null
       : current_room_context?.conversation.id ?? null;
     const snapshot_room_session_id = "room_session_id" in snapshot
       ? snapshot.room_session_id ?? null
       : active_room_session?.id ?? null;
-    const next_last_activity_at = snapshot.last_activity_at
-      ? new Date(snapshot.last_activity_at).toISOString()
-      : undefined;
 
     const next_snapshot = {
       ...(snapshot.last_activity_at ? { last_activity_at: snapshot.last_activity_at } : {}),
@@ -211,64 +259,12 @@ export function useRoomPageController({
     };
 
     set_room_contexts((prev) => {
-      if (!snapshot_conversation_id) {
-        return prev;
-      }
-
-      let has_changed = false;
-
-      const next_contexts = prev.map((context) => {
-        if (context.conversation.id !== snapshot_conversation_id) {
-          return context;
-        }
-
-        let context_changed = false;
-        const next_conversation_updated_at = next_last_activity_at ?? context.conversation.updated_at;
-        const conversation_changed =
-          context.conversation.updated_at !== next_conversation_updated_at;
-
-        const next_sessions = context.sessions.map((session) => {
-          if (!snapshot_room_session_id || session.id !== snapshot_room_session_id) {
-            return session;
-          }
-
-          const next_sdk_session_id = snapshot.session_id ?? session.sdk_session_id;
-          const next_session_last_activity_at = next_last_activity_at ?? session.last_activity_at;
-          const session_changed =
-            session.sdk_session_id !== next_sdk_session_id ||
-            session.last_activity_at !== next_session_last_activity_at;
-
-          if (!session_changed) {
-            return session;
-          }
-
-          has_changed = true;
-          context_changed = true;
-          return {
-            ...session,
-            sdk_session_id: next_sdk_session_id,
-            last_activity_at: next_session_last_activity_at,
-          };
-        });
-
-        if (!context_changed) {
-          if (!conversation_changed) {
-            return context;
-          }
-        }
-
-        has_changed = true;
-        return {
-          ...context,
-          conversation: {
-            ...context.conversation,
-            updated_at: next_conversation_updated_at,
-          },
-          sessions: next_sessions,
-        };
+      return apply_conversation_snapshot_to_room_contexts(prev, {
+        conversation_id: snapshot_conversation_id,
+        room_session_id: snapshot_room_session_id,
+        session_id: snapshot.session_id ?? null,
+        last_activity_at: snapshot.last_activity_at,
       });
-
-      return has_changed ? next_contexts : prev;
     });
 
     const snapshot_session_key = "session_key" in snapshot
@@ -280,6 +276,9 @@ export function useRoomPageController({
     }
 
     sync_conversation_snapshot(snapshot_session_key, next_snapshot);
+    if (is_external_session_channel(null, snapshot_session_key)) {
+      notify_room_directory_updated();
+    }
   }, [
     active_room_session?.id,
     current_room_context?.conversation.id,
@@ -365,7 +364,7 @@ export function useRoomPageController({
 
   const handle_open_conversation_from_launcher = useCallback((conversation_id: string, agent_id?: string) => {
     // Launcher 打开 Room 时只认 conversation_id，不再接受其他回退标识。
-    const target_conversation = room_conversations.find(
+    const target_conversation = current_room_conversations.find(
       (conversation) => conversation.conversation_id === conversation_id,
     );
 
@@ -383,7 +382,7 @@ export function useRoomPageController({
       // 如果指定的 agent 不在当前 room 中，默认选择第一个
       set_selected_member_agent_id(room_member_agents[0].agent_id);
     }
-  }, [room_conversations, room_member_agents]);
+  }, [current_room_conversations, room_member_agents]);
 
   const handle_refresh_room_state = useCallback(async () => {
     if (!room_id) {
@@ -391,6 +390,7 @@ export function useRoomPageController({
     }
 
     await refresh_room_contexts(room_id);
+    notify_room_directory_updated();
   }, [refresh_room_contexts, room_id]);
 
   const is_hydrated = is_bootstrapped && !is_room_loading;
@@ -410,7 +410,7 @@ export function useRoomPageController({
     handle_prepare_room_agent_catalog,
     current_agent,
     current_agent_id: current_agent?.agent_id ?? null,
-    current_room_conversations: room_conversations,
+    current_room_conversations,
     current_room_conversation,
     current_agent_session_identity,
     conversation_id: selected_conversation_id,
@@ -450,7 +450,7 @@ export function useRoomPageController({
     ...workspace,
   }), [
     agents, room_error, current_room, current_agent,
-    room_member_agents, available_room_agents, room_conversations, current_room_conversation,
+    room_member_agents, available_room_agents, current_room_conversations, current_room_conversation,
     current_agent_session_identity, selected_conversation_id, is_hydrated, is_dialog_open, dialog_mode,
     editing_agent_id, dialog_initial_title, dialog_initial_avatar, dialog_initial_description, dialog_initial_options, dialog_initial_vibe_tags, set_is_dialog_open,
     handle_open_create_agent, handle_edit_agent, handle_select_agent,

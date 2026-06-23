@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cmp"
 	"errors"
 	"os"
 )
@@ -21,8 +22,8 @@ func Get(connectorID string) (Provider, error) {
 		if tokenURL != "" || deviceCodeURL != "" {
 			return NewGitHubProviderWithDeviceURL(
 				defaultGitHubAuthURL,
-				firstNonEmpty(tokenURL, defaultGitHubTokenURL),
-				firstNonEmpty(deviceCodeURL, defaultGitHubDeviceCodeURL),
+				cmp.Or(tokenURL, defaultGitHubTokenURL),
+				cmp.Or(deviceCodeURL, defaultGitHubDeviceCodeURL),
 			), nil
 		}
 	case "gmail":
@@ -47,9 +48,9 @@ func Get(connectorID string) (Provider, error) {
 		apiURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_API_BASE_URL")
 		if authURL != "" || tokenURL != "" || apiURL != "" {
 			return NewFeishuDocxProvider(
-				firstNonEmpty(authURL, defaultFeishuDocxAuthURL),
-				firstNonEmpty(tokenURL, defaultFeishuDocxTokenURL),
-				firstNonEmpty(apiURL, defaultFeishuDocxAPIURL),
+				cmp.Or(authURL, defaultFeishuDocxAuthURL),
+				cmp.Or(tokenURL, defaultFeishuDocxTokenURL),
+				cmp.Or(apiURL, defaultFeishuDocxAPIURL),
 			), nil
 		}
 	}
@@ -58,13 +59,4 @@ func Get(connectorID string) (Provider, error) {
 		return nil, errors.New("connector provider not registered: " + connectorID)
 	}
 	return p, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

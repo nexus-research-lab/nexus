@@ -247,7 +247,7 @@ function MermaidImagePreviewDialog({
           aria-label="关闭"
           className={cn(
             DIALOG_ICON_BUTTON_CLASS_NAME,
-            "absolute right-3 top-3 z-10 border border-black/8 bg-white/88 shadow-sm backdrop-blur",
+            "absolute right-3 top-3 z-10 border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_88%,transparent)] text-(--surface-paper-foreground) shadow-sm backdrop-blur",
           )}
           onClick={on_close}
           type="button"
@@ -256,7 +256,7 @@ function MermaidImagePreviewDialog({
         </button>
         <div
           className={cn(
-            "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-white",
+            "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-(--surface-paper-background)",
             is_dragging ? "cursor-grabbing" : "cursor-grab",
           )}
           onPointerCancel={finish_preview_drag}
@@ -364,7 +364,7 @@ export function MermaidView({
       <div className={cn("group relative min-h-0 w-full", !compact && "flex flex-1")}>
         <div
           className={cn(
-            "mermaid-view soft-scrollbar relative flex min-w-0 w-full cursor-zoom-in items-center justify-center overflow-auto bg-white p-4 outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-primary/28",
+            "mermaid-view soft-scrollbar relative flex min-w-0 w-full cursor-zoom-in items-center justify-center overflow-auto bg-(--surface-paper-background) p-4 text-(--surface-paper-foreground) outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-primary/28",
             get_mermaid_body_class_name(compact, constrain_height),
             get_mermaid_svg_class_name(compact, constrain_height),
           )}
@@ -375,11 +375,11 @@ export function MermaidView({
           tabIndex={0}
           title="放大预览"
         />
-        <div className="pointer-events-none absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border border-black/8 bg-white/86 text-slate-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className="pointer-events-none absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] text-(--surface-paper-muted) opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <Maximize2 className="h-3.5 w-3.5" />
         </div>
         {is_rendering ? (
-          <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-black/8 bg-white/86 px-2 py-1 text-[11px] text-slate-500 shadow-sm">
+          <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-[11px] text-(--surface-paper-muted) shadow-sm">
             <LoaderCircle className="mr-1.5 h-3 w-3 animate-spin" />
             更新中
           </div>

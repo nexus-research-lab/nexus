@@ -181,3 +181,29 @@ func TestWebStaticRequestKind(t *testing.T) {
 		})
 	}
 }
+
+func TestWebStaticCacheControl(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		relativePath string
+		usedFallback bool
+		want         string
+	}{
+		{name: "hashed asset", relativePath: "assets/app.123.js", want: "public, max-age=31536000, immutable"},
+		{name: "html file", relativePath: "app.html", want: "no-cache"},
+		{name: "fallback route", relativePath: "rooms/r1", usedFallback: true, want: "no-cache"},
+		{name: "root fallback", relativePath: "", usedFallback: true, want: "no-cache"},
+		{name: "plain file", relativePath: "logo.webp", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := webStaticCacheControl(tt.relativePath, tt.usedFallback); got != tt.want {
+				t.Fatalf("webStaticCacheControl(%q, %v) = %q, want %q", tt.relativePath, tt.usedFallback, got, tt.want)
+			}
+		})
+	}
+}

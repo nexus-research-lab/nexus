@@ -1,11 +1,13 @@
 package skills
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 func readSkillSource(sourceDir string) (string, string, string, error) {
@@ -71,12 +73,9 @@ func matchSkillQuery(detail Detail, query string) bool {
 		strings.ToLower(detail.Description),
 		strings.ToLower(strings.Join(detail.Tags, " ")),
 	}
-	for _, field := range fields {
-		if strings.Contains(field, query) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(fields, func(field string) bool {
+		return strings.Contains(field, query)
+	})
 }
 
 func defaultSkillScope(scope string) string {
@@ -92,8 +91,8 @@ func defaultSkillScope(scope string) string {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""
@@ -102,7 +101,7 @@ func firstNonEmpty(values ...string) string {
 func firstNonEmptySlice(candidates ...[]string) []string {
 	for _, item := range candidates {
 		if len(item) > 0 {
-			return append(make([]string, 0, len(item)), item...)
+			return slices.Clone(item)
 		}
 	}
 	return []string{}

@@ -2,14 +2,13 @@ import Darwin
 import Foundation
 
 enum SidecarPortAllocator {
+  private static let desktopLoopbackPort = 34343
+
   static func allocate() throws -> Int {
-    for _ in 0..<80 {
-      let port = Int.random(in: 20000...49151)
-      if isAvailable(port) {
-        return port
-      }
+    if isAvailable(desktopLoopbackPort) {
+      return desktopLoopbackPort
     }
-    throw DesktopShellError.portUnavailable
+    throw DesktopShellError.portUnavailable(desktopLoopbackPort)
   }
 
   private static func isAvailable(_ port: Int) -> Bool {

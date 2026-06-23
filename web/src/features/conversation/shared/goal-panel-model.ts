@@ -29,27 +29,27 @@ export function goal_status_tone(status: GoalStatus): {
   switch (status) {
     case "active":
       return {
-        badge: "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-        icon: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-        meter: "bg-emerald-500",
-        rail: "bg-emerald-500",
-        text: "text-emerald-700 dark:text-emerald-300",
+        badge: "border-[color:color-mix(in_srgb,var(--success)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
+        icon: "border-[color:color-mix(in_srgb,var(--success)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
+        meter: "bg-(--success)",
+        rail: "bg-(--success)",
+        text: "text-(--success)",
       };
     case "paused":
       return {
-        badge: "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-        icon: "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300",
-        meter: "bg-amber-500",
-        rail: "bg-amber-500",
-        text: "text-amber-700 dark:text-amber-300",
+        badge: "border-[color:color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)",
+        icon: "border-[color:color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)",
+        meter: "bg-(--warning)",
+        rail: "bg-(--warning)",
+        text: "text-(--warning)",
       };
     case "complete":
       return {
-        badge: "border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-        icon: "border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-300",
-        meter: "bg-sky-500",
-        rail: "bg-sky-500",
-        text: "text-sky-700 dark:text-sky-300",
+        badge: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
+        icon: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
+        meter: "bg-(--status-info-soft-text)",
+        rail: "bg-(--status-info-soft-text)",
+        text: "text-(--status-info-soft-text)",
       };
     case "blocked":
     case "budget_limited":
@@ -65,8 +65,8 @@ export function goal_status_tone(status: GoalStatus): {
       return {
         badge: "border-transparent bg-transparent text-(--text-soft)",
         icon: "bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)",
-        meter: "bg-muted-foreground",
-        rail: "bg-muted-foreground",
+        meter: "bg-(--text-soft)",
+        rail: "bg-(--text-soft)",
         text: "text-(--text-soft)",
       };
   }

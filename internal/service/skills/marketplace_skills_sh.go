@@ -1,12 +1,13 @@
 package skills
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -161,17 +162,17 @@ func findSkillsShSourceDir(root string, skillPath string, skillSlug string) (str
 	if len(candidates) == 0 {
 		return "", fmt.Errorf("未找到 skills.sh skill 目录: %s", firstNonEmpty(skillPath, skillSlug))
 	}
-	sort.Slice(candidates, func(i int, j int) bool {
-		if candidates[i].score != candidates[j].score {
-			return candidates[i].score < candidates[j].score
+	slices.SortFunc(candidates, func(left candidate, right candidate) int {
+		if result := cmp.Compare(left.score, right.score); result != 0 {
+			return result
 		}
-		return len(candidates[i].path) < len(candidates[j].path)
+		return cmp.Compare(len(left.path), len(right.path))
 	})
 	return candidates[0].path, nil
 }
 
 func buildSkillsPackageSpec(source string, slug string, name string) string {
-	base := firstNonEmpty(strings.TrimSpace(source), strings.TrimSpace(slug))
+	base := firstNonEmpty(source, slug)
 	if base == "" {
 		return name
 	}

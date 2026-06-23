@@ -145,12 +145,12 @@ export function AgentOptionsIdentityTab({
         <span className="text-muted-foreground">{t("agent_options.identity.validating_name")}</span>
       ) : null}
       {!is_validating_name && name_validation?.reason ? (
-        <span className="text-red-500">{name_validation.reason}</span>
+        <span className="text-(--destructive)">{name_validation.reason}</span>
       ) : null}
       {!is_validating_name &&
         name_validation?.is_valid &&
         name_validation?.is_available ? (
-        <span className="text-emerald-600">
+        <span className="text-(--success)">
           {t("agent_options.identity.name_available", {
             path: name_validation.workspace_path ?? "",
           })}
@@ -222,7 +222,7 @@ export function AgentOptionsIdentityTab({
               />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
-                  {t("agent_options.identity.name")} <span className="text-red-500">*</span>
+                  {t("agent_options.identity.name")} <span className="text-(--destructive)">*</span>
                 </label>
                 <UiInput
                   class_name="rounded-xl"
@@ -313,7 +313,7 @@ export function AgentOptionsIdentityTab({
             />
             <div className="min-w-0 flex-1 space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
-                {t("agent_options.identity.name")} <span className="text-red-500">*</span>
+                {t("agent_options.identity.name")} <span className="text-(--destructive)">*</span>
               </label>
               <UiInput
                 class_name="h-10 rounded-xl"

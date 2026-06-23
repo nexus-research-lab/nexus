@@ -18,6 +18,7 @@ export const SIDEBAR_SYSTEM_ITEM_IDS = {
 } as const;
 export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   skills: "capability:skills",
+  loops: "capability:loops",
   connectors: "capability:connectors",
   scheduled_tasks: "capability:scheduled-tasks",
   channels: "capability:channels",
@@ -28,6 +29,7 @@ export const SIDEBAR_CAPABILITY_ITEM_IDS = {
 /** 根据当前路由派生侧栏高亮条目，保证整套导航只走一个状态源。 */
 export function derive_sidebar_item_id_from_path(pathname: string): string | null {
   if (pathname.startsWith("/capability/skills")) return SIDEBAR_CAPABILITY_ITEM_IDS.skills;
+  if (pathname.startsWith("/capability/loops")) return SIDEBAR_CAPABILITY_ITEM_IDS.loops;
   if (pathname.startsWith("/capability/connectors")) return SIDEBAR_CAPABILITY_ITEM_IDS.connectors;
   if (pathname.startsWith("/capability/scheduled-tasks")) return SIDEBAR_CAPABILITY_ITEM_IDS.scheduled_tasks;
   if (pathname.startsWith("/capability/channels")) return SIDEBAR_CAPABILITY_ITEM_IDS.channels;

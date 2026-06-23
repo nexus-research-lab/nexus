@@ -386,6 +386,8 @@ export class WebSocketClient {
       case "unsubscribe_room":
       case "subscribe_workspace":
       case "unsubscribe_workspace":
+      case "subscribe_app_events":
+      case "unsubscribe_app_events":
         return true;
       default:
         return false;

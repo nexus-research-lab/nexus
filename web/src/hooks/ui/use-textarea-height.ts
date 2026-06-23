@@ -91,8 +91,7 @@ export function useTextareaHeight(
 
     const clamped = Math.min(Math.max(contentHeight, min_height), max_height);
     el.style.height = `${clamped}px`;
-    // Show scrollbar only when content exceeds max_height
-    el.style.overflowY = contentHeight > max_height ? "auto" : "hidden";
+    el.style.overflowY = "auto";
     if (
       contentHeight > max_height &&
       document.activeElement === el &&

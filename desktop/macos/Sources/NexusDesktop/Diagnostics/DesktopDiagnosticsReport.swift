@@ -118,6 +118,7 @@ enum DesktopDiagnosticsReport {
       "api_base_url": runtime.apiBaseURL.absoluteString,
       "websocket_url": runtime.webSocketURL.absoluteString,
       "health_url": runtime.healthURL.absoluteString,
+      "oauth_redirect_uri": runtime.oauthRedirectURL.absoluteString,
     ]
   }
 
@@ -127,7 +128,9 @@ enum DesktopDiagnosticsReport {
       "data_dir": DesktopPaths.dataDirectory.path,
       "logs_dir": logsDirectory().path,
       "debug_dir": DesktopPaths.debugDirectory.path,
+      "config_root": DesktopPaths.rootDirectory.path,
       "config_dir": DesktopPaths.configDirectory.path,
+      "transcript_projects_dir": DesktopPaths.projectsDirectory.path,
       "workspace_dir": DesktopPaths.workspaceDirectory.path,
       "cache_dir": DesktopPaths.cacheDirectory.path,
       "sidecar_pid_record": DesktopPaths.sidecarPIDFileURL.path,
@@ -142,6 +145,7 @@ enum DesktopDiagnosticsReport {
       "data_dir_exists": fileManager.fileExists(atPath: DesktopPaths.dataDirectory.path),
       "logs_dir_exists": fileManager.fileExists(atPath: logsDirectory().path),
       "debug_dir_exists": fileManager.fileExists(atPath: DesktopPaths.debugDirectory.path),
+      "transcript_projects_dir_exists": fileManager.fileExists(atPath: DesktopPaths.projectsDirectory.path),
       "sidecar_pid_record_exists": fileManager.fileExists(
         atPath: DesktopPaths.sidecarPIDFileURL.path
       ),

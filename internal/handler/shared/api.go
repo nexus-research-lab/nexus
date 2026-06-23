@@ -72,7 +72,7 @@ func (a *API) WriteFailure(writer http.ResponseWriter, status int, detail string
 	}
 	clientDetail = GatewayClientErrorDetail(status, clientDetail)
 	a.WriteJSON(writer, status, map[string]any{
-		"code":    FormatStatusCode(status),
+		"code":    strconv.Itoa(status),
 		"message": "failed",
 		"success": false,
 		"data": map[string]any{
@@ -155,19 +155,6 @@ func GatewayClientErrorDetail(status int, detail string) string {
 		}
 		return "请求失败"
 	}
-}
-
-// FormatStatusCode 格式化 HTTP 状态码。
-func FormatStatusCode(status int) string {
-	return strings.TrimSpace(strconv.Itoa(status))
-}
-
-// ErrString 返回错误文本。
-func ErrString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }
 
 // IsClientMessageError 判断错误是否适合直接返回给客户端。
@@ -258,6 +245,8 @@ func PublicAuthRoute(request *http.Request) bool {
 		"/nexus/v1/auth/login",
 		"/nexus/v1/auth/logout":
 		return true
+	case "/nexus/v1/connectors/oauth/callback":
+		return request.Method == http.MethodPost
 	default:
 		return false
 	}

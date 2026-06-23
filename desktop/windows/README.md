@@ -24,6 +24,20 @@ winget install --id JRSoftware.InnoSetup -e
 pwsh scripts/desktop/build-windows-app.ps1
 ```
 
+也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` runtime，避免 Agent 启动时找不到 `nxs.exe`：
+
+```powershell
+make app-win-build
+make app-win-run
+make app-win-run APP_WIN_RUN_SKIP_BUILD=1
+```
+
+如需临时关闭随包预置 runtime：
+
+```powershell
+make app-win-build APP_WIN_BUNDLE_NXS_RUNTIME=0
+```
+
 默认输出：
 
 ```text

@@ -17,6 +17,8 @@ const (
 	SessionChannelDingTalkSegment = "dt"
 	// SessionChannelWeChatSegment 表示 session_key 中的微信通道段。
 	SessionChannelWeChatSegment = "wx"
+	// SessionChannelWeixinPersonalSegment 表示个人微信 iLink 通道段。
+	SessionChannelWeixinPersonalSegment = "weixin-personal"
 	// SessionChannelFeishuSegment 表示 session_key 中的飞书通道段。
 	SessionChannelFeishuSegment = "fs"
 	// SessionChannelInternalSegment 表示 session_key 中的内部通道段。
@@ -32,6 +34,8 @@ const (
 	SessionChannelDingTalk = "dingtalk"
 	// SessionChannelWeChat 表示持久化后的微信通道类型。
 	SessionChannelWeChat = "wechat"
+	// SessionChannelWeixinPersonal 表示持久化后的个人微信 iLink 通道类型。
+	SessionChannelWeixinPersonal = "weixin-personal"
 	// SessionChannelFeishu 表示持久化后的飞书通道类型。
 	SessionChannelFeishu = "feishu"
 
@@ -52,6 +56,7 @@ const (
 
 	roomSharedChatType = "group"
 	topicSegment       = "topic"
+	accountSegment     = "acct"
 )
 
 // SessionKey 表示结构化会话键。
@@ -63,6 +68,7 @@ type SessionKey struct {
 	AgentID        string         `json:"agent_id,omitempty"`
 	Channel        string         `json:"channel,omitempty"`
 	ChatType       string         `json:"chat_type,omitempty"`
+	AccountID      string         `json:"account_id,omitempty"`
 	Ref            string         `json:"ref,omitempty"`
 	ThreadID       string         `json:"thread_id,omitempty"`
 	ConversationID string         `json:"conversation_id,omitempty"`
@@ -81,13 +87,31 @@ func (e StructuredSessionKeyError) Error() string {
 	return e.Message
 }
 
-func findTopicIndex(parts []string) int {
+func findTopicIndex(parts []string, minIndex int) int {
 	for index, value := range parts {
-		if value == topicSegment && index >= 4 {
+		if value == topicSegment && index >= minIndex {
 			return index
 		}
 	}
 	return -1
+}
+
+func splitAgentRefParts(parts []string) (string, int, string) {
+	if len(parts) > 4 && parts[4] == accountSegment {
+		if len(parts) < 7 {
+			return "", 0, "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]"
+		}
+		accountID := strings.TrimSpace(parts[5])
+		if accountID == "" {
+			return "", 0, "session_key account_id is required after acct segment"
+		}
+		return accountID, 6, ""
+	}
+	return "", 4, ""
+}
+
+func agentSessionKeyShapeError() string {
+	return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]"
 }
 
 // GetSessionKeyValidationError 返回结构化 session_key 校验错误。
@@ -100,21 +124,25 @@ func GetSessionKeyValidationError(raw string) string {
 	if strings.HasPrefix(normalized, string(SessionKeyKindAgent)+":") {
 		parts := strings.Split(normalized, ":")
 		if len(parts) < 5 || strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" || strings.TrimSpace(parts[3]) == "" {
-			return "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]"
+			return agentSessionKeyShapeError()
 		}
 
-		topicIndex := findTopicIndex(parts)
+		_, refStart, splitErr := splitAgentRefParts(parts)
+		if splitErr != "" {
+			return splitErr
+		}
+		topicIndex := findTopicIndex(parts, refStart)
 		if topicIndex >= 0 {
-			ref := strings.TrimSpace(strings.Join(parts[4:topicIndex], ":"))
+			ref := strings.TrimSpace(strings.Join(parts[refStart:topicIndex], ":"))
 			threadID := strings.TrimSpace(strings.Join(parts[topicIndex+1:], ":"))
 			if ref == "" || threadID == "" {
-				return "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]"
+				return agentSessionKeyShapeError()
 			}
 			return ""
 		}
 
-		if strings.TrimSpace(strings.Join(parts[4:], ":")) == "" {
-			return "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]"
+		if strings.TrimSpace(strings.Join(parts[refStart:], ":")) == "" {
+			return agentSessionKeyShapeError()
 		}
 		return ""
 	}
@@ -166,22 +194,28 @@ func ParseSessionKey(raw string) SessionKey {
 		if len(parts) > 2 {
 			result.Channel = strings.TrimSpace(parts[2])
 		}
-		if len(parts) > 3 && strings.TrimSpace(parts[3]) != "" {
-			result.ChatType = strings.TrimSpace(parts[3])
-		} else {
-			result.ChatType = "dm"
+		result.ChatType = "dm"
+		if len(parts) > 3 {
+			if chatType := strings.TrimSpace(parts[3]); chatType != "" {
+				result.ChatType = chatType
+			}
 		}
 
 		// `:topic:` 是保留边界，ref 允许带冒号，但不能跨过这个边界。
-		topicIndex := findTopicIndex(parts)
+		accountID, refStart, splitErr := splitAgentRefParts(parts)
+		if splitErr != "" {
+			return result
+		}
+		result.AccountID = accountID
+		topicIndex := findTopicIndex(parts, refStart)
 		if topicIndex >= 0 {
-			result.Ref = strings.TrimSpace(strings.Join(parts[4:topicIndex], ":"))
+			result.Ref = strings.TrimSpace(strings.Join(parts[refStart:topicIndex], ":"))
 			result.ThreadID = strings.TrimSpace(strings.Join(parts[topicIndex+1:], ":"))
 			return result
 		}
 
-		if len(parts) > 4 {
-			result.Ref = strings.TrimSpace(strings.Join(parts[4:], ":"))
+		if len(parts) > refStart {
+			result.Ref = strings.TrimSpace(strings.Join(parts[refStart:], ":"))
 		}
 		return result
 	}
@@ -194,10 +228,11 @@ func ParseSessionKey(raw string) SessionKey {
 		}
 		result.Kind = SessionKeyKindRoom
 		result.IsShared = validationError == ""
-		if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
-			result.ChatType = strings.TrimSpace(parts[1])
-		} else {
-			result.ChatType = roomSharedChatType
+		result.ChatType = roomSharedChatType
+		if len(parts) > 1 {
+			if chatType := strings.TrimSpace(parts[1]); chatType != "" {
+				result.ChatType = chatType
+			}
 		}
 		result.Ref = conversationID
 		result.RoomRef = conversationID
@@ -210,13 +245,32 @@ func ParseSessionKey(raw string) SessionKey {
 
 // BuildAgentSessionKey 构建 agent 作用域 key。
 func BuildAgentSessionKey(agentID string, channel string, chatType string, ref string, threadID string) string {
+	return BuildAgentAccountSessionKey(agentID, channel, chatType, "", ref, threadID)
+}
+
+// BuildAgentAccountSessionKey 构建带外部通道账号作用域的 agent key。
+func BuildAgentAccountSessionKey(agentID string, channel string, chatType string, accountID string, ref string, threadID string) string {
+	accountID = strings.TrimSpace(accountID)
+	ref = strings.TrimSpace(ref)
+	threadID = strings.TrimSpace(threadID)
 	base := fmt.Sprintf(
 		"agent:%s:%s:%s:%s",
-		agentID,
+		strings.TrimSpace(agentID),
 		NormalizeSessionKeyChannelSegment(channel),
 		NormalizeSessionChatType(chatType),
 		ref,
 	)
+	if accountID != "" {
+		base = fmt.Sprintf(
+			"agent:%s:%s:%s:%s:%s:%s",
+			strings.TrimSpace(agentID),
+			NormalizeSessionKeyChannelSegment(channel),
+			NormalizeSessionChatType(chatType),
+			accountSegment,
+			accountID,
+			ref,
+		)
+	}
 	if threadID == "" {
 		return base
 	}
@@ -265,6 +319,8 @@ func NormalizeSessionKeyChannelSegment(channel string) string {
 		return SessionChannelDingTalkSegment
 	case SessionChannelWeChatSegment, SessionChannelWeChat:
 		return SessionChannelWeChatSegment
+	case SessionChannelWeixinPersonalSegment:
+		return SessionChannelWeixinPersonalSegment
 	case SessionChannelFeishuSegment, SessionChannelFeishu:
 		return SessionChannelFeishuSegment
 	case SessionChannelInternalSegment:
@@ -287,6 +343,8 @@ func NormalizeStoredChannelType(channel string) string {
 		return SessionChannelDingTalk
 	case SessionChannelWeChatSegment, SessionChannelWeChat:
 		return SessionChannelWeChat
+	case SessionChannelWeixinPersonalSegment:
+		return SessionChannelWeixinPersonal
 	case SessionChannelFeishuSegment, SessionChannelFeishu:
 		return SessionChannelFeishu
 	case SessionChannelInternalSegment:

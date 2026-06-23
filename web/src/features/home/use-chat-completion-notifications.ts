@@ -8,7 +8,7 @@ import {
   notify_room_directory_updated,
   subscribe_room_directory_updates,
 } from "@/lib/api/room-api";
-import { useWebSocket } from "@/lib/websocket";
+import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import {
   type ChatNotificationTargetState,
   useSidebarStore,
@@ -355,6 +355,10 @@ export function useChatCompletionNotifications(): void {
 
   const handle_websocket_message = useCallback((raw_message: unknown) => {
     const event = raw_message as EventMessage;
+    if (event.event_type === "directory_changed") {
+      notify_room_directory_updated();
+      return;
+    }
     if (event.room_id && typeof event.room_seq === "number") {
       room_seq_cursor_ref.current[event.room_id] = Math.max(
         room_seq_cursor_ref.current[event.room_id] ?? 0,
@@ -421,6 +425,8 @@ export function useChatCompletionNotifications(): void {
     heartbeat_interval: 30000,
     on_message: handle_websocket_message,
   });
+
+  useAppEventSubscription(ws_send, ws_state);
 
   useEffect(() => {
     if (ws_state !== "connected" || room_ids.length === 0) {

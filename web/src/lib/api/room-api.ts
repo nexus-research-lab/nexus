@@ -64,6 +64,7 @@ function transform_room_context(
       skill_names: api_context.room.skill_names ?? [],
       host_agent_id: api_context.room.host_agent_id ?? null,
       host_auto_reply_enabled: api_context.room.host_auto_reply_enabled ?? false,
+      private_messages_enabled: api_context.room.private_messages_enabled ?? false,
     },
     members: api_context.members,
     member_agents: (api_context.member_agents ?? []).map(transform_api_agent),
@@ -179,6 +180,9 @@ export async function create_room(
   if (params.host_auto_reply_enabled !== undefined) {
     body.host_auto_reply_enabled = params.host_auto_reply_enabled;
   }
+  if (params.private_messages_enabled !== undefined) {
+    body.private_messages_enabled = params.private_messages_enabled;
+  }
   const context = await request_api<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms`,
     {
@@ -208,6 +212,9 @@ export async function update_room(
   }
   if (params.host_auto_reply_enabled !== undefined) {
     body.host_auto_reply_enabled = params.host_auto_reply_enabled;
+  }
+  if (params.private_messages_enabled !== undefined) {
+    body.private_messages_enabled = params.private_messages_enabled;
   }
   const context = await request_api<ApiRoomContextAggregate>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`,

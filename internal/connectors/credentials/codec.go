@@ -17,7 +17,7 @@ func DecodeKey(raw string) ([]byte, error) {
 	}
 	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(raw))
 	if err != nil || len(key) != 32 {
-		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 必须是 32 字节 base64")
+		return nil, errors.New("CONNECTOR_CREDENTIALS_KEY 必须是 32 字节 base64，可用 openssl rand -base64 32 生成")
 	}
 	return key, nil
 }

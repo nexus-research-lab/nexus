@@ -3,7 +3,7 @@ package automation
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,8 +25,8 @@ func (s *Service) describeScheduledTasksSection(ctx context.Context, agentID str
 		return ""
 	}
 
-	sort.SliceStable(jobs, func(i, j int) bool {
-		return scheduledTaskSortKey(jobs[i]).Before(scheduledTaskSortKey(jobs[j]))
+	slices.SortStableFunc(jobs, func(left protocol.CronJob, right protocol.CronJob) int {
+		return scheduledTaskSortKey(left).Compare(scheduledTaskSortKey(right))
 	})
 
 	limit := scheduledTaskSummaryLimit

@@ -1,0 +1,2989 @@
+[
+  {
+    "id": "loop1f2e3ed7d4116c5d41e2604a",
+    "slug": "ship-pr-until-green",
+    "title": "Ship PR Until Green",
+    "title_zh": "PR 绿灯发布循环",
+    "description": "Implement on a branch, run tests, push, open a PR, wait for CI, and loop until checks pass and the PR is ready to merge.",
+    "description_zh": "在分支上实现改动、运行测试、推送并打开 PR，持续处理 CI，直到检查通过且 PR 可合并。",
+    "category": "CI",
+    "category_zh": "CI",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Implement and test",
+        "name_zh": "实现并测试",
+        "prompt": "Make the scoped change and run local tests.",
+        "prompt_zh": "完成限定范围的改动并运行本地测试。",
+        "shell_check": "npm test"
+      },
+      {
+        "name": "Commit and push",
+        "name_zh": "提交并推送",
+        "prompt": "Commit with a clear message and push the branch.",
+        "prompt_zh": "用清晰提交信息提交，并推送当前分支。"
+      },
+      {
+        "name": "Open or update PR",
+        "name_zh": "创建或更新 PR",
+        "prompt": "Open a PR with summary and test plan, or update existing PR.",
+        "prompt_zh": "创建包含摘要和测试计划的 PR，或更新已有 PR。",
+        "shell_check": "gh pr view --json statusCheckRollup,url"
+      },
+      {
+        "name": "Fix CI",
+        "name_zh": "修复 CI",
+        "prompt": "If CI fails, read logs, fix once locally, push, and re-wait.",
+        "prompt_zh": "如果 CI 失败，读取日志，本地修复一次，推送后继续等待。"
+      }
+    ],
+    "exit_condition": {
+      "type": "ci_green",
+      "command": "gh pr checks --watch",
+      "description": "PR checks pass and PR is merge-ready",
+      "description_zh": "PR 检查通过，且 PR 已准备好合并",
+      "max_iterations": 10
+    },
+    "kickoff_prompt": "Start the \"Ship PR Until Green\" loop.\n\nGoal: PR is open with all CI checks passing\nMax iterations: 10\nBetween iterations run: gh pr checks\nExit when: all PR checks are success\n\nStep 1: Implement the change, test locally, push, open PR, and fix CI until green.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "claude-code",
+      "cursor",
+      "codex"
+    ],
+    "best_for_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "pr",
+      "ci",
+      "ship",
+      "continuous-claude"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 1067,
+    "installs": 1811,
+    "views": 1502,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopa2b3a68a4faa8bcad62793ba",
+    "slug": "flaky-test-triage",
+    "title": "Flaky Test Triage",
+    "title_zh": "不稳定测试排查循环",
+    "description": "Run failing tests repeatedly, classify each failure as flaky or real, and fix only confirmed regressions.",
+    "description_zh": "重复运行失败测试，区分不稳定失败和真实回归，只修复已确认的回归。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run failing tests",
+        "name_zh": "运行失败测试",
+        "prompt": "Run the failing test file or suite 3–5 times. Record pass/fail pattern per test.",
+        "prompt_zh": "将失败的测试文件或套件运行 3 到 5 次，记录每个测试的通过/失败模式。",
+        "shell_check": "npm test -- --testPathPattern=<failing-suite>"
+      },
+      {
+        "name": "Classify failures",
+        "name_zh": "分类失败",
+        "prompt": "Label each failure as flaky (intermittent) or real (consistent). Note timing, ordering, or env dependencies.",
+        "prompt_zh": "把每个失败标记为不稳定或真实失败，并记录时间、顺序或环境依赖。"
+      },
+      {
+        "name": "Fix real failures",
+        "name_zh": "修复真实失败",
+        "prompt": "Fix confirmed real failures with minimal changes. For flaky tests, propose stabilization (retries, isolation, mocks).",
+        "prompt_zh": "用最小改动修复确认的真实失败；对不稳定测试提出隔离、重试或 mock 等稳定化方案。"
+      },
+      {
+        "name": "Confirm stability",
+        "name_zh": "确认稳定性",
+        "prompt": "Re-run the suite multiple times to confirm real failures are gone and flakiness is reduced or documented.",
+        "prompt_zh": "多次重跑套件，确认真实失败消失，并减少或记录不稳定性。",
+        "shell_check": "npm test -- --testPathPattern=<failing-suite>"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "All failures classified; real regressions fixed; flaky tests documented or stabilized",
+      "description_zh": "所有失败已分类；真实回归已修复；不稳定测试已记录或稳定化"
+    },
+    "kickoff_prompt": "Start the \"Flaky Test Triage\" loop.\n\nGoal: classify failing tests as flaky vs real and fix only real regressions\nMax iterations: 5\nBetween iterations run: npm test -- --testPathPattern=<failing-suite>\nExit when: every failure is classified and real regressions are fixed or explicitly deferred\n\nStep 1: Run the failing suite multiple times. Classify each failure, fix real ones, and document flaky behavior.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "testing",
+      "flaky",
+      "triage"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 1019,
+    "installs": 1055,
+    "views": 1844,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopcaef0013d595ed6afe7ffda5",
+    "slug": "pre-commit-guard",
+    "title": "Pre-Commit Guard",
+    "title_zh": "提交前测试守卫",
+    "description": "Hook that runs tests before git commit commands to block commits when the suite is red.",
+    "description_zh": "在 git commit 前运行测试，测试失败时阻止提交。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "event",
+    "trigger_config": {
+      "event": "file_edit"
+    },
+    "steps": [
+      {
+        "name": "Detect commit intent",
+        "name_zh": "检测提交意图",
+        "prompt": "When a git commit command is about to run, pause and run the test suite first.",
+        "prompt_zh": "当即将执行 git commit 时，先暂停并运行测试套件。"
+      },
+      {
+        "name": "Run tests",
+        "name_zh": "运行测试",
+        "prompt": "Run the full test suite before allowing the commit to proceed.",
+        "prompt_zh": "在允许提交前运行完整测试套件。",
+        "shell_check": "npm test"
+      },
+      {
+        "name": "Block or allow",
+        "name_zh": "阻止或放行",
+        "prompt": "If tests fail, fix failures and re-run. Only allow the commit when tests pass.",
+        "prompt_zh": "如果测试失败，先修复并重跑；只有测试通过才允许提交。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test",
+      "description": "Tests pass before each git commit",
+      "description_zh": "每次 git commit 前测试都通过"
+    },
+    "kickoff_prompt": "Install and run the \"Pre-Commit Guard\" loop.\n\nGoal: block git commits when tests are failing.\nBetween iterations run: npm test\nExit when: tests exit 0 before each commit.\n\nStep 1: Before any git commit, run tests. Fix failures before committing.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".cursor/hooks.json",
+          "content": "{\n  \"version\": 1,\n  \"hooks\": {\n    \"beforeShellExecution\": [\n      {\n        \"type\": \"prompt\",\n        \"matcher\": \"git commit\",\n        \"prompt\": \"Pre-Commit Guard: run npm test before committing. If tests fail, fix them and do not commit until the suite is green.\"\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": ".claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"prompt\",\n            \"prompt\": \"Pre-Commit Guard: if this is a git commit, run npm test first. Block the commit if tests fail.\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": ".cursor/loops/pre-commit-guard/README.md",
+          "content": "# Pre-Commit Guard\n\nUses `beforeShellExecution` (Cursor) and `PreToolUse` (Claude Code) to run tests before git commits.\n\n## Pair with\nCopy the kickoff prompt from loops! to align agent behavior with the hook.\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "hooks",
+      "testing",
+      "git",
+      "pre-commit"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 1008,
+    "installs": 1889,
+    "views": 1567,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop9319af9bf42c85f2ac3d875e",
+    "slug": "docs-sync-after-edits",
+    "title": "Docs Sync After Edits",
+    "title_zh": "改动后文档同步",
+    "description": "After code changes, find affected docs and update README, API references, and inline comments to match.",
+    "description_zh": "代码变更后查找受影响文档，同步 README、API 参考和内联说明。",
+    "category": "Maintenance",
+    "category_zh": "维护",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Identify changed areas",
+        "name_zh": "识别变更区域",
+        "prompt": "Review the current diff. List public APIs, config options, and behaviors that changed.",
+        "prompt_zh": "查看当前 diff，列出变化的公开 API、配置项和行为。"
+      },
+      {
+        "name": "Find stale docs",
+        "name_zh": "查找过期文档",
+        "prompt": "Search README, docs/, and code comments for references to changed behavior. Flag outdated sections.",
+        "prompt_zh": "搜索 README、docs/ 和代码注释中引用变更行为的内容，标记过期段落。"
+      },
+      {
+        "name": "Update documentation",
+        "name_zh": "更新文档",
+        "prompt": "Update docs to match the code. Keep examples runnable and accurate. Remove obsolete sections.",
+        "prompt_zh": "让文档与代码一致，保持示例可运行且准确，删除废弃内容。"
+      },
+      {
+        "name": "Verify accuracy",
+        "name_zh": "验证准确性",
+        "prompt": "Re-read updated docs against the diff. Confirm no contradictions remain.",
+        "prompt_zh": "对照 diff 重新阅读更新后的文档，确认没有矛盾。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "All affected documentation updated and verified against the diff",
+      "description_zh": "所有受影响文档已更新，并已对照 diff 验证"
+    },
+    "kickoff_prompt": "Start the \"Docs Sync After Edits\" loop.\n\nGoal: documentation matches the current code changes\nMax iterations: 3\nBetween iterations run: git diff main...HEAD --name-only\nExit when: all affected docs are updated and verified\n\nStep 1: Review the diff, find stale docs, update them, and verify accuracy.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "docs",
+      "maintenance",
+      "sync"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 984,
+    "installs": 1152,
+    "views": 1403,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop9095db38eb174a63c82224f1",
+    "slug": "guardrails-learning-loop",
+    "title": "Guardrails Learning Loop",
+    "title_zh": "护栏学习循环",
+    "description": "When a check fails twice the same way, append a guardrail sign to .ralph/guardrails.md so the next iteration avoids repeating it.",
+    "description_zh": "同一检查以相同方式失败两次时，把失败信号写入 .ralph/guardrails.md，避免下一轮重复踩坑。",
+    "category": "Automation",
+    "category_zh": "自动化",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Read guardrails",
+        "name_zh": "读取护栏",
+        "prompt": "Read .ralph/guardrails.md before any work. Treat each sign as a hard constraint.",
+        "prompt_zh": "开始前读取 .ralph/guardrails.md，把每条信号当成硬约束。"
+      },
+      {
+        "name": "Run checks",
+        "name_zh": "运行检查",
+        "prompt": "Run the project's backpressure commands.",
+        "prompt_zh": "运行项目的反压检查命令。",
+        "shell_check": "npm test && npm run lint"
+      },
+      {
+        "name": "Record failure sign",
+        "name_zh": "记录失败信号",
+        "prompt": "If the same error occurred before, append a concise sign to guardrails.md: what failed and how to avoid it.",
+        "prompt_zh": "如果同一错误曾经出现过，向 guardrails.md 追加简短信号：失败内容和规避方式。"
+      },
+      {
+        "name": "Fix with guardrails",
+        "name_zh": "按护栏修复",
+        "prompt": "Apply a fix that respects all guardrail signs. Do not repeat prior failed approaches.",
+        "prompt_zh": "在遵守所有护栏信号的前提下修复，不重复之前失败的做法。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test && npm run lint",
+      "description": "Checks pass and no repeated failure pattern remains",
+      "description_zh": "检查通过，且没有重复失败模式",
+      "max_iterations": 12
+    },
+    "kickoff_prompt": "Start the \"Guardrails Learning Loop\" loop.\n\nGoal: tests and lint pass without repeating prior failure patterns\nMax iterations: 12\nBetween iterations run: npm test && npm run lint\nExit when: all checks pass\n\nStep 1: Read .ralph/guardrails.md, run checks, and if a failure repeats, add a sign before fixing.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".ralph/guardrails.md",
+          "content": "# Guardrails\n\nSigns from repeated failures. Read before every iteration.\n\n## Signs\n- Never commit without running tests first.\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "codex"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "ralph",
+      "guardrails",
+      "learning"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 980,
+    "installs": 1678,
+    "views": 2102,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop076a81a11e9960900bfb24a0",
+    "slug": "npm-audit-fix-loop",
+    "title": "npm Audit Fix Loop",
+    "title_zh": "npm 安全审计修复循环",
+    "description": "Fix high/critical npm audit findings one at a time with test verification — not a blind npm audit fix --force.",
+    "description_zh": "逐个修复 high/critical 级别的 npm audit 问题并验证测试，避免盲目执行 npm audit fix --force。",
+    "category": "Security",
+    "category_zh": "安全",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "List vulnerabilities",
+        "name_zh": "列出漏洞",
+        "prompt": "Run npm audit --json. Pick the highest severity fixable issue (one at a time).",
+        "prompt_zh": "运行 npm audit --json，选择最高严重级别且可修复的问题，一次只处理一个。",
+        "shell_check": "npm audit --audit-level=high"
+      },
+      {
+        "name": "Apply safe fix",
+        "name_zh": "安全修复",
+        "prompt": "Use npm audit fix for that advisory or bump the direct dependency. Avoid --force unless unavoidable.",
+        "prompt_zh": "针对该 advisory 运行 npm audit fix 或升级直接依赖；除非不可避免，不使用 --force。",
+        "shell_check": "npm test"
+      }
+    ],
+    "exit_condition": {
+      "type": "lint_clean",
+      "command": "npm audit --audit-level=high",
+      "description": "No high or critical npm audit vulnerabilities remain",
+      "description_zh": "不存在 high 或 critical 级别的 npm audit 漏洞",
+      "max_iterations": 10
+    },
+    "kickoff_prompt": "Start the \"npm Audit Fix Loop\" loop.\n\nGoal: no high or critical npm audit vulnerabilities\nMax iterations: 10\nBetween iterations run: npm audit --audit-level=high && npm test\nExit when: npm audit reports no high/critical issues\n\nStep 1: Pick one high/critical advisory, apply the safest fix, run tests, and repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "security",
+      "npm",
+      "audit"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 971,
+    "installs": 1819,
+    "views": 1708,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopc06d8493cf30f00161d28b79",
+    "slug": "post-merge-regression-guard",
+    "title": "Post-Merge Regression Guard",
+    "title_zh": "合并后回归守卫",
+    "description": "Hook that runs smoke tests after git merge or rebase to catch integration regressions immediately.",
+    "description_zh": "在 git merge 或 rebase 后运行冒烟测试，立即捕获集成回归。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "event",
+    "trigger_config": {
+      "event": "git_merge"
+    },
+    "steps": [
+      {
+        "name": "Detect merge",
+        "name_zh": "检测合并",
+        "prompt": "Confirm a merge or rebase just completed. Identify affected areas from the diff stat.",
+        "prompt_zh": "确认刚完成 merge 或 rebase，并从 diff stat 中识别受影响区域。"
+      },
+      {
+        "name": "Run smoke suite",
+        "name_zh": "运行冒烟套件",
+        "prompt": "Run the fast smoke test suite. Fix any failures before starting new feature work.",
+        "prompt_zh": "运行快速冒烟测试；在开始新功能前修复所有失败。",
+        "shell_check": "npm run test:smoke"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run test:smoke",
+      "description": "Smoke tests pass after merge",
+      "description_zh": "合并后冒烟测试通过"
+    },
+    "kickoff_prompt": "Install and run the \"Post-Merge Regression Guard\" loop.\n\nGoal: smoke tests pass immediately after every merge or rebase.\nBetween iterations run: npm run test:smoke\nExit when: smoke suite exits 0.\n\nStep 1: After a merge, run smoke tests. Fix regressions before continuing other work.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".cursor/hooks.json",
+          "content": "{\n  \"version\": 1,\n  \"hooks\": {\n    \"stop\": [\n      {\n        \"type\": \"prompt\",\n        \"prompt\": \"Post-Merge Regression Guard: if the last git operation was a merge or rebase, run npm run test:smoke and fix failures before stopping.\"\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": ".claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"Stop\": [\n      {\n        \"hooks\": [\n          {\n            \"type\": \"prompt\",\n            \"prompt\": \"Post-Merge Regression Guard: if a merge or rebase just happened, run npm run test:smoke and fix failures.\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": ".cursor/loops/post-merge-regression-guard/README.md",
+          "content": "# Post-Merge Regression Guard\n\nRuns smoke tests after merge/rebase operations via stop hooks.\n\nPair with the kickoff prompt from loops! for agent behavior."
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "hooks",
+      "testing",
+      "git",
+      "merge"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 969,
+    "installs": 1600,
+    "views": 1624,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopba8bd9c4e16a7b1929f69642",
+    "slug": "post-edit-test-guard",
+    "title": "Post-Edit Test Guard",
+    "title_zh": "编辑后测试守卫",
+    "description": "Hook-based loop that runs related tests after file edits to catch regressions early.",
+    "description_zh": "基于文件改动运行相关测试，尽早捕获回归。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "event",
+    "trigger_config": {
+      "event": "file_edit"
+    },
+    "steps": [
+      {
+        "name": "Detect edited files",
+        "name_zh": "检测编辑文件",
+        "prompt": "Identify which source files were edited in the last turn.",
+        "prompt_zh": "识别上一轮改动过的源文件。"
+      },
+      {
+        "name": "Run related tests",
+        "name_zh": "运行相关测试",
+        "prompt": "Run the smallest relevant test subset for edited files. Fix failures before continuing.",
+        "prompt_zh": "为已编辑文件运行最小相关测试子集，失败时先修复再继续。",
+        "shell_check": "npm test -- --findRelatedTests"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test -- --findRelatedTests",
+      "description": "Related tests pass after each edit batch",
+      "description_zh": "每批编辑后的相关测试通过"
+    },
+    "kickoff_prompt": "Install and run the \"Post-Edit Test Guard\" loop.\n\nGoal: after each batch of file edits, related tests must pass before continuing.\nBetween iterations run: npm test -- --findRelatedTests <edited files>\nExit when: related tests exit 0.\n\nStep 1: After edits, run related tests. If they fail, fix before making more changes.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".cursor/hooks.json",
+          "content": "{\n  \"version\": 1,\n  \"hooks\": {\n    \"afterFileEdit\": [\n      {\n        \"type\": \"prompt\",\n        \"prompt\": \"Post-Edit Test Guard: run related tests for the files just edited. If tests fail, fix them before continuing other work.\"\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": ".claude/settings.json",
+          "content": "{\n  \"hooks\": {\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"Write|Edit\",\n        \"hooks\": [\n          {\n            \"type\": \"prompt\",\n            \"prompt\": \"Post-Edit Test Guard: run related tests for the files just edited. If tests fail, fix them before continuing other work.\"\n          }\n        ]\n      }\n    ]\n  }\n}"
+        },
+        {
+          "path": ".cursor/loops/post-edit-test-guard/README.md",
+          "content": "# Post-Edit Test Guard\n\nUses the `afterFileEdit` hook (Cursor) and `PostToolUse` hook (Claude Code) to run related tests after edits.\n\n## Pair with\nCopy the kickoff prompt from loops! to align agent behavior with the hook.\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "hooks",
+      "testing",
+      "regression"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 948,
+    "installs": 1324,
+    "views": 1286,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopef7ca103e676c748309689a7",
+    "slug": "a11y-audit-until-clean",
+    "title": "A11y Audit Until Clean",
+    "title_zh": "无障碍审计清零循环",
+    "description": "Run automated accessibility checks on changed routes, fix violations, and repeat until the audit is clean.",
+    "description_zh": "对变更路由运行自动无障碍检查，修复违规项并重复，直到审计干净。",
+    "category": "Quality",
+    "category_zh": "质量",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run a11y audit",
+        "name_zh": "运行无障碍审计",
+        "prompt": "Run axe, pa11y, or eslint-plugin-jsx-a11y on changed pages. List violations with selectors.",
+        "prompt_zh": "在变更页面运行 axe、pa11y 或 eslint-plugin-jsx-a11y，按 selector 列出违规项。",
+        "shell_check": "npm run test:a11y"
+      },
+      {
+        "name": "Fix violations",
+        "name_zh": "修复违规项",
+        "prompt": "Fix labels, contrast, focus order, and ARIA roles. Prefer semantic HTML over aria hacks.",
+        "prompt_zh": "修复标签、对比度、焦点顺序和 ARIA 角色；优先使用语义化 HTML。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run test:a11y",
+      "description": "Accessibility audit reports zero violations",
+      "description_zh": "无障碍审计报告零违规",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"A11y Audit Until Clean\" loop.\n\nGoal: zero serious accessibility violations on changed UI\nMax iterations: 8\nBetween iterations run: npm run test:a11y\nExit when: a11y audit exits 0\n\nStep 1: Run the a11y audit on changed routes. Fix each violation, prioritizing keyboard and screen reader issues.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "a11y",
+      "quality",
+      "frontend"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 943,
+    "installs": 1498,
+    "views": 1760,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop58be2dfa04b8733efeefbe68",
+    "slug": "independent-verifier-pass",
+    "title": "Independent Verifier Pass",
+    "title_zh": "独立验证者检查",
+    "description": "When implementation claims done, a separate verifier pass runs build, lint, and tests with no access to the implementer's rationale.",
+    "description_zh": "实现方声称完成后，由独立验证 pass 运行 build、lint 和测试，不依赖实现方解释。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run verifier checks",
+        "name_zh": "运行验证检查",
+        "prompt": "As an independent verifier, run build, lint, and tests. Do not assume the prior pass was correct.",
+        "prompt_zh": "作为独立验证者运行 build、lint 和测试，不预设前一轮正确。",
+        "shell_check": "npm run build && npm run lint && npm test"
+      },
+      {
+        "name": "Report gaps",
+        "name_zh": "报告缺口",
+        "prompt": "List every failing check with file paths and error excerpts. No self-reporting — only command output counts.",
+        "prompt_zh": "列出每个失败检查的文件路径和错误片段；只相信命令输出。"
+      },
+      {
+        "name": "Fix or hand back",
+        "name_zh": "修复或交还",
+        "prompt": "If failures exist, fix them or produce a concise failure report for the implementer to continue.",
+        "prompt_zh": "如果存在失败，直接修复，或输出简短失败报告交给实现者继续。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run build && npm run lint && npm test",
+      "description": "Build, lint, and tests all pass under independent verification",
+      "description_zh": "独立验证下 build、lint 和测试全部通过",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"Independent Verifier Pass\" loop.\n\nGoal: build, lint, and tests pass under independent verification\nMax iterations: 8\nBetween iterations run: npm run build && npm run lint && npm test\nExit when: all verifier commands exit 0\n\nStep 1: Run build, lint, and tests as a verifier. Trust only command output, not prior claims.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "best_for_agents": [
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "verification",
+      "testing",
+      "letitloop"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 922,
+    "installs": 1714,
+    "views": 1204,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop44eae5faaf027854edd1588f",
+    "slug": "dependency-audit-weekly",
+    "title": "Dependency Audit Weekly",
+    "title_zh": "每周依赖审计",
+    "description": "Weekly loop to check outdated dependencies, propose safe upgrades, and open a summary.",
+    "description_zh": "每周检查过期依赖，提出安全升级建议，并输出摘要。",
+    "category": "Maintenance",
+    "category_zh": "维护",
+    "trigger_type": "interval",
+    "trigger_config": {
+      "interval": "7d"
+    },
+    "steps": [
+      {
+        "name": "List outdated packages",
+        "name_zh": "列出过期包",
+        "prompt": "Run npm outdated and summarize major vs patch updates.",
+        "prompt_zh": "运行 npm outdated，并区分 major 更新和 patch 更新。",
+        "shell_check": "npm outdated || true"
+      },
+      {
+        "name": "Propose upgrades",
+        "name_zh": "提出升级建议",
+        "prompt": "Recommend safe upgrades. Flag breaking changes and required code changes.",
+        "prompt_zh": "推荐安全升级，标出破坏性变更和必要代码修改。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "Weekly audit summary delivered",
+      "description_zh": "每周审计摘要已交付"
+    },
+    "kickoff_prompt": "/loop 7d Start the \"Dependency Audit Weekly\" loop.\n\nGoal: deliver a weekly dependency audit summary.\nBetween iterations run: npm outdated || true\nExit when: summary is posted with recommended upgrades.\n\nStep 1: Run npm outdated, categorize updates, and propose a safe upgrade plan.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "dependencies",
+      "maintenance",
+      "security"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 908,
+    "installs": 1159,
+    "views": 1701,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop84748a644c796e5e1369af67",
+    "slug": "ci-failure-watcher",
+    "title": "CI Failure Watcher",
+    "title_zh": "CI 失败监听循环",
+    "description": "Poll CI on an interval, investigate failures when checks go red, and push fixes until green.",
+    "description_zh": "定时轮询 CI，检查变红时调查失败并推送修复，直到恢复绿色。",
+    "category": "CI",
+    "category_zh": "CI",
+    "trigger_type": "interval",
+    "trigger_config": {
+      "interval": "5m"
+    },
+    "steps": [
+      {
+        "name": "Check CI status",
+        "name_zh": "检查 CI 状态",
+        "prompt": "Check the latest CI run for the current branch using gh CLI.",
+        "prompt_zh": "使用 gh CLI 检查当前分支的最新 CI run。",
+        "shell_check": "gh run list --branch $(git branch --show-current) --limit 1"
+      },
+      {
+        "name": "Investigate failure",
+        "name_zh": "调查失败",
+        "prompt": "If CI failed, read logs, identify the root cause, and apply the smallest fix.",
+        "prompt_zh": "如果 CI 失败，读取日志，定位根因并应用最小修复。"
+      },
+      {
+        "name": "Verify locally",
+        "name_zh": "本地验证",
+        "prompt": "Run the failing CI step locally before pushing again.",
+        "prompt_zh": "推送前在本地运行失败的 CI 步骤。"
+      }
+    ],
+    "exit_condition": {
+      "type": "ci_green",
+      "command": "gh run list --branch $(git branch --show-current) --limit 1 --json conclusion -q '.[0].conclusion'",
+      "description": "Latest CI run conclusion is success",
+      "description_zh": "最新 CI run 结论为 success",
+      "max_iterations": 12
+    },
+    "kickoff_prompt": "/loop 5m Start the \"CI Failure Watcher\" loop.\n\nGoal: latest CI run on this branch is green.\nMax iterations: 12.\nBetween iterations run: gh run list --branch $(git branch --show-current) --limit 1\nExit when: latest run conclusion is success.\n\nStep 1: Check CI status. If failed, read logs, fix root cause, verify locally, and push if needed.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".cursor/loops/ci-failure-watcher/watch.sh",
+          "content": "#!/usr/bin/env bash\nset -euo pipefail\nBRANCH=\"$(git branch --show-current)\"\ngh run list --branch \"$BRANCH\" --limit 1 --json conclusion,url -q '.[0]'\n"
+        },
+        {
+          "path": ".cursor/loops/ci-failure-watcher/README.md",
+          "content": "# CI Failure Watcher\n\nPoll CI every 5 minutes and fix failures until green.\n\nPair with: /loop 5m <kickoff prompt from loops!>\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "ci",
+      "github",
+      "devops"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 902,
+    "installs": 1148,
+    "views": 1792,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop07db34538c27d590a6035f2a",
+    "slug": "deploy-verification-loop",
+    "title": "Deploy Verification Loop",
+    "title_zh": "部署验证循环",
+    "description": "On an interval, hit health and smoke endpoints after a deploy until all checks return healthy responses.",
+    "description_zh": "部署后定时访问健康和冒烟端点，直到所有检查返回健康响应。",
+    "category": "DevOps",
+    "category_zh": "DevOps",
+    "trigger_type": "interval",
+    "trigger_config": {
+      "interval": "15m"
+    },
+    "steps": [
+      {
+        "name": "Check health endpoints",
+        "name_zh": "检查健康端点",
+        "prompt": "Curl configured health/smoke URLs. Record status codes and response bodies.",
+        "prompt_zh": "curl 配置好的 health/smoke URL，记录状态码和响应体。",
+        "shell_check": "curl -fsS https://your-app.example/health"
+      },
+      {
+        "name": "Investigate failures",
+        "name_zh": "调查失败",
+        "prompt": "If any endpoint fails, check recent deploy logs, env vars, and migrations. Apply the smallest fix.",
+        "prompt_zh": "如果任一端点失败，检查最近部署日志、环境变量和迁移，并应用最小修复。"
+      },
+      {
+        "name": "Re-verify",
+        "name_zh": "重新验证",
+        "prompt": "Re-run health checks after fixes or rollback decision.",
+        "prompt_zh": "修复或决定回滚后重新运行健康检查。"
+      }
+    ],
+    "exit_condition": {
+      "type": "ci_green",
+      "command": "curl -fsS https://your-app.example/health",
+      "description": "All configured health endpoints return success",
+      "description_zh": "所有配置的健康端点返回成功",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "/loop 15m Start the \"Deploy Verification Loop\".\n\nGoal: all post-deploy health and smoke endpoints return success.\nMax iterations: 8.\nBetween iterations run: curl -fsS <your-health-url>\nExit when: every configured endpoint succeeds.\n\nStep 1: Hit health/smoke URLs. If any fail, inspect deploy logs and fix or escalate.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "codex",
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "codex",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "deploy",
+      "devops",
+      "smoke-test"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 844,
+    "installs": 1891,
+    "views": 1139,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopec5658647369091ec479a17a",
+    "slug": "pr-self-review",
+    "title": "PR Self-Review",
+    "title_zh": "PR 自审循环",
+    "description": "Review your own diff like a senior reviewer, fix issues, and repeat for three passes before opening the PR.",
+    "description_zh": "像资深 reviewer 一样审查自己的 diff，修复问题，并在开 PR 前重复三轮。",
+    "category": "Review",
+    "category_zh": "评审",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Review diff",
+        "name_zh": "审查 diff",
+        "prompt": "Review the current branch diff. List bugs, edge cases, naming issues, and missing tests.",
+        "prompt_zh": "审查当前分支 diff，列出 bug、边界情况、命名问题和缺失测试。"
+      },
+      {
+        "name": "Address findings",
+        "name_zh": "处理发现项",
+        "prompt": "Fix the highest-severity findings from the review with minimal scope.",
+        "prompt_zh": "用最小范围修复最高严重级别的问题。"
+      },
+      {
+        "name": "Re-review",
+        "name_zh": "重新审查",
+        "prompt": "Review the updated diff and confirm prior findings are resolved.",
+        "prompt_zh": "审查更新后的 diff，确认之前的问题已解决。"
+      }
+    ],
+    "exit_condition": {
+      "type": "max_iterations",
+      "description": "Three review passes completed with no critical findings",
+      "description_zh": "三轮自审完成且没有 critical 发现",
+      "max_iterations": 3
+    },
+    "kickoff_prompt": "Start the \"PR Self-Review\" loop.\n\nGoal: three clean self-review passes on the current diff\nMax iterations: 3\nBetween iterations run: git diff main...HEAD\nExit when: three passes complete with no critical findings\n\nStep 1: Review the diff like a senior reviewer. Fix findings, then re-review.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "review",
+      "pr",
+      "quality"
+    ],
+    "guardrails": [
+      "Do not modify the check command or exit criteria to force success",
+      "Do not skip, disable, or bypass checks to pass the exit condition",
+      "If stuck after several iterations, stop and report blockers instead of gaming metrics"
+    ],
+    "guardrails_zh": [
+      "不要为了强行成功而修改检查命令或退出条件",
+      "不要通过跳过、禁用或绕过检查来满足退出条件",
+      "如果多轮后仍卡住，停止并报告阻塞，不要操纵指标"
+    ],
+    "examples": [
+      {
+        "title": "Feature branch self-review",
+        "summary": "Three review passes caught a race condition, missing null check, and outdated test. PR opened with zero critical findings.",
+        "title_zh": "功能分支自审",
+        "summary_zh": "三轮自审发现竞态、缺失空值检查和过期测试。PR 创建时没有 critical 发现。"
+      }
+    ],
+    "copies": 840,
+    "installs": 1847,
+    "views": 1995,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopcd16f07d135f480358ff09b7",
+    "slug": "knip-until-clean",
+    "title": "Knip Until Clean",
+    "title_zh": "Knip 清理循环",
+    "description": "Find and remove dead exports, unused files, and orphan dependencies — loop until knip reports clean.",
+    "description_zh": "查找并删除死导出、未使用文件和孤儿依赖，直到 knip 报告干净。",
+    "category": "Maintenance",
+    "category_zh": "维护",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run knip",
+        "name_zh": "运行 knip",
+        "prompt": "Run knip (or depcheck) and categorize unused files, exports, and dependencies.",
+        "prompt_zh": "运行 knip 或 depcheck，并分类未使用文件、导出和依赖。",
+        "shell_check": "npx knip"
+      },
+      {
+        "name": "Remove or justify",
+        "name_zh": "删除或说明",
+        "prompt": "Delete confirmed dead code. For false positives, add knip ignore entries with a one-line reason.",
+        "prompt_zh": "删除确认无用的代码；对误报添加 knip 忽略项并写一句理由。"
+      }
+    ],
+    "exit_condition": {
+      "type": "lint_clean",
+      "command": "npx knip",
+      "description": "Knip reports no unused files, exports, or dependencies",
+      "description_zh": "Knip 报告没有未使用文件、导出或依赖",
+      "max_iterations": 5
+    },
+    "kickoff_prompt": "Start the \"Knip Until Clean\" loop.\n\nGoal: knip reports no unused code or dependencies\nMax iterations: 5\nBetween iterations run: npx knip\nExit when: knip exits 0\n\nStep 1: Run knip. Remove dead exports and unused deps with minimal diffs; verify tests still pass.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "maintenance",
+      "dead-code",
+      "deps"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 836,
+    "installs": 1481,
+    "views": 1434,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop73a2ae2ed8ab36e0ff0eb6b9",
+    "slug": "coverage-until-threshold",
+    "title": "Coverage Until Threshold",
+    "title_zh": "覆盖率达标循环",
+    "description": "Add focused tests until coverage meets your threshold (e.g. 80%), without changing production behavior unnecessarily.",
+    "description_zh": "添加聚焦测试直到覆盖率达到阈值，例如 80%，同时避免不必要地改变生产行为。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Measure coverage",
+        "name_zh": "测量覆盖率",
+        "prompt": "Run tests with coverage reporting enabled.",
+        "prompt_zh": "运行带覆盖率报告的测试。",
+        "shell_check": "npm test -- --coverage"
+      },
+      {
+        "name": "Add tests",
+        "name_zh": "补充测试",
+        "prompt": "Write the smallest tests needed to cover uncovered branches. No snapshot spam or trivial asserts.",
+        "prompt_zh": "编写覆盖未覆盖分支所需的最小测试，避免快照泛滥和无意义断言。"
+      },
+      {
+        "name": "Re-measure",
+        "name_zh": "重新测量",
+        "prompt": "Re-run coverage and confirm threshold is met.",
+        "prompt_zh": "重跑覆盖率并确认达到阈值。",
+        "shell_check": "npm test -- --coverage"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test -- --coverage",
+      "description": "Coverage threshold met and all tests pass",
+      "description_zh": "覆盖率达到阈值且所有测试通过",
+      "max_iterations": 12
+    },
+    "kickoff_prompt": "Start the \"Coverage Until Threshold\" loop.\n\nGoal: coverage meets the target threshold (default 80%) with all tests passing\nMax iterations: 12\nBetween iterations run: npm test -- --coverage\nExit when: coverage threshold is met and tests exit 0\n\nStep 1: Run coverage. Add focused tests for the biggest uncovered gaps, then repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "best_for_agents": [
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "coverage",
+      "testing",
+      "quality"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 833,
+    "installs": 1859,
+    "views": 1805,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop395ff76bbc7ef1fbe9afdb05",
+    "slug": "bundle-size-budget",
+    "title": "Bundle Size Budget",
+    "title_zh": "包体预算循环",
+    "description": "Ship features without bloating the client bundle — loop until size checks pass under your budget threshold.",
+    "description_zh": "在不膨胀客户端包体的前提下发布功能，循环处理直到体积检查低于预算。",
+    "category": "Performance",
+    "category_zh": "性能",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Measure bundle",
+        "name_zh": "测量包体",
+        "prompt": "Run the production build and bundle size check. Report total KB and the largest new chunks.",
+        "prompt_zh": "运行生产构建和包体检查，报告总 KB 和最大的新增 chunk。",
+        "shell_check": "npm run build && npm run size-limit"
+      },
+      {
+        "name": "Trim or lazy-load",
+        "name_zh": "裁剪或懒加载",
+        "prompt": "If over budget: dynamic-import heavy modules, remove unused deps, or split routes. No feature cuts unless necessary.",
+        "prompt_zh": "超预算时动态导入重模块、移除未用依赖或拆分路由；除非必要，不砍功能。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run size-limit",
+      "description": "Bundle size is under the configured budget",
+      "description_zh": "包体大小低于配置预算",
+      "max_iterations": 6
+    },
+    "kickoff_prompt": "Start the \"Bundle Size Budget\" loop.\n\nGoal: client bundle stays under the size-limit budget\nMax iterations: 6\nBetween iterations run: npm run build && npm run size-limit\nExit when: size-limit exits 0\n\nStep 1: Build and measure bundle size. If over budget, lazy-load or trim deps until size-limit passes.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "performance",
+      "bundle",
+      "frontend"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 799,
+    "installs": 1413,
+    "views": 1713,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop59bc96f872a8ee1ec194f9ef",
+    "slug": "test-until-green",
+    "title": "Test Until Green",
+    "title_zh": "测试直到全绿",
+    "description": "Run your test suite, fix the smallest root cause on failure, and repeat until every test passes.",
+    "description_zh": "运行测试套件，失败时修复最小根因并重复，直到所有测试通过。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run tests",
+        "name_zh": "运行测试",
+        "prompt": "Run the project test command and capture failures.",
+        "prompt_zh": "运行项目测试命令并捕获失败。",
+        "shell_check": "npm test"
+      },
+      {
+        "name": "Fix failures",
+        "name_zh": "修复失败",
+        "prompt": "Fix the smallest root cause for the current failing tests. Prefer minimal diffs.",
+        "prompt_zh": "为当前失败测试修复最小根因，保持 diff 最小。"
+      },
+      {
+        "name": "Re-run tests",
+        "name_zh": "重跑测试",
+        "prompt": "Run tests again and verify progress toward zero failures.",
+        "prompt_zh": "再次运行测试，确认朝零失败推进。",
+        "shell_check": "npm test"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test",
+      "description": "All tests pass (exit code 0)",
+      "description_zh": "所有测试通过，退出码为 0",
+      "max_iterations": 10
+    },
+    "kickoff_prompt": "Start the \"Test Until Green\" loop.\n\nGoal: all tests pass\nMax iterations: 10\nBetween iterations run: npm test\nExit when: tests exit 0\n\nStep 1: Run tests. If there are failures, fix the smallest root cause, then repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".cursor/loops/test-until-green/README.md",
+          "content": "# Test Until Green\n\nRun tests after agent work until the suite is green.\n\n## Exit condition\n- `npm test` exits 0\n\n## Max iterations\n10\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "testing",
+      "tdd",
+      "ci"
+    ],
+    "guardrails": [
+      "Do not modify the check command or exit criteria to force success",
+      "Do not skip, disable, or bypass checks to pass the exit condition",
+      "If stuck after several iterations, stop and report blockers instead of gaming metrics",
+      "Do not weaken, delete, or skip tests to make the suite pass",
+      "Do not replace real assertions with trivial always-pass tests",
+      "Prefer fixing production code over patching tests to go green"
+    ],
+    "guardrails_zh": [
+      "不要为了强行成功而修改检查命令或退出条件",
+      "不要通过跳过、禁用或绕过检查来满足退出条件",
+      "如果多轮后仍卡住，停止并报告阻塞，不要操纵指标",
+      "不要为了让测试通过而削弱、删除或跳过测试",
+      "不要用永远通过的空断言替换真实断言",
+      "优先修复生产代码，而不是为了全绿去修补测试"
+    ],
+    "examples": [
+      {
+        "title": "Next.js app test suite",
+        "summary": "Fixed 3 failing Jest suites in 6 iterations. Root causes were async timing, missing mocks, and stale snapshots — no tests skipped.",
+        "title_zh": "Next.js 应用测试套件",
+        "summary_zh": "6 轮内修复 3 个失败的 Jest 套件。根因是异步时序、缺失 mock 和过期快照，没有跳过测试。"
+      }
+    ],
+    "copies": 794,
+    "installs": 1277,
+    "views": 1698,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopc150d1be4e9073bf6cdaa302",
+    "slug": "reflexion-debug-loop",
+    "title": "Reflexion Debug Loop",
+    "title_zh": "反思式调试循环",
+    "description": "On each failed repro attempt, write a short reflection to disk, then retry with that memory — avoids repeating the same wrong fix.",
+    "description_zh": "每次复现失败后把简短反思写入磁盘，再带着这份记忆重试，避免重复错误修复。",
+    "category": "Debugging",
+    "category_zh": "调试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Reproduce bug",
+        "name_zh": "复现问题",
+        "prompt": "Run the minimal repro steps or failing test. Capture exact error output.",
+        "prompt_zh": "运行最小复现步骤或失败测试，捕获完整错误输出。",
+        "shell_check": "npm test -- --testNamePattern=<failing-test>"
+      },
+      {
+        "name": "Reflect on failure",
+        "name_zh": "反思失败",
+        "prompt": "Append to .loops/reflexion.md: what you tried, what failed, and one hypothesis to avoid next pass.",
+        "prompt_zh": "追加到 .loops/reflexion.md：尝试了什么、哪里失败、下一轮要避开的一个假设。"
+      },
+      {
+        "name": "Apply targeted fix",
+        "name_zh": "定向修复",
+        "prompt": "Read reflexion.md. Apply a different fix than prior attempts. Prefer root cause over symptoms.",
+        "prompt_zh": "读取 reflexion.md，应用不同于先前尝试的修复，优先处理根因。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test -- --testNamePattern=<failing-test>",
+      "description": "Previously failing test passes",
+      "description_zh": "之前失败的测试通过",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"Reflexion Debug Loop\" loop.\n\nGoal: the failing test or repro passes\nMax iterations: 8\nBetween iterations run: npm test -- --testNamePattern=<failing-test>\nExit when: the repro test exits 0\n\nStep 1: Reproduce the bug. If it fails, append a reflection to .loops/reflexion.md before trying a new fix.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".loops/reflexion.md",
+          "content": "# Reflexion log\n\nEach failed attempt gets one short entry: what was tried, what failed, what to try differently.\n\n## Attempts\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "debugging",
+      "reflexion",
+      "memory"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 757,
+    "installs": 1198,
+    "views": 1342,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopb13b4a6d0b97bd725f57453a",
+    "slug": "pr-watch-loop",
+    "title": "PR Watch Loop",
+    "title_zh": "PR 观察循环",
+    "description": "Poll open PRs labeled codex-watch every 15 minutes, review activity, and flag regressions or stale threads.",
+    "description_zh": "每 15 分钟轮询带 codex-watch 标签的开放 PR，检查活动并标记回归或停滞线程。",
+    "category": "CI",
+    "category_zh": "CI",
+    "trigger_type": "interval",
+    "trigger_config": {
+      "interval": "15m"
+    },
+    "steps": [
+      {
+        "name": "List watched PRs",
+        "name_zh": "列出被观察 PR",
+        "prompt": "List open PRs with the codex-watch label. Summarize CI status, review state, and last activity.",
+        "prompt_zh": "列出带 codex-watch 标签的开放 PR，摘要 CI 状态、review 状态和最近活动。",
+        "shell_check": "gh pr list --label codex-watch --json number,title,state,statusCheckRollup"
+      },
+      {
+        "name": "Check CI and reviews",
+        "name_zh": "检查 CI 和 review",
+        "prompt": "For each watched PR, check failing checks, unresolved review comments, and merge conflicts.",
+        "prompt_zh": "逐个检查失败检查、未解决 review 评论和合并冲突。"
+      },
+      {
+        "name": "Report or act",
+        "name_zh": "报告或处理",
+        "prompt": "Post a brief status update. Fix trivial CI failures or ping the author for blockers.",
+        "prompt_zh": "发布简短状态更新；修复简单 CI 失败，或向作者提示阻塞。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "Watch report delivered for all codex-watch PRs",
+      "description_zh": "所有 codex-watch PR 的观察报告已交付"
+    },
+    "kickoff_prompt": "/loop 15m Start the \"PR Watch Loop\".\n\nGoal: keep codex-watch PRs healthy and unblocked.\nBetween iterations run: gh pr list --label codex-watch --json number,title,state,statusCheckRollup\nExit when: status report is delivered for every watched PR.\n\nStep 1: List codex-watch PRs, check CI and reviews, and report or fix trivial blockers.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "codex",
+      "cursor"
+    ],
+    "best_for_agents": [
+      "codex",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "ci",
+      "pr",
+      "watch",
+      "codex"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 711,
+    "installs": 1444,
+    "views": 1643,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop77eb957ad7f2ef1d5a9d80d3",
+    "slug": "dependency-upgrade-one-by-one",
+    "title": "Dependency Upgrade One-by-One",
+    "title_zh": "依赖逐个升级循环",
+    "description": "Upgrade a single outdated package per iteration, fix breakages, and commit — safer than bulk npm update.",
+    "description_zh": "每轮只升级一个过期包、修复破坏并提交，比批量 npm update 更安全。",
+    "category": "Maintenance",
+    "category_zh": "维护",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Pick one package",
+        "name_zh": "选择一个包",
+        "prompt": "Run npm outdated. Pick the highest-impact outdated package (one only). Note its current and target version.",
+        "prompt_zh": "运行 npm outdated，只选择一个影响最高的过期包，记录当前版本和目标版本。",
+        "shell_check": "npm outdated"
+      },
+      {
+        "name": "Upgrade and fix",
+        "name_zh": "升级并修复",
+        "prompt": "Upgrade that single package. Fix type errors, API changes, and test failures caused by the bump.",
+        "prompt_zh": "只升级该包，修复由升级引起的类型错误、API 变化和测试失败。",
+        "shell_check": "npm test && npm run build"
+      },
+      {
+        "name": "Commit bump",
+        "name_zh": "提交升级",
+        "prompt": "Commit with message like chore(deps): bump <package> to <version>.",
+        "prompt_zh": "用类似 chore(deps): bump <package> to <version> 的信息提交。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "No outdated production dependencies remain (or user stops)",
+      "description_zh": "没有过期生产依赖，或用户停止循环",
+      "max_iterations": 15
+    },
+    "kickoff_prompt": "Start the \"Dependency Upgrade One-by-One\" loop.\n\nGoal: critical outdated deps are upgraded with green tests\nMax iterations: 15\nBetween iterations run: npm outdated && npm test && npm run build\nExit when: npm outdated shows no critical packages left or user stops\n\nStep 1: Pick one outdated package, upgrade it, fix breakages, commit, and stop. One package per iteration.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "dependencies",
+      "maintenance",
+      "upgrades"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 690,
+    "installs": 1592,
+    "views": 1185,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop266c6737d0f0adb9a7e694a9",
+    "slug": "ralph-story-executor",
+    "title": "Ralph Story Executor",
+    "title_zh": "Ralph Story 执行循环",
+    "description": "Fresh-context loop: pick one incomplete story from prd.json, implement it, run backpressure checks, commit, and update progress before the next iteration.",
+    "description_zh": "新上下文循环：从 prd.json 中选择一个未完成 story，实现、运行反压检查、提交，并在下一轮前更新进度。",
+    "category": "Automation",
+    "category_zh": "自动化",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Read state",
+        "name_zh": "读取状态",
+        "prompt": "Read .ralph/prd.json and .ralph/progress.md. Resume any story marked inProgress, else pick the lowest-priority story with passes: false.",
+        "prompt_zh": "读取 .ralph/prd.json 和 .ralph/progress.md。优先恢复 inProgress story，否则选择优先级最低且 passes 为 false 的 story。"
+      },
+      {
+        "name": "Implement one story",
+        "name_zh": "实现一个 story",
+        "prompt": "Implement exactly one user story with minimal scope. Mark it inProgress in prd.json before coding.",
+        "prompt_zh": "精确实现一个用户故事；编码前先在 prd.json 中标记为 inProgress。"
+      },
+      {
+        "name": "Run backpressure",
+        "name_zh": "运行反压检查",
+        "prompt": "Run the project's test, lint, and build commands from AGENTS.md. Fix failures before committing.",
+        "prompt_zh": "运行 AGENTS.md 指定的测试、lint 和 build 命令；提交前修复失败。",
+        "shell_check": "npm test && npm run lint && npm run build"
+      },
+      {
+        "name": "Commit and record",
+        "name_zh": "提交并记录",
+        "prompt": "Commit with a story-scoped message. Set passes: true in prd.json and append learnings to progress.md.",
+        "prompt_zh": "用 story 作用域的提交信息提交；在 prd.json 中设置 passes: true，并把学习记录追加到 progress.md。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "command": "cat .ralph/prd.json | grep -c '\"passes\": false' || true",
+      "description": "All stories in prd.json have passes: true",
+      "description_zh": "prd.json 中所有 story 的 passes 都为 true",
+      "max_iterations": 20
+    },
+    "kickoff_prompt": "Start the \"Ralph Story Executor\" loop.\n\nGoal: every story in .ralph/prd.json has passes: true\nMax iterations: 20\nBetween iterations run: npm test && npm run lint && npm run build\nExit when: no stories remain with passes: false (respond \"ALL STORIES ARE COMPLETE\")\n\nStep 1: Read .ralph/prd.json and .ralph/progress.md. Pick one incomplete story, implement it, run backpressure checks, commit, update prd.json and progress.md, then stop this iteration.\n\nSelf-pace this loop. Each iteration does exactly one story. State lives on disk, not in chat history.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": ".ralph/prd.json",
+          "content": "{\n  \"stories\": [\n    {\n      \"id\": \"story-1\",\n      \"title\": \"Example user story\",\n      \"description\": \"Replace with your first atomic task\",\n      \"priority\": 1,\n      \"passes\": false,\n      \"inProgress\": false\n    }\n  ]\n}\n"
+        },
+        {
+          "path": ".ralph/progress.md",
+          "content": "# Ralph progress\n\nAppend one short learning per iteration. The next fresh context reads this file first.\n\n## Iteration log\n"
+        },
+        {
+          "path": ".ralph/guardrails.md",
+          "content": "# Guardrails\n\nSigns learned from failures. The agent must read this before each story.\n\n- Run tests before every commit.\n- One story per iteration — no scope creep.\n"
+        },
+        {
+          "path": ".cursor/loops/ralph-story-executor/README.md",
+          "content": "# Ralph Story Executor\n\nFilesystem-backed Ralph loop. Each /ralph-loop or kickoff iteration implements one story.\n\n## Files\n- `.ralph/prd.json` — task list with passes/inProgress flags\n- `.ralph/progress.md` — iteration learnings\n- `.ralph/guardrails.md` — failure signs\n\nInspired by Geoffrey Huntley's Ralph pattern and fresh-context agent loops.\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "codex"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "ralph",
+      "automation",
+      "prd",
+      "fresh-context"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 678,
+    "installs": 1581,
+    "views": 1340,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop1fb65f217ff3f3b5fa8b1b2c",
+    "slug": "investigation-script-loop",
+    "title": "Investigation Script Loop",
+    "title_zh": "调查脚本循环",
+    "description": "Write a small throwaway script to reproduce a bug, run it, read output, and iterate until the root cause is proven.",
+    "description_zh": "写一个一次性小脚本复现 bug，运行并读取输出，持续迭代直到证明根因。",
+    "category": "Debugging",
+    "category_zh": "调试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Write probe script",
+        "name_zh": "写探针脚本",
+        "prompt": "Create a ~20-line script that reproduces the bug or queries the failing state. One file only.",
+        "prompt_zh": "创建一个约 20 行的脚本复现 bug 或查询失败状态，只写一个文件。"
+      },
+      {
+        "name": "Run and read",
+        "name_zh": "运行并读取",
+        "prompt": "Execute the script and capture stdout/stderr. No guessing — read actual output.",
+        "prompt_zh": "执行脚本并捕获 stdout/stderr，不猜测，只读真实输出。"
+      },
+      {
+        "name": "Adjust hypothesis",
+        "name_zh": "调整假设",
+        "prompt": "Update the script or notes based on output. Stop when root cause is demonstrated.",
+        "prompt_zh": "根据输出更新脚本或笔记，直到根因被证明。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "Root cause demonstrated by script output with a written summary",
+      "description_zh": "脚本输出证明根因，并写出总结",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"Investigation Script Loop\" loop.\n\nGoal: prove the root cause with a minimal repro script\nMax iterations: 8\nBetween iterations run: node scripts/investigate.mjs\nExit when: script output demonstrates root cause\n\nStep 1: Write a tiny throwaway script that reproduces the issue. Run it and iterate on what the output shows.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "codex",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "debugging",
+      "repro",
+      "scripts"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 674,
+    "installs": 1029,
+    "views": 1526,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopcd7eed0c7eafc5bc0c2a1e77",
+    "slug": "changelog-sync-after-ship",
+    "title": "Changelog Sync After Ship",
+    "title_zh": "发布后 Changelog 同步",
+    "description": "After shipping a feature, loop until CHANGELOG.md has a user-facing entry and conventional commits are reflected.",
+    "description_zh": "功能发布后循环检查，直到 CHANGELOG.md 有面向用户的条目并反映 conventional commits。",
+    "category": "Docs",
+    "category_zh": "文档",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Diff since last tag",
+        "name_zh": "比较上个 tag",
+        "prompt": "List commits and user-visible changes since the last release tag or CHANGELOG section.",
+        "prompt_zh": "列出上个 release tag 或 CHANGELOG 段落以来的提交和用户可见变更。",
+        "shell_check": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo HEAD~20)..HEAD --oneline"
+      },
+      {
+        "name": "Write changelog entry",
+        "name_zh": "编写 changelog 条目",
+        "prompt": "Add a Keep-a-Changelog entry under [Unreleased]: Added, Changed, Fixed. User-facing language only.",
+        "prompt_zh": "在 [Unreleased] 下添加 Keep-a-Changelog 条目：Added、Changed、Fixed，只写用户可见语言。"
+      },
+      {
+        "name": "Verify format",
+        "name_zh": "验证格式",
+        "prompt": "Confirm CHANGELOG follows project format and links issues/PRs where relevant.",
+        "prompt_zh": "确认 CHANGELOG 遵循项目格式，并在相关处链接 issue/PR。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "CHANGELOG.md documents all user-visible changes in this ship",
+      "description_zh": "CHANGELOG.md 记录了本次发布的所有用户可见变更",
+      "max_iterations": 3
+    },
+    "kickoff_prompt": "Start the \"Changelog Sync After Ship\" loop.\n\nGoal: CHANGELOG.md has accurate [Unreleased] entries for this ship\nMax iterations: 3\nBetween iterations run: git log -5 --oneline\nExit when: changelog covers all user-visible changes\n\nStep 1: Review recent commits, write Keep-a-Changelog entries for user-visible changes, and verify completeness.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "docs",
+      "changelog",
+      "release"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 667,
+    "installs": 1597,
+    "views": 1374,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop1592ca257a787a4a4b7e27c5",
+    "slug": "autoloop-tdd",
+    "title": "Autoloop TDD",
+    "title_zh": "自动 TDD 循环",
+    "description": "Test-first loop: write a failing test, implement the minimum code to pass, refactor, and repeat.",
+    "description_zh": "测试先行循环：写失败测试、实现最小通过代码、重构，然后重复。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Write failing test",
+        "name_zh": "写失败测试",
+        "prompt": "Write a focused test for the next behavior. Run it and confirm it fails for the right reason.",
+        "prompt_zh": "为下一个行为写聚焦测试，运行并确认它因正确原因失败。",
+        "shell_check": "npm test -- --testPathPattern=<new-test>"
+      },
+      {
+        "name": "Implement minimum code",
+        "name_zh": "实现最小代码",
+        "prompt": "Write the smallest implementation that makes the new test pass. No extra features.",
+        "prompt_zh": "编写让新测试通过的最小实现，不加额外功能。"
+      },
+      {
+        "name": "Verify green",
+        "name_zh": "验证全绿",
+        "prompt": "Run the new test and full suite to confirm everything passes.",
+        "prompt_zh": "运行新测试和完整套件，确认全部通过。",
+        "shell_check": "npm test"
+      },
+      {
+        "name": "Refactor",
+        "name_zh": "重构",
+        "prompt": "Clean up duplication and naming while keeping tests green. Run tests after each refactor.",
+        "prompt_zh": "在保持测试全绿的前提下清理重复和命名；每次重构后运行测试。",
+        "shell_check": "npm test"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm test",
+      "description": "Target behavior covered by tests and full suite passes",
+      "description_zh": "目标行为已有测试覆盖，且完整套件通过",
+      "max_iterations": 12
+    },
+    "kickoff_prompt": "Start the \"Autoloop TDD\" loop.\n\nGoal: implement the target behavior test-first with a green suite\nMax iterations: 12\nBetween iterations run: npm test\nExit when: target behavior is covered and all tests pass\n\nStep 1: Write a failing test for the next behavior, implement the minimum code to pass, refactor, and repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "tdd",
+      "testing",
+      "red-green-refactor"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 666,
+    "installs": 1554,
+    "views": 1579,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopfe50f8b98a6d66aa192aedca",
+    "slug": "openapi-sync-until-valid",
+    "title": "OpenAPI Sync Until Valid",
+    "title_zh": "OpenAPI 同步验证循环",
+    "description": "Keep openapi.yaml valid and in sync with route handlers — lint the spec and fix drift each pass.",
+    "description_zh": "保持 openapi.yaml 有效并与路由 handler 同步，每轮 lint spec 并修复漂移。",
+    "category": "API",
+    "category_zh": "API",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Lint OpenAPI",
+        "name_zh": "Lint OpenAPI",
+        "prompt": "Validate openapi.yaml with spectral or swagger-cli. List every error with line numbers.",
+        "prompt_zh": "用 spectral 或 swagger-cli 验证 openapi.yaml，列出每个错误及行号。",
+        "shell_check": "npx @redocly/cli lint openapi.yaml"
+      },
+      {
+        "name": "Sync handlers",
+        "name_zh": "同步 handler",
+        "prompt": "Update route handlers or the spec so documented paths, schemas, and status codes match reality.",
+        "prompt_zh": "更新路由 handler 或 spec，使记录的路径、schema 和状态码与现实一致。"
+      }
+    ],
+    "exit_condition": {
+      "type": "lint_clean",
+      "command": "npx @redocly/cli lint openapi.yaml",
+      "description": "OpenAPI spec lints with zero errors",
+      "description_zh": "OpenAPI spec lint 零错误",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"OpenAPI Sync Until Valid\" loop.\n\nGoal: openapi.yaml lints clean and matches implemented routes\nMax iterations: 8\nBetween iterations run: npx @redocly/cli lint openapi.yaml\nExit when: OpenAPI lint exits 0\n\nStep 1: Lint openapi.yaml. Fix spec errors and handler drift until lint passes.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "api",
+      "openapi",
+      "docs"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 620,
+    "installs": 1914,
+    "views": 1646,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop28aae05be87bfbc5fe43d6fd",
+    "slug": "staging-smoke-test",
+    "title": "Staging Smoke Test",
+    "title_zh": "Staging 冒烟测试",
+    "description": "Run a fixed smoke checklist against staging after deploy: auth, core flows, and error budgets.",
+    "description_zh": "部署后对 staging 运行固定冒烟清单：认证、核心流程和错误预算。",
+    "category": "DevOps",
+    "category_zh": "DevOps",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run smoke checklist",
+        "name_zh": "运行冒烟清单",
+        "prompt": "Execute the staging smoke script or manual checklist (login, critical path, webhooks).",
+        "prompt_zh": "执行 staging 冒烟脚本或手动清单，例如登录、关键路径和 webhook。",
+        "shell_check": "npm run smoke:staging"
+      },
+      {
+        "name": "Fix failures",
+        "name_zh": "修复失败",
+        "prompt": "If smoke fails, trace logs, fix the smallest issue, and redeploy or hotfix as appropriate.",
+        "prompt_zh": "如果冒烟失败，追踪日志，修复最小问题，并按需重新部署或热修。"
+      },
+      {
+        "name": "Confirm green",
+        "name_zh": "确认全绿",
+        "prompt": "Re-run smoke until all checklist items pass.",
+        "prompt_zh": "重跑冒烟测试，直到所有清单项通过。",
+        "shell_check": "npm run smoke:staging"
+      }
+    ],
+    "exit_condition": {
+      "type": "ci_green",
+      "command": "npm run smoke:staging",
+      "description": "Staging smoke checklist passes",
+      "description_zh": "Staging 冒烟清单通过",
+      "max_iterations": 6
+    },
+    "kickoff_prompt": "Start the \"Staging Smoke Test\" loop.\n\nGoal: staging smoke checklist passes\nMax iterations: 6\nBetween iterations run: npm run smoke:staging\nExit when: smoke command exits 0\n\nStep 1: Run the staging smoke checklist. Fix the first failing item, then repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "staging",
+      "smoke-test",
+      "deploy"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 620,
+    "installs": 1680,
+    "views": 1409,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopaef3ed41d21531195adfc840",
+    "slug": "de-sloppify-pass",
+    "title": "De-Sloppify Pass",
+    "title_zh": "收尾清洁检查",
+    "description": "After implementation, run a cleanup pass: remove debug code, tighten naming, delete dead branches, and align with project conventions.",
+    "description_zh": "实现后运行清理 pass：删除调试代码、收紧命名、移除死分支，并对齐项目约定。",
+    "category": "Review",
+    "category_zh": "评审",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Scan for slop",
+        "name_zh": "扫描粗糙点",
+        "prompt": "Review recent changes for debug logs, commented code, TODO hacks, oversized functions, and inconsistent naming.",
+        "prompt_zh": "审查近期改动中的调试日志、注释掉的代码、TODO hack、过大函数和不一致命名。"
+      },
+      {
+        "name": "Clean up",
+        "name_zh": "清理",
+        "prompt": "Apply minimal fixes: delete dead code, extract helpers, align types, and match surrounding style.",
+        "prompt_zh": "应用最小修复：删除死代码、抽取 helper、对齐类型和周边风格。"
+      },
+      {
+        "name": "Verify",
+        "name_zh": "验证",
+        "prompt": "Run lint and tests to ensure cleanup did not break behavior.",
+        "prompt_zh": "运行 lint 和测试，确认清理没有破坏行为。",
+        "shell_check": "npm run lint && npm test"
+      }
+    ],
+    "exit_condition": {
+      "type": "lint_clean",
+      "command": "npm run lint && npm test",
+      "description": "No slop remains and lint/tests still pass",
+      "description_zh": "没有遗留粗糙点，且 lint/测试仍通过",
+      "max_iterations": 4
+    },
+    "kickoff_prompt": "Start the \"De-Sloppify Pass\" loop.\n\nGoal: recent changes are clean, minimal, and convention-aligned\nMax iterations: 4\nBetween iterations run: npm run lint && npm test\nExit when: review finds no slop and checks pass\n\nStep 1: Review the diff for debug code, dead branches, and naming issues. Fix them with minimal diffs.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "review",
+      "quality",
+      "cleanup"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 560,
+    "installs": 1825,
+    "views": 1986,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopd370520f7d1d2ecf46a8ce8e",
+    "slug": "pr-babysitter",
+    "title": "PR Babysitter",
+    "title_zh": "PR 看护循环",
+    "description": "Every 15 minutes, inspect open PRs with a watch label: nudge reviewers, fix CI, rebase if behind main.",
+    "description_zh": "每 15 分钟检查带 watch 标签的开放 PR：提醒 reviewer、修复 CI、落后 main 时 rebase。",
+    "category": "CI",
+    "category_zh": "CI",
+    "trigger_type": "interval",
+    "trigger_config": {
+      "interval": "15m"
+    },
+    "steps": [
+      {
+        "name": "List watched PRs",
+        "name_zh": "列出被观察 PR",
+        "prompt": "List open PRs with the watch label. Skip merged, draft, or conflict-only PRs that need human product input.",
+        "prompt_zh": "列出带 watch 标签的开放 PR；跳过已合并、草稿或需要人工产品判断的冲突 PR。",
+        "shell_check": "gh pr list --label \"codex-watch\" --json number,title,mergeable,statusCheckRollup"
+      },
+      {
+        "name": "Triage each PR",
+        "name_zh": "逐个分诊",
+        "prompt": "For each PR: if CI failed, fix once; if behind main, rebase; if stale review, leave a short status comment.",
+        "prompt_zh": "对每个 PR：CI 失败则修复一次；落后 main 则 rebase；review 停滞则留下简短状态评论。"
+      },
+      {
+        "name": "Escalate blockers",
+        "name_zh": "升级阻塞",
+        "prompt": "Stop on merge conflicts needing product decisions or the same failure twice. Report blockers clearly.",
+        "prompt_zh": "遇到需要产品决策的冲突或同一失败重复两次时停止，并清楚报告阻塞。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "All watched PRs are green, rebased, or escalated with a clear blocker note",
+      "description_zh": "所有被观察 PR 已绿色、已 rebase，或带清楚阻塞说明升级",
+      "max_iterations": 20
+    },
+    "kickoff_prompt": "/loop 15m Start the \"PR Babysitter\" loop.\n\nGoal: open PRs labeled codex-watch are healthy (CI green, rebased, not stale).\nMax iterations: 20.\nBetween iterations run: gh pr list --label \"codex-watch\"\nExit when: each watched PR is green and current, or escalated.\n\nStep 1: List watched PRs. Fix CI once, rebase if behind, comment if stale. Escalate repeated failures.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "codex",
+      "cursor"
+    ],
+    "best_for_agents": [
+      "codex",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "pr",
+      "github",
+      "ci",
+      "boris-cherny"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 551,
+    "installs": 1778,
+    "views": 1195,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopf3df89fe4eb775d6c2d9013b",
+    "slug": "api-contract-until-match",
+    "title": "API Contract Until Match",
+    "title_zh": "API 契约一致循环",
+    "description": "Loop until API responses match the OpenAPI or JSON Schema contract — catch drift between docs and implementation.",
+    "description_zh": "循环直到 API 响应符合 OpenAPI 或 JSON Schema 契约，捕获文档与实现的漂移。",
+    "category": "API",
+    "category_zh": "API",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run contract tests",
+        "name_zh": "运行契约测试",
+        "prompt": "Run contract tests against openapi.yaml or schema fixtures. List every mismatch with endpoint and field.",
+        "prompt_zh": "基于 openapi.yaml 或 schema fixture 运行契约测试，列出每个 endpoint 和字段不匹配。",
+        "shell_check": "npm run test:contract"
+      },
+      {
+        "name": "Fix implementation or spec",
+        "name_zh": "修复实现或 spec",
+        "prompt": "Fix the smallest change: update handler types/validation or correct the spec if the code is canonical.",
+        "prompt_zh": "做最小修复：更新 handler 类型/校验，或在代码为准时修正 spec。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run test:contract",
+      "description": "All API contract tests pass",
+      "description_zh": "所有 API 契约测试通过",
+      "max_iterations": 10
+    },
+    "kickoff_prompt": "Start the \"API Contract Until Match\" loop.\n\nGoal: API implementation matches the published contract\nMax iterations: 10\nBetween iterations run: npm run test:contract\nExit when: contract test suite exits 0\n\nStep 1: Run contract tests. Fix each schema/response mismatch with minimal diffs, then re-run.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "api",
+      "openapi",
+      "contract-testing"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 540,
+    "installs": 1551,
+    "views": 1738,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopa93f3d777a29898f6aa75e6b",
+    "slug": "lint-typecheck-fix",
+    "title": "Lint and Typecheck Fix",
+    "title_zh": "Lint 与类型检查修复",
+    "description": "Run lint and typecheck, fix reported issues, and loop until the codebase is clean.",
+    "description_zh": "运行 lint 和 typecheck，修复报告的问题，并循环直到代码库干净。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run lint and typecheck",
+        "name_zh": "运行 lint 和类型检查",
+        "prompt": "Run lint and TypeScript checks.",
+        "prompt_zh": "运行 lint 与 TypeScript 检查。",
+        "shell_check": "npm run lint && npx tsc --noEmit"
+      },
+      {
+        "name": "Fix issues",
+        "name_zh": "修复问题",
+        "prompt": "Fix lint and type errors with minimal changes. Do not disable rules unless necessary.",
+        "prompt_zh": "用最小改动修复 lint 和类型错误；非必要不禁用规则。"
+      }
+    ],
+    "exit_condition": {
+      "type": "lint_clean",
+      "command": "npm run lint && npx tsc --noEmit",
+      "description": "Lint and typecheck pass with no errors",
+      "description_zh": "Lint 和类型检查无错误通过",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"Lint and Typecheck Fix\" loop.\n\nGoal: lint and typecheck are clean\nMax iterations: 8\nBetween iterations run: npm run lint && npx tsc --noEmit\nExit when: both commands exit 0\n\nStep 1: Run lint and typecheck. Fix reported issues with minimal diffs, then repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "lint",
+      "typescript",
+      "quality"
+    ],
+    "guardrails": [
+      "Do not modify the check command or exit criteria to force success",
+      "Do not skip, disable, or bypass checks to pass the exit condition",
+      "If stuck after several iterations, stop and report blockers instead of gaming metrics"
+    ],
+    "guardrails_zh": [
+      "不要为了强行成功而修改检查命令或退出条件",
+      "不要通过跳过、禁用或绕过检查来满足退出条件",
+      "如果多轮后仍卡住，停止并报告阻塞，不要操纵指标"
+    ],
+    "examples": [
+      {
+        "title": "Monorepo cleanup pass",
+        "summary": "Cleared 24 ESLint warnings and 8 TypeScript errors across 5 files without disabling rules.",
+        "title_zh": "Monorepo 清理",
+        "summary_zh": "在不禁用规则的前提下，清理 5 个文件中的 24 个 ESLint 警告和 8 个 TypeScript 错误。"
+      }
+    ],
+    "copies": 533,
+    "installs": 1897,
+    "views": 1730,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loope8c4bc1b0b93331e9f420f48",
+    "slug": "fix-ci-until-green",
+    "title": "Fix CI Until Green",
+    "title_zh": "修复 CI 直到全绿",
+    "description": "Fetch the latest failed CI run, reproduce the failure locally, fix it, and repeat until checks pass.",
+    "description_zh": "获取最新失败 CI run，本地复现、修复并重复，直到检查通过。",
+    "category": "CI",
+    "category_zh": "CI",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Fetch failed run",
+        "name_zh": "获取失败 run",
+        "prompt": "Use gh to find the latest failed CI run on this branch. Pull logs for the failing job.",
+        "prompt_zh": "使用 gh 查找当前分支最新失败 CI run，并拉取失败 job 日志。",
+        "shell_check": "gh run list --branch $(git branch --show-current) --status failure --limit 1"
+      },
+      {
+        "name": "Reproduce locally",
+        "name_zh": "本地复现",
+        "prompt": "Run the failing CI step locally (test, lint, build). Confirm you can reproduce the error.",
+        "prompt_zh": "本地运行失败的 CI 步骤，例如 test、lint 或 build，确认可以复现。"
+      },
+      {
+        "name": "Apply fix",
+        "name_zh": "应用修复",
+        "prompt": "Fix the root cause with a minimal diff. Avoid unrelated refactors.",
+        "prompt_zh": "用最小 diff 修复根因，避免无关重构。"
+      },
+      {
+        "name": "Push and verify",
+        "name_zh": "推送并验证",
+        "prompt": "Push the fix and wait for CI. Re-check status before the next iteration.",
+        "prompt_zh": "推送修复并等待 CI，下一轮前重新检查状态。",
+        "shell_check": "gh run list --branch $(git branch --show-current) --limit 1 --json conclusion -q '.[0].conclusion'"
+      }
+    ],
+    "exit_condition": {
+      "type": "ci_green",
+      "command": "gh run list --branch $(git branch --show-current) --limit 1 --json conclusion -q '.[0].conclusion'",
+      "description": "Latest CI run conclusion is success",
+      "description_zh": "最新 CI run 结论为 success",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"Fix CI Until Green\" loop.\n\nGoal: latest CI run on this branch passes\nMax iterations: 8\nBetween iterations run: gh run list --branch $(git branch --show-current) --limit 1 --json conclusion -q '.[0].conclusion'\nExit when: latest run conclusion is success\n\nStep 1: Find the latest failed CI run, read logs, reproduce locally, fix root cause, push, and verify.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "ci",
+      "github",
+      "fix"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 510,
+    "installs": 1423,
+    "views": 2051,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loopf48f7e6e8d6f71750a5493f7",
+    "slug": "migration-until-applied",
+    "title": "Migration Until Applied",
+    "title_zh": "迁移应用循环",
+    "description": "Run database migrations, fix schema issues, and loop until migrations apply cleanly in dev.",
+    "description_zh": "运行数据库迁移，修复 schema 问题，并循环直到 dev 环境迁移干净应用。",
+    "category": "Database",
+    "category_zh": "数据库",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run migrations",
+        "name_zh": "运行迁移",
+        "prompt": "Apply pending migrations with the project's migration command.",
+        "prompt_zh": "使用项目迁移命令应用待执行迁移。",
+        "shell_check": "npx prisma migrate dev"
+      },
+      {
+        "name": "Fix schema errors",
+        "name_zh": "修复 schema 错误",
+        "prompt": "If migration fails, fix schema or SQL, regenerate client if needed, and retry.",
+        "prompt_zh": "迁移失败时修复 schema 或 SQL，按需重新生成 client，然后重试。"
+      },
+      {
+        "name": "Verify",
+        "name_zh": "验证",
+        "prompt": "Confirm migration history is consistent and app still starts.",
+        "prompt_zh": "确认迁移历史一致且应用仍可启动。",
+        "shell_check": "npx prisma migrate status"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npx prisma migrate status",
+      "description": "All migrations applied with clean status",
+      "description_zh": "所有迁移已应用且状态干净",
+      "max_iterations": 6
+    },
+    "kickoff_prompt": "Start the \"Migration Until Applied\" loop.\n\nGoal: all database migrations apply cleanly\nMax iterations: 6\nBetween iterations run: npx prisma migrate status\nExit when: migrate status shows no pending failures\n\nStep 1: Run migrations. Fix schema or SQL errors, then repeat until status is clean.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "database",
+      "prisma",
+      "migrations"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 488,
+    "installs": 1647,
+    "views": 1646,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop5d63c88fe56b0858dd4ac971",
+    "slug": "format-until-clean",
+    "title": "Format Until Clean",
+    "title_zh": "格式化清洁循环",
+    "description": "Run the formatter, fix any remaining style issues, and loop until the codebase formats cleanly with no diffs.",
+    "description_zh": "运行 formatter，修复剩余样式问题，并循环直到格式化无残留 diff。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run formatter",
+        "name_zh": "运行 formatter",
+        "prompt": "Run the project formatter (prettier, biome, etc.).",
+        "prompt_zh": "运行项目 formatter，例如 prettier 或 biome。",
+        "shell_check": "npm run format"
+      },
+      {
+        "name": "Check diff",
+        "name_zh": "检查 diff",
+        "prompt": "If formatting changed files, review diff for unintended edits. Fix manual style issues formatter missed.",
+        "prompt_zh": "如果格式化改动了文件，审查 diff 是否有意外编辑，并修复 formatter 未覆盖的手动样式问题。"
+      },
+      {
+        "name": "Confirm clean",
+        "name_zh": "确认干净",
+        "prompt": "Re-run formatter and confirm working tree is stable.",
+        "prompt_zh": "重跑 formatter 并确认工作树稳定。",
+        "shell_check": "npm run format && git diff --quiet"
+      }
+    ],
+    "exit_condition": {
+      "type": "lint_clean",
+      "command": "npm run format && git diff --quiet",
+      "description": "Formatter produces no remaining diff",
+      "description_zh": "Formatter 不再产生剩余 diff",
+      "max_iterations": 5
+    },
+    "kickoff_prompt": "Start the \"Format Until Clean\" loop.\n\nGoal: formatter runs cleanly with no remaining diff\nMax iterations: 5\nBetween iterations run: npm run format\nExit when: format command succeeds and git diff is empty\n\nStep 1: Run the formatter. Fix any issues it cannot auto-fix, then repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "format",
+      "prettier",
+      "quality"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 463,
+    "installs": 1706,
+    "views": 1701,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop5069a8bbbb9837f1e0467f24",
+    "slug": "security-audit-weekly",
+    "title": "Security Audit Weekly",
+    "title_zh": "每周安全审计",
+    "description": "Weekly npm audit scan, triage vulnerabilities by severity, and propose or apply safe patches.",
+    "description_zh": "每周运行 npm audit，按严重级别分诊漏洞，并提出或应用安全补丁。",
+    "category": "Maintenance",
+    "category_zh": "维护",
+    "trigger_type": "interval",
+    "trigger_config": {
+      "interval": "7d"
+    },
+    "steps": [
+      {
+        "name": "Run npm audit",
+        "name_zh": "运行 npm audit",
+        "prompt": "Run npm audit and capture critical, high, and moderate findings.",
+        "prompt_zh": "运行 npm audit 并捕获 critical、high 和 moderate 问题。",
+        "shell_check": "npm audit --json"
+      },
+      {
+        "name": "Triage findings",
+        "name_zh": "分诊问题",
+        "prompt": "Group vulnerabilities by severity and exploitability. Flag dev-only vs production exposure.",
+        "prompt_zh": "按严重级别和可利用性归类漏洞，标记 dev-only 与生产暴露。"
+      },
+      {
+        "name": "Propose fixes",
+        "name_zh": "提出修复",
+        "prompt": "Recommend npm audit fix, targeted overrides, or dependency bumps. Note breaking changes.",
+        "prompt_zh": "推荐 npm audit fix、定向 overrides 或依赖升级，并说明破坏性变更。"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "Weekly security audit summary delivered with remediation plan",
+      "description_zh": "每周安全审计摘要和修复计划已交付"
+    },
+    "kickoff_prompt": "/loop 7d Start the \"Security Audit Weekly\" loop.\n\nGoal: deliver a weekly npm audit summary with a remediation plan.\nBetween iterations run: npm audit --json\nExit when: summary is posted with prioritized fixes.\n\nStep 1: Run npm audit, triage by severity, and propose safe remediation steps.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "security",
+      "npm",
+      "audit",
+      "maintenance"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 441,
+    "installs": 1818,
+    "views": 1083,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop098d4a0012fd4e9611c0a95e",
+    "slug": "build-until-green",
+    "title": "Build Until Green",
+    "title_zh": "构建直到全绿",
+    "description": "Run the production build, fix compile and bundling errors, and loop until the build succeeds.",
+    "description_zh": "运行生产构建，修复编译和打包错误，并循环直到构建成功。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run build",
+        "name_zh": "运行构建",
+        "prompt": "Run the project build command and capture all errors.",
+        "prompt_zh": "运行项目构建命令并捕获所有错误。",
+        "shell_check": "npm run build"
+      },
+      {
+        "name": "Fix build errors",
+        "name_zh": "修复构建错误",
+        "prompt": "Fix compile, type, and bundling errors one at a time. Prefer minimal diffs.",
+        "prompt_zh": "逐个修复编译、类型和打包错误，保持改动最小。"
+      },
+      {
+        "name": "Re-run build",
+        "name_zh": "重跑构建",
+        "prompt": "Run the build again and confirm errors are resolved.",
+        "prompt_zh": "再次运行构建，确认错误已解决。",
+        "shell_check": "npm run build"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run build",
+      "description": "Production build completes with exit code 0",
+      "description_zh": "生产构建以退出码 0 完成",
+      "max_iterations": 10
+    },
+    "kickoff_prompt": "Start the \"Build Until Green\" loop.\n\nGoal: production build succeeds\nMax iterations: 10\nBetween iterations run: npm run build\nExit when: npm run build exits 0\n\nStep 1: Run the build. If it fails, fix the first error, then repeat until green.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "build",
+      "compile",
+      "ci"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 438,
+    "installs": 1922,
+    "views": 1904,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop0c7e408362656ea38e056567",
+    "slug": "e2e-until-green",
+    "title": "E2E Until Green",
+    "title_zh": "E2E 直到全绿",
+    "description": "Run end-to-end tests, fix UI and integration failures, and loop until the E2E suite passes.",
+    "description_zh": "运行端到端测试，修复 UI 和集成失败，并循环直到 E2E 套件通过。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run E2E",
+        "name_zh": "运行 E2E",
+        "prompt": "Run the project's E2E test command and capture failures.",
+        "prompt_zh": "运行项目 E2E 测试命令并捕获失败。",
+        "shell_check": "npm run test:e2e"
+      },
+      {
+        "name": "Fix failures",
+        "name_zh": "修复失败",
+        "prompt": "Fix the smallest root cause for failing E2E specs. Prefer stable selectors and realistic waits.",
+        "prompt_zh": "为失败的 E2E spec 修复最小根因，优先使用稳定 selector 和真实等待。"
+      },
+      {
+        "name": "Re-run E2E",
+        "name_zh": "重跑 E2E",
+        "prompt": "Re-run E2E until all specs pass.",
+        "prompt_zh": "重复运行 E2E，直到所有 spec 通过。",
+        "shell_check": "npm run test:e2e"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npm run test:e2e",
+      "description": "E2E suite exits 0",
+      "description_zh": "E2E 套件退出码为 0",
+      "max_iterations": 10
+    },
+    "kickoff_prompt": "Start the \"E2E Until Green\" loop.\n\nGoal: E2E suite passes\nMax iterations: 10\nBetween iterations run: npm run test:e2e\nExit when: E2E command exits 0\n\nStep 1: Run E2E tests. Fix the first failing spec, then repeat.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "e2e",
+      "playwright",
+      "testing"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 429,
+    "installs": 1065,
+    "views": 1542,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop81abbcdb97aa9338a6408da7",
+    "slug": "spec-first-ship",
+    "title": "Spec-First Ship",
+    "title_zh": "规格先行交付",
+    "description": "Implement from a written spec.md checklist — each iteration completes one unchecked requirement with verification.",
+    "description_zh": "从 spec.md 清单实现，每轮完成一个未勾选需求并验证。",
+    "category": "Planning",
+    "category_zh": "规划",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Read spec",
+        "name_zh": "读取规格",
+        "prompt": "Read spec.md. Pick the first unchecked requirement. Do not start multiple requirements in one pass.",
+        "prompt_zh": "读取 spec.md，选择第一个未勾选需求；每轮只做一个需求。"
+      },
+      {
+        "name": "Implement requirement",
+        "name_zh": "实现需求",
+        "prompt": "Implement that single requirement with tests. Mark it [x] in spec.md only after verification.",
+        "prompt_zh": "实现这个单一需求并添加测试；只有验证后才在 spec.md 标记 [x]。"
+      },
+      {
+        "name": "Verify",
+        "name_zh": "验证",
+        "prompt": "Run tests and manual checks listed in the spec for this requirement.",
+        "prompt_zh": "运行 spec 中为该需求列出的测试和手动检查。",
+        "shell_check": "npm test"
+      }
+    ],
+    "exit_condition": {
+      "type": "manual",
+      "description": "Every requirement in spec.md is checked off",
+      "description_zh": "spec.md 中每个需求都已勾选",
+      "max_iterations": 15
+    },
+    "kickoff_prompt": "Start the \"Spec-First Ship\" loop.\n\nGoal: every requirement in spec.md is implemented and checked off\nMax iterations: 15\nBetween iterations run: npm test\nExit when: spec.md has no unchecked requirements\n\nStep 1: Read spec.md, implement the first unchecked item, verify it, mark [x], and stop this iteration.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": [
+        {
+          "path": "spec.md",
+          "content": "# Feature spec\n\nCheck off each item only after it is implemented and verified.\n\n## Requirements\n- [ ] Requirement 1 — describe acceptance criteria\n- [ ] Requirement 2 — describe acceptance criteria\n"
+        }
+      ]
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code",
+      "codex",
+      "any"
+    ],
+    "best_for_agents": [
+      "claude-code",
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "planning",
+      "spec",
+      "requirements"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 419,
+    "installs": 1235,
+    "views": 2049,
+    "featured": true,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop7d8c57a2ea73e57bd05f0d24",
+    "slug": "merge-conflict-resolver",
+    "title": "Merge Conflict Resolver",
+    "title_zh": "合并冲突解决循环",
+    "description": "Rebase or merge target branch, resolve conflicts file by file, and loop until the branch is current and tests pass.",
+    "description_zh": "rebase 或 merge 目标分支，逐文件解决冲突，并循环直到分支最新且测试通过。",
+    "category": "Git",
+    "category_zh": "Git",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Update branch",
+        "name_zh": "更新分支",
+        "prompt": "Fetch latest main and attempt rebase or merge.",
+        "prompt_zh": "拉取最新 main 并尝试 rebase 或 merge。",
+        "shell_check": "git fetch origin && git rebase origin/main"
+      },
+      {
+        "name": "Resolve conflicts",
+        "name_zh": "解决冲突",
+        "prompt": "For each conflict, read both sides, preserve intent, and resolve with minimal changes.",
+        "prompt_zh": "逐个冲突读取双方意图，用最小改动保留正确行为。"
+      },
+      {
+        "name": "Verify",
+        "name_zh": "验证",
+        "prompt": "Run tests after each resolution batch.",
+        "prompt_zh": "每批冲突解决后运行测试。",
+        "shell_check": "npm test"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "git rebase --continue 2>/dev/null; npm test",
+      "description": "Rebase complete with no conflicts and tests passing",
+      "description_zh": "Rebase 完成、无冲突，且测试通过",
+      "max_iterations": 8
+    },
+    "kickoff_prompt": "Start the \"Merge Conflict Resolver\" loop.\n\nGoal: branch is rebased on main with no conflicts and tests pass\nMax iterations: 8\nBetween iterations run: npm test\nExit when: rebase completes and tests exit 0\n\nStep 1: Rebase on main. Resolve conflicts one file at a time, run tests, continue.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "best_for_agents": [
+      "cursor",
+      "claude-code"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "git",
+      "rebase",
+      "merge"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 387,
+    "installs": 1584,
+    "views": 1557,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  },
+  {
+    "id": "loop316f5755b751fcc2ab9412ea",
+    "slug": "visual-regression-until-match",
+    "title": "Visual Regression Until Match",
+    "title_zh": "视觉回归匹配循环",
+    "description": "Run Playwright or Percy visual snapshots on UI changes; fix unintended diffs until baselines match intentionally.",
+    "description_zh": "对 UI 改动运行 Playwright 或 Percy 视觉快照，修复非预期差异直到基线匹配。",
+    "category": "Testing",
+    "category_zh": "测试",
+    "trigger_type": "manual",
+    "trigger_config": {
+      "type": "manual"
+    },
+    "steps": [
+      {
+        "name": "Run visual tests",
+        "name_zh": "运行视觉测试",
+        "prompt": "Run visual regression tests. List screenshots that differ from baseline with component names.",
+        "prompt_zh": "运行视觉回归测试，列出与基线不同的截图和组件名。",
+        "shell_check": "npx playwright test --grep @visual"
+      },
+      {
+        "name": "Fix or approve",
+        "name_zh": "修复或批准",
+        "prompt": "If diffs are bugs, fix CSS/markup. If intentional, update snapshots only after verifying in report.",
+        "prompt_zh": "如果差异是 bug，则修 CSS/markup；如果是预期变更，先验证报告再更新快照。"
+      }
+    ],
+    "exit_condition": {
+      "type": "tests_pass",
+      "command": "npx playwright test --grep @visual",
+      "description": "Visual regression tests pass with approved baselines",
+      "description_zh": "视觉回归测试通过，且基线差异已批准",
+      "max_iterations": 6
+    },
+    "kickoff_prompt": "Start the \"Visual Regression Until Match\" loop.\n\nGoal: visual regression suite passes with intentional UI only\nMax iterations: 6\nBetween iterations run: npx playwright test --grep @visual\nExit when: visual tests exit 0\n\nStep 1: Run visual tests. Fix unintended UI diffs; update baselines only for deliberate design changes.\n\nSelf-pace this loop. After each iteration, run the check command, read the output, and only continue if the exit condition is not met. Stop when the exit condition passes or max iterations is reached. Give a short status update each pass.",
+    "install_bundle": {
+      "files": []
+    },
+    "compatible_agents": [
+      "cursor",
+      "any"
+    ],
+    "best_for_agents": [
+      "cursor"
+    ],
+    "author": "loops!",
+    "author_slug": "loops",
+    "author_official": true,
+    "source": "curated",
+    "tags": [
+      "testing",
+      "visual",
+      "playwright",
+      "ui"
+    ],
+    "guardrails": [],
+    "guardrails_zh": [],
+    "examples": [],
+    "copies": 362,
+    "installs": 1210,
+    "views": 1306,
+    "featured": false,
+    "is_published": true,
+    "created_at": "Jun 14, 2026"
+  }
+]

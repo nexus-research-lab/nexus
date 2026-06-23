@@ -76,7 +76,7 @@ enum ApplicationMenuBuilder {
   private static func viewMenuItem(target: AppDelegate) -> NSMenuItem {
     let item = NSMenuItem()
     let menu = NSMenu(title: "显示")
-    menu.addItem(menuItem("重新载入", action: #selector(AppDelegate.reloadMainWindow(_:)), key: "r", target: target))
+    menu.addItem(menuItem("重新载入界面", action: #selector(AppDelegate.reloadMainWindow(_:)), key: "r", target: target))
     item.submenu = menu
     return item
   }

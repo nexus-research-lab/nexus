@@ -4,12 +4,14 @@ const AGENT_SESSION_PREFIX = "agent";
 const ROOM_SESSION_PREFIX = "room";
 const ROOM_SHARED_SESSION_PREFIX = "room:group:";
 const TOPIC_SEGMENT = "topic";
+const ACCOUNT_SEGMENT = "acct";
 
 export interface BuildSessionKeyOptions {
   channel: string;
   chat_type: string;
   ref: string;
   agent_id?: string | null;
+  account_id?: string | null;
   thread_id?: string | null;
 }
 
@@ -23,13 +25,36 @@ export interface ParsedSessionKey {
   agent_id: string | null;
   channel: string | null;
   chat_type: string | null;
+  account_id: string | null;
   ref: string | null;
   thread_id: string | null;
   conversation_id: string | null;
 }
 
-function find_topic_index(parts: string[]): number {
-  return parts.findIndex((part, index) => part === TOPIC_SEGMENT && index >= 4);
+function find_topic_index(parts: string[], min_index: number): number {
+  return parts.findIndex((part, index) => part === TOPIC_SEGMENT && index >= min_index);
+}
+
+function agent_session_key_shape_error(): string {
+  return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]";
+}
+
+function split_agent_ref_parts(parts: string[]): {
+  account_id: string | null;
+  ref_start: number;
+  error: string | null;
+} {
+  if (parts[4] === ACCOUNT_SEGMENT) {
+    if (parts.length < 7) {
+      return { account_id: null, ref_start: 0, error: agent_session_key_shape_error() };
+    }
+    const account_id = parts[5]?.trim() ?? "";
+    if (!account_id) {
+      return { account_id: null, ref_start: 0, error: "session_key account_id is required after acct segment" };
+    }
+    return { account_id, ref_start: 6, error: null };
+  }
+  return { account_id: null, ref_start: 4, error: null };
 }
 
 /**
@@ -40,13 +65,17 @@ export function build_session_key({
   chat_type,
   ref,
   agent_id,
+  account_id,
   thread_id,
 }: BuildSessionKeyOptions): string {
   const resolved_agent_id = resolve_agent_id(agent_id);
   const resolved_channel = channel.trim();
   const resolved_chat_type = chat_type.trim();
   const resolved_ref = ref.trim();
-  let key = `${AGENT_SESSION_PREFIX}:${resolved_agent_id}:${resolved_channel}:${resolved_chat_type}:${resolved_ref}`;
+  const resolved_account_id = account_id?.trim() ?? "";
+  let key = resolved_account_id
+    ? `${AGENT_SESSION_PREFIX}:${resolved_agent_id}:${resolved_channel}:${resolved_chat_type}:${ACCOUNT_SEGMENT}:${resolved_account_id}:${resolved_ref}`
+    : `${AGENT_SESSION_PREFIX}:${resolved_agent_id}:${resolved_channel}:${resolved_chat_type}:${resolved_ref}`;
   if (thread_id?.trim()) {
     key += `:${TOPIC_SEGMENT}:${thread_id.trim()}`;
   }
@@ -79,21 +108,21 @@ export function get_session_key_validation_error(session_key: string | null | un
   if (normalized_key.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
     const parts = normalized_key.split(":");
     if (parts.length < 5 || !parts[1] || !parts[2] || !parts[3]) {
-      return "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]";
+      return agent_session_key_shape_error();
     }
 
-    const topic_index = find_topic_index(parts);
+    const split = split_agent_ref_parts(parts);
+    if (split.error) {
+      return split.error;
+    }
+    const topic_index = find_topic_index(parts, split.ref_start);
     if (topic_index >= 0) {
-      const ref = parts.slice(4, topic_index).join(":").trim();
+      const ref = parts.slice(split.ref_start, topic_index).join(":").trim();
       const thread_id = parts.slice(topic_index + 1).join(":").trim();
-      return ref && thread_id
-        ? null
-        : "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]";
+      return ref && thread_id ? null : agent_session_key_shape_error();
     }
 
-    return parts.slice(4).join(":").trim()
-      ? null
-      : "session_key must match agent:<agent_id>:<channel>:<chat_type>:<ref>[:topic:<thread_id>]";
+    return parts.slice(split.ref_start).join(":").trim() ? null : agent_session_key_shape_error();
   }
 
   if (normalized_key.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
@@ -135,6 +164,7 @@ export function parse_session_key(session_key: string | null | undefined): Parse
     agent_id: null,
     channel: null,
     chat_type: null,
+    account_id: null,
     ref: null,
     thread_id: null,
     conversation_id: null,
@@ -149,12 +179,17 @@ export function parse_session_key(session_key: string | null | undefined): Parse
     result.chat_type = parts[3] || "dm";
 
     // `:topic:` 是协议保留边界，ref 中允许冒号，但不能跨过该边界。
-    const topic_index = find_topic_index(parts);
+    const split = split_agent_ref_parts(parts);
+    if (split.error) {
+      return result;
+    }
+    result.account_id = split.account_id;
+    const topic_index = find_topic_index(parts, split.ref_start);
     if (topic_index >= 0) {
-      result.ref = parts.slice(4, topic_index).join(":") || null;
+      result.ref = parts.slice(split.ref_start, topic_index).join(":") || null;
       result.thread_id = parts.slice(topic_index + 1).join(":") || null;
     } else {
-      result.ref = parts.slice(4).join(":") || null;
+      result.ref = parts.slice(split.ref_start).join(":") || null;
     }
     return result;
   }

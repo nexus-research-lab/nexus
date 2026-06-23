@@ -3,142 +3,11 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-var (
-	// ErrRoundInterrupted 表示 round 在收到终态前被中断。
-	ErrRoundInterrupted = errors.New("round interrupted")
-	// ErrRoundStreamClosedBeforeTerminal 表示 SDK 在产出终态前提前结束消息流。
-	ErrRoundStreamClosedBeforeTerminal = errors.New("round stream closed before terminal")
-	// ErrRoundStreamIdleTimeout 表示 SDK 消息流长时间无新事件且未结束。
-	ErrRoundStreamIdleTimeout = errors.New("round stream idle timeout")
-)
-
-const (
-	defaultAssistantTerminalGrace = 1500 * time.Millisecond
-	defaultRoundIdleTimeout       = 5 * time.Minute
-	roundIdleAbortTimeout         = 5 * time.Second
-)
-
-// RoundStreamClosedError 携带 SDK 流提前关闭时的定位信息。
-type RoundStreamClosedError struct {
-	MessagesSeen       int
-	LastMessageType    string
-	LastMessageSummary string
-	LastSessionID      string
-	LastMessageID      string
-	ReadError          string
-	WaitError          string
-}
-
-func (e *RoundStreamClosedError) Error() string {
-	if e == nil {
-		return ErrRoundStreamClosedBeforeTerminal.Error()
-	}
-	detail := fmt.Sprintf(
-		"%s: messages_seen=%d last_type=%s last_summary=%q last_session_id=%s last_message_id=%s",
-		ErrRoundStreamClosedBeforeTerminal,
-		e.MessagesSeen,
-		e.LastMessageType,
-		e.LastMessageSummary,
-		e.LastSessionID,
-		e.LastMessageID,
-	)
-	if strings.TrimSpace(e.WaitError) != "" {
-		detail += " wait_error=" + strings.TrimSpace(e.WaitError)
-	}
-	if strings.TrimSpace(e.ReadError) != "" {
-		detail += " read_error=" + strings.TrimSpace(e.ReadError)
-	}
-	return detail
-}
-
-func (e *RoundStreamClosedError) Unwrap() error {
-	return ErrRoundStreamClosedBeforeTerminal
-}
-
-// RoundStreamIdleTimeoutError 携带 SDK 流空闲超时时的定位信息。
-type RoundStreamIdleTimeoutError struct {
-	IdleTimeout        time.Duration
-	MessagesSeen       int
-	LastMessageType    string
-	LastMessageSummary string
-	LastSessionID      string
-	LastMessageID      string
-}
-
-func (e *RoundStreamIdleTimeoutError) Error() string {
-	if e == nil {
-		return ErrRoundStreamIdleTimeout.Error()
-	}
-	return fmt.Sprintf(
-		"%s after %s: messages_seen=%d last_type=%s last_summary=%q last_session_id=%s last_message_id=%s",
-		ErrRoundStreamIdleTimeout,
-		e.IdleTimeout,
-		e.MessagesSeen,
-		e.LastMessageType,
-		e.LastMessageSummary,
-		e.LastSessionID,
-		e.LastMessageID,
-	)
-}
-
-func (e *RoundStreamIdleTimeoutError) Unwrap() error {
-	return ErrRoundStreamIdleTimeout
-}
-
-// RoundMapResult 表示单条 SDK 消息映射后的统一结果。
-type RoundMapResult struct {
-	Events          []protocol.EventMessage
-	DurableMessages []protocol.Message
-	TerminalStatus  string
-	ResultSubtype   string
-}
-
-// RoundMapper 负责把 SDK 消息映射成统一事件与 durable 消息。
-type RoundMapper interface {
-	Map(sdkprotocol.ReceivedMessage, ...string) (RoundMapResult, error)
-	SessionID() string
-}
-
-// RoundExecutionRequest 表示执行单轮查询所需的回调与依赖。
-type RoundExecutionRequest struct {
-	Query                  string
-	Content                any
-	ContextualInputs       []ContextualInputBlock
-	InputOptions           sdkprotocol.OutboundMessageOptions
-	Client                 Client
-	Mapper                 RoundMapper
-	IdleTimeout            time.Duration
-	InterruptReason        func() string
-	AssistantTerminalGrace time.Duration
-	SyncSessionID          func(string) error
-	AfterQuery             func() error
-	HandleDurableMessage   func(protocol.Message) error
-	EmitEvent              func(protocol.EventMessage) error
-	ObserveIncomingMessage func(sdkprotocol.ReceivedMessage)
-}
-
-// RoundExecutionResult 表示 round 执行的终态结果。
-type RoundExecutionResult struct {
-	TerminalStatus       string
-	ResultSubtype        string
-	ErrorMessage         string
-	TerminalCategory     sdkprotocol.TerminalCategory
-	Usage                sdkprotocol.TokenUsage
-	ElapsedTimeSeconds   int64
-	CompletedByAssistant bool
-	UsageLimitReached    bool
-	UsageLimitReason     string
-}
 
 // ExecuteRound 统一执行 query -> receive -> map -> persist -> emit 的主链路。
 func ExecuteRound(
@@ -172,6 +41,7 @@ func ExecuteRound(
 	messageCh := request.Client.ReceiveMessages(ctx)
 	messagesSeen := 0
 	lastMessage := sdkprotocol.ReceivedMessage{}
+	streamDiagnostics := roundStreamDiagnostics{}
 	idleTimeout := normalizeRoundIdleTimeout(request.IdleTimeout)
 	var idleTimer *time.Timer
 	var idleTimeoutCh <-chan time.Time
@@ -193,7 +63,12 @@ func ExecuteRound(
 				return RoundExecutionResult{}, ErrRoundInterrupted
 			}
 			abortRoundClientAfterIdleTimeout(request.Client)
-			return RoundExecutionResult{}, buildRoundStreamIdleTimeoutError(idleTimeout, messagesSeen, lastMessage)
+			return RoundExecutionResult{}, buildRoundStreamIdleTimeoutError(
+				idleTimeout,
+				messagesSeen,
+				lastMessage,
+				streamDiagnostics.Snapshot(messagesSeen, time.Now()),
+			)
 		case incoming, ok := <-messageCh:
 			if !ok {
 				if shouldTreatAsInterrupted(ctx, request.InterruptReason) {
@@ -202,10 +77,16 @@ func ExecuteRound(
 				if assistantTerminalResult != nil {
 					return roundResultWithElapsed(*assistantTerminalResult, startedAt), nil
 				}
-				return RoundExecutionResult{}, buildRoundStreamClosedError(request.Client, messagesSeen, lastMessage)
+				return RoundExecutionResult{}, buildRoundStreamClosedError(
+					request.Client,
+					messagesSeen,
+					lastMessage,
+					streamDiagnostics.Snapshot(messagesSeen, time.Now()),
+				)
 			}
 			messagesSeen++
 			lastMessage = incoming
+			streamDiagnostics.Observe(incoming, messagesSeen, time.Now())
 			resetRoundIdleTimer(idleTimer, idleTimeout)
 			if request.ObserveIncomingMessage != nil {
 				request.ObserveIncomingMessage(incoming)
@@ -260,262 +141,4 @@ func ExecuteRound(
 			}
 		}
 	}
-}
-
-func terminalRoundResult(
-	mapResult RoundMapResult,
-	assistantTerminalResult *RoundExecutionResult,
-	resultMessage *sdkprotocol.ResultMessage,
-	startedAt time.Time,
-) RoundExecutionResult {
-	result := RoundExecutionResult{
-		TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
-		ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
-		ErrorMessage:     terminalErrorMessage(mapResult),
-		TerminalCategory: sdkprotocol.TerminalCategoryUnknown,
-	}
-	if resultMessage != nil {
-		result.Usage, _ = resultMessage.TokenUsage()
-		result.TerminalCategory = resultMessage.TerminalCategory()
-		result.UsageLimitReached, result.UsageLimitReason = ResultUsageLimitReached(resultMessage)
-	}
-	if !isSuccessfulRoundResult(result) {
-		return roundResultWithElapsed(result, startedAt)
-	}
-	if assistantResult, ok := terminalAssistantResult(mapResult); ok && assistantResult.CompletedByAssistant {
-		result.CompletedByAssistant = true
-		return roundResultWithElapsed(result, startedAt)
-	}
-	if hasSuccessfulResultMessage(mapResult) {
-		result.CompletedByAssistant = true
-		return roundResultWithElapsed(result, startedAt)
-	}
-	if assistantTerminalResult != nil && assistantTerminalResult.CompletedByAssistant {
-		result.CompletedByAssistant = true
-	}
-	return roundResultWithElapsed(result, startedAt)
-}
-
-func isSuccessfulRoundResult(result RoundExecutionResult) bool {
-	return result.TerminalStatus == "finished" &&
-		(result.ResultSubtype == "" || result.ResultSubtype == "success")
-}
-
-func hasSuccessfulResultMessage(mapResult RoundMapResult) bool {
-	for _, messageValue := range mapResult.DurableMessages {
-		if messageValue == nil || protocol.MessageRole(messageValue) != "result" {
-			continue
-		}
-		if messageString(messageValue["subtype"]) == "error" || messageValue["is_error"] == true {
-			continue
-		}
-		return true
-	}
-	return false
-}
-
-func terminalErrorMessage(mapResult RoundMapResult) string {
-	for _, messageValue := range mapResult.DurableMessages {
-		if messageValue == nil || protocol.MessageRole(messageValue) != "result" {
-			continue
-		}
-		if messageString(messageValue["subtype"]) != "error" && messageValue["is_error"] != true {
-			continue
-		}
-		if resultText := strings.TrimSpace(messageString(messageValue["result"])); resultText != "" {
-			return resultText
-		}
-		if terminalReason := strings.TrimSpace(messageString(messageValue["terminal_reason"])); terminalReason != "" {
-			return terminalReason
-		}
-	}
-	if mapResult.ResultSubtype == "error" || mapResult.TerminalStatus == "error" {
-		return "Runtime request failed"
-	}
-	return ""
-}
-
-func roundQueryContent(request RoundExecutionRequest) any {
-	if request.Content != nil {
-		return request.Content
-	}
-	return request.Query
-}
-
-func roundResultWithElapsed(result RoundExecutionResult, startedAt time.Time) RoundExecutionResult {
-	if result.ElapsedTimeSeconds > 0 || startedAt.IsZero() {
-		return result
-	}
-	result.ElapsedTimeSeconds = int64(time.Since(startedAt).Seconds())
-	return result
-}
-
-func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {
-	if value > 0 {
-		return value
-	}
-	return defaultAssistantTerminalGrace
-}
-
-func normalizeRoundIdleTimeout(timeout time.Duration) time.Duration {
-	if timeout < 0 {
-		return 0
-	}
-	if timeout == 0 {
-		return defaultRoundIdleTimeout
-	}
-	return timeout
-}
-
-func isRoundAbortError(ctx context.Context, err error) bool {
-	return ctx.Err() != nil ||
-		errors.Is(err, context.Canceled) ||
-		errors.Is(err, agentclient.ErrAborted)
-}
-
-func resetRoundIdleTimer(timer *time.Timer, timeout time.Duration) {
-	if timer == nil || timeout <= 0 {
-		return
-	}
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
-	timer.Reset(timeout)
-}
-
-func abortRoundClientAfterIdleTimeout(client Client) {
-	if client == nil {
-		return
-	}
-	interruptCtx, interruptCancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
-	_ = client.Interrupt(interruptCtx)
-	interruptCancel()
-
-	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), roundIdleAbortTimeout)
-	_ = client.Disconnect(disconnectCtx)
-	disconnectCancel()
-}
-
-func buildRoundStreamIdleTimeoutError(
-	idleTimeout time.Duration,
-	messagesSeen int,
-	lastMessage sdkprotocol.ReceivedMessage,
-) error {
-	return &RoundStreamIdleTimeoutError{
-		IdleTimeout:        idleTimeout,
-		MessagesSeen:       messagesSeen,
-		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
-		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
-		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
-		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
-	}
-}
-
-func terminalAssistantResult(mapResult RoundMapResult) (RoundExecutionResult, bool) {
-	for _, messageValue := range mapResult.DurableMessages {
-		if messageValue == nil || protocol.MessageRole(messageValue) != "assistant" {
-			continue
-		}
-		if messageValue["is_complete"] != true {
-			continue
-		}
-		if !isTerminalAssistantStopReason(messageString(messageValue["stop_reason"])) {
-			continue
-		}
-		return RoundExecutionResult{
-			TerminalStatus:       "finished",
-			ResultSubtype:        "success",
-			CompletedByAssistant: true,
-		}, true
-	}
-	return RoundExecutionResult{}, false
-}
-
-func isTerminalAssistantStopReason(stopReason string) bool {
-	switch strings.TrimSpace(stopReason) {
-	case "end_turn", "stop_sequence", "max_tokens":
-		return true
-	default:
-		return false
-	}
-}
-
-type clientWaiter interface {
-	Wait() error
-}
-
-type clientStreamErrorer interface {
-	StreamError() error
-}
-
-func buildRoundStreamClosedError(client Client, messagesSeen int, lastMessage sdkprotocol.ReceivedMessage) error {
-	result := &RoundStreamClosedError{
-		MessagesSeen:       messagesSeen,
-		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
-		LastMessageSummary: strings.TrimSpace(BuildSDKMessageLogSummary(lastMessage)),
-		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
-		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
-	}
-	if streamErrorer, ok := client.(clientStreamErrorer); ok {
-		if err := streamErrorer.StreamError(); err != nil {
-			result.ReadError = err.Error()
-		}
-	}
-	if waiter, ok := client.(clientWaiter); ok {
-		if err := waiter.Wait(); err != nil {
-			result.WaitError = err.Error()
-		}
-	}
-	return result
-}
-
-func receivedMessageID(message sdkprotocol.ReceivedMessage) string {
-	if strings.TrimSpace(message.UUID) != "" {
-		return strings.TrimSpace(message.UUID)
-	}
-	if message.Assistant != nil && strings.TrimSpace(message.Assistant.Message.ID) != "" {
-		return strings.TrimSpace(message.Assistant.Message.ID)
-	}
-	if message.Stream != nil {
-		if payload, ok := message.Stream.Event.(map[string]any); ok {
-			if messagePayload, ok := payload["message"].(map[string]any); ok {
-				return strings.TrimSpace(messageString(messagePayload["id"]))
-			}
-		}
-		if messagePayload, ok := message.Stream.Data["message"].(map[string]any); ok {
-			return strings.TrimSpace(messageString(messagePayload["id"]))
-		}
-	}
-	return ""
-}
-
-func shouldTreatAsInterrupted(ctx context.Context, interruptReason func() string) bool {
-	return ctx.Err() != nil || strings.TrimSpace(resolveInterruptReason(interruptReason)) != ""
-}
-
-func resolveInterruptReason(interruptReason func() string) string {
-	if interruptReason == nil {
-		return ""
-	}
-	return strings.TrimSpace(interruptReason())
-}
-
-func resolveSessionID(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func messageString(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return typed
 }

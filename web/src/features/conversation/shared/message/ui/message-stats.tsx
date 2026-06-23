@@ -67,7 +67,7 @@ export function MessageStats(
                 onClick={on_copy_assistant}
                 className={cn(
                   "inline-flex h-5 w-5 items-center justify-center rounded-md text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-                  copied_assistant && "text-emerald-500",
+                  copied_assistant && "text-(--success)",
                 )}
                 title="复制回答"
                 type="button"

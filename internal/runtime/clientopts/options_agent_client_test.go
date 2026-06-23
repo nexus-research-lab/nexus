@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -98,8 +99,8 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[anthropicAuthTokenEnvName] != "token-1" {
 		t.Fatalf("Anthropic-compatible bearer token 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env[anthropicAPIKeyEnvName]; ok {
-		t.Fatalf("Anthropic-compatible 非官方 endpoint 不应写入 API key env: %+v", options.Env)
+	if options.Env[anthropicAPIKeyEnvName] != "" {
+		t.Fatalf("Anthropic-compatible 非官方 endpoint 应清空 API key env，避免继承脏 key: %+v", options.Env)
 	}
 	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
@@ -147,8 +148,8 @@ func TestBuildAgentClientOptionsUsesOfficialAnthropicAPIKeyEnv(t *testing.T) {
 	if options.Env[anthropicAPIKeyEnvName] != "official-key" {
 		t.Fatalf("官方 Anthropic API key 未写入 env: %+v", options.Env)
 	}
-	if _, ok := options.Env[anthropicAuthTokenEnvName]; ok {
-		t.Fatalf("官方 Anthropic runtime 不应写入 OAuth token env: %+v", options.Env)
+	if options.Env[anthropicAuthTokenEnvName] != "" {
+		t.Fatalf("官方 Anthropic runtime 应清空 OAuth token env，避免继承脏 token: %+v", options.Env)
 	}
 }
 
@@ -182,11 +183,40 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	}
 }
 
+func TestAnthropicRuntimeEnvClearsConflictingCredentialEnv(t *testing.T) {
+	compatibleEnv := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
+		Provider:  "glm-coding-plan",
+		AuthToken: "bearer-token",
+		BaseURL:   "https://open.bigmodel.cn/api/anthropic",
+		Model:     "glm-4.5-air",
+	})
+	if compatibleEnv[anthropicAuthTokenEnvName] != "bearer-token" {
+		t.Fatalf("兼容 Anthropic endpoint 应使用 bearer token: %+v", compatibleEnv)
+	}
+	if _, ok := compatibleEnv[anthropicAPIKeyEnvName]; !ok || compatibleEnv[anthropicAPIKeyEnvName] != "" {
+		t.Fatalf("兼容 Anthropic endpoint 应显式清空 API key，避免继承系统环境: %+v", compatibleEnv)
+	}
+
+	officialEnv := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
+		Provider:  "anthropic",
+		AuthToken: "api-key",
+		BaseURL:   "https://api.anthropic.com",
+		Model:     "claude-sonnet-4-5",
+	})
+	if officialEnv[anthropicAPIKeyEnvName] != "api-key" {
+		t.Fatalf("官方 Anthropic endpoint 应使用 API key: %+v", officialEnv)
+	}
+	if _, ok := officialEnv[anthropicAuthTokenEnvName]; !ok || officialEnv[anthropicAuthTokenEnvName] != "" {
+		t.Fatalf("官方 Anthropic endpoint 应显式清空 bearer token，避免继承系统环境: %+v", officialEnv)
+	}
+}
+
 func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			claudeAutoCompactPctOverrideEnvName: "80",
+			claudeAutoCompactPctOverrideEnvName:    "80",
+			nexusDisableProjectInstructionsEnvName: "0",
 		},
 	})
 	if err != nil {
@@ -195,31 +225,49 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	if options.Env[claudeAutoCompactPctOverrideEnvName] != "80" {
 		t.Fatalf("ExtraEnv 应覆盖默认自动压缩阈值: %+v", options.Env)
 	}
+	if options.Env[nexusDisableProjectInstructionsEnvName] != "0" {
+		t.Fatalf("ExtraEnv 应允许覆盖项目指令加载开关: %+v", options.Env)
+	}
 }
 
-func TestBuildAgentClientOptionsAllowsExtraEnvOverrideNXSCacheDefaults(t *testing.T) {
+func TestBuildAgentClientOptionsDisablesRuntimeProjectInstructions(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath:      "/tmp/workspace",
+		AppendSystemPrompt: "Nexus 已经注入 workspace prompt",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusDisableProjectInstructionsEnvName] != "1" {
+		t.Fatalf("Nexus 宿主应关闭 SDK 自动加载项目指令，避免重复注入: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsPreservesExplicitNXSRuntimeEnv(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
 		ExtraEnv: map[string]string{
-			nxsCachedMicrocompactEnvName:     "0",
-			nxsAPIClearToolResultsEnvName:    "",
-			nxsPromptCache1hEligibleEnvName:  "0",
-			nxsPromptCache1hAllowlistEnvName: "agent:*",
-			nxsAgentSDKDiagnosticsEnvName:    "",
+			"NEXUS_CACHED_MICROCOMPACT":           "0",
+			"NEXUS_API_CLEAR_TOOL_RESULTS":        "",
+			"NEXUS_PROMPT_CACHE_1H_ELIGIBLE":      "0",
+			"NEXUS_PROMPT_CACHE_1H_ALLOWLIST":     "agent:*",
+			runtimectx.AgentSDKDiagnosticsEnvName: "",
 		},
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[nxsCachedMicrocompactEnvName] != "0" ||
-		options.Env[nxsAPIClearToolResultsEnvName] != "" ||
-		options.Env[nxsPromptCache1hEligibleEnvName] != "0" ||
-		options.Env[nxsPromptCache1hAllowlistEnvName] != "agent:*" ||
-		options.Env[nxsAgentSDKDiagnosticsEnvName] != "" {
-		t.Fatalf("ExtraEnv 应覆盖 nxs cache 默认值: %+v", options.Env)
+	want := map[string]string{
+		"NEXUS_CACHED_MICROCOMPACT":           "0",
+		"NEXUS_API_CLEAR_TOOL_RESULTS":        "",
+		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE":      "0",
+		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST":     "agent:*",
+		runtimectx.AgentSDKDiagnosticsEnvName: "",
 	}
-	if options.Env[nxsAPIClearToolUsesEnvName] != "1" {
-		t.Fatalf("nxs tool use 清理默认值丢失: %+v", options.Env)
+	for key, value := range want {
+		if options.Env[key] != value {
+			t.Fatalf("%s = %q, want %q; env=%+v", key, options.Env[key], value, options.Env)
+		}
 	}
 }
 
@@ -249,11 +297,10 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
-	t.Setenv(nexusAppRootEnvName, "")
 	t.Setenv(nexusNXSCommandPathEnvName, "")
-	t.Setenv(nxsAgentSDKDiagnosticsEnvName, "stderr")
-	t.Setenv(nxsAgentSDKDebugEnvName, "1")
-	t.Setenv(nxsAgentSDKProviderDebugBodyEnvName, "full")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
+	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")
+	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
 
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
@@ -268,25 +315,17 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
 	}
 	for _, key := range []string{
-		nxsCachedMicrocompactEnvName,
-		nxsAPIClearToolResultsEnvName,
-		nxsAPIClearToolUsesEnvName,
-		nxsPromptCache1hEligibleEnvName,
+		"NEXUS_CACHED_MICROCOMPACT",
+		"NEXUS_API_CLEAR_TOOL_RESULTS",
+		"NEXUS_API_CLEAR_TOOL_USES",
+		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE",
+		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST",
+		runtimectx.AgentSDKDiagnosticsEnvName,
+		runtimectx.AgentSDKDebugEnvName,
+		runtimectx.AgentSDKProviderDebugBodyEnvName,
 	} {
-		if options.Env[key] != "1" {
-			t.Fatalf("%s = %q, want 1; env=%+v", key, options.Env[key], options.Env)
-		}
-	}
-	if options.Env[nxsPromptCache1hAllowlistEnvName] != "sdk" {
-		t.Fatalf("%s = %q, want sdk; env=%+v", nxsPromptCache1hAllowlistEnvName, options.Env[nxsPromptCache1hAllowlistEnvName], options.Env)
-	}
-	for _, key := range []string{
-		nxsAgentSDKDiagnosticsEnvName,
-		nxsAgentSDKDebugEnvName,
-		nxsAgentSDKProviderDebugBodyEnvName,
-	} {
-		if options.Env[key] != "" {
-			t.Fatalf("%s = %q, want empty; env=%+v", key, options.Env[key], options.Env)
+		if _, ok := options.Env[key]; ok {
+			t.Fatalf("%s 应由 bridge 处理或显式输入，不应由 Nexus 默认注入: %+v", key, options.Env)
 		}
 	}
 }
@@ -299,10 +338,10 @@ func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[nxsAgentSDKDiagnosticsEnvName] != "stderr" {
-		t.Fatalf("%s = %q, want stderr; env=%+v", nxsAgentSDKDiagnosticsEnvName, options.Env[nxsAgentSDKDiagnosticsEnvName], options.Env)
+	if options.Env[runtimectx.AgentSDKDiagnosticsEnvName] != "stderr" {
+		t.Fatalf("%s = %q, want stderr; env=%+v", runtimectx.AgentSDKDiagnosticsEnvName, options.Env[runtimectx.AgentSDKDiagnosticsEnvName], options.Env)
 	}
-	if _, ok := options.Env[nxsAgentSDKProviderDebugBodyEnvName]; ok {
+	if _, ok := options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName]; ok {
 		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)
 	}
 }
@@ -352,6 +391,9 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 }
 
 func TestBuildAgentClientOptionsRejectsClaudeNonAnthropicAPIFormat(t *testing.T) {
+	t.Setenv(nexusAgentRuntimeKindEnvName, "")
+	t.Setenv(nexusAgentRuntimeEnvName, "")
+
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
 			AuthToken: "token-1",
@@ -420,11 +462,26 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
 		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
 	}
-	if strings.TrimSpace(options.Env["NEXUS_PROJECT_ROOT"]) == "" {
-		t.Fatalf("运行时未注入 NEXUS_PROJECT_ROOT: %+v", options.Env)
+	if options.Env[nexusctlCommandPathEnvName] != nexusctlShimPath(expectedBinDir) {
+		t.Fatalf("运行时未注入明确 nexusctl 命令路径: %+v", options.Env)
 	}
 	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
 		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsPreservesExplicitNexusctlCommandPath(t *testing.T) {
+	configDir := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusctlCommandPathEnvName] != "/opt/nexus/bin/nexusctl" {
+		t.Fatalf("显式 nexusctl 命令路径不应被共享 shim 覆盖: %+v", options.Env)
 	}
 }
 

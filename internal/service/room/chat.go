@@ -1,9 +1,11 @@
 package room
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -13,7 +15,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 )
 
 // HandleChat 处理 Room 主对话消息。
@@ -27,7 +28,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 	if err != nil {
 		return err
 	}
-	roomID := firstNonEmpty(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
+	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
 	runtimeTriggerContent, err := s.renderRuntimeContentWithAttachments(ctx, request.Content, attachments)
 	if err != nil {
@@ -63,7 +64,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 		"conversation_id", conversationID,
 		"round_id", request.RoundID,
 		"target_agent_count", len(targetAgentIDs),
-		"target_agents", append([]string(nil), targetAgentIDs...),
+		"target_agents", slices.Clone(targetAgentIDs),
 		"target_resolution", targetResolution,
 		"content_chars", utf8.RuneCountInString(strings.TrimSpace(request.Content)),
 		"content_preview", logx.PreviewText(request.Content, 240),
@@ -116,7 +117,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			sessionKey,
 			roomID,
 			conversationID,
-			firstNonEmpty(request.ReqID, request.RoundID),
+			cmp.Or(request.ReqID, request.RoundID),
 			request.RoundID,
 			[]map[string]any{},
 		))
@@ -179,7 +180,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 				sessionKey,
 				roomID,
 				conversationID,
-				firstNonEmpty(request.ReqID, request.RoundID),
+				cmp.Or(request.ReqID, request.RoundID),
 				request.RoundID,
 				[]map[string]any{},
 			))
@@ -208,7 +209,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 				sessionKey,
 				roomID,
 				conversationID,
-				firstNonEmpty(request.ReqID, request.RoundID),
+				cmp.Or(request.ReqID, request.RoundID),
 				request.RoundID,
 				[]map[string]any{},
 			))
@@ -306,7 +307,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			sessionKey,
 			roomID,
 			conversationID,
-			firstNonEmpty(request.ReqID, request.RoundID),
+			cmp.Or(request.ReqID, request.RoundID),
 			request.RoundID,
 			[]map[string]any{},
 		))
@@ -326,7 +327,7 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 			sessionKey,
 			roomID,
 			conversationID,
-			firstNonEmpty(request.ReqID, request.RoundID),
+			cmp.Or(request.ReqID, request.RoundID),
 			request.RoundID,
 			pending,
 		))
@@ -335,205 +336,4 @@ func (s *RealtimeService) HandleChat(ctx context.Context, request ChatRequest) e
 
 	go s.runRound(roundCtx, activeRound, history, agentNameByID, agentByID)
 	return nil
-}
-
-func resolveRoomHostDefaultTarget(
-	contextValue *protocol.ConversationContextAggregate,
-	agentNameByID map[string]string,
-) (string, bool) {
-	if contextValue == nil || !contextValue.Room.HostAutoReplyEnabled {
-		return "", false
-	}
-	hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
-	if hostAgentID == "" {
-		return "", false
-	}
-	if _, ok := agentNameByID[hostAgentID]; !ok {
-		return "", false
-	}
-	return hostAgentID, true
-}
-
-func initialRoomTriggerType(request ChatRequest, targetResolution string) string {
-	if request.Internal && strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" {
-		return "goal_continuation"
-	}
-	if targetResolution == "room_host_default" {
-		return "room_host_default"
-	}
-	return "public_chat"
-}
-
-func shouldBroadcastRoomChatAck(request ChatRequest) bool {
-	if !request.Internal {
-		return true
-	}
-	return strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation"
-}
-
-func (s *RealtimeService) scheduleTitleGeneration(
-	ctx context.Context,
-	sessionKey string,
-	contextValue *protocol.ConversationContextAggregate,
-	content string,
-	provider string,
-	model string,
-) {
-	if s.titles == nil || contextValue == nil {
-		return
-	}
-	s.titles.Schedule(ctx, titlegen.Request{
-		OwnerUserID:              authctx.OwnerUserID(ctx),
-		SessionKey:               sessionKey,
-		Provider:                 strings.TrimSpace(provider),
-		Model:                    strings.TrimSpace(model),
-		Content:                  content,
-		SessionMessageCount:      -1,
-		ConversationID:           contextValue.Conversation.ID,
-		ConversationRoomID:       contextValue.Room.ID,
-		ConversationTitle:        contextValue.Conversation.Title,
-		ConversationRoomName:     contextValue.Room.Name,
-		ConversationMessageCount: contextValue.Conversation.MessageCount,
-	})
-}
-
-func resolveTitleRuntimeTarget(
-	targetAgentIDs []string,
-	agentByID map[string]*protocol.Agent,
-) (string, string) {
-	for _, agentID := range targetAgentIDs {
-		agentValue := agentByID[strings.TrimSpace(agentID)]
-		if agentValue == nil {
-			continue
-		}
-		return strings.TrimSpace(agentValue.Options.Provider), strings.TrimSpace(agentValue.Options.Model)
-	}
-	return "", ""
-}
-
-// HandleInterrupt 处理中断请求。
-func (s *RealtimeService) HandleInterrupt(ctx context.Context, request InterruptRequest) error {
-	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
-	if err != nil {
-		return err
-	}
-	return s.interruptRound(ctx, sessionKey, strings.TrimSpace(request.MsgID), "", false)
-}
-
-func (s *RealtimeService) validateChatRequest(request ChatRequest) (string, string, error) {
-	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
-	if err != nil {
-		return "", "", err
-	}
-	if !protocol.IsRoomSharedSessionKey(sessionKey) {
-		return "", "", errors.New("session_key must be room shared key")
-	}
-	if strings.TrimSpace(request.RoundID) == "" {
-		return "", "", errors.New("round_id is required")
-	}
-	if !protocol.HasChatInput(request.Content, request.Attachments) &&
-		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
-		return "", "", errors.New("content is required")
-	}
-	conversationID := firstNonEmpty(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))
-	if conversationID == "" {
-		return "", "", errors.New("conversation_id is required")
-	}
-	return sessionKey, conversationID, nil
-}
-
-func resolveChatTargetAgentIDs(
-	request ChatRequest,
-	contextValue *protocol.ConversationContextAggregate,
-	agentNameByID map[string]string,
-) ([]string, string, error) {
-	if len(request.TargetAgentIDs) > 0 {
-		targetAgentIDs := normalizeExplicitTargetAgentIDs(request.TargetAgentIDs)
-		if len(targetAgentIDs) == 0 {
-			return nil, "", errors.New("target_agent_ids must not be empty")
-		}
-		for _, agentID := range targetAgentIDs {
-			if !roomdomain.IsMemberAgent(contextValue.Members, agentID) {
-				return nil, "", fmt.Errorf("target_agent_id is not a room member: %s", agentID)
-			}
-		}
-		return targetAgentIDs, "explicit_target", nil
-	}
-	targetAgentIDs := roomdomain.ResolveMentionAgentIDs(request.Content, reverseAgentNames(agentNameByID))
-	return targetAgentIDs, roomTargetResolution(targetAgentIDs), nil
-}
-
-func normalizeExplicitTargetAgentIDs(values []string) []string {
-	result := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		agentID := strings.TrimSpace(value)
-		if agentID == "" {
-			continue
-		}
-		if _, ok := seen[agentID]; ok {
-			continue
-		}
-		seen[agentID] = struct{}{}
-		result = append(result, agentID)
-	}
-	return result
-}
-
-func (s *RealtimeService) buildAgentDirectory(
-	ctx context.Context,
-	contextValue *protocol.ConversationContextAggregate,
-) (map[string]string, map[string]*protocol.Agent, error) {
-	agentNameByID := make(map[string]string)
-	agentByID := make(map[string]*protocol.Agent)
-	if contextValue == nil {
-		return agentNameByID, agentByID, nil
-	}
-	memberIDs := make(map[string]struct{})
-	for _, member := range contextValue.Members {
-		if member.MemberType != protocol.MemberTypeAgent || strings.TrimSpace(member.MemberAgentID) == "" {
-			continue
-		}
-		memberIDs[strings.TrimSpace(member.MemberAgentID)] = struct{}{}
-	}
-	for _, agentValue := range contextValue.MemberAgents {
-		if _, ok := memberIDs[agentValue.AgentID]; !ok {
-			continue
-		}
-		item := agentValue
-		agentNameByID[item.AgentID] = item.Name
-		agentByID[item.AgentID] = &item
-	}
-	for agentID := range memberIDs {
-		if _, ok := agentByID[agentID]; ok {
-			continue
-		}
-		agentValue, err := s.agents.GetAgent(ctx, agentID)
-		if err != nil {
-			return nil, nil, err
-		}
-		agentNameByID[agentValue.AgentID] = agentValue.Name
-		agentByID[agentValue.AgentID] = agentValue
-	}
-	return agentNameByID, agentByID, nil
-}
-
-func (s *RealtimeService) persistSharedInlineMessage(conversationID string, message protocol.Message) error {
-	return s.roomHistory.AppendInlineMessage(conversationID, message)
-}
-
-func (s *RealtimeService) persistSharedDurableMessage(
-	conversationID string,
-	slot *activeRoomSlot,
-	message protocol.Message,
-) error {
-	if slot == nil || !protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
-		return s.persistSharedInlineMessage(conversationID, message)
-	}
-	return s.roomHistory.AppendTranscriptReference(
-		conversationID,
-		slot.WorkspacePath,
-		slot.RuntimeSessionKey,
-		message,
-	)
 }

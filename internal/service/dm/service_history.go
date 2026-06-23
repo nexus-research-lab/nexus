@@ -9,6 +9,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -100,14 +101,6 @@ func (s *Service) appendRuntimeHistoryMessage(
 	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
 }
 
-func (s *Service) appendSyntheticHistoryMessage(
-	workspacePath string,
-	sessionValue protocol.Session,
-	message protocol.Message,
-) error {
-	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
-}
-
 func (s *Service) refreshSessionMetaAfterRoundMarker(
 	workspacePath string,
 	current protocol.Session,
@@ -115,6 +108,11 @@ func (s *Service) refreshSessionMetaAfterRoundMarker(
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return nil, err
+	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
@@ -123,11 +121,37 @@ func (s *Service) refreshSessionMetaAfterMessage(
 	current protocol.Session,
 	message protocol.Message,
 ) (*protocol.Session, error) {
-	current.SessionID = dmdomain.PreferSessionID(current.SessionID, dmdomain.NormalizeString(message["session_id"]))
+	current.SessionID = s.preferPersistableMessageSessionID(
+		context.Background(),
+		workspacePath,
+		current,
+		dmdomain.NormalizeString(message["session_id"]),
+	)
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return nil, err
+	}
 	return s.files.UpsertSession(workspacePath, current)
+}
+
+func (s *Service) preferPersistableMessageSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+	messageSessionID string,
+) *string {
+	trimmedSessionID := strings.TrimSpace(messageSessionID)
+	if trimmedSessionID == "" {
+		return current.SessionID
+	}
+	if !s.canPersistSDKSessionID(ctx, workspacePath, current, trimmedSessionID) {
+		return current.SessionID
+	}
+	return &trimmedSessionID
 }
 
 func (s *Service) refreshSessionMetaRuntimeState(
@@ -136,6 +160,11 @@ func (s *Service) refreshSessionMetaRuntimeState(
 ) (*protocol.Session, error) {
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return nil, err
+	}
 	return s.files.UpsertSession(workspacePath, current)
 }
 
@@ -206,6 +235,7 @@ func (s *Service) syncSDKSessionID(
 	workspacePath string,
 	current protocol.Session,
 	sessionID string,
+	runtimeKind string,
 	runtimeProvider string,
 	runtimeModel string,
 ) (protocol.Session, error) {
@@ -214,22 +244,36 @@ func (s *Service) syncSDKSessionID(
 	if trimmedSessionID == "" {
 		return current, nil
 	}
+	nextKind := strings.TrimSpace(runtimeKind)
 	nextProvider := strings.TrimSpace(runtimeProvider)
 	nextModel := strings.TrimSpace(runtimeModel)
+	currentKind, _ := current.Options[protocol.OptionRuntimeKind].(string)
 	currentProvider, _ := current.Options[protocol.OptionRuntimeProvider].(string)
 	currentModel, _ := current.Options[protocol.OptionRuntimeModel].(string)
 	sessionIDChanged := currentSessionID != trimmedSessionID
-	fingerprintChanged := strings.TrimSpace(currentProvider) != nextProvider ||
+	fingerprintChanged := strings.TrimSpace(currentKind) != nextKind ||
+		strings.TrimSpace(currentProvider) != nextProvider ||
 		strings.TrimSpace(currentModel) != nextModel
 	if !sessionIDChanged && !fingerprintChanged {
 		return current, nil
 	}
-	current.SessionID = &trimmedSessionID
+	canPersistSessionID := !sessionIDChanged || s.canPersistSDKSessionID(ctx, workspacePath, current, trimmedSessionID)
+	if !canPersistSessionID && !fingerprintChanged {
+		return current, nil
+	}
+	if canPersistSessionID {
+		current.SessionID = &trimmedSessionID
+	}
 	if current.Options == nil {
 		current.Options = map[string]any{}
 	}
+	current.Options[protocol.OptionRuntimeKind] = nextKind
 	current.Options[protocol.OptionRuntimeProvider] = nextProvider
 	current.Options[protocol.OptionRuntimeModel] = nextModel
+	current, err := s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return protocol.Session{}, err
+	}
 	updated, err := s.files.UpsertSession(workspacePath, current)
 	if err != nil {
 		return protocol.Session{}, err
@@ -237,12 +281,41 @@ func (s *Service) syncSDKSessionID(
 	if updated == nil {
 		return current, nil
 	}
-	if sessionIDChanged && s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
+	if canPersistSessionID && sessionIDChanged && s.roomStore != nil && updated.RoomSessionID != nil && strings.TrimSpace(*updated.RoomSessionID) != "" {
 		if err := s.roomStore.UpdateRoomSessionSDKSessionID(ctx, strings.TrimSpace(*updated.RoomSessionID), trimmedSessionID); err != nil {
 			return protocol.Session{}, err
 		}
 	}
 	return *updated, nil
+}
+
+func (s *Service) canPersistSDKSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+	sessionID string,
+) bool {
+	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	if decision.Allowed {
+		return true
+	}
+	if decision.Err != nil {
+		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
+			"session_key", current.SessionKey,
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		return false
+	}
+	s.loggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
+		"session_key", current.SessionKey,
+		"workspace_path", workspacePath,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
+	)
+	return false
 }
 
 func (s *Service) clearReusableSDKSessionID(
@@ -252,6 +325,11 @@ func (s *Service) clearReusableSDKSessionID(
 ) (protocol.Session, error) {
 	current.SessionID = nil
 	current = closePersistedSessionMeta(current)
+	var err error
+	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	if err != nil {
+		return protocol.Session{}, err
+	}
 	updated, err := s.files.UpsertSession(workspacePath, current)
 	if err != nil {
 		return protocol.Session{}, err
@@ -274,4 +352,24 @@ func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Se
 		return nil
 	}
 	return s.roomStore.UpdateRoomSessionSDKSessionID(ctx, roomSessionID, "")
+}
+
+func (s *Service) preservePersistedSessionTitle(
+	workspacePath string,
+	current protocol.Session,
+) (protocol.Session, error) {
+	if s == nil || s.files == nil ||
+		strings.TrimSpace(workspacePath) == "" ||
+		strings.TrimSpace(current.SessionKey) == "" {
+		return current, nil
+	}
+	persisted, _, err := s.files.FindSession([]string{workspacePath}, current.SessionKey)
+	if err != nil {
+		return protocol.Session{}, err
+	}
+	if persisted == nil || strings.TrimSpace(persisted.Title) == "" {
+		return current, nil
+	}
+	current.Title = persisted.Title
+	return current, nil
 }

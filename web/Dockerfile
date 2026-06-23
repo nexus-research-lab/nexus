@@ -22,18 +22,14 @@ RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile
 
 COPY web/ ./
+COPY docs/specs/room-collaboration-mechanism.md /app/docs/specs/room-collaboration-mechanism.md
 RUN pnpm run build
 
 FROM nginx:1.28-alpine AS runner
-
-ARG APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
-
-RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories
 
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 
 EXPOSE 80
-EXPOSE 443
 
 CMD ["nginx", "-g", "daemon off;"]

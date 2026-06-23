@@ -48,32 +48,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -o /out/nexus-server ./cmd/nexus-server && \
     go build -o /out/nexusctl ./cmd/nexusctl
 
-FROM ${NODE_IMAGE} AS web-builder
-
-ARG PNPM_REGISTRY=https://registry.npmjs.org/
-ARG PNPM_VERSION=9.15.2
-ARG VITE_WS_URL=
-ARG VITE_API_URL=
-
-ENV VITE_WS_URL=${VITE_WS_URL} \
-    VITE_API_URL=${VITE_API_URL} \
-    PNPM_HOME=/pnpm \
-    PATH=/pnpm:${PATH}
-
-WORKDIR /src/web
-
-COPY web/package.json web/pnpm-lock.yaml ./
-COPY web/.npmrc ./
-RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
-    npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
-    pnpm config set registry "${PNPM_REGISTRY}" && \
-    pnpm config set store-dir /pnpm/store && \
-    pnpm install --frozen-lockfile
-
-COPY web/ ./
-RUN pnpm run build
-
-FROM ${NODE_IMAGE} AS runtime
+FROM ${NODE_IMAGE} AS runtime-base
 
 LABEL authors="leemysw"
 LABEL description="Nexus"
@@ -89,7 +64,7 @@ ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
-ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-v0.1.1
+ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -119,11 +94,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 ENV HOME=/home/agent \
     NEXUS_APP_ROOT=/opt/app \
+    NEXUSCTL_COMMAND_PATH=/usr/local/bin/nexusctl \
+    NEXUS_NXS_COMMAND_PATH=/opt/app/bin/nxs \
     PNPM_HOME=/usr/local/share/pnpm \
     PATH=/usr/local/share/pnpm:/home/agent/.local/bin:/home/agent/.bun/bin:${PATH} \
     PNPM_REGISTRY=${PNPM_REGISTRY} \
     BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY} \
-    NEXUS_NXS_RUNTIME_RELEASE=${NEXUS_NXS_RUNTIME_RELEASE} \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     UV_BREAK_SYSTEM_PACKAGES=true \
@@ -137,10 +113,11 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
     pnpm add -g @anthropic-ai/claude-code bun
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    python3 -m pip install --no-cache-dir --break-system-packages \
+    python3 -m pip install --break-system-packages \
+    --retries 5 \
+    --timeout 120 \
     --index-url "${PIP_INDEX_URL}" \
-    uv && \
-    (python3 -m pip cache purge || true)
+    uv
 
 RUN printf 'registry=%s\n' "${PNPM_REGISTRY}" > /etc/npmrc && \
     mkdir -p /etc/uv && \
@@ -156,7 +133,6 @@ COPY --from=builder /out/nexus-server /usr/local/bin/nexus-server
 COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
 COPY db /opt/app/db
 COPY skills /opt/app/skills
-COPY --from=web-builder /src/web/dist /opt/app/web/dist
 COPY scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
 COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
 COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
@@ -185,3 +161,33 @@ EXPOSE 8010
 
 ENTRYPOINT ["/opt/app/deploy/entrypoint.sh"]
 CMD ["nexus-server"]
+
+FROM ${NODE_IMAGE} AS web-builder
+
+ARG PNPM_REGISTRY=https://registry.npmjs.org/
+ARG PNPM_VERSION=9.15.2
+ARG VITE_WS_URL=
+ARG VITE_API_URL=
+
+ENV VITE_WS_URL=${VITE_WS_URL} \
+    VITE_API_URL=${VITE_API_URL} \
+    PNPM_HOME=/pnpm \
+    PATH=/pnpm:${PATH}
+
+WORKDIR /src/web
+
+COPY web/package.json web/pnpm-lock.yaml ./
+COPY web/.npmrc ./
+RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
+    npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
+    pnpm config set registry "${PNPM_REGISTRY}" && \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile
+
+COPY web/ ./
+COPY docs/specs/room-collaboration-mechanism.md /src/docs/specs/room-collaboration-mechanism.md
+RUN pnpm run build
+
+FROM runtime-base AS runtime
+
+COPY --from=web-builder --chown=agent:agent /src/web/dist /opt/app/web/dist

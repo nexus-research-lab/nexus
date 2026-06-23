@@ -22,11 +22,14 @@ func (s *Service) scheduleTitleGeneration(
 	if s.titles == nil {
 		return
 	}
-	conversationID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
-	if conversationID == "" && parsed.ChatType == "dm" {
-		conversationID = strings.TrimSpace(parsed.Ref)
+	roomID := ""
+	conversationID := ""
+	if !isExternalIMSession(parsed, sessionItem) {
+		roomID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.RoomID))
+		if roomID != "" {
+			conversationID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
+		}
 	}
-	roomID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.RoomID))
 	conversationMessageCount := 0
 	if conversationID == "" {
 		conversationMessageCount = -1
@@ -52,4 +55,17 @@ func runtimeSelectionFromSession(sessionItem protocol.Session) (string, string) 
 	provider, _ := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
 	model, _ := sessionItem.Options[protocol.OptionRuntimeModel].(string)
 	return strings.TrimSpace(provider), strings.TrimSpace(model)
+}
+
+func isExternalIMSession(parsed protocol.SessionKey, sessionItem protocol.Session) bool {
+	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
+	if channel == "" {
+		channel = protocol.NormalizeStoredChannelType(sessionItem.ChannelType)
+	}
+	switch channel {
+	case "", protocol.SessionChannelWebSocket, protocol.SessionChannelInternalSegment:
+		return false
+	default:
+		return true
+	}
 }

@@ -89,6 +89,9 @@ func encodeSessionDirName(value string) string {
 			if channel := escapePathAtom(parsed.Channel); channel != "" {
 				parts = append(parts, channel)
 			}
+			if accountID := escapePathAtom(parsed.AccountID); accountID != "" {
+				parts = append(parts, "acct", accountID)
+			}
 			if ref := escapePathAtom(parsed.Ref); ref != "" {
 				parts = append(parts, ref)
 			}
@@ -101,6 +104,9 @@ func encodeSessionDirName(value string) string {
 			if channel := strings.TrimSpace(parsed.Channel); channel != "" && channel != protocol.SessionChannelWebSocketSegment {
 				parts = append(parts, escapePathAtom(channel))
 			}
+			if accountID := escapePathAtom(parsed.AccountID); accountID != "" {
+				parts = append(parts, "acct", accountID)
+			}
 			if ref := escapePathAtom(parsed.Ref); ref != "" {
 				parts = append(parts, ref)
 			}
@@ -112,6 +118,7 @@ func encodeSessionDirName(value string) string {
 			return joinSessionPathSegments(
 				"session",
 				escapePathAtom(parsed.Channel),
+				escapePathAtom(parsed.AccountID),
 				escapePathAtom(parsed.Ref),
 				escapePathAtom(parsed.ThreadID),
 			)

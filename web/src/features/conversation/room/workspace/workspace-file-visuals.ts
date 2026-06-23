@@ -57,75 +57,75 @@ export function get_workspace_file_visual(name: string): WorkspaceFileVisual {
   if (!extension) {
     return {
       Icon: FileText,
-      icon_class_name: "text-slate-500",
+      icon_class_name: "text-(--icon-muted)",
     };
   }
 
   if (IMAGE_EXTENSIONS.has(extension)) {
     return {
       Icon: Image,
-      icon_class_name: "text-fuchsia-500",
+      icon_class_name: "text-[color:color-mix(in_srgb,var(--primary)_68%,var(--destructive)_32%)]",
     };
   }
 
   if (ARCHIVE_EXTENSIONS.has(extension)) {
     return {
       Icon: FileArchive,
-      icon_class_name: "text-violet-500",
+      icon_class_name: "text-[color:color-mix(in_srgb,var(--primary)_72%,var(--text-strong)_28%)]",
     };
   }
 
   if (SPREADSHEET_EXTENSIONS.has(extension)) {
     return {
       Icon: FileSpreadsheet,
-      icon_class_name: "text-emerald-600",
+      icon_class_name: "text-(--success)",
     };
   }
 
   if (JSON_EXTENSIONS.has(extension)) {
     return {
       Icon: FileJson,
-      icon_class_name: "text-emerald-500",
+      icon_class_name: "text-(--success)",
     };
   }
 
   if (WEB_CODE_EXTENSIONS.has(extension)) {
     return {
       Icon: FileCode2,
-      icon_class_name: "text-sky-500",
+      icon_class_name: "text-(--primary)",
     };
   }
 
   if (SCRIPT_EXTENSIONS.has(extension)) {
     return {
       Icon: FileCode2,
-      icon_class_name: extension === "py" ? "text-amber-500" : "text-blue-500",
+      icon_class_name: extension === "py" ? "text-(--warning)" : "text-(--primary)",
     };
   }
 
   if (CONFIG_EXTENSIONS.has(extension)) {
     return {
       Icon: FileText,
-      icon_class_name: "text-cyan-600",
+      icon_class_name: "text-(--accent)",
     };
   }
 
   if (TEXT_EXTENSIONS.has(extension)) {
     return {
       Icon: FileText,
-      icon_class_name: extension === "md" || extension === "markdown" ? "text-indigo-500" : "text-slate-500",
+      icon_class_name: extension === "md" || extension === "markdown" ? "text-(--primary)" : "text-(--icon-muted)",
     };
   }
 
   if (DOCUMENT_EXTENSIONS.has(extension)) {
     return {
       Icon: FileType2,
-      icon_class_name: extension === "pdf" ? "text-rose-500" : "text-orange-500",
+      icon_class_name: extension === "pdf" ? "text-(--destructive)" : "text-(--warning)",
     };
   }
 
   return {
     Icon: File,
-    icon_class_name: "text-slate-500",
+    icon_class_name: "text-(--icon-muted)",
   };
 }

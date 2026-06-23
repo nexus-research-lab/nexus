@@ -39,4 +39,8 @@ struct SidecarRuntimeConfig {
   var healthURL: URL {
     URL(string: "http://127.0.0.1:\(port)/nexus/v1/health")!
   }
+
+  var oauthRedirectURL: URL {
+    URL(string: "http://127.0.0.1:\(port)/capability/connectors/oauth/callback")!
+  }
 }

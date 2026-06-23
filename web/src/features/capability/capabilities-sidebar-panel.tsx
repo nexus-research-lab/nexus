@@ -14,6 +14,7 @@ import {
   type LucideIcon,
   Puzzle,
   Radio,
+  Repeat2,
   Users2,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +27,9 @@ import { UiSearchInput } from "@/shared/ui/form-control";
 import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
 
-const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
+import { CAPABILITY_SUMMARY_MUTATED_EVENT } from "./capability-summary-events";
+import { SCHEDULED_TASKS_MUTATED_EVENT } from "./scheduled-task-events";
+
 const CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS = 60_000;
 
 interface CapabilitySidebarItem {
@@ -51,8 +54,10 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     skills_count: 0,
     connected_connectors_count: 0,
     enabled_scheduled_tasks_count: 0,
+    connected_channels_count: 0,
     configured_channels_count: 0,
     active_pairings_count: 0,
+    loops_count: 0,
   });
 
   const refresh_capability_summary = useCallback(async (options?: { force?: boolean; reset_on_error?: boolean }) => {
@@ -86,8 +91,10 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
             skills_count: 0,
             connected_connectors_count: 0,
             enabled_scheduled_tasks_count: 0,
+            connected_channels_count: 0,
             configured_channels_count: 0,
             active_pairings_count: 0,
+            loops_count: 0,
           });
         }
       } finally {
@@ -109,11 +116,16 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     const handle_scheduled_tasks_mutated = () => {
       void refresh_capability_summary({ force: true });
     };
+    const handle_capability_summary_mutated = () => {
+      void refresh_capability_summary({ force: true });
+    };
     window.addEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handle_scheduled_tasks_mutated);
+    window.addEventListener(CAPABILITY_SUMMARY_MUTATED_EVENT, handle_capability_summary_mutated);
 
     return () => {
       summary_mounted_ref.current = false;
       window.removeEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handle_scheduled_tasks_mutated);
+      window.removeEventListener(CAPABILITY_SUMMARY_MUTATED_EVENT, handle_capability_summary_mutated);
     };
   }, [refresh_capability_summary]);
 
@@ -135,7 +147,7 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     };
   }, [refresh_capability_summary]);
 
-  const channel_count = summary.configured_channels_count ?? 0;
+  const channel_count = summary.connected_channels_count ?? 0;
   const pairing_count = summary.active_pairings_count ?? 0;
   const capability_items = useMemo<CapabilitySidebarItem[]>(() => [
     {
@@ -144,6 +156,13 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       label: t("capability.skills"),
       meta: String(summary.skills_count),
       path: AppRouteBuilders.skills(),
+    },
+    {
+      id: SIDEBAR_CAPABILITY_ITEM_IDS.loops,
+      icon: Repeat2,
+      label: t("capability.loops"),
+      meta: String(summary.loops_count ?? 0),
+      path: AppRouteBuilders.loops(),
     },
     {
       id: SIDEBAR_CAPABILITY_ITEM_IDS.connectors,

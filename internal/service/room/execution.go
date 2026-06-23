@@ -3,10 +3,8 @@ package room
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -21,59 +19,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/room/runtimepolicy"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
-
-func (s *RealtimeService) runRound(
-	ctx context.Context,
-	roundValue *activeRoomRound,
-	history []protocol.Message,
-	agentNameByID map[string]string,
-	agentByID map[string]*protocol.Agent,
-) {
-	ctx = contextWithQueueOwner(ctx, roundValue.OwnerUserID)
-	logger := s.loggerFor(ctx).With(
-		"session_key", roundValue.SessionKey,
-		"room_id", roundValue.RoomID,
-		"conversation_id", roundValue.ConversationID,
-		"round_id", roundValue.RoundID,
-	)
-	logger.Info("开始执行 Room round", "slot_count", len(roundValue.Slots))
-	var waitGroup sync.WaitGroup
-	for _, slot := range roundValue.Slots {
-		waitGroup.Add(1)
-		go func(currentSlot *activeRoomSlot) {
-			defer waitGroup.Done()
-			s.runSlot(ctx, roundValue, currentSlot, history, agentNameByID, agentByID[currentSlot.AgentID])
-		}(slot)
-	}
-	waitGroup.Wait()
-
-	s.finishRound(roundValue)
-
-	finalStatus := "finished"
-	if roundValue.allSlotsCancelled() {
-		finalStatus = "interrupted"
-	} else if roundValue.hasSlotError() {
-		finalStatus = "error"
-	}
-	logger.Info("Room round 结束", "status", finalStatus)
-	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapRoundStatusEvent(
-		roundValue.SessionKey,
-		roundValue.RoomID,
-		roundValue.ConversationID,
-		roundValue.RoundID,
-		finalStatus,
-		mapTerminalSubtype(finalStatus),
-	))
-	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
-	if finalStatus == "finished" {
-		s.startQueuedPublicMentionWakes(context.Background(), roundValue)
-	}
-	go s.dispatchPostRoundWork(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
-}
 
 func appendPromptSection(base string, section string) string {
 	base = strings.TrimSpace(base)
@@ -156,7 +106,9 @@ func (s *RealtimeService) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
-	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt())
+	appendSystemPrompt = appendPromptSection(appendSystemPrompt, roomdomain.BuildSystemPrompt(
+		roundValue.Context.Room.PrivateMessagesEnabled,
+	))
 	appendSystemPrompt = appendPromptSection(appendSystemPrompt, s.buildRoomMemorySystemPrompt(slotCtx, roundValue))
 	roomSkillPrompt, err := s.rooms.BuildRoomSkillPrompt(slotCtx, roundValue.Context.Room.SkillNames)
 	if err != nil {
@@ -196,7 +148,7 @@ func (s *RealtimeService) runSlot(
 			return s.permission.RequestPermission(permissionCtx, slot.RuntimeSessionKey, request)
 		}
 	}
-	permissionHandler = roomRuntimePermissionHandler(permissionHandler)
+	permissionHandler = runtimepolicy.PermissionHandler(permissionHandler, roundValue.Context.Room.PrivateMessagesEnabled)
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(slotCtx, roundValue, agentValue)
 	if err != nil {
@@ -210,8 +162,8 @@ func (s *RealtimeService) runSlot(
 		Model:                      runtimeSelection.Model,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
-		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(roomRuntimeAllowedTools(agentValue.Options.AllowedTools)),
-		DisallowedTools:            roomRuntimeDisallowedTools(agentValue.Options.DisallowedTools),
+		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(runtimepolicy.AllowedTools(agentValue.Options.AllowedTools, roundValue.Context.Room.PrivateMessagesEnabled), s.runtimeImagegenDefaultEnabled(slotCtx)),
+		DisallowedTools:            runtimepolicy.DisallowedTools(agentValue.Options.DisallowedTools, roundValue.Context.Room.PrivateMessagesEnabled),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,
 		ResumeSessionID:            slot.getSDKSessionID(),
@@ -238,40 +190,54 @@ func (s *RealtimeService) runSlot(
 	}))
 	options = withRoomRuntimeDiagnosticsLogger(options, logger.With("agent_id", slot.AgentID, "agent_round_id", slot.AgentRoundID))
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
-	logger.Info("准备启动 Room runtime",
-		append(clientopts.RuntimeStartupLogFields(options),
-			"agent_id", slot.AgentID,
-			"agent_round_id", slot.AgentRoundID,
-			"runtime_session_key", slot.RuntimeSessionKey,
-			"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
-			"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
-			"requested_model", strings.TrimSpace(runtimeSelection.Model),
-			"runtime_provider", runtimeProvider,
-		)...,
+	resumeID, err := s.resolveReusableRoomSDKSessionID(
+		slotCtx,
+		logger,
+		agentValue.WorkspacePath,
+		slot,
+		options.Session.ResumeID,
 	)
-	client := s.factory.New(options)
-	slot.setClient(client)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		return
+	}
+	options.Session.ResumeID = resumeID
+	connectClient := func(currentOptions agentclient.Options) (runtimectx.Client, error) {
+		logger.Info("准备启动 Room runtime",
+			roomRuntimeStartupLogFields(currentOptions, runtimeSelection, runtimeProvider, slot)...,
+		)
+		currentClient := s.factory.New(currentOptions)
+		slot.setClient(currentClient)
+		return currentClient, currentClient.Connect(slotCtx)
+	}
 
-	if err := client.Connect(slotCtx); err != nil {
-		logger.Error("Room runtime 启动失败",
-			append(clientopts.RuntimeStartupLogFields(options),
-				"agent_id", slot.AgentID,
-				"agent_round_id", slot.AgentRoundID,
-				"runtime_session_key", slot.RuntimeSessionKey,
-				"stage", "connect",
-				"err", err,
-				"error_type", fmt.Sprintf("%T", err),
-				"transport_closed", runtimectx.IsRuntimeTransportClosedError(err),
+	client, err := connectClient(options)
+	if err != nil && strings.TrimSpace(options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
+		logger.Warn("Room SDK session resume 失效，清除后重试",
+			append(roomRuntimeConnectFailureLogFields(options, runtimeSelection, runtimeProvider, slot, err),
+				"sdk_session_id", strings.TrimSpace(options.Session.ResumeID),
 			)...,
 		)
+		if client != nil {
+			if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil && !runtimectx.IsRuntimeTransportClosedError(disconnectErr) {
+				s.handleSlotFailure(slotCtx, roundValue, slot, mapper, disconnectErr)
+				return
+			}
+		}
+		if clearErr := s.clearSlotSDKSessionID(slotCtx, slot); clearErr != nil {
+			s.handleSlotFailure(slotCtx, roundValue, slot, mapper, clearErr)
+			return
+		}
+		options.Session.ResumeID = ""
+		client, err = connectClient(options)
+	}
+	if err != nil {
+		logger.Error("Room runtime 启动失败", roomRuntimeConnectFailureLogFields(options, runtimeSelection, runtimeProvider, slot, err)...)
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
 		return
 	}
 	logger.Info("Room runtime 启动成功",
-		append(clientopts.RuntimeStartupLogFields(options),
-			"agent_id", slot.AgentID,
-			"agent_round_id", slot.AgentRoundID,
-			"runtime_session_key", slot.RuntimeSessionKey,
+		append(roomRuntimeStartupLogFields(options, runtimeSelection, runtimeProvider, slot),
 			"sdk_session_id", strings.TrimSpace(client.SessionID()),
 		)...,
 	)
@@ -280,10 +246,6 @@ func (s *RealtimeService) runSlot(
 			logger.Warn("Agent SDK disconnect 返回错误", "err", err)
 		}
 	}()
-	if err := s.syncSlotSDKSessionID(slotCtx, slot, client.SessionID()); err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
-		return
-	}
 
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamStart,
@@ -317,6 +279,7 @@ func (s *RealtimeService) runSlot(
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: mapper},
+		IdleTimeout:      s.config.RuntimeRoundIdleTimeout(),
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(slot)
 		},
@@ -393,7 +356,7 @@ func (s *RealtimeService) runSlot(
 			if roomSlotShouldDropPublicOutputEvent(slot, event) {
 				return nil
 			}
-			for _, readyEvent := range roomEventsReadyForEmission(slot, event) {
+			for _, readyEvent := range slot.eventsReadyForEmission(event) {
 				s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, readyEvent)
 			}
 			return nil
@@ -465,118 +428,4 @@ func (s *RealtimeService) runSlot(
 		"result_subtype", strings.TrimSpace(result.ResultSubtype),
 		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
-}
-
-func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {
-	previousStderr := options.Callbacks.Stderr
-	options.Callbacks.Stderr = func(line string) {
-		normalizedLine := normalizeRuntimeStderrLine(line)
-		if previousStderr != nil {
-			previousStderr(normalizedLine)
-		}
-		logger.Warn("Agent SDK stderr", "stderr", normalizedLine)
-	}
-	previousDiagnostics := options.Callbacks.Diagnostics
-	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
-	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
-		if previousDiagnostics != nil {
-			previousDiagnostics(event)
-		}
-		if diagnosticsEnabled {
-			logger.Info("Agent SDK diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
-				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
-			)
-			return
-		}
-		if clientopts.ShouldLogRuntimeStartupDiagnostic(event) {
-			logger.Info("Agent SDK startup diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
-				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
-			)
-			return
-		}
-		if clientopts.ShouldWarnRuntimeStartupDiagnostic(event) {
-			logger.Warn("Agent SDK startup diagnostics",
-				"component", strings.TrimSpace(event.Component),
-				"event", strings.TrimSpace(event.Event),
-				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
-			)
-		}
-	}
-	if !diagnosticsEnabled {
-		return options
-	}
-	logger.Info("Agent SDK diagnostics 已启用",
-		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
-		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
-	)
-	return options
-}
-
-func roomSourceContextLabel(roundValue *activeRoomRound) string {
-	if roundValue == nil || roundValue.Context == nil {
-		return ""
-	}
-	if roomName := strings.TrimSpace(roundValue.Context.Room.Name); roomName != "" {
-		return roomName
-	}
-	return strings.TrimSpace(roundValue.Context.Conversation.Title)
-}
-
-func roomRuntimeAllowedTools(values []string) []string {
-	if len(toolpolicy.NormalizeSet(values)) == 0 {
-		return values
-	}
-	return appendDistinctRoomRuntimeTools(values, "nexus_room")
-}
-
-func roomRuntimeDisallowedTools(values []string) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if isRoomRuntimeTool(value) {
-			continue
-		}
-		result = append(result, value)
-	}
-	return result
-}
-
-func appendDistinctRoomRuntimeTools(values []string, extra ...string) []string {
-	result := make([]string, 0, len(values)+len(extra))
-	seen := make(map[string]struct{}, len(values)+len(extra))
-	for _, value := range append(append([]string(nil), values...), extra...) {
-		normalized := strings.TrimSpace(value)
-		if normalized == "" {
-			continue
-		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		result = append(result, normalized)
-	}
-	return result
-}
-
-func roomRuntimePermissionHandler(next sdkpermission.Handler) sdkpermission.Handler {
-	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if isRoomRuntimeTool(request.ToolName) {
-			return sdkpermission.Allow(request.Input, nil), nil
-		}
-		if next == nil {
-			return sdkpermission.Allow(request.Input, nil), nil
-		}
-		return next(ctx, request)
-	}
-}
-
-func isRoomRuntimeTool(toolName string) bool {
-	normalized := strings.TrimSpace(toolName)
-	return normalized == "nexus_room" ||
-		strings.HasPrefix(normalized, "mcp__nexus_room__") ||
-		strings.HasPrefix(normalized, "nexus_room__") ||
-		strings.HasPrefix(normalized, "nexus_room.")
 }

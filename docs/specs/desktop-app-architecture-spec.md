@@ -293,18 +293,19 @@ internal/protocol/desktop/
 
 ## 8. OAuth 与 URL Scheme
 
-桌面 App 必须支持 URL scheme：
+桌面 App 必须支持 URL scheme 作为内部唤起入口：
 
 ```text
 nexus://connectors/oauth/callback
 ```
 
-但第一阶段不强制所有第三方 provider 都迁到 custom scheme。
+第三方 provider 的 OAuth redirect 优先使用 loopback HTTP 地址，避免 provider 不接受 custom scheme。
 
 迁移策略：
 
 - 本地 Web 开发继续支持 `http://localhost:3000/capability/connectors/oauth/callback`。
-- 桌面 App 新增 `nexus://connectors/oauth/callback`。
+- 桌面 App 默认登记 `http://127.0.0.1:34343/capability/connectors/oauth/callback`。
+- `nexus://connectors/oauth/callback` 只作为 shell 内部 deep link 兼容入口。
 - 后端 state 表必须记录 redirect kind，回调时按创建时的 redirect URI 校验。
 - Native Shell 收到 URL event 后，把完整 callback URL 转交给 WebView 或 Go API。
 

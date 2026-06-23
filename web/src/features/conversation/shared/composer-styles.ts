@@ -17,7 +17,7 @@ export const COMPOSER_ATTACHMENT_ROW_CLASS_NAME =
   "flex flex-wrap gap-2 border-b border-(--divider-subtle-color) px-2.5 py-2";
 
 export const COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME =
-  "ml-1 rounded-full p-0.5 text-red-500/76 opacity-60 transition-[background,opacity] duration-(--motion-duration-fast) hover:bg-red-50/90 focus-visible:ring-2 focus-visible:ring-primary/50";
+  "ml-1 rounded-full p-0.5 text-(--destructive) opacity-60 transition-[background,opacity] duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] focus-visible:ring-2 focus-visible:ring-primary/50";
 
 export const COMPOSER_ACTION_BUTTON_CLASS_NAME =
   get_ui_icon_button_class_name({ size: "lg", variant: "surface" }, "shrink-0");

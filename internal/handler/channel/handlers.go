@@ -9,10 +9,8 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	channelspkg "github.com/nexus-research-lab/nexus/internal/service/channels"
-
-	"github.com/go-chi/chi/v5"
+	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 )
 
 // Ingress 接口抽象通道入站服务。
@@ -25,6 +23,10 @@ type Control interface {
 	ListChannels(context.Context, string) ([]channelspkg.ChannelConfigView, error)
 	UpsertChannelConfig(context.Context, string, string, channelspkg.UpsertChannelConfigRequest) (*channelspkg.ChannelConfigView, error)
 	DeleteChannelConfig(context.Context, string, string) error
+	DeleteChannelAccount(context.Context, string, string, string) (*channelspkg.ChannelConfigView, error)
+	StartChannelLogin(context.Context, string, string) (*channelspkg.ChannelLoginView, error)
+	GetChannelLogin(context.Context, string, string, string) (*channelspkg.ChannelLoginView, error)
+	SubmitChannelLoginVerifyCode(context.Context, string, string, string, channelspkg.SubmitChannelLoginVerifyCodeRequest) (*channelspkg.ChannelLoginView, error)
 	ListPairings(context.Context, string, channelspkg.PairingQuery) ([]channelspkg.PairingView, error)
 	CreatePairing(context.Context, string, channelspkg.CreatePairingRequest) (*channelspkg.PairingView, error)
 	UpdatePairing(context.Context, string, string, channelspkg.UpdatePairingRequest) (*channelspkg.PairingView, error)
@@ -53,133 +55,6 @@ func New(api *handlershared.API, ingress Ingress, control ...Control) *Handlers 
 	}
 }
 
-func (h *Handlers) HandleListChannels(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	items, err := h.control.ListChannels(request.Context(), currentOwnerUserID(request))
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, items)
-}
-
-func (h *Handlers) HandleUpsertChannelConfig(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	var payload channelspkg.UpsertChannelConfigRequest
-	if !h.api.BindJSON(writer, request, &payload) {
-		return
-	}
-	item, err := h.control.UpsertChannelConfig(
-		request.Context(),
-		currentOwnerUserID(request),
-		chi.URLParam(request, "channel_type"),
-		payload,
-	)
-	if errors.Is(err, channelspkg.ErrChannelNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.writeControlFailure(writer, err)
-		return
-	}
-	h.api.WriteSuccess(writer, item)
-}
-
-func (h *Handlers) HandleDeleteChannelConfig(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	err := h.control.DeleteChannelConfig(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "channel_type"))
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, map[string]any{"configured": false})
-}
-
-func (h *Handlers) HandleListPairings(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	query := request.URL.Query()
-	items, err := h.control.ListPairings(request.Context(), currentOwnerUserID(request), channelspkg.PairingQuery{
-		ChannelType: query.Get("channel_type"),
-		Status:      query.Get("status"),
-		AgentID:     query.Get("agent_id"),
-	})
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, items)
-}
-
-func (h *Handlers) HandleCreatePairing(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	var payload channelspkg.CreatePairingRequest
-	if !h.api.BindJSON(writer, request, &payload) {
-		return
-	}
-	item, err := h.control.CreatePairing(request.Context(), currentOwnerUserID(request), payload)
-	if errors.Is(err, channelspkg.ErrChannelNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.writeControlFailure(writer, err)
-		return
-	}
-	h.api.WriteSuccess(writer, item)
-}
-
-func (h *Handlers) HandleUpdatePairing(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	var payload channelspkg.UpdatePairingRequest
-	if !h.api.BindJSON(writer, request, &payload) {
-		return
-	}
-	item, err := h.control.UpdatePairing(
-		request.Context(),
-		currentOwnerUserID(request),
-		chi.URLParam(request, "pairing_id"),
-		payload,
-	)
-	if errors.Is(err, channelspkg.ErrPairingNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.writeControlFailure(writer, err)
-		return
-	}
-	h.api.WriteSuccess(writer, item)
-}
-
-func (h *Handlers) HandleDeletePairing(writer http.ResponseWriter, request *http.Request) {
-	if !h.ensureControl(writer) {
-		return
-	}
-	err := h.control.DeletePairing(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "pairing_id"))
-	if errors.Is(err, channelspkg.ErrPairingNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, map[string]any{"success": true})
-}
-
 func (h *Handlers) HandleChannelIngress(writer http.ResponseWriter, request *http.Request) {
 	h.handleChannelIngressByName(writer, request, "")
 }
@@ -194,6 +69,32 @@ func (h *Handlers) HandleDiscordChannelIngress(writer http.ResponseWriter, reque
 
 func (h *Handlers) HandleTelegramChannelIngress(writer http.ResponseWriter, request *http.Request) {
 	h.handleChannelIngressByName(writer, request, channelspkg.ChannelTypeTelegram)
+}
+
+func (h *Handlers) HandleDingTalkChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	if h.ingress == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel ingress is not configured")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(request.Body, 1<<20))
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	callbackRequest, ignoredReason, err := channeladapters.DecodeDingTalkIngressCallback(body)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	if callbackRequest == nil {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted": false,
+			"ignored":  true,
+			"reason":   ignoredReason,
+		})
+		return
+	}
+	h.acceptChannelIngress(writer, request, *callbackRequest)
 }
 
 func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, request *http.Request) {
@@ -223,7 +124,7 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 		}
 		ownerUserID = strings.TrimSpace(prepared.OwnerUserID)
 	}
-	callback, err := channelspkg.DecodeFeishuIngressCallback(preparedBody)
+	callback, err := channeladapters.DecodeFeishuIngressCallback(preparedBody)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
@@ -260,24 +161,11 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 		}
 	}
 
-	result, err := h.ingress.Accept(request.Context(), *callback.Request)
-	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
-		h.api.WriteSuccess(writer, map[string]any{
-			"accepted":         false,
-			"pairing_required": true,
-			"message":          err.Error(),
-		})
-		return
-	}
-	if err != nil {
-		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, result)
+	h.acceptChannelIngress(writer, request, *callback.Request)
+}
+
+func (h *Handlers) HandleWeixinPersonalChannelIngress(writer http.ResponseWriter, request *http.Request) {
+	h.handleChannelIngressByName(writer, request, channelspkg.ChannelTypeWeixinPersonal)
 }
 
 func (h *Handlers) handleChannelIngressByName(
@@ -298,7 +186,27 @@ func (h *Handlers) handleChannelIngressByName(
 		payload.Channel = channelName
 	}
 
+	h.acceptChannelIngress(writer, request, payload)
+}
+
+func (h *Handlers) acceptChannelIngress(
+	writer http.ResponseWriter,
+	request *http.Request,
+	payload channelspkg.IngressRequest,
+) {
 	result, err := h.ingress.Accept(request.Context(), payload)
+	h.writeChannelIngressOutcome(writer, result, err)
+}
+
+func (h *Handlers) writeChannelIngressOutcome(writer http.ResponseWriter, result *channelspkg.IngressResult, err error) {
+	if errors.Is(err, channelspkg.ErrPairingApprovalRequired) {
+		h.api.WriteSuccess(writer, map[string]any{
+			"accepted":         false,
+			"pairing_required": true,
+			"message":          err.Error(),
+		})
+		return
+	}
 	if err != nil {
 		if isChannelIngressClientError(err) || handlershared.IsStructuredSessionKeyError(err) {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
@@ -323,30 +231,6 @@ func isChannelIngressClientError(err error) bool {
 		strings.Contains(message, "channel 与 session_key 不一致") ||
 		strings.Contains(message, "仅支持 agent session_key") ||
 		strings.Contains(message, "配对授权") ||
+		strings.Contains(message, "配对控制台") ||
 		strings.Contains(message, "requires")
-}
-
-func (h *Handlers) ensureControl(writer http.ResponseWriter) bool {
-	if h.control != nil {
-		return true
-	}
-	h.api.WriteFailure(writer, http.StatusServiceUnavailable, "channel control is not configured")
-	return false
-}
-
-func (h *Handlers) writeControlFailure(writer http.ResponseWriter, err error) {
-	message := err.Error()
-	switch {
-	case strings.Contains(message, "required"),
-		strings.Contains(message, "invalid"),
-		strings.Contains(message, "不能为空"),
-		strings.Contains(message, "CONNECTOR_CREDENTIALS_KEY 未配置"):
-		h.api.WriteFailure(writer, http.StatusBadRequest, message)
-	default:
-		h.api.WriteFailure(writer, http.StatusInternalServerError, message)
-	}
-}
-
-func currentOwnerUserID(request *http.Request) string {
-	return authsvc.OwnerUserID(request.Context())
 }

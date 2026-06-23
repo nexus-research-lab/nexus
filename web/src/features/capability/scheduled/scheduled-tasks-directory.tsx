@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
 import { useAutomationController } from "@/hooks/capability/use-automation-controller";
@@ -23,17 +23,17 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { notify_scheduled_tasks_mutated } from "../scheduled-task-events";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
 import { ScheduledTaskList } from "./scheduled-task-list";
 import { ScheduledTaskRunHistoryDialog } from "./scheduled-task-run-history-dialog";
+import { useScheduledTaskRealtimeRefresh } from "./use-scheduled-task-realtime-refresh";
 
 interface FeedbackState {
   tone: "success" | "warning" | "error";
   title: string;
   message: string;
 }
-
-const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
 
 interface ScheduledMetricItemProps {
   description: string;
@@ -57,13 +57,6 @@ function ScheduledMetricItem({ description, label, value }: ScheduledMetricItemP
       </div>
     </div>
   );
-}
-
-function notify_scheduled_tasks_mutated(agent_id: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.dispatchEvent(new CustomEvent(SCHEDULED_TASKS_MUTATED_EVENT, { detail: { agent_id } }));
 }
 
 async function refresh_tasks_best_effort(
@@ -114,45 +107,7 @@ export function ScheduledTasksDirectory() {
       ]
     : [];
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handle_page_revalidate = () => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
-    };
-
-    window.addEventListener("focus", handle_page_revalidate);
-    document.addEventListener("visibilitychange", handle_page_revalidate);
-
-    return () => {
-      window.removeEventListener("focus", handle_page_revalidate);
-      document.removeEventListener("visibilitychange", handle_page_revalidate);
-    };
-  }, [refresh_tasks]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const poll_interval_ms = running_count > 0 ? 3000 : enabled_count > 0 ? 15000 : 0;
-    if (!poll_interval_ms) {
-      return;
-    }
-
-    const interval_id = window.setInterval(() => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
-    }, poll_interval_ms);
-
-    return () => window.clearInterval(interval_id);
-  }, [enabled_count, refresh_tasks, running_count]);
+  useScheduledTaskRealtimeRefresh({ enabled_count, refresh_tasks, running_count });
 
   const handle_create_success = async (task: ScheduledTaskItem) => {
     await refresh_tasks_best_effort(

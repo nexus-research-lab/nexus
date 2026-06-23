@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type directoryBroadcaster func(context.Context, string, map[string]any)
+
 // Handlers 封装 Agent / Session 域 HTTP handlers。
 type Handlers struct {
 	api          *handlershared.API
@@ -26,6 +29,7 @@ type Handlers struct {
 	runtime      *runtimectx.Manager
 	roomRealtime *roompkg.RealtimeService
 	prefs        *preferencessvc.Service
+	directory    directoryBroadcaster
 }
 
 // New 创建 Agent / Session 域 handlers。
@@ -35,6 +39,7 @@ func New(
 	sessions *sessionpkg.Service,
 	runtime *runtimectx.Manager,
 	roomRealtime *roompkg.RealtimeService,
+	directory directoryBroadcaster,
 	prefs ...*preferencessvc.Service,
 ) *Handlers {
 	var prefService *preferencessvc.Service
@@ -48,6 +53,7 @@ func New(
 		runtime:      runtime,
 		roomRealtime: roomRealtime,
 		prefs:        prefService,
+		directory:    directory,
 	}
 }
 
@@ -124,7 +130,7 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 		return
 	}
 	if payload.Options == nil && h.prefs != nil {
-		prefs, prefErr := h.prefs.Get(request.Context(), currentOwnerUserID(request))
+		prefs, prefErr := h.prefs.Get(request.Context(), authsvc.OwnerUserID(request.Context()))
 		if prefErr != nil {
 			h.api.WriteFailure(writer, http.StatusInternalServerError, prefErr.Error())
 			return
@@ -141,11 +147,10 @@ func (h *Handlers) HandleCreateAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "agent_created", map[string]any{
+		"agent_id": created.AgentID,
+	})
 	h.api.WriteSuccess(writer, created)
-}
-
-func currentOwnerUserID(request *http.Request) string {
-	return authsvc.OwnerUserID(request.Context())
 }
 
 // HandleUpdateAgent 更新 agent。
@@ -170,6 +175,9 @@ func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "agent_updated", map[string]any{
+		"agent_id": item.AgentID,
+	})
 	h.api.WriteSuccess(writer, item)
 }
 
@@ -188,99 +196,15 @@ func (h *Handlers) HandleDeleteAgent(writer http.ResponseWriter, request *http.R
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.broadcastDirectoryChanged(request.Context(), "agent_deleted", map[string]any{
+		"agent_id": chi.URLParam(request, "agent_id"),
+	})
 	h.api.WriteSuccess(writer, map[string]any{"success": true})
 }
 
-// HandleListAgentSessions 返回指定 agent 的 session 列表。
-func (h *Handlers) HandleListAgentSessions(writer http.ResponseWriter, request *http.Request) {
-	items, err := h.sessions.ListAgentSessions(request.Context(), chi.URLParam(request, "agent_id"))
-	if errors.Is(err, agentpkg.ErrAgentNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+func (h *Handlers) broadcastDirectoryChanged(ctx context.Context, reason string, data map[string]any) {
+	if h.directory == nil {
 		return
 	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, items)
-}
-
-// HandleListSessions 返回全部 session 列表。
-func (h *Handlers) HandleListSessions(writer http.ResponseWriter, request *http.Request) {
-	items, err := h.sessions.ListSessions(request.Context())
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, items)
-}
-
-// HandleCreateSession 创建 session。
-func (h *Handlers) HandleCreateSession(writer http.ResponseWriter, request *http.Request) {
-	var payload sessionpkg.CreateRequest
-	if !h.api.BindJSON(writer, request, &payload) {
-		return
-	}
-	item, err := h.sessions.CreateSession(request.Context(), payload)
-	if handlershared.IsStructuredSessionKeyError(err) {
-		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionMutationUnsupported) || handlershared.IsClientMessageError(err) {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-		return
-	}
-	if errors.Is(err, agentpkg.ErrAgentNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, item)
-}
-
-// HandleUpdateSession 更新 session。
-func (h *Handlers) HandleUpdateSession(writer http.ResponseWriter, request *http.Request) {
-	var payload sessionpkg.UpdateRequest
-	if !h.api.BindJSON(writer, request, &payload) {
-		return
-	}
-	item, err := h.sessions.UpdateSession(request.Context(), chi.URLParam(request, "session_key"), payload)
-	if handlershared.IsStructuredSessionKeyError(err) {
-		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionMutationUnsupported) || handlershared.IsClientMessageError(err) {
-		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, item)
-}
-
-// HandleDeleteSession 删除 session。
-func (h *Handlers) HandleDeleteSession(writer http.ResponseWriter, request *http.Request) {
-	err := h.sessions.DeleteSession(request.Context(), chi.URLParam(request, "session_key"))
-	if handlershared.IsStructuredSessionKeyError(err) {
-		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	if errors.Is(err, sessionpkg.ErrSessionNotFound) {
-		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
-		return
-	}
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, map[string]any{"success": true})
+	h.directory(ctx, reason, data)
 }

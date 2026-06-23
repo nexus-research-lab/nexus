@@ -16,6 +16,10 @@ import {
   ApiAgentSession as ApiAgentSessionRecord,
   AgentSession as AgentSessionRecord,
 } from "@/types/agent/agent";
+import type {
+  ApiRoomConversationMessagePage,
+  RoomConversationMessagePage,
+} from "@/types/conversation/room";
 import { get_agent_api_base_url } from "@/config/options";
 import { request_api } from "@/lib/api/http";
 import { to_timestamp } from "@/lib/api/timestamp-utils";
@@ -87,6 +91,41 @@ export const get_agent_sessions_api = async (
   );
   return result.map(transform_api_agent_session);
 };
+
+export async function get_session_messages_api(
+  session_key: string,
+  options: {
+    limit?: number;
+    before_round_id?: string | null;
+    before_round_timestamp?: number | null;
+  } = {},
+): Promise<RoomConversationMessagePage> {
+  const normalized_session_key = assert_structured_session_key(session_key);
+  const params = new URLSearchParams();
+  params.set("session_key", normalized_session_key);
+  if (options.limit && options.limit > 0) {
+    params.set("limit", String(options.limit));
+  }
+  if (options.before_round_id) {
+    params.set("before_round_id", options.before_round_id);
+  }
+  if (options.before_round_timestamp && options.before_round_timestamp > 0) {
+    params.set("before_round_timestamp", String(options.before_round_timestamp));
+  }
+  const query = params.toString();
+  const result = await request_api<ApiRoomConversationMessagePage>(
+    `${AGENT_API_BASE_URL}/sessions/messages?${query}`,
+    {
+      method: "GET",
+    },
+  );
+  return {
+    items: result.items ?? [],
+    has_more: result.has_more ?? false,
+    next_before_round_id: result.next_before_round_id ?? null,
+    next_before_round_timestamp: result.next_before_round_timestamp ?? null,
+  };
+}
 
 export const delete_conversation = async (
   session_key: string,

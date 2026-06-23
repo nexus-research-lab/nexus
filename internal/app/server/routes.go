@@ -5,6 +5,7 @@ import "strings"
 // mountRoutes 按功能域挂载全部 HTTP 路由。
 func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
+	s.mountProviderRoutes()
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
@@ -33,19 +34,22 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
-	s.router.Post(s.prefixPath("/settings/runtime/nxs/download"), s.handlers.core.HandleDownloadNXSRuntime)
-	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.core.HandleListProviderPresets)
-	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.core.HandleListProviderConfigs)
-	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.core.HandleListProviderOptions)
-	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.core.HandleCreateProviderConfig)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.core.HandleFetchProviderModels)
-	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.core.HandleUpdateProviderModel)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/default"), s.handlers.core.HandleSetDefaultProviderModel)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/test"), s.handlers.core.HandleTestProviderConfig)
-	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/test"), s.handlers.core.HandleTestProviderModel)
-	s.router.Put(s.prefixPath("/settings/providers/{provider}"), s.handlers.core.HandleUpdateProviderConfig)
-	s.router.Delete(s.prefixPath("/settings/providers/{provider}"), s.handlers.core.HandleDeleteProviderConfig)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
+}
+
+// mountProviderRoutes 挂载 Provider 配置与模型管理路由。
+func (s *Server) mountProviderRoutes() {
+	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.provider.HandleListProviderPresets)
+	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.provider.HandleListProviderConfigs)
+	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.provider.HandleListProviderOptions)
+	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.provider.HandleCreateProviderConfig)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchProviderModels)
+	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateProviderModel)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/default"), s.handlers.provider.HandleSetDefaultProviderModel)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/test"), s.handlers.provider.HandleTestProviderConfig)
+	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/{model_id}/test"), s.handlers.provider.HandleTestProviderModel)
+	s.router.Put(s.prefixPath("/settings/providers/{provider}"), s.handlers.provider.HandleUpdateProviderConfig)
+	s.router.Delete(s.prefixPath("/settings/providers/{provider}"), s.handlers.provider.HandleDeleteProviderConfig)
 }
 
 // mountAgentRoutes 挂载 Agent、Session 与工作区相关路由。
@@ -100,6 +104,8 @@ func (s *Server) mountAgentRoutes() {
 
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
 	s.router.Post(s.prefixPath("/sessions"), s.handlers.agent.HandleCreateSession)
+	s.router.Get(s.prefixPath("/sessions/messages"), s.handlers.agent.HandleSessionMessagesByQuery)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
 	s.router.Patch(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleUpdateSession)
 	s.router.Delete(s.prefixPath("/sessions/{session_key}"), s.handlers.agent.HandleDeleteSession)
 }
@@ -130,6 +136,8 @@ func (s *Server) mountRoomRoutes() {
 // mountCapabilityRoutes 挂载技能、连接器、通道与自动化能力路由。
 func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/summary"), s.handlers.capability.HandleCapabilitySummary)
+	s.router.Get(s.prefixPath("/capability/loops"), s.handlers.loop.HandleListLoops)
+	s.router.Get(s.prefixPath("/capability/loops/{slug}"), s.handlers.loop.HandleGetLoopDetail)
 
 	s.router.Get(s.prefixPath("/skills"), s.handlers.skill.HandleListSkills)
 	s.router.Get(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleGetSkillDetail)
@@ -161,11 +169,17 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/channels/internal/messages"), s.handlers.channel.HandleInternalChannelIngress)
 	s.router.Post(s.prefixPath("/channels/discord/messages"), s.handlers.channel.HandleDiscordChannelIngress)
 	s.router.Post(s.prefixPath("/channels/telegram/messages"), s.handlers.channel.HandleTelegramChannelIngress)
+	s.router.Post(s.prefixPath("/channels/dingtalk/messages"), s.handlers.channel.HandleDingTalkChannelIngress)
 	s.router.Post(s.prefixPath("/channels/feishu/messages"), s.handlers.channel.HandleFeishuChannelIngress)
+	s.router.Post(s.prefixPath("/channels/weixin-personal/messages"), s.handlers.channel.HandleWeixinPersonalChannelIngress)
 
 	s.router.Get(s.prefixPath("/capability/channels"), s.handlers.channel.HandleListChannels)
 	s.router.Put(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleUpsertChannelConfig)
 	s.router.Delete(s.prefixPath("/capability/channels/{channel_type}/config"), s.handlers.channel.HandleDeleteChannelConfig)
+	s.router.Delete(s.prefixPath("/capability/channels/{channel_type}/accounts/{account_id}"), s.handlers.channel.HandleDeleteChannelAccount)
+	s.router.Post(s.prefixPath("/capability/channels/{channel_type}/login"), s.handlers.channel.HandleStartChannelLogin)
+	s.router.Get(s.prefixPath("/capability/channels/{channel_type}/login/{login_id}"), s.handlers.channel.HandleGetChannelLogin)
+	s.router.Post(s.prefixPath("/capability/channels/{channel_type}/login/{login_id}/verify-code"), s.handlers.channel.HandleSubmitChannelLoginVerifyCode)
 	s.router.Get(s.prefixPath("/capability/pairings"), s.handlers.channel.HandleListPairings)
 	s.router.Post(s.prefixPath("/capability/pairings"), s.handlers.channel.HandleCreatePairing)
 	s.router.Patch(s.prefixPath("/capability/pairings/{pairing_id}"), s.handlers.channel.HandleUpdatePairing)

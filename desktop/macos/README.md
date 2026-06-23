@@ -26,7 +26,7 @@
 - Shell 会记录外链打开、未知 scheme 阻断和右键菜单抑制，便于桌面 QA 追踪 native 行为。
 - 前端 ready signal 会带 source 和 performance marks；隐藏窗口 rAF 被节流时会用短 timer 兜底，避免主窗口等待 ready 时只能靠原生 fallback reveal。sidecar 会记录桌面 Web 静态资源请求摘要；两边都只记录 path 和 query key，不记录 OAuth code/state/token 等 query value。
 - 首屏通过前端 ready signal 后再显示窗口，避免直接暴露 WebView 白屏。
-- 桌面 OAuth 默认使用 `nexus://connectors/oauth/callback`，由 shell 转回本地 WebView 回调页；GitHub 在桌面包中走 Device Flow，只需要 `NEXUS_DESKTOP_GITHUB_CLIENT_ID` 注入公开 Client ID，不打包 Client Secret。
+- 桌面 OAuth 默认使用 `http://127.0.0.1:34343/capability/connectors/oauth/callback`，由本地 sidecar 接收 provider 回调；GitHub 在桌面包中走 Device Flow，只需要 `NEXUS_DESKTOP_GITHUB_CLIENT_ID` 注入公开 Client ID，不打包 Client Secret。
 
 ## 开发命令
 
@@ -63,7 +63,7 @@ NEXUS_DESKTOP_KEYCHAIN_MODE=keychain scripts/desktop/run-macos-app.sh
 make app-dmg
 ```
 
-打包默认从 bridge runtime release 的 `nxs-stable` 通道下载。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时会回到 bridge 下载兜底或 `NEXUS_NXS_COMMAND_PATH` 覆盖路径。
+打包默认从 bridge runtime release 的 `nxs-stable` 通道下载并预置当前平台的 `nxs` runtime。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`，此时运行时必须通过 `NEXUS_NXS_COMMAND_PATH` 指向可执行的 `nxs`。
 
 默认输出到 `desktop/macos/.build/package/`：
 

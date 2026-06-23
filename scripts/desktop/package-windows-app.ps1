@@ -323,6 +323,9 @@ CloseApplications=yes
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\Resources\db\migrations"
+
 [Files]
 Source: "$escapedSourceAppGlob"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "$escapedReadmePath"; DestDir: "{app}"; DestName: "PACKAGE-README.txt"; Flags: ignoreversion

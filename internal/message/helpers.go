@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -9,8 +10,9 @@ import (
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""
@@ -46,21 +48,18 @@ func normalizeInt(value any) int {
 }
 
 func emptyToNil(value string) any {
-	if strings.TrimSpace(value) == "" {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
 		return nil
 	}
-	return strings.TrimSpace(value)
+	return trimmed
 }
 
 func cloneMap(source map[string]any) map[string]any {
 	if len(source) == 0 {
 		return nil
 	}
-	result := make(map[string]any, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
+	return maps.Clone(source)
 }
 
 func cloneBlockSlice(blocks []map[string]any) []map[string]any {
@@ -177,10 +176,7 @@ func normalizeContentBlock(raw any) map[string]any {
 	if !ok {
 		return nil
 	}
-	result := make(map[string]any, len(payload))
-	for key, value := range payload {
-		result[key] = value
-	}
+	result := maps.Clone(payload)
 	if value := normalizeString(result["type"]); value != "" {
 		result["type"] = normalizeBlockType(value)
 	}

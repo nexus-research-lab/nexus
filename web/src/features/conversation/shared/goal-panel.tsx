@@ -21,7 +21,8 @@ import { ApiRequestError } from "@/lib/api/http";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
-import { GoalDraftForm, GoalStatusStrip } from "./goal-panel-view";
+import { GoalDraftForm } from "./goal-panel-draft-form";
+import { GoalStatusStrip } from "./goal-panel-status-strip";
 
 type GoalDraftSavePhase = "idle" | "updating";
 

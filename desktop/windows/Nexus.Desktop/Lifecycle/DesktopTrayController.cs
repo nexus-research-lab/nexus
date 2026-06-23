@@ -9,6 +9,7 @@ internal sealed class DesktopTrayController : IDisposable
 {
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Action restoreWindow;
+    private readonly Action reloadWindow;
     private readonly Action checkForUpdates;
     private readonly Action exitApplication;
     private readonly Forms.ContextMenuStrip contextMenu;
@@ -19,11 +20,13 @@ internal sealed class DesktopTrayController : IDisposable
     public DesktopTrayController(
         DesktopStartupTimeline startupTimeline,
         Action restoreWindow,
+        Action reloadWindow,
         Action checkForUpdates,
         Action exitApplication)
     {
         this.startupTimeline = startupTimeline;
         this.restoreWindow = restoreWindow;
+        this.reloadWindow = reloadWindow;
         this.checkForUpdates = checkForUpdates;
         this.exitApplication = exitApplication;
 
@@ -44,6 +47,8 @@ internal sealed class DesktopTrayController : IDisposable
         };
         Forms.ToolStripMenuItem openItem = MenuItem("打开 Nexus");
         openItem.Click += (_, _) => RestoreWindow();
+        Forms.ToolStripMenuItem reloadItem = MenuItem("重新载入界面");
+        reloadItem.Click += (_, _) => ReloadWindow();
         Forms.ToolStripMenuItem updateItem = MenuItem("检查更新");
         updateItem.Click += (_, _) => CheckForUpdates();
         Forms.ToolStripMenuItem exitItem = MenuItem("退出 Nexus");
@@ -52,6 +57,7 @@ internal sealed class DesktopTrayController : IDisposable
         contextMenu.Items.Add(titleItem);
         contextMenu.Items.Add(new Forms.ToolStripSeparator());
         contextMenu.Items.Add(openItem);
+        contextMenu.Items.Add(reloadItem);
         contextMenu.Items.Add(updateItem);
         contextMenu.Items.Add(new Forms.ToolStripSeparator());
         contextMenu.Items.Add(exitItem);
@@ -129,6 +135,12 @@ internal sealed class DesktopTrayController : IDisposable
     {
         startupTimeline.Mark("tray.update_check_clicked");
         checkForUpdates();
+    }
+
+    private void ReloadWindow()
+    {
+        startupTimeline.Mark("tray.reload_requested");
+        reloadWindow();
     }
 
     private void ExitApplication()

@@ -3,7 +3,6 @@ package automation
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/storage"
@@ -13,6 +12,7 @@ import (
 type Repository struct {
 	db                         *sql.DB
 	isPostgres                 bool
+	dialect                    storage.SQLDialect
 	upsertCronJobQuery         string
 	insertRunPendingQuery      string
 	markRunRunningQuery        string
@@ -94,6 +94,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 	repository := &Repository{
 		db:         db,
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
+		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
 	repository.upsertCronJobQuery = fmt.Sprintf(upsertCronJobQueryTemplate, repository.bindList(29))
 	repository.insertRunPendingQuery = fmt.Sprintf(
@@ -194,16 +195,9 @@ WHERE event_id = %s`,
 }
 
 func (r *Repository) bind(index int) string {
-	if r.isPostgres {
-		return fmt.Sprintf("$%d", index)
-	}
-	return "?"
+	return r.dialect.Bind(index)
 }
 
 func (r *Repository) bindList(count int) string {
-	items := make([]string, 0, count)
-	for index := 1; index <= count; index++ {
-		items = append(items, r.bind(index))
-	}
-	return strings.Join(items, ",")
+	return r.dialect.BindList(count)
 }

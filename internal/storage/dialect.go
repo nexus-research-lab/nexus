@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,80 @@ func IsSQLiteSQLDriver(driver string) bool {
 	default:
 		return false
 	}
+}
+
+// SQLDialect 封装数据库方言中实际分叉的 SQL 片段。
+type SQLDialect struct {
+	postgres bool
+}
+
+func NewSQLDialect(driver string) SQLDialect {
+	return SQLDialect{postgres: NormalizeSQLDriver(driver) == "pgx"}
+}
+
+func (d SQLDialect) Bind(index int) string {
+	if d.postgres {
+		return fmt.Sprintf("$%d", index)
+	}
+	return "?"
+}
+
+func (d SQLDialect) BindList(count int) string {
+	items := make([]string, 0, count)
+	for index := 1; index <= count; index++ {
+		items = append(items, d.Bind(index))
+	}
+	return strings.Join(items, ",")
+}
+
+func (d SQLDialect) TrueValue() string {
+	if d.postgres {
+		return "true"
+	}
+	return "1"
+}
+
+func (d SQLDialect) FalseValue() string {
+	if d.postgres {
+		return "false"
+	}
+	return "0"
+}
+
+func (d SQLDialect) CurrentTimestamp() string {
+	if d.postgres {
+		return "now()"
+	}
+	return "CURRENT_TIMESTAMP"
+}
+
+func (d SQLDialect) JSONText(expression string) string {
+	if d.postgres {
+		return expression + "::text"
+	}
+	return expression
+}
+
+func (d SQLDialect) JSONValue(index int) string {
+	bind := d.Bind(index)
+	if d.postgres {
+		return bind + "::json"
+	}
+	return "json(" + bind + ")"
+}
+
+func (d SQLDialect) InsertIgnoreInto(table string) string {
+	if d.postgres {
+		return "INSERT INTO " + table
+	}
+	return "INSERT OR IGNORE INTO " + table
+}
+
+func (d SQLDialect) InsertIgnoreSuffix() string {
+	if d.postgres {
+		return "\nON CONFLICT DO NOTHING"
+	}
+	return ""
 }
 
 // NormalizeDatabaseURL 把配置格式转为 Go SQL 驱动可识别的 DSN。

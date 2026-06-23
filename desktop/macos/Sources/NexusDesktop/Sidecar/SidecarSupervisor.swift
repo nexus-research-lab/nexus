@@ -13,12 +13,14 @@ final class SidecarSupervisor {
   init(startupTimeline: DesktopStartupTimeline? = nil) throws {
     self.startupTimeline = startupTimeline
     locator = try SidecarBundleLocator.resolve()
-    port = try SidecarPortAllocator.allocate()
-    runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
     orphanReaper = SidecarOrphanReaper(
       pidFileURL: DesktopPaths.sidecarPIDFileURL,
       expectedExecutablePath: locator.command
     )
+    startupTimeline?.mark("sidecar.reap_begin")
+    orphanReaper.reapIfNeeded()
+    port = try SidecarPortAllocator.allocate()
+    runtimeConfig = SidecarRuntimeConfig(port: port, sessionToken: try DesktopSessionToken.generate())
     startupTimeline?.mark("sidecar.config_resolved", metadata: [
       "mode": locator.projectRoot == nil ? "bundle" : "development",
       "port": "\(port)",
@@ -26,8 +28,6 @@ final class SidecarSupervisor {
   }
 
   func start() async throws -> SidecarRuntimeConfig {
-    startupTimeline?.mark("sidecar.reap_begin")
-    orphanReaper.reapIfNeeded()
     startupTimeline?.mark("sidecar.launch_begin")
 
     let sidecarProcess = Process()
@@ -74,7 +74,8 @@ final class SidecarSupervisor {
 
     environment["NEXUS_APP_MODE"] = "desktop"
     environment["NEXUS_APP_ROOT"] = locator.appRootURL.path
-    environment["NEXUS_CONFIG_DIR"] = DesktopPaths.configDirectory.path
+    environment["NEXUS_CONFIG_DIR"] = DesktopPaths.rootDirectory.path
+    environment["CLAUDE_CONFIG_DIR"] = DesktopPaths.rootDirectory.path
     environment["HOST"] = "127.0.0.1"
     environment["PORT"] = "\(port)"
     environment["NEXUS_DESKTOP_SESSION_TOKEN"] = runtimeConfig.sessionToken
@@ -99,11 +100,12 @@ final class SidecarSupervisor {
     environment["LOG_FILE_ENABLED"] = "true"
     environment["DISCORD_ENABLED"] = "false"
     environment["TELEGRAM_ENABLED"] = "false"
-    environment["CONNECTOR_OAUTH_REDIRECT_URI"] = "nexus://connectors/oauth/callback"
+    environment["CONNECTOR_OAUTH_REDIRECT_URI"] = runtimeConfig.oauthRedirectURL.absoluteString
     applyPackagedConnectorConfig(to: &environment)
+    applyBundledNexusctlCommand(to: &environment)
     applyBundledNXSRuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = "\(webOrigin),nexus://connectors"
+    environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = webOrigin
     return environment
   }
 
@@ -129,10 +131,45 @@ final class SidecarSupervisor {
     }
   }
 
+  private func applyBundledNexusctlCommand(to environment: inout [String: String]) {
+    if let override = environment["NEXUSCTL_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+        "source": "override",
+        "path": override,
+      ])
+      return
+    }
+    guard locator.projectRoot == nil else {
+      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+        "source": "development",
+      ])
+      return
+    }
+    let nexusctlURL = locator.appRootURL.appendingPathComponent("bin/nexusctl")
+    if FileManager.default.isExecutableFile(atPath: nexusctlURL.path) {
+      environment["NEXUSCTL_COMMAND_PATH"] = nexusctlURL.path
+      startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+        "source": "bundled",
+        "path": nexusctlURL.path,
+      ])
+      return
+    }
+    startupTimeline?.mark("sidecar.nexusctl_command", metadata: [
+      "source": "missing",
+    ])
+  }
+
   private func applyBundledNXSRuntime(to environment: inout [String: String]) {
     guard locator.projectRoot == nil else {
       startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
         "source": "development",
+      ])
+      return
+    }
+    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+        "source": "override",
+        "path": override,
       ])
       return
     }
@@ -141,12 +178,7 @@ final class SidecarSupervisor {
       environment["NEXUS_NXS_COMMAND_PATH"] = nxsURL.path
       startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
         "source": "bundled",
-      ])
-      return
-    }
-    if let override = environment["NEXUS_NXS_COMMAND_PATH"], !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
-        "source": "override",
+        "path": nxsURL.path,
       ])
       return
     }
@@ -169,6 +201,8 @@ final class SidecarSupervisor {
     let deadline = Date().addingTimeInterval(45)
     while Date() < deadline {
       if let process, !process.isRunning {
+        process.waitUntilExit()
+        startupTimeline?.mark("sidecar.process_exited", metadata: processExitMetadata(process))
         throw DesktopShellError.sidecarExited
       }
       if await isHealthy() {
@@ -176,7 +210,27 @@ final class SidecarSupervisor {
       }
       try await Task.sleep(nanoseconds: 300_000_000)
     }
+    startupTimeline?.mark("sidecar.health_timeout", metadata: outputMetadata())
     throw DesktopShellError.sidecarExited
+  }
+
+  private func processExitMetadata(_ process: Process) -> [String: String] {
+    var metadata = outputMetadata()
+    metadata["exit_code"] = "\(process.terminationStatus)"
+    return metadata
+  }
+
+  private func outputMetadata() -> [String: String] {
+    var metadata: [String: String] = [:]
+    let stdout = stdoutPipe.tailText()
+    if !stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      metadata["stdout_tail"] = stdout
+    }
+    let stderr = stderrPipe.tailText()
+    if !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      metadata["stderr_tail"] = stderr
+    }
+    return metadata
   }
 
   private func isHealthy() async -> Bool {

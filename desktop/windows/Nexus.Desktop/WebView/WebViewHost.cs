@@ -12,26 +12,31 @@ namespace Nexus.Desktop.WebView;
 
 internal sealed class WebViewHost : IDisposable
 {
+    private const int ResumeProbeRecreateThreshold = 2;
+
     private readonly WebView2 webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
-    private readonly Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync;
+    private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
+    private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
     private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
+
+    private sealed record ResumeProbeResult(bool IsReady, DesktopWebRoute? CurrentRoute, string Snapshot);
 
     public WebViewHost(
         WebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<DesktopWebRoute, string, Task> recreateAfterProcessFailureAsync)
+        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
-        this.recreateAfterProcessFailureAsync = recreateAfterProcessFailureAsync;
+        this.recreateWebViewAsync = recreateWebViewAsync;
     }
 
     public async Task InitializeAsync()
@@ -92,7 +97,7 @@ internal sealed class WebViewHost : IDisposable
                 metadata["diagnostics_path"] = diagnosticsPath;
             }
             startupTimeline.Mark("webview.process_failed", metadata);
-            _ = recreateAfterProcessFailureAsync(lastRoute, args.ProcessFailedKind.ToString());
+            _ = recreateWebViewAsync(lastRoute, "process_failed", args.ProcessFailedKind.ToString());
         };
         startupTimeline.Mark("webview.initialize_ready");
     }
@@ -108,6 +113,37 @@ internal sealed class WebViewHost : IDisposable
         });
         webView.Source = url;
         return Task.CompletedTask;
+    }
+
+    public async Task ReloadAsync(string reason)
+    {
+        if (disposed)
+        {
+            return;
+        }
+        if (webView.CoreWebView2 is null)
+        {
+            await recreateWebViewAsync(lastRoute, "manual_reload", reason);
+            return;
+        }
+
+        try
+        {
+            ResumeProbeResult probe = await CaptureResumeProbeAsync();
+            UpdateLastRouteFromProbe(probe);
+            DesktopWebRoute route = probe.CurrentRoute ?? lastRoute;
+            startupTimeline.Mark("webview.manual_reload", new Dictionary<string, string>
+            {
+                ["path"] = route.Path,
+                ["reason"] = reason,
+            });
+            InstallDesktopSessionCookie(webView.CoreWebView2);
+            webView.CoreWebView2.Navigate(route.ToUri(runtime).ToString());
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            await recreateWebViewAsync(lastRoute, "manual_reload", exception.GetType().Name);
+        }
     }
 
     public async Task RecoverAfterWindowShownAsync(string reason)
@@ -135,20 +171,11 @@ internal sealed class WebViewHost : IDisposable
                 return;
             }
 
-            string result = await webView.CoreWebView2.ExecuteScriptAsync(
-                """
-                (() => {
-                  window.dispatchEvent(new Event("resize"));
-                  document.documentElement.style.setProperty("--nexus-webview-resume", String(Date.now()));
-                  if (document.body) {
-                    document.body.getBoundingClientRect();
-                  }
-                  const root = document.getElementById("root");
-                  return Boolean(root && root.childElementCount > 0 && document.readyState !== "loading");
-                })();
-                """);
-            if (IsTruthyScriptResult(result))
+            ResumeProbeResult probe = await CaptureResumeProbeAsync();
+            UpdateLastRouteFromProbe(probe);
+            if (probe.IsReady)
             {
+                consecutiveResumeProbeFailures = 0;
                 startupTimeline.Mark("webview.resume_check_ready", new Dictionary<string, string>
                 {
                     ["path"] = lastRoute.Path,
@@ -157,7 +184,7 @@ internal sealed class WebViewHost : IDisposable
                 return;
             }
 
-            ReloadAfterResumeProbe(reason, "empty_or_loading_root");
+            await HandleResumeProbeFailureAsync(reason, "empty_or_loading_root", probe);
         }
         catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
         {
@@ -170,7 +197,7 @@ internal sealed class WebViewHost : IDisposable
         }
         catch (Exception exception)
         {
-            ReloadAfterResumeProbe(reason, exception.GetType().Name);
+            await HandleResumeProbeFailureAsync(reason, exception.GetType().Name);
         }
         finally
         {
@@ -195,20 +222,203 @@ internal sealed class WebViewHost : IDisposable
         webView.Dispose();
     }
 
-    private void ReloadAfterResumeProbe(string reason, string probeResult)
+    private async Task HandleResumeProbeFailureAsync(
+        string reason,
+        string probeResult,
+        ResumeProbeResult? probe = null)
     {
         if (disposed || webView.CoreWebView2 is null)
         {
             return;
         }
 
-        startupTimeline.Mark("webview.resume_reload", new Dictionary<string, string>
+        consecutiveResumeProbeFailures++;
+        probe ??= await CaptureResumeProbeAsync();
+        UpdateLastRouteFromProbe(probe);
+        DesktopWebRoute recoveryRoute = probe.CurrentRoute ?? lastRoute;
+        string probeSnapshot = probe.Snapshot;
+        Dictionary<string, string> metadata = new()
         {
-            ["path"] = lastRoute.Path,
+            ["path"] = recoveryRoute.Path,
             ["probe"] = TrimMetadata(probeResult),
             ["reason"] = reason,
-        });
-        webView.CoreWebView2.Reload();
+            ["failure_count"] = consecutiveResumeProbeFailures.ToString(),
+        };
+        if (!string.IsNullOrWhiteSpace(probeSnapshot))
+        {
+            metadata["probe_snapshot"] = TrimMetadata(probeSnapshot);
+        }
+
+        if (consecutiveResumeProbeFailures < ResumeProbeRecreateThreshold)
+        {
+            startupTimeline.Mark("webview.resume_reload", metadata);
+            webView.CoreWebView2.Reload();
+            return;
+        }
+
+        string? diagnosticsPath = DesktopDiagnosticsReport.WriteRuntimeIssue(
+            prefix: "webview-resume-failed",
+            reason: probeResult,
+            runtime: runtime,
+            startupTimeline: startupTimeline,
+            details: new Dictionary<string, object?>
+            {
+                ["route_path"] = recoveryRoute.Path,
+                ["resume_reason"] = reason,
+                ["probe_result"] = probeResult,
+                ["failure_count"] = consecutiveResumeProbeFailures,
+                ["probe_snapshot"] = TrimDiagnosticDetail(probeSnapshot),
+            });
+        if (!string.IsNullOrWhiteSpace(diagnosticsPath))
+        {
+            metadata["diagnostics_path"] = diagnosticsPath;
+        }
+        startupTimeline.Mark("webview.resume_probe_recreate", metadata);
+        await recreateWebViewAsync(recoveryRoute, "resume_probe", probeResult);
+    }
+
+    private async Task<ResumeProbeResult> CaptureResumeProbeAsync()
+    {
+        if (disposed || webView.CoreWebView2 is null)
+        {
+            return new ResumeProbeResult(false, null, string.Empty);
+        }
+
+        try
+        {
+            string result = await webView.CoreWebView2.ExecuteScriptAsync(
+                """
+                (() => {
+                  window.dispatchEvent(new Event("resize"));
+                  document.documentElement.style.setProperty("--nexus-webview-resume", String(Date.now()));
+                  if (document.body) {
+                    document.body.getBoundingClientRect();
+                  }
+                  const root = document.getElementById("root");
+                  return {
+                    isReady: Boolean(root && root.childElementCount > 0 && document.readyState !== "loading"),
+                    href: window.location.href,
+                    path: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+                    readyState: document.readyState,
+                    title: document.title,
+                    hasRoot: Boolean(root),
+                    rootChildren: root?.childElementCount ?? -1,
+                    bodyChildren: document.body?.childElementCount ?? -1,
+                    bodyTextLength: document.body?.innerText?.length ?? -1
+                  };
+                })();
+                """);
+            return ParseResumeProbeResult(result);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException)
+        {
+            string snapshot = exception.GetType().Name + ": " + exception.Message;
+            return new ResumeProbeResult(false, null, snapshot);
+        }
+    }
+
+    private void UpdateLastRouteFromProbe(ResumeProbeResult probe)
+    {
+        if (probe.CurrentRoute is not null)
+        {
+            lastRoute = probe.CurrentRoute;
+        }
+    }
+
+    private static ResumeProbeResult ParseResumeProbeResult(string rawResult)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(rawResult);
+            if (document.RootElement.ValueKind == JsonValueKind.String)
+            {
+                string snapshot = document.RootElement.GetString() ?? string.Empty;
+                if (!snapshot.TrimStart().StartsWith("{", StringComparison.Ordinal))
+                {
+                    return new ResumeProbeResult(false, null, snapshot);
+                }
+
+                using JsonDocument nestedDocument = JsonDocument.Parse(snapshot);
+                return ParseResumeProbeObject(nestedDocument.RootElement, snapshot);
+            }
+
+            return ParseResumeProbeObject(document.RootElement, document.RootElement.GetRawText());
+        }
+        catch (JsonException)
+        {
+            return new ResumeProbeResult(false, null, rawResult);
+        }
+    }
+
+    private static ResumeProbeResult ParseResumeProbeObject(JsonElement root, string snapshot)
+    {
+        bool isReady = root.TryGetProperty("isReady", out JsonElement readyElement) &&
+            readyElement.ValueKind is JsonValueKind.True;
+        string path = JsonString(root, "path");
+        return new ResumeProbeResult(isReady, RouteFromProbePath(path), snapshot);
+    }
+
+    private static DesktopWebRoute? RouteFromProbePath(string path)
+    {
+        string candidate = path.Trim();
+        if (!candidate.StartsWith("/", StringComparison.Ordinal) ||
+            candidate.StartsWith("//", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate("http://nexus.local" + candidate, UriKind.Absolute, out Uri? uri))
+        {
+            return DesktopWebRoute.FromPath(candidate);
+        }
+
+        string? desktopRoute = QueryValue(uri.Query, "desktop_route");
+        if (!string.IsNullOrWhiteSpace(desktopRoute))
+        {
+            return DesktopWebRoute.FromPath(desktopRoute);
+        }
+
+        string routePath = uri.AbsolutePath + uri.Query + uri.Fragment;
+        return DesktopWebRoute.FromPath(routePath);
+    }
+
+    private static string JsonString(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out JsonElement element) ||
+            element.ValueKind != JsonValueKind.String)
+        {
+            return string.Empty;
+        }
+        return element.GetString() ?? string.Empty;
+    }
+
+    private static string? QueryValue(string query, string key)
+    {
+        string normalized = query.TrimStart('?');
+        foreach (string part in normalized.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] pieces = part.Split('=', 2);
+            string name = Uri.UnescapeDataString(pieces[0].Replace("+", " "));
+            if (!string.Equals(name, key, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            return pieces.Length == 2
+                ? Uri.UnescapeDataString(pieces[1].Replace("+", " "))
+                : string.Empty;
+        }
+        return null;
+    }
+
+    private static string TrimDiagnosticDetail(string value)
+    {
+        string normalized = value.Trim();
+        const int maxLength = 4096;
+        if (normalized.Length <= maxLength)
+        {
+            return normalized;
+        }
+        return normalized[..maxLength] + "...";
     }
 
     private async Task HandleWebMessageAsync(CoreWebView2WebMessageReceivedEventArgs args)
@@ -240,20 +450,36 @@ internal sealed class WebViewHost : IDisposable
 
     private void HandleLifecycleMessage(JsonElement payload)
     {
-        string kind = payload.TryGetProperty("kind", out JsonElement kindElement)
-            ? kindElement.GetString() ?? string.Empty
-            : string.Empty;
-        if (kind != "web.ready")
+        string kind = JsonOptionalString(payload, "kind");
+        switch (kind)
         {
-            return;
+            case "web.ready":
+                HandleWebReadyMessage(payload);
+                break;
+            case "web.fatal":
+                HandleWebFatalMessage(payload);
+                break;
+            case "web.health":
+                HandleWebHealthMessage(payload);
+                break;
+            default:
+                startupTimeline.Mark("web.lifecycle_ignored", new Dictionary<string, string>
+                {
+                    ["kind"] = TrimMetadata(kind),
+                    ["surface"] = "main",
+                });
+                break;
         }
+    }
 
-        string location = payload.TryGetProperty("location", out JsonElement locationElement)
-            ? locationElement.GetString() ?? string.Empty
-            : string.Empty;
-        string source = payload.TryGetProperty("source", out JsonElement sourceElement)
-            ? sourceElement.GetString() ?? string.Empty
-            : string.Empty;
+    private void HandleWebReadyMessage(JsonElement payload)
+    {
+        string location = JsonOptionalString(payload, "location");
+        if (!string.IsNullOrWhiteSpace(location))
+        {
+            lastRoute = DesktopWebRoute.FromPath(location);
+        }
+        string source = JsonOptionalString(payload, "source");
         string reducedMotion = payload.TryGetProperty("reduced_motion", out JsonElement reducedMotionElement) &&
             reducedMotionElement.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? reducedMotionElement.GetBoolean().ToString().ToLowerInvariant()
@@ -265,6 +491,98 @@ internal sealed class WebViewHost : IDisposable
             ["source"] = source,
             ["surface"] = "main",
         });
+    }
+
+    private void HandleWebFatalMessage(JsonElement payload)
+    {
+        Dictionary<string, string> metadata = LifecycleMetadata(payload);
+        string reason = metadata.TryGetValue("message", out string? message) && !string.IsNullOrWhiteSpace(message)
+            ? message
+            : "web.fatal";
+        Dictionary<string, object?> details = new();
+        foreach (KeyValuePair<string, string> pair in metadata)
+        {
+            details[pair.Key] = pair.Value;
+        }
+
+        string? diagnosticsPath = DesktopDiagnosticsReport.WriteRuntimeIssue(
+            prefix: "web-fatal",
+            reason: reason,
+            runtime: runtime,
+            startupTimeline: startupTimeline,
+            details: details);
+        if (!string.IsNullOrWhiteSpace(diagnosticsPath))
+        {
+            metadata["diagnostics_path"] = diagnosticsPath;
+        }
+        startupTimeline.Mark("web.fatal", metadata);
+    }
+
+    private void HandleWebHealthMessage(JsonElement payload)
+    {
+        Dictionary<string, string> metadata = LifecycleMetadata(payload);
+        string status = metadata.TryGetValue("status", out string? value) ? value : "unknown";
+        string eventName = status == "ready" ? "web.health" : "web.health_unhealthy";
+        startupTimeline.Mark(eventName, metadata);
+    }
+
+    private static Dictionary<string, string> LifecycleMetadata(JsonElement payload)
+    {
+        Dictionary<string, string> metadata = new()
+        {
+            ["surface"] = "main",
+        };
+        foreach (string key in new[] { "kind", "source", "status", "message", "name", "stack", "component_stack" })
+        {
+            string value = JsonOptionalString(payload, key);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                metadata[key] = TrimMetadata(value);
+            }
+        }
+
+        string location = JsonOptionalString(payload, "location");
+        if (!string.IsNullOrWhiteSpace(location))
+        {
+            metadata["location_path"] = TrimMetadata(location);
+        }
+        if (payload.TryGetProperty("snapshot", out JsonElement snapshot) && snapshot.ValueKind == JsonValueKind.Object)
+        {
+            foreach (string key in new[] { "path", "ready_state", "title", "has_root", "root_children", "root_text_length", "body_children", "body_text_length" })
+            {
+                if (snapshot.TryGetProperty(key, out JsonElement value))
+                {
+                    metadata[$"snapshot_{key}"] = TrimMetadata(JsonValueText(value));
+                }
+            }
+        }
+        if (payload.TryGetProperty("performance", out JsonElement performance) &&
+            performance.ValueKind == JsonValueKind.Object &&
+            performance.TryGetProperty("ready_ms", out JsonElement readyMS))
+        {
+            metadata["web_ready_ms"] = TrimMetadata(JsonValueText(readyMS));
+        }
+        return metadata;
+    }
+
+    private static string JsonOptionalString(JsonElement payload, string propertyName)
+    {
+        return payload.TryGetProperty(propertyName, out JsonElement element)
+            ? JsonValueText(element)
+            : string.Empty;
+    }
+
+    private static string JsonValueText(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? string.Empty,
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => string.Empty,
+            JsonValueKind.Undefined => string.Empty,
+            _ => element.ToString(),
+        };
     }
 
     private Task OpenRouteAsync(string route)
@@ -284,11 +602,6 @@ internal sealed class WebViewHost : IDisposable
             return normalized;
         }
         return normalized[..maxLength] + "...";
-    }
-
-    private static bool IsTruthyScriptResult(string value)
-    {
-        return string.Equals(value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private void InstallDesktopSessionCookie(CoreWebView2 core)
@@ -365,7 +678,9 @@ internal sealed class WebViewHost : IDisposable
 
         if (string.Equals(uri.Scheme, "nexus", StringComparison.OrdinalIgnoreCase))
         {
-            webView.Source = DesktopProtocolRouter.RouteFromActivationMessage(rawUrl).ToUri(runtime);
+            DesktopWebRoute nextRoute = DesktopProtocolRouter.RouteFromActivationMessage(rawUrl);
+            lastRoute = nextRoute;
+            webView.Source = nextRoute.ToUri(runtime);
             startupTimeline.Mark("webview.navigation_protocol_route", new Dictionary<string, string>
             {
                 ["scheme"] = "nexus",

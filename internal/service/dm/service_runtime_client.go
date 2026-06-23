@@ -11,7 +11,9 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -27,7 +29,7 @@ func (s *Service) ensureClient(
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
-) (runtimectx.Client, string, string, string, string, sdkpermission.Mode, error) {
+) (runtimectx.Client, string, string, string, string, string, sdkpermission.Mode, error) {
 	permissionMode := request.PermissionMode
 	if permissionMode == "" {
 		permissionMode = sdkpermission.Mode(agentValue.Options.PermissionMode)
@@ -49,11 +51,11 @@ func (s *Service) ensureClient(
 		agentValue.IsMain,
 		agentValue.CreatedAt,
 	); err != nil {
-		return nil, "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", permissionMode, err
 	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", permissionMode, err
 	}
 	goalContext, goalIDForUsage := "", ""
 	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) {
@@ -65,7 +67,7 @@ func (s *Service) ensureClient(
 	}
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", permissionMode, err
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
@@ -74,7 +76,7 @@ func (s *Service) ensureClient(
 		Model:                      runtimeSelection.Model,
 		PermissionMode:             permissionMode,
 		PermissionHandler:          permissionHandler,
-		AllowedTools:               toolpolicy.WithManagedGoalAllowedTools(agentValue.Options.AllowedTools),
+		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
 		DisallowedTools:            agentValue.Options.DisallowedTools,
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,
@@ -85,7 +87,7 @@ func (s *Service) ensureClient(
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 	})
 	if err != nil {
-		return nil, "", "", "", "", permissionMode, err
+		return nil, "", "", "", "", "", permissionMode, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
@@ -108,8 +110,8 @@ func (s *Service) ensureClient(
 	)
 	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
 	if err != nil {
-		if !shouldRetryDMClientWithoutResume(options.Session.ResumeID, err) {
-			return nil, "", "", "", "", permissionMode, err
+		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
+			return nil, "", "", "", "", "", permissionMode, err
 		}
 		s.loggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
 			"session_key", sessionKey,
@@ -118,18 +120,18 @@ func (s *Service) ensureClient(
 			"err", err,
 		)
 		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			return nil, "", "", "", "", permissionMode, closeErr
+			return nil, "", "", "", "", "", permissionMode, closeErr
 		}
 		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
-			return nil, "", "", "", "", permissionMode, clearErr
+			return nil, "", "", "", "", "", permissionMode, clearErr
 		}
 		options.Session.ResumeID = ""
 		client, err = s.acquireRuntimeClient(ctx, sessionKey, options)
 		if err != nil {
-			return nil, "", "", "", "", permissionMode, err
+			return nil, "", "", "", "", "", permissionMode, err
 		}
 	}
-	return client, runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
+	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, permissionMode, nil
 }
 
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string) {
@@ -144,18 +146,14 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 		s.loggerFor(ctx).Warn("读取 Goal runtime context 失败", "session_key", sessionKey, "err", err)
 		return "", ""
 	}
-	goalID := goalIDForRuntimeUsage(goal)
+	goalID := ""
+	if goal != nil {
+		goalID = strings.TrimSpace(goal.ID)
+	}
 	if strings.TrimSpace(goalContext) == "" {
 		return "", goalID
 	}
 	return strings.TrimSpace(goalContext), goalID
-}
-
-func goalIDForRuntimeUsage(goal *protocol.Goal) string {
-	if goal == nil {
-		return ""
-	}
-	return strings.TrimSpace(goal.ID)
 }
 
 func (s *Service) resolveAgentRuntimeSelection(
@@ -165,6 +163,19 @@ func (s *Service) resolveAgentRuntimeSelection(
 	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent: agentValue,
 	})
+}
+
+type imagegenDefaultResolver interface {
+	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
+}
+
+func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {
+	resolver, ok := s.providers.(imagegenDefaultResolver)
+	if !ok || resolver == nil {
+		return false
+	}
+	_, err := resolver.ResolveImageConfig(ctx, "")
+	return err == nil
 }
 
 func (s *Service) resolveReusableSDKSessionID(
@@ -178,33 +189,62 @@ func (s *Service) resolveReusableSDKSessionID(
 	if resumeID == "" {
 		return ""
 	}
+	expectedKind := strings.TrimSpace(string(options.Runtime.Kind))
 	expectedProvider := strings.TrimSpace(provider)
 	expectedModel := strings.TrimSpace(options.Model)
+	actualKind, hasKindFingerprint := sessionItem.Options[protocol.OptionRuntimeKind].(string)
 	actualProvider, hasProviderFingerprint := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
 	actualModel, hasModelFingerprint := sessionItem.Options[protocol.OptionRuntimeModel].(string)
+	actualKind = strings.TrimSpace(actualKind)
 	actualProvider = strings.TrimSpace(actualProvider)
 	actualModel = strings.TrimSpace(actualModel)
-	hasFingerprint := hasProviderFingerprint || hasModelFingerprint
-	if hasFingerprint &&
+	hasFingerprint := hasKindFingerprint || hasProviderFingerprint || hasModelFingerprint
+	fingerprintMatches := hasFingerprint &&
+		(!hasKindFingerprint || actualKind == expectedKind) &&
 		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
-		(!hasModelFingerprint || actualModel == expectedModel) {
-		if !hasProviderFingerprint || !hasModelFingerprint {
-			s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedProvider, expectedModel)
+		(!hasModelFingerprint || actualModel == expectedModel)
+	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	if decision.Allowed {
+		if !fingerprintMatches {
+			s.loggerFor(ctx).Info("DM session runtime 配置已变更但 transcript 可恢复，继续 resume",
+				"session_key", sessionItem.SessionKey,
+				"sdk_session_id", resumeID,
+				"old_runtime_kind", actualKind,
+				"new_runtime_kind", expectedKind,
+				"old_provider", actualProvider,
+				"new_provider", expectedProvider,
+				"old_model", actualModel,
+				"new_model", expectedModel,
+				"reason", string(decision.Reason),
+			)
 		}
+		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedKind, expectedProvider, expectedModel)
 		return resumeID
 	}
-	if !hasFingerprint {
-		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, false, expectedProvider, expectedModel)
-		return resumeID
+	if decision.Err != nil {
+		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，跳过过期 resume",
+			"session_key", sessionItem.SessionKey,
+			"workspace_path", workspacePath,
+			"sdk_session_id", decision.SessionID,
+			"reason", string(decision.Reason),
+			"err", decision.Err,
+		)
+		s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
+		return ""
 	}
-	s.loggerFor(ctx).Warn("DM session runtime 配置已变更，跳过过期 SDK session resume",
+
+	s.loggerFor(ctx).Warn("DM SDK session transcript 不存在，跳过过期 resume",
 		"session_key", sessionItem.SessionKey,
+		"sdk_session_id", decision.SessionID,
+		"old_runtime_kind", actualKind,
+		"new_runtime_kind", expectedKind,
 		"old_provider", actualProvider,
 		"new_provider", expectedProvider,
 		"old_model", actualModel,
 		"new_model", expectedModel,
+		"reason", string(decision.Reason),
 	)
-	s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedProvider, expectedModel)
+	s.persistSDKSessionFingerprint(ctx, workspacePath, sessionItem, true, expectedKind, expectedProvider, expectedModel)
 	return ""
 }
 
@@ -213,6 +253,7 @@ func (s *Service) persistSDKSessionFingerprint(
 	workspacePath string,
 	sessionItem protocol.Session,
 	clearSessionID bool,
+	runtimeKind string,
 	provider string,
 	model string,
 ) {
@@ -222,8 +263,18 @@ func (s *Service) persistSDKSessionFingerprint(
 	if sessionItem.Options == nil {
 		sessionItem.Options = map[string]any{}
 	}
+	sessionItem.Options[protocol.OptionRuntimeKind] = strings.TrimSpace(runtimeKind)
 	sessionItem.Options[protocol.OptionRuntimeProvider] = strings.TrimSpace(provider)
 	sessionItem.Options[protocol.OptionRuntimeModel] = strings.TrimSpace(model)
+	var err error
+	sessionItem, err = s.preservePersistedSessionTitle(workspacePath, sessionItem)
+	if err != nil {
+		s.loggerFor(ctx).Error("DM session runtime 配置指纹保留标题失败",
+			"session_key", sessionItem.SessionKey,
+			"err", err,
+		)
+		return
+	}
 	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
 		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
 			"session_key", sessionItem.SessionKey,
@@ -328,8 +379,4 @@ func (s *Service) withRuntimeDiagnosticsLogger(
 		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
 	)
 	return options
-}
-
-func shouldRetryDMClientWithoutResume(resumeID string, err error) bool {
-	return strings.TrimSpace(resumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err)
 }

@@ -10,6 +10,7 @@ enum DesktopRuntimeScript {
       "app_version": runtime.appVersion,
       "build_number": runtime.buildNumber,
       "platform": runtime.platform,
+      "oauth_redirect_uri": runtime.oauthRedirectURL.absoluteString,
     ]
     let data = try JSONSerialization.data(withJSONObject: payload, options: [])
     guard let json = String(data: data, encoding: .utf8) else {

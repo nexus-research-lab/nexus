@@ -19,6 +19,7 @@ import (
 	goalobjectivesvc "github.com/nexus-research-lab/nexus/internal/service/goalobjective"
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
+	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	operationsvc "github.com/nexus-research-lab/nexus/internal/service/operation"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -52,6 +53,7 @@ type AppServices struct {
 	Automation     *automationsvc.Service
 	Imagegen       *imagegensvc.Service
 	Goal           *goalsvc.Service
+	Loops          *loopsvc.Service
 	Operation      *operationsvc.Service
 }
 
@@ -78,6 +80,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	preferencesService := preferencessvc.NewService(cfg)
 	operationService := operationsvc.NewService(cfg)
 	imagegenService := imagegensvc.NewService(providerService)
+	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
@@ -110,6 +113,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetTitleGenerator(titleService)
+	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
 	ingressService.SetLogger(logger.With("component", "channels.ingress"))
 	ingressService.SetControlService(channelControl)
@@ -133,6 +137,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelRouter,
 	)
 	automationService.SetRuntimeSessionCloser(runtimeManager)
+	automationService.SetProviderResolver(providerService)
 	automationService.SetLogger(logger.With("component", "automation"))
 
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
@@ -140,7 +145,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
 	goalBuilder := newGoalMCPBuilder(cfg, goalService)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
-	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent)
+	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
 		automationBuilder,
 		connectorBuilder,
@@ -175,6 +180,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Automation:     automationService,
 		Imagegen:       imagegenService,
 		Goal:           goalService,
+		Loops:          loopService,
 		Operation:      operationService,
 	}
 }

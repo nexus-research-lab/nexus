@@ -2,6 +2,8 @@ import AppKit
 import WebKit
 
 final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
+  private static let resumeProbeReloadThreshold = 2
+
   let webView: WKWebView
   private let runtime: SidecarRuntimeConfig
   private let surfaceName: String
@@ -9,6 +11,16 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   private let bridgeHandler: DesktopBridgeHandler
   private let lifecycleHandler: DesktopLifecycleHandler
   private var lastRequestedURL: URL?
+  private var lastRoute = DesktopWebRoute(path: "/launcher", entry: .app)
+  private var resumeCheckInFlight = false
+  private var consecutiveResumeProbeFailures = 0
+  private var lastResumeCheckAt = Date.distantPast
+
+  private struct ResumeProbeResult {
+    let isReady: Bool
+    let currentRoute: DesktopWebRoute?
+    let snapshot: String
+  }
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -60,6 +72,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   func load(_ url: URL? = nil) {
     let targetURL = url ?? runtime.webURL
     lastRequestedURL = targetURL
+    updateLastRoute(from: targetURL)
     startupTimeline?.mark("webview.cookie_begin", metadata: webMetadata(url: targetURL))
     installDesktopSessionCookie {
       self.startupTimeline?.mark("webview.load_begin", metadata: self.webMetadata(url: targetURL))
@@ -69,7 +82,34 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
 
   func reload() {
     startupTimeline?.mark("webview.reload", metadata: webMetadata(url: webView.url))
-    webView.reload()
+    installDesktopSessionCookie {
+      self.webView.reload()
+    }
+  }
+
+  func recoverAfterWindowShown(reason: String) {
+    if resumeCheckInFlight {
+      return
+    }
+
+    let now = Date()
+    if now.timeIntervalSince(lastResumeCheckAt) < 5 {
+      return
+    }
+
+    lastResumeCheckAt = now
+    resumeCheckInFlight = true
+    startupTimeline?.mark("webview.resume_check_begin", metadata: [
+      "path": lastRoute.path,
+      "reason": reason,
+      "surface": surfaceName,
+    ])
+    webView.needsDisplay = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+      self?.captureResumeProbe { probe in
+        self?.handleResumeProbe(reason: reason, probe: probe)
+      }
+    }
   }
 
   func webView(
@@ -83,6 +123,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
     if isInternalNavigation(url) {
       lastRequestedURL = url
+      updateLastRoute(from: url)
       decisionHandler(.allow)
       return
     }
@@ -123,6 +164,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
     if isInternalNavigation(url) {
       lastRequestedURL = url
+      updateLastRoute(from: url)
       webView.load(URLRequest(url: url))
       return nil
     }
@@ -188,6 +230,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    updateLastRoute(from: webView.url ?? lastRequestedURL)
     startupTimeline?.mark("webview.navigation_finished", metadata: webMetadata(url: webView.url ?? lastRequestedURL))
     probeDesktopBridge()
   }
@@ -222,7 +265,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     }
     startupTimeline?.mark("webview.content_process_terminated", metadata: metadata)
     NSLog("[Nexus WebView] content process terminated, reloading current route.")
-    webView.reload()
+    load((Self.route(from: targetURL) ?? lastRoute).url(runtime: runtime))
   }
 
   func webView(
@@ -245,6 +288,184 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       return false
     }
     return true
+  }
+
+  private func captureResumeProbe(completion: @escaping (ResumeProbeResult) -> Void) {
+    let script = """
+    (() => {
+      window.dispatchEvent(new Event("resize"));
+      document.documentElement.style.setProperty("--nexus-webview-resume", String(Date.now()));
+      if (document.body) {
+        document.body.getBoundingClientRect();
+      }
+      const root = document.getElementById("root");
+      return {
+        isReady: Boolean(root && root.childElementCount > 0 && document.readyState !== "loading"),
+        href: window.location.href,
+        path: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+        readyState: document.readyState,
+        title: document.title,
+        hasRoot: Boolean(root),
+        rootChildren: root ? root.childElementCount : -1,
+        bodyChildren: document.body ? document.body.childElementCount : -1,
+        bodyTextLength: document.body ? document.body.innerText.length : -1
+      };
+    })();
+    """
+    webView.evaluateJavaScript(script) { result, error in
+      if let error {
+        completion(ResumeProbeResult(
+          isReady: false,
+          currentRoute: nil,
+          snapshot: "\(type(of: error)): \(error.localizedDescription)"
+        ))
+        return
+      }
+
+      completion(Self.parseResumeProbe(result))
+    }
+  }
+
+  private func handleResumeProbe(reason: String, probe: ResumeProbeResult) {
+    defer {
+      resumeCheckInFlight = false
+    }
+
+    if let currentRoute = probe.currentRoute {
+      lastRoute = currentRoute
+    }
+
+    if probe.isReady {
+      consecutiveResumeProbeFailures = 0
+      startupTimeline?.mark("webview.resume_check_ready", metadata: [
+        "path": lastRoute.path,
+        "reason": reason,
+        "surface": surfaceName,
+      ])
+      return
+    }
+
+    consecutiveResumeProbeFailures += 1
+    let recoveryRoute = probe.currentRoute ?? lastRoute
+    var metadata: [String: String] = [
+      "failure_count": "\(consecutiveResumeProbeFailures)",
+      "path": recoveryRoute.path,
+      "probe": "empty_or_loading_root",
+      "reason": reason,
+      "surface": surfaceName,
+    ]
+    if !probe.snapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      metadata["probe_snapshot"] = Self.trimMetadata(probe.snapshot)
+    }
+
+    if consecutiveResumeProbeFailures >= Self.resumeProbeReloadThreshold,
+       let diagnosticsURL = DesktopDiagnosticsReport.writeRuntimeIssue(
+        prefix: "webview-resume-failed",
+        reason: "empty_or_loading_root",
+        runtime: runtime,
+        startupTimeline: startupTimeline,
+        details: [
+          "failure_count": consecutiveResumeProbeFailures,
+          "probe_snapshot": Self.trimDiagnosticDetail(probe.snapshot),
+          "resume_reason": reason,
+          "route_path": recoveryRoute.path,
+        ]
+       ) {
+      metadata["diagnostics_path"] = diagnosticsURL.path
+    }
+
+    startupTimeline?.mark("webview.resume_reload", metadata: metadata)
+    load(recoveryRoute.url(runtime: runtime))
+  }
+
+  private func updateLastRoute(from url: URL?) {
+    guard let route = Self.route(from: url) else {
+      return
+    }
+    lastRoute = route
+  }
+
+  private static func parseResumeProbe(_ result: Any?) -> ResumeProbeResult {
+    let snapshot = diagnosticString(result)
+    guard let record = result as? [String: Any] else {
+      return ResumeProbeResult(isReady: false, currentRoute: nil, snapshot: snapshot)
+    }
+    let isReady = record["isReady"] as? Bool ?? false
+    let path = record["path"] as? String ?? ""
+    return ResumeProbeResult(isReady: isReady, currentRoute: route(fromProbePath: path), snapshot: snapshot)
+  }
+
+  private static func route(from url: URL?) -> DesktopWebRoute? {
+    guard let url else {
+      return nil
+    }
+    guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+      return nil
+    }
+    var path = components.path.isEmpty ? "/" : components.path
+    if let query = components.percentEncodedQuery, !query.isEmpty {
+      path += "?\(query)"
+    }
+    if let fragment = components.percentEncodedFragment, !fragment.isEmpty {
+      path += "#\(fragment)"
+    }
+    return route(fromProbePath: path)
+  }
+
+  private static func route(fromProbePath path: String) -> DesktopWebRoute? {
+    let candidate = path.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard candidate.hasPrefix("/"), !candidate.hasPrefix("//") else {
+      return nil
+    }
+    guard let components = URLComponents(string: "http://nexus.local\(candidate)") else {
+      return DesktopWebRoute.appRoute(candidate)
+    }
+
+    if let desktopRoute = components.queryItems?.first(where: { $0.name == "desktop_route" })?.value,
+       let route = DesktopWebRoute.appRoute(desktopRoute) {
+      return route
+    }
+
+    var routeValue = components.path.isEmpty ? "/" : components.path
+    if let query = components.percentEncodedQuery, !query.isEmpty {
+      routeValue += "?\(query)"
+    }
+    if let fragment = components.percentEncodedFragment, !fragment.isEmpty {
+      routeValue += "#\(fragment)"
+    }
+    return DesktopWebRoute.appRoute(routeValue)
+  }
+
+  private static func diagnosticString(_ value: Any?) -> String {
+    guard let value else {
+      return ""
+    }
+    if JSONSerialization.isValidJSONObject(value),
+       let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+       let text = String(data: data, encoding: .utf8) {
+      return text
+    }
+    return "\(value)"
+  }
+
+  private static func trimMetadata(_ value: String) -> String {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let maxLength = 240
+    if normalized.count <= maxLength {
+      return normalized
+    }
+    let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+    return String(normalized[..<endIndex]) + "..."
+  }
+
+  private static func trimDiagnosticDetail(_ value: String) -> String {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let maxLength = 4096
+    if normalized.count <= maxLength {
+      return normalized
+    }
+    let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+    return String(normalized[..<endIndex]) + "..."
   }
 
   private func webMetadata(url: URL?, extra: [String: String] = [:]) -> [String: String] {

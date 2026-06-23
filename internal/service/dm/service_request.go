@@ -79,7 +79,7 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	runtimeContent = s.injectMemoryContext(ctx, agentValue, sessionItem, sessionKey, request.Content, runtimeContent)
 	runtimeContent = s.appendRuntimeUserContext(ctx, sessionKey, agentValue, runtimeContent)
 
-	client, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, permissionMode, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
+	client, runtimeKind, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, permissionMode, err := s.ensureClient(ctx, sessionKey, agentValue, sessionItem, request)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM runtime client 初始化失败",
 			"session_key", sessionKey,
@@ -92,12 +92,6 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	if override := strings.TrimSpace(request.GoalContext); request.Internal && override != "" {
 		goalContext = override
 	}
-	if updatedSession, syncErr := s.syncSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem, client.SessionID(), runtimeProvider, runtimeModel); syncErr != nil {
-		return syncErr
-	} else {
-		sessionItem = updatedSession
-	}
-
 	roundCtx, cancel := context.WithCancel(context.Background())
 	s.runtime.StartRound(sessionKey, request.RoundID, cancel)
 	s.permission.BindSessionRoute(sessionKey, permissionctx.RouteContext{
@@ -107,28 +101,30 @@ func (s *Service) HandleChat(ctx context.Context, request Request) error {
 	})
 
 	runner := &roundRunner{
-		service:           s,
-		workspacePath:     agentValue.WorkspacePath,
-		session:           sessionItem,
-		agent:             agentValue,
-		sessionKey:        sessionKey,
-		roundID:           request.RoundID,
-		reqID:             dmdomain.FirstNonEmpty(request.ReqID, request.RoundID),
-		content:           strings.TrimSpace(request.Content),
-		runtimeContent:    runtimeContent,
-		client:            client,
-		runtimeProvider:   runtimeProvider,
-		runtimeModel:      runtimeModel,
-		ownerUserID:       authctx.OwnerUserID(ctx),
-		mapper:            dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
-		inputOptions:      request.InputOptions,
-		internal:          request.Internal,
-		goalContext:       goalContext,
-		goalIDForUsage:    goalIDForUsage,
-		goalUsage:         goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(goalIDForUsage) != ""),
-		goalUsageStarted:  time.Now(),
-		permissionMode:    permissionMode,
-		permissionHandler: request.PermissionHandler,
+		service:             s,
+		workspacePath:       agentValue.WorkspacePath,
+		session:             sessionItem,
+		agent:               agentValue,
+		sessionKey:          sessionKey,
+		roundID:             request.RoundID,
+		reqID:               dmdomain.FirstNonEmpty(request.ReqID, request.RoundID),
+		content:             strings.TrimSpace(request.Content),
+		runtimeContent:      runtimeContent,
+		client:              client,
+		runtimeKind:         runtimeKind,
+		runtimeProvider:     runtimeProvider,
+		runtimeModel:        runtimeModel,
+		ownerUserID:         authctx.OwnerUserID(ctx),
+		mapper:              dmdomain.NewMessageMapper(sessionKey, agentID, request.RoundID, agentValue.WorkspacePath),
+		inputOptions:        request.InputOptions,
+		internal:            request.Internal,
+		externalReplyTarget: request.ExternalReplyTarget,
+		goalContext:         goalContext,
+		goalIDForUsage:      goalIDForUsage,
+		goalUsage:           goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(goalIDForUsage) != ""),
+		goalUsageStarted:    time.Now(),
+		permissionMode:      permissionMode,
+		permissionHandler:   request.PermissionHandler,
 	}
 	s.runtime.RegisterGoalAccountingFlush(sessionKey, request.RoundID, runner.flushGoalUsage)
 	s.runtime.RegisterGoalAccountingClear(sessionKey, request.RoundID, runner.clearGoalUsage)

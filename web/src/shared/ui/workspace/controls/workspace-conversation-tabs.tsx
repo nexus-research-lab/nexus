@@ -4,6 +4,7 @@ import { MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { flushSync } from "react-dom";
 import { Plus, X } from "lucide-react";
 
+import { get_session_channel_label } from "@/features/conversation/external-session-labels";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { RoomConversationView } from "@/types/conversation/conversation";
@@ -21,7 +22,7 @@ const CONVERSATION_TAB_BASE_CLASS_NAME =
   "group relative inline-flex h-6.5 flex-none items-center overflow-hidden rounded-[13px] border text-[11px] font-semibold transition-[width,background-color,border-color,color,box-shadow] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
 
 const CONVERSATION_TAB_TRACK_CLASS_NAME =
-  "soft-scrollbar scrollbar-hide flex h-[30px] w-full min-w-0 items-center gap-0 overflow-x-auto rounded-[15px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_52%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_86%,rgba(117,131,149,0.32))] px-px py-px shadow-[inset_0_1px_1px_rgba(15,23,42,0.05),inset_0_-1px_0_rgba(255,255,255,0.62)]";
+  "soft-scrollbar scrollbar-hide flex h-[30px] w-full min-w-0 items-center gap-0 overflow-x-auto rounded-[15px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_72%,transparent)] px-px py-px shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]";
 
 const CREATE_CONVERSATION_BUTTON_SPACE = 88;
 const TRACK_HORIZONTAL_PADDING = 2;
@@ -45,6 +46,25 @@ function are_conversation_ids_equal(left_ids: string[], right_ids: string[]): bo
     return false;
   }
   return left_ids.every((id, index) => id === right_ids[index]);
+}
+
+function is_external_session_conversation(conversation?: RoomConversationView): boolean {
+  return conversation?.options?.external_session === true;
+}
+
+function string_option(options: Record<string, unknown>, key: string): string | null {
+  const value = options[key];
+  return typeof value === "string" ? value : null;
+}
+
+function get_external_session_label(conversation: RoomConversationView): string | null {
+  if (!is_external_session_conversation(conversation)) {
+    return null;
+  }
+  return get_session_channel_label(
+    string_option(conversation.options, "channel_type"),
+    conversation.session_key,
+  );
 }
 
 function get_initial_open_conversation_ids(
@@ -278,7 +298,8 @@ export function WorkspaceConversationTabs({
         on_select_conversation(next_active_id);
       }
     }
-    if (on_close_conversation) {
+    const target_conversation = conversations_by_id.get(target_conversation_id);
+    if (on_close_conversation && !is_external_session_conversation(target_conversation)) {
       void on_close_conversation(target_conversation_id).catch(() => undefined);
     }
   };
@@ -293,7 +314,7 @@ export function WorkspaceConversationTabs({
       {on_create_conversation ? (
         <button
           aria-label={t("room.new_conversation")}
-          className="relative mr-1 inline-flex h-6.5 w-[84px] shrink-0 items-center justify-start rounded-[13px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_74%,rgba(255,255,255,0.58))] pl-[22px] pr-2 text-left text-[11px] font-semibold leading-none text-(--text-default) shadow-[inset_0_1px_0_rgba(255,255,255,0.68)] transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_42%,var(--divider-subtle-color)_58%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--success) hover:shadow-[0_1px_2px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.76)] disabled:opacity-60"
+          className="relative mr-1 inline-flex h-6.5 w-[84px] shrink-0 items-center justify-start rounded-[13px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_76%,transparent)] pl-[22px] pr-2 text-left text-[11px] font-semibold leading-none text-(--text-default) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_24%,var(--divider-subtle-color)_76%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--success) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--success)_8%,transparent)] disabled:opacity-60"
           disabled={is_creating}
           onClick={() => {
             void handle_create_conversation();
@@ -318,6 +339,7 @@ export function WorkspaceConversationTabs({
           );
         const should_show_separator = conversation_index > 0 && !is_active && !is_hovered && !is_previous_highlighted;
         const title = conversation.title?.trim() || t("room.untitled_conversation");
+        const external_session_label = get_external_session_label(conversation);
         const tab_width = tab_widths.get(conversation.conversation_id);
 
         return (
@@ -325,8 +347,8 @@ export function WorkspaceConversationTabs({
             className={cn(
               CONVERSATION_TAB_BASE_CLASS_NAME,
               is_active
-                ? "z-10 border-[color:color-mix(in_srgb,var(--divider-subtle-color)_88%,transparent)] bg-(--surface-interactive-active-background) text-(--text-strong) shadow-[0_0_3px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.82)] hover:border-transparent hover:bg-(--surface-interactive-hover-background) hover:shadow-[0_1px_2px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.66)]"
-                : "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) hover:shadow-[0_1px_2px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.66)]",
+                ? "z-10 border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-(--surface-interactive-active-background) text-(--text-strong) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_6%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] hover:bg-(--surface-interactive-hover-background) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]"
+                : "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
               should_show_separator &&
                 "before:pointer-events-none before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] before:content-['']",
             )}
@@ -341,7 +363,7 @@ export function WorkspaceConversationTabs({
               minWidth: is_active ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH,
               width: tab_width ?? (is_active ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH),
             }}
-            title={title}
+            title={external_session_label ? `${title} · IM ${external_session_label}` : title}
           >
             <button
               aria-current={is_active ? "page" : undefined}
@@ -369,6 +391,11 @@ export function WorkspaceConversationTabs({
                 )}
               />
               <span className="min-w-0 truncate">{title}</span>
+              {external_session_label ? (
+                <span className="ml-1 inline-flex shrink-0 items-center rounded-[5px] border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-bold leading-none text-(--primary)">
+                  IM
+                </span>
+              ) : null}
             </button>
             {ordered_conversations.length > 1 ? (
               <button

@@ -151,6 +151,13 @@ func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
 	roomID := "room-1"
 	conversationID := "conversation-1"
 	now := time.Date(2026, 5, 20, 9, 30, 0, 0, time.UTC)
+	externalSessionKey := protocol.BuildAgentSessionKey(
+		"amy",
+		protocol.SessionChannelWeixinPersonalSegment,
+		"dm",
+		"wx-user-1",
+		"",
+	)
 
 	items := buildBootstrapConversations([]protocol.Session{
 		{
@@ -158,6 +165,7 @@ func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
 			AgentID:        "amy",
 			RoomID:         &roomID,
 			ConversationID: &conversationID,
+			ChannelType:    "ws",
 			ChatType:       protocol.RoomTypeGroup,
 			Status:         "active",
 			IsActive:       true,
@@ -166,14 +174,50 @@ func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {
 			Title:          "room",
 			MessageCount:   2,
 		},
+		{
+			SessionKey:   externalSessionKey,
+			AgentID:      "amy",
+			ChannelType:  protocol.SessionChannelWeixinPersonal,
+			ChatType:     protocol.RoomTypeDM,
+			Status:       "closed",
+			CreatedAt:    now.Add(time.Minute),
+			LastActivity: now.Add(time.Minute),
+			Title:        "New Chat",
+			MessageCount: 4,
+		},
 	}, map[string]string{roomID: protocol.RoomTypeGroup})
 
-	if len(items) != 1 {
+	if len(items) != 2 {
 		t.Fatalf("bootstrap conversations 数量不正确: %+v", items)
 	}
 	if items[0].Status != "active" || !items[0].IsActive {
 		t.Fatalf("bootstrap conversation 应携带运行态: %+v", items[0])
 	}
+	if items[0].ChannelType != "ws" || items[0].ChatType != protocol.RoomTypeGroup {
+		t.Fatalf("bootstrap conversation 应携带通道语义: %+v", items[0])
+	}
+	externalItem := findBootstrapConversationBySessionKey(items, externalSessionKey)
+	if externalItem == nil {
+		t.Fatalf("bootstrap conversations 缺少外部 IM session: %+v", items)
+	}
+	if externalItem.RoomID != "" || externalItem.ConversationID != "" {
+		t.Fatalf("外部 IM session 不应伪装为普通 room conversation: %+v", externalItem)
+	}
+	if externalItem.AgentID != "amy" || externalItem.ChannelType != protocol.SessionChannelWeixinPersonal {
+		t.Fatalf("外部 IM session 投影字段不正确: %+v", externalItem)
+	}
+}
+
+func findBootstrapConversationBySessionKey(
+	items []BootstrapConversation,
+	sessionKey string,
+) *BootstrapConversation {
+	for index := range items {
+		if items[index].SessionKey == sessionKey {
+			return &items[index]
+		}
+	}
+	return nil
 }
 
 func createLauncherAgent(

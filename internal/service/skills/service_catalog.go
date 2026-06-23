@@ -3,12 +3,14 @@ package skills
 import (
 	"context"
 	"encoding/json"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
 func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (map[string]catalogRecord, map[string]bool, bool, error) {
@@ -38,11 +40,7 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 
 func (s *Service) addWorkspaceLocalRecords(workspacePath string, records map[string]catalogRecord, installedNames map[string]bool) {
 	skillDirs := discoverWorkspaceSkillDirs(workspacePath)
-	skillNames := make([]string, 0, len(skillDirs))
-	for skillName := range skillDirs {
-		skillNames = append(skillNames, skillName)
-	}
-	sort.Strings(skillNames)
+	skillNames := slices.Sorted(maps.Keys(skillDirs))
 	for _, skillName := range skillNames {
 		if _, ok := records[skillName]; ok {
 			installedNames[skillName] = true
@@ -263,11 +261,7 @@ func (s *Service) loadCuratedEntries() (map[string]map[string]string, error) {
 func cloneCuratedEntries(source map[string]map[string]string) map[string]map[string]string {
 	result := make(map[string]map[string]string, len(source))
 	for name, metadata := range source {
-		copied := make(map[string]string, len(metadata))
-		for key, value := range metadata {
-			copied[key] = value
-		}
-		result[name] = copied
+		result[name] = maps.Clone(metadata)
 	}
 	return result
 }

@@ -12,6 +12,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { APP_ROUTE_PATHS } from "@/app/router/route-paths";
 import { useAuth } from "@/shared/auth/auth-context";
 import { get_ui_button_class_name } from "@/shared/ui/button-styles";
+import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 
 function GuardState({
   title,
@@ -30,7 +31,7 @@ function GuardState({
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
           N
         </div>
-        <h1 className="text-[24px] font-bold tracking-[-0.04em] text-(--text-strong)">{title}</h1>
+        <h1 className="text-[24px] font-bold text-(--text-strong)">{title}</h1>
         <p className="mt-2 text-[14px] leading-6 text-(--text-muted)">{description}</p>
         {action_label && on_action ? (
           <button
@@ -57,7 +58,11 @@ export function AuthGuard() {
   };
 
   if (!is_bootstrapped) {
-    return <main className="min-h-screen bg-background text-foreground" />;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
+        <AppLoadingState message="正在连接 Nexus" />
+      </main>
+    );
   }
 
   if (error && !status) {

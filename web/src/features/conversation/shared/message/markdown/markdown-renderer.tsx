@@ -5,16 +5,18 @@ import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
 
+import { create_markdown_components } from "./markdown-components";
 import {
-  create_markdown_components,
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_PLUGINS,
   normalize_markdown_content,
   REHYPE_PLUGINS,
+} from "./markdown-renderer-shared";
+import {
   split_markdown_file_artifacts,
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "./markdown-renderer-shared";
+} from "./markdown-workspace-artifacts";
 import {
   StableMarkdownText,
   StreamingMarkdownText,

@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 const (
@@ -17,9 +18,20 @@ const (
 )
 
 type jobDeliveryResult struct {
-	Status string
-	Error  *string
-	Target *channels.DeliveryTarget
+	Status  string
+	Error   *string
+	Target  *channels.DeliveryTarget
+	Receipt *channelmessage.Receipt
+}
+
+func toChannelDeliveryTarget(target protocol.DeliveryTarget) channels.DeliveryTarget {
+	return channels.DeliveryTarget{
+		Mode:      strings.TrimSpace(target.Mode),
+		Channel:   strings.TrimSpace(target.Channel),
+		To:        strings.TrimSpace(target.To),
+		AccountID: strings.TrimSpace(target.AccountID),
+		ThreadID:  strings.TrimSpace(target.ThreadID),
+	}.Normalized()
 }
 
 var deliveryRetryBackoffs = []time.Duration{
@@ -35,40 +47,62 @@ func (s *Service) deliverJobObservation(
 	executionSessionKey string,
 	observation automationdomain.ExecutionObservation,
 ) jobDeliveryResult {
-	if strings.TrimSpace(job.Delivery.Mode) == "" || strings.TrimSpace(job.Delivery.Mode) == protocol.DeliveryModeNone {
+	deliveryMode := strings.TrimSpace(job.Delivery.Mode)
+	deliveryChannel := strings.TrimSpace(job.Delivery.Channel)
+	deliveryTo := strings.TrimSpace(job.Delivery.To)
+	executionSessionKey = strings.TrimSpace(executionSessionKey)
+	if deliveryMode == "" || deliveryMode == protocol.DeliveryModeNone {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusNotRequired}
 	}
-	if strings.TrimSpace(job.Delivery.Mode) == protocol.DeliveryModeExplicit &&
-		strings.TrimSpace(job.Delivery.Channel) == "websocket" &&
-		strings.TrimSpace(job.Delivery.To) != "" &&
-		strings.TrimSpace(job.Delivery.To) == strings.TrimSpace(executionSessionKey) {
+	if deliveryMode == protocol.DeliveryModeExplicit &&
+		deliveryChannel == "websocket" &&
+		deliveryTo != "" &&
+		deliveryTo == executionSessionKey {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusSkipped}
 	}
 	if s.delivery == nil {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusFailed, Error: stringPointer("delivery router is not configured")}
 	}
-	text := firstNonEmpty(strings.TrimSpace(observation.ResultText), strings.TrimSpace(observation.AssistantText))
+	text := firstNonEmpty(observation.ResultText, observation.AssistantText)
 	if text == "" {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusSkipped}
 	}
+	target := toChannelDeliveryTarget(job.Delivery)
+	if strings.TrimSpace(target.Mode) == channels.DeliveryModeLast {
+		target.SessionKey = strings.TrimSpace(job.Source.SessionKey)
+	}
 	deliveryCtx := contextForJobOwner(ctx, job)
-	deliveredTarget, err := s.delivery.DeliverText(
+	delivered, err := s.delivery.DeliverMessage(
 		deliveryCtx,
 		job.AgentID,
 		text,
-		toChannelDeliveryTarget(job.Delivery),
+		target,
 	)
 	if err != nil {
 		return jobDeliveryResult{Status: protocol.DeliveryStatusFailed, Error: errorPointer(err)}
 	}
-	return jobDeliveryResult{Status: protocol.DeliveryStatusSucceeded, Target: &deliveredTarget}
+	return jobDeliveryResult{Status: protocol.DeliveryStatusSucceeded, Target: &delivered.Target, Receipt: delivered.Receipt}
 }
 
 func (r jobDeliveryResult) deliveryTo(fallback protocol.DeliveryTarget) string {
+	var summary string
 	if r.Target != nil {
-		return channelDeliveryTargetSummary(*r.Target)
+		summary = channelDeliveryTargetSummary(*r.Target)
+	} else {
+		summary = deliveryTargetSummary(fallback)
 	}
-	return deliveryTargetSummary(fallback)
+	if r.Receipt == nil || strings.TrimSpace(r.Receipt.PrimaryPlatformMessageID) == "" {
+		return summary
+	}
+	switch strings.TrimSpace(r.Receipt.Channel) {
+	case "", channels.ChannelTypeInternal, channels.ChannelTypeWebSocket:
+		return summary
+	}
+	messageID := strings.TrimSpace(r.Receipt.PrimaryPlatformMessageID)
+	if summary == "" {
+		return "message:" + messageID
+	}
+	return summary + ":message:" + messageID
 }
 
 func channelDeliveryTargetSummary(target channels.DeliveryTarget) string {
@@ -134,24 +168,25 @@ func (s *Service) deliverHeartbeatObservation(
 	configValue protocol.HeartbeatConfig,
 	observation automationdomain.ExecutionObservation,
 ) *string {
-	if strings.TrimSpace(configValue.TargetMode) == "" || strings.TrimSpace(configValue.TargetMode) == protocol.HeartbeatTargetNone {
+	targetMode := strings.TrimSpace(configValue.TargetMode)
+	if targetMode == "" || targetMode == protocol.HeartbeatTargetNone {
 		return nil
 	}
 	if s.delivery == nil {
 		return stringPointer("delivery router is not configured")
 	}
 	filtered := automationdomain.FilterHeartbeatResponse(
-		firstNonEmpty(strings.TrimSpace(observation.ResultText), strings.TrimSpace(observation.AssistantText)),
+		firstNonEmpty(observation.ResultText, observation.AssistantText),
 		configValue.AckMaxChars,
 	)
 	if !filtered.ShouldDeliver || strings.TrimSpace(filtered.Text) == "" {
 		return nil
 	}
-	if _, err := s.delivery.DeliverText(
+	if _, err := s.delivery.DeliverMessage(
 		context.Background(),
 		agentID,
 		filtered.Text,
-		channels.DeliveryTarget{Mode: strings.TrimSpace(configValue.TargetMode)},
+		channels.DeliveryTarget{Mode: targetMode},
 	); err != nil {
 		return errorPointer(err)
 	}

@@ -33,6 +33,7 @@ func TestRootPrefersConfiguredBundleRoot(t *testing.T) {
 
 func TestConfigDirUsesNexusConfigDir(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus-custom")
+	t.Setenv(claudeConfigDirEnvName, filepath.Join(t.TempDir(), ".claude-custom"))
 	t.Setenv(nexusConfigDirEnvName, configDir)
 	resetConfigDirCacheForTest()
 
@@ -44,10 +45,22 @@ func TestConfigDirUsesNexusConfigDir(t *testing.T) {
 	}
 }
 
+func TestConfigDirFallsBackToClaudeConfigDir(t *testing.T) {
+	configDir := filepath.Join(t.TempDir(), ".claude-custom")
+	t.Setenv(nexusConfigDirEnvName, "")
+	t.Setenv(claudeConfigDirEnvName, configDir)
+	resetConfigDirCacheForTest()
+
+	if got := ConfigDir(); got != filepath.Clean(configDir) {
+		t.Fatalf("ConfigDir() 未使用 CLAUDE_CONFIG_DIR fallback: got=%q want=%q", got, filepath.Clean(configDir))
+	}
+}
+
 func TestConfigDirDefaultsToHomeNexus(t *testing.T) {
 	homeDir := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", homeDir)
 	t.Setenv(nexusConfigDirEnvName, "")
+	t.Setenv(claudeConfigDirEnvName, "")
 	resetConfigDirCacheForTest()
 
 	if got := ConfigDir(); got != filepath.Join(homeDir, ".nexus") {

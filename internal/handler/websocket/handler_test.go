@@ -12,6 +12,7 @@ import (
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -130,14 +131,14 @@ func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("发送 thread/goal/set 失败: %v", err)
 	}
-	setResponse := readRPCResponse[protocol.ThreadGoalSetResponse](t, conn)
+	setResponse := readRPCResponse[goalappserver.ThreadGoalSetResponse](t, conn)
 	if setResponse.Goal.ThreadID != threadID ||
-		setResponse.Goal.Status != protocol.ThreadGoalStatusPaused ||
+		setResponse.Goal.Status != goalappserver.ThreadGoalStatusPaused ||
 		setResponse.Goal.TokenBudget == nil ||
 		*setResponse.Goal.TokenBudget != 200 {
 		t.Fatalf("thread/goal/set response = %#v", setResponse)
 	}
-	updated := readRPCNotification[protocol.ThreadGoalUpdatedNotification](t, conn)
+	updated := readRPCNotification[goalappserver.ThreadGoalUpdatedNotification](t, conn)
 	if updated.Method != "thread/goal/updated" || updated.Params.Goal.Objective != "Ship app-server RPC parity" {
 		t.Fatalf("thread/goal/updated notification = %#v", updated)
 	}
@@ -149,8 +150,8 @@ func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("发送 thread/goal/get 失败: %v", err)
 	}
-	getResponse := readRPCResponse[protocol.ThreadGoalGetResponse](t, conn)
-	if getResponse.Goal == nil || getResponse.Goal.Status != protocol.ThreadGoalStatusPaused {
+	getResponse := readRPCResponse[goalappserver.ThreadGoalGetResponse](t, conn)
+	if getResponse.Goal == nil || getResponse.Goal.Status != goalappserver.ThreadGoalStatusPaused {
 		t.Fatalf("thread/goal/get response = %#v", getResponse)
 	}
 
@@ -161,11 +162,11 @@ func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("发送 thread/goal/clear 失败: %v", err)
 	}
-	clearResponse := readRPCResponse[protocol.ThreadGoalClearResponse](t, conn)
+	clearResponse := readRPCResponse[goalappserver.ThreadGoalClearResponse](t, conn)
 	if !clearResponse.Cleared {
 		t.Fatalf("thread/goal/clear response = %#v, want cleared", clearResponse)
 	}
-	cleared := readRPCNotification[protocol.ThreadGoalClearedNotification](t, conn)
+	cleared := readRPCNotification[goalappserver.ThreadGoalClearedNotification](t, conn)
 	if cleared.Method != "thread/goal/cleared" || cleared.Params.ThreadID != threadID {
 		t.Fatalf("thread/goal/cleared notification = %#v", cleared)
 	}
@@ -206,11 +207,11 @@ func TestWebSocketAppServerGoalSetCompleteClearsCurrentGoal(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("发送 thread/goal/set 失败: %v", err)
 	}
-	setResponse := readRPCResponse[protocol.ThreadGoalSetResponse](t, conn)
-	if setResponse.Goal.Status != protocol.ThreadGoalStatusPaused {
+	setResponse := readRPCResponse[goalappserver.ThreadGoalSetResponse](t, conn)
+	if setResponse.Goal.Status != goalappserver.ThreadGoalStatusPaused {
 		t.Fatalf("initial thread/goal/set response = %#v, want paused", setResponse)
 	}
-	updated := readRPCNotification[protocol.ThreadGoalUpdatedNotification](t, conn)
+	updated := readRPCNotification[goalappserver.ThreadGoalUpdatedNotification](t, conn)
 	if updated.Method != "thread/goal/updated" {
 		t.Fatalf("initial notification = %#v, want thread/goal/updated", updated)
 	}
@@ -225,11 +226,11 @@ func TestWebSocketAppServerGoalSetCompleteClearsCurrentGoal(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("发送 complete thread/goal/set 失败: %v", err)
 	}
-	completeResponse := readRPCResponse[protocol.ThreadGoalSetResponse](t, conn)
-	if completeResponse.Goal.Status != protocol.ThreadGoalStatusComplete {
+	completeResponse := readRPCResponse[goalappserver.ThreadGoalSetResponse](t, conn)
+	if completeResponse.Goal.Status != goalappserver.ThreadGoalStatusComplete {
 		t.Fatalf("complete response = %#v, want complete", completeResponse)
 	}
-	cleared := readRPCNotification[protocol.ThreadGoalClearedNotification](t, conn)
+	cleared := readRPCNotification[goalappserver.ThreadGoalClearedNotification](t, conn)
 	if cleared.Method != "thread/goal/cleared" || cleared.Params.ThreadID != threadID {
 		t.Fatalf("complete notification = %#v, want thread/goal/cleared", cleared)
 	}
@@ -241,7 +242,7 @@ func TestWebSocketAppServerGoalSetCompleteClearsCurrentGoal(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("发送 thread/goal/get 失败: %v", err)
 	}
-	getResponse := readRPCResponse[protocol.ThreadGoalGetResponse](t, conn)
+	getResponse := readRPCResponse[goalappserver.ThreadGoalGetResponse](t, conn)
 	if getResponse.Goal != nil {
 		t.Fatalf("thread/goal/get after complete = %#v, want nil current goal", getResponse)
 	}
@@ -260,8 +261,8 @@ func readEventMessage(t *testing.T, conn *websocket.Conn) protocol.EventMessage 
 }
 
 type rpcResponseEnvelope struct {
-	Result json.RawMessage                 `json:"result"`
-	Error  *protocol.AppServerRPCErrorBody `json:"error,omitempty"`
+	Result json.RawMessage                      `json:"result"`
+	Error  *goalappserver.AppServerRPCErrorBody `json:"error,omitempty"`
 }
 
 func readRPCResponse[T any](t *testing.T, conn *websocket.Conn) T {

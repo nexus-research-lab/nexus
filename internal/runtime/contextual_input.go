@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -167,7 +168,7 @@ func prependContextualInputBlocks(content any, blocks []ContextualInputBlock) an
 	case []any:
 		return prependAnyTextBlock(prefix, value)
 	default:
-		return prependText(prefix, strings.TrimSpace(stringValueForContextFallback(value)))
+		return content
 	}
 }
 
@@ -186,11 +187,7 @@ func prependTextBlock(prefix string, blocks []map[string]any) []map[string]any {
 		"text": strings.TrimSpace(prefix),
 	})
 	for _, block := range blocks {
-		copied := make(map[string]any, len(block))
-		for key, value := range block {
-			copied[key] = value
-		}
-		result = append(result, copied)
+		result = append(result, maps.Clone(block))
 	}
 	return result
 }
@@ -205,23 +202,9 @@ func prependAnyTextBlock(prefix string, blocks []any) []any {
 	return result
 }
 
-func stringValueForContextFallback(value any) string {
-	if value == nil {
-		return ""
-	}
-	if text, ok := value.(interface{ String() string }); ok {
-		return text.String()
-	}
-	return fmt.Sprint(value)
-}
-
 func cloneStringMap(input map[string]string) map[string]string {
 	if len(input) == 0 {
 		return nil
 	}
-	output := make(map[string]string, len(input))
-	for key, value := range input {
-		output[key] = value
-	}
-	return output
+	return maps.Clone(input)
 }

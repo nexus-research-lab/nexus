@@ -68,7 +68,7 @@ func (s *Service) appendRuntimeUserContext(
 	return runtimeContent.AppendText(s.agents.BuildRuntimeUserMessageSuffixForContext(ctx, agentValue, "dm:"+strings.TrimSpace(sessionKey)))
 }
 
-func (r *roundRunner) commitMemoryTurn() {
+func (r *roundRunner) commitMemoryTurn(sessionID string) {
 	if r == nil || r.agent == nil {
 		return
 	}
@@ -82,12 +82,12 @@ func (r *roundRunner) commitMemoryTurn() {
 		UserID:     r.ownerUserID,
 		AgentID:    r.agent.AgentID,
 		SessionKey: r.sessionKey,
-		SessionID:  sessionIDString(r.session),
+		SessionID:  sessionID,
 	}, memorysvc.CommittedTurn{
 		UserText:      r.content,
 		AssistantText: assistantText,
 		SessionKey:    r.sessionKey,
-		SessionID:     sessionIDString(r.session),
+		SessionID:     sessionID,
 		RoundID:       r.roundID,
 		AgentID:       r.agent.AgentID,
 	})

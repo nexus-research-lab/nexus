@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -108,7 +109,7 @@ func (s *RealtimeService) buildRoomDirectedMessageRecord(
 		return nil, errors.New("source_agent_id is required")
 	}
 	memberAgentIDs := roomdomain.ListAgentIDs(contextValue.Members)
-	if !roomdomain.ContainsString(memberAgentIDs, sourceAgentID) {
+	if !slices.Contains(memberAgentIDs, sourceAgentID) {
 		return nil, ErrRoomMemberNotFound
 	}
 	recipients := normalizeRoomDirectedMessageRecipients(request.Recipients)
@@ -152,7 +153,7 @@ func normalizeRoomDirectedMessageRecipients(values []string) []string {
 	result := make([]string, 0, len(values))
 	for _, value := range values {
 		normalized := strings.TrimSpace(value)
-		if normalized == "" || roomdomain.ContainsString(result, normalized) {
+		if normalized == "" || slices.Contains(result, normalized) {
 			continue
 		}
 		result = append(result, normalized)
@@ -162,7 +163,7 @@ func normalizeRoomDirectedMessageRecipients(values []string) []string {
 
 func validateRoomDirectedMessageRecipients(recipients []string, memberAgentIDs []string) error {
 	for _, agentID := range recipients {
-		if !roomdomain.ContainsString(memberAgentIDs, agentID) {
+		if !slices.Contains(memberAgentIDs, agentID) {
 			return ErrRoomMemberNotFound
 		}
 	}
@@ -267,7 +268,7 @@ func newRoomDirectedMessageEvent(message protocol.RoomDirectedMessageRecord) pro
 		"room_id":         message.RoomID,
 		"conversation_id": message.ConversationID,
 		"source_agent_id": message.SourceAgentID,
-		"recipients":      append([]string(nil), message.Recipients...),
+		"recipients":      slices.Clone(message.Recipients),
 		"reply_route":     message.ReplyRoute,
 		"content_chars":   utf8.RuneCountInString(message.Content),
 	}
@@ -323,7 +324,7 @@ func newRoomDirectedMessageScheduledWakeEvent(message protocol.RoomDirectedMessa
 		"room_id":         message.RoomID,
 		"conversation_id": message.ConversationID,
 		"source_agent_id": message.SourceAgentID,
-		"recipients":      append([]string(nil), message.Recipients...),
+		"recipients":      slices.Clone(message.Recipients),
 		"reply_route":     message.ReplyRoute,
 		"wake_policy":     string(message.WakePolicy),
 		"delay_seconds":   message.DelaySeconds,

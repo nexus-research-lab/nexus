@@ -117,7 +117,7 @@ func (w *rollingFileWriter) cleanupOldFiles(now time.Time) error {
 	}
 
 	candidates := make([]fileInfo, 0, len(matches))
-	cutoff := now.AddDate(0, 0, -maxInt(w.options.MaxAgeDays, 0))
+	cutoff := now.AddDate(0, 0, -max(w.options.MaxAgeDays, 0))
 	for _, match := range matches {
 		info, statErr := os.Stat(match)
 		if statErr != nil || info.IsDir() {
@@ -199,11 +199,4 @@ func expandHomePath(raw string) string {
 		return raw
 	}
 	return filepath.Join(homeDir, strings.TrimPrefix(raw, "~/"))
-}
-
-func maxInt(left int, right int) int {
-	if left > right {
-		return left
-	}
-	return right
 }

@@ -54,6 +54,7 @@ interface CreateRoomDialogProps {
   initial_room_skill_names?: string[];
   initial_host_agent_id?: string | null;
   initial_host_auto_reply_enabled?: boolean;
+  initial_private_messages_enabled?: boolean;
   on_cancel: () => void;
   on_confirm: (
     agent_ids: string[],
@@ -62,6 +63,7 @@ interface CreateRoomDialogProps {
     skill_names?: string[],
     host_agent_id?: string | null,
     host_auto_reply_enabled?: boolean,
+    private_messages_enabled?: boolean,
   ) => void;
 }
 
@@ -82,6 +84,7 @@ export function CreateRoomDialog({
   initial_room_skill_names,
   initial_host_agent_id = null,
   initial_host_auto_reply_enabled = false,
+  initial_private_messages_enabled = false,
   on_cancel,
   on_confirm,
 }: CreateRoomDialogProps) {
@@ -97,6 +100,7 @@ export function CreateRoomDialog({
   const [room_skill_query, set_room_skill_query] = useState("");
   const [selected_host_agent_id, set_selected_host_agent_id] = useState<string>("");
   const [host_auto_reply_enabled, set_host_auto_reply_enabled] = useState(false);
+  const [private_messages_enabled, set_private_messages_enabled] = useState(false);
   const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
   const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
   // 数组 props 往往每次 render 都是新引用，依赖内容签名，
@@ -134,12 +138,14 @@ export function CreateRoomDialog({
       set_selected_room_skill_names(stable_initial_room_skill_names);
       set_selected_host_agent_id(initial_host_agent_id?.trim() ?? "");
       set_host_auto_reply_enabled(initial_host_auto_reply_enabled);
+      set_private_messages_enabled(initial_private_messages_enabled);
       set_room_skill_query("");
     }
   }, [
     initial_avatar,
     initial_host_agent_id,
     initial_host_auto_reply_enabled,
+    initial_private_messages_enabled,
     initial_name,
     initial_room_skill_names_signature,
     initial_selected_ids_signature,
@@ -249,8 +255,9 @@ export function CreateRoomDialog({
       selected_room_skill_names,
       selected_host_agent_id || null,
       host_auto_reply_enabled && selected_host_agent_id !== "",
+      private_messages_enabled,
     );
-  }, [host_auto_reply_enabled, on_confirm, room_name, selected_avatar, selected_host_agent_id, selected_ids, selected_room_skill_names]);
+  }, [host_auto_reply_enabled, on_confirm, private_messages_enabled, room_name, selected_avatar, selected_host_agent_id, selected_ids, selected_room_skill_names]);
 
   if (!is_open) return null;
 
@@ -370,6 +377,18 @@ export function CreateRoomDialog({
                     />
                     <span className="min-w-0 truncate">
                       未 @ 时由群主接管，可回答或委派
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 px-0.5 text-[11px] font-medium text-(--text-default)">
+                    <input
+                      checked={private_messages_enabled}
+                      className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
+                      disabled={is_creating}
+                      onChange={(event) => set_private_messages_enabled(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span className="min-w-0 truncate">
+                      允许成员私信协作
                     </span>
                   </label>
                 </div>

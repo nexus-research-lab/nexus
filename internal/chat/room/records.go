@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -127,42 +128,31 @@ func NormalizeOptionalPatch(value string) (string, bool) {
 	return strings.TrimSpace(value), true
 }
 
-// ContainsString 判断字符串切片是否包含目标值。
-func ContainsString(items []string, value string) bool {
-	for _, item := range items {
-		if item == value {
-			return true
-		}
-	}
-	return false
-}
-
 // HasConversation 判断上下文集合里是否包含指定 conversation。
 func HasConversation(contexts []protocol.ConversationContextAggregate, conversationID string) bool {
-	for _, contextValue := range contexts {
-		if contextValue.Conversation.ID == conversationID {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(contexts, func(contextValue protocol.ConversationContextAggregate) bool {
+		return contextValue.Conversation.ID == conversationID
+	})
 }
 
 // FindConversation 查找指定 conversation 记录。
 func FindConversation(contexts []protocol.ConversationContextAggregate, conversationID string) (protocol.ConversationRecord, bool) {
-	for _, contextValue := range contexts {
-		if contextValue.Conversation.ID == conversationID {
-			return contextValue.Conversation, true
-		}
+	index := slices.IndexFunc(contexts, func(contextValue protocol.ConversationContextAggregate) bool {
+		return contextValue.Conversation.ID == conversationID
+	})
+	if index < 0 {
+		return protocol.ConversationRecord{}, false
 	}
-	return protocol.ConversationRecord{}, false
+	return contexts[index].Conversation, true
 }
 
 // FindConversationContext 查找指定 conversation 上下文。
 func FindConversationContext(contexts []protocol.ConversationContextAggregate, conversationID string) (protocol.ConversationContextAggregate, bool) {
-	for _, contextValue := range contexts {
-		if contextValue.Conversation.ID == conversationID {
-			return contextValue, true
-		}
+	index := slices.IndexFunc(contexts, func(contextValue protocol.ConversationContextAggregate) bool {
+		return contextValue.Conversation.ID == conversationID
+	})
+	if index < 0 {
+		return protocol.ConversationContextAggregate{}, false
 	}
-	return protocol.ConversationContextAggregate{}, false
+	return contexts[index], true
 }

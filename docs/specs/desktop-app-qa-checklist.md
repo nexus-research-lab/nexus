@@ -47,15 +47,15 @@ shasum -a 256 -c Nexus-macos-<version>-<build>.dmg.sha256
 5. App 自动轮询到 connected，连接状态变为已连接。
 6. 打包产物中只能出现公开 Client ID，不应出现 OAuth Client Secret。
 
-### 3.2 Custom scheme callback
+### 3.2 Loopback callback
 
-1. 在 provider 后台登记 `nexus://connectors/oauth/callback`。
+1. 在 provider 后台登记 `http://127.0.0.1:34343/capability/connectors/oauth/callback`。
 2. 在 Nexus Connectors 页面发起授权。
 3. 系统浏览器打开 provider 授权页。
 4. 授权后回到 Nexus App 的 OAuth callback 页面。
 5. 连接状态变为已连接。
 6. 日志中只允许出现 callback path 和 query key，不应记录 OAuth `code`、`state`、token 或 secret value。
-7. 如果 provider 不支持 custom scheme，记录 provider 名称和限制，不把该 provider 标记为桌面 OAuth Green。
+7. 如果固定端口被占用，App 应明确提示端口 `34343` 已被占用，不应静默切换 redirect URI。
 
 ## 4. 诊断与反馈
 

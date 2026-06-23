@@ -8,7 +8,10 @@
  */
 
 import { ApiResponse } from "@/types/system/api";
-import { apply_desktop_request_headers } from "@/config/desktop-runtime";
+import {
+  apply_desktop_request_headers,
+  recover_desktop_session_token_error,
+} from "@/config/desktop-runtime";
 
 export const AUTH_REQUIRED_EVENT = "nexus:auth-required";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -328,6 +331,9 @@ export async function request_api<T>(
   if (!response.ok) {
     const message = build_error_message(response, payload);
     if (response.status === 401) {
+      if (recover_desktop_session_token_error(message, input)) {
+        throw new UnauthorizedError(message);
+      }
       if (notify_on_401 !== false) {
         emit_auth_required();
       }

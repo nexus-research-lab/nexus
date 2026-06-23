@@ -95,7 +95,10 @@ func (p githubProvider) RequestDeviceCode(ctx context.Context, httpClient *http.
 	if err = json.Unmarshal(payload, &result); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(result.DeviceCode) == "" || strings.TrimSpace(result.UserCode) == "" || strings.TrimSpace(result.VerificationURI) == "" {
+	result.DeviceCode = strings.TrimSpace(result.DeviceCode)
+	result.UserCode = strings.TrimSpace(result.UserCode)
+	result.VerificationURI = strings.TrimSpace(result.VerificationURI)
+	if result.DeviceCode == "" || result.UserCode == "" || result.VerificationURI == "" {
 		return nil, errors.New("GitHub Device Flow 响应不完整")
 	}
 	if result.Interval <= 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -249,7 +250,7 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 	}
 	vibeTags := existing.VibeTags
 	if request.VibeTags != nil {
-		vibeTags = append([]string(nil), request.VibeTags...)
+		vibeTags = slices.Clone(request.VibeTags)
 	}
 
 	updated, err := s.repository.UpdateAgent(ctx, agentrepo.UpdateRecord{
@@ -259,16 +260,16 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		WorkspacePath:       existing.WorkspacePath,
 		Avatar:              avatar,
 		Description:         description,
-		VibeTagsJSON:        mustJSONString(vibeTags, "[]"),
+		VibeTagsJSON:        mustJSONString(vibeTags),
 		Provider:            nextOptions.Provider,
 		Model:               nextOptions.Model,
 		PermissionMode:      nextOptions.PermissionMode,
-		AllowedToolsJSON:    mustJSONString(nextOptions.AllowedTools, "[]"),
-		DisallowedToolsJSON: mustJSONString(nextOptions.DisallowedTools, "[]"),
-		MCPServersJSON:      mustJSONString(nextOptions.MCPServers, "{}"),
+		AllowedToolsJSON:    mustJSONString(nextOptions.AllowedTools),
+		DisallowedToolsJSON: mustJSONString(nextOptions.DisallowedTools),
+		MCPServersJSON:      mustJSONString(nextOptions.MCPServers),
 		MaxTurns:            nextOptions.MaxTurns,
 		MaxThinkingTokens:   nextOptions.MaxThinkingTokens,
-		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources, "[]"),
+		SettingSourcesJSON:  mustJSONString(nextOptions.SettingSources),
 	})
 	if err != nil {
 		return nil, err

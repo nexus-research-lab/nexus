@@ -54,8 +54,8 @@ export function SkillsCard({
         <span
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-(--surface-panel-background) shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-            locked && "text-amber-700",
-            source_type === "external" && "text-sky-600",
+            locked && "text-(--warning)",
+            source_type === "external" && "text-(--status-info-soft-text)",
           )}
         >
           {locked ? <Lock className="h-4 w-4" /> : <Puzzle className="h-4 w-4" />}

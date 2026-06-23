@@ -22,7 +22,7 @@ export function normalize_agent_runtime_kind(value?: string | null): AgentRuntim
 export interface NXSRuntimeStatus {
   available: boolean;
   path?: string;
-  source?: "env" | "app_root" | "cache" | string;
+  source?: "env" | string;
   can_download: boolean;
   message?: string;
 }

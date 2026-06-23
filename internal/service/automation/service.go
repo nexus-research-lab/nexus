@@ -18,6 +18,7 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -45,11 +46,30 @@ type workspaceReader interface {
 }
 
 type deliveryRouter interface {
-	DeliverText(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryTarget, error)
+	DeliverMessage(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryResult, error)
 }
 
 type runtimeSessionCloser interface {
 	CloseSession(context.Context, string) error
+}
+
+type imagegenDefaultResolver interface {
+	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
+}
+
+// TaskEventNotifier 接收定时任务变更事件。
+type TaskEventNotifier interface {
+	NotifyTaskEvent(context.Context, protocol.CronTaskEvent)
+}
+
+// TaskEventNotifierFunc 适配函数式定时任务事件通知器。
+type TaskEventNotifierFunc func(context.Context, protocol.CronTaskEvent)
+
+// NotifyTaskEvent 实现 TaskEventNotifier。
+func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event protocol.CronTaskEvent) {
+	if fn != nil {
+		fn(ctx, event)
+	}
 }
 
 // Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
@@ -60,10 +80,12 @@ type Service struct {
 	dm            dmRunner
 	room          roomRunner
 	permission    *permissionctx.Context
+	providers     imagegenDefaultResolver
 	workspace     workspaceReader
 	delivery      deliveryRouter
 	logger        *slog.Logger
 	sessionCloser runtimeSessionCloser
+	taskNotifier  TaskEventNotifier
 
 	nowFn     func() time.Time
 	idFactory func(string) string
@@ -119,6 +141,24 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 // SetRuntimeSessionCloser 注入运行时会话关闭器，用于清理 isolated 自动化会话。
 func (s *Service) SetRuntimeSessionCloser(sessionCloser runtimeSessionCloser) {
 	s.sessionCloser = sessionCloser
+}
+
+// SetProviderResolver 注入 Provider 解析器，用于判断后台运行时是否可默认开放图片生成工具。
+func (s *Service) SetProviderResolver(resolver imagegenDefaultResolver) {
+	s.providers = resolver
+}
+
+func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {
+	if s == nil || s.providers == nil {
+		return false
+	}
+	_, err := s.providers.ResolveImageConfig(ctx, "")
+	return err == nil
+}
+
+// SetTaskEventNotifier 注入定时任务事件通知器。
+func (s *Service) SetTaskEventNotifier(notifier TaskEventNotifier) {
+	s.taskNotifier = notifier
 }
 
 // Start 启动后台调度循环。

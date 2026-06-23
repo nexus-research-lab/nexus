@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"slices"
 	"strings"
 	"time"
 )
@@ -43,7 +44,7 @@ func (s *MemoryScheduler) Advance(scopeKey string, roundID string, now time.Time
 		return ScheduleDecision{}, err
 	}
 	checkpoint := checkpoints.Scopes[scopeKey]
-	if roundIDProcessed(checkpoint.RoundIDs, roundID) {
+	if roundID != "" && slices.Contains(checkpoint.RoundIDs, roundID) {
 		return ScheduleDecision{
 			Checkpoint:    checkpoint,
 			ShouldCapture: false,

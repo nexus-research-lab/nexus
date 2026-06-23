@@ -42,10 +42,16 @@ const HTML_PREVIEW_STORAGE_SHIM = `<script>
 
 function build_html_preview_document(content: string): string {
   if (/<head(\s[^>]*)?>/i.test(content)) {
-    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${HTML_PREVIEW_STORAGE_SHIM}`);
+    return content.replace(
+      /<head(\s[^>]*)?>/i,
+      (match) => `${match}${HTML_PREVIEW_STORAGE_SHIM}`,
+    );
   }
   if (/<html(\s[^>]*)?>/i.test(content)) {
-    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${HTML_PREVIEW_STORAGE_SHIM}</head>`);
+    return content.replace(
+      /<html(\s[^>]*)?>/i,
+      (match) => `${match}<head>${HTML_PREVIEW_STORAGE_SHIM}</head>`,
+    );
   }
   return `${HTML_PREVIEW_STORAGE_SHIM}${content}`;
 }
@@ -70,9 +76,11 @@ function should_defer_html_preview_commit(content: string): boolean {
 }
 
 function useHtmlPreviewDocument(content: string, is_streaming: boolean) {
-  const [committed_content, setCommittedContent] = useState<string | null>(() => (
-    is_streaming && should_defer_html_preview_commit(content) ? null : content
-  ));
+  const [committed_content, setCommittedContent] = useState<string | null>(
+    () => (is_streaming && should_defer_html_preview_commit(content)
+      ? null
+      : content),
+  );
   const latest_content_ref = useRef(content);
   const last_commit_ts_ref = useRef(0);
   const pending_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,13 +134,18 @@ function useHtmlPreviewDocument(content: string, is_streaming: boolean) {
   useEffect(() => () => clear_pending_timer(), [clear_pending_timer]);
 
   const preview_document = useMemo(
-    () => committed_content === null ? "" : build_html_preview_document(committed_content),
+    () => committed_content === null
+      ? ""
+      : build_html_preview_document(committed_content),
     [committed_content],
   );
 
   return {
     has_committed_content: committed_content !== null,
-    is_waiting_for_head: is_streaming && committed_content === null && should_defer_html_preview_commit(content),
+    is_waiting_for_head:
+      is_streaming &&
+      committed_content === null &&
+      should_defer_html_preview_commit(content),
     preview_document,
   };
 }
@@ -153,10 +166,8 @@ export function HtmlPreviewViewport({
   const container_ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const has_document_source = typeof content === "string";
-  const { has_committed_content, is_waiting_for_head, preview_document } = useHtmlPreviewDocument(
-    content ?? "",
-    has_document_source && is_streaming,
-  );
+  const { has_committed_content, is_waiting_for_head, preview_document } =
+    useHtmlPreviewDocument(content ?? "", has_document_source && is_streaming);
 
   useEffect(() => {
     const el = container_ref.current;
@@ -193,12 +204,14 @@ export function HtmlPreviewViewport({
 
   if (has_document_source && !has_committed_content && is_waiting_for_head) {
     return (
-      <div className={cn(
-        "soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4",
-        class_name,
-      )}>
+      <div
+        className={cn(
+          "soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4",
+          class_name,
+        )}
+      >
         <pre className="message-cjk-code-font whitespace-pre-wrap break-words text-sm leading-6 text-(--text-muted)">
-          {content}
+          {content ?? ""}
         </pre>
       </div>
     );
@@ -213,7 +226,7 @@ export function HtmlPreviewViewport({
       )}
     >
       <div
-        className="shrink-0 overflow-hidden rounded-[10px] border border-(--divider-subtle-color) bg-white shadow-[0_20px_60px_rgba(15,23,42,0.10)]"
+        className="shrink-0 overflow-hidden rounded-[10px] border border-(--surface-paper-border) bg-(--surface-paper-background) shadow-(--surface-paper-shadow)"
         style={{
           height: HTML_PREVIEW_HEIGHT * scale,
           width: HTML_PREVIEW_WIDTH * scale,
@@ -228,7 +241,7 @@ export function HtmlPreviewViewport({
           }}
         >
           <iframe
-            className="h-full w-full bg-white"
+            className="h-full w-full bg-(--surface-paper-background)"
             sandbox="allow-downloads allow-forms allow-modals allow-pointer-lock allow-popups allow-scripts"
             src={source_url ?? undefined}
             srcDoc={has_document_source ? preview_document : undefined}
