@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -82,7 +81,7 @@ func (s *Service) importGit(ctx context.Context, repositoryURL string, branch st
 	if err != nil {
 		return nil, err
 	}
-	commitOutput, revErr := s.runCommand(ctx, tempDir, "git", "rev-parse", "HEAD")
+	commitOutput, revErr := s.runCommandWithEnv(ctx, tempDir, nil, "git", "rev-parse", "HEAD")
 	if revErr != nil {
 		slog.WarnContext(ctx, "git rev-parse HEAD 失败", "repository_url", repositoryURL, "err", revErr)
 	}
@@ -97,7 +96,7 @@ func (s *Service) importGit(ctx context.Context, repositoryURL string, branch st
 	manifest.GitBranch = strings.TrimSpace(branch)
 	manifest.GitPath = filepath.ToSlash(cleanSkillPath)
 	manifest.GitCommit = strings.TrimSpace(commitOutput)
-	manifest.Version = firstNonEmpty(strings.TrimSpace(commitOutput), manifest.Version, "git")
+	manifest.Version = firstNonEmpty(commitOutput, manifest.Version, "git")
 	return s.importSourceDir(ctx, sourceDir, manifest)
 }
 
@@ -126,7 +125,7 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 	if relErr == nil && relativeSourceDir != "." {
 		target.SkillPath = filepath.ToSlash(relativeSourceDir)
 	}
-	commitOutput, revErr := s.runCommand(ctx, tempDir, "git", "rev-parse", "HEAD")
+	commitOutput, revErr := s.runCommandWithEnv(ctx, tempDir, nil, "git", "rev-parse", "HEAD")
 	if revErr != nil {
 		slog.WarnContext(ctx, "skills.sh git rev-parse HEAD 失败", "repository_url", target.RepositoryURL, "err", revErr)
 	}
@@ -134,15 +133,15 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 		SourceType:  sourceTypeExternal,
 		SourceRef:   target.Identifier,
 		SourceKind:  externalSourceKindSkillsSh,
-		SourceKey:   firstNonEmpty(strings.TrimSpace(s.config.SkillsAPIURL), "https://skills.sh"),
+		SourceKey:   firstNonEmpty(s.config.SkillsAPIURL, "https://skills.sh"),
 		SourceName:  "skills.sh",
 		SourceTrust: externalSourceTrustCommunity,
 		ImportMode:  "skills_sh",
 		GitURL:      target.RepositoryURL,
 		GitPath:     filepath.ToSlash(target.SkillPath),
 		GitCommit:   strings.TrimSpace(commitOutput),
-		DetailURL:   skillsShDetailURL(firstNonEmpty(strings.TrimSpace(s.config.SkillsAPIURL), defaultSkillsShURL), target.SourceRef, target.SkillSlug),
-		Version:     firstNonEmpty(strings.TrimSpace(commitOutput), target.Identifier),
+		DetailURL:   skillsShDetailURL(firstNonEmpty(s.config.SkillsAPIURL, defaultSkillsShURL), target.SourceRef, target.SkillSlug),
+		Version:     firstNonEmpty(commitOutput, target.Identifier),
 	})
 }
 
@@ -273,69 +272,6 @@ func (s *Service) ImportSkillURL(ctx context.Context, sourceURL string, manifest
 	manifest.RawURL = targetURL
 	manifest.Version = firstNonEmpty(manifest.Version, targetURL)
 	return s.importSourceDir(ctx, sourceDir, manifest)
-}
-
-// UpdateImportedSkills 更新所有已导入的外部技能。
-func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSkillsResponse, error) {
-	records, err := s.loadExternalRecords(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := &UpdateInstalledSkillsResponse{
-		UpdatedSkills: make([]string, 0),
-		SkippedSkills: make([]string, 0),
-		Failures:      make([]SkillActionFailure, 0),
-	}
-	names := make([]string, 0, len(records))
-	for name := range records {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if _, updateErr := s.updateSingleSkillRecord(ctx, records[name]); updateErr != nil {
-			if strings.Contains(updateErr.Error(), "不支持更新") {
-				result.SkippedSkills = append(result.SkippedSkills, name)
-				continue
-			}
-			result.Failures = append(result.Failures, SkillActionFailure{
-				SkillName: name,
-				Error:     updateErr.Error(),
-			})
-			continue
-		}
-		result.UpdatedSkills = append(result.UpdatedSkills, name)
-	}
-	return result, nil
-}
-
-// UpdateSingleSkill 更新单个已导入技能。
-func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Detail, error) {
-	records, err := s.loadExternalRecords(ctx)
-	if err != nil {
-		return nil, err
-	}
-	record, ok := records[strings.TrimSpace(skillName)]
-	if !ok {
-		return nil, errors.New("skill not found")
-	}
-	return s.updateSingleSkillRecord(ctx, record)
-}
-
-func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRecord) (*Detail, error) {
-	manifest, err := s.readManifest(record.SourcePath)
-	if err != nil {
-		return nil, err
-	}
-	switch manifest.ImportMode {
-	case "git":
-		return s.importGit(ctx, manifest.GitURL, manifest.GitBranch, manifest.GitPath, manifest)
-	case "skills_sh":
-		return s.ImportSkillsSh(ctx, manifest.SourceRef, manifest.Name)
-	case "url":
-		return s.ImportSkillURL(ctx, firstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL), manifest)
-	default:
-		return nil, errors.New("该 skill 来源不支持更新")
-	}
 }
 
 func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifest externalManifest) (*Detail, error) {

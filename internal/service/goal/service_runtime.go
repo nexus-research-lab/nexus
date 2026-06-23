@@ -96,7 +96,3 @@ func shouldClearRuntimeAccounting(status protocol.GoalStatus) bool {
 		return false
 	}
 }
-
-func shouldClearAccountingAfterMutation(source protocol.GoalUpdateSource) bool {
-	return source != protocol.GoalUpdateSourceModel
-}

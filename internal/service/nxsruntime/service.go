@@ -1,10 +1,6 @@
 package nxsruntime
 
-import (
-	"fmt"
-
-	bridgenxs "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs"
-)
+import bridgenxs "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs"
 
 // RuntimeStatus 表示 nxs runtime 在当前主机上的可用状态。
 type RuntimeStatus struct {
@@ -33,7 +29,14 @@ func NewService() *Service {
 
 // Status 只检查本地已存在的 nxs runtime，不触发下载。
 func (s *Service) Status() RuntimeStatus {
-	return runtimeStatusFromBridge(s.withDefaults().inspector().Status(), nil)
+	status := s.withDefaults().inspector().Status()
+	return RuntimeStatus{
+		Available:   status.Available,
+		Path:        status.Path,
+		Source:      string(status.Source),
+		CanDownload: status.CanDownload,
+		Message:     runtimeStatusMessage(status),
+	}
 }
 
 func (s *Service) withDefaults() *Service {
@@ -51,26 +54,13 @@ func defaultInspector() runtimeInspector {
 	return bridgenxs.NewRuntimeInspector()
 }
 
-func runtimeStatusFromBridge(status bridgenxs.Status, err error) RuntimeStatus {
-	return RuntimeStatus{
-		Available:   status.Available,
-		Path:        status.Path,
-		Source:      string(status.Source),
-		CanDownload: status.CanDownload,
-		Message:     runtimeStatusMessage(status, err),
-	}
-}
-
-func runtimeStatusMessage(status bridgenxs.Status, err error) string {
+func runtimeStatusMessage(status bridgenxs.Status) string {
 	switch status.Error {
 	case bridgenxs.StatusErrorEnvNotExecutable:
 		return "NEXUS_NXS_COMMAND_PATH 指向的 nxs 不可执行，请修正路径。"
 	case bridgenxs.StatusErrorNotFound:
-		return "未配置 nxs runtime。桌面包应由 sidecar 注入 NEXUS_NXS_COMMAND_PATH；开发环境请设置 NEXUS_NXS_COMMAND_PATH 指向本地 nxs。"
+		return "未配置 nxs runtime。桌面包会由 sidecar 注入 NEXUS_NXS_COMMAND_PATH；开发环境请设置 NEXUS_NXS_COMMAND_PATH 指向本地 nxs。"
 	default:
-		if err != nil {
-			return fmt.Sprintf("nxs runtime 检测失败：%v", err)
-		}
 		return ""
 	}
 }

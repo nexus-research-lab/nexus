@@ -1,6 +1,7 @@
 package room
 
 import (
+	"cmp"
 	"strings"
 	"time"
 
@@ -70,7 +71,7 @@ func (s *RealtimeService) persistPrivateOverlayMessage(slot *activeRoomSlot, mes
 	}
 	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
 	privateMessage["session_key"] = slot.RuntimeSessionKey
-	if sessionID := firstNonEmpty(strings.TrimSpace(anyString(privateMessage["session_id"])), slot.getSDKSessionID()); sessionID != "" {
+	if sessionID := cmp.Or(strings.TrimSpace(anyString(privateMessage["session_id"])), slot.getSDKSessionID()); sessionID != "" {
 		privateMessage["session_id"] = sessionID
 	}
 	if strings.TrimSpace(anyString(privateMessage["message_id"])) == "" {

@@ -3,7 +3,6 @@ package channels
 import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
-	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
 
 const (
@@ -44,10 +43,6 @@ type DeliveryChannel = channelcontract.DeliveryChannel
 // DeliveryResult 表示一次通道投递的目标解析结果与平台回执。
 type DeliveryResult = channelcontract.DeliveryResult
 
-func newDeliveryResult(target DeliveryTarget, receipt *channelmessage.Receipt) DeliveryResult {
-	return channelcontract.NewDeliveryResult(target, receipt)
-}
-
 type agentScopedDeliveryChannel = channelcontract.AgentScopedDeliveryChannel
 
 type typingDeliveryChannel = channelcontract.TypingDeliveryChannel
@@ -57,6 +52,11 @@ type IngressRequest = channelcontract.IngressRequest
 
 // IngressResult 描述入口受理结果。
 type IngressResult = channelcontract.IngressResult
+
+// IngressAcceptor 表示通道入站消息的统一受理器。
+type IngressAcceptor = channelcontract.IngressAcceptor
+
+type ingressAwareChannel = channelcontract.IngressAwareChannel
 
 func normalizeChannelType(channel string) string {
 	return channelcontract.NormalizeChannelType(channel)

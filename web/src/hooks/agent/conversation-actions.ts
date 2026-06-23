@@ -17,6 +17,52 @@ function fail_send(set_error: AgentConversationActionContext["set_error"], messa
   throw new Error(message);
 }
 
+export function build_session_bind_message({
+  session_key,
+  last_seen_session_seq,
+  agent_id,
+  room_id,
+  conversation_id,
+}: {
+  session_key: string;
+  last_seen_session_seq?: number;
+  agent_id?: string | null;
+  room_id?: string | null;
+  conversation_id?: string | null;
+}): WebSocketMessage {
+  return {
+    type: 'bind_session',
+    session_key,
+    ...(last_seen_session_seq && last_seen_session_seq > 0
+      ? { last_seen_session_seq }
+      : {}),
+    ...(agent_id ? { agent_id } : {}),
+    ...(room_id ? { room_id } : {}),
+    ...(conversation_id ? { conversation_id } : {}),
+  };
+}
+
+export function build_room_subscription_message({
+  type,
+  room_id,
+  conversation_id,
+  last_seen_room_seq,
+}: {
+  type: 'subscribe_room' | 'unsubscribe_room';
+  room_id: string;
+  conversation_id?: string | null;
+  last_seen_room_seq?: number;
+}): WebSocketMessage {
+  return {
+    type,
+    room_id,
+    ...(conversation_id ? { conversation_id } : {}),
+    ...(type === 'subscribe_room' && last_seen_room_seq && last_seen_room_seq > 0
+      ? { last_seen_room_seq }
+      : {}),
+  };
+}
+
 /**
  * 发送用户消息并建立当前轮次的本地状态。
  */

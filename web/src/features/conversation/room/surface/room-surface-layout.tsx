@@ -3,7 +3,6 @@
 import { RefObject, useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 
-import { DmChatPanel } from "@/features/conversation/room/dm/dm-chat-panel";
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { cn } from "@/lib/utils";
@@ -17,8 +16,6 @@ import { RoomSurfaceTabKey } from "@/types/conversation/room-surface";
 import { TodoItem } from "@/types/conversation/todo";
 import { UpdateRoomParams } from "@/types/conversation/room";
 
-import { GroupChatPanel } from "../group/chat/group-chat-panel";
-import { GroupChatErrorBoundary } from "../group/chat/group-chat-error-boundary";
 import { GroupConversationHeader } from "../group/header/group-conversation-header";
 import { GroupThreadContextProvider } from "../group/thread/group-thread-context";
 import { GroupThreadDetailPanel } from "../group/thread/group-thread-detail-panel";
@@ -26,12 +23,12 @@ import { useGroupThread, useGroupThreadPanelData } from "../group/thread/group-t
 import { RoomWorkspaceView } from "../workspace/room-workspace-view";
 import { ConversationResizeHandle } from "@/features/conversation/shared/editor/conversation-resize-handle";
 import { RoomAgentAboutSurface } from "./room-agent-about-surface";
+import { RoomChatSurface } from "./room-chat-surface";
 import { RoomHistorySurface } from "./room-history-surface";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 type RoomAgentAboutRequestedTab = "identity" | "private_domain";
 
-const ChatBoundary = GroupChatErrorBoundary;
 const RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY = "(max-width: 1440px)";
 const WIDE_AUXILIARY_PANEL_WIDTH_LIMITS = {
   minWidth: "min(520px, 46vw)",
@@ -107,8 +104,8 @@ export function RoomSurfaceLayout(props: RoomSurfaceLayoutProps) {
 }
 
 function RoomSurfaceLayoutWithThreadState(props: RoomSurfaceLayoutProps) {
-  const {active_thread, close_thread} = useGroupThread();
-  const {thread_panel_data} = useGroupThreadPanelData();
+  const { active_thread, close_thread } = useGroupThread();
+  const { thread_panel_data } = useGroupThreadPanelData();
 
   useEffect(() => {
     if (props.active_surface_tab !== "chat" && active_thread) {
@@ -287,46 +284,25 @@ function RoomSurfaceLayoutInner({
             <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
               {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
                     进而触发 useWebSocket 清理并关闭连接。 */}
-              {is_dm ? (
-                <ChatBoundary>
-                  <DmChatPanel
-                    current_agent_name={current_agent.name}
-                    current_agent_avatar={current_agent.avatar ?? null}
-                    current_agent_permission_mode={current_agent.options.permission_mode ?? null}
-                    initial_draft={initial_draft}
-                    on_initial_draft_consumed={on_initial_draft_consumed}
-                    on_conversation_snapshot_change={on_conversation_snapshot_change}
-                    on_loading_change={on_loading_change}
-                    on_open_agent_contact={handle_open_agent_contact}
-                    on_open_workspace_file={handle_open_workspace_file}
-                    on_room_event={on_room_event}
-                    on_todos_change={on_todos_change}
-                    session_identity={current_agent_session_identity}
-                  />
-                </ChatBoundary>
-              ) : (
-                <ChatBoundary>
-                  <GroupChatPanel
-                    agent_id={current_agent.agent_id}
-                    conversation_id={conversation_id}
-                    current_agent_name={current_agent.name}
-                    current_agent_avatar={current_agent.avatar ?? null}
-                    initial_draft={initial_draft}
-                    on_initial_draft_consumed={on_initial_draft_consumed}
-                    on_conversation_snapshot_change={on_conversation_snapshot_change}
-                    on_create_conversation={on_create_conversation}
-                    on_loading_change={on_loading_change}
-                    on_open_agent_contact={handle_open_agent_contact}
-                    on_open_workspace_file={handle_open_workspace_file}
-                    on_room_event={on_room_event}
-                    on_todos_change={on_todos_change}
-                    room_host_agent_id={room_host_agent_id}
-                    room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-                    room_id={room_id}
-                    room_members={room_members}
-                  />
-                </ChatBoundary>
-              )}
+              <RoomChatSurface
+                conversation_id={conversation_id}
+                current_agent={current_agent}
+                current_agent_session_identity={current_agent_session_identity}
+                current_room_type={current_room_type}
+                initial_draft={initial_draft}
+                on_conversation_snapshot_change={on_conversation_snapshot_change}
+                on_create_conversation={on_create_conversation}
+                on_initial_draft_consumed={on_initial_draft_consumed}
+                on_loading_change={on_loading_change}
+                on_open_agent_contact={handle_open_agent_contact}
+                on_open_workspace_file={handle_open_workspace_file}
+                on_room_event={on_room_event}
+                on_todos_change={on_todos_change}
+                room_host_agent_id={room_host_agent_id}
+                room_host_auto_reply_enabled={room_host_auto_reply_enabled}
+                room_id={room_id}
+                room_members={room_members}
+              />
             </div>
 
             {is_auxiliary_panel_open ? (
@@ -429,18 +405,18 @@ function useWidePanelAutoCollapseForRightPanel(is_panel_open: boolean) {
 }
 
 function GroupThreadInlinePanel({
-                                 active_surface_tab,
-                                 editor_width_percent,
-                                 class_name,
-                                 on_start_editor_resize,
-                               }: {
+  active_surface_tab,
+  editor_width_percent,
+  class_name,
+  on_start_editor_resize,
+}: {
   active_surface_tab: RoomSurfaceTabKey;
   editor_width_percent: number;
   class_name?: string;
   on_start_editor_resize: () => void;
 }) {
-  const {active_thread, close_thread} = useGroupThread();
-  const {thread_panel_data} = useGroupThreadPanelData();
+  const { active_thread, close_thread } = useGroupThread();
+  const { thread_panel_data } = useGroupThreadPanelData();
 
   if (active_surface_tab !== "chat" || !active_thread || !thread_panel_data) {
     return null;

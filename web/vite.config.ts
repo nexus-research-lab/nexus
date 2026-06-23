@@ -26,29 +26,29 @@ const LIGHT_DESKTOP_PRELOAD_PREFIXES = [
   "vendor-react-",
 ];
 
-function is_light_desktop_entry(host_id: string): boolean {
-  const host_file = path.basename(host_id);
-  return LIGHT_DESKTOP_ENTRY_HTML.has(host_file);
+function isLightDesktopEntry(hostId: string): boolean {
+  const hostFile = path.basename(hostId);
+  return LIGHT_DESKTOP_ENTRY_HTML.has(hostFile);
 }
 
-function should_preload_for_light_desktop_entry(dep: string): boolean {
-  const dep_file = path.basename(dep);
-  return LIGHT_DESKTOP_PRELOAD_PREFIXES.some((prefix) => dep_file.startsWith(prefix));
+function shouldPreloadForLightDesktopEntry(dep: string): boolean {
+  const depFile = path.basename(dep);
+  return LIGHT_DESKTOP_PRELOAD_PREFIXES.some((prefix) => depFile.startsWith(prefix));
 }
 
-function get_node_package_name(id: string): string | null {
-  const normalized_id = id.split(path.sep).join("/");
-  const node_modules_parts = normalized_id.split("/node_modules/");
-  const package_path = node_modules_parts[node_modules_parts.length - 1];
-  if (!package_path) {
+function getNodePackageName(id: string): string | null {
+  const normalizedId = id.split(path.sep).join("/");
+  const nodeModulesParts = normalizedId.split("/node_modules/");
+  const packagePath = nodeModulesParts[nodeModulesParts.length - 1];
+  if (!packagePath) {
     return null;
   }
 
-  const package_parts = package_path.split("/");
-  if (package_parts[0]?.startsWith("@")) {
-    return package_parts[1] ? `${package_parts[0]}/${package_parts[1]}` : package_parts[0];
+  const packageParts = packagePath.split("/");
+  if (packageParts[0]?.startsWith("@")) {
+    return packageParts[1] ? `${packageParts[0]}/${packageParts[1]}` : packageParts[0];
   }
-  return package_parts[0] ?? null;
+  return packageParts[0] ?? null;
 }
 
 export default defineConfig({
@@ -62,10 +62,10 @@ export default defineConfig({
   build: {
     modulePreload: {
       resolveDependencies(_, deps, context) {
-        if (context.hostType !== "html" || !is_light_desktop_entry(context.hostId)) {
+        if (context.hostType !== "html" || !isLightDesktopEntry(context.hostId)) {
           return deps;
         }
-        return deps.filter(should_preload_for_light_desktop_entry);
+        return deps.filter(shouldPreloadForLightDesktopEntry);
       },
     },
     rollupOptions: {
@@ -80,20 +80,20 @@ export default defineConfig({
           if (!id.includes("node_modules")) {
             return undefined;
           }
-          const package_name = get_node_package_name(id);
+          const packageName = getNodePackageName(id);
 
           if (
-            package_name === "react" ||
-            package_name === "react-dom" ||
-            package_name === "scheduler"
+            packageName === "react" ||
+            packageName === "react-dom" ||
+            packageName === "scheduler"
           ) {
             return "vendor-react";
           }
 
           if (
-            package_name === "lucide-react" ||
-            package_name === "framer-motion" ||
-            package_name === "matter-js"
+            packageName === "lucide-react" ||
+            packageName === "framer-motion" ||
+            packageName === "matter-js"
           ) {
             return "vendor-ui";
           }

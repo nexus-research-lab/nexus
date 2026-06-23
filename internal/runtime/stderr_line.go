@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"cmp"
 	"strings"
 	"unicode/utf8"
 
@@ -18,8 +19,5 @@ func NormalizeRuntimeStderrLine(line string) string {
 		return trimmed
 	}
 	decoded = strings.TrimSpace(decoded)
-	if decoded == "" {
-		return trimmed
-	}
-	return decoded
+	return cmp.Or(decoded, trimmed)
 }

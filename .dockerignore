@@ -42,6 +42,11 @@ ENV/
 *.swo
 *.sublime-*
 
+# 本地工具元数据
+.agents/
+.codex/
+.github/
+
 # 测试
 .coverage
 .pytest_cache
@@ -78,6 +83,7 @@ docker-compose*
 # 部署相关
 deploy/
 scripts/
+desktop/
 
 # 缓存目录
 cache/
@@ -112,9 +118,6 @@ coverage.xml
 !db/**
 !web/
 !web/**
-!docs/
-!docs/specs/
-!docs/specs/room-collaboration-mechanism.md
 !skills/
 !skills/**
 !vendor/
@@ -123,5 +126,23 @@ coverage.xml
 # 重新排除前端构建产物和本地环境文件
 web/node_modules/
 web/dist/
+web/out/
+web/build/
+web/coverage/
+web/.next/
+web/.vercel/
+web/.cache/
+web/.pnp
+web/.pnp.*
+web/.yarn/
+!web/.yarn/patches/
+!web/.yarn/plugins/
+!web/.yarn/releases/
+!web/.yarn/versions/
+web/*.tsbuildinfo
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/.pnpm-debug.log*
 web/.env
 web/.env.*

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -136,11 +137,11 @@ func TestServiceBuildRuntimeUserMessageSuffixIncludesDateAndEmotion(t *testing.T
 		BaseSystemPrompt: "BASE CUSTOM PROMPT",
 	}, nil)
 
-	suffix := service.BuildRuntimeUserMessageSuffix(context.Background(), &protocol.Agent{
+	suffix := service.BuildRuntimeUserMessageSuffixForContext(context.Background(), &protocol.Agent{
 		AgentID:     "agent-1",
 		Name:        "planner",
 		DisplayName: "规划助手",
-	})
+	}, "")
 
 	assertPromptContains(t, suffix, "<nexus_runtime_context>")
 	assertPromptContains(t, suffix, "## Date Awareness")
@@ -199,6 +200,22 @@ func TestServiceBuildRuntimeUserMessageSuffixReadsAgentEmotionState(t *testing.T
 	assertPromptContains(t, suffix, "Context: annoyed (valence 4/10) - user said the draft feels wrong")
 	assertPromptContains(t, suffix, "Composite: annoyed (energy 8/10, valence 6/10) - user said the draft feels wrong")
 	assertPromptContains(t, suffix, "Fatigue: awake (10/100)")
+}
+
+func TestLoadRuntimeEmotionViewIgnoresLegacyEmotionShape(t *testing.T) {
+	workspacePath := t.TempDir()
+	statePath := filepath.Join(workspacePath, ".agents", "emotion.json")
+	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+		t.Fatalf("创建情绪状态目录失败: %v", err)
+	}
+	if err := os.WriteFile(statePath, []byte(`{"mood":"playful","energy":9,"summary":"old shape"}`), 0o644); err != nil {
+		t.Fatalf("写入 legacy 情绪状态失败: %v", err)
+	}
+
+	view := agentsvc.LoadRuntimeEmotionView(workspacePath, "", time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC))
+	if view.Base.Mood != "focused" || view.Base.Description != "clear, proactive, concise" {
+		t.Fatalf("legacy emotion shape should fall back to default state, got %+v", view.Base)
+	}
 }
 
 func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {

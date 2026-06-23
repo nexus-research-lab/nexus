@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 // SetFromThreadGoalParams 按 Codex app-server thread/goal/set 语义创建或更新当前 Goal。
-func (s *Service) SetFromThreadGoalParams(ctx context.Context, request protocol.ThreadGoalSetParams) (*protocol.Goal, error) {
+func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappserver.ThreadGoalSetParams) (*protocol.Goal, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request protocol.
 }
 
 // ClearFromThreadGoalParams 按 Codex app-server thread/goal/clear 语义清除当前 Goal。
-func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request protocol.ThreadGoalClearParams) (bool, error) {
+func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request goalappserver.ThreadGoalClearParams) (bool, error) {
 	if err := s.ensureEnabled(); err != nil {
 		return false, err
 	}
@@ -82,7 +83,7 @@ func (s *Service) createFromThreadGoalParams(
 	sessionKey string,
 	targetStatus protocol.GoalStatus,
 	hasStatus bool,
-	request protocol.ThreadGoalSetParams,
+	request goalappserver.ThreadGoalSetParams,
 ) (*protocol.Goal, error) {
 	if request.Objective == nil {
 		return nil, newGoalNotFoundError(fmt.Sprintf(
@@ -149,7 +150,7 @@ func (s *Service) updateFromThreadGoalParams(
 	item protocol.Goal,
 	targetStatus protocol.GoalStatus,
 	hasStatus bool,
-	request protocol.ThreadGoalSetParams,
+	request goalappserver.ThreadGoalSetParams,
 ) (*protocol.Goal, error) {
 	hasUpdateFields := false
 	valueChanged := false
@@ -226,7 +227,7 @@ func (s *Service) persistThreadGoalSetTransition(
 	)
 }
 
-func validateThreadGoalSetRequest(request protocol.ThreadGoalSetParams) (string, protocol.GoalStatus, bool, error) {
+func validateThreadGoalSetRequest(request goalappserver.ThreadGoalSetParams) (string, protocol.GoalStatus, bool, error) {
 	sessionKey, err := protocol.RequireStructuredSessionKey(request.ThreadID)
 	if err != nil {
 		return "", "", false, fmt.Errorf("%w: %v", ErrGoalInvalidInput, err)
@@ -234,7 +235,7 @@ func validateThreadGoalSetRequest(request protocol.ThreadGoalSetParams) (string,
 	if request.Status == nil {
 		return sessionKey, protocol.GoalStatusActive, false, nil
 	}
-	status, ok := protocol.GoalStatusFromThreadGoalStatus(*request.Status)
+	status, ok := goalappserver.GoalStatusFromThreadGoalStatus(*request.Status)
 	if !ok {
 		return "", "", false, ErrGoalInvalidInput
 	}

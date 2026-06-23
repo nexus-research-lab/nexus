@@ -1,19 +1,21 @@
 package skills
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-	"sync"
 )
 
 // Service 提供技能目录、安装与卸载能力。
@@ -69,11 +71,11 @@ func (s *Service) ListSkills(ctx context.Context, query Query) ([]Info, error) {
 		}
 		items = append(items, detail.Info)
 	}
-	sort.Slice(items, func(i int, j int) bool {
-		if items[i].CategoryName != items[j].CategoryName {
-			return items[i].CategoryName < items[j].CategoryName
+	slices.SortFunc(items, func(left Info, right Info) int {
+		if result := cmp.Compare(left.CategoryName, right.CategoryName); result != 0 {
+			return result
 		}
-		return items[i].Title < items[j].Title
+		return cmp.Compare(left.Title, right.Title)
 	})
 	return items, nil
 }

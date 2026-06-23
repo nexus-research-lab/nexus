@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
@@ -39,7 +40,7 @@ func NewControlService(
 		key:          key,
 		agents:       agents,
 		router:       router,
-		idFactory:    newDeliveryID,
+		idFactory:    channelcontract.NewID,
 		loginStore:   newChannelLoginStore(),
 		loginTimeout: 8 * time.Minute,
 		keyErr:       err,

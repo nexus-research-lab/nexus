@@ -18,7 +18,7 @@ func (s *Service) SetObjectiveRewriter(rewriter objectiveRewriter) {
 
 func (s *Service) rewriteCreateObjective(ctx context.Context, request protocol.CreateGoalRequest, objective string) (string, map[string]any) {
 	metadata := cloneMap(request.Metadata)
-	if skipObjectiveRewriteForCreatedBy(request.CreatedBy) {
+	if strings.TrimSpace(request.CreatedBy) == "model" {
 		return objective, metadata
 	}
 	rewritten := s.rewriteObjectiveBestEffort(ctx, request.OwnerUserID, request.SessionKey, objective)
@@ -59,8 +59,4 @@ func (s *Service) rewriteObjectiveBestEffort(ctx context.Context, ownerUserID st
 		return ""
 	}
 	return normalized
-}
-
-func skipObjectiveRewriteForCreatedBy(createdBy string) bool {
-	return strings.TrimSpace(createdBy) == "model"
 }

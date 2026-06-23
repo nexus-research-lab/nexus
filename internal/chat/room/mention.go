@@ -1,8 +1,9 @@
 package room
 
 import (
+	"cmp"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -27,8 +28,8 @@ func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []s
 			names = append(names, name)
 		}
 	}
-	sort.Slice(names, func(i int, j int) bool {
-		return len([]rune(names[i])) > len([]rune(names[j]))
+	slices.SortFunc(names, func(left string, right string) int {
+		return cmp.Compare(len([]rune(right)), len([]rune(left)))
 	})
 
 	matches := make([]mentionMatch, 0, len(names))
@@ -54,11 +55,11 @@ func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []s
 			})
 		}
 	}
-	sort.SliceStable(matches, func(i int, j int) bool {
-		if matches[i].start != matches[j].start {
-			return matches[i].start < matches[j].start
+	slices.SortStableFunc(matches, func(left mentionMatch, right mentionMatch) int {
+		if result := cmp.Compare(left.start, right.start); result != 0 {
+			return result
 		}
-		return matches[i].length > matches[j].length
+		return cmp.Compare(right.length, left.length)
 	})
 
 	result := make([]string, 0, len(matches))

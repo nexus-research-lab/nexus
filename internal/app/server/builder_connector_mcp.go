@@ -8,8 +8,8 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
-	connectormcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors"
-	connectormcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/connectors/contract"
+	connectormcp "github.com/nexus-research-lab/nexus/internal/mcp/connectors"
+	connectormcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 

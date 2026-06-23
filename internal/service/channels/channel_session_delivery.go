@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -42,7 +43,7 @@ func newSessionDeliveryChannel(
 		files:       workspacestore.NewSessionFileStore(workspaceRoot),
 		history:     workspacestore.NewAgentHistoryStore(workspaceRoot),
 		roomHistory: workspacestore.NewRoomHistoryStore(workspaceRoot),
-		idFactory:   newDeliveryID,
+		idFactory:   channelcontract.NewID,
 	}
 }
 
@@ -80,13 +81,13 @@ func (c *sessionDeliveryChannel) SendAgentDeliveryMessage(
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind == protocol.SessionKeyKindRoom {
 		receipt, err := c.sendRoomDeliveryText(ctx, strings.TrimSpace(agentID), parsed, sessionKey, text)
-		return newDeliveryResult(normalized, receipt), err
+		return channelcontract.NewDeliveryResult(normalized, receipt), err
 	}
 	if parsed.Kind != protocol.SessionKeyKindAgent {
 		return DeliveryResult{}, errors.New("shared room delivery 暂不支持")
 	}
 	receipt, err := c.sendAgentSessionDeliveryText(ctx, parsed, sessionKey, text)
-	return newDeliveryResult(normalized, receipt), err
+	return channelcontract.NewDeliveryResult(normalized, receipt), err
 }
 
 // sendAgentSessionDeliveryText 追加 assistant 正文与内部 result overlay，
@@ -226,7 +227,7 @@ func (c *sessionDeliveryChannel) persistMessage(
 	sessionValue protocol.Session,
 	message protocol.Message,
 ) (protocol.Session, error) {
-	if err := c.appendHistoryMessage(workspacePath, sessionValue, message); err != nil {
+	if err := c.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message); err != nil {
 		return protocol.Session{}, err
 	}
 
@@ -246,14 +247,6 @@ func (c *sessionDeliveryChannel) persistMessage(
 		return sessionValue, nil
 	}
 	return *updated, nil
-}
-
-func (c *sessionDeliveryChannel) appendHistoryMessage(
-	workspacePath string,
-	sessionValue protocol.Session,
-	message protocol.Message,
-) error {
-	return c.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
 }
 
 func (c *sessionDeliveryChannel) broadcastMessage(

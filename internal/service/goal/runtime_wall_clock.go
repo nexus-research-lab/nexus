@@ -70,10 +70,7 @@ func (a *goalWallClockAccounting) pendingSeconds(sessionKey string, goalID strin
 		return 0
 	}
 	elapsed := int64(now.UTC().Sub(entry.lastAccountedAt).Seconds())
-	if elapsed < 0 {
-		return 0
-	}
-	return elapsed
+	return max(elapsed, 0)
 }
 
 func (a *goalWallClockAccounting) markAccounted(sessionKey string, goalID string, accountedSeconds int64) {

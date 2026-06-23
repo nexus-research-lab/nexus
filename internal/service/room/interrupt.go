@@ -5,7 +5,18 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// HandleInterrupt 处理中断请求。
+func (s *RealtimeService) HandleInterrupt(ctx context.Context, request InterruptRequest) error {
+	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
+	if err != nil {
+		return err
+	}
+	return s.interruptRound(ctx, sessionKey, strings.TrimSpace(request.MsgID), "", false)
+}
 
 // InterruptConversation 中断指定 conversation 的全部活跃轮次。
 func (s *RealtimeService) InterruptConversation(ctx context.Context, conversationID string, message string) error {

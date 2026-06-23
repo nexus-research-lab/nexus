@@ -21,10 +21,6 @@ func (s *Service) scheduledTaskPermissionHandler(ctx context.Context, job protoc
 	return scheduledTaskPermissionHandlerForOptions(options, s.runtimeImagegenDefaultEnabled(ctx))
 }
 
-func scheduledTaskPermissionHandler(options protocol.Options) sdkpermission.Handler {
-	return scheduledTaskPermissionHandlerForOptions(options, false)
-}
-
 func scheduledTaskPermissionHandlerForOptions(options protocol.Options, imagegenDefaultEnabled bool) sdkpermission.Handler {
 	options.AllowedTools = toolpolicy.WithManagedRuntimeAllowedTools(options.AllowedTools, imagegenDefaultEnabled)
 	allowedByAgent := toolpolicy.NormalizeSet(options.AllowedTools)

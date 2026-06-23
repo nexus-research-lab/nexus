@@ -2,6 +2,7 @@ package providers
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,9 +28,9 @@ type feishuDocxProvider struct {
 // NewFeishuDocxProvider 创建飞书云文档 OAuth Provider。
 func NewFeishuDocxProvider(authURL string, tokenURL string, apiURL string) Provider {
 	return feishuDocxProvider{
-		authURL:  firstNonEmpty(authURL, defaultFeishuDocxAuthURL),
-		tokenURL: firstNonEmpty(tokenURL, defaultFeishuDocxTokenURL),
-		apiURL:   firstNonEmpty(apiURL, defaultFeishuDocxAPIURL),
+		authURL:  cmp.Or(authURL, defaultFeishuDocxAuthURL),
+		tokenURL: cmp.Or(tokenURL, defaultFeishuDocxTokenURL),
+		apiURL:   cmp.Or(apiURL, defaultFeishuDocxAPIURL),
 	}
 }
 

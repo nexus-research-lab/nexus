@@ -16,6 +16,12 @@ interface ErrorPresentation {
   detail: string;
 }
 
+function with_retry_detail(error: string): string {
+  const normalized_error = error.trim().replace(/[。.!！?？；;，,\s]+$/u, "");
+  const message = normalized_error.length > 0 ? normalized_error : "请求失败";
+  return `${message}。请稍后重试；如果当前轮次没有继续响应，可以刷新页面后重新发送上一条消息。`;
+}
+
 function resolve_error_presentation(error: string): ErrorPresentation {
   const normalized_error = error.toLowerCase();
 
@@ -55,7 +61,7 @@ function resolve_error_presentation(error: string): ErrorPresentation {
 
   return {
     title: "系统消息",
-    detail: `${error}。请稍后重试；如果当前轮次没有继续响应，可以刷新页面后重新发送上一条消息。`,
+    detail: with_retry_detail(error),
   };
 }
 

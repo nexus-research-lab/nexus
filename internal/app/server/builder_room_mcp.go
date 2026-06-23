@@ -7,9 +7,9 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	roommcp "github.com/nexus-research-lab/nexus/internal/mcp/room"
+	roommcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/room/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roommcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/room"
-	roommcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/room/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 

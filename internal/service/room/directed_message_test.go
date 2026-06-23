@@ -3,6 +3,7 @@ package room_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -418,12 +419,9 @@ func waitForRoomPublicHistoryContent(
 }
 
 func roomDirectedMessageContentsContain(messages []protocol.RoomDirectedMessageRecord, content string) bool {
-	for _, message := range messages {
-		if message.Content == content {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(messages, func(message protocol.RoomDirectedMessageRecord) bool {
+		return message.Content == content
+	})
 }
 
 func roomDirectedMessageContentHasReplyRoute(
@@ -431,12 +429,9 @@ func roomDirectedMessageContentHasReplyRoute(
 	content string,
 	mode protocol.RoomReplyRouteMode,
 ) bool {
-	for _, message := range messages {
-		if message.Content == content && message.ReplyRoute.Mode == mode {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(messages, func(message protocol.RoomDirectedMessageRecord) bool {
+		return message.Content == content && message.ReplyRoute.Mode == mode
+	})
 }
 
 func waitForRoomDirectedMessageContent(

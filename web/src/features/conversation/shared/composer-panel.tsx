@@ -1,29 +1,23 @@
 "use client";
 
-import { ChangeEvent, ClipboardEvent, KeyboardEvent, memo, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
-  ChevronDown,
-  ChevronUp,
-  CornerDownRight,
-  File as FileIcon,
-  FileText,
-  GripVertical,
-  Image as ImageIcon,
-  Plus,
-  Paperclip,
-  Repeat2,
+  KeyboardEvent,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
   Send,
   StopCircle,
   Target,
-  Trash2,
-  X,
 } from "lucide-react";
 
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { cn } from "@/lib/utils";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
-import { GlassSwitch } from "@/shared/ui/liquid-glass";
-import { UiActionMenu, type UiActionMenuItem } from "@/shared/ui/action-menu";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   AgentConversationDefaultDeliveryPolicy,
@@ -34,31 +28,25 @@ import {
 import { Agent } from "@/types/agent/agent";
 
 import {
-  COMPOSER_ATTACHMENT_CLASS_NAME,
-  COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME,
-  COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
   COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
-  COMPOSER_FOOTER_CLASS_NAME,
   COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
   get_composer_shell_class_name,
   get_composer_shell_style,
 } from "./composer-styles";
 import {
   COMPOSER_ATTACHMENT_ACCEPT,
-  ComposerAttachmentKind,
-  get_composer_attachment_kind,
-  get_attachment_rejection_reason,
   PreparedComposerAttachment,
 } from "./composer-attachments";
-import { MentionTargetItem, MentionTargetPopover } from "./mention-popover";
+import {
+  ComposerAttachmentList,
+} from "./composer-local-attachments";
+import { ComposerFooter } from "./composer-footer";
+import { ComposerPendingQueue } from "./composer-pending-queue";
+import { MentionTargetPopover } from "./mention-popover";
 import { LoopPickerDialog } from "./loop-picker-dialog";
+import { useComposerAttachments } from "./use-composer-attachments";
+import { useComposerMention } from "./use-composer-mention";
 import type { LoopCatalogItem } from "@/types/capability/loop";
-
-interface AttachmentFile {
-  id: string;
-  file: File;
-  kind: ComposerAttachmentKind;
-}
 
 interface ComposerPanelProps {
   compact: boolean;
@@ -105,84 +93,7 @@ type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
 
 const IME_COMPOSITION_KEY_CODE = 229;
 const COMPOSITION_END_ENTER_GUARD_MS = 80;
-const PENDING_QUEUE_AUTO_SCROLL_ZONE_PX = 28;
-const PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX = 10;
-const MAX_COMPOSER_ATTACHMENTS = 6;
-const PASTED_TEXT_ATTACHMENT_THRESHOLD = 10_000;
 type ComposerInputMode = "message" | "goal";
-
-const CLIPBOARD_IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-  "image/bmp": "bmp",
-  "image/svg+xml": "svg",
-};
-
-function create_attachment_id() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-function get_attachment_kind_label(kind: ComposerAttachmentKind) {
-  if (kind === "image") {
-    return "图片";
-  }
-  if (kind === "text") {
-    return "文本文件";
-  }
-  return "工作文件";
-}
-
-function get_attachment_icon(kind: ComposerAttachmentKind) {
-  if (kind === "image") {
-    return ImageIcon;
-  }
-  if (kind === "text") {
-    return FileText;
-  }
-  return FileIcon;
-}
-
-function build_pasted_image_file(file: File, index: number): File {
-  if (!file.type.startsWith("image/")) {
-    return file;
-  }
-
-  const extension = CLIPBOARD_IMAGE_EXTENSION_BY_MIME[file.type] ?? "png";
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return new File(
-    [file],
-    `pasted-image-${timestamp}-${index + 1}.${extension}`,
-    {
-      lastModified: Date.now(),
-      type: file.type,
-    },
-  );
-}
-
-function build_pasted_text_file(text: string): File {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return new File([text], `pasted-text-${timestamp}.txt`, {
-    lastModified: Date.now(),
-    type: "text/plain",
-  });
-}
-
-function get_clipboard_files(clipboard_data: DataTransfer): File[] {
-  const files_from_items = Array.from(clipboard_data.items)
-    .filter((item) => item.kind === "file")
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file))
-    .map(build_pasted_image_file);
-
-  if (files_from_items.length > 0) {
-    return files_from_items;
-  }
-
-  return Array.from(clipboard_data.files).map(build_pasted_image_file);
-}
-
 function is_caret_on_first_line(target: HTMLTextAreaElement) {
   const selection_start = target.selectionStart ?? 0;
   const selection_end = target.selectionEnd ?? 0;
@@ -199,22 +110,6 @@ function is_caret_on_last_line(target: HTMLTextAreaElement) {
     return false;
   }
   return !target.value.slice(selection_end).includes("\n");
-}
-
-function reorder_pending_messages(
-  messages: InputQueueItem[],
-  source_id: string,
-  target_id: string,
-): InputQueueItem[] {
-  const source_index = messages.findIndex((item) => item.id === source_id);
-  const target_index = messages.findIndex((item) => item.id === target_id);
-  if (source_index < 0 || target_index < 0 || source_index === target_index) {
-    return messages;
-  }
-  const next = [...messages];
-  const [source] = next.splice(source_index, 1);
-  next.splice(target_index, 0, source);
-  return next;
 }
 
 const ComposerPanelView = memo(({
@@ -256,34 +151,25 @@ const ComposerPanelView = memo(({
   const [input_history, setInputHistory] = useState<string[]>([]);
   const [history_index, setHistoryIndex] = useState(-1);
   const [history_draft, setHistoryDraft] = useState("");
-  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
-  const [attachment_error, setAttachmentError] = useState<string | null>(null);
-  const [is_preparing_attachments, setIsPreparingAttachments] = useState(false);
-  const [dragging_message_id, set_dragging_message_id] = useState<string | null>(null);
-  const [drag_over_message_id, set_drag_over_message_id] = useState<string | null>(null);
-  const [is_pending_queue_collapsed, set_is_pending_queue_collapsed] = useState(false);
-  const [is_queue_action_running, set_is_queue_action_running] = useState(false);
   const [is_action_menu_open, set_is_action_menu_open] = useState(false);
   const [is_loop_picker_open, set_is_loop_picker_open] = useState(false);
   const [is_goal_creating, set_is_goal_creating] = useState(false);
   const [goal_error, set_goal_error] = useState<string | null>(null);
-
-  // 共享 Composer 同时服务 DM 和 Room，这里统一在共享层过滤不可提及成员，
-  // 避免再保留第二套几乎相同的输入区实现。
-  const available_room_members = room_members.filter(
-    (member) => !mention_unavailable_agent_ids.includes(member.agent_id),
-  );
-  const mention_target_items = available_room_members.map<MentionTargetItem>((member) => ({
-    id: member.agent_id,
-    label: member.name,
-    subtitle: null,
-    kind: "agent",
-  }));
-
-  // @mention 状态
-  const [mention_active, set_mention_active] = useState(false);
-  const [mention_filter, set_mention_filter] = useState("");
-  const [mention_start_pos, set_mention_start_pos] = useState(-1);
+  const {
+    attachment_error,
+    attachments,
+    clear_attachment_error,
+    clear_attachments,
+    handle_file_select,
+    handle_paste,
+    is_preparing_attachments,
+    prepare_attachments,
+    remove_attachment,
+  } = useComposerAttachments({
+    is_goal_mode,
+    on_goal_attachment_rejected: set_goal_error,
+    on_prepare_attachments,
+  });
 
   const is_composing_ref = useRef(false);
   const ignore_next_enter_after_composition_ref = useRef(false);
@@ -291,122 +177,48 @@ const ComposerPanelView = memo(({
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_input_ref = useRef<HTMLInputElement>(null);
   const action_button_ref = useRef<HTMLButtonElement>(null);
-  const pending_queue_scroll_ref = useRef<HTMLDivElement>(null);
-  const pending_queue_drag_y_ref = useRef<number | null>(null);
-  const pending_queue_scroll_frame_ref = useRef<number | null>(null);
-  const dragging_message_id_ref = useRef<string | null>(null);
+  const {
+    close_mention,
+    mention_active,
+    mention_filter,
+    mention_target_items,
+    select_mention_item,
+    update_mention_for_input,
+  } = useComposerMention({
+    input,
+    is_goal_mode,
+    mention_unavailable_agent_ids,
+    room_members,
+    set_input: setInput,
+    textarea_ref,
+  });
   const is_dispatching = is_loading && runtime_phase === "sending";
   const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
   const is_textarea_locked = is_input_locked || (is_goal_mode && is_goal_creating);
   const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
   const can_create_goal = Boolean(on_create_goal);
-  const can_use_loop = enable_loops && Boolean(on_create_loop_goal);
+  const can_use_loop = enable_loops && (Boolean(on_create_loop_goal) || can_create_goal);
   const goal_create_blocked_reason =
     goal_create_disabled_reason?.trim() || null;
 
   useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
-  const stop_pending_queue_auto_scroll = useCallback(() => {
-    if (pending_queue_scroll_frame_ref.current !== null) {
-      cancelAnimationFrame(pending_queue_scroll_frame_ref.current);
-      pending_queue_scroll_frame_ref.current = null;
-    }
-    pending_queue_drag_y_ref.current = null;
-  }, []);
-
-  const run_pending_queue_auto_scroll = useCallback(() => {
-    const container = pending_queue_scroll_ref.current;
-    const pointer_y = pending_queue_drag_y_ref.current;
-    if (!container || pointer_y === null || !dragging_message_id_ref.current) {
-      pending_queue_scroll_frame_ref.current = null;
-      return;
-    }
-
-    const rect = container.getBoundingClientRect();
-    const distance_to_top = pointer_y - rect.top;
-    const distance_to_bottom = rect.bottom - pointer_y;
-    let delta = 0;
-
-    if (distance_to_top < PENDING_QUEUE_AUTO_SCROLL_ZONE_PX) {
-      const ratio = (PENDING_QUEUE_AUTO_SCROLL_ZONE_PX - Math.max(distance_to_top, 0)) / PENDING_QUEUE_AUTO_SCROLL_ZONE_PX;
-      delta = -Math.ceil(ratio * PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX);
-    } else if (distance_to_bottom < PENDING_QUEUE_AUTO_SCROLL_ZONE_PX) {
-      const ratio = (PENDING_QUEUE_AUTO_SCROLL_ZONE_PX - Math.max(distance_to_bottom, 0)) / PENDING_QUEUE_AUTO_SCROLL_ZONE_PX;
-      delta = Math.ceil(ratio * PENDING_QUEUE_AUTO_SCROLL_MAX_DELTA_PX);
-    }
-
-    if (delta !== 0) {
-      container.scrollTop += delta;
-    }
-    pending_queue_scroll_frame_ref.current = requestAnimationFrame(run_pending_queue_auto_scroll);
-  }, []);
-
-  const start_pending_queue_auto_scroll = useCallback((client_y: number) => {
-    pending_queue_drag_y_ref.current = client_y;
-    if (pending_queue_scroll_frame_ref.current === null) {
-      pending_queue_scroll_frame_ref.current = requestAnimationFrame(run_pending_queue_auto_scroll);
-    }
-  }, [run_pending_queue_auto_scroll]);
-
-  useEffect(() => stop_pending_queue_auto_scroll, [stop_pending_queue_auto_scroll]);
-
   const handle_input_change = useCallback((value: string) => {
     setInput(value);
     if (attachment_error) {
-      setAttachmentError(null);
+      clear_attachment_error();
     }
     if (goal_error) {
       set_goal_error(null);
     }
 
-    if (is_goal_mode) {
-      set_mention_active(false);
-      return;
-    }
-
-    if (available_room_members.length === 0) {
-      set_mention_active(false);
-      return;
-    }
-
-    const cursor_pos = textarea_ref.current?.selectionStart ?? value.length;
-    const before_cursor = value.slice(0, cursor_pos);
-    const at_index = before_cursor.lastIndexOf("@");
-
-    if (at_index >= 0) {
-      const char_before_at = at_index > 0 ? before_cursor[at_index - 1] : " ";
-      if (char_before_at === " " || char_before_at === "\n" || at_index === 0) {
-        const filter_text = before_cursor.slice(at_index + 1);
-        if (!filter_text.includes(" ")) {
-          set_mention_active(true);
-          set_mention_filter(filter_text);
-          set_mention_start_pos(at_index);
-          return;
-        }
-      }
-    }
-
-    set_mention_active(false);
-  }, [attachment_error, available_room_members.length, goal_error, is_goal_mode]);
-
-  const handle_mention_select = useCallback((agent: Agent) => {
-    const before = input.slice(0, mention_start_pos);
-    const cursor_pos = textarea_ref.current?.selectionStart ?? input.length;
-    const after = input.slice(cursor_pos);
-    const next_input = `${before}@${agent.name} ${after}`;
-    setInput(next_input);
-    set_mention_active(false);
-
-    requestAnimationFrame(() => {
-      const new_cursor = mention_start_pos + agent.name.length + 2;
-      textarea_ref.current?.setSelectionRange(new_cursor, new_cursor);
-      textarea_ref.current?.focus();
-    });
-  }, [input, mention_start_pos]);
-
-  const handle_mention_close = useCallback(() => {
-    set_mention_active(false);
-  }, []);
+    update_mention_for_input(value);
+  }, [
+    attachment_error,
+    clear_attachment_error,
+    goal_error,
+    update_mention_for_input,
+  ]);
 
   useEffect(() => {
     if (textarea_ref.current && !is_input_locked) {
@@ -464,23 +276,9 @@ const ComposerPanelView = memo(({
       return;
     }
 
-    let prepared_attachments: PreparedComposerAttachment[] = [];
-    if (attachments.length > 0) {
-      if (!on_prepare_attachments) {
-        setAttachmentError(t("composer.unsupported_attachment"));
-        return;
-      }
-
-      setIsPreparingAttachments(true);
-      setAttachmentError(null);
-      try {
-        prepared_attachments = await on_prepare_attachments(attachments.map((attachment) => attachment.file));
-      } catch (error) {
-        setAttachmentError(error instanceof Error ? error.message : t("composer.attachment_failed"));
-        return;
-      } finally {
-        setIsPreparingAttachments(false);
-      }
+    const prepared_attachments = await prepare_attachments();
+    if (!prepared_attachments) {
+      return;
     }
 
     if (trimmed_input) {
@@ -503,8 +301,8 @@ const ComposerPanelView = memo(({
         await dispatch_message(trimmed_input, delivery_policy, prepared_attachments);
       }
       setInput("");
-      setAttachments([]);
-      setAttachmentError(null);
+      clear_attachments();
+      clear_attachment_error();
     } catch (error) {
       console.error("发送消息失败:", error);
       return;
@@ -514,7 +312,9 @@ const ComposerPanelView = memo(({
       textarea_ref.current.style.height = "auto";
     }
   }, [
-    attachments,
+    attachments.length,
+    clear_attachment_error,
+    clear_attachments,
     default_delivery_policy,
     dispatch_message,
     goal_create_blocked_reason,
@@ -527,7 +327,7 @@ const ComposerPanelView = memo(({
     is_preparing_attachments,
     on_enqueue_message,
     on_create_goal,
-    on_prepare_attachments,
+    prepare_attachments,
     queue_when_session_busy,
     t,
   ]);
@@ -544,9 +344,9 @@ const ComposerPanelView = memo(({
     set_is_action_menu_open(false);
     set_input_mode("goal");
     set_goal_error(null);
-    set_mention_active(false);
+    close_mention();
     requestAnimationFrame(() => textarea_ref.current?.focus());
-  }, [can_create_goal]);
+  }, [can_create_goal, close_mention]);
 
   const cancel_goal_input = useCallback(() => {
     set_input_mode("message");
@@ -571,38 +371,37 @@ const ComposerPanelView = memo(({
     set_is_loop_picker_open(true);
   }, [can_use_loop]);
 
-  const create_loop_goal = useCallback(async (loop: LoopCatalogItem) => {
+  const apply_loop_prompt = useCallback((loop: LoopCatalogItem) => {
+    set_input_mode("message");
+    set_goal_error(null);
+    setInput(loop.kickoff_prompt);
+    close_mention();
+    requestAnimationFrame(() => textarea_ref.current?.focus());
+  }, [close_mention]);
+
+  const apply_loop_goal = useCallback((loop: LoopCatalogItem) => {
+    if (!can_create_goal) {
+      apply_loop_prompt(loop);
+      return;
+    }
+    set_input_mode("goal");
+    set_goal_error(null);
+    setInput(loop.kickoff_prompt);
+    close_mention();
+    requestAnimationFrame(() => textarea_ref.current?.focus());
+  }, [apply_loop_prompt, can_create_goal, close_mention]);
+
+  const handle_loop_select = useCallback(async (loop: LoopCatalogItem) => {
     if (!on_create_loop_goal) {
+      apply_loop_goal(loop);
       return;
     }
     set_goal_error(null);
-    set_mention_active(false);
+    close_mention();
     await on_create_loop_goal(loop);
     set_input_mode("message");
     setInput("");
-  }, [on_create_loop_goal]);
-
-  const remove_pending_message = useCallback(async (id: string) => {
-    await on_delete_queued_message?.(id);
-  }, [on_delete_queued_message]);
-
-  const guide_pending_message = useCallback(async (message: InputQueueItem) => {
-    if (disabled || is_queue_action_running) {
-      return;
-    }
-    try {
-      set_is_queue_action_running(true);
-      await on_guide_queued_message?.(message.id);
-    } catch (error) {
-      console.error("引导队列消息失败:", error);
-    } finally {
-      set_is_queue_action_running(false);
-    }
-  }, [
-    disabled,
-    is_queue_action_running,
-    on_guide_queued_message,
-  ]);
+  }, [apply_loop_goal, close_mention, on_create_loop_goal]);
 
   const recall_previous_history = useCallback(() => {
     if (input_history.length === 0) {
@@ -614,8 +413,8 @@ const ComposerPanelView = memo(({
     const next_index = Math.min(history_index + 1, input_history.length - 1);
     setHistoryIndex(next_index);
     setInput(input_history[next_index] ?? "");
-    setAttachmentError(null);
-  }, [history_index, input, input_history]);
+    clear_attachment_error();
+  }, [clear_attachment_error, history_index, input, input_history]);
 
   const recall_next_history = useCallback(() => {
     if (history_index > 0) {
@@ -696,81 +495,6 @@ const ComposerPanelView = memo(({
     }
   };
 
-  const append_attachment_files = useCallback((files: File[]) => {
-    if (files.length === 0) {
-      return;
-    }
-
-    const next_attachments: AttachmentFile[] = [];
-    const rejected_files: string[] = [];
-
-    files.forEach((file) => {
-      const rejection_reason = get_attachment_rejection_reason(file);
-      if (rejection_reason) {
-        rejected_files.push(rejection_reason);
-        return;
-      }
-
-      const kind = get_composer_attachment_kind(file);
-      if (!kind) {
-        rejected_files.push(t("composer.attachment_format_unsupported"));
-        return;
-      }
-
-      next_attachments.push({
-        id: create_attachment_id(),
-        file,
-        kind,
-      });
-    });
-
-    if (rejected_files.length > 0) {
-      setAttachmentError(rejected_files[0] ?? t("composer.attachment_format_unsupported"));
-    } else {
-      setAttachmentError(null);
-    }
-
-    if (next_attachments.length > 0) {
-      setAttachments((prev) => [...prev, ...next_attachments].slice(0, MAX_COMPOSER_ATTACHMENTS));
-    }
-  }, [t]);
-
-  const handle_file_select = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) {
-      return;
-    }
-
-    append_attachment_files(Array.from(files));
-
-    if (file_input_ref.current) {
-      file_input_ref.current.value = "";
-    }
-  };
-
-  const handle_paste = useCallback((event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const pasted_files = get_clipboard_files(event.clipboardData);
-    if (pasted_files.length === 0) {
-      const pasted_text = event.clipboardData.getData("text/plain");
-      if (!is_goal_mode && pasted_text.length > PASTED_TEXT_ATTACHMENT_THRESHOLD) {
-        event.preventDefault();
-        append_attachment_files([build_pasted_text_file(pasted_text)]);
-      }
-      return;
-    }
-
-    event.preventDefault();
-    if (is_goal_mode) {
-      set_goal_error(t("composer.goal_attachment_unsupported"));
-      return;
-    }
-    append_attachment_files(pasted_files);
-  }, [append_attachment_files, is_goal_mode, t]);
-
-  const remove_attachment = (id: string) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const has_text_input = input.trim().length > 0;
   const is_input_empty = !has_text_input && attachments.length === 0;
   const char_count = input.length;
@@ -799,43 +523,6 @@ const ComposerPanelView = memo(({
   if (is_goal_mode) {
     composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1.5" : "px-3 pb-3 pt-2";
   }
-  const action_menu_items: UiActionMenuItem[] = [
-    {
-      value: "attachment",
-      label: t("composer.add_attachment"),
-      icon: <Paperclip className="h-4 w-4 text-(--icon-muted)" />,
-      disabled: is_input_locked || is_preparing_attachments || is_goal_mode,
-    },
-    ...(can_use_loop
-      ? [{
-          value: "loop",
-          label: t("composer.insert_loop"),
-          icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
-          disabled: is_input_locked,
-        }]
-      : []),
-    {
-      value: "goal",
-      label: t("composer.start_goal"),
-      icon: <Target className="h-4 w-4 text-(--primary)" />,
-      trailing: (
-        <span
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <GlassSwitch
-            checked={is_goal_mode}
-            disabled={!can_create_goal || is_input_locked || is_goal_creating}
-            on_change={toggle_goal_input}
-            size="xs"
-          />
-        </span>
-      ),
-      active: is_goal_mode,
-      disabled: !can_create_goal || is_input_locked || is_goal_creating,
-      tone: "primary",
-    },
-  ];
 
   return (
     <section
@@ -858,168 +545,25 @@ const ComposerPanelView = memo(({
         <LoopPickerDialog
           is_open={is_loop_picker_open}
           on_close={() => set_is_loop_picker_open(false)}
-          on_select={create_loop_goal}
+          on_select={handle_loop_select}
         />
       ) : null}
 
       <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
-        {has_pending_queue ? (
-          <div
-            className={cn(
-              "border-b border-(--surface-canvas-border)",
-              compact ? "px-2 pb-0.5 pt-1" : "px-3 pb-1 pt-1",
-            )}
-          >
-            <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-(--text-soft)">
-              <span className="inline-flex items-center gap-1.5">
-                {t("composer.pending_queue")}
-                <span className="tabular-nums">{input_queue_items.length}</span>
-              </span>
-              <button
-                aria-label={is_pending_queue_collapsed ? t("composer.expand_pending_queue") : t("composer.collapse_pending_queue")}
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                onClick={() => set_is_pending_queue_collapsed((current) => !current)}
-                type="button"
-              >
-                {is_pending_queue_collapsed ? (
-                  <ChevronDown className="h-3 w-3" />
-                ) : (
-                  <ChevronUp className="h-3 w-3" />
-                )}
-              </button>
-            </div>
-            <div className={cn(
-              "soft-scrollbar flex max-h-[112px] flex-col divide-y divide-(--divider-subtle-color) overflow-y-auto pr-1",
-              is_pending_queue_collapsed ? "hidden" : "mt-0.5",
-            )}
-              onDragOver={(event) => {
-                event.preventDefault();
-                start_pending_queue_auto_scroll(event.clientY);
-              }}
-              ref={pending_queue_scroll_ref}
-            >
-              {input_queue_items.map((message) => {
-                const is_dragging = dragging_message_id === message.id;
-                const is_guidance_waiting = message.delivery_policy === "guide";
-                const is_drag_target = Boolean(
-                  dragging_message_id
-                    && dragging_message_id !== message.id
-                    && drag_over_message_id === message.id,
-                );
-                return (
-                  <div
-                    key={message.id}
-                    draggable
-                    className={cn(
-                      "group -mx-1 flex min-h-7 items-center gap-2 px-1 py-0.5 text-(--text-default) transition-[background,box-shadow,opacity]",
-                      is_dragging && "opacity-60",
-                      is_drag_target && "bg-(--surface-interactive-hover-background) shadow-[inset_3px_0_0_var(--primary)]",
-                    )}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                      start_pending_queue_auto_scroll(event.clientY);
-                      if (drag_over_message_id !== message.id) {
-                        set_drag_over_message_id(message.id);
-                      }
-                    }}
-                    onDragStart={() => {
-                      dragging_message_id_ref.current = message.id;
-                      set_dragging_message_id(message.id);
-                    }}
-                    onDragEnd={() => {
-                      dragging_message_id_ref.current = null;
-                      stop_pending_queue_auto_scroll();
-                      set_dragging_message_id(null);
-                      set_drag_over_message_id(null);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      if (!dragging_message_id) {
-                        return;
-                      }
-                      const next_items = reorder_pending_messages(
-                        input_queue_items,
-                        dragging_message_id,
-                        message.id,
-                      );
-                      void on_reorder_queue_messages?.(next_items.map((item) => item.id));
-                      dragging_message_id_ref.current = null;
-                      stop_pending_queue_auto_scroll();
-                      set_dragging_message_id(null);
-                      set_drag_over_message_id(null);
-                    }}
-                  >
-                    <span
-                      aria-label={t("composer.drag_to_reorder")}
-                      className="inline-flex h-5 w-3.5 shrink-0 cursor-grab items-center justify-center text-(--text-soft) active:cursor-grabbing"
-                    >
-                      <GripVertical className="h-3.5 w-3.5" />
-                    </span>
-                    <p className="line-clamp-1 min-w-0 flex-1 text-[12px] leading-5 text-(--text-strong)">
-                      {message.content.trim() ? (
-                        message.content
-                      ) : message.attachments && message.attachments.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-(--text-muted)">
-                          <Paperclip className="h-3 w-3 shrink-0" />
-                          {message.attachments.map((attachment) => attachment.file_name || attachment.workspace_path).join("、")}
-                        </span>
-                      ) : null}
-                    </p>
-                    <button
-                      aria-label={is_guidance_waiting ? t("composer.cancel_guidance") : t("composer.mark_guidance")}
-                      className="inline-flex h-6 shrink-0 items-center justify-center gap-1 px-1 text-[11px] font-semibold text-(--text-soft) transition-colors hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                      disabled={disabled || is_queue_action_running}
-                      onClick={() => {
-                        void guide_pending_message(message);
-                      }}
-                      type="button"
-                    >
-                      <CornerDownRight className="h-3 w-3" />
-                      {is_guidance_waiting ? t("composer.cancel_guide_action") : t("composer.guide_action")}
-                    </button>
-                    <button
-                      aria-label={t("composer.delete_pending")}
-                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-(--text-soft) transition-colors hover:text-(--destructive)"
-                      onClick={() => {
-                        void remove_pending_message(message.id);
-                      }}
-                      type="button"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
+        <ComposerPendingQueue
+          compact={compact}
+          disabled={disabled}
+          input_queue_items={input_queue_items}
+          on_delete_queued_message={on_delete_queued_message}
+          on_guide_queued_message={on_guide_queued_message}
+          on_reorder_queue_messages={on_reorder_queue_messages}
+        />
 
-        {attachments.length > 0 ? (
-          <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
-            {attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className={COMPOSER_ATTACHMENT_CLASS_NAME}
-                title={`${get_attachment_kind_label(attachment.kind)}：${attachment.file.name}`}
-              >
-                {(() => {
-                  const AttachmentIcon = get_attachment_icon(attachment.kind);
-                  return <AttachmentIcon size={16} className="text-accent" />;
-                })()}
-                <span className="max-w-[120px] truncate text-xs text-foreground/70">
-                  {attachment.file.name}
-                </span>
-                <button
-                  aria-label={t("composer.remove_attachment")}
-                  className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
-                  onClick={() => remove_attachment(attachment.id)}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <ComposerAttachmentList
+          attachments={attachments}
+          on_remove={remove_attachment}
+          remove_label={t("composer.remove_attachment")}
+        />
 
         <div className={cn("flex items-end gap-2", composer_input_row_padding_class)}>
           {mention_active && mention_target_items.length > 0 ? (
@@ -1027,13 +571,8 @@ const ComposerPanelView = memo(({
               anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
               filter={mention_filter}
               items={mention_target_items}
-              on_close={handle_mention_close}
-              on_select={(item) => {
-                const selected_member = available_room_members.find((member) => member.agent_id === item.id);
-                if (selected_member) {
-                  handle_mention_select(selected_member);
-                }
-              }}
+              on_close={close_mention}
+              on_select={select_mention_item}
               placement="above"
             />
           ) : null}
@@ -1117,113 +656,33 @@ const ComposerPanelView = memo(({
           )}
         </div>
 
-        <div className={COMPOSER_FOOTER_CLASS_NAME}>
-          <div className="flex min-w-0 items-center gap-2 text-[10px] text-(--text-soft)">
-            <div className="shrink-0">
-              <button
-                ref={action_button_ref}
-                aria-expanded={is_action_menu_open}
-                aria-haspopup="menu"
-                aria-label={t("composer.open_actions")}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                disabled={is_input_locked}
-                onClick={() => set_is_action_menu_open((current) => !current)}
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-              <UiActionMenu
-                anchor_ref={action_button_ref}
-                aria_label={t("composer.open_actions")}
-                is_open={is_action_menu_open}
-                items={action_menu_items}
-                placement="top"
-                on_close={() => set_is_action_menu_open(false)}
-                on_select={(value) => {
-                  if (value === "attachment") {
-                    open_attachment_picker();
-                    return;
-                  }
-                  if (value === "loop") {
-                    open_loop_picker();
-                    return;
-                  }
-                  if (value === "goal") {
-                    toggle_goal_input(!is_goal_mode);
-                  }
-                }}
-              />
-            </div>
-
-            {is_goal_mode ? (
-              <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-(--primary)">
-                <Target className="h-3.5 w-3.5 shrink-0" />
-                <span>{t("composer.goal_mode")}</span>
-                <span className="truncate font-medium text-(--text-muted)">{goal_scope_label}</span>
-                {goal_mode_extra}
-                <button
-                  aria-label={t("composer.cancel_goal_mode")}
-                  className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                  disabled={is_goal_creating}
-                  onClick={cancel_goal_input}
-                  type="button"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ) : null}
-
-            {is_dispatching ? (
-              <span className="flex items-center gap-2 text-(--success)">
-                <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                <span className="animate-pulse">{t("status.sending")}</span>
-              </span>
-            ) : can_stop_generation ? (
-              <span className="flex items-center gap-2 text-(--success)">
-                <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
-                <span className="animate-pulse">{t("status.replying")}…</span>
-                <span className="text-(--text-soft)">[{t("composer.esc_stop")}]</span>
-              </span>
-            ) : is_preparing_attachments ? (
-              <span className="flex items-center gap-2 text-(--text-default)">
-                <LoadingOrb frames={["·", "◦", "•", "◦"]} />
-                <span>{t("composer.preparing_attachments")}</span>
-              </span>
-            ) : is_goal_creating ? (
-              <span className="flex items-center gap-2 text-(--primary)">
-                <LoadingOrb frames={["·", "◦", "•", "◦"]} />
-                <span className="animate-pulse">{t("composer.goal_normalizing")}</span>
-              </span>
-            ) : active_error ? (
-              <span className="text-(--destructive)">{active_error}</span>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-3 text-[10px] tabular-nums">
-            {char_count > 0 ? (
-              <div>
-                <span
-                  className={cn(
-                    is_over_limit && "text-destructive",
-                    is_near_limit && !is_over_limit && "text-warning",
-                    !is_near_limit && "text-(--text-soft)",
-                  )}
-                >
-                  {char_count}
-                </span>
-                <span className="text-(--text-soft)">/{max_length}</span>
-              </div>
-            ) : null}
-            {history_index >= 0 ? (
-              <div className="text-[10px] text-(--text-default)">
-                {t("composer.history_position", {
-                  current: history_index + 1,
-                  total: input_history.length,
-                })}
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <ComposerFooter
+          action_button_ref={action_button_ref}
+          active_error={active_error}
+          can_create_goal={can_create_goal}
+          can_use_loop={can_use_loop}
+          can_stop_generation={can_stop_generation}
+          char_count={char_count}
+          goal_mode_extra={goal_mode_extra}
+          goal_scope_label={goal_scope_label}
+          history_index={history_index}
+          input_history_length={input_history.length}
+          is_action_menu_open={is_action_menu_open}
+          is_dispatching={is_dispatching}
+          is_goal_creating={is_goal_creating}
+          is_goal_mode={is_goal_mode}
+          is_input_locked={is_input_locked}
+          is_near_limit={is_near_limit}
+          is_over_limit={is_over_limit}
+          is_preparing_attachments={is_preparing_attachments}
+          max_length={max_length}
+          on_action_menu_close={() => set_is_action_menu_open(false)}
+          on_action_menu_toggle={() => set_is_action_menu_open((current) => !current)}
+          on_attachment_select={open_attachment_picker}
+          on_cancel_goal={cancel_goal_input}
+          on_goal_toggle={toggle_goal_input}
+          on_loop_select={open_loop_picker}
+        />
       </div>
     </section>
   );

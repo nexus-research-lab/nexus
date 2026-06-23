@@ -180,8 +180,8 @@ func permissionDenialErrorMessage(payload map[string]any, resultText string) str
 	if len(tools) == 0 {
 		return ""
 	}
-	if strings.TrimSpace(resultText) != "" {
-		return strings.TrimSpace(resultText)
+	if resultText := strings.TrimSpace(resultText); resultText != "" {
+		return resultText
 	}
 	return "定时任务后台运行被权限策略拒绝，未授权工具: " + strings.Join(tools, ", ")
 }
@@ -224,8 +224,8 @@ func resultErrorsMessage(payload map[string]any, resultText string) string {
 	if len(errors) == 0 {
 		return ""
 	}
-	if strings.TrimSpace(resultText) != "" {
-		return strings.TrimSpace(resultText)
+	if resultText := strings.TrimSpace(resultText); resultText != "" {
+		return resultText
 	}
 	return strings.Join(errors, "; ")
 }

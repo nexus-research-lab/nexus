@@ -1,6 +1,7 @@
 package message
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -12,7 +13,7 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		firstNonEmpty(strings.TrimSpace(message.UUID), "result_"+p.ctx.RoundID),
+		firstNonEmpty(message.UUID, "result_"+p.ctx.RoundID),
 		"result",
 	)
 	payload["subtype"] = subtype
@@ -23,8 +24,9 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	payload["usage"] = firstNonNilMap(message.Result.Usage, map[string]any{})
 	payload["result"] = message.Result.Result
 	payload["is_error"] = subtype == "error"
-	if strings.TrimSpace(message.Result.TerminalReason) != "" {
-		payload["terminal_reason"] = strings.TrimSpace(message.Result.TerminalReason)
+	terminalReason := strings.TrimSpace(message.Result.TerminalReason)
+	if terminalReason != "" {
+		payload["terminal_reason"] = terminalReason
 	}
 	if message.Result.StopReason != nil {
 		payload["stop_reason"] = message.Result.StopReason
@@ -33,7 +35,7 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 		payload["permission_denials"] = denials
 	}
 	if len(message.Result.Errors) > 0 {
-		payload["errors"] = append([]string(nil), message.Result.Errors...)
+		payload["errors"] = slices.Clone(message.Result.Errors)
 	}
 	return protocol.Message(payload)
 }

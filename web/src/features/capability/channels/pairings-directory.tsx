@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Filter, Plus, RefreshCw, ShieldCheck, Trash2, Users, X } from "lucide-react";
+import { Filter, Plus, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { get_agents } from "@/lib/api/agent-manage-api";
@@ -14,14 +14,8 @@ import {
 } from "@/lib/api/channel-api";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiBadge } from "@/shared/ui/badge";
-import type { UiBadgeTone } from "@/shared/ui/badge-styles";
-import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import { FeedbackBannerStack, type FeedbackBannerItem } from "@/shared/ui/feedback/feedback-banner-stack";
-import { UiField } from "@/shared/ui/form-control";
-import { UiPanel } from "@/shared/ui/panel";
-import { UiSelectMenu } from "@/shared/ui/select-menu";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import {
   CapabilityFilterBar,
@@ -39,39 +33,11 @@ import type { Agent } from "@/types/agent/agent";
 import { notify_capability_summary_mutated } from "../capability-summary-events";
 
 import { CreatePairingDialog } from "./pairing-create-dialog";
-import { CHANNEL_LABELS, CHANNEL_OPTIONS, CHAT_TYPE_OPTIONS, STATUS_LABELS } from "./pairing-options";
-
-function status_tone(status: ImPairingStatus): UiBadgeTone {
-  switch (status) {
-  case "active":
-    return "success";
-  case "pending":
-    return "warning";
-  case "rejected":
-    return "danger";
-  default:
-    return "default";
-  }
-}
-
-function format_target(item: PairingView) {
-  const thread = item.thread_id ? ` / ${item.thread_id}` : "";
-  return `${item.external_ref}${thread}`;
-}
-
-function chat_type_label(item: PairingView) {
-  return CHAT_TYPE_OPTIONS.find((option) => option.value === item.chat_type)?.label ?? item.chat_type;
-}
-
-function binding_key(item: PairingView) {
-  return [
-    CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
-    item.account_id || "default",
-    chat_type_label(item),
-    item.external_ref,
-    item.thread_id || "-",
-  ].join(" / ");
-}
+import {
+  PairingList,
+  type PairingGroup,
+} from "./pairing-list";
+import { CHANNEL_LABELS, CHANNEL_OPTIONS, STATUS_LABELS } from "./pairing-options";
 
 function session_key_for_pairing(item: PairingView) {
   return item.session_key || "";
@@ -112,7 +78,7 @@ export function PairingsDirectory() {
   const active_count = useMemo(() => items.filter((item) => item.status === "active").length, [items]);
   const grouped_items = useMemo(() => {
     const agent_names = new Map(agents.map((agent) => [agent.agent_id, agent.name]));
-    const groups = new Map<string, { agent_id: string; agent_name: string; items: PairingView[] }>();
+    const groups = new Map<string, PairingGroup>();
     visible_items.forEach((item) => {
       const key = item.agent_id;
       const existing = groups.get(key);
@@ -302,148 +268,14 @@ export function PairingsDirectory() {
               title="暂无配对请求"
             />
           ) : (
-            <div className="space-y-5">
-              {grouped_items.map((group) => (
-                <section className="space-y-2.5" key={group.agent_id}>
-                  <div className="flex items-center justify-between border-b border-(--divider-subtle-color) pb-2">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-[15px] font-semibold text-(--text-strong)">
-                        {group.agent_name}
-                      </h2>
-                      <p className="truncate text-[12px] text-(--text-muted)">
-                        {group.items.length} 个外部对象绑定到此智能体
-                      </p>
-                    </div>
-                    <UiBadge tone="default">{group.agent_id}</UiBadge>
-                  </div>
-                  <div className="space-y-2.5">
-                    {group.items.map((item) => (
-                      <UiPanel
-                        class_name="grid grid-cols-[minmax(0,1.2fr)_minmax(210px,0.8fr)_minmax(260px,1fr)_auto] items-center gap-4 max-2xl:grid-cols-[minmax(0,1fr)_minmax(240px,1fr)] max-lg:grid-cols-1"
-                        key={item.pairing_id}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <UiBadge>{CHANNEL_LABELS[item.channel_type] ?? item.channel_type}</UiBadge>
-                            <UiBadge tone={status_tone(item.status)}>
-                              {STATUS_LABELS[item.status]}
-                            </UiBadge>
-                            <UiBadge>{chat_type_label(item)}</UiBadge>
-                            {item.account_id ? <UiBadge tone="default">{item.account_id}</UiBadge> : null}
-                          </div>
-                          <div className="mt-2 truncate text-[16px] font-bold text-(--text-strong)">
-                            {item.external_name || format_target(item)}
-                          </div>
-                          <div className="mt-1 truncate font-mono text-[12px] text-(--text-muted)">
-                            {format_target(item)}
-                          </div>
-                          {item.account_id ? (
-                            <div className="mt-1 truncate font-mono text-[11px] text-(--text-soft)" title={item.account_id}>
-                              account: {item.account_id}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <UiField class_name="min-w-0" label="处理智能体">
-                          <UiSelectMenu
-                            aria_label="选择配对处理智能体"
-                            disabled={busy_id === item.pairing_id}
-                            on_change={(value) => void update_pairing(item, { agent_id: value })}
-                            options={agents.map((agent) => ({
-                              value: agent.agent_id,
-                              label: agent.name,
-                            }))}
-                            size="sm"
-                            value={item.agent_id}
-                          />
-                        </UiField>
-
-                        <div className="min-w-0 space-y-1.5 text-[12px] leading-5 text-(--text-muted)">
-                          <div className="min-w-0">
-                            <div className="text-[11px] font-semibold uppercase text-(--text-soft)">绑定键</div>
-                            <div className="truncate font-mono text-(--text-default)" title={binding_key(item)}>
-                              {binding_key(item)}
-                            </div>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-(--text-soft)">
-                              <span>IM Session</span>
-                              <UiIconButton
-                                class_name="h-6 w-6"
-                                disabled={busy_id === item.pairing_id}
-                                onClick={() => void copy_session_key(item)}
-                                size="sm"
-                                title="复制 IM session key"
-                                type="button"
-                                variant="ghost"
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </UiIconButton>
-                            </div>
-                            <div className="truncate font-mono text-(--text-default)" title={session_key_for_pairing(item)}>
-                              {session_key_for_pairing(item)}
-                            </div>
-                          </div>
-                          <div className="truncate">
-                            来源：{item.source === "ingress" ? "首次消息" : item.source} · 更新：{new Date(item.updated_at).toLocaleString()}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 max-lg:justify-start">
-                          {item.status !== "active" ? (
-                            <UiButton
-                              disabled={busy_id === item.pairing_id}
-                              onClick={() => void update_pairing(item, { status: "active" })}
-                              size="sm"
-                              tone="primary"
-                              type="button"
-                              variant="solid"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              通过
-                            </UiButton>
-                          ) : null}
-                          {item.status === "pending" ? (
-                            <UiButton
-                              disabled={busy_id === item.pairing_id}
-                              onClick={() => void update_pairing(item, { status: "rejected" })}
-                              size="sm"
-                              tone="danger"
-                              type="button"
-                              variant="surface"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              拒绝
-                            </UiButton>
-                          ) : null}
-                          {item.status === "active" ? (
-                            <UiButton
-                              disabled={busy_id === item.pairing_id}
-                              onClick={() => void update_pairing(item, { status: "disabled" })}
-                              size="sm"
-                              type="button"
-                            >
-                              停用
-                            </UiButton>
-                          ) : null}
-                          <UiIconButton
-                            disabled={busy_id === item.pairing_id}
-                            onClick={() => set_delete_target(item)}
-                            size="lg"
-                            title="删除"
-                            tone="danger"
-                            type="button"
-                            variant="ghost"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </UiIconButton>
-                        </div>
-                      </UiPanel>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+            <PairingList
+              agents={agents}
+              busy_id={busy_id}
+              groups={grouped_items}
+              on_copy_session_key={copy_session_key}
+              on_delete_pairing={set_delete_target}
+              on_update_pairing={update_pairing}
+            />
           )}
         </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>

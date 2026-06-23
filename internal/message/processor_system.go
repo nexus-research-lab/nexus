@@ -59,12 +59,12 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 	}
 	progress := message.TaskProgress
 	toolName := strings.TrimSpace(progress.LastToolName)
-	description := firstNonEmpty(strings.TrimSpace(progress.Summary), strings.TrimSpace(progress.Description))
+	description := firstNonEmpty(progress.Summary, progress.Description)
 	if description == "" && toolName != "" {
 		description = toolName + " 正在执行"
 	}
 	return p.buildTaskProgressMessage(
-		firstNonEmpty(strings.TrimSpace(progress.TaskID), strings.TrimSpace(progress.ToolUseID)),
+		firstNonEmpty(progress.TaskID, progress.ToolUseID),
 		firstNonEmpty(description, "后台任务正在执行"),
 		strings.TrimSpace(progress.ToolUseID),
 		toolName,
@@ -222,7 +222,7 @@ func firstTaskProgressDescription(message *sdkprotocol.SystemMessage) string {
 	if message == nil || message.TaskProgress == nil {
 		return ""
 	}
-	return firstNonEmpty(strings.TrimSpace(message.TaskProgress.Summary), strings.TrimSpace(message.TaskProgress.Description))
+	return firstNonEmpty(message.TaskProgress.Summary, message.TaskProgress.Description)
 }
 
 func firstTaskProgressToolUseID(message *sdkprotocol.SystemMessage) string {
@@ -264,10 +264,7 @@ func firstTaskStartedDescription(message *sdkprotocol.SystemMessage) string {
 	if message == nil || message.TaskStarted == nil {
 		return ""
 	}
-	return firstNonEmpty(
-		strings.TrimSpace(message.TaskStarted.Description),
-		strings.TrimSpace(message.TaskStarted.Prompt),
-	)
+	return firstNonEmpty(message.TaskStarted.Description, message.TaskStarted.Prompt)
 }
 
 func firstTaskStartedTaskID(message *sdkprotocol.SystemMessage) string {

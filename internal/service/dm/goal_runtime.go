@@ -275,10 +275,7 @@ func (r *roundRunner) elapsedGoalUsageSeconds() int64 {
 		return 0
 	}
 	elapsed := int64(time.Since(r.goalUsageStarted).Seconds())
-	if elapsed < 0 {
-		return 0
-	}
-	return elapsed
+	return max(elapsed, 0)
 }
 
 func (r *roundRunner) ignoreGoalRuntime() bool {

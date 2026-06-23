@@ -15,7 +15,6 @@ WORKDIR /app/web
 
 COPY web/package.json web/pnpm-lock.yaml ./
 COPY web/.npmrc ./
-COPY docs/specs/room-collaboration-mechanism.md ../docs/specs/room-collaboration-mechanism.md
 RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
@@ -27,10 +26,6 @@ COPY docs/specs/room-collaboration-mechanism.md /app/docs/specs/room-collaborati
 RUN pnpm run build
 
 FROM nginx:1.28-alpine AS runner
-
-ARG APK_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/alpine
-
-RUN sed -i "s#https://dl-cdn.alpinelinux.org/alpine#${APK_MIRROR}#g" /etc/apk/repositories
 
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/web/dist /usr/share/nginx/html

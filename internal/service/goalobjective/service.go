@@ -113,7 +113,9 @@ func (s *Service) RewriteGoalObjective(ctx context.Context, ownerUserID string, 
 }
 
 func (s *Service) resolveLLMConfig(ctx context.Context, request Request) (*clientopts.RuntimeConfig, error) {
-	if strings.TrimSpace(request.Provider) != "" && strings.TrimSpace(request.Model) != "" {
+	request.Provider = strings.TrimSpace(request.Provider)
+	request.Model = strings.TrimSpace(request.Model)
+	if request.Provider != "" && request.Model != "" {
 		return s.providers.ResolveLLMConfig(ctx, request.Provider, request.Model)
 	}
 	provider, model, ok, err := s.resolveConversationRuntimeSelection(ctx, request)
@@ -131,7 +133,9 @@ func (s *Service) resolveLLMConfig(ctx context.Context, request Request) (*clien
 				return nil, err
 			}
 			selection := prefs.DefaultBackgroundModelSelection
-			if strings.TrimSpace(selection.Provider) != "" && strings.TrimSpace(selection.Model) != "" {
+			selection.Provider = strings.TrimSpace(selection.Provider)
+			selection.Model = strings.TrimSpace(selection.Model)
+			if selection.Provider != "" && selection.Model != "" {
 				return s.providers.ResolveLLMConfig(ctx, selection.Provider, selection.Model)
 			}
 		}

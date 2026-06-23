@@ -149,8 +149,8 @@ func extractVarValue(src []byte, vars map[string]string) (string, []byte, error)
 	line := string(src[:lineEnd])
 
 	// 处理行内注释: `value # comment`
-	if idx := strings.Index(line, " #"); idx > 0 {
-		line = line[:idx]
+	if value, _, ok := strings.Cut(line, " #"); ok && value != "" {
+		line = value
 	}
 
 	value := strings.TrimRight(line, " \t")

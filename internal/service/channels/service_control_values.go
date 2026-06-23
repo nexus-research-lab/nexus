@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
 
 func validateChannelConfigInput(
@@ -38,23 +40,33 @@ func normalizeIMChannelType(channelType string) string {
 }
 
 func normalizeChannelConfigStatus(status string) string {
-	switch strings.ToLower(strings.TrimSpace(status)) {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	switch normalized {
 	case ChannelConfigStatusConfigured,
 		ChannelConfigStatusConnected,
 		ChannelConfigStatusPending,
 		ChannelConfigStatusError,
 		ChannelConfigStatusDisabled:
-		return strings.ToLower(strings.TrimSpace(status))
+		return normalized
 	default:
 		return ""
 	}
 }
 
 func normalizeChannelOwnerUserID(ownerUserID string) string {
-	if strings.TrimSpace(ownerUserID) == "" {
-		return authctx.SystemUserID
-	}
-	return strings.TrimSpace(ownerUserID)
+	return cmp.Or(strings.TrimSpace(ownerUserID), authctx.SystemUserID)
+}
+
+func nullableString(value string) any {
+	return channelcontract.NullableString(value)
+}
+
+func nullStringValue(value sql.NullString) string {
+	return channelcontract.NullStringValue(value)
+}
+
+func firstNonEmpty(values ...string) string {
+	return channelcontract.FirstNonEmpty(values...)
 }
 
 func normalizeStringMap(values map[string]string) map[string]string {
@@ -104,9 +116,10 @@ func decodeStringMap(raw string) (map[string]string, error) {
 }
 
 func normalizePairingStatus(value string, fallback string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
 	case PairingStatusPending, PairingStatusActive, PairingStatusDisabled, PairingStatusRejected:
-		return strings.ToLower(strings.TrimSpace(value))
+		return normalized
 	case "":
 		return strings.TrimSpace(fallback)
 	default:
@@ -115,9 +128,10 @@ func normalizePairingStatus(value string, fallback string) string {
 }
 
 func normalizePairingSource(value string, fallback string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
 	case PairingSourceManual, PairingSourceIngress, PairingSourceWeChatQR:
-		return strings.ToLower(strings.TrimSpace(value))
+		return normalized
 	case "":
 		return strings.TrimSpace(fallback)
 	default:
@@ -126,10 +140,11 @@ func normalizePairingSource(value string, fallback string) string {
 }
 
 func nullStringValueOrNil(value sql.NullString) any {
-	if !value.Valid || strings.TrimSpace(value.String) == "" {
+	trimmed := strings.TrimSpace(value.String)
+	if !value.Valid || trimmed == "" {
 		return nil
 	}
-	return strings.TrimSpace(value.String)
+	return trimmed
 }
 
 func nullTimeValueOrNil(value sql.NullTime) any {

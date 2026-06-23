@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -105,11 +106,7 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 }
 
 func normalizeOwnerUserID(ownerUserID string) string {
-	ownerUserID = strings.TrimSpace(ownerUserID)
-	if ownerUserID == "" {
-		return authctx.SystemUserID
-	}
-	return ownerUserID
+	return cmp.Or(strings.TrimSpace(ownerUserID), authctx.SystemUserID)
 }
 
 func buildUsageKey(sessionKey string, messageID string, roundID string) string {

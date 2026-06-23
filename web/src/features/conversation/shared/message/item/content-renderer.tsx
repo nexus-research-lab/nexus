@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CornerDownRight, Info, LoaderCircle, RotateCcw } from "lucide-react";
+import { useEffect, useState, type Key, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import {
   ContentBlock,
   SystemEventContent,
-  TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
@@ -29,12 +27,11 @@ import {
   MessageRailLabel,
 } from "../ui/message-rail";
 import {
-  DEFAULT_TIMELINE_DOT_TOP,
-  get_timeline_anchor_element,
-  get_timeline_anchor_top,
   get_system_message_icon_class_name,
   get_system_message_label_class_name,
 } from "./message-item-support";
+import { resolve_activity_state } from "./content-renderer-activity";
+import { SystemEventIcon, TimelineBlock } from "./content-renderer-timeline";
 
 const API_RETRY_VISIBLE_ATTEMPT = 4;
 const MAX_API_RETRY_ERROR_CHARS = 1000;
@@ -53,79 +50,6 @@ interface ContentRendererProps {
   hidden_tool_names?: string[];
   class_name?: string;
   show_timeline_dots?: boolean;
-}
-
-function SystemEventIcon({
-  icon,
-  class_name,
-}: {
-  icon: SystemEventContent["icon"];
-  class_name?: string;
-}) {
-  if (icon === "retry") {
-    return <RotateCcw className={class_name} />;
-  }
-  if (icon === "progress") {
-    return <LoaderCircle className={class_name} />;
-  }
-  if (icon === "guide") {
-    return <CornerDownRight className={class_name} />;
-  }
-  return <Info className={class_name} />;
-}
-
-function TimelineBlock({
-  children,
-  active = false,
-}: {
-  children: ReactNode;
-  active?: boolean;
-}) {
-  const content_ref = useRef<HTMLDivElement | null>(null);
-  const dot_ref = useRef<HTMLSpanElement | null>(null);
-  const dot_top_ref = useRef(DEFAULT_TIMELINE_DOT_TOP);
-
-  useLayoutEffect(() => {
-    const content_element = content_ref.current;
-    const dot_element = dot_ref.current;
-    if (!content_element || !dot_element) {
-      return;
-    }
-
-    // 圆点位置是纯 DOM 对齐值，避免用 state 回写触发渲染递归。
-    const update_dot_top = () => {
-      const anchor_element = get_timeline_anchor_element(content_element);
-      const next_dot_top = get_timeline_anchor_top(content_element, anchor_element);
-      if (Math.abs(dot_top_ref.current - next_dot_top) < 0.5) {
-        return;
-      }
-      dot_top_ref.current = next_dot_top;
-      dot_element.style.top = `${next_dot_top}px`;
-    };
-
-    update_dot_top();
-
-    const frame_id = window.requestAnimationFrame(update_dot_top);
-    return () => window.cancelAnimationFrame(frame_id);
-  });
-
-  return (
-    <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
-      <div className="relative">
-        <span
-          ref={dot_ref}
-          className={cn(
-            "absolute left-1/2 block h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--divider-subtle-color)",
-            active ? "bg-primary/70" : null,
-          )}
-          style={{ top: `${DEFAULT_TIMELINE_DOT_TOP}px` }}
-        />
-      </div>
-      <div ref={content_ref} className="min-w-0">
-        {children}
-      </div>
-    </div>
-  );
 }
 
 function is_hidden_api_retry_block(block: SystemEventContent): boolean {
@@ -161,10 +85,10 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
       ? `(attempt ${block.attempt}/${block.max_retries})`
       : null;
   const retry_text = retry_delay_ms > 0
-    ? `Retrying in ${retry_in_seconds} ${retry_unit}…${attempt_text ? ` ${attempt_text}` : ""}`
-    : `Retrying…${attempt_text ? ` ${attempt_text}` : ""}`;
+    ? `Retrying in ${retry_in_seconds} ${retry_unit}...${attempt_text ? ` ${attempt_text}` : ""}`
+    : `Retrying...${attempt_text ? ` ${attempt_text}` : ""}`;
   const content = block.content.length > MAX_API_RETRY_ERROR_CHARS
-    ? `${block.content.slice(0, MAX_API_RETRY_ERROR_CHARS)}…`
+    ? `${block.content.slice(0, MAX_API_RETRY_ERROR_CHARS)}...`
     : block.content;
 
   return (
@@ -273,8 +197,8 @@ export function ContentRenderer(
         }
 
         const wrap_block = (
-          key: React.Key,
-          node: React.ReactNode,
+          key: Key,
+          node: ReactNode,
         ) => {
           if (!show_timeline_dots) {
             return <div key={key}>{node}</div>;
@@ -484,181 +408,4 @@ export function ContentRenderer(
       ) : null}
     </div>
   );
-}
-
-function resolve_activity_state({
-  content,
-  streaming_block_indexes,
-  tool_use_map,
-  rendered_indices,
-  fallback_activity_state,
-  pending_permissions_by_tool_use_id,
-  hidden_tool_names,
-}: {
-  content: ContentBlock[];
-  streaming_block_indexes?: ReadonlySet<number>;
-  tool_use_map: ReadonlyMap<string, {
-    use: ToolUseContent;
-    result?: ToolResultContent;
-    index: number;
-  }>;
-  rendered_indices: ReadonlySet<number>;
-  fallback_activity_state?: MessageActivityState | null;
-  pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
-  hidden_tool_names: string[];
-}): MessageActivityState {
-  const latest_pending_tool = find_latest_pending_tool_use(
-    content,
-    tool_use_map,
-    hidden_tool_names,
-  );
-  if (latest_pending_tool) {
-    const pending_permission = pending_permissions_by_tool_use_id?.get(latest_pending_tool.id);
-    if (pending_permission) {
-      if (latest_pending_tool.name === 'AskUserQuestion') {
-        return 'waiting_input';
-      }
-      return 'waiting_permission';
-    }
-
-    if (latest_pending_tool.name === 'AskUserQuestion') {
-      return fallback_activity_state ?? 'thinking';
-    }
-
-    return map_tool_name_to_activity_state(latest_pending_tool.name);
-  }
-
-  const latest_visible_block = find_latest_visible_block(
-    content,
-    rendered_indices,
-    hidden_tool_names,
-  );
-  if (!latest_visible_block) {
-    return fallback_activity_state ?? 'thinking';
-  }
-
-  if (latest_visible_block.type === 'task_progress') {
-    return map_progress_to_activity_state(latest_visible_block);
-  }
-
-  if (latest_visible_block.type === 'tool_use') {
-    if (latest_visible_block.name === 'AskUserQuestion') {
-      return pending_permissions_by_tool_use_id?.has(latest_visible_block.id)
-        ? 'waiting_input'
-        : (fallback_activity_state ?? 'thinking');
-    }
-    return map_tool_name_to_activity_state(latest_visible_block.name);
-  }
-
-  if (latest_visible_block.type === 'thinking') {
-    return 'thinking';
-  }
-
-  if (latest_visible_block.type === 'text') {
-    return has_streaming_text_block(content, streaming_block_indexes) ? 'replying' : (fallback_activity_state ?? 'replying');
-  }
-
-  if (latest_visible_block.type === 'workspace_file_artifact') {
-    return fallback_activity_state ?? 'executing';
-  }
-
-  return fallback_activity_state ?? 'thinking';
-}
-
-function find_latest_pending_tool_use(
-  content: ContentBlock[],
-  tool_use_map: ReadonlyMap<string, {
-    use: ToolUseContent;
-    result?: ToolResultContent;
-    index: number;
-  }>,
-  hidden_tool_names: string[],
-): ToolUseContent | null {
-  for (let index = content.length - 1; index >= 0; index -= 1) {
-    const block = content[index];
-    if (block?.type !== 'tool_use') {
-      continue;
-    }
-    if (hidden_tool_names.includes(block.name)) {
-      continue;
-    }
-
-    const tool_data = tool_use_map.get(block.id);
-    if (!tool_data?.result) {
-      return block;
-    }
-  }
-
-  return null;
-}
-
-function find_latest_visible_block(
-  content: ContentBlock[],
-  rendered_indices: ReadonlySet<number>,
-  hidden_tool_names: string[],
-): ContentBlock | null {
-  for (let index = content.length - 1; index >= 0; index -= 1) {
-    const block = content[index];
-    if (!block) {
-      continue;
-    }
-    if (rendered_indices.has(index)) {
-      continue;
-    }
-    if (block.type === 'tool_use' && hidden_tool_names.includes(block.name)) {
-      continue;
-    }
-    if (block.type === 'text' && !block.text.trim()) {
-      continue;
-    }
-    if (block.type === 'thinking' && !block.thinking.trim()) {
-      continue;
-    }
-    return block;
-  }
-
-  return null;
-}
-
-function map_progress_to_activity_state(block: TaskProgressContent): MessageActivityState {
-  return map_tool_name_to_activity_state(block.last_tool_name ?? null);
-}
-
-function map_tool_name_to_activity_state(tool_name?: string | null): MessageActivityState {
-  if (!tool_name) {
-    return 'executing';
-  }
-
-  const browsing_tools = new Set([
-    'Read',
-    'Glob',
-    'LS',
-    'Grep',
-    'WebSearch',
-    'WebFetch',
-  ]);
-
-  if (browsing_tools.has(tool_name)) {
-    return 'browsing';
-  }
-
-  return 'executing';
-}
-
-function has_streaming_text_block(
-  content: ContentBlock[],
-  streaming_block_indexes?: ReadonlySet<number>,
-): boolean {
-  if (!streaming_block_indexes?.size) {
-    return false;
-  }
-
-  for (const index of streaming_block_indexes) {
-    const block = content[index];
-    if (block?.type === 'text' && block.text.trim()) {
-      return true;
-    }
-  }
-
-  return false;
 }

@@ -60,7 +60,7 @@ func (h *Handlers) HandleConnectorCount(writer http.ResponseWriter, request *htt
 
 func (h *Handlers) HandleConnectorDetail(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.connectors.GetConnectorDetail(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"))
-	if strings.Contains(strings.ToLower(handlershared.ErrString(err)), "not found") {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "not found") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -84,7 +84,7 @@ func (h *Handlers) HandleConnectorAuthURL(writer http.ResponseWriter, request *h
 		extras[key] = values[0]
 	}
 	item, err := h.connectors.GetAuthURL(request.Context(), currentOwnerUserID(request), connectorID, query.Get("redirect_uri"), extras)
-	if strings.Contains(strings.ToLower(handlershared.ErrString(err)), "未知连接器") {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -118,7 +118,7 @@ func (h *Handlers) HandleSaveConnectorOAuthClient(writer http.ResponseWriter, re
 		return
 	}
 	item, err := h.connectors.SaveOAuthClientConfig(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"), payload)
-	if strings.Contains(strings.ToLower(handlershared.ErrString(err)), "未知连接器") {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -131,7 +131,7 @@ func (h *Handlers) HandleSaveConnectorOAuthClient(writer http.ResponseWriter, re
 
 func (h *Handlers) HandleDeleteConnectorOAuthClient(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.connectors.DeleteOAuthClientConfig(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"))
-	if strings.Contains(strings.ToLower(handlershared.ErrString(err)), "未知连接器") {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -144,7 +144,7 @@ func (h *Handlers) HandleDeleteConnectorOAuthClient(writer http.ResponseWriter, 
 
 func (h *Handlers) HandleConnectorDeviceAuthStart(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.connectors.StartDeviceAuth(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"))
-	if strings.Contains(strings.ToLower(handlershared.ErrString(err)), "未知连接器") {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}
@@ -161,7 +161,7 @@ func (h *Handlers) HandleConnectorDeviceAuthPoll(writer http.ResponseWriter, req
 		return
 	}
 	item, err := h.connectors.PollDeviceAuth(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"), payload.DeviceCode)
-	if strings.Contains(strings.ToLower(handlershared.ErrString(err)), "未知连接器") {
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}

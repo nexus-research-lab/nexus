@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 func TestServiceSetFromThreadGoalParamsCreatesAndUpdatesGoal(t *testing.T) {
@@ -17,10 +18,10 @@ func TestServiceSetFromThreadGoalParamsCreatesAndUpdatesGoal(t *testing.T) {
 	ctx := context.Background()
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Ship app-server parity"
-	paused := protocol.ThreadGoalStatusPaused
+	paused := goalappserver.ThreadGoalStatusPaused
 	budget := int64(120)
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:    threadID,
 		Objective:   &objective,
 		Status:      &paused,
@@ -33,8 +34,8 @@ func TestServiceSetFromThreadGoalParamsCreatesAndUpdatesGoal(t *testing.T) {
 		t.Fatalf("created = %#v, want paused app-server goal with budget", created)
 	}
 
-	usageLimited := protocol.ThreadGoalStatusUsageLimited
-	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	usageLimited := goalappserver.ThreadGoalStatusUsageLimited
+	updated, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID: threadID,
 		Status:   &usageLimited,
 	})
@@ -56,9 +57,9 @@ func TestServiceSetFromThreadGoalParamsCreatesFinalStatusDirectly(t *testing.T) 
 	ctx := context.Background()
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Create paused without active flicker"
-	paused := protocol.ThreadGoalStatusPaused
+	paused := goalappserver.ThreadGoalStatusPaused
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 		Status:    &paused,
@@ -89,9 +90,9 @@ func TestServiceSetFromThreadGoalParamsCompleteIsNotCurrentGoal(t *testing.T) {
 	ctx := context.Background()
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Complete through app-server set"
-	complete := protocol.ThreadGoalStatusComplete
+	complete := goalappserver.ThreadGoalStatusComplete
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 		Status:    &complete,
@@ -120,9 +121,9 @@ func TestServiceSetFromThreadGoalParamsCompleteIsNotCurrentGoal(t *testing.T) {
 
 func TestServiceSetFromThreadGoalParamsRequiresObjectiveWhenMissing(t *testing.T) {
 	service := NewService(config.Config{GoalEnabled: true}, newMemoryRepository())
-	active := protocol.ThreadGoalStatusActive
+	active := goalappserver.ThreadGoalStatusActive
 
-	_, err := service.SetFromThreadGoalParams(context.Background(), protocol.ThreadGoalSetParams{
+	_, err := service.SetFromThreadGoalParams(context.Background(), goalappserver.ThreadGoalSetParams{
 		ThreadID: "agent:nexus:ws:dm:missing",
 		Status:   &active,
 	})
@@ -143,9 +144,9 @@ func TestServiceSetFromThreadGoalParamsPreservesBudgetLimitedGoal(t *testing.T) 
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Keep polishing"
 	budget := int64(10)
-	budgetLimited := protocol.ThreadGoalStatusBudgetLimited
+	budgetLimited := goalappserver.ThreadGoalStatusBudgetLimited
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:    threadID,
 		Objective:   &objective,
 		Status:      &budgetLimited,
@@ -158,11 +159,11 @@ func TestServiceSetFromThreadGoalParamsPreservesBudgetLimitedGoal(t *testing.T) 
 		t.Fatalf("created status = %q, want budget_limited", created.Status)
 	}
 
-	for _, status := range []protocol.ThreadGoalStatus{
-		protocol.ThreadGoalStatusPaused,
-		protocol.ThreadGoalStatusBlocked,
+	for _, status := range []goalappserver.ThreadGoalStatus{
+		goalappserver.ThreadGoalStatusPaused,
+		goalappserver.ThreadGoalStatusBlocked,
 	} {
-		updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+		updated, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 			ThreadID: threadID,
 			Status:   &status,
 		})
@@ -186,7 +187,7 @@ func TestServiceClearFromThreadGoalParamsDeletesCurrentGoal(t *testing.T) {
 	accountant := &fakeExternalMutationAccountant{}
 	service.SetExternalMutationAccountant(accountant)
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 	})
@@ -194,7 +195,7 @@ func TestServiceClearFromThreadGoalParamsDeletesCurrentGoal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cleared, err := service.ClearFromThreadGoalParams(ctx, protocol.ThreadGoalClearParams{ThreadID: threadID})
+	cleared, err := service.ClearFromThreadGoalParams(ctx, goalappserver.ThreadGoalClearParams{ThreadID: threadID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestServiceClearFromThreadGoalParamsDeletesCurrentGoal(t *testing.T) {
 		t.Fatalf("clearedSessionKeys = %#v, want app-server clear to stop runtime accounting", accountant.clearedSessionKeys)
 	}
 
-	cleared, err = service.ClearFromThreadGoalParams(ctx, protocol.ThreadGoalClearParams{ThreadID: threadID})
+	cleared, err = service.ClearFromThreadGoalParams(ctx, goalappserver.ThreadGoalClearParams{ThreadID: threadID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,9 +237,9 @@ func TestServiceSetFromThreadGoalParamsActivatesAccountingWhenGoalBecomesActive(
 	ctx := context.Background()
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Resume external accounting"
-	paused := protocol.ThreadGoalStatusPaused
+	paused := goalappserver.ThreadGoalStatusPaused
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 		Status:    &paused,
@@ -248,9 +249,9 @@ func TestServiceSetFromThreadGoalParamsActivatesAccountingWhenGoalBecomesActive(
 	}
 	accountant := &fakeExternalMutationAccountant{roundID: "round-running"}
 	service.SetExternalMutationAccountant(accountant)
-	active := protocol.ThreadGoalStatusActive
+	active := goalappserver.ThreadGoalStatusActive
 
-	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	updated, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID: threadID,
 		Status:   &active,
 	})
@@ -285,7 +286,7 @@ func TestServiceSetFromThreadGoalParamsDispatchesActiveGoalImmediately(t *testin
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Start after app-server set"
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 	})
@@ -318,7 +319,7 @@ func TestServiceSetFromThreadGoalParamsCanSuppressContinuationUntilResponse(t *t
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Start after response ordering"
 
-	created, err := service.SetFromThreadGoalParams(WithActiveGoalContinuationSuppressed(ctx), protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(WithActiveGoalContinuationSuppressed(ctx), goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 	})
@@ -358,9 +359,9 @@ func TestServiceSetFromThreadGoalParamsFillsEmptyPreview(t *testing.T) {
 	service.SetPreviewFiller(preview)
 	ctx := context.Background()
 	objective := "Ship app-server RPC parity"
-	status := protocol.ThreadGoalStatusActive
+	status := goalappserver.ThreadGoalStatusActive
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:    "room:group:conversation-1",
 		Objective:   &objective,
 		Status:      &status,
@@ -385,7 +386,7 @@ func TestServiceSetFromThreadGoalParamsUpdateFillsEmptyPreview(t *testing.T) {
 	threadID := "room:group:conversation-1"
 	objective := "Initial app-server goal"
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 	})
@@ -395,7 +396,7 @@ func TestServiceSetFromThreadGoalParamsUpdateFillsEmptyPreview(t *testing.T) {
 	preview.items = nil
 
 	updatedObjective := "Updated app-server goal"
-	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	updated, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &updatedObjective,
 	})
@@ -421,14 +422,14 @@ func TestServiceSetFromThreadGoalParamsSameObjectiveDoesNotQueueSteering(t *test
 	threadID := "room:group:conversation-1"
 	objective := "Stable app-server goal"
 
-	created, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	updated, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 	})
@@ -462,9 +463,9 @@ func TestServiceSetFromThreadGoalParamsDoesNotDispatchPausedGoal(t *testing.T) {
 	ctx := context.Background()
 	threadID := "agent:nexus:ws:dm:chat"
 	objective := "Do not start paused goal"
-	paused := protocol.ThreadGoalStatusPaused
+	paused := goalappserver.ThreadGoalStatusPaused
 
-	if _, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	if _, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  threadID,
 		Objective: &objective,
 		Status:    &paused,

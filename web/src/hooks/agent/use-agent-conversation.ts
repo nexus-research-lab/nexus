@@ -5,33 +5,21 @@ import {
   useMemo,
   useRef,
   useState,
-  startTransition,
 } from "react";
 import {
   get_agent_ws_url,
-  get_message_history_round_page_size,
-  get_message_send_ack_timeout_ms,
 } from "@/config/options";
-import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
-import { get_session_messages_api } from "@/lib/api/agent-api";
-import { get_room_conversation_messages } from "@/lib/api/room-api";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
-import { useWebSocket } from "@/lib/websocket";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import {
-  EventMessage,
   Message,
   RoundLifecycleStatus,
   SessionStatusEventPayload,
-  StreamMessage,
   WebSocketMessage,
   WebSocketState,
 } from "@/types";
 import {
-  collect_unresolved_tool_use_candidates,
-  match_pending_permissions_to_tool_uses,
-  PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
 import {
@@ -50,7 +38,6 @@ import {
   AssistantMessageStatus,
   RoomPendingAgentSlotState,
 } from "@/types";
-import { upsert_message } from "./message-helpers";
 import {
   clear_agent_session,
   load_agent_session,
@@ -58,10 +45,9 @@ import {
   start_agent_session,
 } from "./conversation-lifecycle";
 import {
-  apply_stream_message,
   dedupe_messages_by_id,
   merge_loaded_messages,
-  sort_messages,
+  upsert_message,
 } from "./message-helpers";
 import { handle_agent_conversation_web_socket_message } from "./websocket-event-handler";
 import {
@@ -77,387 +63,37 @@ import {
   AgentConversationRuntimeMachine,
   AgentConversationRuntimeSnapshot,
 } from "./agent-conversation-runtime-machine";
-
-interface VolatileConversationSnapshot {
-  messages: Message[];
-  pending_agent_slots: RoomPendingAgentSlotState[];
-  updated_at: number;
-}
-
-const VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX =
-  "nexus.agent_conversation.volatile";
-
-function is_terminal_slot_status(status: AssistantMessageStatus): boolean {
-  return status === "done" || status === "cancelled" || status === "error";
-}
-
-function build_volatile_conversation_storage_key(session_key: string): string {
-  return `${VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX}:${session_key}`;
-}
-
-function get_volatile_conversation_storage(): Storage | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function read_volatile_conversation_snapshot(
-  session_key: string,
-): VolatileConversationSnapshot | null {
-  const storage = get_volatile_conversation_storage();
-  if (!storage) {
-    return null;
-  }
-
-  try {
-    const raw = storage.getItem(
-      build_volatile_conversation_storage_key(session_key),
-    );
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(
-      raw,
-    ) as Partial<VolatileConversationSnapshot> | null;
-    if (!parsed) {
-      return null;
-    }
-
-    return {
-      messages: Array.isArray(parsed.messages)
-        ? (parsed.messages as Message[])
-        : [],
-      pending_agent_slots: Array.isArray(parsed.pending_agent_slots)
-        ? (parsed.pending_agent_slots as RoomPendingAgentSlotState[])
-        : [],
-      updated_at: typeof parsed.updated_at === "number" ? parsed.updated_at : 0,
-    };
-  } catch (err) {
-    console.debug("[conversation] Failed to parse snapshot from sessionStorage:", err);
-    return null;
-  }
-}
-
-function write_volatile_conversation_snapshot(
-  session_key: string,
-  snapshot: VolatileConversationSnapshot,
-): void {
-  const storage = get_volatile_conversation_storage();
-  if (!storage) {
-    return;
-  }
-
-  // 保留最近 200 条消息以防止序列化负载过大。
-  const capped: VolatileConversationSnapshot =
-    snapshot.messages.length > 200
-      ? { ...snapshot, messages: snapshot.messages.slice(-200) }
-      : snapshot;
-
-  try {
-    storage.setItem(
-      build_volatile_conversation_storage_key(session_key),
-      JSON.stringify(capped),
-    );
-  } catch (err) {
-    const is_quota =
-      err instanceof DOMException &&
-      (err.code === 22 || err.name === "QuotaExceededError");
-    if (is_quota) {
-      console.warn("[conversation] sessionStorage quota exceeded, snapshot not persisted");
-    } else {
-      console.warn("[conversation] sessionStorage write failed:", err);
-    }
-  }
-}
-
-function remove_volatile_conversation_snapshot(session_key: string): void {
-  const storage = get_volatile_conversation_storage();
-  if (!storage) {
-    return;
-  }
-
-  try {
-    storage.removeItem(build_volatile_conversation_storage_key(session_key));
-  } catch {
-    // 忽略移除失败
-  }
-}
-
-function merge_pending_agent_slots(
-  restored_slots: RoomPendingAgentSlotState[],
-  current_slots: RoomPendingAgentSlotState[],
-): RoomPendingAgentSlotState[] {
-  if (restored_slots.length === 0) {
-    return current_slots;
-  }
-
-  const merged_slots = new Map<string, RoomPendingAgentSlotState>();
-  for (const slot of restored_slots) {
-    merged_slots.set(slot.msg_id, slot);
-  }
-  for (const slot of current_slots) {
-    merged_slots.set(slot.msg_id, slot);
-  }
-  return Array.from(merged_slots.values());
-}
-
-function is_ephemeral_message(message: Message): boolean {
-  return message.delivery_mode === "ephemeral";
-}
-
-function build_volatile_conversation_snapshot(
-  messages: Message[],
-  runtime_snapshot: AgentConversationRuntimeSnapshot,
-  pending_agent_slots: RoomPendingAgentSlotState[],
-): VolatileConversationSnapshot | null {
-  const active_round_ids = new Set<string>(runtime_snapshot.live_round_ids);
-
-  for (const slot of pending_agent_slots) {
-    if (!is_terminal_slot_status(slot.status)) {
-      active_round_ids.add(slot.round_id);
-    }
-  }
-
-  if (active_round_ids.size === 0) {
-    return null;
-  }
-
-  const volatile_messages = messages.filter((message) => {
-    if (is_ephemeral_message(message)) {
-      return false;
-    }
-    if (active_round_ids.has(message.round_id)) {
-      return true;
-    }
-
-    return (
-      message.role === "assistant" &&
-      !is_terminal_slot_status(message.stream_status ?? "streaming")
-    );
-  });
-  const volatile_slots = pending_agent_slots.filter(
-    (slot) => !is_terminal_slot_status(slot.status),
-  );
-
-  if (volatile_messages.length === 0 && volatile_slots.length === 0) {
-    return null;
-  }
-
-  return {
-    messages: volatile_messages,
-    pending_agent_slots: volatile_slots,
-    updated_at: Date.now(),
-  };
-}
-
-function filter_pending_slots_from_snapshot(
-  current_slots: RoomPendingAgentSlotState[],
-  messages: Message[],
-  is_round_terminal: (round_id: string) => boolean,
-): RoomPendingAgentSlotState[] {
-  if (current_slots.length === 0) {
-    return current_slots;
-  }
-  const loaded_message_ids = new Set(
-    messages
-      .filter(
-        (message): message is AssistantMessage => message.role === "assistant",
-      )
-      .map((message) => message.message_id),
-  );
-
-  return current_slots.filter(
-    (slot) =>
-      !is_round_terminal(slot.round_id) && !loaded_message_ids.has(slot.msg_id),
-  );
-}
-
-function filter_pending_permissions_from_snapshot(
-  current_permissions: PendingPermission[],
-  messages: Message[],
-  is_round_terminal: (round_id: string) => boolean,
-): PendingPermission[] {
-  if (current_permissions.length === 0) {
-    return current_permissions;
-  }
-  const loaded_assistant_message_ids = new Set<string>();
-  const unresolved_tool_use_candidates =
-    collect_unresolved_tool_use_candidates(messages);
-  const permission_match_result = match_pending_permissions_to_tool_uses(
-    current_permissions,
-    unresolved_tool_use_candidates,
-  );
-
-  for (const message of messages) {
-    if (message.role === "assistant") {
-      loaded_assistant_message_ids.add(message.message_id);
-    }
-  }
-
-  return current_permissions.filter((permission) => {
-    if (is_pending_permission_expired(permission)) {
-      return false;
-    }
-
-    if (permission.caused_by && is_round_terminal(permission.caused_by)) {
-      return false;
-    }
-
-    if (
-      permission_match_result.matched_request_ids.has(permission.request_id)
-    ) {
-      return true;
-    }
-
-    if (!permission.message_id) {
-      // 缺少 message_id 的旧权限事件无法做唯一绑定，
-      // 快照阶段只能保留，等待明确的 result / reload 收口。
-      return true;
-    }
-
-    return !loaded_assistant_message_ids.has(permission.message_id);
-  });
-}
-
-function get_pending_permission_expiration_ms(
-  permission: PendingPermission,
-): number | null {
-  if (!permission.expires_at) {
-    return null;
-  }
-  const expires_at_ms = Date.parse(permission.expires_at);
-  return Number.isFinite(expires_at_ms) ? expires_at_ms : null;
-}
-
-function is_pending_permission_expired(
-  permission: PendingPermission,
-  now_ms: number = Date.now(),
-): boolean {
-  const expires_at_ms = get_pending_permission_expiration_ms(permission);
-  return expires_at_ms != null && expires_at_ms <= now_ms;
-}
-
-function prune_expired_pending_permissions(
-  current_permissions: PendingPermission[],
-  now_ms: number = Date.now(),
-): PendingPermission[] {
-  if (current_permissions.length === 0) {
-    return current_permissions;
-  }
-
-  const next_permissions = current_permissions.filter(
-    (permission) => !is_pending_permission_expired(permission, now_ms),
-  );
-  return next_permissions.length === current_permissions.length
-    ? current_permissions
-    : next_permissions;
-}
-
-function get_next_pending_permission_timeout_ms(
-  current_permissions: PendingPermission[],
-  now_ms: number = Date.now(),
-): number | null {
-  let next_timeout_ms: number | null = null;
-
-  for (const permission of current_permissions) {
-    const expires_at_ms = get_pending_permission_expiration_ms(permission);
-    if (expires_at_ms == null) {
-      continue;
-    }
-    const timeout_ms = Math.max(expires_at_ms - now_ms, 0);
-    if (next_timeout_ms == null || timeout_ms < next_timeout_ms) {
-      next_timeout_ms = timeout_ms;
-    }
-  }
-
-  return next_timeout_ms;
-}
-
-function are_runtime_snapshots_equal(
-  left: AgentConversationRuntimeSnapshot,
-  right: AgentConversationRuntimeSnapshot,
-): boolean {
-  if (
-    left.phase !== right.phase ||
-    left.pending_permission_count !== right.pending_permission_count ||
-    left.is_loading !== right.is_loading
-  ) {
-    return false;
-  }
-
-  const are_string_arrays_equal = (lhs: string[], rhs: string[]): boolean => {
-    if (lhs.length !== rhs.length) {
-      return false;
-    }
-
-    for (let index = 0; index < lhs.length; index += 1) {
-      if (lhs[index] !== rhs[index]) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  if (
-    !are_string_arrays_equal(left.sending_round_ids, right.sending_round_ids) ||
-    !are_string_arrays_equal(left.running_round_ids, right.running_round_ids) ||
-    !are_string_arrays_equal(
-      left.terminal_round_ids,
-      right.terminal_round_ids,
-    ) ||
-    !are_string_arrays_equal(left.live_round_ids, right.live_round_ids)
-  ) {
-    return false;
-  }
-
-  const left_message_ids = Object.keys(left.active_messages);
-  const right_message_ids = Object.keys(right.active_messages);
-  if (!are_string_arrays_equal(left_message_ids, right_message_ids)) {
-    return false;
-  }
-
-  for (const message_id of left_message_ids) {
-    const left_tracker = left.active_messages[message_id];
-    const right_tracker = right.active_messages[message_id];
-    if (
-      !right_tracker ||
-      left_tracker.round_id !== right_tracker.round_id ||
-      left_tracker.status !== right_tracker.status
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function matches_round_lifecycle(
-  round_id: string,
-  target_round_id: string,
-): boolean {
-  return (
-    round_id === target_round_id || round_id.startsWith(`${target_round_id}:`)
-  );
-}
-
-function get_terminal_message_status(
-  status: RoundLifecycleStatus,
-): AssistantMessageStatus {
-  if (status === "interrupted") {
-    return "cancelled";
-  }
-  if (status === "error") {
-    return "error";
-  }
-  return "done";
-}
+import { are_runtime_snapshots_equal } from "./conversation-runtime-state";
+import {
+  apply_terminal_round_message_status,
+  cancel_running_agent_slots,
+  filter_round_pending_agent_slots,
+  filter_round_pending_permissions,
+  merge_chat_ack_pending_slots,
+  reconcile_stopped_session_messages,
+  remove_failed_outbound_user_message,
+  update_assistant_message_status,
+  update_pending_agent_slot_status,
+} from "./conversation-runtime-reconciliation";
+import {
+  AgentConversationHistoryCursor,
+  load_older_agent_conversation_messages,
+} from "./conversation-history";
+import {
+  build_volatile_conversation_snapshot,
+  filter_pending_permissions_from_snapshot,
+  filter_pending_slots_from_snapshot,
+  get_next_pending_permission_timeout_ms,
+  is_ephemeral_message,
+  merge_pending_agent_slots,
+  prune_expired_pending_permissions,
+  read_volatile_conversation_snapshot,
+  remove_volatile_conversation_snapshot,
+  write_volatile_conversation_snapshot,
+} from "./conversation-volatile-snapshot";
+import { useConversationStreamBuffer } from "./use-conversation-stream-buffer";
+import { usePendingChatAcks } from "./use-pending-chat-acks";
+import { useAgentConversationSocket } from "./use-agent-conversation-socket";
 
 export function useAgentConversation(
   options: UseAgentConversationOptions = {},
@@ -517,10 +153,7 @@ export function useAgentConversation(
   const room_seq_cursor_ref = useRef(0);
   const is_history_loading_ref = useRef(false);
   const has_more_history_ref = useRef(false);
-  const history_cursor_ref = useRef<{
-    before_round_id: string | null;
-    before_round_timestamp: number | null;
-  }>({
+  const history_cursor_ref = useRef<AgentConversationHistoryCursor>({
     before_round_id: null,
     before_round_timestamp: null,
   });
@@ -528,16 +161,6 @@ export function useAgentConversation(
   const pending_permissions_ref = useRef<
     UseAgentConversationReturn["pending_permissions"]
   >([]);
-  const pending_chat_ack_ref = useRef<
-    Map<
-      string,
-      {
-        reject: (error: Error) => void;
-        resolve: () => void;
-        timeout_id: number;
-      }
-    >
-  >(new Map());
   const ws_send_ref = useRef<
     (payload: WebSocketMessage) => {
       disposition: "sent" | "queued" | "dropped";
@@ -585,17 +208,10 @@ export function useAgentConversation(
     set_has_more_history(false);
   }, [set_has_more_history, set_history_loading]);
 
-  // ── Stream batching ──────────────────────────────────────────────────────
-  // WebSocket fires on every token (~50-100/sec during streaming).
-  // Each token previously called set_messages + set_is_loading = 2 React renders.
-  // At 100 tokens/sec that's 200 renders/sec and full CPU saturation.
-  //
-  // Fix: accumulate stream payloads within an animation frame, flush them all
-  // in one setState per frame (≤60 flushes/sec regardless of token rate).
-  // startTransition marks the update as non-urgent so React can interrupt it
-  // if a higher-priority update (e.g. user keypress) arrives.
-  const stream_buffer_ref = useRef<StreamMessage[]>([]);
-  const stream_raf_ref = useRef<number | null>(null);
+  const reset_history_pagination = useCallback(() => {
+    reset_history_state();
+    set_history_prepend_token(0);
+  }, [reset_history_state]);
 
   const sync_runtime_snapshot = useCallback(() => {
     const next_snapshot = runtime_machine_ref.current.snapshot();
@@ -656,6 +272,22 @@ export function useAgentConversation(
     [apply_runtime_transition],
   );
 
+  const clear_live_session_state = useCallback(() => {
+    set_pending_agent_slots((current_slots) =>
+      current_slots.length ? [] : current_slots,
+    );
+    set_input_queue_items((current_items) =>
+      current_items.length ? [] : current_items,
+    );
+    set_pending_permissions((current_permissions) =>
+      current_permissions.length ? [] : current_permissions,
+    );
+  }, [
+    set_input_queue_items,
+    set_pending_agent_slots,
+    set_pending_permissions,
+  ]);
+
   const is_current_session_event = useCallback(
     (incoming_session_key?: string | null) => {
       if (!incoming_session_key) {
@@ -696,64 +328,29 @@ export function useAgentConversation(
     [on_room_event_callback],
   );
 
-  const clear_pending_chat_ack = useCallback((round_id?: string | null) => {
-    if (!round_id) {
-      return false;
-    }
-    const pending_request = pending_chat_ack_ref.current.get(round_id);
-    if (!pending_request) {
-      return false;
-    }
-    window.clearTimeout(pending_request.timeout_id);
-    pending_chat_ack_ref.current.delete(round_id);
-    pending_request.resolve();
-    return true;
-  }, []);
-
-  const cancel_pending_chat_acks = useCallback((reason: string) => {
-    for (const [
-      round_id,
-      pending_request,
-    ] of pending_chat_ack_ref.current.entries()) {
-      window.clearTimeout(pending_request.timeout_id);
-      pending_request.reject(new Error(reason));
-      pending_chat_ack_ref.current.delete(round_id);
-    }
-  }, []);
+  const {
+    cancel_pending_chat_acks,
+    clear_pending_chat_ack,
+    reject_pending_chat_ack,
+    wait_for_chat_ack,
+  } = usePendingChatAcks();
 
   const fail_pending_chat_ack = useCallback(
     (round_id: string, message: string) => {
-      const pending_request = pending_chat_ack_ref.current.get(round_id);
-      if (!pending_request) {
+      if (!reject_pending_chat_ack(round_id, message)) {
         return;
       }
-      window.clearTimeout(pending_request.timeout_id);
-      pending_chat_ack_ref.current.delete(round_id);
-      pending_request.reject(new Error(message));
       apply_runtime_transition((machine) => {
         machine.clear_round(round_id, chat_type === "group");
       });
       set_pending_agent_slots((prev) =>
-        prev.filter(
-          (slot) => !matches_round_lifecycle(slot.round_id, round_id),
-        ),
+        filter_round_pending_agent_slots(prev, round_id),
       );
       set_pending_permissions((prev) =>
-        prev.filter(
-          (permission) =>
-            !permission.caused_by ||
-            !matches_round_lifecycle(permission.caused_by, round_id),
-        ),
+        filter_round_pending_permissions(prev, round_id),
       );
       set_messages((prev) =>
-        prev.filter(
-          (message) =>
-            !(
-              message.role === "user" &&
-              message.message_id === round_id &&
-              message.round_id === round_id
-            ),
-        ),
+        remove_failed_outbound_user_message(prev, round_id),
       );
       set_error(message);
       if (ws_state_ref.current === "connected") {
@@ -763,6 +360,7 @@ export function useAgentConversation(
     [
       apply_runtime_transition,
       chat_type,
+      reject_pending_chat_ack,
       set_messages,
       set_pending_agent_slots,
       set_pending_permissions,
@@ -929,133 +527,31 @@ export function useAgentConversation(
   }, [lifecycle_context]);
 
   const load_older_messages = useCallback(async (): Promise<boolean> => {
-    const active_session_key = active_session_key_ref.current;
-    const current_room_id = identity?.room_id?.trim() ?? "";
-    const current_conversation_id = identity?.conversation_id?.trim() ?? "";
-    const before_round_id = history_cursor_ref.current.before_round_id;
-    const before_round_timestamp =
-      history_cursor_ref.current.before_round_timestamp;
-
-    if (
-      !active_session_key ||
-      !has_more_history_ref.current ||
-      is_history_loading_ref.current ||
-      !before_round_timestamp
-    ) {
-      return false;
-    }
-
-    set_history_loading(true);
-    try {
-      const page = current_room_id && current_conversation_id
-        ? await get_room_conversation_messages(
-          current_room_id,
-          current_conversation_id,
-          {
-            limit: get_message_history_round_page_size(),
-            before_round_id,
-            before_round_timestamp,
-          },
-        )
-        : await get_session_messages_api(active_session_key, {
-          limit: get_message_history_round_page_size(),
-          before_round_id,
-          before_round_timestamp,
-        });
-      if (active_session_key_ref.current !== active_session_key) {
-        return false;
-      }
-
-      const sorted_messages = sort_messages(page.items ?? []);
-      if (sorted_messages.length === 0) {
-        history_cursor_ref.current = {
-          before_round_id: null,
-          before_round_timestamp: null,
-        };
-        set_has_more_history(false);
-        return false;
-      }
-
-      set_messages((current_messages) =>
-        merge_loaded_messages(sorted_messages, current_messages),
-      );
-      history_cursor_ref.current = {
-        before_round_id: page.next_before_round_id ?? null,
-        before_round_timestamp: page.next_before_round_timestamp ?? null,
-      };
-      set_has_more_history(page.has_more ?? false);
-      set_history_prepend_token((current_token) => current_token + 1);
-      return true;
-    } catch (err) {
-      if (active_session_key_ref.current !== active_session_key) {
-        return false;
-      }
-      console.error("[useAgentConversation] 加载更早消息失败:", err);
-      set_error(
-        err instanceof Error ? err.message : "Failed to load older messages",
-      );
-      return false;
-    } finally {
-      if (active_session_key_ref.current === active_session_key) {
-        set_history_loading(false);
-      }
-    }
+    return load_older_agent_conversation_messages({
+      active_session_key_ref,
+      identity,
+      history_cursor_ref,
+      has_more_history_ref,
+      is_history_loading_ref,
+      set_history_loading,
+      set_has_more_history,
+      set_history_prepend_token,
+      set_messages,
+      set_error,
+    });
   }, [
-    identity?.conversation_id,
-    identity?.room_id,
+    identity,
     set_error,
     set_has_more_history,
     set_history_loading,
     set_messages,
   ]);
 
-  const flush_stream_buffer = useCallback(() => {
-    stream_raf_ref.current = null;
-    const payloads = stream_buffer_ref.current;
-    if (payloads.length === 0) return;
-    stream_buffer_ref.current = [];
-
-    startTransition(() => {
-      set_messages((prev) => {
-        let next = prev;
-        for (const payload of payloads) {
-          next = apply_stream_message(next, payload);
-        }
-        return next;
-      });
-    });
-  }, [set_messages]);
-
-  const enqueue_stream_payload = useCallback(
-    (payload: StreamMessage) => {
-      stream_buffer_ref.current.push(payload);
-      if (stream_raf_ref.current === null) {
-        stream_raf_ref.current = requestAnimationFrame(flush_stream_buffer);
-      }
-    },
-    [flush_stream_buffer],
-  );
+  const enqueue_stream_payload = useConversationStreamBuffer(set_messages);
 
   const reconcile_stopped_session = useCallback(() => {
     const runtime_snapshot_before_reset =
       runtime_machine_ref.current.snapshot();
-    const terminal_round_ids = new Set(
-      runtime_snapshot_before_reset.terminal_round_ids,
-    );
-    const is_terminal_round = (round_id: string) => {
-      if (terminal_round_ids.has(round_id)) {
-        return true;
-      }
-      if (chat_type !== "group") {
-        return false;
-      }
-      for (const terminal_round_id of terminal_round_ids) {
-        if (round_id.startsWith(`${terminal_round_id}:`)) {
-          return true;
-        }
-      }
-      return false;
-    };
     apply_runtime_transition((machine) => {
       machine.reset();
     });
@@ -1063,49 +559,14 @@ export function useAgentConversation(
       settle_agent_workspace_writes(agent_id);
     }
     set_pending_permissions([]);
-    set_pending_agent_slots((prev) =>
-      prev.map((slot) =>
-        slot.status === "cancelled" || slot.status === "error"
-          ? slot
-          : {
-              ...slot,
-              status: "cancelled",
-            },
+    set_pending_agent_slots(cancel_running_agent_slots);
+    set_messages((prev) =>
+      reconcile_stopped_session_messages(
+        prev,
+        runtime_snapshot_before_reset.terminal_round_ids,
+        chat_type,
       ),
     );
-    set_messages((prev) => {
-      let has_changes = false;
-      const next_messages: Message[] = [];
-      for (const message of prev) {
-        if (is_ephemeral_message(message)) {
-          has_changes = true;
-          continue;
-        }
-        if (message.role !== "assistant") {
-          next_messages.push(message);
-          continue;
-        }
-        if (is_terminal_round(message.round_id)) {
-          next_messages.push(message);
-          continue;
-        }
-        if (
-          message.stop_reason ||
-          message.stream_status === "done" ||
-          message.stream_status === "cancelled" ||
-          message.stream_status === "error"
-        ) {
-          next_messages.push(message);
-          continue;
-        }
-        has_changes = true;
-        next_messages.push({
-          ...message,
-          stream_status: "cancelled" as const,
-        });
-      }
-      return has_changes ? next_messages : prev;
-    });
   }, [
     apply_runtime_transition,
     agent_id,
@@ -1141,22 +602,10 @@ export function useAgentConversation(
       round_id?: string | null,
     ) => {
       set_messages((prev) =>
-        prev.map((m) =>
-          m.message_id === msg_id && m.role === "assistant"
-            ? { ...(m as AssistantMessage), stream_status: status }
-            : m,
-        ),
+        update_assistant_message_status(prev, msg_id, status),
       );
       set_pending_agent_slots((prev) =>
-        prev.map((slot) =>
-          slot.msg_id === msg_id
-            ? {
-                ...slot,
-                round_id: round_id ?? slot.round_id,
-                status,
-              }
-            : slot,
-        ),
+        update_pending_agent_slot_status(prev, msg_id, status, round_id),
       );
       apply_runtime_transition((machine) => {
         machine.update_message_status(msg_id, status, round_id);
@@ -1171,25 +620,7 @@ export function useAgentConversation(
         machine.track_chat_ack(ack);
       });
       clear_pending_chat_ack(ack.round_id);
-      const pending_count = ack.pending?.length ?? 0;
-      set_pending_agent_slots((prev) => {
-        const preserved_slots = prev.filter((slot) => {
-          const base_round_id = slot.round_id.split(":", 1)[0];
-          return base_round_id !== ack.round_id;
-        });
-        const next_slots = (ack.pending ?? []).map((slot) => ({
-          agent_id: slot.agent_id,
-          msg_id: slot.msg_id,
-          round_id:
-            slot.round_id ||
-            (pending_count > 1
-              ? `${ack.round_id}:${slot.agent_id}`
-              : ack.round_id),
-          status: (slot.status ?? "pending") as AssistantMessageStatus,
-          timestamp: slot.timestamp ?? Date.now(),
-        }));
-        return [...preserved_slots, ...next_slots];
-      });
+      set_pending_agent_slots((prev) => merge_chat_ack_pending_slots(prev, ack));
     },
     [apply_runtime_transition, clear_pending_chat_ack, set_pending_agent_slots],
   );
@@ -1218,56 +649,15 @@ export function useAgentConversation(
         settle_agent_workspace_writes(agent_id);
       }
 
-      const terminal_status = get_terminal_message_status(status);
       set_pending_permissions((prev) =>
-        prev.filter((permission) => {
-          if (!permission.caused_by) {
-            return true;
-          }
-          return !matches_round_lifecycle(permission.caused_by, round_id);
-        }),
+        filter_round_pending_permissions(prev, round_id),
       );
       set_pending_agent_slots((prev) =>
-        prev.filter(
-          (slot) => !matches_round_lifecycle(slot.round_id, round_id),
-        ),
+        filter_round_pending_agent_slots(prev, round_id),
       );
-      set_messages((prev) => {
-        let has_changes = false;
-        const next_messages: Message[] = [];
-        for (const message of prev) {
-          if (
-            matches_round_lifecycle(message.round_id, round_id) &&
-            is_ephemeral_message(message)
-          ) {
-            has_changes = true;
-            continue;
-          }
-          if (message.role !== "assistant") {
-            next_messages.push(message);
-            continue;
-          }
-          if (!matches_round_lifecycle(message.round_id, round_id)) {
-            next_messages.push(message);
-            continue;
-          }
-          if (
-            message.stream_status === terminal_status ||
-            message.stream_status === "cancelled" ||
-            message.stream_status === "error" ||
-            message.stream_status === "done"
-          ) {
-            next_messages.push(message);
-            continue;
-          }
-          has_changes = true;
-          next_messages.push({
-            ...message,
-            stream_status: terminal_status,
-          });
-        }
-        return has_changes ? next_messages : prev;
-      });
+      set_messages((prev) =>
+        apply_terminal_round_message_status(prev, round_id, status),
+      );
     },
     [
       apply_runtime_transition,
@@ -1280,107 +670,18 @@ export function useAgentConversation(
     ],
   );
 
-  const build_session_bind_message = useCallback(
-    (target_session_key: string): WebSocketMessage => ({
-      type: "bind_session",
-      session_key: target_session_key,
-      ...(session_seq_cursor_ref.current > 0
-        ? { last_seen_session_seq: session_seq_cursor_ref.current }
-        : {}),
-      ...(agent_id ? { agent_id } : {}),
-      ...(room_id ? { room_id } : {}),
-      ...(conversation_id ? { conversation_id } : {}),
-    }),
-    [agent_id, conversation_id, room_id],
-  );
-
   const handle_websocket_message = useCallback(
     (backend_message: unknown) => {
-      const event = backend_message as EventMessage;
-
-      if (
-        session_key &&
-        event.session_key === session_key &&
-        typeof event.session_seq === "number" &&
-        event.session_seq > session_seq_cursor_ref.current
-      ) {
-        session_seq_cursor_ref.current = event.session_seq;
-      }
-
-      if (
-        room_id &&
-        event.room_id === room_id &&
-        typeof event.room_seq === "number" &&
-        event.room_seq > room_seq_cursor_ref.current
-      ) {
-        room_seq_cursor_ref.current = event.room_seq;
-      }
-
-      if (
-        event.event_type === "room_resync_required" &&
-        event.room_id === room_id
-      ) {
-        const latest_room_seq = event.data?.latest_room_seq;
-        if (typeof latest_room_seq === "number") {
-          room_seq_cursor_ref.current = Math.max(
-            room_seq_cursor_ref.current,
-            latest_room_seq,
-          );
-        }
-        on_room_event_callback?.(event.event_type, event.data ?? {});
-        void reload_current_session().finally(() => {
-          if (!room_id || ws_state_ref.current !== "connected") {
-            return;
-          }
-          ws_send_ref.current({
-            type: "subscribe_room",
-            room_id,
-            conversation_id,
-            ...(room_seq_cursor_ref.current > 0
-              ? { last_seen_room_seq: room_seq_cursor_ref.current }
-              : {}),
-          });
-        });
-        return;
-      }
-
-      if (
-        event.event_type === "session_resync_required" &&
-        event.session_key &&
-        is_current_session_event(event.session_key)
-      ) {
-        const latest_session_seq = event.data?.latest_session_seq;
-        if (typeof latest_session_seq === "number") {
-          session_seq_cursor_ref.current = Math.max(
-            session_seq_cursor_ref.current,
-            latest_session_seq,
-          );
-        }
-        on_room_event_callback?.(event.event_type, event.data ?? {});
-        void reload_current_session().finally(() => {
-          if (!session_key || ws_state_ref.current !== "connected") {
-            return;
-          }
-          ws_send_ref.current(build_session_bind_message(session_key));
-        });
-        return;
-      }
-
-      if (event.event_type === "agent_runtime_event") {
-        const payload = event.data as { agent_id?: string; running_task_count?: number; status?: string } | undefined;
-        if (
-          payload?.agent_id &&
-          payload.agent_id === agent_id &&
-          payload.running_task_count === 0 &&
-          payload.status !== "running"
-        ) {
-          settle_agent_workspace_writes(payload.agent_id);
-        }
-        return;
-      }
-
       handle_agent_conversation_web_socket_message({
         backend_message,
+        agent_id,
+        room_id,
+        conversation_id,
+        session_key,
+        session_seq_cursor_ref,
+        room_seq_cursor_ref,
+        ws_state_ref,
+        ws_send_ref,
         apply_workspace_event,
         is_current_room_event,
         is_current_session_event,
@@ -1397,6 +698,8 @@ export function useAgentConversation(
         apply_round_status,
         track_chat_ack,
         track_assistant_message,
+        reload_current_session,
+        settle_agent_workspace_writes,
       });
     },
     [
@@ -1406,12 +709,10 @@ export function useAgentConversation(
       enqueue_stream_payload,
       on_background_message,
       on_room_event,
-      on_room_event_callback,
       room_id,
       agent_id,
       session_key,
       conversation_id,
-      build_session_bind_message,
       reload_current_session,
       apply_round_status,
       settle_agent_workspace_writes,
@@ -1442,25 +743,14 @@ export function useAgentConversation(
     session_seq_cursor_ref.current = 0;
     room_seq_cursor_ref.current = 0;
     reset_runtime_machine();
-    reset_history_state();
-    set_history_prepend_token(0);
-    set_pending_agent_slots((current_slots) =>
-      current_slots.length ? [] : current_slots,
-    );
-    set_input_queue_items((current_items) =>
-      current_items.length ? [] : current_items,
-    );
-    set_pending_permissions((current_permissions) =>
-      current_permissions.length ? [] : current_permissions,
-    );
+    reset_history_pagination();
+    clear_live_session_state();
   }, [
     cancel_pending_chat_acks,
+    clear_live_session_state,
     identity,
-    reset_history_state,
+    reset_history_pagination,
     reset_runtime_machine,
-    set_pending_agent_slots,
-    set_input_queue_items,
-    set_pending_permissions,
   ]);
 
   useEffect(() => {
@@ -1473,66 +763,27 @@ export function useAgentConversation(
     );
   }, [identity?.session_key]);
 
-  // Cancel any pending rAF flush on unmount to prevent setState after unmount
   useEffect(() => {
     return () => {
       cancel_pending_chat_acks("会话已卸载，未确认的消息发送已取消");
-      if (stream_raf_ref.current !== null) {
-        cancelAnimationFrame(stream_raf_ref.current);
-        stream_raf_ref.current = null;
-      }
     };
   }, [cancel_pending_chat_acks]);
 
-  const has_connected_ref = useRef(false);
-
-  const {
-    state: ws_state,
-    send: ws_send,
-    reconnect: ws_reconnect,
-  } = useWebSocket({
-    url: ws_url,
-    protocols: get_desktop_websocket_protocols(),
-    auto_connect: true,
-    reconnect: true,
-    heartbeat_interval: 30000,
+  const { ws_state, ws_send } = useAgentConversationSocket({
+    ws_url,
+    agent_id,
+    room_id,
+    conversation_id,
+    session_key,
+    session_seq_cursor_ref,
+    room_seq_cursor_ref,
+    ws_send_ref,
+    ws_reconnect_ref,
+    ws_state_ref,
     on_message: handle_websocket_message,
-    on_error: (event) => {
-      // 开发环境 StrictMode 会触发一次挂载后立即清理，
-      // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
-      if (!has_connected_ref.current) {
-        console.debug(
-          "[useAgentConversation] Ignored transient WebSocket error before first successful connection",
-          event,
-        );
-        return;
-      }
-
-      const error_message = "WebSocket error occurred";
-      console.error("[useAgentConversation] WebSocket error:", event);
-      set_error(error_message);
-      on_error?.(new Error(error_message));
-    },
+    on_error,
+    set_error,
   });
-
-  useEffect(() => {
-    ws_send_ref.current = ws_send;
-  }, [ws_send]);
-
-  useEffect(() => {
-    ws_reconnect_ref.current = ws_reconnect;
-  }, [ws_reconnect]);
-
-  useEffect(() => {
-    ws_state_ref.current = ws_state;
-  }, [ws_state]);
-
-  useEffect(() => {
-    if (ws_state === "connected") {
-      has_connected_ref.current = true;
-      set_error(null);
-    }
-  }, [ws_state]);
 
   useEffect(() => {
     if (
@@ -1543,74 +794,6 @@ export function useAgentConversation(
       settle_agent_workspace_writes(agent_id);
     }
   }, [agent_id, agent_runtime_status, settle_agent_workspace_writes]);
-
-  useEffect(() => {
-    if (!agent_id || ws_state !== "connected") {
-      return;
-    }
-
-    ws_send({
-      type: "subscribe_workspace",
-      agent_id,
-      watch_files: true,
-    });
-
-    return () => {
-      ws_send({
-        type: "unsubscribe_workspace",
-        agent_id,
-        watch_files: true,
-      });
-    };
-  }, [agent_id, ws_send, ws_state]);
-
-  useEffect(() => {
-    if (!session_key || ws_state !== "connected") {
-      return;
-    }
-
-    // WebSocket 重连后，后端需要重新知道当前连接服务哪个 session，
-    // 否则挂起中的权限请求无法重投到新连接。
-    ws_send(build_session_bind_message(session_key));
-
-    return () => {
-      // 共享 WebSocket 常驻于应用路由壳后，
-      // 会话组件卸载时必须显式解绑旧 session，避免权限请求和 session 状态继续路由到已离开的页面上下文。
-      ws_send({
-        type: "unbind_session",
-        session_key,
-      });
-    };
-  }, [build_session_bind_message, session_key, ws_send, ws_state]);
-
-  // Subscribe to room-level events (member changes, deletions, etc.) when in a Room context
-  useEffect(() => {
-    session_seq_cursor_ref.current = 0;
-    room_seq_cursor_ref.current = 0;
-  }, [room_id, session_key]);
-
-  useEffect(() => {
-    if (!room_id || ws_state !== "connected") {
-      return;
-    }
-
-    ws_send({
-      type: "subscribe_room",
-      room_id,
-      conversation_id,
-      ...(room_seq_cursor_ref.current > 0
-        ? { last_seen_room_seq: room_seq_cursor_ref.current }
-        : {}),
-    });
-
-    return () => {
-      ws_send({
-        type: "unsubscribe_room",
-        room_id,
-        conversation_id,
-      });
-    };
-  }, [conversation_id, room_id, ws_send, ws_state]);
 
   const action_context: AgentConversationActionContext = useMemo(
     () => ({
@@ -1657,18 +840,16 @@ export function useAgentConversation(
         machine.track_outbound_round(round_id);
       });
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout_id = window.setTimeout(() => {
-          fail_pending_chat_ack(round_id, "消息未送达后端，请重试");
-        }, get_message_send_ack_timeout_ms());
-        pending_chat_ack_ref.current.set(round_id, {
-          resolve,
-          reject,
-          timeout_id,
-        });
+      await wait_for_chat_ack(round_id, () => {
+        fail_pending_chat_ack(round_id, "消息未送达后端，请重试");
       });
     },
-    [action_context, apply_runtime_transition, fail_pending_chat_ack],
+    [
+      action_context,
+      apply_runtime_transition,
+      fail_pending_chat_ack,
+      wait_for_chat_ack,
+    ],
   );
 
   const enqueue_input_queue_message = useCallback(
@@ -1736,13 +917,12 @@ export function useAgentConversation(
   const start_session = useCallback(() => {
     cancel_pending_chat_acks("会话已重建，未确认的消息发送已取消");
     start_agent_session(lifecycle_context);
-    reset_history_state();
-    set_history_prepend_token(0);
+    reset_history_pagination();
     reset_runtime_machine();
   }, [
     cancel_pending_chat_acks,
     lifecycle_context,
-    reset_history_state,
+    reset_history_pagination,
     reset_runtime_machine,
   ]);
 
@@ -1756,13 +936,12 @@ export function useAgentConversation(
   const clear_session = useCallback(() => {
     cancel_pending_chat_acks("会话已清空，未确认的消息发送已取消");
     clear_agent_session(lifecycle_context);
-    reset_history_state();
-    set_history_prepend_token(0);
+    reset_history_pagination();
     reset_runtime_machine();
   }, [
     cancel_pending_chat_acks,
     lifecycle_context,
-    reset_history_state,
+    reset_history_pagination,
     reset_runtime_machine,
   ]);
 
@@ -1775,46 +954,34 @@ export function useAgentConversation(
 
       active_session_key_ref.current = normalized_key;
       cancel_pending_chat_acks("会话已切换，未确认的消息发送已取消");
-      reset_history_state();
-      set_history_prepend_token(0);
+      reset_history_pagination();
       set_session_key((current_key) =>
         current_key === normalized_key ? current_key : normalized_key,
       );
       if (!normalized_key) {
         set_is_session_loading(false);
         reset_runtime_machine();
-        set_pending_agent_slots((current_slots) =>
-          current_slots.length ? [] : current_slots,
-        );
-        set_input_queue_items((current_items) =>
-          current_items.length ? [] : current_items,
-        );
-        set_pending_permissions((current_permissions) =>
-          current_permissions.length ? [] : current_permissions,
-        );
+        clear_live_session_state();
       }
     },
     [
       cancel_pending_chat_acks,
-      reset_history_state,
+      clear_live_session_state,
+      reset_history_pagination,
       reset_runtime_machine,
       set_is_session_loading,
-      set_pending_agent_slots,
-      set_input_queue_items,
-      set_pending_permissions,
     ],
   );
 
   const reset_session = useCallback(() => {
     cancel_pending_chat_acks("会话已重置，未确认的消息发送已取消");
     reset_agent_session(lifecycle_context);
-    reset_history_state();
-    set_history_prepend_token(0);
+    reset_history_pagination();
     reset_runtime_machine();
   }, [
     cancel_pending_chat_acks,
     lifecycle_context,
-    reset_history_state,
+    reset_history_pagination,
     reset_runtime_machine,
   ]);
 

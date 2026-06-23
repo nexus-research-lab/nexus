@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"strings"
 	"testing"
+
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
 
 type fakeWeComBotSocket struct {

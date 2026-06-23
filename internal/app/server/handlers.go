@@ -13,6 +13,7 @@ import (
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
 	loophandler "github.com/nexus-research-lab/nexus/internal/handler/loop"
 	memoryhandler "github.com/nexus-research-lab/nexus/internal/handler/memory"
+	providerhandler "github.com/nexus-research-lab/nexus/internal/handler/provider"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	skillhandler "github.com/nexus-research-lab/nexus/internal/handler/skill"
@@ -30,6 +31,7 @@ type handlerSet struct {
 	connector  *connectorhandler.Handlers
 	channel    *channelhandler.Handlers
 	automation *automationhandler.Handlers
+	provider   *providerhandler.Handlers
 	goal       *goalhandler.Handlers
 	launcher   *launcherhandler.Handlers
 	loop       *loophandler.Handlers
@@ -76,6 +78,7 @@ func newHandlerSet(
 		connector:  connectorhandler.New(api, services.Connectors),
 		channel:    channelhandler.New(api, services.Ingress, services.ChannelControl),
 		automation: automationhandler.New(api, services.Automation),
+		provider:   providerhandler.New(api, services.Provider, services.Preferences),
 		goal:       goalhandler.New(api, services.Goal),
 		launcher:   launcherhandler.New(api, services.Launcher),
 		loop:       loophandler.New(api, services.Loops),

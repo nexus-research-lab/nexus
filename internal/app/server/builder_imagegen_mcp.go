@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	imagegenmcp "github.com/nexus-research-lab/nexus/internal/mcp/imagegen"
+	imagegenmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/imagegen/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	imagegenmcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/imagegen"
-	imagegenmcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/imagegen/contract"
 )
 
 type imagegenAgentResolver interface {

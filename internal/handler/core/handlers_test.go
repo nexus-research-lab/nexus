@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -271,12 +272,7 @@ func TestHandleProviderOptionsUsesRuntimeKind(t *testing.T) {
 }
 
 func stringSliceContains(items []string, target string) bool {
-	for _, item := range items {
-		if item == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(items, target)
 }
 
 type routerServer interface {
@@ -302,10 +298,7 @@ func requestProviderOptions(t *testing.T, server routerServer, target string) pr
 }
 
 func providerOptionsContains(items []providercfg.Option, provider string) bool {
-	for _, item := range items {
-		if item.Provider == provider {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(items, func(item providercfg.Option) bool {
+		return item.Provider == provider
+	})
 }

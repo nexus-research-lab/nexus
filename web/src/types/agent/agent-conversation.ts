@@ -229,6 +229,14 @@ export interface RoomEventPayload {
 
 export interface HandleAgentConversationWebSocketMessageParams {
   backend_message: unknown;
+  agent_id?: string | null;
+  room_id?: string | null;
+  conversation_id?: string | null;
+  session_key?: string | null;
+  session_seq_cursor_ref?: RefObject<number>;
+  room_seq_cursor_ref?: RefObject<number>;
+  ws_state_ref?: RefObject<WebSocketState>;
+  ws_send_ref?: RefObject<(message: WebSocketMessage) => WebSocketSendResult>;
   apply_workspace_event: (payload: WorkspaceEventPayload) => void;
   is_current_room_event?: (incoming_room_id?: string | null) => boolean;
   is_current_session_event: (incoming_session_key?: string | null) => boolean;
@@ -257,4 +265,8 @@ export interface HandleAgentConversationWebSocketMessageParams {
   track_chat_ack?: (ack: ChatAckData, session_key: string | null) => void;
   /** 同步 assistant 完整消息的终态 */
   track_assistant_message?: (message: AssistantMessage) => void;
+  /** Resync 当前 session/room 快照后重新绑定 WebSocket cursor */
+  reload_current_session?: () => Promise<void>;
+  /** 当前 agent 后台任务归零后结算 workspace 写入 */
+  settle_agent_workspace_writes?: (agent_id: string) => void;
 }

@@ -1,13 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Copy, Download, FolderOpen, History, RefreshCw, RotateCcw, X } from "lucide-react";
+import { History, RefreshCw, X } from "lucide-react";
 
 import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
-import {
-  download_workspace_file_api,
-} from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
@@ -15,152 +11,8 @@ import { UiSkeletonCardList } from "@/shared/ui/skeleton";
 import { UiStateBlock } from "@/shared/ui/state-block";
 import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
-import { format_scheduled_datetime } from "./scheduled-formatters";
-
-function format_duration(started_at: number | null, finished_at: number | null): string {
-  if (!started_at || !finished_at) {
-    return "未完成";
-  }
-  const diff_seconds = Math.max(0, Math.round((finished_at - started_at) / 1000));
-  if (diff_seconds < 60) {
-    return `${diff_seconds} 秒`;
-  }
-  const minutes = Math.floor(diff_seconds / 60);
-  const seconds = diff_seconds % 60;
-  return `${minutes} 分 ${seconds} 秒`;
-}
-
-function get_status_meta(status: ScheduledTaskRunItem["status"]) {
-  if (status === "succeeded") {
-    return { label: "成功", tone: "success" as const };
-  }
-  if (status === "running") {
-    return { label: "运行中", tone: "running" as const };
-  }
-  if (status === "pending") {
-    return { label: "等待中", tone: "default" as const };
-  }
-  if (status === "cancelled") {
-    return { label: "已取消", tone: "idle" as const };
-  }
-  if (status === "queued_to_main_session") {
-    return { label: "已入主会话", tone: "default" as const };
-  }
-  if (status === "skipped") {
-    return { label: "已跳过", tone: "idle" as const };
-  }
-  return { label: "失败", tone: "default" as const };
-}
-
-function get_delivery_status_meta(status: ScheduledTaskRunItem["delivery_status"]) {
-  if (status === "succeeded") {
-    return { label: "投递成功", tone: "success" as const };
-  }
-  if (status === "failed") {
-    return { label: "投递失败", tone: "default" as const };
-  }
-  if (status === "pending") {
-    return { label: "待投递", tone: "running" as const };
-  }
-  if (status === "not_attempted") {
-    return { label: "未投递", tone: "idle" as const };
-  }
-  if (status === "not_required" || status === "skipped") {
-    return { label: "无需投递", tone: "idle" as const };
-  }
-  return null;
-}
-
-function should_show_assistant_text(run: ScheduledTaskRunItem): boolean {
-  if (!run.assistant_text) {
-    return false;
-  }
-  return run.assistant_text.trim() !== (run.result_text ?? "").trim();
-}
-
-function artifact_file_name(path: string): string {
-  return path.split("/").filter(Boolean).at(-1) ?? "automation-run.md";
-}
-
-function download_run_artifact(agent_id: string, artifact_path: string) {
-  void download_workspace_file_api(
-    agent_id,
-    artifact_path,
-    artifact_file_name(artifact_path),
-  ).catch((error) => {
-    console.error("[ScheduledTaskRunHistoryDialog] 处理任务产物失败:", error);
-  });
-}
-
-function ScheduledRunArtifactButton({
-  agent_id,
-  artifact_path,
-}: {
-  agent_id: string;
-  artifact_path: string;
-}) {
-  const action_copy = get_workspace_file_external_action_copy(artifact_file_name(artifact_path));
-  const Icon = action_copy.mode === "reveal" ? FolderOpen : Download;
-  const label = action_copy.mode === "reveal" ? "打开产物" : "下载产物";
-  return (
-    <button
-      aria-label={action_copy.aria_label}
-      className="mt-2 inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
-      onClick={() => download_run_artifact(agent_id, artifact_path)}
-      title={action_copy.title}
-      type="button"
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </button>
-  );
-}
-
-function is_retryable_status(status: ScheduledTaskRunItem["status"]): boolean {
-  return status === "failed" || status === "cancelled" || status === "skipped";
-}
-
-function build_run_diagnostic(task: ScheduledTaskItem, run: ScheduledTaskRunItem): string {
-  const lines = [
-    `Task: ${task.name}`,
-    `Job ID: ${task.job_id}`,
-    `Agent ID: ${task.agent_id}`,
-    `Execution: ${task.execution_kind ?? "agent"}`,
-    `Run ID: ${run.run_id}`,
-    `Status: ${run.status}`,
-    `Delivery Status: ${run.delivery_status || ""}`,
-    `Delivery Attempts: ${run.delivery_attempts ?? 0}`,
-    `Delivered At: ${format_scheduled_datetime(run.delivered_at, { include_seconds: true })}`,
-    `Delivery Next Attempt: ${format_scheduled_datetime(run.delivery_next_attempt_at, { include_seconds: true })}`,
-    `Delivery Dead Letter At: ${format_scheduled_datetime(run.delivery_dead_letter_at, { include_seconds: true })}`,
-    `Trigger: ${run.trigger_kind || ""}`,
-    `Scheduled: ${format_scheduled_datetime(run.scheduled_for, { include_seconds: true })}`,
-    `Started: ${format_scheduled_datetime(run.started_at, { include_seconds: true })}`,
-    `Finished: ${format_scheduled_datetime(run.finished_at, { include_seconds: true })}`,
-    `Duration: ${format_duration(run.started_at, run.finished_at)}`,
-    `Attempts: ${run.attempts}`,
-    `Session: ${run.session_key || ""}`,
-    `Round: ${run.round_id || ""}`,
-    `Runtime: ${run.session_id || ""}`,
-    `Artifact: ${run.artifact_path || ""}`,
-  ];
-  if (run.delivery_error) {
-    lines.push("", "Delivery Error:", run.delivery_error);
-  }
-  if (run.error_message) {
-    lines.push("", "Error:", run.error_message);
-  }
-  if (run.result_summary) {
-    lines.push("", "Summary:", run.result_summary);
-  }
-  if (run.result_text) {
-    lines.push("", "Result:", run.result_text);
-  }
-  if (run.assistant_text && run.assistant_text.trim() !== (run.result_text ?? "").trim()) {
-    lines.push("", "Assistant:", run.assistant_text);
-  }
-  return lines.join("\n");
-}
+import { ScheduledTaskRunHistoryItem } from "./scheduled-task-run-history-item";
+import { build_run_diagnostic } from "./scheduled-task-run-history-model";
 
 interface ScheduledTaskRunHistoryDialogProps {
   task: ScheduledTaskItem | null;
@@ -388,173 +240,24 @@ export function ScheduledTaskRunHistoryDialog({
             />
           ) : (
             <div className="divide-y divide-(--divider-subtle-color)">
-              {runs.map((run) => {
-                const status = get_status_meta(run.status);
-                const delivery_status = get_delivery_status_meta(run.delivery_status);
-                return (
-                  <article
-                    key={run.run_id}
-                    className="py-4 first:pt-0 last:pb-0"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />
-                          {delivery_status ? (
-                            <WorkspaceStatusBadge label={delivery_status.label} size="compact" tone={delivery_status.tone} />
-                          ) : null}
-                          <span className="text-xs font-medium text-(--text-default)">
-                            Run ID {run.run_id}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid gap-3 text-sm text-(--text-default) md:grid-cols-2">
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                              调度时间
-                            </p>
-                            <p className="mt-1.5 font-medium text-(--text-strong)">
-                              {format_scheduled_datetime(run.scheduled_for, { include_seconds: true })}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                              执行耗时
-                            </p>
-                            <p className="mt-1.5 font-medium text-(--text-strong)">
-                              {format_duration(run.started_at, run.finished_at)}
-                            </p>
-                          </div>
-                          {run.trigger_kind ? (
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                                触发方式
-                              </p>
-                              <p className="mt-1.5 font-medium text-(--text-strong)">
-                                {run.trigger_kind}
-                              </p>
-                            </div>
-                          ) : null}
-                          {typeof run.message_count === "number" ? (
-                            <div>
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                                消息数
-                              </p>
-                              <p className="mt-1.5 font-medium text-(--text-strong)">
-                                {run.message_count}
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-                        {(run.session_key || run.round_id || run.session_id || run.delivery_to || run.delivered_at || run.delivery_attempts || run.delivery_next_attempt_at || run.delivery_dead_letter_at) ? (
-                          <div className="mt-3 space-y-1.5 text-xs text-(--text-default)">
-                            {run.session_key ? <p className="break-all">Session {run.session_key}</p> : null}
-                            {run.round_id ? <p className="break-all">Round {run.round_id}</p> : null}
-                            {run.session_id ? <p className="break-all">Runtime {run.session_id}</p> : null}
-                            {run.delivery_to ? <p className="break-all">Delivery {run.delivery_to}</p> : null}
-                            {run.delivered_at ? <p>Delivered {format_scheduled_datetime(run.delivered_at, { include_seconds: true })}</p> : null}
-                            {run.delivery_attempts ? <p>Delivery attempts {run.delivery_attempts}</p> : null}
-                            {run.delivery_next_attempt_at ? <p>Next delivery retry {format_scheduled_datetime(run.delivery_next_attempt_at, { include_seconds: true })}</p> : null}
-                            {run.delivery_dead_letter_at ? <p>Delivery dead letter {format_scheduled_datetime(run.delivery_dead_letter_at, { include_seconds: true })}</p> : null}
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="shrink-0 text-right text-sm text-(--text-default)">
-                        <p>开始 {format_scheduled_datetime(run.started_at, { include_seconds: true })}</p>
-                        <p className="mt-1">结束 {format_scheduled_datetime(run.finished_at, { include_seconds: true })}</p>
-                        <p className="mt-1">尝试次数 {run.attempts}</p>
-                        <div className="mt-2 flex flex-col items-end gap-1.5">
-                          <button
-                            className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--text-default) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
-                            onClick={() => void handle_copy_diagnostic(run)}
-                            type="button"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            {copied_run_id === run.run_id ? "已复制" : "复制诊断"}
-                          </button>
-                          {is_retryable_status(run.status) && on_retry_task ? (
-                            <button
-                              className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60"
-                              disabled={retrying_run_id === run.run_id || task.running}
-                              onClick={() => void handle_retry(run)}
-                              title={task.running ? "任务当前正在运行" : "用当前任务配置重新运行一次"}
-                              type="button"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              {retrying_run_id === run.run_id ? "触发中" : "重新运行"}
-                            </button>
-                          ) : null}
-                          {run.delivery_status === "failed" && on_retry_delivery ? (
-                            <button
-                              className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60"
-                              disabled={retrying_delivery_run_id === run.run_id}
-                              onClick={() => void handle_retry_delivery(run)}
-                              title="只重试这次运行的结果投递，不重新执行任务"
-                              type="button"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              {retrying_delivery_run_id === run.run_id ? "投递中" : "重试投递"}
-                            </button>
-                          ) : null}
-                          {run.status === "running" && task.running && on_recover_task_run ? (
-                            <button
-                              className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--destructive) transition duration-(--motion-duration-fast) hover:text-(--destructive) disabled:opacity-60"
-                              disabled={recovering_run_id === run.run_id}
-                              onClick={() => void handle_recover(run)}
-                              title="把该运行标记为取消，并释放任务占用"
-                              type="button"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              {recovering_run_id === run.run_id ? "释放中" : "释放占用"}
-                            </button>
-                          ) : null}
-                        </div>
-                        {run.artifact_path ? (
-                          <ScheduledRunArtifactButton
-                            agent_id={task.agent_id}
-                            artifact_path={run.artifact_path}
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                    {run.error_message ? (
-                      <div className="mt-3 rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-3 py-2.5 text-sm text-(--destructive)">
-                        {run.error_message}
-                      </div>
-                    ) : null}
-                    {run.delivery_error ? (
-                      <div className="mt-3 rounded-[14px] border border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] px-3 py-2.5 text-sm text-(--destructive)">
-                        投递失败：{run.delivery_error}
-                      </div>
-                    ) : null}
-                    {run.result_summary ? (
-                      <div className="mt-3 rounded-[14px] border border-(--divider-subtle-color) px-3 py-2.5 text-sm leading-6 text-(--text-default)">
-                        {run.result_summary}
-                      </div>
-                    ) : null}
-                    {run.result_text ? (
-                      <div className="mt-3 rounded-[14px] border border-(--divider-subtle-color) px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                          运行输出
-                        </p>
-                        <pre className="mt-2 max-h-64 whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
-                          {run.result_text}
-                        </pre>
-                      </div>
-                    ) : null}
-                    {should_show_assistant_text(run) ? (
-                      <div className="mt-3 rounded-[14px] border border-(--divider-subtle-color) px-3 py-2.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
-                          助手回复
-                        </p>
-                        <pre className="mt-2 max-h-64 whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
-                          {run.assistant_text}
-                        </pre>
-                      </div>
-                    ) : null}
-                  </article>
-                );
-              })}
+              {runs.map((run) => (
+                <ScheduledTaskRunHistoryItem
+                  can_recover_task_run={Boolean(on_recover_task_run)}
+                  can_retry_delivery={Boolean(on_retry_delivery)}
+                  can_retry_task={Boolean(on_retry_task)}
+                  copied_run_id={copied_run_id}
+                  key={run.run_id}
+                  on_copy_diagnostic={handle_copy_diagnostic}
+                  on_recover={handle_recover}
+                  on_retry={handle_retry}
+                  on_retry_delivery={handle_retry_delivery}
+                  recovering_run_id={recovering_run_id}
+                  retrying_delivery_run_id={retrying_delivery_run_id}
+                  retrying_run_id={retrying_run_id}
+                  run={run}
+                  task={task}
+                />
+              ))}
             </div>
           )}
         </div>

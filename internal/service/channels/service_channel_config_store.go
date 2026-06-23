@@ -37,7 +37,7 @@ SELECT owner_user_id, channel_type, agent_id, status, config_json, credentials_e
 FROM im_channel_configs
 WHERE owner_user_id = ` + s.bind(1) + " AND channel_type = " + s.bind(2)
 	row := s.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(channelType))
-	item, err := scanChannelConfigRow(row)
+	item, err := scanChannelConfigScanner(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -111,10 +111,6 @@ func scanChannelConfigRows(rows *sql.Rows) ([]channelConfigRow, error) {
 		result = append(result, *item)
 	}
 	return result, rows.Err()
-}
-
-func scanChannelConfigRow(row sqlScanner) (*channelConfigRow, error) {
-	return scanChannelConfigScanner(row)
 }
 
 func scanChannelConfigScanner(row sqlScanner) (*channelConfigRow, error) {

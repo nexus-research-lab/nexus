@@ -12,7 +12,7 @@ func migrateIngressMessage(
 	content string,
 	reqID string,
 ) *channelmessage.Inbound {
-	return channelmessage.MigrateInbound(request.Message, channelmessage.InboundParams{
+	return channelmessage.NormalizeInbound(request.Message, channelmessage.InboundParams{
 		Channel:           channelStored,
 		Target:            parsed.Ref,
 		PlatformMessageID: reqID,

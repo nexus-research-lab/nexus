@@ -34,7 +34,9 @@ func (s *Service) ListTaskEvents(ctx context.Context, jobID string, limit int) (
 }
 
 func (s *Service) recordTaskEvent(ctx context.Context, action string, job protocol.CronJob, runID string, detail map[string]any) {
-	if strings.TrimSpace(job.JobID) == "" || strings.TrimSpace(action) == "" {
+	jobID := strings.TrimSpace(job.JobID)
+	action = strings.TrimSpace(action)
+	if jobID == "" || action == "" {
 		return
 	}
 	if detail == nil {
@@ -47,7 +49,7 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job protoc
 	}
 	event := protocol.CronTaskEvent{
 		EventID:      s.idFactory("task_evt"),
-		JobID:        job.JobID,
+		JobID:        jobID,
 		OwnerUserID:  job.OwnerUserID,
 		AgentID:      job.AgentID,
 		Action:       action,
@@ -78,10 +80,6 @@ func (s *Service) recordTaskEvent(ctx context.Context, action string, job protoc
 	if s.taskNotifier != nil {
 		s.taskNotifier.NotifyTaskEvent(ctx, event)
 	}
-}
-
-func createTaskEventDetail(job protocol.CronJob) map[string]any {
-	return taskEventJobSnapshot(job)
 }
 
 func updateTaskEventAction(input protocol.UpdateJobInput, next protocol.CronJob) string {

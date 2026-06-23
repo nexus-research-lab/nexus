@@ -2,8 +2,9 @@ package workspace
 
 import (
 	"errors"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -141,11 +142,7 @@ func (s *RoomDirectedMessageStore) ReadMessageCursors(conversationID string, age
 		}
 		latestByAgentID[cursorAgentID] = cursor
 	}
-	agentIDs := make([]string, 0, len(latestByAgentID))
-	for cursorAgentID := range latestByAgentID {
-		agentIDs = append(agentIDs, cursorAgentID)
-	}
-	sort.Strings(agentIDs)
+	agentIDs := slices.Sorted(maps.Keys(latestByAgentID))
 	cursors := make([]RoomDirectedMessageCursor, 0, len(agentIDs))
 	for _, cursorAgentID := range agentIDs {
 		cursors = append(cursors, latestByAgentID[cursorAgentID])
@@ -197,7 +194,7 @@ func roomDirectedMessageToRow(message protocol.RoomDirectedMessageRecord) map[st
 		"room_id":         strings.TrimSpace(message.RoomID),
 		"conversation_id": strings.TrimSpace(message.ConversationID),
 		"source_agent_id": strings.TrimSpace(message.SourceAgentID),
-		"recipients":      append([]string(nil), message.Recipients...),
+		"recipients":      slices.Clone(message.Recipients),
 		"reply_route":     message.ReplyRoute,
 		"timestamp":       message.Timestamp,
 	}
@@ -274,10 +271,7 @@ func roomReplyRouteFromAny(value any) protocol.RoomReplyRoute {
 }
 
 func containsRoomDirectedMessageAgent(items []string, value string) bool {
-	for _, item := range items {
-		if strings.TrimSpace(item) == value {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(items, func(item string) bool {
+		return strings.TrimSpace(item) == value
+	})
 }

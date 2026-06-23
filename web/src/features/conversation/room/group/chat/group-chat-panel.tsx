@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { UserRound } from "lucide-react";
 
 import { useAgentConversation } from "@/hooks/agent";
@@ -20,22 +20,24 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
+import { prepare_room_conversation_attachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
+import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
+import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
-  build_conversation_activity_snapshot,
-  get_latest_reply_timestamp,
+  useConversationSnapshotReporter,
+  type ConversationSnapshotBuildInput,
+} from "@/features/conversation/shared/use-conversation-snapshot-reporter";
+import {
   group_room_pending_permissions_by_round,
   group_room_pending_slots_by_round,
   group_room_messages_by_round,
-  should_emit_conversation_activity,
-  type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { GroupConversationFeed } from "./group-conversation-feed";
-import { useRoomComposerHandlers } from "./use-room-composer-handlers";
 import { useRoomThreadPanelData } from "./use-room-thread-panel-data";
 import { GroupConversationEmptyState } from "./group-conversation-empty-state";
 import { RoomGoalPanel } from "./room-goal-panel";
@@ -46,8 +48,6 @@ import {
   resolve_default_room_goal_lead,
 } from "./room-goal-model";
 import { CONVERSATION_TOUR_ANCHORS } from "../../room-tour";
-
-const HISTORY_LOAD_THRESHOLD_PX = 120;
 
 export interface GroupChatPanelProps {
   agent_id: string | null;
@@ -226,10 +226,28 @@ export function GroupChatPanel({
     session_key,
     history_prepend_token,
   });
-  const last_snapshot_key_ref = useRef<string | null>(null);
-  const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
   const can_control_session = true;
   const observer_read_only_reason = "";
+
+  const build_room_snapshot = useCallback(
+    (input: ConversationSnapshotBuildInput): RoomConversationSnapshotPayload => {
+      const {
+        scope_key,
+        last_message,
+        latest_reply_timestamp,
+        should_report_last_activity,
+      } = input;
+
+      return {
+        conversation_id: scope_key,
+        ...(should_report_last_activity && latest_reply_timestamp !== null
+          ? { last_activity_at: latest_reply_timestamp }
+          : {}),
+        session_id: last_message.session_id ?? null,
+      };
+    },
+    [],
+  );
 
   useEffect(() => {
     on_todos_change?.(todos);
@@ -238,42 +256,12 @@ export function GroupChatPanel({
     on_loading_change?.(is_loading);
   }, [is_loading, on_loading_change]);
 
-  useEffect(() => {
-    if (!conversation_id || messages.length === 0) return;
-    const last = messages[messages.length - 1];
-    const latest_reply_timestamp = get_latest_reply_timestamp(messages);
-    const should_report_last_activity = should_emit_conversation_activity(
-      last_activity_snapshot_ref.current,
-      conversation_id,
-      latest_reply_timestamp,
-    );
-    const snapshot: RoomConversationSnapshotPayload = {
-      conversation_id,
-      ...(should_report_last_activity && latest_reply_timestamp !== null
-        ? { last_activity_at: latest_reply_timestamp }
-        : {}),
-      session_id: last?.session_id ?? null,
-    };
-    const snapshot_key = JSON.stringify(snapshot);
-    const next_activity_snapshot = build_conversation_activity_snapshot(
-      conversation_id,
-      latest_reply_timestamp,
-    );
-
-    // Room 历史加载只同步快照，不应该因为切换视图刷新活跃时间。
-    if (last_snapshot_key_ref.current === snapshot_key) {
-      last_activity_snapshot_ref.current = next_activity_snapshot;
-      return;
-    }
-
-    last_snapshot_key_ref.current = snapshot_key;
-    last_activity_snapshot_ref.current = next_activity_snapshot;
-    on_conversation_snapshot_change?.(snapshot);
-  }, [
-    conversation_id,
+  useConversationSnapshotReporter({
+    scope_key: conversation_id,
     messages,
-    on_conversation_snapshot_change,
-  ]);
+    build_snapshot: build_room_snapshot,
+    on_snapshot_change: on_conversation_snapshot_change,
+  });
 
   useSessionLoader({
     session_key,
@@ -306,69 +294,36 @@ export function GroupChatPanel({
       pending_slot_groups,
     ],
   );
-  const maybe_load_older_messages = useCallback(async () => {
-    const container = scroll_ref.current;
-    if (
-      !container ||
-      !has_more_history ||
-      is_history_loading ||
-      container.scrollTop > HISTORY_LOAD_THRESHOLD_PX
-    ) {
-      return;
-    }
-
-    prepare_history_prepend_restore();
-    const did_prepend = await load_older_messages();
-    if (!did_prepend) {
-      cancel_history_prepend_restore();
-    }
-  }, [
-    cancel_history_prepend_restore,
-    has_more_history,
-    is_history_loading,
-    load_older_messages,
-    prepare_history_prepend_restore,
+  const { handle_scroll } = useConversationHistoryLoader({
     scroll_ref,
-  ]);
-
-  const handle_scroll = useCallback(() => {
-    on_scroll();
-    void maybe_load_older_messages();
-  }, [maybe_load_older_messages, on_scroll]);
-
-  useEffect(() => {
-    const container = scroll_ref.current;
-    if (
-      !container ||
-      !has_more_history ||
-      is_history_loading ||
-      is_loading ||
-      container.scrollHeight > container.clientHeight + 24
-    ) {
-      return;
-    }
-    void maybe_load_older_messages();
-  }, [
+    message_count: messages.length,
     has_more_history,
     is_history_loading,
     is_loading,
-    maybe_load_older_messages,
-    messages.length,
-    scroll_ref,
-  ]);
+    load_older_messages,
+    prepare_history_prepend_restore,
+    cancel_history_prepend_restore,
+    on_scroll,
+  });
 
   const handle_stop_message = useCallback(
     (msg_id: string) => stop_generation(msg_id),
     [stop_generation],
   );
+  const prepare_room_attachments = useCallback(async (files: File[]) => {
+    if (!room_id || !conversation_id) {
+      throw new Error("当前 Room 会话尚未就绪，暂时无法附加文件。");
+    }
+    return prepare_room_conversation_attachments(room_id, conversation_id, files);
+  }, [conversation_id, room_id]);
   const { handle_prepare_attachments, handle_send_message } =
-    useRoomComposerHandlers({
-      can_control_session,
-      conversation_id,
+    useConversationComposerHandlers({
+      can_send_initial_draft: can_control_session,
       initial_draft,
+      initial_draft_log_label: "room",
       is_loading,
       on_initial_draft_consumed,
-      room_id,
+      prepare_attachments: prepare_room_attachments,
       scroll_to_bottom,
       send_message,
       session_key,

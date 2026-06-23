@@ -10,10 +10,11 @@ import (
 )
 
 func NullableString(value string) any {
-	if strings.TrimSpace(value) == "" {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
 		return nil
 	}
-	return strings.TrimSpace(value)
+	return trimmed
 }
 
 func NullStringValue(value sql.NullString) string {

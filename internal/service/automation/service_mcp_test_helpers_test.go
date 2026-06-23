@@ -8,9 +8,9 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	automationmcp "github.com/nexus-research-lab/nexus/internal/mcp/automation"
+	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	automationmcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation"
-	"github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )

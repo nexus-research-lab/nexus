@@ -13,24 +13,40 @@ import {
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
 import { WorkspaceEventPayload } from "@/types/app/workspace-live";
-
-function is_event_message(data: unknown): data is EventMessage {
-  if (typeof data !== "object" || data === null) return false;
-  const msg = data as Record<string, unknown>;
-  return typeof msg.event_type === "string" && typeof msg.protocol_version === "number";
-}
-
 import {
   apply_stream_message,
   normalize_assistant_message,
   upsert_message,
 } from "./message-helpers";
+import {
+  build_room_subscription_message,
+  build_session_bind_message,
+} from "./conversation-actions";
+
+function is_event_message(data: unknown): data is EventMessage {
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+  const msg = data as Record<string, unknown>;
+  return (
+    typeof msg.event_type === "string" &&
+    typeof msg.protocol_version === "number"
+  );
+}
 
 /**
  * 处理 Agent 会话的 WebSocket 事件。
  */
 export function handle_agent_conversation_web_socket_message({
   backend_message,
+  agent_id,
+  room_id,
+  conversation_id,
+  session_key,
+  session_seq_cursor_ref,
+  room_seq_cursor_ref,
+  ws_state_ref,
+  ws_send_ref,
   apply_workspace_event,
   is_current_room_event,
   is_current_session_event,
@@ -46,6 +62,8 @@ export function handle_agent_conversation_web_socket_message({
   apply_round_status,
   track_chat_ack,
   track_assistant_message,
+  reload_current_session,
+  settle_agent_workspace_writes,
 }: HandleAgentConversationWebSocketMessageParams): void {
   if (!is_event_message(backend_message)) {
     console.warn("[websocket-event-handler] Received unexpected message shape:", backend_message);
@@ -53,6 +71,105 @@ export function handle_agent_conversation_web_socket_message({
   }
   const event = backend_message;
   const incoming_session_key = event.session_key || null;
+
+  if (
+    session_key &&
+    event.session_key === session_key &&
+    typeof event.session_seq === "number" &&
+    session_seq_cursor_ref &&
+    event.session_seq > session_seq_cursor_ref.current
+  ) {
+    session_seq_cursor_ref.current = event.session_seq;
+  }
+
+  if (
+    room_id &&
+    event.room_id === room_id &&
+    typeof event.room_seq === "number" &&
+    room_seq_cursor_ref &&
+    event.room_seq > room_seq_cursor_ref.current
+  ) {
+    room_seq_cursor_ref.current = event.room_seq;
+  }
+
+  if (
+    event.event_type === "room_resync_required" &&
+    event.room_id === room_id
+  ) {
+    const latest_room_seq = event.data?.latest_room_seq;
+    if (typeof latest_room_seq === "number" && room_seq_cursor_ref) {
+      room_seq_cursor_ref.current = Math.max(
+        room_seq_cursor_ref.current,
+        latest_room_seq,
+      );
+    }
+    on_room_event?.(event.event_type, event.data ?? {});
+    void reload_current_session?.().finally(() => {
+      if (
+        !room_id ||
+        ws_state_ref?.current !== "connected" ||
+        !ws_send_ref ||
+        !room_seq_cursor_ref
+      ) {
+        return;
+      }
+      ws_send_ref.current(build_room_subscription_message({
+        type: "subscribe_room",
+        room_id,
+        conversation_id,
+        last_seen_room_seq: room_seq_cursor_ref.current,
+      }));
+    });
+    return;
+  }
+
+  if (
+    event.event_type === "session_resync_required" &&
+    event.session_key &&
+    is_current_session_event(event.session_key)
+  ) {
+    const latest_session_seq = event.data?.latest_session_seq;
+    if (typeof latest_session_seq === "number" && session_seq_cursor_ref) {
+      session_seq_cursor_ref.current = Math.max(
+        session_seq_cursor_ref.current,
+        latest_session_seq,
+      );
+    }
+    on_room_event?.(event.event_type, event.data ?? {});
+    void reload_current_session?.().finally(() => {
+      if (
+        !session_key ||
+        ws_state_ref?.current !== "connected" ||
+        !ws_send_ref ||
+        !session_seq_cursor_ref
+      ) {
+        return;
+      }
+      ws_send_ref.current(build_session_bind_message({
+        session_key,
+        last_seen_session_seq: session_seq_cursor_ref.current,
+        agent_id,
+        room_id,
+        conversation_id,
+      }));
+    });
+    return;
+  }
+
+  if (event.event_type === "agent_runtime_event") {
+    const payload = event.data as
+      | { agent_id?: string; running_task_count?: number; status?: string }
+      | undefined;
+    if (
+      payload?.agent_id &&
+      payload.agent_id === agent_id &&
+      payload.running_task_count === 0 &&
+      payload.status !== "running"
+    ) {
+      settle_agent_workspace_writes?.(payload.agent_id);
+    }
+    return;
+  }
 
   if (event.event_type === "error") {
     if (

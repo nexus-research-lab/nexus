@@ -5,11 +5,6 @@ import (
 	"strings"
 )
 
-// MigrateInbound 把旧入口字段和可选的新 envelope 合并成标准入站消息。
-func MigrateInbound(message *Inbound, fallback InboundParams) *Inbound {
-	return NormalizeInbound(message, fallback)
-}
-
 // RuntimeMetadata 把标准入站消息投影为 runtime/history 可持久化 metadata。
 func RuntimeMetadata(message *Inbound) map[string]string {
 	if message == nil {

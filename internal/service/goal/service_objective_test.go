@@ -6,6 +6,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 func TestServiceCreateGoalRewritesObjectiveByDefault(t *testing.T) {
@@ -121,7 +122,7 @@ func TestServiceThreadGoalSetRewritesObjectiveByDefault(t *testing.T) {
 	service.SetObjectiveRewriter(fakeObjectiveRewriter{rewritten: "整理后的 app-server 目标"})
 
 	objective := "app-server 设定的一段比较长的目标"
-	created, err := service.SetFromThreadGoalParams(context.Background(), protocol.ThreadGoalSetParams{
+	created, err := service.SetFromThreadGoalParams(context.Background(), goalappserver.ThreadGoalSetParams{
 		ThreadID:  "agent:nexus:ws:dm:chat",
 		Objective: &objective,
 	})
@@ -166,7 +167,7 @@ func TestServiceObjectiveRewriteReceivesSessionKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	roomObjective := "app-server 创建草稿"
-	appCreated, err := service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	appCreated, err := service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  "room:group:conversation-1",
 		Objective: &roomObjective,
 	})
@@ -174,7 +175,7 @@ func TestServiceObjectiveRewriteReceivesSessionKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	roomUpdateObjective := "app-server 更新草稿"
-	if _, err = service.SetFromThreadGoalParams(ctx, protocol.ThreadGoalSetParams{
+	if _, err = service.SetFromThreadGoalParams(ctx, goalappserver.ThreadGoalSetParams{
 		ThreadID:  appCreated.SessionKey,
 		Objective: &roomUpdateObjective,
 	}); err != nil {

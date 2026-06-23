@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -82,7 +83,7 @@ func roomReplyRouteAfterPrivateHandback(route protocol.RoomReplyRoute) protocol.
 func cloneRoomReplyRoute(route protocol.RoomReplyRoute) protocol.RoomReplyRoute {
 	cloned := protocol.RoomReplyRoute{
 		Mode:       route.Mode,
-		Recipients: append([]string(nil), route.Recipients...),
+		Recipients: slices.Clone(route.Recipients),
 		WakePolicy: route.WakePolicy,
 	}
 	if route.NextReplyRoute != nil {

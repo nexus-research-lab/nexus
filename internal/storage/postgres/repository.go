@@ -11,3 +11,10 @@ type Repository struct {
 func New(db *sql.DB) *Repository {
 	return &Repository{DB: db}
 }
+
+func nullIfEmpty(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
+}

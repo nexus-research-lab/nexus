@@ -76,8 +76,8 @@ func NormalizeChatAttachment(value ChatAttachment, defaultAgentID string) ChatAt
 
 func firstNonEmptyChatAttachment(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

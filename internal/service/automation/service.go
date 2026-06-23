@@ -18,6 +18,7 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -50,6 +51,10 @@ type deliveryRouter interface {
 
 type runtimeSessionCloser interface {
 	CloseSession(context.Context, string) error
+}
+
+type imagegenDefaultResolver interface {
+	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
 }
 
 // TaskEventNotifier 接收定时任务变更事件。
@@ -141,6 +146,14 @@ func (s *Service) SetRuntimeSessionCloser(sessionCloser runtimeSessionCloser) {
 // SetProviderResolver 注入 Provider 解析器，用于判断后台运行时是否可默认开放图片生成工具。
 func (s *Service) SetProviderResolver(resolver imagegenDefaultResolver) {
 	s.providers = resolver
+}
+
+func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {
+	if s == nil || s.providers == nil {
+		return false
+	}
+	_, err := s.providers.ResolveImageConfig(ctx, "")
+	return err == nil
 }
 
 // SetTaskEventNotifier 注入定时任务事件通知器。

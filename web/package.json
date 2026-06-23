@@ -63,7 +63,10 @@
   },
   "pnpm": {
     "overrides": {
-      "postcss": ">=8.5.10"
+      "postcss": ">=8.5.10",
+      "minimist": ">=1.2.8",
+      "node-fetch": ">=2.7.0",
+      "tmp": ">=0.2.7"
     }
   }
 }

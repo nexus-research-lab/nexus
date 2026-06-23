@@ -2,6 +2,8 @@ package toolpolicy
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -207,22 +209,12 @@ func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool)
 func withoutManagedImagegenAllowedTools(tools []string) []string {
 	result := make([]string, 0, len(tools))
 	for _, tool := range tools {
-		if isManagedImagegenAllowedTool(tool) {
+		if slices.Contains(managedImagegenAllowedTools, strings.TrimSpace(tool)) {
 			continue
 		}
 		result = append(result, tool)
 	}
 	return result
-}
-
-func isManagedImagegenAllowedTool(tool string) bool {
-	normalized := strings.TrimSpace(tool)
-	for _, managed := range managedImagegenAllowedTools {
-		if normalized == managed {
-			return true
-		}
-	}
-	return false
 }
 
 func toolNameLeaf(toolName string) string {
@@ -265,17 +257,13 @@ func cloneInput(input map[string]any) map[string]any {
 	if len(input) == 0 {
 		return nil
 	}
-	result := make(map[string]any, len(input))
-	for key, value := range input {
-		result[key] = value
-	}
-	return result
+	return maps.Clone(input)
 }
 
 func appendDistinctTools(base []string, extra ...string) []string {
 	result := make([]string, 0, len(base)+len(extra))
 	seen := make(map[string]struct{}, len(base)+len(extra))
-	for _, tool := range append(append([]string(nil), base...), extra...) {
+	for _, tool := range slices.Concat(base, extra) {
 		normalized := strings.TrimSpace(tool)
 		if normalized == "" {
 			continue
@@ -293,9 +281,7 @@ func appendDistinctTools(base []string, extra ...string) []string {
 func MergeSets(sets ...map[string]struct{}) map[string]struct{} {
 	result := map[string]struct{}{}
 	for _, set := range sets {
-		for item := range set {
-			result[item] = struct{}{}
-		}
+		maps.Copy(result, set)
 	}
 	return result
 }
@@ -305,9 +291,5 @@ func CopySet(items map[string]struct{}) map[string]struct{} {
 	if len(items) == 0 {
 		return nil
 	}
-	result := make(map[string]struct{}, len(items))
-	for key := range items {
-		result[key] = struct{}{}
-	}
-	return result
+	return maps.Clone(items)
 }

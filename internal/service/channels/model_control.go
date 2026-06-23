@@ -43,6 +43,18 @@ type ChannelConfigView = channelmanagement.ChannelConfigView
 
 type UpsertChannelConfigRequest = channelmanagement.UpsertChannelConfigRequest
 
+func channelCatalog() []ChannelCatalogItem {
+	return channelmanagement.ChannelCatalog()
+}
+
+func channelCatalogByType(channelType string) (ChannelCatalogItem, bool) {
+	return channelmanagement.ChannelCatalogByType(channelType)
+}
+
+func isPlannedChannel(channelType string) bool {
+	return channelmanagement.IsPlannedChannel(channelType)
+}
+
 type PairingView = channelmanagement.PairingView
 
 type PairingQuery = channelmanagement.PairingQuery

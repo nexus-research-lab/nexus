@@ -3,11 +3,12 @@ package adapters
 import (
 	"context"
 	"fmt"
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 
 	"github.com/bwmarrin/discordgo"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"

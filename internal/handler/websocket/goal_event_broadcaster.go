@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 type goalEventBroadcaster struct {
@@ -49,17 +50,17 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 	}
 	switch event.EventType {
 	case protocol.EventTypeGoalCleared:
-		b.rpcSubscribers.Broadcast(ctx, threadID, nil, protocol.AppServerJSONRPCNotification{
+		b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/cleared",
-			Params: protocol.ThreadGoalClearedNotification{
+			Params: goalappserver.ThreadGoalClearedNotification{
 				ThreadID: threadID,
 			},
 		})
 	case protocol.EventTypeGoalStatusChanged:
 		if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusComplete {
-			b.rpcSubscribers.Broadcast(ctx, threadID, nil, protocol.AppServerJSONRPCNotification{
+			b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
 				Method: "thread/goal/cleared",
-				Params: protocol.ThreadGoalClearedNotification{
+				Params: goalappserver.ThreadGoalClearedNotification{
 					ThreadID: threadID,
 				},
 			})
@@ -70,12 +71,12 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 		protocol.EventTypeGoalUpdated,
 		protocol.EventTypeGoalProgress,
 		protocol.EventTypeGoalContinuation:
-		b.rpcSubscribers.Broadcast(ctx, threadID, nil, protocol.AppServerJSONRPCNotification{
+		b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
 			Method: "thread/goal/updated",
-			Params: protocol.ThreadGoalUpdatedNotification{
+			Params: goalappserver.ThreadGoalUpdatedNotification{
 				ThreadID: threadID,
 				TurnID:   goalEventTurnID(event),
-				Goal:     protocol.ThreadGoalFromGoal(goal),
+				Goal:     goalappserver.ThreadGoalFromGoal(goal),
 			},
 		})
 	}

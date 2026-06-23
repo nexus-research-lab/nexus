@@ -53,4 +53,3 @@ export interface LoopCatalogItem {
   is_published: boolean;
   created_at: string;
 }
-

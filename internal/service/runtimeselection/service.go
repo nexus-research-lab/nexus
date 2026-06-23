@@ -1,6 +1,7 @@
 package runtimeselection
 
 import (
+	"cmp"
 	"context"
 	"strings"
 
@@ -65,8 +66,8 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 		}
 	}
 	if selection.Provider == "" || selection.Model == "" {
-		selection.Provider = firstNonEmpty(selection.Provider, agentProvider)
-		selection.Model = firstNonEmpty(selection.Model, agentModel)
+		selection.Provider = cmp.Or(strings.TrimSpace(selection.Provider), agentProvider)
+		selection.Model = cmp.Or(strings.TrimSpace(selection.Model), agentModel)
 	}
 	return selection, nil
 }
@@ -111,13 +112,4 @@ func explicitAgentModel(agent *protocol.Agent) (string, string) {
 		return "", ""
 	}
 	return strings.TrimSpace(agent.Options.Provider), strings.TrimSpace(agent.Options.Model)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if normalized := strings.TrimSpace(value); normalized != "" {
-			return normalized
-		}
-	}
-	return ""
 }

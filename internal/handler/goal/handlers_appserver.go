@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 // HandleThreadGoalSet 提供 Codex app-server 风格的 thread/goal/set 兼容入口。
 func (h *Handlers) HandleThreadGoalSet(writer http.ResponseWriter, request *http.Request) {
-	var input protocol.ThreadGoalSetParams
+	var input goalappserver.ThreadGoalSetParams
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
@@ -19,15 +19,15 @@ func (h *Handlers) HandleThreadGoalSet(writer http.ResponseWriter, request *http
 		h.writeGoalError(writer, err)
 		return
 	}
-	h.writeCodexGoalJSON(writer, protocol.ThreadGoalSetResponse{
-		Goal: protocol.ThreadGoalFromGoal(*item),
+	h.writeCodexGoalJSON(writer, goalappserver.ThreadGoalSetResponse{
+		Goal: goalappserver.ThreadGoalFromGoal(*item),
 	})
 	h.goals.DispatchActiveGoalContinuation(request.Context(), *item)
 }
 
 // HandleThreadGoalGet 提供 Codex app-server 风格的 thread/goal/get 兼容入口。
 func (h *Handlers) HandleThreadGoalGet(writer http.ResponseWriter, request *http.Request) {
-	var input protocol.ThreadGoalGetParams
+	var input goalappserver.ThreadGoalGetParams
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
@@ -36,14 +36,14 @@ func (h *Handlers) HandleThreadGoalGet(writer http.ResponseWriter, request *http
 		h.writeGoalError(writer, err)
 		return
 	}
-	h.writeCodexGoalJSON(writer, protocol.ThreadGoalGetResponse{
-		Goal: protocol.ThreadGoalPointerFromGoal(item),
+	h.writeCodexGoalJSON(writer, goalappserver.ThreadGoalGetResponse{
+		Goal: goalappserver.ThreadGoalPointerFromGoal(item),
 	})
 }
 
 // HandleThreadGoalClear 提供 Codex app-server 风格的 thread/goal/clear 兼容入口。
 func (h *Handlers) HandleThreadGoalClear(writer http.ResponseWriter, request *http.Request) {
-	var input protocol.ThreadGoalClearParams
+	var input goalappserver.ThreadGoalClearParams
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
@@ -52,7 +52,7 @@ func (h *Handlers) HandleThreadGoalClear(writer http.ResponseWriter, request *ht
 		h.writeGoalError(writer, err)
 		return
 	}
-	h.writeCodexGoalJSON(writer, protocol.ThreadGoalClearResponse{Cleared: cleared})
+	h.writeCodexGoalJSON(writer, goalappserver.ThreadGoalClearResponse{Cleared: cleared})
 }
 
 func (h *Handlers) writeCodexGoalJSON(writer http.ResponseWriter, payload any) {

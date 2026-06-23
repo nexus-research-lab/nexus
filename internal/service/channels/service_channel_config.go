@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -96,7 +97,10 @@ func (s *ControlService) CountConnectedChannels(ctx context.Context, ownerUserID
 		if row.Status == ChannelConfigStatusDisabled || isPlannedChannel(row.ChannelType) {
 			continue
 		}
-		if row.Status == ChannelConfigStatusConnected || hasConnectedChannelAccount(accountRows[row.ChannelType]) {
+		if row.Status == ChannelConfigStatusConnected ||
+			slices.ContainsFunc(accountRows[row.ChannelType], func(account channelAccountRow) bool {
+				return account.Status == ChannelConfigStatusConnected
+			}) {
 			count++
 		}
 	}
