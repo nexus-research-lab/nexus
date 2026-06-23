@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ChevronDown,
-  MousePointer2,
   Power,
 } from "lucide-react";
 
@@ -21,11 +20,6 @@ import {
 } from "./operation-stage-window-meta";
 import { build_stage_desktop_icon_items } from "./operation-stage-desktop-icons";
 import { build_stage_menu_status } from "./operation-stage-menu-model";
-import {
-  agent_cursor_action_label,
-  agent_cursor_anchor_class,
-  agent_cursor_intent_for_window_kind,
-} from "./operation-stage-agent-cursor";
 import {
   event_sequence_label,
   icon_for_operation_kind,
@@ -361,30 +355,6 @@ export function StageDesktopIcons({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-export function StageAgentCursor({
-  active_window,
-}: {
-  active_window: StageWindowState | null;
-}) {
-  if (!active_window) {
-    return null;
-  }
-  const intent = agent_cursor_intent_for_window_kind(active_window.kind);
-  const action_label = agent_cursor_action_label(intent);
-  const app_label = stage_app_label_for_window_kind(active_window.kind);
-
-  return (
-    <div
-      aria-label={`Nexus ${action_label} ${app_label}`}
-      className={cn("operation-stage-agent-cursor pointer-events-none absolute z-50 hidden -translate-x-2 -translate-y-2 md:block", agent_cursor_anchor_class(active_window))}
-      data-agent-cursor-intent={intent}
-    >
-      <span className="operation-stage-agent-cursor-target" />
-      <MousePointer2 className="h-5 w-5 fill-[rgba(32,43,58,0.88)] text-[rgba(32,43,58,0.88)] drop-shadow-[0_8px_14px_rgba(18,28,42,0.22)]" />
     </div>
   );
 }

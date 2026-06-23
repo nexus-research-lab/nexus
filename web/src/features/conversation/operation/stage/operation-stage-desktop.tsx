@@ -32,7 +32,7 @@ import {
 import type {
   StageWindowOverride,
 } from "./operation-stage-model";
-import { StageAgentCursor, StageMacMenuBar, StageDesktopIcons } from "./operation-stage-mac-shell";
+import { StageMacMenuBar, StageDesktopIcons } from "./operation-stage-mac-shell";
 import { DynamicStageFrame } from "./operation-stage-frame";
 import { OperationStageWindow } from "./operation-stage-window";
 import {
@@ -398,7 +398,6 @@ export function OperationStageDesktop({
         windows={window_states}
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
-      <StageAgentCursor active_window={active_window} />
       {visible_windows.length ? visible_windows.map((window, index) => {
         const is_active = active_window_id === window.id && window.phase !== "minimized";
         const is_maximized = Boolean(window_overrides[window.id]?.maximized);
