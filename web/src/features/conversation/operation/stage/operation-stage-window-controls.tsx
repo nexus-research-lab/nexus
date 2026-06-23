@@ -146,25 +146,7 @@ export function StageWindowDock({
         {minimized_windows.length ? (
           <>
             <div className="h-8 w-px shrink-0 bg-white/56" />
-            {minimized_windows.length > 2 ? (
-              <button
-                aria-label={`从 Dock 恢复 ${minimized_windows.length} 个最小化窗口`}
-	                className="operation-window-dock-minimized group relative grid h-9 w-14 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-[rgba(223,157,46,0.24)] bg-[rgba(255,249,236,0.58)] text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.70)] transition duration-150 ease-out hover:-translate-y-1 hover:bg-white/72 hover:text-(--text-strong) focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
-                onClick={on_restore_all}
-                title={`恢复 ${minimized_windows.length} 个最小化窗口`}
-                type="button"
-              >
-                <div className="absolute left-2 top-1 h-6 w-9 rounded-[8px] border border-white/50 bg-white/32" />
-                <div className="absolute left-1.5 top-2 h-6 w-9 rounded-[8px] border border-white/58 bg-white/46" />
-                <span className="relative z-10 grid h-5 min-w-5 place-items-center rounded-full border border-white/78 bg-[rgba(20,28,38,0.72)] px-1 text-[9px] font-black leading-none text-white shadow-[0_4px_10px_rgba(18,28,42,0.18)]">
-                  {minimized_windows.length}
-                </span>
-                <span className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 hidden max-w-[230px] -translate-x-1/2 whitespace-nowrap rounded-[10px] border border-white/70 bg-[rgba(20,28,38,0.82)] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-[0_12px_30px_rgba(18,28,42,0.22)] backdrop-blur-xl group-hover:block group-focus-visible:block">
-                  <span className="block max-w-[160px] truncate">最小化窗口</span>
-                  <span className="block text-[9px] font-medium text-white/66">{minimized_windows.length} 个窗口 · 点击全部恢复</span>
-                </span>
-              </button>
-            ) : minimized_windows.map((window) => {
+            {minimized_windows.map((window) => {
               const Icon = icon_for_window_kind(window.kind);
               const app_label = stage_app_label_for_window_kind(window.kind);
               const window_title = display_window_title(window);

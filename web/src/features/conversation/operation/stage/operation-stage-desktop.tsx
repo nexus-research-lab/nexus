@@ -210,6 +210,7 @@ export function OperationStageDesktop({
   const active_window = useMemo(() => (
     visible_windows.find((window) => window.id === active_window_id) ?? null
   ), [active_window_id, visible_windows]);
+  const has_maximized_window = visible_windows.some((window) => window_overrides[window.id]?.maximized);
   const close_window = (window_id: string) => {
     set_focused_window_id((current) => resolve_next_window_focus({
       current_focus_id: current,
@@ -430,7 +431,7 @@ export function OperationStageDesktop({
             on_zoom={() => toggle_zoom_window(window.id)}
             on_cycle_focus={cycle_window_focus}
             position_class_name={is_maximized
-              ? "left-[4%] top-[8%] h-[78%] w-[92%]"
+              ? "inset-x-0 top-12 bottom-0 h-auto w-auto"
               : position_for_window(window, narrative.phase, background_window_index)}
             preview_mode={is_stage_manager_preview ? "stage-manager" : undefined}
             restore_token={window_overrides[window.id]?.restore_token}
@@ -446,13 +447,15 @@ export function OperationStageDesktop({
           </OperationStageWindow>
         );
       }) : null}
-      <StageWindowDock
-        active_window_id={active_window_id}
-        on_launch_app={launch_dock_app}
-        on_restore_all={restore_all_windows}
-        windows={window_states}
-        on_restore={restore_window}
-      />
+      {has_maximized_window ? null : (
+        <StageWindowDock
+          active_window_id={active_window_id}
+          on_launch_app={launch_dock_app}
+          on_restore_all={restore_all_windows}
+          windows={window_states}
+          on_restore={restore_window}
+        />
+      )}
     </DynamicStageFrame>
   );
 }
