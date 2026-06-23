@@ -38,7 +38,6 @@
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.4.0",
     "unicode-animations": "^1.0.3",
-    "x-data-spreadsheet": "^1.1.9",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
@@ -64,9 +63,6 @@
   "pnpm": {
     "overrides": {
       "postcss": ">=8.5.10",
-      "opencollective>minimist": "1.2.8",
-      "opencollective>node-fetch": "2.7.0",
-      "external-editor>tmp": "0.2.7",
       "exceljs>tmp": "0.2.7",
       "exceljs>uuid": "11.1.1"
     }
