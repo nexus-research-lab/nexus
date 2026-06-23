@@ -44,6 +44,10 @@
               <div class="code-line add"><span>44</span><span>+ if (visualGroup === "automation") return automationWindow(event)</span></div>
               <div class="code-line add"><span>45</span><span>+ if (visualGroup === "connector") return connectorWindow(event)</span></div>
               <div class="code-line"><span>46</span><span>}</span></div>
+              <div class="callout-grid" style="margin-top: 18px; font-family: Aptos, 'IBM Plex Sans', 'Segoe UI', 'PingFang SC', sans-serif;">
+                <div class="callout"><strong>改动摘要</strong><span>高亮新增行、当前光标和保存状态。</span></div>
+                <div class="callout"><strong>风险提示</strong><span>跨文件修改时显示影响范围。</span></div>
+              </div>
             </div>
           </div>
           <aside class="side">
@@ -59,6 +63,13 @@
               <div><span>tool</span><strong>Edit</strong></div>
               <div><span>surface</span><strong>code editor</strong></div>
               <div><span>focus</span><strong>line 43</strong></div>
+            </div>
+            <div class="panel">
+              <h2>Runtime trace</h2>
+              <div class="trace-list">
+                <div class="trace-row"><span>00:00</span><strong>read_file</strong><em>ok</em></div>
+                <div class="trace-row"><span>00:03</span><strong>apply_patch</strong><em>+2</em></div>
+              </div>
             </div>
           </aside>
         </div>

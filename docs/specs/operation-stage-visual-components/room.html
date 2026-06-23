@@ -35,6 +35,10 @@
               <div class="item active"><strong>Room</strong><span>消息正在投递到 operation-stage 讨论区。</span></div>
               <div class="item"><strong>Directed message</strong><span>@owner 等待确认样式方向。</span></div>
             </div>
+            <div class="callout-grid" style="margin-top: 12px;">
+              <div class="callout"><strong>频道</strong><span>public room、directed message、thread reply。</span></div>
+              <div class="callout"><strong>回执</strong><span>展示已发送、失败、等待重试。</span></div>
+            </div>
           </div>
           <aside class="side">
             <div class="panel">
@@ -49,6 +53,13 @@
               <div><span>server</span><strong>nexus_room</strong></div>
               <div><span>tool</span><strong>publish_public_message</strong></div>
               <div><span>delivery</span><strong>pending ack</strong></div>
+            </div>
+            <div class="panel">
+              <h2>投递记录</h2>
+              <div class="trace-list">
+                <div class="trace-row"><span>room</span><strong>public message</strong><em>sent</em></div>
+                <div class="trace-row"><span>dm</span><strong>directed</strong><em>wait</em></div>
+              </div>
             </div>
           </aside>
         </div>

@@ -39,6 +39,10 @@
                 <button class="chip waiting">始终允许</button>
                 <button class="chip error">拒绝</button>
               </div>
+              <div class="callout-grid" style="margin-top: 14px;">
+                <div class="callout"><strong>影响范围</strong><span>读取外部文档，不写入仓库文件。</span></div>
+                <div class="callout"><strong>策略原因</strong><span>连接器调用需要用户显式授权。</span></div>
+              </div>
             </div>
           </div>
           <aside class="side">
@@ -54,6 +58,13 @@
               <div><span>policy</span><strong>user approval</strong></div>
               <div><span>scope</span><strong>connector_call</strong></div>
               <div><span>ttl</span><strong>once</strong></div>
+            </div>
+            <div class="panel">
+              <h2>审批记录</h2>
+              <div class="trace-list">
+                <div class="trace-row"><span>wait</span><strong>permission_request</strong><em>new</em></div>
+                <div class="trace-row"><span>ttl</span><strong>decision scope</strong><em>once</em></div>
+              </div>
             </div>
           </aside>
         </div>

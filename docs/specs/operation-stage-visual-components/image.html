@@ -31,6 +31,10 @@
         <div class="stage-body">
           <div class="surface canvas">
             <div class="image-preview"></div>
+            <div class="callout-grid" style="margin-top: 12px;">
+              <div class="callout"><strong>Prompt</strong><span>保留生成提示词、尺寸、模型和批次。</span></div>
+              <div class="callout"><strong>Asset</strong><span>展示预览图、保存路径和重新生成入口。</span></div>
+            </div>
           </div>
           <aside class="side">
             <div class="panel">
@@ -45,6 +49,13 @@
               <div><span>server</span><strong>nexus_imagegen</strong></div>
               <div><span>tool</span><strong>generate_image</strong></div>
               <div><span>surface</span><strong>image studio</strong></div>
+            </div>
+            <div class="panel">
+              <h2>生成记录</h2>
+              <div class="trace-list">
+                <div class="trace-row"><span>seed</span><strong>batch</strong><em>1</em></div>
+                <div class="trace-row"><span>file</span><strong>preview.png</strong><em>new</em></div>
+              </div>
             </div>
           </aside>
         </div>

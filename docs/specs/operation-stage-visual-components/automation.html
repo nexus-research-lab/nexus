@@ -40,6 +40,10 @@
               <div class="item"><strong>运行前检查</strong><span>workspace, connector, room delivery</span></div>
               <div class="item"><strong>失败恢复策略</strong><span>retry_scheduled_task_delivery</span></div>
             </div>
+            <div class="callout-grid" style="margin-top: 12px;">
+              <div class="callout"><strong>触发器</strong><span>cron、时区、下一次执行时间。</span></div>
+              <div class="callout"><strong>恢复</strong><span>失败运行可重试投递或恢复任务。</span></div>
+            </div>
           </div>
           <aside class="side">
             <div class="panel">
@@ -55,6 +59,13 @@
               <div><span>server</span><strong>nexus_automation</strong></div>
               <div><span>tool</span><strong>create_scheduled_task</strong></div>
               <div><span>surface</span><strong>automation console</strong></div>
+            </div>
+            <div class="panel">
+              <h2>运行记录</h2>
+              <div class="trace-list">
+                <div class="trace-row"><span>cron</span><strong>validate</strong><em>ok</em></div>
+                <div class="trace-row"><span>task</span><strong>persist</strong><em>new</em></div>
+              </div>
             </div>
           </aside>
         </div>
