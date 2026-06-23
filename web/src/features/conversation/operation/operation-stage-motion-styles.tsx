@@ -272,29 +272,31 @@ export function OperationStageMotionStyles() {
         .operation-desktop-wallpaper {
           overflow: hidden;
           background:
-            linear-gradient(145deg, rgba(250,252,255,.96) 0%, rgba(234,240,247,.90) 46%, rgba(219,231,235,.88) 100%),
-            repeating-linear-gradient(90deg, rgba(32,43,58,.030) 0 1px, transparent 1px 64px),
-            repeating-linear-gradient(0deg, rgba(32,43,58,.026) 0 1px, transparent 1px 64px),
-            repeating-linear-gradient(135deg, rgba(255,255,255,.20) 0 1px, transparent 1px 30px);
+            linear-gradient(118deg, transparent 0 21.2%, rgba(91,114,255,.074) 21.35% 22.55%, rgba(255,255,255,.26) 22.56% 22.82%, transparent 22.94% 100%),
+            linear-gradient(142deg, transparent 0 57.5%, rgba(79,162,159,.066) 57.64% 58.72%, rgba(255,255,255,.24) 58.73% 59.02%, transparent 59.14% 100%),
+            repeating-linear-gradient(90deg, rgba(32,43,58,.034) 0 1px, transparent 1px 88px),
+            repeating-linear-gradient(0deg, rgba(32,43,58,.027) 0 1px, transparent 1px 88px),
+            linear-gradient(145deg, rgba(252,254,255,.985) 0%, rgba(238,245,249,.94) 46%, rgba(223,234,238,.90) 100%);
         }
 
         .operation-desktop-wallpaper::before {
-          content: "NEXUS";
+          content: "";
           position: absolute;
-          right: 4.5%;
-          bottom: 17%;
-          font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          font-size: clamp(96px, 17vw, 236px);
-          font-weight: 950;
-          line-height: .82;
-          letter-spacing: .08em;
-          color: rgba(32,43,58,.052);
-          -webkit-text-stroke: 1px rgba(91,114,255,.16);
-          text-shadow:
-            0 1px 0 rgba(255,255,255,.52),
-            0 24px 70px rgba(18,28,42,.08);
-          transform: translateX(7%);
-          mask-image: linear-gradient(90deg, transparent 0%, black 18%, black 86%, transparent 100%);
+          inset: 8% 6% 12% 7%;
+          background:
+            linear-gradient(90deg, transparent 0 13%, rgba(28,42,60,.105) 13.04% 13.12%, transparent 13.18% 100%),
+            linear-gradient(90deg, transparent 0 57%, rgba(91,114,255,.135) 57.04% 57.16%, transparent 57.25% 100%),
+            linear-gradient(0deg, transparent 0 31%, rgba(79,162,159,.125) 31.04% 31.16%, transparent 31.25% 100%),
+            linear-gradient(0deg, transparent 0 69%, rgba(28,42,60,.084) 69.04% 69.12%, transparent 69.20% 100%),
+            linear-gradient(28deg, transparent 0 29%, rgba(91,114,255,.165) 29.04% 29.22%, transparent 29.34% 100%),
+            linear-gradient(153deg, transparent 0 44%, rgba(79,162,159,.145) 44.04% 44.22%, transparent 44.34% 100%),
+            repeating-linear-gradient(90deg, transparent 0 38px, rgba(255,255,255,.24) 38px 39px, transparent 39px 176px);
+          border: 1px solid rgba(255,255,255,.30);
+          box-shadow: inset 0 0 0 1px rgba(32,43,58,.018);
+          opacity: .70;
+          mask-image:
+            radial-gradient(ellipse at 54% 50%, black 0%, black 56%, transparent 80%),
+            linear-gradient(to bottom, transparent 0%, black 14%, black 84%, transparent 100%);
         }
 
         .operation-desktop-wallpaper::after {
@@ -302,14 +304,15 @@ export function OperationStageMotionStyles() {
           position: absolute;
           inset: 0;
           background-image:
-            linear-gradient(90deg, transparent 0 8%, rgba(91,114,255,.10) 8% 8.35%, transparent 8.35% 100%),
-            linear-gradient(90deg, transparent 0 68%, rgba(79,162,159,.10) 68% 68.25%, transparent 68.25% 100%),
-            radial-gradient(rgba(18,28,42,.052) .65px, transparent .65px);
-          background-size: 100% 100%, 100% 100%, 24px 24px;
-          opacity: .34;
+            repeating-linear-gradient(90deg, transparent 0 30px, rgba(91,114,255,.050) 30px 31px, transparent 31px 160px),
+            repeating-linear-gradient(0deg, transparent 0 46px, rgba(79,162,159,.044) 46px 47px, transparent 47px 184px),
+            repeating-linear-gradient(135deg, rgba(255,255,255,.24) 0 1px, transparent 1px 34px),
+            radial-gradient(rgba(18,28,42,.048) .65px, transparent .65px);
+          background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px;
+          opacity: .45;
           mask-image:
-            linear-gradient(to bottom, transparent, black 14%, black 86%, transparent),
-            linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+            linear-gradient(to bottom, transparent, black 12%, black 88%, transparent),
+            linear-gradient(to right, transparent, black 10%, black 90%, transparent);
         }
 
         .operation-desktop-shadow {

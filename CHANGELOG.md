@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Removed the idle Operation Stage particle canvas animation.
 - Moved the Operation Stage execution path into a clickable system-bar dropdown.
-- Removed the empty-desktop recovery card and added a static Nexus OS wallpaper.
+- Removed the empty-desktop recovery card and refined the Operation Stage static wallpaper.
 - Simplified the Operation Stage system bar by removing fake app menus and inactive status icons.
 - Removed the Operation Stage workspace summary tile from the left switchboard.
 - Removed the Operation Stage Agent Activity rail to keep focus on the desktop windows and Dock.
