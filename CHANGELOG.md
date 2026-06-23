@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Removed the Operation Stage Agent Activity rail to keep focus on the desktop windows and Dock.
 - Added a draggable splitter so the Operation Stage panel can be resized beside the conversation.
 - Moved the Operation Stage exit action into the Nexus OS system bar and removed the evidence summary overlay entry.
 - Operation stage routes tool calls into desktop app sessions so Bash/Terminal output, HTML opens, web search, and fetch activity update and focus persistent macOS-like windows.

@@ -32,7 +32,7 @@ import {
 import type {
   StageWindowOverride,
 } from "./operation-stage-model";
-import { StageActivityCenter, StageAgentCursor, StageMacMenuBar, StageDesktopIcons } from "./operation-stage-mac-shell";
+import { StageAgentCursor, StageMacMenuBar, StageDesktopIcons } from "./operation-stage-mac-shell";
 import { DynamicStageFrame } from "./operation-stage-frame";
 import { OperationStageWindow } from "./operation-stage-window";
 import {
@@ -53,7 +53,6 @@ import {
   normalize_stage_window_drag_offset,
 } from "./operation-stage-window-drag";
 import { build_stage_window_launch_state } from "./operation-stage-window-launch";
-import { build_stage_live_strip_state } from "./operation-stage-live-strip";
 import { StageWorkspaceSwitchboard } from "./operation-stage-workspace-switchboard";
 import {
   build_stage_dock_launch_window,
@@ -208,12 +207,6 @@ export function OperationStageDesktop({
   const active_window = useMemo(() => (
     visible_windows.find((window) => window.id === active_window_id) ?? null
   ), [active_window_id, visible_windows]);
-  const live_strip = useMemo(() => build_stage_live_strip_state({
-    active_event: active_narrative_event,
-    active_window,
-    events: narrative_events,
-    windows: window_states,
-  }), [active_narrative_event, active_window, narrative_events, window_states]);
   const close_window = (window_id: string) => {
     set_focused_window_id((current) => resolve_next_window_focus({
       current_focus_id: current,
@@ -398,11 +391,6 @@ export function OperationStageDesktop({
         windows={window_states}
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
-      <StageActivityCenter
-        key={active_narrative_event.id}
-        on_focus_event={focus_event_window}
-        state={live_strip}
-      />
       <StageWorkspaceSwitchboard
         active_event={active_narrative_event}
         active_window_id={active_window_id}
