@@ -9,6 +9,7 @@ import {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/permission";
+import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { MessageItem } from "@/features/conversation/shared/message";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-primitives";
 
@@ -67,6 +68,8 @@ export function GroupThreadDetailPanel({
     on_touch_move,
     on_touch_start,
     on_wheel,
+    show_scroll_to_bottom,
+    scroll_to_bottom,
   } = useFollowScroll({
     // Thread 和 DM 实时态一样，需要在过程消息、权限确认和 loading 变化时持续跟随到底部。
     message_count: messages.length,
@@ -78,7 +81,7 @@ export function GroupThreadDetailPanel({
   return (
     <div
       className={cn(
-        "flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
+        "relative flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
         is_mobile ? "bg-(--surface-panel-background)" : "bg-transparent",
       )}
     >
@@ -160,6 +163,15 @@ export function GroupThreadDetailPanel({
           <div ref={bottom_anchor_ref} className="h-px w-full" />
         </div>
       </div>
+
+      {show_scroll_to_bottom ? (
+        <ScrollToLatestButton
+          is_loading={is_loading}
+          is_mobile_layout={is_mobile}
+          placement="panel"
+          on_click={() => scroll_to_bottom("smooth")}
+        />
+      ) : null}
     </div>
   );
 }
