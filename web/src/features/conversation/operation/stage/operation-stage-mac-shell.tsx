@@ -72,7 +72,7 @@ export function StageMacMenuBar({
   return (
     <div
       aria-label={menu_status.activity_label}
-      className="absolute inset-x-4 top-3 z-[160] flex h-9 items-center justify-between rounded-[14px] border border-white/64 bg-[rgba(255,255,255,0.62)] px-3 text-[11px] font-semibold text-(--text-strong) shadow-[0_12px_30px_rgba(18,28,42,0.09),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-2xl max-md:hidden"
+      className="absolute inset-x-4 top-2 z-[160] flex h-9 items-center justify-between rounded-[14px] border border-white/64 bg-[rgba(255,255,255,0.62)] px-3 text-[11px] font-semibold text-(--text-strong) shadow-[0_12px_30px_rgba(18,28,42,0.09),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-2xl max-md:hidden"
       title={[
         menu_status.activity_label,
         menu_status.window_label,

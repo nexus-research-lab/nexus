@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Raised the Operation Stage system bar to give zoomed apps more breathing room.
 - Tightened the Operation Stage menu-to-window spacing so foreground apps sit closer to the system bar.
 - Refined the Operation Stage shortcut tool app into a read-only run detail surface with clearer inputs and results.
 - Removed the idle Operation Stage particle canvas animation.
