@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nexus Agent OS Demo</title>
+    <style>
+      :root {
+        --ink: #15181c;
+        --muted: rgba(44, 50, 58, 0.68);
+        --soft: rgba(71, 82, 94, 0.52);
+        --line: rgba(60, 68, 78, 0.18);
+        --line-strong: rgba(60, 68, 78, 0.28);
+        --glass: rgba(250, 250, 246, 0.74);
+        --glass-strong: rgba(255, 255, 255, 0.88);
+        --desktop: #e9ece5;
+        --charcoal: #171b20;
+        --terminal: #101419;
+        --green: #27745f;
+        --blue: #2d6690;
+        --amber: #a86925;
+        --red: #b64d53;
+        --violet: #6658a6;
+        --shadow: 0 28px 80px rgba(18, 24, 31, 0.22);
+        --shadow-tight: 0 12px 28px rgba(18, 24, 31, 0.14);
+        --mono: "Berkeley Mono", "SFMono-Regular", Consolas, monospace;
+        color: var(--ink);
+        font-family: Aptos, "IBM Plex Sans", "Segoe UI", "PingFang SC", sans-serif;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 1180px;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 12% 12%, rgba(45, 102, 144, 0.2), transparent 28%),
+          radial-gradient(circle at 86% 18%, rgba(39, 116, 95, 0.16), transparent 30%),
+          linear-gradient(135deg, #f5f1e8 0%, #e4e9e1 42%, #d8e0df 100%);
+      }
+
+      .os {
+        position: relative;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      .wallpaper-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.32;
+        background-image:
+          linear-gradient(rgba(20, 24, 28, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(20, 24, 28, 0.035) 1px, transparent 1px);
+        background-size: 44px 44px;
+      }
+
+      .menu-bar {
+        position: absolute;
+        z-index: 40;
+        inset: 14px 18px auto;
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.58);
+        box-shadow: 0 10px 30px rgba(18, 24, 31, 0.08);
+        backdrop-filter: blur(18px);
+        padding: 0 12px;
+      }
+
+      .menu-left,
+      .menu-right,
+      .dock,
+      .dock-item,
+      .window-actions,
+      .traffic,
+      .tool-row,
+      .status-pill {
+        display: flex;
+        align-items: center;
+      }
+
+      .menu-left,
+      .menu-right {
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-weight: 900;
+      }
+
+      .brand-mark {
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        background: var(--charcoal);
+        color: #f8f7ef;
+        font: 900 11px/1 var(--mono);
+      }
+
+      .menu-link {
+        color: rgba(20, 24, 28, 0.78);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .status-pill {
+        min-height: 26px;
+        gap: 7px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.66);
+        padding: 0 9px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 4px rgba(39, 116, 95, 0.13);
+      }
+
+      .desktop {
+        position: relative;
+        z-index: 1;
+        height: 100vh;
+        padding: 76px 22px 104px;
+      }
+
+      .agent-rail {
+        position: absolute;
+        top: 76px;
+        right: 22px;
+        bottom: 104px;
+        width: 316px;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.56);
+        box-shadow: var(--shadow-tight);
+        backdrop-filter: blur(22px);
+        overflow: hidden;
+      }
+
+      .rail-head {
+        min-height: 64px;
+        border-bottom: 1px solid var(--line);
+        padding: 14px;
+      }
+
+      .rail-head strong,
+      .rail-head span {
+        display: block;
+      }
+
+      .rail-head strong {
+        font-size: 15px;
+      }
+
+      .rail-head span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .live-stack {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .live-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.68);
+        padding: 10px;
+      }
+
+      .live-card.active {
+        border-color: rgba(45, 102, 144, 0.38);
+        background:
+          linear-gradient(90deg, rgba(45, 102, 144, 0.12), transparent),
+          rgba(255, 255, 255, 0.76);
+      }
+
+      .live-card strong,
+      .live-card span {
+        display: block;
+      }
+
+      .live-card strong {
+        font-size: 13px;
+      }
+
+      .live-card span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .window {
+        position: absolute;
+        display: grid;
+        grid-template-rows: 42px minmax(0, 1fr);
+        border: 1px solid rgba(255, 255, 255, 0.76);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(24px);
+        overflow: hidden;
+      }
+
+      .window.focus {
+        border-color: rgba(45, 102, 144, 0.38);
+      }
+
+      .window-titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-bottom: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(244, 245, 240, 0.72)),
+          var(--glass);
+        padding: 0 11px;
+      }
+
+      .traffic {
+        gap: 6px;
+      }
+
+      .traffic i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--line-strong);
+      }
+
+      .traffic i:nth-child(1) {
+        background: #df6a70;
+      }
+
+      .traffic i:nth-child(2) {
+        background: #e4aa43;
+      }
+
+      .traffic i:nth-child(3) {
+        background: #4eb77e;
+      }
+
+      .window-name {
+        min-width: 0;
+        overflow: hidden;
+        color: rgba(20, 24, 28, 0.76);
+        font-size: 12px;
+        font-weight: 900;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .window-actions {
+        gap: 6px;
+      }
+
+      .tiny-chip {
+        min-height: 24px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--muted);
+        padding: 0 7px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .finder {
+        left: 28px;
+        top: 92px;
+        width: 416px;
+        height: 522px;
+      }
+
+      .editor {
+        left: 292px;
+        top: 122px;
+        width: 560px;
+        height: 530px;
+      }
+
+      .terminal-window {
+        left: 92px;
+        bottom: 116px;
+        width: 522px;
+        height: 286px;
+      }
+
+      .browser {
+        left: 606px;
+        top: 86px;
+        width: 470px;
+        height: 332px;
+      }
+
+      .connector {
+        left: 646px;
+        bottom: 120px;
+        width: 430px;
+        height: 302px;
+      }
+
+      .window-body {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .finder-body {
+        display: grid;
+        grid-template-columns: 128px 1fr;
+        height: 100%;
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--line);
+        background: rgba(245, 246, 241, 0.78);
+        padding: 12px;
+      }
+
+      .side-item,
+      .file-row,
+      .api-row {
+        display: grid;
+        gap: 3px;
+        border-radius: 9px;
+        padding: 8px;
+      }
+
+      .side-item {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .side-item.active,
+      .file-row.active,
+      .api-row.active {
+        background: rgba(45, 102, 144, 0.12);
+        color: var(--ink);
+      }
+
+      .file-list {
+        padding: 12px;
+      }
+
+      .file-row,
+      .api-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        border: 1px solid transparent;
+        margin-bottom: 6px;
+      }
+
+      .file-row strong,
+      .api-row strong {
+        overflow: hidden;
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .file-row span,
+      .api-row span {
+        color: var(--soft);
+        font: 11px/1.2 var(--mono);
+      }
+
+      .editor-body {
+        display: grid;
+        grid-template-rows: 36px minmax(0, 1fr);
+        height: 100%;
+        background: rgba(251, 251, 247, 0.92);
+      }
+
+      .tabbar {
+        display: flex;
+        align-items: end;
+        gap: 4px;
+        border-bottom: 1px solid var(--line);
+        padding: 6px 8px 0;
+      }
+
+      .tab {
+        min-height: 30px;
+        border: 1px solid var(--line);
+        border-bottom: 0;
+        border-radius: 8px 8px 0 0;
+        background: rgba(255, 255, 255, 0.58);
+        color: var(--muted);
+        padding: 7px 10px;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .tab.active {
+        background: #fff;
+        color: var(--ink);
+      }
+
+      .code {
+        padding: 12px 0;
+        font: 12px/1.66 var(--mono);
+      }
+
+      .code-line {
+        display: grid;
+        grid-template-columns: 42px 1fr;
+        gap: 12px;
+        padding: 1px 14px 1px 0;
+      }
+
+      .code-line span:first-child {
+        color: var(--soft);
+        text-align: right;
+      }
+
+      .code-line.add span:last-child {
+        color: var(--green);
+      }
+
+      .code-line.focus {
+        background: rgba(45, 102, 144, 0.1);
+      }
+
+      .term {
+        height: 100%;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 20%),
+          var(--terminal);
+        color: #edf1ec;
+        font: 12px/1.7 var(--mono);
+        padding: 14px;
+      }
+
+      .term .dim {
+        color: rgba(237, 241, 236, 0.5);
+      }
+
+      .term .ok {
+        color: #85d6ab;
+      }
+
+      .term .warn {
+        color: #e4b25d;
+      }
+
+      .browser-body {
+        display: grid;
+        grid-template-rows: 40px minmax(0, 1fr);
+        height: 100%;
+      }
+
+      .address {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(245, 246, 241, 0.78);
+        padding: 7px 10px;
+      }
+
+      .url {
+        min-width: 0;
+        flex: 1;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.74);
+        color: var(--muted);
+        padding: 5px 8px;
+        font-size: 11px;
+        font-weight: 800;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .web-preview {
+        padding: 16px;
+      }
+
+      .hero-block {
+        min-height: 86px;
+        border-radius: 12px;
+        background:
+          linear-gradient(135deg, rgba(45, 102, 144, 0.16), transparent),
+          rgba(255, 255, 255, 0.72);
+        padding: 14px;
+      }
+
+      .hero-block strong {
+        display: block;
+        font-size: 16px;
+      }
+
+      .hero-block span {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .citation-row {
+        display: grid;
+        grid-template-columns: 22px 1fr;
+        gap: 8px;
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.42;
+      }
+
+      .citation-row i {
+        display: grid;
+        place-items: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+        background: rgba(45, 102, 144, 0.12);
+        color: var(--blue);
+        font-style: normal;
+        font-weight: 900;
+      }
+
+      .connector-body {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        height: 100%;
+      }
+
+      .api-list {
+        border-right: 1px solid var(--line);
+        background: rgba(245, 246, 241, 0.78);
+        padding: 10px;
+      }
+
+      .payload {
+        display: grid;
+        grid-template-rows: 1fr 58px;
+        min-width: 0;
+      }
+
+      .json {
+        overflow: hidden;
+        padding: 14px;
+        font: 12px/1.62 var(--mono);
+      }
+
+      .json .key {
+        color: var(--blue);
+      }
+
+      .json .value {
+        color: var(--green);
+      }
+
+      .payload-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-top: 1px solid var(--line);
+        padding: 10px;
+      }
+
+      .dock {
+        position: absolute;
+        z-index: 45;
+        left: 50%;
+        bottom: 22px;
+        gap: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.58);
+        box-shadow: 0 18px 42px rgba(18, 24, 31, 0.16);
+        backdrop-filter: blur(22px);
+        padding: 10px;
+        transform: translateX(-50%);
+      }
+
+      .dock-item {
+        position: relative;
+        width: 48px;
+        height: 48px;
+        justify-content: center;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(239, 242, 236, 0.72)),
+          #fff;
+        color: var(--ink);
+        font-size: 20px;
+        font-weight: 900;
+        box-shadow: 0 8px 20px rgba(18, 24, 31, 0.1);
+      }
+
+      .dock-item.active::after {
+        position: absolute;
+        left: 50%;
+        bottom: -6px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--green);
+        content: "";
+        transform: translateX(-50%);
+      }
+
+      .permission-sheet {
+        position: absolute;
+        z-index: 50;
+        left: 50%;
+        top: 50%;
+        width: 414px;
+        border: 1px solid rgba(255, 255, 255, 0.78);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.78);
+        box-shadow: 0 34px 90px rgba(18, 24, 31, 0.28);
+        backdrop-filter: blur(26px);
+        padding: 16px;
+        transform: translate(-18%, -24%);
+      }
+
+      .permission-sheet strong {
+        display: block;
+        font-size: 16px;
+      }
+
+      .permission-sheet p {
+        margin: 8px 0 14px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .permission-actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .permission-actions button {
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.74);
+        color: var(--ink);
+        font: 800 12px/1 Aptos, "IBM Plex Sans", "Segoe UI", "PingFang SC", sans-serif;
+      }
+
+      .permission-actions button.primary {
+        border-color: rgba(39, 116, 95, 0.35);
+        background: rgba(39, 116, 95, 0.14);
+        color: var(--green);
+      }
+
+      .mini-map {
+        position: absolute;
+        right: 352px;
+        bottom: 424px;
+        width: 184px;
+        height: 124px;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 14px;
+        background:
+          linear-gradient(35deg, transparent 0 32%, rgba(39, 116, 95, 0.16) 32% 36%, transparent 36%),
+          linear-gradient(120deg, transparent 0 56%, rgba(45, 102, 144, 0.16) 56% 61%, transparent 61%),
+          rgba(255, 255, 255, 0.64);
+        box-shadow: var(--shadow-tight);
+        backdrop-filter: blur(18px);
+      }
+
+      .route {
+        position: absolute;
+        left: 18%;
+        top: 58%;
+        width: 58%;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--green);
+        transform: rotate(-20deg);
+      }
+
+      .pin {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .pin.a {
+        left: 18%;
+        top: 58%;
+      }
+
+      .pin.b {
+        right: 20%;
+        top: 36%;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="os" aria-label="Nexus Agent OS visual demo">
+      <div class="wallpaper-grid"></div>
+
+      <header class="menu-bar">
+        <div class="menu-left">
+          <div class="brand"><span class="brand-mark">NX</span><span>Nexus Agent OS</span></div>
+          <span class="menu-link">Workspace</span>
+          <span class="menu-link">Runtime</span>
+          <span class="menu-link">Connectors</span>
+          <span class="menu-link">Evidence</span>
+        </div>
+        <div class="menu-right">
+          <span class="status-pill"><span class="status-dot"></span>Agent running</span>
+          <span class="status-pill">42% budget</span>
+          <span class="status-pill">09:41</span>
+        </div>
+      </header>
+
+      <section class="desktop">
+        <aside class="agent-rail">
+          <div class="rail-head">
+            <strong>Live Agent Activity</strong>
+            <span>用户看到的是智能体当前在哪个 app 里操作。</span>
+          </div>
+          <div class="live-stack">
+            <div class="live-card active"><strong>1. 读取工作区</strong><span>Finder 正在定位 operation stage 相关文档和代码。</span></div>
+            <div class="live-card active"><strong>2. 修改代码</strong><span>Code Editor 高亮当前 diff 和保存状态。</span></div>
+            <div class="live-card"><strong>3. 运行校验</strong><span>Terminal 流式展示 make check 输出和退出码。</span></div>
+            <div class="live-card"><strong>4. 调用连接器</strong><span>Connector Console 展示请求、响应和权限。</span></div>
+            <div class="live-card"><strong>5. 交接结果</strong><span>生成 evidence pack 和下一步。</span></div>
+          </div>
+        </aside>
+
+        <article class="window finder">
+          <div class="window-titlebar">
+            <div class="traffic"><i></i><i></i><i></i></div>
+            <div class="window-name">Finder - /docs/specs</div>
+            <div class="window-actions"><span class="tiny-chip">12 files</span></div>
+          </div>
+          <div class="window-body finder-body">
+            <nav class="sidebar">
+              <div class="side-item active">Specs</div>
+              <div class="side-item">Runtime</div>
+              <div class="side-item">Web</div>
+              <div class="side-item">Internal</div>
+            </nav>
+            <div class="file-list">
+              <div class="file-row active"><strong>operation-stage-tool-inventory.md</strong><span>read</span></div>
+              <div class="file-row"><strong>operation-stage-execution-visualization.md</strong><span>open</span></div>
+              <div class="file-row"><strong>operation-tool-visual-components.md</strong><span>ref</span></div>
+              <div class="file-row"><strong>agent-os.html</strong><span>new</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="window editor focus">
+          <div class="window-titlebar">
+            <div class="traffic"><i></i><i></i><i></i></div>
+            <div class="window-name">Code - operation-scene-planner.ts</div>
+            <div class="window-actions"><span class="tiny-chip">editing</span></div>
+          </div>
+          <div class="window-body editor-body">
+            <div class="tabbar">
+              <div class="tab active">scene-planner.ts</div>
+              <div class="tab">desktop-types.ts</div>
+              <div class="tab">renderers.tsx</div>
+            </div>
+            <div class="code">
+              <div class="code-line"><span>104</span><span>const app = resolveOperationApp(event.toolName)</span></div>
+              <div class="code-line focus"><span>105</span><span>return createDesktopWindow(app, event)</span></div>
+              <div class="code-line add"><span>106</span><span>+ if (app.kind === "connector") return connectorConsole(event)</span></div>
+              <div class="code-line add"><span>107</span><span>+ if (app.kind === "automation") return automationConsole(event)</span></div>
+              <div class="code-line"><span>108</span><span>}</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="window browser">
+          <div class="window-titlebar">
+            <div class="traffic"><i></i><i></i><i></i></div>
+            <div class="window-name">Browser - Evidence</div>
+            <div class="window-actions"><span class="tiny-chip">3 refs</span></div>
+          </div>
+          <div class="window-body browser-body">
+            <div class="address"><div class="url">https://docs.example.com/runtime/tool-events</div></div>
+            <div class="web-preview">
+              <div class="hero-block"><strong>Runtime tool events</strong><span>工具开始、流式输出、结束、权限请求和产物更新都映射到桌面窗口。</span></div>
+              <div class="citation-row"><i>1</i><span>tool_start 触发窗口打开和 Dock 激活。</span></div>
+              <div class="citation-row"><i>2</i><span>artifact_update 更新 Finder、Browser 或 Document viewer。</span></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="window terminal-window">
+          <div class="window-titlebar">
+            <div class="traffic"><i></i><i></i><i></i></div>
+            <div class="window-name">Terminal - make check</div>
+            <div class="window-actions"><span class="tiny-chip">streaming</span></div>
+          </div>
+          <div class="window-body term">
+            <div class="dim">$ make check</div>
+            <div>go test ./...</div>
+            <div class="ok">ok internal/service/toolpolicy 0.42s</div>
+            <div>pnpm --dir web typecheck</div>
+            <div class="warn">checking operation stage preview types...</div>
+            <div class="dim">stdout 241 lines | stderr 0 | exit pending</div>
+          </div>
+        </article>
+
+        <article class="window connector">
+          <div class="window-titlebar">
+            <div class="traffic"><i></i><i></i><i></i></div>
+            <div class="window-name">Connector Console - feishu-docx</div>
+            <div class="window-actions"><span class="tiny-chip">calling</span></div>
+          </div>
+          <div class="window-body connector-body">
+            <div class="api-list">
+              <div class="api-row active"><strong>read</strong><span>run</span></div>
+              <div class="api-row"><strong>search</strong><span>idle</span></div>
+              <div class="api-row"><strong>append</strong><span>locked</span></div>
+            </div>
+            <div class="payload">
+              <div class="json">
+                <div>{</div>
+                <div>  <span class="key">"connector"</span>: <span class="value">"feishu-docx"</span>,</div>
+                <div>  <span class="key">"action"</span>: <span class="value">"read"</span>,</div>
+                <div>  <span class="key">"permission"</span>: <span class="value">"waiting"</span></div>
+                <div>}</div>
+              </div>
+              <div class="payload-footer">
+                <span class="status-pill">token ok</span>
+                <span class="status-pill">remote pending</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div class="mini-map">
+          <div class="route"></div>
+          <div class="pin a"></div>
+          <div class="pin b"></div>
+        </div>
+
+        <section class="permission-sheet">
+          <strong>允许连接器读取外部文档？</strong>
+          <p>智能体请求使用 feishu-docx.read。这个动作会读取远端文档内容，不会写入仓库文件。</p>
+          <div class="permission-actions">
+            <button class="primary">允许一次</button>
+            <button>始终允许</button>
+            <button>拒绝</button>
+          </div>
+        </section>
+      </section>
+
+      <nav class="dock" aria-label="Agent OS Dock">
+        <div class="dock-item active">F</div>
+        <div class="dock-item active">C</div>
+        <div class="dock-item active">T</div>
+        <div class="dock-item">B</div>
+        <div class="dock-item active">API</div>
+        <div class="dock-item">M</div>
+        <div class="dock-item">✓</div>
+      </nav>
+    </main>
+  </body>
+</html>
