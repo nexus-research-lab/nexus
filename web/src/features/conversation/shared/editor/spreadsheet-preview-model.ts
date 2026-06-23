@@ -114,7 +114,7 @@ export interface SpreadsheetPreviewCellStyle {
   valign?: "top" | "middle" | "bottom";
 }
 
-interface SpreadsheetPreviewCellData {
+export interface SpreadsheetPreviewCellData {
   merge?: [number, number];
   style?: number;
   text: string;
