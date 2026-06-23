@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Moved the Operation Stage tool queue into a clickable system-bar dropdown with the full execution list.
+- Moved the Operation Stage execution path into a clickable system-bar dropdown.
+- Removed the empty-desktop recovery card and added a static Nexus OS wallpaper.
 - Simplified the Operation Stage system bar by removing fake app menus and inactive status icons.
 - Removed the Operation Stage workspace summary tile from the left switchboard.
 - Removed the Operation Stage Agent Activity rail to keep focus on the desktop windows and Dock.

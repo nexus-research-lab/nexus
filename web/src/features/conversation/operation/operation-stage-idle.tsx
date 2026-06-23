@@ -243,6 +243,7 @@ function StageIdleParticles() {
     let animation_frame = 0;
     let width = 0;
     let height = 0;
+    let last_draw_at = -Infinity;
     let particles: IdleParticle[] = [];
 
     const resize = () => {
@@ -265,8 +266,11 @@ function StageIdleParticles() {
     };
 
     const draw = (timestamp: number) => {
-      resize();
-      draw_idle_particles(context, particles, width, height, timestamp, reduced_motion);
+      if (reduced_motion || timestamp - last_draw_at >= 33) {
+        resize();
+        draw_idle_particles(context, particles, width, height, timestamp, reduced_motion);
+        last_draw_at = timestamp;
+      }
       if (!reduced_motion) {
         animation_frame = window.requestAnimationFrame(draw);
       }
@@ -337,9 +341,9 @@ function build_idle_particles(width: number, height: number): IdleParticle[] {
   mask_context.fillText("nexus", width / 2, height * 0.55);
 
   const image = mask_context.getImageData(0, 0, width, height);
-  const step = width >= 1100 ? 5 : 4;
+  const step = width >= 1100 ? 7 : 6;
   const particles: IdleParticle[] = [];
-  const max_particles = width >= 1100 ? 15000 : 7600;
+  const max_particles = width >= 1100 ? 5200 : 2800;
 
   for (let y = 0; y < height; y += step) {
     for (let x = 0; x < width; x += step) {

@@ -31,7 +31,7 @@ import {
   icon_for_operation_kind,
 } from "./operation-stage-helpers";
 
-interface StageToolQueueItem {
+interface StageExecutionPathItem {
   action_label: string;
   active: boolean;
   event: NexusOperationEvent;
@@ -59,8 +59,8 @@ export function StageMacMenuBar({
   const menu_status = useMemo(() => (
     build_stage_menu_status(windows, active_window, (window) => stage_app_label_for_window_kind(window.kind))
   ), [active_window, windows]);
-  const tool_queue_items = useMemo(() => (
-    build_stage_tool_queue_items(events, active_event)
+  const execution_path_items = useMemo(() => (
+    build_stage_execution_path_items(events, active_event)
   ), [active_event, events]);
   const [current_time, set_current_time] = useState(() => new Date());
   const time_label = useMemo(() => (
@@ -94,8 +94,8 @@ export function StageMacMenuBar({
         <span className="max-w-[160px] truncate font-black">{app_name}</span>
       </div>
       <div className="flex shrink-0 items-center gap-2 text-(--text-soft)">
-        <StageToolQueueMenu
-          items={tool_queue_items}
+        <StageExecutionPathMenu
+          items={execution_path_items}
           on_focus_event={on_focus_event}
         />
         <span className="hidden max-w-[220px] truncate rounded-full border border-white/66 bg-white/52 px-2 py-1 text-[9px] font-black text-(--text-strong) lg:inline">
@@ -118,11 +118,11 @@ export function StageMacMenuBar({
   );
 }
 
-function StageToolQueueMenu({
+function StageExecutionPathMenu({
   items,
   on_focus_event,
 }: {
-  items: StageToolQueueItem[];
+  items: StageExecutionPathItem[];
   on_focus_event: (event: NexusOperationEvent) => void;
 }) {
   const [is_open, set_is_open] = useState(false);
@@ -135,7 +135,7 @@ function StageToolQueueMenu({
     <div className="relative">
       <button
         aria-expanded={is_open}
-        aria-label="查看完整工具执行记录"
+        aria-label="查看本轮执行路径"
         className={cn(
           "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[9px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.34)]",
           is_open
@@ -145,7 +145,7 @@ function StageToolQueueMenu({
         onClick={() => set_is_open((value) => !value)}
         type="button"
       >
-        工具执行
+        执行路径
         <span className="rounded-full bg-white/62 px-1.5 py-px text-[8px] text-(--text-soft)">
           {items.length}
         </span>
@@ -155,7 +155,7 @@ function StageToolQueueMenu({
       {is_open ? (
         <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[360px] overflow-hidden rounded-[16px] border border-white/68 bg-[rgba(248,250,252,0.86)] p-2 text-(--text-strong) shadow-[0_22px_60px_rgba(18,28,42,0.18),inset_0_1px_0_rgba(255,255,255,0.76)] backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-3 border-b border-[rgba(117,131,149,0.16)] px-1 pb-2">
-            <span className="text-[11px] font-black">完整工具执行</span>
+            <span className="text-[11px] font-black">本轮执行路径</span>
             <span className="rounded-full bg-white/62 px-2 py-0.5 text-[8px] font-black text-(--text-soft)">
               {items.length} 步
             </span>
@@ -233,8 +233,8 @@ function StagePowerAction({
   );
 }
 
-function build_stage_tool_queue_items(events: NexusOperationEvent[], active_event: NexusOperationEvent): StageToolQueueItem[] {
-  const candidates = [...events, active_event].filter(is_tool_queue_event);
+function build_stage_execution_path_items(events: NexusOperationEvent[], active_event: NexusOperationEvent): StageExecutionPathItem[] {
+  const candidates = [...events, active_event].filter(is_execution_path_event);
   const deduped = new Map<string, NexusOperationEvent>();
   for (const event of candidates) {
     deduped.set(event.id, event);
@@ -256,7 +256,7 @@ function build_stage_tool_queue_items(events: NexusOperationEvent[], active_even
   });
 }
 
-function is_tool_queue_event(event: NexusOperationEvent): boolean {
+function is_execution_path_event(event: NexusOperationEvent): boolean {
   return event.surface !== "conversation" || Boolean(event.tool_name) || event.kind === "human_gate";
 }
 

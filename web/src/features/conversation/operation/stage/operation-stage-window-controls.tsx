@@ -16,7 +16,6 @@ import {
   resolve_dock_slot_presentation,
 } from "./operation-stage-dock-model";
 import { dock_icon_skin_for_kind } from "./operation-stage-app-identity";
-import { summarize_hidden_stage_windows } from "./operation-stage-hidden-windows";
 
 const PINNED_DOCK_APPS: Array<{ app_label: string; kind: StageWindowKind }> = [
   { app_label: "访达", kind: "finder" },
@@ -27,34 +26,6 @@ const PINNED_DOCK_APPS: Array<{ app_label: string; kind: StageWindowKind }> = [
   { app_label: "控制台", kind: "run_manifest" },
   { app_label: "预览", kind: "image_viewer" },
 ];
-
-export function StageWindowsHiddenState({
-  windows,
-  on_restore_all,
-}: {
-  windows: StageWindowState[];
-  on_restore_all: () => void;
-}) {
-  const summary = summarize_hidden_stage_windows(windows);
-
-  return (
-    <div className="pointer-events-none absolute inset-0 z-[9] px-6 pb-24 pt-12 max-md:relative max-md:min-h-[220px] max-md:p-5">
-      <div className="pointer-events-auto absolute bottom-24 left-6 max-w-[260px] rounded-[14px] border border-white/58 bg-white/36 px-3 py-2 text-left text-(--text-soft) shadow-[0_12px_34px_rgba(18,28,42,0.08)] backdrop-blur-xl max-md:static max-md:mx-auto max-md:mt-20">
-        <p className="text-[11px] font-black text-(--text-strong)">桌面已清空</p>
-        <p className="mt-0.5 text-[10px] font-semibold leading-4">
-          {summary.label}
-        </p>
-        <button
-          className="mt-2 inline-flex h-7 items-center justify-center rounded-full border border-white/64 bg-white/50 px-2.5 text-[10px] font-bold text-(--text-strong) transition hover:bg-white/76 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.32)]"
-          onClick={on_restore_all}
-          type="button"
-        >
-          从 Dock 恢复全部
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export function StageWindowDock({
   active_window_id,

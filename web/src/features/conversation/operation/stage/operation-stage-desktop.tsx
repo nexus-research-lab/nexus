@@ -42,7 +42,6 @@ import {
 import { should_ignore_stage_desktop_keyboard_target } from "./operation-stage-keyboard-target";
 import {
   StageWindowDock,
-  StageWindowsHiddenState,
 } from "./operation-stage-window-controls";
 import {
   resolve_cycled_window_focus,
@@ -441,12 +440,7 @@ export function OperationStageDesktop({
             />
           </OperationStageWindow>
         );
-      }) : desktop_windows.length ? (
-        <StageWindowsHiddenState
-          windows={window_states}
-          on_restore_all={restore_all_windows}
-        />
-      ) : null}
+      }) : null}
       <StageWindowDock
         active_window_id={active_window_id}
         on_launch_app={launch_dock_app}
