@@ -46,7 +46,7 @@ export function StageWorkspaceSwitchboard({
   }
 
   return (
-    <div className="pointer-events-none absolute left-4 top-11 z-30 hidden w-[136px] md:block">
+    <div className="pointer-events-none absolute left-4 top-[58px] z-30 hidden w-[136px] md:block">
       <div className="pointer-events-auto rounded-[18px] border border-white/62 bg-[rgba(255,255,255,0.48)] p-2 shadow-[0_18px_46px_rgba(18,28,42,0.13),inset_0_1px_0_rgba(255,255,255,0.78)] backdrop-blur-2xl">
         <div className="flex items-center gap-2 rounded-[13px] border border-white/54 bg-white/44 px-2 py-1.5">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[10px] border border-white/64 bg-[linear-gradient(135deg,rgba(91,114,255,0.16),rgba(255,255,255,0.74),rgba(79,162,159,0.14))] text-[color:var(--primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.74)]">

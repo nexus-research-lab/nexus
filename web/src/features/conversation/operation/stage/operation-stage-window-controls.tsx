@@ -90,10 +90,10 @@ export function StageWindowDock({
   return (
     <div className="absolute inset-x-4 bottom-5 z-30 flex justify-center max-md:relative max-md:inset-x-auto max-md:bottom-auto max-md:mt-3">
       <div className="flex max-w-full flex-col items-center gap-1.5">
-        <div className="operation-window-dock soft-scrollbar flex max-w-full items-end gap-1 overflow-x-auto rounded-[22px] border border-white/66 bg-[rgba(255,255,255,0.50)] px-1.5 py-1 shadow-[0_18px_44px_rgba(18,28,42,0.14),inset_0_1px_0_rgba(255,255,255,0.76)] backdrop-blur-2xl">
+        <div className="operation-window-dock soft-scrollbar flex max-w-full items-end gap-1.5 overflow-x-auto rounded-[18px] border border-white/66 bg-[rgba(248,250,252,0.68)] px-2 py-1.5 shadow-[0_18px_44px_rgba(18,28,42,0.13),inset_0_1px_0_rgba(255,255,255,0.76)] backdrop-blur-2xl">
           <button
             aria-label="恢复 Nexus 工作现场"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] border border-white/60 bg-[linear-gradient(135deg,rgba(91,114,255,0.18),rgba(255,255,255,0.74),rgba(79,162,159,0.14))] text-[12px] font-black text-(--text-strong) shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] transition hover:-translate-y-1 hover:scale-105 hover:bg-white/72 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] border border-white/62 bg-[rgba(20,28,38,0.88)] text-[12px] font-black text-white shadow-[0_8px_18px_rgba(18,28,42,0.14)] transition hover:bg-[rgba(20,28,38,0.94)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
             onClick={on_restore_all}
             title={active_window ? `${active_app_label} · ${display_window_title(active_window)}` : "Nexus"}
             type="button"
@@ -116,12 +116,12 @@ export function StageWindowDock({
             <button
               aria-label={`${presentation.state_label}：${app_label}`}
               className={cn(
-                "group relative grid shrink-0 place-items-center rounded-[17px] border text-left transition duration-200 ease-out hover:-translate-y-2 hover:scale-110 focus-visible:-translate-y-2 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]",
-                is_active
-                  ? "h-11 w-11 border-[rgba(91,114,255,0.32)] bg-[rgba(91,114,255,0.16)] text-[color:var(--primary)] shadow-[0_14px_28px_rgba(91,114,255,0.20)]"
-                  : is_running
-                    ? "h-9 w-9 border-transparent bg-white/40 text-(--icon-muted) hover:bg-white/72 hover:text-(--text-strong)"
-                    : "h-9 w-9 border-transparent bg-white/18 text-(--icon-muted) opacity-55 hover:bg-white/42 hover:opacity-80",
+	                "group relative grid shrink-0 place-items-center rounded-[14px] border text-left transition duration-150 ease-out hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]",
+	                is_active
+	                  ? "h-11 w-11 border-[rgba(91,114,255,0.36)] bg-[rgba(91,114,255,0.18)] text-[color:var(--primary)] shadow-[0_12px_26px_rgba(91,114,255,0.18)]"
+	                  : is_running
+	                    ? "h-9 w-9 border-white/54 bg-white/54 text-(--icon-muted) hover:bg-white/76 hover:text-(--text-strong)"
+	                    : "h-9 w-9 border-transparent bg-white/22 text-(--icon-muted) opacity-58 hover:bg-white/46 hover:opacity-84",
               )}
               key={app_label}
               disabled={presentation.is_disabled && !on_launch_app}
@@ -138,7 +138,7 @@ export function StageWindowDock({
               <span className={cn(
                 "relative grid h-7 w-7 shrink-0 place-items-center rounded-[11px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_7px_16px_rgba(18,28,42,0.10)]",
                 dock_icon_skin_for_kind(window?.kind ?? kind),
-                is_active ? "ring-2 ring-[rgba(91,114,255,0.24)]" : "ring-0",
+	                is_active ? "ring-2 ring-[rgba(91,114,255,0.26)]" : is_running ? "ring-1 ring-white/46" : "ring-0",
               )}>
                 <Icon className="h-4 w-4" />
                 {is_running ? (
@@ -178,7 +178,7 @@ export function StageWindowDock({
             {minimized_windows.length > 2 ? (
               <button
                 aria-label={`从 Dock 恢复 ${minimized_windows.length} 个最小化窗口`}
-                className="operation-window-dock-minimized group relative grid h-9 w-14 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-white/58 bg-white/40 text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.70)] transition duration-200 ease-out hover:-translate-y-2 hover:bg-white/70 hover:text-(--text-strong) focus-visible:-translate-y-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
+	                className="operation-window-dock-minimized group relative grid h-9 w-14 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-[rgba(223,157,46,0.24)] bg-[rgba(255,249,236,0.58)] text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.70)] transition duration-150 ease-out hover:-translate-y-1 hover:bg-white/72 hover:text-(--text-strong) focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
                 onClick={on_restore_all}
                 title={`恢复 ${minimized_windows.length} 个最小化窗口`}
                 type="button"
@@ -204,7 +204,7 @@ export function StageWindowDock({
               return (
                 <button
                   aria-label={tile.aria_label}
-                  className="operation-window-dock-minimized group relative grid h-9 w-12 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-white/58 bg-white/38 text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.70)] transition duration-200 ease-out hover:-translate-y-2 hover:bg-white/70 hover:text-(--text-strong) focus-visible:-translate-y-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
+	                  className="operation-window-dock-minimized group relative grid h-9 w-12 shrink-0 place-items-center overflow-hidden rounded-[11px] border border-[rgba(223,157,46,0.24)] bg-[rgba(255,249,236,0.58)] text-(--icon-muted) shadow-[inset_0_1px_0_rgba(255,255,255,0.70)] transition duration-150 ease-out hover:-translate-y-1 hover:bg-white/72 hover:text-(--text-strong) focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.42)]"
                   key={window.id}
                   onClick={() => on_restore(window.id)}
                   title={tile.title}

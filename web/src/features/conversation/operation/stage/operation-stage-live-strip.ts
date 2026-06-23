@@ -1,41 +1,80 @@
 import type { StageWindowKind, StageWindowState } from "../operation-desktop-types";
 import type { NexusOperationEvent } from "../operation-types";
-import { display_stage_event_title } from "../operation-stage-labels";
+import { display_stage_event_target, display_stage_event_title } from "../operation-stage-labels";
 import { resolve_operation_tool_profile } from "../operation-tool-catalog";
 import { event_sequence_label } from "./operation-stage-event-sequence";
 
-export interface StageLiveStripState {
+export interface StageActivityItem {
   app_label: string;
+  event: NexusOperationEvent;
   detail: string;
+  key: string;
   step_label: string;
   title: string;
   tone: "active" | "done" | "waiting" | "error";
 }
 
+export interface StageActivityCenterState {
+  app_label: string;
+  active_app_label: string;
+  active_title: string;
+  detail: string;
+  items: StageActivityItem[];
+  running_label: string;
+  step_label: string;
+  title: string;
+  tone: StageActivityItem["tone"];
+}
+
+const MAX_ACTIVITY_ITEMS = 5;
+
 export function build_stage_live_strip_state({
   active_event,
   active_window,
   events,
+  windows = [],
 }: {
   active_event: NexusOperationEvent;
   active_window: StageWindowState | null;
   events: NexusOperationEvent[];
-}): StageLiveStripState {
-  const profile = resolve_operation_tool_profile(
-    active_event.tool_name,
-    active_event.kind,
-    active_event.surface,
-  );
-  const app_label = active_window ? live_strip_app_label_for_kind(active_window.kind) : "Nexus";
-  const title = display_stage_event_title(active_event, profile.action_label);
-  const target = active_event.target ?? active_window?.target ?? active_window?.payload.target ?? null;
+  windows?: StageWindowState[];
+}): StageActivityCenterState {
+  const event_window_by_id = new Map(windows.map((window) => [window.payload.event.id, window]));
+  const candidates = [active_event, ...events.slice().reverse()]
+    .filter((event, index, list) => list.findIndex((item) => item.id === event.id) === index)
+    .sort((left, right) => activity_priority(right, active_event.id) - activity_priority(left, active_event.id))
+    .slice(0, MAX_ACTIVITY_ITEMS);
+  const items = candidates.map((event): StageActivityItem => {
+    const profile = resolve_operation_tool_profile(event.tool_name, event.kind, event.surface);
+    const window = event_window_by_id.get(event.id) ?? (event.id === active_event.id ? active_window : null);
+    const app_label = window ? live_strip_app_label_for_kind(window.kind) : profile.title;
+    const title = display_stage_event_title(event, profile.action_label);
+    const target = display_stage_event_target(event, profile.action_label)
+      || window?.target
+      || window?.payload.target
+      || profile.action_label;
+
+    return {
+      app_label,
+      detail: `${profile.action_label} · ${target}`,
+      event,
+      key: event.id,
+      step_label: event_sequence_label(event, events),
+      title,
+      tone: live_strip_tone_for_event(event),
+    };
+  });
 
   return {
-    app_label,
-    detail: target ? `${profile.action_label} · ${target}` : profile.action_label,
-    step_label: event_sequence_label(active_event, events),
-    title,
-    tone: live_strip_tone_for_event(active_event),
+    app_label: items[0]?.app_label ?? "Nexus",
+    active_app_label: active_window ? live_strip_app_label_for_kind(active_window.kind) : "Nexus",
+    active_title: items[0]?.title ?? "桌面待命",
+    detail: items[0]?.detail ?? "等待工具调用",
+    items,
+    running_label: activity_running_label(windows),
+    step_label: items[0]?.step_label ?? "待命",
+    title: items[0]?.title ?? "桌面待命",
+    tone: items[0]?.tone ?? "active",
   };
 }
 
@@ -64,7 +103,7 @@ function live_strip_app_label_for_kind(kind: StageWindowKind): string {
   return "Nexus";
 }
 
-function live_strip_tone_for_event(event: NexusOperationEvent): StageLiveStripState["tone"] {
+function live_strip_tone_for_event(event: NexusOperationEvent): StageActivityItem["tone"] {
   if (event.phase === "waiting") {
     return "waiting";
   }
@@ -75,4 +114,29 @@ function live_strip_tone_for_event(event: NexusOperationEvent): StageLiveStripSt
     return "done";
   }
   return "active";
+}
+
+function activity_priority(event: NexusOperationEvent, active_event_id: string): number {
+  if (event.id === active_event_id) {
+    return 100;
+  }
+  if (event.phase === "waiting") {
+    return 80;
+  }
+  if (event.phase === "error" || event.phase === "cancelled") {
+    return 70;
+  }
+  if (event.phase === "running") {
+    return 60;
+  }
+  return 10 + (event.updated_at ?? event.started_at ?? 0) / 1_000_000_000_000;
+}
+
+function activity_running_label(windows: StageWindowState[]): string {
+  const visible_count = windows.filter((window) => window.phase !== "closed" && window.phase !== "minimized").length;
+  const minimized_count = windows.filter((window) => window.phase === "minimized").length;
+  if (minimized_count) {
+    return `${visible_count} 个前台 · ${minimized_count} 个 Dock`;
+  }
+  return `${visible_count} 个窗口`;
 }

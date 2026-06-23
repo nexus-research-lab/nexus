@@ -20,7 +20,7 @@ export function DynamicStageFrame({
     <div
       aria-label="Nexus desktop stage"
       className={cn(
-        "operation-stage-frame relative h-full min-h-[520px] flex-1 overflow-hidden rounded-[18px] bg-[#edf2f7] p-4 outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.36)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent max-md:w-full max-md:min-w-0 max-md:max-w-full max-md:overflow-y-auto max-md:overflow-x-hidden",
+        "operation-stage-frame relative h-full min-h-[520px] flex-1 overflow-hidden rounded-[22px] border border-white/60 bg-[linear-gradient(135deg,#eef3f5_0%,#e7ece8_48%,#dfe8ea_100%)] p-4 outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.74)] focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.36)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent max-md:w-full max-md:min-w-0 max-md:max-w-full max-md:overflow-y-auto max-md:overflow-x-hidden",
         `operation-stage-narrative-${narrative.phase}`,
       )}
       data-stage-experience-phase={narrative.phase}

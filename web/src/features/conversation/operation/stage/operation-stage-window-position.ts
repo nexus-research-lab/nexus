@@ -8,8 +8,8 @@ const STAGE_MANAGER_BACKGROUND_POSITIONS = [
   "left-[3.5%] top-[66%] h-[13%] w-[10%]",
 ];
 
-const PRIMARY_WORKSPACE = "left-[12%] top-[9%] h-[63%] w-[80%]";
-const PRIMARY_REVIEW_WORKSPACE = "left-[11%] top-[8%] h-[62%] w-[78%]";
+const PRIMARY_WORKSPACE = "left-[14%] top-[11%] h-[61%] w-[61%]";
+const PRIMARY_REVIEW_WORKSPACE = "left-[14%] top-[10%] h-[60%] w-[59%]";
 const COMPACT_REVIEW_WORKSPACE = "left-[22%] top-[13%] h-[54%] w-[58%]";
 
 export function position_for_window(
@@ -26,11 +26,11 @@ export function position_for_window(
   if (window.layout === "terminal") {
     if (is_review_layout) {
       return window.phase === "focused"
-        ? "left-[14%] top-[19%] h-[50%] w-[72%]"
+        ? "left-[14%] top-[19%] h-[50%] w-[60%]"
         : "left-[15%] bottom-[18%] h-[18%] w-[60%]";
     }
     return window.phase === "focused"
-      ? "left-[15%] top-[22%] h-[44%] w-[75%]"
+      ? "left-[15%] top-[22%] h-[44%] w-[60%]"
       : "left-[14%] bottom-[18%] h-[18%] w-[58%]";
   }
   if (window.layout === "inspector") {
@@ -74,7 +74,7 @@ export function position_for_window(
   }
   if (window.kind === "handoff") {
     return window.phase === "focused"
-      ? "left-[12%] top-[7%] h-[62%] w-[76%]"
+      ? "left-[14%] top-[9%] h-[61%] w-[60%]"
       : "left-[23%] top-[14%] h-[48%] w-[48%]";
   }
   if (window.kind === "summary") {

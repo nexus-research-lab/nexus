@@ -32,7 +32,7 @@ import {
 import type {
   StageWindowOverride,
 } from "./operation-stage-model";
-import { StageAgentCursor, StageMacMenuBar, StageDesktopIcons, StageLiveStrip } from "./operation-stage-mac-shell";
+import { StageActivityCenter, StageAgentCursor, StageMacMenuBar, StageDesktopIcons } from "./operation-stage-mac-shell";
 import { DynamicStageFrame } from "./operation-stage-frame";
 import { OperationStageWindow } from "./operation-stage-window";
 import {
@@ -210,7 +210,8 @@ export function OperationStageDesktop({
     active_event: active_narrative_event,
     active_window,
     events: narrative_events,
-  }), [active_narrative_event, active_window, narrative_events]);
+    windows: window_states,
+  }), [active_narrative_event, active_window, narrative_events, window_states]);
   const close_window = (window_id: string) => {
     set_focused_window_id((current) => resolve_next_window_focus({
       current_focus_id: current,
@@ -394,7 +395,11 @@ export function OperationStageDesktop({
         windows={window_states}
       />
       <StageDesktopIcons windows={window_states} on_restore={restore_window} />
-      <StageLiveStrip key={active_narrative_event.id} state={live_strip} />
+      <StageActivityCenter
+        key={active_narrative_event.id}
+        on_focus_event={focus_event_window}
+        state={live_strip}
+      />
       <StageWorkspaceSwitchboard
         active_event={active_narrative_event}
         active_window_id={active_window_id}

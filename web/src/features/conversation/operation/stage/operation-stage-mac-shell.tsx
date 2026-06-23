@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Apple,
   Battery,
   Bell,
   CheckCircle2,
@@ -8,8 +7,8 @@ import {
   Loader2,
   MousePointer2,
   Search,
-  SlidersHorizontal,
   AlertTriangle,
+  Activity,
   Wifi,
 } from "lucide-react";
 
@@ -28,7 +27,8 @@ import {
   agent_cursor_anchor_class,
   agent_cursor_intent_for_window_kind,
 } from "./operation-stage-agent-cursor";
-import type { StageLiveStripState } from "./operation-stage-live-strip";
+import type { StageActivityCenterState, StageActivityItem } from "./operation-stage-live-strip";
+import type { NexusOperationEvent } from "../operation-types";
 
 export function StageMacMenuBar({
   active_window,
@@ -61,24 +61,38 @@ export function StageMacMenuBar({
   return (
     <div
       aria-label={menu_status.activity_label}
-      className="absolute inset-x-0 top-0 z-40 flex h-7 items-center justify-between border-b border-white/50 bg-white/44 px-4 text-[10px] font-semibold text-(--text-strong) shadow-[0_1px_0_rgba(255,255,255,0.64),0_10px_26px_rgba(18,28,42,0.07)] backdrop-blur-2xl max-md:hidden"
+      className="absolute inset-x-4 top-3 z-40 flex h-9 items-center justify-between rounded-[14px] border border-white/64 bg-[rgba(255,255,255,0.62)] px-3 text-[11px] font-semibold text-(--text-strong) shadow-[0_12px_30px_rgba(18,28,42,0.09),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-2xl max-md:hidden"
       title={[
         menu_status.activity_label,
         menu_status.window_label,
         menu_status.dock_label,
       ].filter(Boolean).join(" · ")}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
-        <Apple className="h-3.5 w-3.5 shrink-0" />
-        <span className="font-black">{app_name}</span>
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[8px] bg-[rgba(20,28,38,0.88)] font-mono text-[9px] font-black text-white shadow-[0_8px_18px_rgba(18,28,42,0.16)]">
+          NX
+        </span>
+        <span className="font-black">Nexus OS</span>
+        <span className="h-4 w-px bg-[rgba(117,131,149,0.28)]" />
+        <span className="max-w-[160px] truncate font-black">{app_name}</span>
         {menu_items.map((item) => (
           <span className="text-(--text-soft)" key={item}>{item}</span>
         ))}
       </div>
-      <div className="flex shrink-0 items-center gap-2.5 text-(--text-soft)">
+      <div className="flex shrink-0 items-center gap-2 text-(--text-soft)">
+        <span className="hidden max-w-[220px] truncate rounded-full border border-white/66 bg-white/52 px-2 py-1 text-[9px] font-black text-(--text-strong) lg:inline">
+          {menu_status.activity_label}
+        </span>
+        <span className="rounded-full border border-white/66 bg-white/44 px-2 py-1 text-[9px] font-bold">
+          {menu_status.window_label}
+        </span>
+        {menu_status.dock_label ? (
+          <span className="rounded-full border border-[rgba(223,157,46,0.24)] bg-[rgba(255,249,236,0.58)] px-2 py-1 text-[9px] font-bold text-[color:var(--warning)]">
+            {menu_status.dock_label}
+          </span>
+        ) : null}
         <Search className="h-3 w-3" />
         <Command className="h-3 w-3" />
-        <SlidersHorizontal className="h-3 w-3" />
         <Wifi className="h-3 w-3" />
         <Battery className="h-3 w-3" />
         <span className="font-mono text-[10px] text-(--text-strong)">{time_label}</span>
@@ -147,45 +161,88 @@ export function StageDesktopIcons({
   );
 }
 
-export function StageLiveStrip({
+export function StageActivityCenter({
+  on_focus_event,
   state,
 }: {
-  state: StageLiveStripState;
+  on_focus_event: (event: NexusOperationEvent) => void;
+  state: StageActivityCenterState;
 }) {
-  const Icon = state.tone === "done"
-    ? CheckCircle2
-    : state.tone === "error"
-      ? AlertTriangle
-      : Loader2;
-
   return (
-    <div className="pointer-events-none absolute right-5 top-11 z-30 hidden w-[220px] md:block">
-      <div className={cn(
-        "operation-stage-live-strip grid min-w-0 grid-cols-[24px_minmax(0,1fr)] gap-2 rounded-[13px] border px-2 py-1.5 text-[9px] font-semibold opacity-88 shadow-[0_14px_34px_rgba(18,28,42,0.11)] backdrop-blur-2xl",
-        state.tone === "error" && "border-[rgba(223,93,98,0.22)] bg-[rgba(255,246,246,0.78)] text-[color:var(--destructive)]",
-        state.tone === "waiting" && "border-[rgba(223,157,46,0.22)] bg-[rgba(255,249,236,0.78)] text-[color:var(--warning)]",
-        state.tone === "done" && "border-[rgba(47,184,132,0.20)] bg-[rgba(241,253,247,0.78)] text-[color:var(--success)]",
-        state.tone === "active" && "border-[rgba(91,114,255,0.20)] bg-[rgba(247,249,255,0.78)] text-[color:var(--primary)]",
-      )}>
-        <span className="relative grid h-6 w-6 shrink-0 place-items-center rounded-[8px] bg-white/68 text-(--icon-default) shadow-[inset_0_1px_0_rgba(255,255,255,0.76)]">
-          <Bell className="h-3 w-3" />
-          <Icon className={cn(
-            "absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-white/84 p-0.5 shadow-[0_4px_10px_rgba(18,28,42,0.12)]",
-            state.tone === "active" && "animate-spin",
-          )} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-black text-(--text-strong)">{state.app_label}</span>
-            <span className="shrink-0 rounded-full bg-white/58 px-1.5 py-px text-[7px] font-black text-(--text-soft)">
-              {state.step_label}
+    <div className="pointer-events-none absolute right-5 top-[58px] z-30 hidden w-[268px] md:block">
+      <div className="operation-stage-live-strip pointer-events-auto rounded-[18px] border border-white/60 bg-[rgba(248,250,252,0.74)] p-2.5 text-(--text-strong) shadow-[0_18px_46px_rgba(18,28,42,0.14),inset_0_1px_0_rgba(255,255,255,0.72)] backdrop-blur-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[rgba(117,131,149,0.16)] pb-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-white/70 bg-white/66 text-(--icon-default) shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]">
+              <Activity className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[11px] font-black">Agent Activity</span>
+              <span className="block truncate text-[9px] font-bold text-(--text-soft)">{state.active_app_label} · {state.running_label}</span>
             </span>
           </span>
-          <span className="mt-0.5 block truncate font-bold text-(--text-strong)">{state.title}</span>
-          <span className="mt-0.5 block truncate text-[8px] font-semibold text-(--text-soft)">{state.detail}</span>
-        </span>
+          <span className="rounded-full border border-white/70 bg-white/58 px-2 py-0.5 text-[8px] font-black text-(--text-soft)">
+            LIVE
+          </span>
+        </div>
+        <div className="mt-2 grid gap-1.5">
+          {state.items.map((item) => (
+            <ActivityCenterItem item={item} key={item.key} on_focus_event={on_focus_event} />
+          ))}
+        </div>
       </div>
     </div>
+  );
+}
+
+function ActivityCenterItem({
+  item,
+  on_focus_event,
+}: {
+  item: StageActivityItem;
+  on_focus_event: (event: NexusOperationEvent) => void;
+}) {
+  const Icon = item.tone === "done"
+    ? CheckCircle2
+    : item.tone === "error"
+      ? AlertTriangle
+      : item.tone === "waiting"
+        ? Bell
+        : Loader2;
+
+  return (
+    <button
+      aria-label={`查看 ${item.app_label}：${item.title}`}
+      className={cn(
+        "group grid min-w-0 grid-cols-[26px_minmax(0,1fr)] gap-2 rounded-[12px] border px-2 py-2 text-left transition hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(91,114,255,0.36)]",
+        item.tone === "waiting" && "border-[rgba(223,157,46,0.30)] bg-[rgba(255,249,236,0.68)]",
+        item.tone === "error" && "border-[rgba(223,93,98,0.26)] bg-[rgba(255,246,246,0.68)]",
+        item.tone === "active" && "border-[rgba(91,114,255,0.22)] bg-[rgba(247,249,255,0.62)]",
+        item.tone === "done" && "border-[rgba(47,184,132,0.18)] bg-white/36",
+      )}
+      onClick={() => on_focus_event(item.event)}
+      title={`${item.step_label} · ${item.title} · ${item.detail}`}
+      type="button"
+    >
+      <span className={cn(
+        "relative grid h-[26px] w-[26px] place-items-center rounded-[9px] border bg-white/72 text-(--icon-default) shadow-[inset_0_1px_0_rgba(255,255,255,0.78)]",
+        item.tone === "waiting" && "text-[color:var(--warning)]",
+        item.tone === "error" && "text-[color:var(--destructive)]",
+        item.tone === "done" && "text-[color:var(--success)]",
+      )}>
+        <Icon className={cn("h-3.5 w-3.5", item.tone === "active" && "animate-spin")} />
+      </span>
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[10px] font-black text-(--text-strong)">{item.app_label}</span>
+          <span className="shrink-0 rounded-full bg-white/58 px-1.5 py-px text-[7px] font-black text-(--text-soft)">
+            {item.step_label}
+          </span>
+        </span>
+        <span className="mt-0.5 block truncate text-[9px] font-bold text-(--text-strong)">{item.title}</span>
+        <span className="mt-0.5 block truncate text-[8px] font-semibold text-(--text-soft)">{item.detail}</span>
+      </span>
+    </button>
   );
 }
 
