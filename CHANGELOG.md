@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded Operation Stage into a visual execution runtime with runtime events, interactive Code/Terminal/Safari/Permission/Finder/Activity/Handoff app surfaces, real Code writer content projection, and stage preview verification.
 
 ### Fixed
+- Aligned Operation Stage zoomed windows with the Nexus OS system bar.
 - Removed the decorative Operation Stage agent cursor so the desktop only shows the real system pointer.
 - Show every minimized Operation Stage window in Dock instead of collapsing them into a count tile.
 - Made Operation Stage zoomed windows use the full desktop area below the system bar and hide Dock while zoomed.
