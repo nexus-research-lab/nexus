@@ -141,6 +141,9 @@ func (s *RealtimeService) recordGoalContinuationProgressForSlot(
 		return
 	}
 	hasProgress := slotHasGoalToolProgress(slot)
+	if !hasProgress && slot.hasRunningSubagentTask() {
+		return
+	}
 	_, err := s.goals.RecordContinuationProgress(ctx, slot.GoalIDForUsage, slot.AgentRoundID, hasProgress)
 	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) && !errors.Is(err, goalsvc.ErrGoalVersionStale) {
 		s.loggerFor(ctx).Warn("记录 Room Goal 续跑进展失败",

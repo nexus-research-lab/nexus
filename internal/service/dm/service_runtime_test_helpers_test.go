@@ -171,6 +171,8 @@ func (c *fakeDMClient) Interrupt(ctx context.Context) error {
 	return nil
 }
 
+func (c *fakeDMClient) StopTask(context.Context, string) error { return nil }
+
 func (c *fakeDMClient) Disconnect(context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

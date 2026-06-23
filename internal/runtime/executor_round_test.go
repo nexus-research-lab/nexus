@@ -50,6 +50,8 @@ func (c *fakeRoundExecutionClient) Interrupt(context.Context) error {
 	return nil
 }
 
+func (c *fakeRoundExecutionClient) StopTask(context.Context, string) error { return nil }
+
 func (c *fakeRoundExecutionClient) Disconnect(context.Context) error {
 	c.disconnects++
 	return nil

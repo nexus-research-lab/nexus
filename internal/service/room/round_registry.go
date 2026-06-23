@@ -142,3 +142,15 @@ func (r *activeRoomRound) hasSlotError() bool {
 	}
 	return false
 }
+
+func (r *activeRoomRound) hasRunningSubagentTasks() bool {
+	if r == nil {
+		return false
+	}
+	for _, slot := range r.Slots {
+		if slot != nil && slot.hasRunningSubagentTask() {
+			return true
+		}
+	}
+	return false
+}

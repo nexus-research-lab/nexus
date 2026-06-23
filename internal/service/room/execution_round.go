@@ -33,6 +33,7 @@ func (s *RealtimeService) runRound(
 	}
 	waitGroup.Wait()
 
+	roundValue.RunningSubagents = roundValue.hasRunningSubagentTasks()
 	s.finishRound(roundValue)
 
 	finalStatus := "finished"

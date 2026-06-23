@@ -183,6 +183,12 @@ func TestMessageMapperMapsTaskStarted(t *testing.T) {
 			Description: "子 Agent 开始排查",
 			TaskType:    "general-purpose",
 			ToolUseID:   "toolu-1",
+			Additional: map[string]any{
+				"agent_id":       "agent-1",
+				"agent_type":     "worker",
+				"output_file":    "/tmp/task.out",
+				"parent_task_id": "parent-1",
+			},
 		},
 	})
 	if err != nil {
@@ -201,6 +207,9 @@ func TestMessageMapperMapsTaskStarted(t *testing.T) {
 	if metadata["subtype"] != "task_started" || metadata["task_id"] != "task-1" || metadata["task_type"] != "general-purpose" {
 		t.Fatalf("task_started metadata 不正确: %+v", metadata)
 	}
+	if metadata["agent_id"] != "agent-1" || metadata["agent_type"] != "worker" || metadata["output_file"] != "/tmp/task.out" {
+		t.Fatalf("task_started subagent metadata 不正确: %+v", metadata)
+	}
 }
 
 func TestMessageMapperMapsTaskNotification(t *testing.T) {
@@ -210,14 +219,20 @@ func TestMessageMapperMapsTaskNotification(t *testing.T) {
 		Type:      sdkprotocol.MessageTypeTaskNotification,
 		SessionID: "sdk-session-task",
 		TaskNotification: &sdkprotocol.TaskNotificationMessage{
-			TaskID:    "task-1",
-			Status:    "completed",
-			Summary:   "子 Agent 已完成排查",
-			ToolUseID: "toolu-1",
+			TaskID:     "task-1",
+			Status:     "completed",
+			Summary:    "子 Agent 已完成排查",
+			ToolUseID:  "toolu-1",
+			OutputFile: "/tmp/task.out",
 			Usage: sdkprotocol.TaskUsage{
 				TotalTokens: 1234,
 				ToolUses:    5,
 				DurationMS:  6789,
+			},
+			Additional: map[string]any{
+				"agent_id":        "agent-1",
+				"agent_type":      "worker",
+				"transcript_path": "/tmp/subagent.jsonl",
 			},
 		},
 	})
@@ -236,6 +251,9 @@ func TestMessageMapperMapsTaskNotification(t *testing.T) {
 	metadata, _ := events[0].Data["metadata"].(map[string]any)
 	if metadata["subtype"] != "task_notification" || metadata["task_id"] != "task-1" || metadata["status"] != "completed" {
 		t.Fatalf("task_notification metadata 不正确: %+v", metadata)
+	}
+	if metadata["agent_id"] != "agent-1" || metadata["transcript_path"] != "/tmp/subagent.jsonl" || metadata["output_file"] != "/tmp/task.out" {
+		t.Fatalf("task_notification subagent metadata 不正确: %+v", metadata)
 	}
 	usage, _ := metadata["usage"].(map[string]any)
 	if usage["total_tokens"] != 1234 || usage["tool_uses"] != 5 || usage["duration_ms"] != 6789 {

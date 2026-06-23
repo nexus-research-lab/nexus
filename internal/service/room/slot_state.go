@@ -225,3 +225,59 @@ func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
 	defer slot.stateMu.RUnlock()
 	return protocol.Clone(slot.GoalLastAssistant)
 }
+
+func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message) {
+	if slot == nil {
+		return
+	}
+	metadata, _ := message["metadata"].(map[string]any)
+	taskID := strings.TrimSpace(anyString(metadata["task_id"]))
+	if taskID == "" {
+		return
+	}
+	subtype := strings.TrimSpace(anyString(metadata["subtype"]))
+	status := strings.TrimSpace(anyString(metadata["status"]))
+	if subtype == "task_started" && !metadataLooksLikeSubagentTask(metadata) {
+		return
+	}
+	slot.stateMu.Lock()
+	defer slot.stateMu.Unlock()
+	if slot.SubagentTasks == nil {
+		slot.SubagentTasks = map[string]struct{}{}
+	}
+	switch subtype {
+	case "task_started":
+		slot.SubagentTasks[taskID] = struct{}{}
+	case "task_notification":
+		if isTerminalSubagentTaskStatus(status) {
+			delete(slot.SubagentTasks, taskID)
+		}
+	}
+}
+
+func (slot *activeRoomSlot) hasRunningSubagentTask() bool {
+	if slot == nil {
+		return false
+	}
+	slot.stateMu.RLock()
+	defer slot.stateMu.RUnlock()
+	return len(slot.SubagentTasks) > 0
+}
+
+func metadataLooksLikeSubagentTask(metadata map[string]any) bool {
+	if len(metadata) == 0 {
+		return false
+	}
+	return strings.TrimSpace(anyString(metadata["agent_id"])) != "" ||
+		strings.TrimSpace(anyString(metadata["agent_type"])) != "" ||
+		strings.TrimSpace(anyString(metadata["task_type"])) == "local_agent"
+}
+
+func isTerminalSubagentTaskStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "completed", "failed", "error", "stopped", "killed", "cancelled":
+		return true
+	default:
+		return false
+	}
+}

@@ -29,6 +29,7 @@ type activeRoomSlot struct {
 	GoalUsageStartedAt time.Time
 	GoalLastAssistant  protocol.Message
 	GoalToolProgress   bool
+	SubagentTasks      map[string]struct{}
 	resultUsageWritten bool
 	WorkspacePath      string
 	Client             runtimectx.Client
@@ -76,6 +77,7 @@ type activeRoomRound struct {
 	GoalContext       string
 	Slots             map[string]*activeRoomSlot
 	PublicMentions    []publicMentionWake
+	RunningSubagents  bool
 	Done              chan struct{}
 	doneOnce          sync.Once
 }

@@ -318,6 +318,7 @@ func (s *RealtimeService) runSlot(
 		},
 		HandleDurableMessage: func(messageValue protocol.Message) error {
 			messageRole := protocol.MessageRole(messageValue)
+			slot.rememberSubagentTaskMessage(messageValue)
 			if messageRole == "result" {
 				slot.setStatus(resultStatus(messageValue["subtype"]))
 				s.recordUsage(roundValue, slot, messageValue)

@@ -82,6 +82,7 @@ func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessag
 		firstNonEmpty(started.Description, started.Prompt, "任务已开始"),
 		strings.TrimSpace(started.TaskType),
 		strings.TrimSpace(started.ToolUseID),
+		started.Additional,
 	)
 }
 
@@ -97,10 +98,11 @@ func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedM
 		strings.TrimSpace(notification.Status),
 		strings.TrimSpace(notification.OutputFile),
 		taskUsageMap(notification.Usage),
+		notification.Additional,
 	)
 }
 
-func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskType string, toolUseID string) *protocol.Message {
+func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskType string, toolUseID string, additional map[string]any) *protocol.Message {
 	if strings.TrimSpace(taskID) == "" {
 		return nil
 	}
@@ -117,6 +119,7 @@ func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskT
 		"task_type":   emptyToNil(taskType),
 		"tool_use_id": emptyToNil(toolUseID),
 	}
+	copyTaskEventMetadata(payload["metadata"].(map[string]any), additional)
 	messageValue := protocol.Message(payload)
 	return &messageValue
 }
@@ -136,7 +139,7 @@ func (p *Processor) buildTaskProgressMessage(taskID string, description string, 
 	return p.buildAssistantDurableMessage(false, false, "")
 }
 
-func (p *Processor) buildTaskNotificationMessage(taskID string, content string, toolUseID string, status string, outputFile string, usage map[string]any) *protocol.Message {
+func (p *Processor) buildTaskNotificationMessage(taskID string, content string, toolUseID string, status string, outputFile string, usage map[string]any, additional map[string]any) *protocol.Message {
 	if strings.TrimSpace(taskID) == "" {
 		return nil
 	}
@@ -155,8 +158,17 @@ func (p *Processor) buildTaskNotificationMessage(taskID string, content string, 
 		"output_file": emptyToNil(outputFile),
 		"usage":       firstNonNilMap(usage, map[string]any{}),
 	}
+	copyTaskEventMetadata(payload["metadata"].(map[string]any), additional)
 	messageValue := protocol.Message(payload)
 	return &messageValue
+}
+
+func copyTaskEventMetadata(metadata map[string]any, additional map[string]any) {
+	for _, key := range []string{"agent_id", "agent_type", "description", "model", "name", "output_file", "parent_task_id", "team_name", "transcript_path"} {
+		if value := normalizeString(additional[key]); value != "" {
+			metadata[key] = value
+		}
+	}
 }
 
 func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage) (*protocol.Message, bool) {
@@ -182,6 +194,7 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 			),
 			firstNonEmpty(normalizeString(message.Data["task_type"]), firstTaskStartedTaskType(message)),
 			firstNonEmpty(normalizeString(message.Data["tool_use_id"]), firstTaskStartedToolUseID(message)),
+			message.Data,
 		), false
 	case "task_notification":
 		return p.buildTaskNotificationMessage(
@@ -195,6 +208,7 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 			firstNonEmpty(normalizeString(message.Data["status"]), firstTaskNotificationStatus(message)),
 			firstNonEmpty(normalizeString(message.Data["output_file"]), firstTaskNotificationOutputFile(message)),
 			firstNonNilMap(mapValue(message.Data["usage"]), firstTaskNotificationUsage(message)),
+			message.Data,
 		), false
 	case "api_retry", "api_error":
 		metadata = normalizeAPIRetryMetadata(message.Data)

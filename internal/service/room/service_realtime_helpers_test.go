@@ -81,6 +81,8 @@ func (c *fakeRoomClient) Interrupt(ctx context.Context) error {
 	return nil
 }
 
+func (c *fakeRoomClient) StopTask(context.Context, string) error { return nil }
+
 func (c *fakeRoomClient) Disconnect(context.Context) error {
 	c.mu.Lock()
 	c.disconnects++

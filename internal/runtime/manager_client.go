@@ -18,6 +18,7 @@ type Client interface {
 	Query(context.Context, string) error
 	ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage
 	Interrupt(context.Context) error
+	StopTask(context.Context, string) error
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
 	SessionID() string
@@ -133,6 +134,14 @@ func (c *sdkClientAdapter) Interrupt(ctx context.Context) error {
 		return err
 	}
 	return session.Interrupt(ctx)
+}
+
+func (c *sdkClientAdapter) StopTask(ctx context.Context, taskID string) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	return session.Control().StopTask(ctx, taskID)
 }
 
 func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
