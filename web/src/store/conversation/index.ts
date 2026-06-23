@@ -37,7 +37,3 @@ export const useConversationStore = create<ConversationStoreState>()(
     },
   ),
 );
-
-export function get_conversation_store_snapshot(): ConversationStoreState {
-  return useConversationStore.getState();
-}

@@ -269,6 +269,10 @@ function image_content_block_key(block: ImageContent): string | null {
   return raw_key ? `image:${raw_key}` : null;
 }
 
+function json_equal(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 /**
  * 将流式增量应用到当前消息列表。
  */
@@ -306,15 +310,25 @@ export function apply_stream_message(messages: Message[], event: StreamMessage):
   const assistantMessage = messages[existingIndex] as AssistantMessage;
   const stop_reason = event.message?.stop_reason || assistantMessage.stop_reason;
   const is_terminal_stream_event = event.type === 'message_stop';
+  const next_model = event.message?.model || assistantMessage.model;
+  const next_is_complete = stop_reason || is_terminal_stream_event ? true : assistantMessage.is_complete;
+  const next_stream_status = stop_reason || is_terminal_stream_event ? 'done' : 'streaming';
+  const next_usage = event.usage || assistantMessage.usage;
   const nextMessage: AssistantMessage = {
     ...assistantMessage,
-    model: event.message?.model || assistantMessage.model,
+    model: next_model,
     stop_reason,
-    is_complete: stop_reason || is_terminal_stream_event ? true : assistantMessage.is_complete,
-    stream_status: stop_reason || is_terminal_stream_event ? 'done' : 'streaming',
-    usage: event.usage || assistantMessage.usage,
+    is_complete: next_is_complete,
+    stream_status: next_stream_status,
+    usage: next_usage,
     content: [...assistantMessage.content],
   };
+  let changed =
+    next_model !== assistantMessage.model ||
+    stop_reason !== assistantMessage.stop_reason ||
+    next_is_complete !== assistantMessage.is_complete ||
+    next_stream_status !== assistantMessage.stream_status ||
+    !json_equal(next_usage, assistantMessage.usage);
 
   if (
     (event.type === 'content_block_start' || event.type === 'content_block_delta') &&
@@ -324,8 +338,17 @@ export function apply_stream_message(messages: Message[], event: StreamMessage):
     const streamBlock = event.content_block;
     while (nextMessage.content.length <= event.index) {
       nextMessage.content.push({ type: 'text', text: '' });
+      changed = true;
     }
-    nextMessage.content[event.index] = streamBlock;
+    if (!json_equal(nextMessage.content[event.index], streamBlock)) {
+      nextMessage.content[event.index] = streamBlock;
+      changed = true;
+    }
+  }
+
+  // 重放或重复到达的 stream patch 不应触发 React 状态更新。
+  if (!changed) {
+    return messages;
   }
 
   const nextMessages = [...messages];

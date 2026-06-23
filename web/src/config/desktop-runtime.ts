@@ -68,8 +68,8 @@ type DesktopWebHealthMessage = {
   performance: DesktopWebReadyPerformance;
 };
 
-export const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
-export const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
+const DESKTOP_SESSION_TOKEN_HEADER = "X-Nexus-Desktop-Token";
+const DESKTOP_SESSION_TOKEN_INVALID_DETAIL = "桌面会话 token 无效";
 const DESKTOP_SESSION_TOKEN_PROTOCOL_PREFIX = "nexus.desktop.token.";
 const CONNECTOR_OAUTH_CALLBACK_PATH = "/capability/connectors/oauth/callback";
 const DESKTOP_LOOPBACK_OAUTH_PORT = "34343";
@@ -148,7 +148,7 @@ export function recover_desktop_session_token_error(message: string, input: stri
   return true;
 }
 
-export function is_desktop_session_token_error(message: string): boolean {
+function is_desktop_session_token_error(message: string): boolean {
   return is_desktop_runtime() && message.includes(DESKTOP_SESSION_TOKEN_INVALID_DETAIL);
 }
 

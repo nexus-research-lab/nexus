@@ -1,7 +1,7 @@
 import type { ImageContent } from "@/types/conversation/message";
 import type { PermissionUpdate } from "@/types/conversation/permission";
 
-export const TOOL_TITLE_MAP: Record<string, string> = {
+const TOOL_TITLE_MAP: Record<string, string> = {
   Bash: "执行命令",
   Read: "读取内容",
   Write: "写入内容",

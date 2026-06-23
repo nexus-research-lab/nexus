@@ -220,7 +220,7 @@ function build_workspace_file_transfer_url(
 }
 
 /** 获取 workspace 文件下载 URL */
-export const get_workspace_file_download_url = (
+const get_workspace_file_download_url = (
   agent_id: string,
   path: string,
 ): string => {
@@ -235,7 +235,7 @@ export const get_workspace_file_preview_url = (
   return build_workspace_file_transfer_url(agent_id, path, "inline");
 };
 
-export const reveal_workspace_file_in_folder_api = async (
+const reveal_workspace_file_in_folder_api = async (
   agent_id: string,
   path: string,
 ): Promise<{ path: string }> => {

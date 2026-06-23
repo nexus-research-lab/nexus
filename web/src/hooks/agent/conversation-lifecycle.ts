@@ -11,7 +11,7 @@ import { merge_loaded_messages, sort_messages } from './message-helpers';
  * 重置当前会话视图状态。
  * preserve_loading=true 时保留 is_loading 态（重连 reload 场景下由后端 round_status / session_status 控制）。
  */
-export function reset_session_view(
+function reset_session_view(
   context: AgentConversationLifecycleContext,
   next_error: string | null = null,
 ): void {

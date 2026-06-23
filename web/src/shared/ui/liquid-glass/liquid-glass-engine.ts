@@ -210,7 +210,7 @@ function create_glass_assets({
   };
 }
 
-export function get_liquid_glass_assets(options: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
+function get_liquid_glass_assets(options: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
   const cache_key = build_cache_key(options);
   const cached = LIQUID_GLASS_CACHE.get(cache_key);
   if (cached) {

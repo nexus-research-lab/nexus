@@ -10,7 +10,6 @@
 import {
   ApiConversation,
   Conversation,
-  UpdateConversationParams,
 } from "@/types/conversation/conversation";
 import {
   ApiAgentSession as ApiAgentSessionRecord,
@@ -30,7 +29,7 @@ const AGENT_API_BASE_URL = get_agent_api_base_url();
 // ==================== 类型转换 ====================
 
 /** 将 API 响应转换为前端标准格式 */
-export function transform_api_conversation(api: ApiConversation): Conversation {
+function transform_api_conversation(api: ApiConversation): Conversation {
   return {
     session_key: api.session_key,
     agent_id: api.agent_id,
@@ -47,7 +46,7 @@ export function transform_api_conversation(api: ApiConversation): Conversation {
   };
 }
 
-export function transform_api_agent_session(
+function transform_api_agent_session(
   api: ApiAgentSessionRecord,
 ): AgentSessionRecord {
   return {
@@ -127,31 +126,3 @@ export async function get_session_messages_api(
   };
 }
 
-export const delete_conversation = async (
-  session_key: string,
-): Promise<{ success: boolean }> => {
-  const normalized_session_key = assert_structured_session_key(session_key);
-  return request_api<{ success: boolean }>(
-    `${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`,
-    {
-      method: "DELETE",
-    },
-  );
-};
-
-export const update_conversation = async (
-  session_key: string,
-  params: UpdateConversationParams,
-): Promise<Conversation> => {
-  const normalized_session_key = assert_structured_session_key(session_key);
-  const result = await request_api<ApiConversation>(
-    `${AGENT_API_BASE_URL}/sessions/${normalized_session_key}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        title: params.title,
-      }),
-    },
-  );
-  return transform_api_conversation(result);
-};

@@ -91,7 +91,7 @@ export interface RoomAgentRoundEntry {
 }
 
 /** 判断一个轮次是否包含多个 Agent 的 assistant 消息 */
-export function is_multi_agent_round(messages: Message[]): boolean {
+function is_multi_agent_round(messages: Message[]): boolean {
   const agent_ids = new Set<string>();
   for (const msg of messages) {
     if (msg.role === "assistant" && msg.agent_id) {
@@ -113,7 +113,7 @@ export function has_room_agent_round_entries(
 }
 
 /** 将一轮消息按 agent_id 分组，仅分组 assistant 消息 */
-export function group_round_by_agent(messages: Message[]): Map<string, AssistantMessage[]> {
+function group_round_by_agent(messages: Message[]): Map<string, AssistantMessage[]> {
   const groups = new Map<string, AssistantMessage[]>();
   for (const msg of messages) {
     if (msg.role !== "assistant" || !msg.agent_id) continue;
@@ -155,7 +155,7 @@ function build_pending_slot_map(
 }
 
 /** 从一组 assistant 消息中推导该 Agent 的聚合状态 */
-export function get_agent_round_status(
+function get_agent_round_status(
   messages: AssistantMessage[],
   result_summary?: ResultSummary | null,
   pending_slot?: RoomPendingAgentSlotState | null,
@@ -220,7 +220,7 @@ export function is_agent_round_active(status: AgentRoundStatus): boolean {
 }
 
 /** 计算 Agent 回复在时间线中的排序时间，优先使用 result 的完成时间。 */
-export function get_agent_round_timestamp(
+function get_agent_round_timestamp(
   messages: AssistantMessage[],
   result_summary?: ResultSummary | null,
   pending_slot?: RoomPendingAgentSlotState | null,

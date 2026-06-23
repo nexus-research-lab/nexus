@@ -23,7 +23,7 @@ export function goal_continuation_hold_for_permission(
   };
 }
 
-export function goal_continuation_hold_for_agent(
+function goal_continuation_hold_for_agent(
   agent: Pick<Agent, "name" | "options"> | null | undefined,
 ): GoalContinuationHold | null {
   return goal_continuation_hold_for_permission(
@@ -61,7 +61,7 @@ export function goal_continuation_hold_for_room_target(
   };
 }
 
-export function resolve_goal_continuation_target_agent(
+function resolve_goal_continuation_target_agent(
   room_members: Agent[],
   lead_agent_id: string | null | undefined,
 ): Agent | null {

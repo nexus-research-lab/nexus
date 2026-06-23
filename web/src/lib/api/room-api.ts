@@ -82,15 +82,6 @@ export async function list_rooms(limit = 50): Promise<RoomAggregate[]> {
   );
 }
 
-export async function get_room(room_id: string): Promise<RoomAggregate> {
-  return request_api<RoomAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`,
-    {
-      method: "GET",
-    },
-  );
-}
-
 export async function get_room_contexts(
   room_id: string,
 ): Promise<RoomContextAggregate[]> {

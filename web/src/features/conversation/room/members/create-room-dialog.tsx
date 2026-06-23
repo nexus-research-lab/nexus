@@ -31,7 +31,7 @@ import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { UiMultiSelectMenu, UiSelectMenu } from "@/shared/ui/select-menu";
 import type { SkillInfo } from "@/types/capability/skill";
 
-export interface RoomMemberAgentOption {
+interface RoomMemberAgentOption {
   agent_id: string;
   name: string;
   avatar?: string | null;

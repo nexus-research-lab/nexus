@@ -15,7 +15,7 @@ export function memory_layer_key(scope?: string): MemoryLayerFilter {
   return "agent";
 }
 
-export function memory_layer_label(scope?: string): string {
+function memory_layer_label(scope?: string): string {
   const key = memory_layer_key(scope);
   switch (key) {
   case "dm_session":

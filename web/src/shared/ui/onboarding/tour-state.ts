@@ -154,11 +154,11 @@ export function write_completed_tours(next_value: Record<string, boolean>) {
   persist_desktop_value(DESKTOP_COMPLETED_TOURS_KEY, JSON.stringify(normalized));
 }
 
-export function read_dismissed_tours(): Record<string, boolean> {
+function read_dismissed_tours(): Record<string, boolean> {
   return read_boolean_map(TOUR_DISMISS_STORAGE_KEY);
 }
 
-export function write_dismissed_tours(next_value: Record<string, boolean>) {
+function write_dismissed_tours(next_value: Record<string, boolean>) {
   const normalized = normalize_boolean_map(next_value);
   write_boolean_map(TOUR_DISMISS_STORAGE_KEY, normalized);
   persist_desktop_value(DESKTOP_DISMISSED_TOURS_KEY, JSON.stringify(normalized));
@@ -178,14 +178,14 @@ export function set_tour_dismissed(tour_id: string, dismissed: boolean) {
   write_dismissed_tours(next_value);
 }
 
-export function is_sidebar_onboarding_hint_dismissed(): boolean {
+function is_sidebar_onboarding_hint_dismissed(): boolean {
   if (typeof window === "undefined") {
     return true;
   }
   return window.localStorage.getItem(SIDEBAR_HINT_DISMISSED_STORAGE_KEY) === "true";
 }
 
-export function set_sidebar_onboarding_hint_dismissed() {
+function set_sidebar_onboarding_hint_dismissed() {
   if (typeof window === "undefined") {
     return;
   }

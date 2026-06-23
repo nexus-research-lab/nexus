@@ -23,7 +23,6 @@ import {
 } from "./select-menu-model";
 import { useSelectMenuLayer } from "./select-menu-layer";
 export { UiMultiSelectMenu } from "./multi-select-menu";
-export type { UiMultiSelectMenuOption } from "./multi-select-menu";
 
 export interface UiSelectMenuOption {
   value: string;

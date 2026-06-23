@@ -33,7 +33,7 @@ export interface RequestApiOptions extends Omit<RequestInit, "body"> {
   timeout_ms?: number;
 }
 
-export class UnauthorizedError extends Error {
+class UnauthorizedError extends Error {
   constructor(message = "未登录或登录状态已过期") {
     super(message);
     this.name = "UnauthorizedError";

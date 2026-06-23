@@ -15,10 +15,10 @@ import {
   DEFAULT_AGENT_PERMISSION_MODE,
 } from "@/features/agents/options/agent-options-constants";
 
-export let DEFAULT_AGENT_ID = "";
-export let DEFAULT_AGENT_AVATAR = "";
-export let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
-export let DEFAULT_AGENT_MODEL = "";
+let DEFAULT_AGENT_ID = "";
+let DEFAULT_AGENT_AVATAR = "";
+let DEFAULT_AGENT_PROVIDER: AgentProvider = "";
+let DEFAULT_AGENT_MODEL = "";
 export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
@@ -100,15 +100,7 @@ export function get_default_agent_avatar(): string {
   return DEFAULT_AGENT_AVATAR;
 }
 
-export function get_default_agent_provider(): AgentProvider {
-  return DEFAULT_AGENT_PROVIDER;
-}
-
-export function get_default_agent_model(): string {
-  return DEFAULT_AGENT_MODEL;
-}
-
-export function set_default_agent_avatar(avatar?: string | null): void {
+function set_default_agent_avatar(avatar?: string | null): void {
   const normalized_avatar = avatar?.trim();
   DEFAULT_AGENT_AVATAR = normalized_avatar || "";
 }

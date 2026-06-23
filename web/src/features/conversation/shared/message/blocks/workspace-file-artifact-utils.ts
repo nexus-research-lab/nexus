@@ -7,7 +7,7 @@ import type {
   WorkspaceFileArtifactContent,
 } from "@/types/conversation/message";
 
-export function collect_workspace_file_artifacts_from_content_blocks(
+function collect_workspace_file_artifacts_from_content_blocks(
   content: ContentBlock[],
 ): WorkspaceFileArtifactContent[] {
   return content.filter(

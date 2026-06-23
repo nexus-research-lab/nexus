@@ -23,7 +23,7 @@ const TOKEN_SWATCHES = [
   { fill: "#E8945A", text: "#FFFFFF", ring: "#F0B186" },
 ];
 
-export function get_initials(name: string) {
+function get_initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) {
     return "AG";

@@ -14,7 +14,7 @@ type UiAvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 type UiAvatarShape = "round" | "rounded";
 type UiRoomAvatarSize = "sm" | "md" | "lg";
 
-export interface UiAvatarMember {
+interface UiAvatarMember {
   id: string;
   name: string;
   avatar?: string | null;

@@ -7,7 +7,7 @@ import { download_workspace_file_api } from "@/lib/api/agent-manage-api";
 import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 
-export const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
+const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
   "inline-flex h-8 items-center justify-center gap-1.5 rounded-[10px] border px-2.5 text-[11px] font-semibold leading-none transition-colors",
   "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
   "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",

@@ -9,7 +9,7 @@
 
 "use client";
 
-import { ButtonHTMLAttributes, MouseEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { ButtonHTMLAttributes, MouseEvent, ReactNode, useEffect, useRef } from "react";
 import { Brain, Globe, MessageCircleMore, MessageSquareText, ShieldAlert, Wrench } from "lucide-react";
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
@@ -169,7 +169,7 @@ export function MessageActionButton({
   );
 }
 
-export function MessageLoadingDots({
+function MessageLoadingDots({
   size: _size = "md",
   class_name,
   name = "braille",
@@ -178,35 +178,13 @@ export function MessageLoadingDots({
   class_name?: string;
   name?: BrailleSpinnerName;
 }) {
-  const prefers_reduced_motion = usePrefersReducedMotion();
   const spinner = spinners[name];
   const first_visible_frame_index = get_first_visible_spinner_frame_index(name);
-  const [frame_index, setFrameIndex] = useState(first_visible_frame_index);
-
-  useEffect(() => {
-    const current_spinner = spinners[name];
-    setFrameIndex(first_visible_frame_index);
-
-    if (prefers_reduced_motion) {
-      return;
-    }
-
-    // 帧动画完全由包内 interval 驱动，切换 spinner 时直接重置，避免旧帧残留。
-    const timer = window.setInterval(() => {
-      setFrameIndex((current_index) => (current_index + 1) % current_spinner.frames.length);
-    }, current_spinner.interval);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [first_visible_frame_index, name, prefers_reduced_motion]);
 
   const spinner_width = Math.max(
     ...spinner.frames.map((frame) => Array.from(frame).length),
   );
-  const current_frame = prefers_reduced_motion
-    ? spinner.frames[first_visible_frame_index] ?? spinner.frames[0]
-    : spinner.frames[frame_index] ?? spinner.frames[first_visible_frame_index] ?? spinner.frames[0];
+  const current_frame = spinner.frames[first_visible_frame_index] ?? spinner.frames[0];
 
   return (
     <span

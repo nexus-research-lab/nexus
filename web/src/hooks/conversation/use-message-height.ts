@@ -85,7 +85,7 @@ function estimate_code_block_height(text: string): number {
  * Estimates the rendered height of a message round using pretext for text
  * measurement. Avoids DOM reflow — safe to call on many items at once.
  */
-export function useMessageHeight(
+function useMessageHeight(
   messages: Message[],
   containerWidth: number,
 ): HeightEstimate {

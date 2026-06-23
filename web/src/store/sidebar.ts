@@ -9,9 +9,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /** 宽面板宽度约束 */
-export const WIDE_PANEL_MIN_WIDTH = 264;
-export const WIDE_PANEL_MAX_WIDTH = 400;
-export const WIDE_PANEL_DEFAULT_WIDTH = 264;
+const WIDE_PANEL_MIN_WIDTH = 264;
+const WIDE_PANEL_MAX_WIDTH = 400;
+const WIDE_PANEL_DEFAULT_WIDTH = 264;
 type WidePanelCollapseSource = "manual" | "right_panel_auto";
 export const SIDEBAR_SYSTEM_ITEM_IDS = {
   nexus: "system:nexus",

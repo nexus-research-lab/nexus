@@ -24,10 +24,10 @@ export const DIALOG_ICON_BUTTON_CLASS_NAME = get_ui_icon_button_class_name({
   variant: "ghost",
 });
 
-export const DIALOG_EMPTY_CLASS_NAME =
+const DIALOG_EMPTY_CLASS_NAME =
   "flex items-center justify-center rounded-[12px] px-4 py-4 text-[13px] text-(--text-muted)";
 
-export const DIALOG_TAG_CLASS_NAME =
+const DIALOG_TAG_CLASS_NAME =
   "inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent px-2 py-0.5 text-[11px] font-medium text-(--text-muted)";
 
 export function get_dialog_action_class_name(

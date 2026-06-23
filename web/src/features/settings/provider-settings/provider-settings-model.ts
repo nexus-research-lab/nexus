@@ -12,7 +12,7 @@ import type {
 } from "@/types/capability/provider";
 
 export type SettingsTabKey = "providers";
-export type FeedbackTone = "success" | "error";
+type FeedbackTone = "success" | "error";
 export type FormMode = "empty" | "create" | "edit";
 
 export interface FeedbackState {

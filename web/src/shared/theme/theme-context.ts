@@ -23,7 +23,7 @@ export interface ThemeContextValue {
 }
 
 /** 中文注释：晴天主题视觉上直接复用亮色，避免维护两套几乎相同的设计令牌。 */
-export function resolve_visual_theme(theme: Theme): VisualTheme {
+function resolve_visual_theme(theme: Theme): VisualTheme {
   return theme === "sunny" ? "light" : theme;
 }
 

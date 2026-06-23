@@ -166,7 +166,6 @@ export function UiActionMenu({
 
   useEffect(() => {
     if (!is_open) {
-      set_menu_position(null);
       return;
     }
 

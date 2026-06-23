@@ -125,9 +125,6 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.1.0
         version: 5.2.0(rolldown-vite@7.3.1(@emnapi/core@1.7.1)(@emnapi/runtime@1.7.1)(@types/node@20.19.25)(jiti@2.6.1))
-      baseline-browser-mapping:
-        specifier: ^2.10.0
-        version: 2.10.0
       eslint:
         specifier: ^9
         version: 9.39.1(jiti@2.6.1)

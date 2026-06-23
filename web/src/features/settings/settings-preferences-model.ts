@@ -77,7 +77,7 @@ function normalize_model_selection_preference(
   return { provider, model };
 }
 
-export function encode_default_model_value(provider: string, model: string): string {
+function encode_default_model_value(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
 }
 

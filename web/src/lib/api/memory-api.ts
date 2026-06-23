@@ -84,46 +84,11 @@ export async function search_user_memory_items_api(
   return result.items;
 }
 
-export async function recall_memory_api(
-  agent_id: string,
-  query_text: string,
-  max_results = 5,
-): Promise<MemoryInjection> {
-  return request_api<MemoryInjection>(`${agent_memory_base_url(agent_id)}/recall`, {
-    method: "POST",
-    body: { query: query_text, max_results },
-  });
-}
-
-export async function add_memory_item_api(
-  agent_id: string,
-  input: MemoryWriteInput,
-): Promise<MemoryItem> {
-  return request_api<MemoryItem>(`${agent_memory_base_url(agent_id)}/items`, {
-    method: "POST",
-    body: { ...input },
-  });
-}
-
 export async function add_user_memory_item_api(input: MemoryWriteInput): Promise<MemoryItem> {
   return request_api<MemoryItem>(`${user_memory_base_url()}/items`, {
     method: "POST",
     body: { ...input },
   });
-}
-
-export async function update_memory_item_api(
-  agent_id: string,
-  entry_id: string,
-  input: MemoryWriteInput,
-): Promise<MemoryItem> {
-  return request_api<MemoryItem>(
-    `${agent_memory_base_url(agent_id)}/items/${encodeURIComponent(entry_id)}`,
-    {
-      method: "PATCH",
-      body: { ...input },
-    },
-  );
 }
 
 export async function update_user_memory_item_api(
@@ -158,20 +123,6 @@ export async function delete_user_memory_item_api(
   );
 }
 
-export async function promote_memory_item_api(
-  agent_id: string,
-  entry_id: string,
-  target = "memory",
-): Promise<{ path: string; content: string }> {
-  return request_api<{ path: string; content: string }>(
-    `${agent_memory_base_url(agent_id)}/items/${encodeURIComponent(entry_id)}/promote`,
-    {
-      method: "POST",
-      body: { target },
-    },
-  );
-}
-
 export async function promote_user_memory_item_api(
   entry_id: string,
   target = "memory",
@@ -181,20 +132,6 @@ export async function promote_user_memory_item_api(
     {
       method: "POST",
       body: { target },
-    },
-  );
-}
-
-export async function ignore_memory_item_api(
-  agent_id: string,
-  entry_id: string,
-  note = "",
-): Promise<MemoryItem> {
-  return request_api<MemoryItem>(
-    `${agent_memory_base_url(agent_id)}/items/${encodeURIComponent(entry_id)}/ignore`,
-    {
-      method: "POST",
-      body: { note },
     },
   );
 }

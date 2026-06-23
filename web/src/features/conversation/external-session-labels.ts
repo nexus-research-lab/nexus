@@ -41,7 +41,7 @@ export function format_external_session_title({
   return (title ?? "").trim() || "New Chat";
 }
 
-export function format_external_session_summary({
+function format_external_session_summary({
   channel_type,
   chat_type,
   session_key,

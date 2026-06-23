@@ -154,7 +154,7 @@ interface StaggerListProps {
   item_class_name?: string;
 }
 
-export function StaggerList({
+function StaggerList({
   children,
   base_delay_ms = 0,
   stagger_ms = 55,

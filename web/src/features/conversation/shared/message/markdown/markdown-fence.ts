@@ -4,7 +4,7 @@ export interface MarkdownFenceMarker {
   marker: "`" | "~";
 }
 
-export interface MarkdownOpenFence extends MarkdownFenceMarker {
+interface MarkdownOpenFence extends MarkdownFenceMarker {
   start_offset: number;
 }
 
@@ -22,7 +22,7 @@ export function read_markdown_fence_marker(line: string): MarkdownFenceMarker | 
   };
 }
 
-export function find_open_markdown_fence(content: string): MarkdownOpenFence | null {
+function find_open_markdown_fence(content: string): MarkdownOpenFence | null {
   let open_fence: MarkdownOpenFence | null = null;
   let cursor_offset = 0;
 

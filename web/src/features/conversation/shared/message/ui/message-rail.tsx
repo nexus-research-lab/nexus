@@ -111,7 +111,7 @@ const RESULT_TONE_CLASS_MAP: Record<MessageResultTone, string> = {
   error: "text-(--destructive)",
 };
 
-export function MessageResultLabel({
+function MessageResultLabel({
   children,
   tone,
   class_name,

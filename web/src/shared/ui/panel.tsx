@@ -70,7 +70,7 @@ export function UiPanel({
   );
 }
 
-export function UiSectionHeader({
+function UiSectionHeader({
   action,
   children,
   class_name,

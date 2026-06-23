@@ -95,7 +95,7 @@ function MessageItemInner({
 }
 
 // 仅在影响视觉输出的关键属性变化时重新渲染，避免流式阶段产生无效更新。
-export const MessageItem = memo(MessageItemInner, (prev, next) => {
+const MessageItem = memo(MessageItemInner, (prev, next) => {
   if (prev.round_id !== next.round_id) return false;
   if (prev.is_last_round !== next.is_last_round) return false;
   if (prev.is_loading !== next.is_loading) return false;

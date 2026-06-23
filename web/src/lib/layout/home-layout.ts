@@ -6,13 +6,13 @@
  */
 
 /** 中文注释：首页舞台边距改成更贴近桌面窗口的薄边距，避免出现网页卡片感。 */
-export const HOME_STAGE_VERTICAL_PADDING_CLASS = "py-1.5";
+const HOME_STAGE_VERTICAL_PADDING_CLASS = "py-1.5";
 export const HOME_PAGE_PADDING_CLASS = `pr-1.5 ${HOME_STAGE_VERTICAL_PADDING_CLASS}`;
 export const HOME_SIDEBAR_PADDING_CLASS = `pl-1 pr-1.5 ${HOME_STAGE_VERTICAL_PADDING_CLASS}`;
 
 export const HOME_EDITOR_DEFAULT_WIDTH_PERCENT = 56;
-export const HOME_EDITOR_MIN_WIDTH_PERCENT = 30;
-export const HOME_EDITOR_MAX_WIDTH_PERCENT = 56;
+const HOME_EDITOR_MIN_WIDTH_PERCENT = 30;
+const HOME_EDITOR_MAX_WIDTH_PERCENT = 56;
 
 export function clamp_home_editor_width_percent(widthPercent: number): number {
   return Math.min(

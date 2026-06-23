@@ -187,7 +187,7 @@ export function SidebarListItem({
   );
 }
 
-export function CollapsibleSection({
+function CollapsibleSection({
   section_id,
   title,
   count,

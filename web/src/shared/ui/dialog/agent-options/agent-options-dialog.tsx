@@ -130,4 +130,3 @@ export function AgentOptions({
   );
 }
 
-export { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";

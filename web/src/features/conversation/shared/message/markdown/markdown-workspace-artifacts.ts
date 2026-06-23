@@ -8,12 +8,12 @@ import { type WorkspaceFileEntry } from "@/types/agent/agent";
 
 export type ResolveWorkspaceFilePath = (value: string) => string | null;
 
-export interface MarkdownTextSegment {
+interface MarkdownTextSegment {
   type: "text";
   text: string;
 }
 
-export interface MarkdownFileArtifactSegment {
+interface MarkdownFileArtifactSegment {
   type: "file_artifact";
   label: string;
   path: string;

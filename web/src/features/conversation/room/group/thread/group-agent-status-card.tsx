@@ -67,10 +67,17 @@ function GroupAgentStatusCardInner({
   const timestamp = last_msg?.timestamp ?? result_summary?.timestamp ?? pending_slot?.timestamp ?? 0;
   const model = last_msg?.model ?? null;
   const summary_text = useMemo(() => {
+    const result_text = result_summary?.result?.trim();
     if (is_waiting_permission) {
       return can_respond_to_permissions
         ? (primary_pending_permission?.summary || "等待权限确认")
         : (permission_read_only_reason || "当前暂不可确认权限");
+    }
+    if (status === "cancelled") {
+      return result_text || "已停止";
+    }
+    if (status === "error") {
+      return result_text || "执行失败";
     }
     if (preview) {
       return preview;
@@ -81,14 +88,8 @@ function GroupAgentStatusCardInner({
     if (status === "streaming") {
       return "正在回复...";
     }
-    if (status === "cancelled") {
-      return "已停止";
-    }
-    if (status === "error") {
-      return "执行失败";
-    }
     return "";
-  }, [can_respond_to_permissions, is_waiting_permission, permission_read_only_reason, preview, primary_pending_permission?.summary, status]);
+  }, [can_respond_to_permissions, is_waiting_permission, permission_read_only_reason, preview, primary_pending_permission?.summary, result_summary?.result, status]);
   const should_render_markdown_summary = Boolean(
     preview
     && !is_waiting_permission

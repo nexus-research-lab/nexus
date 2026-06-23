@@ -189,7 +189,7 @@ function is_supported_image_attachment(file: File): boolean {
   return SUPPORTED_IMAGE_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
 }
 
-export function is_supported_text_attachment(file: File): boolean {
+function is_supported_text_attachment(file: File): boolean {
   const extension = get_file_extension(file.name);
   if (SUPPORTED_TEXT_ATTACHMENT_EXTENSIONS.has(extension)) {
     return true;

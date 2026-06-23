@@ -13,7 +13,7 @@ export type ImChannelType =
   | "discord";
 export type ImPairingStatus = "pending" | "active" | "disabled" | "rejected";
 export type ImChatType = "dm" | "group";
-export type ImChannelCapability =
+type ImChannelCapability =
   | "text"
   | "media"
   | "typing"
@@ -31,7 +31,7 @@ export interface ChannelCredentialField {
   placeholder?: string;
 }
 
-export interface ChannelCatalogItem {
+interface ChannelCatalogItem {
   channel_type: ImChannelType;
   title: string;
   bot_label: string;
@@ -46,7 +46,7 @@ export interface ChannelCatalogItem {
   credential_fields: ChannelCredentialField[];
 }
 
-export interface ChannelStats {
+interface ChannelStats {
   paired_user_count: number;
   paired_group_count: number;
   pending_count: number;
@@ -82,7 +82,7 @@ export interface UpsertChannelConfigPayload {
   credentials?: Record<string, string>;
 }
 
-export type ChannelLoginStatus = "running" | "verify_code_required" | "succeeded" | "error" | "expired" | "cancelled";
+type ChannelLoginStatus = "running" | "verify_code_required" | "succeeded" | "error" | "expired" | "cancelled";
 
 export interface ChannelLoginView {
   login_id: string;

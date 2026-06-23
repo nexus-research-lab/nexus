@@ -34,7 +34,7 @@ interface UseRoomWorkspaceControllerOptions {
   file_input_ref: RefObject<HTMLInputElement | null>;
 }
 
-export function get_parent_directory_path(path: string): string | null {
+function get_parent_directory_path(path: string): string | null {
   const last_slash_index = path.lastIndexOf("/");
   if (last_slash_index === -1) {
     return null;
@@ -49,11 +49,11 @@ function get_workspace_focus_directory_path(path?: string | null): string | null
   return get_parent_directory_path(path);
 }
 
-export function join_workspace_path(parent_path: string | null, name: string): string {
+function join_workspace_path(parent_path: string | null, name: string): string {
   return parent_path ? `${parent_path}/${name}` : name;
 }
 
-export function get_renamed_active_path(
+function get_renamed_active_path(
   active_path: string | null,
   old_path: string,
   new_path: string,
@@ -70,7 +70,7 @@ export function get_renamed_active_path(
   return null;
 }
 
-export function is_workspace_path_affected(
+function is_workspace_path_affected(
   active_path: string | null,
   target_path: string,
 ): boolean {
@@ -80,7 +80,7 @@ export function is_workspace_path_affected(
   return active_path === target_path || active_path.startsWith(`${target_path}/`);
 }
 
-export function resolve_workspace_menu_position(
+function resolve_workspace_menu_position(
   event: MouseEvent,
   menu_height: number,
 ): { x: number; y: number } {

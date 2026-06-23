@@ -1,6 +1,6 @@
 import { read_markdown_fence_marker } from "./markdown-fence";
 
-export type MarkdownStreamBlockState = "revealed" | "streaming";
+type MarkdownStreamBlockState = "revealed" | "streaming";
 
 export interface MarkdownStreamBlock {
   content: string;

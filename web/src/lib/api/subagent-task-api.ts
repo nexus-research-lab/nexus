@@ -24,7 +24,7 @@ export interface SubagentTask {
   updated_at?: number;
 }
 
-export interface SubagentTaskListResponse {
+interface SubagentTaskListResponse {
   items: SubagentTask[];
 }
 

@@ -105,18 +105,6 @@ export async function update_provider_model_api(
   );
 }
 
-export async function set_default_provider_model_api(
-  provider: string,
-  model_id: string,
-): Promise<ProviderModelRecord> {
-  return request_api<ProviderModelRecord>(
-    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(model_id)}/default`,
-    {
-      method: "POST",
-    },
-  );
-}
-
 export async function test_provider_config_api(
   provider: string,
 ): Promise<ProviderTestResult> {

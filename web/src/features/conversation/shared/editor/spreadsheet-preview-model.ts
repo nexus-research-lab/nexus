@@ -95,7 +95,7 @@ const INDEXED_COLORS = [
   "#000000",
 ];
 
-export type SpreadsheetPreviewBorderSide = [string, string];
+type SpreadsheetPreviewBorderSide = [string, string];
 
 export interface SpreadsheetPreviewCellStyle {
   align?: "left" | "center" | "right";
@@ -114,22 +114,22 @@ export interface SpreadsheetPreviewCellStyle {
   valign?: "top" | "middle" | "bottom";
 }
 
-export interface SpreadsheetPreviewCellData {
+interface SpreadsheetPreviewCellData {
   merge?: [number, number];
   style?: number;
   text: string;
 }
 
-export interface SpreadsheetPreviewRowData {
+interface SpreadsheetPreviewRowData {
   cells: Record<number, SpreadsheetPreviewCellData>;
   height?: number;
 }
 
-export interface SpreadsheetPreviewColumnData {
+interface SpreadsheetPreviewColumnData {
   width?: number;
 }
 
-export interface SpreadsheetPreviewRange {
+interface SpreadsheetPreviewRange {
   end_col: number;
   end_row: number;
   ref: string;
@@ -476,7 +476,7 @@ function get_excel_color(color?: Partial<Color> | null): string | undefined {
   return undefined;
 }
 
-export function parse_spreadsheet_cell_range(range: string): SpreadsheetPreviewRange | null {
+function parse_spreadsheet_cell_range(range: string): SpreadsheetPreviewRange | null {
   const [start, end = start] = range.split(":");
   const start_cell = parse_cell_address(start);
   const end_cell = parse_cell_address(end);

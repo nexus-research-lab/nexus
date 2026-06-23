@@ -15,7 +15,7 @@ export interface BuildSessionKeyOptions {
   thread_id?: string | null;
 }
 
-export type SessionKeyKind = "agent" | "room" | "unknown";
+type SessionKeyKind = "agent" | "room" | "unknown";
 
 export interface ParsedSessionKey {
   raw: string;
@@ -99,7 +99,7 @@ export function build_room_agent_session_key(
   });
 }
 
-export function get_session_key_validation_error(session_key: string | null | undefined): string | null {
+function get_session_key_validation_error(session_key: string | null | undefined): string | null {
   const normalized_key = (session_key ?? "").trim();
   if (!normalized_key) {
     return "session_key is required";
@@ -148,10 +148,6 @@ export function assert_structured_session_key(session_key: string | null | undef
   return (session_key ?? "").trim();
 }
 
-export function is_room_shared_session_key(session_key: string): boolean {
-  const parsed = parse_session_key(session_key);
-  return parsed.kind === "room" && parsed.is_structured && Boolean(parsed.conversation_id);
-}
 
 export function parse_session_key(session_key: string | null | undefined): ParsedSessionKey {
   const normalized_key = (session_key ?? "").trim();

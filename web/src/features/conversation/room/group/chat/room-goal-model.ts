@@ -2,13 +2,13 @@ import type { Agent } from "@/types/agent/agent";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { Goal } from "@/types/conversation/goal";
 
-export const ROOM_GOAL_LEAD_AGENT_ID_KEY = "room_goal_lead_agent_id";
-export const ROOM_GOAL_LEAD_AGENT_NAME_KEY = "room_goal_lead_agent_name";
-export const ROOM_GOAL_COLLABORATION_REQUIRED_KEY =
+const ROOM_GOAL_LEAD_AGENT_ID_KEY = "room_goal_lead_agent_id";
+const ROOM_GOAL_LEAD_AGENT_NAME_KEY = "room_goal_lead_agent_name";
+const ROOM_GOAL_COLLABORATION_REQUIRED_KEY =
   "room_goal_collaboration_required";
-export const ROOM_GOAL_SCOPE_KEY = "room_goal_scope";
-export const ROOM_GOAL_LOOP_SLUG_KEY = "room_goal_loop_slug";
-export const ROOM_GOAL_LOOP_TITLE_KEY = "room_goal_loop_title";
+const ROOM_GOAL_SCOPE_KEY = "room_goal_scope";
+const ROOM_GOAL_LOOP_SLUG_KEY = "room_goal_loop_slug";
+const ROOM_GOAL_LOOP_TITLE_KEY = "room_goal_loop_title";
 
 const ROOM_LOOP_GOAL_MAX_OBJECTIVE_LENGTH = 3900;
 

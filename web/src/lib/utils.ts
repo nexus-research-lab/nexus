@@ -49,38 +49,7 @@ export function format_tokens(tokens: number): string {
   return `${(tokens / 1000000).toFixed(1)}M`;
 }
 
-/**
- * 格式化成本
- */
-export function format_cost(usd: number): string {
-  if (usd < 0.01) return `$${usd.toFixed(4)}`;
-  if (usd < 1) return `$${usd.toFixed(3)}`;
-  return `$${usd.toFixed(2)}`;
-}
-
 // ==================== 文本工具 ====================
-
-/**
- * 截断文本（grapheme-aware，正确处理 CJK、emoji、ZWJ 序列）
- *
- * text.substring(0, N) 按 UTF-16 code unit 截，会把 emoji（surrogate pair）
- * 或 ZWJ 序列切成乱码。pretext prepareWithSegments 返回 grapheme cluster 数组，
- * 按 grapheme 数截断才是语言学上正确的做法。
- */
-export function truncate(text: string, maxLength: number): string {
-  // Fast path: ASCII-only，code unit 数 == grapheme 数，直接跳过 pretext
-  if (text.length <= maxLength && !/[\uD800-\uDFFF\u0300-\u036F]/.test(text)) return text;
-  try {
-    const prepared = prepareWithSegments(text, '');
-    const graphemes = prepared.segments;
-    if (graphemes.length <= maxLength) return text;
-    return graphemes.slice(0, maxLength).join('') + '…';
-  } catch {
-    // fallback to substring if pretext fails
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '…';
-  }
-}
 
 // ==================== 头像工具 ====================
 
@@ -151,7 +120,7 @@ export function get_icon_avatar_src(
 /**
  * 根据字符串稳定生成区间内的图标编号。
  */
-export function get_stable_icon_id(
+function get_stable_icon_id(
   seed: string | null | undefined,
   startInclusive: number,
   endInclusive: number,

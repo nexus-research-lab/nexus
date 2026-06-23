@@ -14,7 +14,7 @@ import type { RefObject } from "react";
 import type { Meridiem, Weekday } from "../pickers/picker-types";
 import type { EveryUnit, ScheduleKind } from "./scheduled-task-dialog-types";
 
-export interface CalendarDay {
+interface CalendarDay {
   label: string;
   muted: boolean;
   value: string;

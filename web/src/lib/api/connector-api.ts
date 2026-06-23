@@ -33,17 +33,6 @@ export const get_connectors_api = async (params?: {
   });
 };
 
-/** 获取已连接连接器数量 */
-export const get_connected_count_api = async (): Promise<number> => {
-  const result = await request_api<{ count: number }>(
-    `${BASE}/connectors/count`,
-    {
-      method: "GET",
-    },
-  );
-  return result.count;
-};
-
 /** 获取连接器详情 */
 export const get_connector_detail_api = async (
   connector_id: string,

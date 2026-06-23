@@ -16,9 +16,6 @@ import type {
   ApiScheduledTaskStatus,
   CreateScheduledTaskParams,
   DeleteScheduledTaskResponse,
-  GetScheduledTaskDailyReportParams,
-  GetScheduledTaskStatusParams,
-  ListScheduledTaskEventsParams,
   ListScheduledTasksParams,
   RecoverScheduledTaskRunParams,
   ScheduledTaskDailyReport,
@@ -232,57 +229,6 @@ export async function list_scheduled_task_runs_api(
   );
 
   return result.map(transform_run);
-}
-
-export async function get_scheduled_task_status_api(
-  job_id: string,
-  params: GetScheduledTaskStatusParams = {},
-): Promise<ScheduledTaskStatusItem> {
-  const result = await request_api<ApiScheduledTaskStatus>(
-    `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}/status${build_query({
-      run_limit: number_query_value(params.run_limit),
-      event_limit: number_query_value(params.event_limit),
-    })}`,
-    {
-      method: "GET",
-    },
-  );
-
-  return transform_status(result);
-}
-
-export async function list_scheduled_task_events_api(
-  job_id: string,
-  params: ListScheduledTaskEventsParams = {},
-): Promise<ScheduledTaskEventItem[]> {
-  const result = await request_api<ApiScheduledTaskEvent[]>(
-    `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(job_id)}/events${build_query({
-      limit: number_query_value(params.limit),
-    })}`,
-    {
-      method: "GET",
-    },
-  );
-
-  return result.map(transform_event);
-}
-
-export async function get_scheduled_task_daily_report_api(
-  params: GetScheduledTaskDailyReportParams = {},
-): Promise<ScheduledTaskDailyReport> {
-  const result = await request_api<ApiScheduledTaskDailyReport>(
-    `${AGENT_API_BASE_URL}/capability/scheduled/reports/daily${build_query({
-      date: params.date,
-      timezone: params.timezone,
-      agent_id: params.agent_id,
-      job_id: params.job_id,
-    })}`,
-    {
-      method: "GET",
-    },
-  );
-
-  return transform_daily_report(result);
 }
 
 export async function retry_scheduled_task_run_delivery_api(

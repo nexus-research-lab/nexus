@@ -24,7 +24,7 @@ import {
   type UiSelectMenuSurface,
 } from "./select-menu-model";
 
-export interface UiMultiSelectMenuOption {
+interface UiMultiSelectMenuOption {
   value: string;
   label: string;
   disabled?: boolean;
