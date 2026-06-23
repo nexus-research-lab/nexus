@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Code Editor Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body>
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Code Editor</p>
+          <h1>代码编辑组件</h1>
+          <p>用于展示 Read、Edit、Write、MultiEdit 的 diff、光标和保存状态。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>operation-scene-planner.ts</strong>
+            <span>正在插入工具可视化映射</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">editing</span>
+            <span class="chip waiting">unsaved</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface split">
+            <aside class="rail">
+              <p class="mini-title">Changed files</p>
+              <div class="list">
+                <div class="item active"><strong>operation-scene-planner.ts</strong><span>+18 -2</span></div>
+                <div class="item"><strong>operation-desktop-types.ts</strong><span>+6 -0</span></div>
+                <div class="item"><strong>apps/renderers.tsx</strong><span>+32 -4</span></div>
+              </div>
+            </aside>
+            <div class="canvas code">
+              <div class="code-line"><span>42</span><span>const visualGroup = classifyTool(toolName)</span></div>
+              <div class="code-line focus"><span>43</span><span>return buildWindowForVisualGroup(visualGroup)</span></div>
+              <div class="code-line add"><span>44</span><span>+ if (visualGroup === "automation") return automationWindow(event)</span></div>
+              <div class="code-line add"><span>45</span><span>+ if (visualGroup === "connector") return connectorWindow(event)</span></div>
+              <div class="code-line"><span>46</span><span>}</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>执行过程</h2>
+              <div class="timeline">
+                <div class="step">读取目标文件</div>
+                <div class="step active">应用最小 diff</div>
+                <div class="step">保存后进入校验</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>Edit</strong></div>
+              <div><span>surface</span><strong>code editor</strong></div>
+              <div><span>focus</span><strong>line 43</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

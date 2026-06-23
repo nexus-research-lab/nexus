@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Automation Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="amber">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Automation</p>
+          <h1>自动化组件</h1>
+          <p>用于展示计划任务创建、启停、运行历史、事件和恢复动作。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Daily report scheduler</strong>
+            <span>正在创建一个每日 09:00 的报告任务</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">creating</span>
+            <span class="chip done">cron valid</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="toolbar">
+              <span class="chip running">create_scheduled_task</span>
+              <span class="chip done">Asia/Shanghai</span>
+              <span class="chip waiting">delivery pending</span>
+            </div>
+            <div class="list" style="margin-top: 14px;">
+              <div class="item active"><strong>09:00 每日经营日报</strong><span>next run: 2026-06-24 09:00</span></div>
+              <div class="item"><strong>运行前检查</strong><span>workspace, connector, room delivery</span></div>
+              <div class="item"><strong>失败恢复策略</strong><span>retry_scheduled_task_delivery</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>自动化流程</h2>
+              <div class="timeline">
+                <div class="step">校验 cron</div>
+                <div class="step active">写入 scheduled task</div>
+                <div class="step">注册下一次运行</div>
+                <div class="step">生成运行事件</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>nexus_automation</strong></div>
+              <div><span>tool</span><strong>create_scheduled_task</strong></div>
+              <div><span>surface</span><strong>automation console</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Document Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="violet">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Document</p>
+          <h1>文档组件</h1>
+          <p>用于展示飞书文档、腾讯文档、语雀页面等文档读写过程。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Document reader</strong>
+            <span>读取文档正文并标注命中的段落</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">reading</span>
+            <span class="chip done">4 blocks</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="document-page">
+              <div class="doc-line short mark"></div>
+              <div class="doc-line"></div>
+              <div class="doc-line"></div>
+              <div class="doc-line mark"></div>
+              <div class="doc-line"></div>
+              <div class="doc-line short"></div>
+              <div class="doc-line"></div>
+              <div class="doc-line mark"></div>
+              <div class="doc-line"></div>
+              <div class="doc-line short"></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>文档过程</h2>
+              <div class="timeline">
+                <div class="step">解析文档链接</div>
+                <div class="step active">读取正文 block</div>
+                <div class="step">生成引用摘要</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>feishu_docx_read</strong></div>
+              <div><span>surface</span><strong>document viewer</strong></div>
+              <div><span>artifact</span><strong>marked document</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

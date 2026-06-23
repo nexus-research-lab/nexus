@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="green">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Task</p>
+          <h1>任务组件</h1>
+          <p>用于展示 Task、TaskOutput、TodoWrite 和多步骤执行进度。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Operation stage UI audit</strong>
+            <span>子任务正在汇总工具分类和现有窗口映射</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">3 active</span>
+            <span class="chip done">5 done</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="metric-grid">
+              <div class="metric"><strong>8</strong><span>total steps</span></div>
+              <div class="metric"><strong>63%</strong><span>complete</span></div>
+              <div class="metric"><strong>2</strong><span>blocked items</span></div>
+            </div>
+            <div class="list" style="margin-top: 14px;">
+              <div class="item active"><strong>梳理 runtime builtin tools</strong><span>正在读取 SDK bridge 输出</span></div>
+              <div class="item"><strong>核对 Nexus MCP tools</strong><span>已完成</span></div>
+              <div class="item"><strong>生成 UI 分类文档</strong><span>等待最终确认</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>任务时间线</h2>
+              <div class="timeline">
+                <div class="step">创建任务</div>
+                <div class="step active">流式读取子任务输出</div>
+                <div class="step">合并结果</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>Task / TodoWrite</strong></div>
+              <div><span>surface</span><strong>task board</strong></div>
+              <div><span>handoff</span><strong>pending</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

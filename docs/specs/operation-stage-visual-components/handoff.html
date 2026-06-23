@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Handoff Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="violet">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Handoff</p>
+          <h1>交接组件</h1>
+          <p>用于展示阶段交接、证据包、下一步建议和完成摘要。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Stage handoff</strong>
+            <span>把本轮工具执行结果整理为可继续的上下文</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">summarizing</span>
+            <span class="chip done">6 artifacts</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="panel">
+              <h2>本阶段完成</h2>
+              <p>已完成工具库存、组件分类、执行过程可视化方案和静态样式 demo。</p>
+            </div>
+            <div class="list" style="margin-top: 14px;">
+              <div class="item active"><strong>Evidence pack</strong><span>文档、截图、校验输出</span></div>
+              <div class="item"><strong>Next step</strong><span>确认样式后迁入 React 组件</span></div>
+              <div class="item"><strong>Open question</strong><span>地图和出行是否需要专用细节视图</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>交接过程</h2>
+              <div class="timeline">
+                <div class="step">收集产物</div>
+                <div class="step active">生成摘要</div>
+                <div class="step">输出下一步</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>event</span><strong>round_handoff</strong></div>
+              <div><span>surface</span><strong>handoff</strong></div>
+              <div><span>status</span><strong>ready</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

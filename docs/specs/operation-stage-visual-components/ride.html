@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ride Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="amber">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Ride</p>
+          <h1>出行组件</h1>
+          <p>用于展示 didi_ride 的路线、预估价、下单和车辆状态。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Ride request</strong>
+            <span>正在估算路线费用并等待确认</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip waiting">confirming</span>
+            <span class="chip done">32 CNY</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="ride-progress">
+              <div class="active"><strong>估价</strong><span>32 CNY</span></div>
+              <div><strong>确认</strong><span>waiting</span></div>
+              <div><strong>派车</strong><span>queued</span></div>
+              <div><strong>到达</strong><span>pending</span></div>
+            </div>
+            <div class="map-canvas" style="margin-top: 14px; min-height: 320px;">
+              <div class="route"></div>
+              <div class="pin start"></div>
+              <div class="pin end"></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>出行过程</h2>
+              <div class="timeline">
+                <div class="step">读取路线</div>
+                <div class="step active">费用预估</div>
+                <div class="step">等待用户确认</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>didi_ride</strong></div>
+              <div><span>surface</span><strong>ride panel</strong></div>
+              <div><span>state</span><strong>confirming</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

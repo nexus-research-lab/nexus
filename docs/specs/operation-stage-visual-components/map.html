@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Map Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="green">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Map</p>
+          <h1>地图组件</h1>
+          <p>用于展示 amap_maps 的地点搜索、路线规划和地理结果。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Route planner</strong>
+            <span>从公司到会议地点的路线查询</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">routing</span>
+            <span class="chip done">18 min</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="map-canvas">
+              <div class="route"></div>
+              <div class="pin start"></div>
+              <div class="pin end"></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>地图过程</h2>
+              <div class="timeline">
+                <div class="step">解析起点终点</div>
+                <div class="step active">规划路线</div>
+                <div class="step">返回距离和耗时</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>amap_maps</strong></div>
+              <div><span>surface</span><strong>map viewer</strong></div>
+              <div><span>mode</span><strong>driving</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

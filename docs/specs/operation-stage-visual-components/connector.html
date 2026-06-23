@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Connector Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body>
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Connector</p>
+          <h1>连接器组件</h1>
+          <p>用于展示 connector_list、connector_call 和外部服务调用结果。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Connector call inspector</strong>
+            <span>调用 feishu-docx.read 并等待返回</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">calling</span>
+            <span class="chip waiting">auth checked</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface split">
+            <aside class="rail">
+              <p class="mini-title">Connectors</p>
+              <div class="list">
+                <div class="item active"><strong>feishu-docx</strong><span>enabled</span></div>
+                <div class="item"><strong>amap</strong><span>enabled</span></div>
+                <div class="item"><strong>github</strong><span>via connector_call</span></div>
+              </div>
+            </aside>
+            <div class="canvas">
+              <p class="mini-title">Request / Response</p>
+              <div class="terminal" style="min-height: 360px;">
+                <div>{</div>
+                <div>  "connector": "feishu-docx",</div>
+                <div>  "action": "read",</div>
+                <div>  "status": "running"</div>
+                <div>}</div>
+              </div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>调用过程</h2>
+              <div class="timeline">
+                <div class="step">列出连接器</div>
+                <div class="step active">执行 connector_call</div>
+                <div class="step">归档响应摘要</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>nexus_connectors</strong></div>
+              <div><span>tool</span><strong>connector_call</strong></div>
+              <div><span>surface</span><strong>connector console</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

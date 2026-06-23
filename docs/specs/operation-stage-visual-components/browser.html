@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Browser Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="violet">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Browser</p>
+          <h1>浏览器组件</h1>
+          <p>用于展示 WebFetch、网页证据、摘要提取和引用来源。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Source preview</strong>
+            <span>抓取官方文档并抽取相关段落</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">fetching</span>
+            <span class="chip done">3 citations</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface">
+            <div class="browser-top">
+              <div class="dot-row"><i></i><i></i><i></i></div>
+              <div class="url">https://example.com/docs/tools/runtime-events</div>
+            </div>
+            <div class="canvas">
+              <div class="document-page">
+                <div class="doc-line short mark"></div>
+                <div class="doc-line"></div>
+                <div class="doc-line"></div>
+                <div class="doc-line mark"></div>
+                <div class="doc-line"></div>
+                <div class="doc-line short"></div>
+                <div class="large-empty" style="min-height: 230px;">网页主体预览区域</div>
+              </div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>提取过程</h2>
+              <div class="timeline">
+                <div class="step">打开 URL</div>
+                <div class="step active">提取正文片段</div>
+                <div class="step">生成引用卡片</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>WebFetch</strong></div>
+              <div><span>artifact</span><strong>citation</strong></div>
+              <div><span>trust</span><strong>external source</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

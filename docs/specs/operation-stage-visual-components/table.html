@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Table Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="green">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Table</p>
+          <h1>表格组件</h1>
+          <p>用于展示电子表格、多维表格、单元格读取和批量更新。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Sheet update preview</strong>
+            <span>正在写入 A2:C4 的结构化结果</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">updating</span>
+            <span class="chip done">9 cells</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface sheet">
+            <table>
+              <thead>
+                <tr><th>Tool</th><th>Group</th><th>Status</th><th>Surface</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>connector_call</td><td>connector</td><td class="active">running</td><td>console</td></tr>
+                <tr><td>feishu_bitable_search</td><td>table</td><td>done</td><td>table viewer</td></tr>
+                <tr><td>dingtalk_ai_table</td><td>table</td><td class="active">writing</td><td>sheet</td></tr>
+                <tr><td>tencent_docs_sheet</td><td>table</td><td>queued</td><td>sheet</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>写入过程</h2>
+              <div class="timeline">
+                <div class="step">读取表头</div>
+                <div class="step active">更新单元格</div>
+                <div class="step">提交批量变更</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>feishu_sheet_update</strong></div>
+              <div><span>surface</span><strong>table viewer</strong></div>
+              <div><span>range</span><strong>A2:C4</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

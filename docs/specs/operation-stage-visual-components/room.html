@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Room Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="green">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Room</p>
+          <h1>房间消息组件</h1>
+          <p>用于展示 publish_public_message 和 send_directed_message 的发送过程。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Room delivery</strong>
+            <span>向项目房间发布操作结果摘要</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">sending</span>
+            <span class="chip done">2 recipients</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="list">
+              <div class="item"><strong>Agent</strong><span>我已经整理完工具库存和可视化分类。</span></div>
+              <div class="item active"><strong>Room</strong><span>消息正在投递到 operation-stage 讨论区。</span></div>
+              <div class="item"><strong>Directed message</strong><span>@owner 等待确认样式方向。</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>发送过程</h2>
+              <div class="timeline">
+                <div class="step">组装消息体</div>
+                <div class="step active">发送到 room channel</div>
+                <div class="step">接收投递回执</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>nexus_room</strong></div>
+              <div><span>tool</span><strong>publish_public_message</strong></div>
+              <div><span>delivery</span><strong>pending ack</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Permission Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="red">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Permission</p>
+          <h1>权限组件</h1>
+          <p>用于展示权限请求、等待、审批结果和风险说明。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Permission request</strong>
+            <span>工具执行被策略拦截，等待用户确认</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip waiting">waiting</span>
+            <span class="chip error">high risk</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="panel" style="max-width: 560px; margin: 76px auto 0;">
+              <h2>允许执行这个命令？</h2>
+              <p>工具请求访问外部网络并写入本地文件。确认前需要展示命令、目标路径和策略原因。</p>
+              <div class="terminal" style="min-height: auto; margin-top: 14px;">$ nexusctl connector call feishu-docx.read --doc token</div>
+              <div class="actions" style="margin-top: 14px;">
+                <button class="chip done">允许一次</button>
+                <button class="chip waiting">始终允许</button>
+                <button class="chip error">拒绝</button>
+              </div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>审批过程</h2>
+              <div class="timeline">
+                <div class="step">工具发起请求</div>
+                <div class="step active">等待用户选择</div>
+                <div class="step">回写 permission_resolved</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>policy</span><strong>user approval</strong></div>
+              <div><span>scope</span><strong>connector_call</strong></div>
+              <div><span>ttl</span><strong>once</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

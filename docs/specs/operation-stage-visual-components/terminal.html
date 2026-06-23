@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terminal Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="amber">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Terminal</p>
+          <h1>终端组件</h1>
+          <p>用于展示 Bash 命令、流式输出、退出码和校验结果。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>make check</strong>
+            <span>后端、前端 lint、typecheck 汇总执行</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">streaming</span>
+            <span class="chip waiting">2m 14s</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface terminal">
+            <div class="muted">$ make check</div>
+            <div>go test ./...</div>
+            <div class="ok">ok github.com/nexus-research-lab/nexus/internal/service/toolpolicy 0.42s</div>
+            <div>pnpm --dir web lint</div>
+            <div class="ok">web lint passed</div>
+            <div>pnpm --dir web typecheck</div>
+            <div class="warn">checking operation stage preview types...</div>
+            <div class="muted">cursor waiting for next chunk</div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>命令阶段</h2>
+              <div class="timeline">
+                <div class="step">启动 shell</div>
+                <div class="step">运行 Go 测试</div>
+                <div class="step active">运行前端类型校验</div>
+                <div class="step">收集退出码</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>Bash</strong></div>
+              <div><span>pid</span><strong>48211</strong></div>
+              <div><span>exit</span><strong>pending</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

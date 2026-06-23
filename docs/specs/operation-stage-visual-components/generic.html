@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generic Tool Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body>
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Generic Tool</p>
+          <h1>兜底工具组件</h1>
+          <p>用于展示未知 MCP、用户自定义工具和暂未分类工具。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Unknown MCP tool</strong>
+            <span>mcp__custom_server__sync_records</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">running</span>
+            <span class="chip waiting">unclassified</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface split">
+            <aside class="rail">
+              <p class="mini-title">Parsed identity</p>
+              <div class="list">
+                <div class="item active"><strong>server</strong><span>custom_server</span></div>
+                <div class="item"><strong>tool</strong><span>sync_records</span></div>
+                <div class="item"><strong>source</strong><span>user_mcp</span></div>
+              </div>
+            </aside>
+            <div class="canvas">
+              <div class="terminal" style="min-height: 360px;">
+                <div>{</div>
+                <div>  "input": "...",</div>
+                <div>  "output": "waiting for first delta",</div>
+                <div>  "visualGroup": "generic"</div>
+                <div>}</div>
+              </div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>兜底过程</h2>
+              <div class="timeline">
+                <div class="step">解析工具名</div>
+                <div class="step active">未命中专用分类</div>
+                <div class="step">展示通用输入输出</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>source</span><strong>user_mcp</strong></div>
+              <div><span>surface</span><strong>generic tool</strong></div>
+              <div><span>upgrade</span><strong>add mapping</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

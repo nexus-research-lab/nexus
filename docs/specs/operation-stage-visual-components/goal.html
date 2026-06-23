@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Goal Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="violet">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Goal</p>
+          <h1>目标组件</h1>
+          <p>用于展示 nexus_goal 的创建、预算、阻塞和完成状态。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Goal control center</strong>
+            <span>跟踪当前线程目标和剩余预算</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">active</span>
+            <span class="chip waiting">budget 42%</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="metric-grid">
+              <div class="metric"><strong>1</strong><span>active goal</span></div>
+              <div class="metric"><strong>42%</strong><span>budget left</span></div>
+              <div class="metric"><strong>0</strong><span>blockers</span></div>
+            </div>
+            <div class="panel" style="margin-top: 14px;">
+              <h2>当前目标</h2>
+              <p>把 operation stage 工具执行过程拆成可确认的组件样式 demo。</p>
+            </div>
+            <div class="list" style="margin-top: 14px;">
+              <div class="item active"><strong>create_goal</strong><span>已创建目标并记录预算</span></div>
+              <div class="item"><strong>get_goal</strong><span>读取当前目标状态</span></div>
+              <div class="item"><strong>update_goal</strong><span>完成后标记状态</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>状态转换</h2>
+              <div class="timeline">
+                <div class="step">create_goal</div>
+                <div class="step active">get_goal</div>
+                <div class="step">update_goal complete</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>nexus_goal</strong></div>
+              <div><span>tool</span><strong>get_goal</strong></div>
+              <div><span>surface</span><strong>goal console</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

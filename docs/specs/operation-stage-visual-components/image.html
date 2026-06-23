@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Image Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="amber">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Image</p>
+          <h1>图片组件</h1>
+          <p>用于展示 nexus_imagegen 生成、编辑、预览和产物保存。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Image studio</strong>
+            <span>根据提示词生成操作台组件示意图</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">rendering</span>
+            <span class="chip waiting">1024x768</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="image-preview"></div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>生成过程</h2>
+              <div class="timeline">
+                <div class="step">提交提示词</div>
+                <div class="step active">生成预览图</div>
+                <div class="step">保存图片产物</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>server</span><strong>nexus_imagegen</strong></div>
+              <div><span>tool</span><strong>generate_image</strong></div>
+              <div><span>surface</span><strong>image studio</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Knowledge Component Demo</title>
+    <link rel="stylesheet" href="./shared.css" />
+  </head>
+  <body data-tone="violet">
+    <main class="demo-shell">
+      <header class="demo-header">
+        <div>
+          <p class="demo-kicker">Knowledge</p>
+          <h1>知识库组件</h1>
+          <p>用于展示 Skill、知识搜索、引用、摘要和来源关系。</p>
+        </div>
+        <a class="nav-link" href="./index.html">返回索引</a>
+      </header>
+
+      <section class="stage">
+        <div class="stage-head">
+          <div class="window-title">
+            <strong>Knowledge map</strong>
+            <span>正在把检索结果组织成可追踪引用图</span>
+          </div>
+          <div class="status-strip">
+            <span class="chip running">searching</span>
+            <span class="chip done">6 refs</span>
+          </div>
+        </div>
+        <div class="stage-body">
+          <div class="surface canvas">
+            <div class="node-cloud">
+              <div class="node" style="left: 8%; top: 10%;"><strong>Tool inventory</strong><span>project spec</span></div>
+              <div class="node" style="left: 38%; top: 34%;"><strong>Visual step</strong><span>normalization layer</span></div>
+              <div class="node" style="right: 8%; top: 12%;"><strong>SDK bridge</strong><span>runtime context</span></div>
+              <div class="node" style="left: 16%; bottom: 12%;"><strong>Renderer</strong><span>desktop window</span></div>
+              <div class="node" style="right: 14%; bottom: 16%;"><strong>Evidence</strong><span>source cards</span></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="panel">
+              <h2>检索过程</h2>
+              <div class="timeline">
+                <div class="step">加载 Skill 或知识源</div>
+                <div class="step active">匹配相关片段</div>
+                <div class="step">生成引用关系图</div>
+              </div>
+            </div>
+            <div class="panel kv">
+              <div><span>tool</span><strong>Skill / search</strong></div>
+              <div><span>surface</span><strong>knowledge base</strong></div>
+              <div><span>artifact</span><strong>citation graph</strong></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
