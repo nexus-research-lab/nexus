@@ -40,6 +40,9 @@ const AUXILIARY_PANEL_WIDTH_LIMITS = {
   minWidth: "min(420px, 40vw)",
   maxWidth: "min(600px, 48vw)",
 };
+const OPERATION_STAGE_DEFAULT_WIDTH = "min(980px, 52vw)";
+const OPERATION_STAGE_MIN_WIDTH = 560;
+const CHAT_MIN_WIDTH_WHILE_STAGE_RESIZING = 420;
 
 interface RoomSurfaceLayoutProps {
   current_agent: Agent;
@@ -176,6 +179,8 @@ function RoomSurfaceLayoutInner({
   const is_auxiliary_panel_open = active_surface_tab !== "chat";
   const is_operation_stage_open = active_surface_tab === "operation";
   const is_right_panel_open = is_auxiliary_panel_open || is_thread_panel_open;
+  const [operation_stage_width, set_operation_stage_width] = useState<number | null>(null);
+  const [is_resizing_operation_stage, set_is_resizing_operation_stage] = useState(false);
   const is_wide_auxiliary_panel =
     active_surface_tab === "history" ||
     active_surface_tab === "workspace" ||
@@ -242,6 +247,42 @@ function RoomSurfaceLayoutInner({
     on_change_surface_tab("chat");
   }, [on_change_surface_tab]);
 
+  const handle_start_operation_stage_resize = useCallback(() => {
+    set_is_resizing_operation_stage(true);
+  }, []);
+
+  useEffect(() => {
+    if (!is_resizing_operation_stage) {
+      return;
+    }
+
+    const handle_mouse_move = (event: MouseEvent) => {
+      const bounds = workspace_split_ref.current?.getBoundingClientRect();
+      if (!bounds) {
+        return;
+      }
+
+      const max_width = Math.max(
+        OPERATION_STAGE_MIN_WIDTH,
+        bounds.width - CHAT_MIN_WIDTH_WHILE_STAGE_RESIZING,
+      );
+      const next_width = bounds.right - event.clientX;
+      set_operation_stage_width(Math.min(Math.max(next_width, OPERATION_STAGE_MIN_WIDTH), max_width));
+    };
+
+    const handle_mouse_up = () => {
+      set_is_resizing_operation_stage(false);
+    };
+
+    window.addEventListener("mousemove", handle_mouse_move);
+    window.addEventListener("mouseup", handle_mouse_up);
+
+    return () => {
+      window.removeEventListener("mousemove", handle_mouse_move);
+      window.removeEventListener("mouseup", handle_mouse_up);
+    };
+  }, [is_resizing_operation_stage, workspace_split_ref]);
+
   const auxiliary_close_action = (
     <WorkspaceSurfaceToolbarAction onClick={handle_close_auxiliary_panel}>
       <X className="h-3.5 w-3.5" />
@@ -254,7 +295,7 @@ function RoomSurfaceLayoutInner({
       ref={workspace_split_ref}
       className={cn(
         "flex min-h-0 min-w-0 flex-1",
-        is_resizing_editor && "cursor-col-resize select-none",
+        (is_resizing_editor || is_resizing_operation_stage) && "cursor-col-resize select-none",
       )}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -337,13 +378,13 @@ function RoomSurfaceLayoutInner({
                 className={cn(
                   "relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-transparent shadow-none",
                   is_operation_stage_open
-                    ? "ml-0 flex-1 border-l-0"
+                    ? "ml-0 shrink-0 border-l-0"
                     : "ml-2 shrink-0 border-l divider-subtle",
                 )}
                 style={is_operation_stage_open
                   ? {
-                      width: "auto",
-                      minWidth: "0",
+                      width: operation_stage_width ? `${operation_stage_width}px` : OPERATION_STAGE_DEFAULT_WIDTH,
+                      minWidth: `${OPERATION_STAGE_MIN_WIDTH}px`,
                       maxWidth: "none",
                     }
                   : {
@@ -353,7 +394,13 @@ function RoomSurfaceLayoutInner({
                         : AUXILIARY_PANEL_WIDTH_LIMITS),
                     }}
               >
-                {is_operation_stage_open ? null : (
+                {is_operation_stage_open ? (
+                  <ConversationResizeHandle
+                    aria_label="调整舞台宽度"
+                    class_name="left-0 z-30 w-4 justify-center"
+                    on_mouse_down={handle_start_operation_stage_resize}
+                  />
+                ) : (
                   <ConversationResizeHandle
                     aria_label="调整右侧面板宽度"
                     on_mouse_down={on_start_editor_resize}

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Added a draggable splitter so the Operation Stage panel can be resized beside the conversation.
 - Moved the Operation Stage exit action into the Nexus OS system bar and removed the evidence summary overlay entry.
 - Operation stage routes tool calls into desktop app sessions so Bash/Terminal output, HTML opens, web search, and fetch activity update and focus persistent macOS-like windows.
 - Expanded Operation Stage into a visual execution runtime with runtime events, interactive Code/Terminal/Safari/Permission/Finder/Activity/Handoff app surfaces, real Code writer content projection, and stage preview verification.
