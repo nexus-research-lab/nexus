@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
-import { get_desktop_websocket_protocols } from "@/config/desktop-runtime";
-import { get_agent_ws_url } from "@/config/options";
 import { useAutomationController } from "@/hooks/capability/use-automation-controller";
 import {
   delete_scheduled_task_api,
@@ -24,22 +22,18 @@ import {
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 
-import { useWebSocket } from "@/lib/websocket";
 import { FeedbackBannerStack } from "@/shared/ui/feedback/feedback-banner-stack";
+import { notify_scheduled_tasks_mutated } from "../scheduled-task-events";
 import { ScheduledTaskDialog } from "./dialog/scheduled-task-dialog";
 import { ScheduledTaskList } from "./scheduled-task-list";
 import { ScheduledTaskRunHistoryDialog } from "./scheduled-task-run-history-dialog";
-import type { EventMessage } from "@/types/conversation/message";
+import { useScheduledTaskRealtimeRefresh } from "./use-scheduled-task-realtime-refresh";
 
 interface FeedbackState {
   tone: "success" | "warning" | "error";
   title: string;
   message: string;
 }
-
-const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
-const RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS = 30000;
-const ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS = 120000;
 
 interface ScheduledMetricItemProps {
   description: string;
@@ -65,13 +59,6 @@ function ScheduledMetricItem({ description, label, value }: ScheduledMetricItemP
   );
 }
 
-function notify_scheduled_tasks_mutated(agent_id: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.dispatchEvent(new CustomEvent(SCHEDULED_TASKS_MUTATED_EVENT, { detail: { agent_id } }));
-}
-
 async function refresh_tasks_best_effort(
   automation: ReturnType<typeof useAutomationController>,
   agent_id: string,
@@ -95,7 +82,6 @@ async function refresh_tasks_best_effort(
 
 export function ScheduledTasksDirectory() {
   const { t } = useI18n();
-  const ws_url = get_agent_ws_url();
   const [is_dialog_open, set_is_dialog_open] = useState(false);
   const [editing_task, set_editing_task] = useState<ScheduledTaskItem | null>(null);
   const [history_task, set_history_task] = useState<ScheduledTaskItem | null>(null);
@@ -121,81 +107,7 @@ export function ScheduledTasksDirectory() {
       ]
     : [];
 
-  const handle_realtime_message = useCallback((raw_message: unknown) => {
-    const event = raw_message as EventMessage;
-    if (event.event_type !== "scheduled_task_changed") {
-      return;
-    }
-    notify_scheduled_tasks_mutated(event.agent_id ?? "");
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-      return;
-    }
-    void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Realtime refresh failed:", err));
-  }, [refresh_tasks]);
-
-  const { send: ws_send, state: ws_state } = useWebSocket({
-    url: ws_url,
-    protocols: get_desktop_websocket_protocols(),
-    auto_connect: true,
-    reconnect: true,
-    heartbeat_interval: 30000,
-    on_message: handle_realtime_message,
-  });
-
-  useEffect(() => {
-    if (ws_state !== "connected") {
-      return;
-    }
-    ws_send({ type: "subscribe_app_events" });
-    return () => {
-      ws_send({ type: "unsubscribe_app_events" });
-    };
-  }, [ws_send, ws_state]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handle_page_revalidate = () => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
-    };
-
-    window.addEventListener("focus", handle_page_revalidate);
-    document.addEventListener("visibilitychange", handle_page_revalidate);
-
-    return () => {
-      window.removeEventListener("focus", handle_page_revalidate);
-      document.removeEventListener("visibilitychange", handle_page_revalidate);
-    };
-  }, [refresh_tasks]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (ws_state === "connected") {
-      return;
-    }
-    const poll_interval_ms = running_count > 0
-      ? RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS
-      : enabled_count > 0 ? ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS : 0;
-    if (!poll_interval_ms) {
-      return;
-    }
-
-    const interval_id = window.setInterval(() => {
-      if (document.visibilityState !== "visible") {
-        return;
-      }
-      void refresh_tasks({ silent: true }).catch((err: unknown) => console.debug("[scheduled-tasks] Background refresh failed:", err));
-    }, poll_interval_ms);
-
-    return () => window.clearInterval(interval_id);
-  }, [enabled_count, refresh_tasks, running_count, ws_state]);
+  useScheduledTaskRealtimeRefresh({ enabled_count, refresh_tasks, running_count });
 
   const handle_create_success = async (task: ScheduledTaskItem) => {
     await refresh_tasks_best_effort(

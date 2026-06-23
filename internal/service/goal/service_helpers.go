@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -87,14 +88,15 @@ func goalTokenBudgetEqual(left *int64, right *int64) bool {
 }
 
 func cloneMap(input map[string]any) map[string]any {
-	if input == nil {
-		return nil
+	return maps.Clone(input)
+}
+
+func renderGoalPromptTemplate(template string, values map[string]string) string {
+	replacements := make([]string, 0, len(values)*2)
+	for key, value := range values {
+		replacements = append(replacements, "{{ "+key+" }}", value)
 	}
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = value
-	}
-	return output
+	return strings.NewReplacer(replacements...).Replace(template)
 }
 
 func newID(prefix string) string {

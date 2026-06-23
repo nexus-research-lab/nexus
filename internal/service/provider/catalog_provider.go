@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"slices"
 	"strings"
 
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
@@ -315,7 +316,7 @@ func (p Preset) Format(apiFormat string) PresetFormat {
 }
 
 func clonePreset(preset Preset) Preset {
-	preset.Formats = append([]PresetFormat(nil), preset.Formats...)
+	preset.Formats = slices.Clone(preset.Formats)
 	return preset
 }
 

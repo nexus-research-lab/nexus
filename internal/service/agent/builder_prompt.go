@@ -139,8 +139,8 @@ func hasManagedSkill(workspacePath string, skillName string) bool {
 
 func firstNonEmptyPrompt(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

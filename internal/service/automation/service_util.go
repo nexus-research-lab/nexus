@@ -1,9 +1,11 @@
 package automation
 
 import (
+	"context"
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -49,11 +51,28 @@ func anyString(value any) string {
 
 func firstNonEmpty(values ...string) string {
 	for _, item := range values {
-		if strings.TrimSpace(item) != "" {
-			return strings.TrimSpace(item)
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""
+}
+
+func contextForJobOwner(ctx context.Context, job protocol.CronJob) context.Context {
+	ownerUserID := strings.TrimSpace(job.OwnerUserID)
+	if ownerUserID == "" {
+		return ctx
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: "automation",
+	})
+}
+
+func backgroundContextForJobOwner(job protocol.CronJob) context.Context {
+	return contextForJobOwner(context.Background(), job)
 }
 
 func stringPointer(value string) *string {

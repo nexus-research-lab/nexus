@@ -8,6 +8,8 @@ yarn-error.log*
 out
 dist
 build
+.next
+.vercel
 
 # 环境变量文件
 .env
@@ -49,6 +51,16 @@ storybook-static
 
 # TypeScript
 *.tsbuildinfo
+
+# 包管理器本地产物
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.pnpm-debug.log*
 
 # 其他
 .eslintrc*

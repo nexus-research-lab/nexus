@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAgentConversation } from "@/hooks/agent";
 import { useProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -12,7 +12,6 @@ import { create_goal_api } from "@/lib/api/goal-api";
 import { useAuth } from "@/shared/auth/auth-context";
 import {
   AgentConversationIdentity,
-  AgentConversationDeliveryPolicy,
 } from "@/types/agent/agent-conversation";
 import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
@@ -20,7 +19,6 @@ import { TodoItem } from "@/types/conversation/todo";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import {
   prepare_workspace_attachments,
-  type PreparedComposerAttachment,
 } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
@@ -30,16 +28,16 @@ import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
+import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
+import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
 import {
-  build_conversation_activity_snapshot,
+  useConversationSnapshotReporter,
+  type ConversationSnapshotBuildInput,
+} from "@/features/conversation/shared/use-conversation-snapshot-reporter";
+import {
   group_messages_by_round,
-  get_latest_reply_timestamp,
-  should_emit_conversation_activity,
-  type ConversationActivitySnapshot,
 } from "@/features/conversation/shared/utils";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
-
-const HISTORY_LOAD_THRESHOLD_PX = 120;
 
 export interface DmChatPanelProps {
   current_agent_name?: string | null;
@@ -159,9 +157,48 @@ export function DmChatPanel({
     session_key,
     history_prepend_token,
   });
-  const last_snapshot_key_ref = useRef<string | null>(null);
-  const last_activity_snapshot_ref = useRef<ConversationActivitySnapshot | null>(null);
-  const consumed_initial_draft_ref = useRef<string | null>(null);
+  const prepare_dm_attachments = useCallback(async (files: File[]) => {
+    const target_agent_id = session_identity?.agent_id;
+    if (!target_agent_id) {
+      throw new Error("当前会话尚未准备好，暂时无法附加文件。");
+    }
+    return prepare_workspace_attachments(target_agent_id, files);
+  }, [session_identity?.agent_id]);
+  const { handle_prepare_attachments, handle_send_message } =
+    useConversationComposerHandlers({
+      initial_draft,
+      initial_draft_log_label: "DM",
+      is_loading,
+      on_initial_draft_consumed,
+      prepare_attachments: prepare_dm_attachments,
+      scroll_to_bottom,
+      send_message,
+      session_key,
+    });
+
+  const build_dm_snapshot = useCallback(
+    (input: ConversationSnapshotBuildInput): SessionSnapshotPayload => {
+      const {
+        scope_key,
+        last_message,
+        latest_reply_timestamp,
+        should_report_last_activity,
+      } = input;
+
+      return {
+        session_key: scope_key,
+        agent_id: session_identity?.agent_id ?? null,
+        room_id: session_identity?.room_id ?? null,
+        conversation_id: session_identity?.conversation_id ?? null,
+        room_session_id: session_identity?.room_session_id ?? null,
+        ...(should_report_last_activity && latest_reply_timestamp !== null
+          ? { last_activity_at: latest_reply_timestamp }
+          : {}),
+        session_id: last_message.session_id ?? null,
+      };
+    },
+    [session_identity],
+  );
 
   useEffect(() => {
     on_todos_change?.(todos);
@@ -170,47 +207,12 @@ export function DmChatPanel({
     on_loading_change?.(is_loading);
   }, [is_loading, on_loading_change]);
 
-  useEffect(() => {
-    if (!session_key || messages.length === 0) return;
-    const last = messages[messages.length - 1];
-    const latest_reply_timestamp = get_latest_reply_timestamp(messages);
-    const should_report_last_activity = should_emit_conversation_activity(
-      last_activity_snapshot_ref.current,
-      session_key,
-      latest_reply_timestamp,
-    );
-    const snapshot: SessionSnapshotPayload = {
-      session_key,
-      agent_id: session_identity?.agent_id ?? null,
-      room_id: session_identity?.room_id ?? null,
-      conversation_id: session_identity?.conversation_id ?? null,
-      room_session_id: session_identity?.room_session_id ?? null,
-      ...(should_report_last_activity && latest_reply_timestamp !== null
-        ? { last_activity_at: latest_reply_timestamp }
-        : {}),
-      session_id: last?.session_id ?? null,
-    };
-    const snapshot_key = JSON.stringify(snapshot);
-    const next_activity_snapshot = build_conversation_activity_snapshot(
-      session_key,
-      latest_reply_timestamp,
-    );
-
-    // DM 与 Room 共用流式消息模式，这里同样需要阻断重复快照回写。
-    if (last_snapshot_key_ref.current === snapshot_key) {
-      last_activity_snapshot_ref.current = next_activity_snapshot;
-      return;
-    }
-
-    last_snapshot_key_ref.current = snapshot_key;
-    last_activity_snapshot_ref.current = next_activity_snapshot;
-    on_conversation_snapshot_change?.(snapshot);
-  }, [
-    session_identity,
-    session_key,
+  useConversationSnapshotReporter({
+    scope_key: session_key,
     messages,
-    on_conversation_snapshot_change,
-  ]);
+    build_snapshot: build_dm_snapshot,
+    on_snapshot_change: on_conversation_snapshot_change,
+  });
 
   useSessionLoader({
     session_key,
@@ -227,76 +229,19 @@ export function DmChatPanel({
     [live_round_ids, message_groups],
   );
 
-  const maybe_load_older_messages = useCallback(async () => {
-    const container = scroll_ref.current;
-    if (
-      !container ||
-      !has_more_history ||
-      is_history_loading ||
-      container.scrollTop > HISTORY_LOAD_THRESHOLD_PX
-    ) {
-      return;
-    }
-
-    prepare_history_prepend_restore();
-    const did_prepend = await load_older_messages();
-    if (!did_prepend) {
-      cancel_history_prepend_restore();
-    }
-  }, [
-    cancel_history_prepend_restore,
-    has_more_history,
-    is_history_loading,
-    load_older_messages,
-    prepare_history_prepend_restore,
+  const { handle_scroll } = useConversationHistoryLoader({
     scroll_ref,
-  ]);
-
-  const handle_scroll = useCallback(() => {
-    on_scroll();
-    void maybe_load_older_messages();
-  }, [maybe_load_older_messages, on_scroll]);
-
-  useEffect(() => {
-    const container = scroll_ref.current;
-    if (
-      !container ||
-      !has_more_history ||
-      is_history_loading ||
-      is_loading ||
-      container.scrollHeight > container.clientHeight + 24
-    ) {
-      return;
-    }
-    void maybe_load_older_messages();
-  }, [
+    message_count: messages.length,
     has_more_history,
     is_history_loading,
     is_loading,
-    maybe_load_older_messages,
-    messages.length,
-    scroll_ref,
-  ]);
-
-  const handle_send_message = async (
-    content: string,
-    delivery_policy: AgentConversationDeliveryPolicy,
-    attachments: PreparedComposerAttachment[] = [],
-  ) => {
-    if (!content.trim() && attachments.length === 0) return;
-    scroll_to_bottom("auto");
-    await send_message(content, { delivery_policy, attachments });
-  };
+    load_older_messages,
+    prepare_history_prepend_restore,
+    cancel_history_prepend_restore,
+    on_scroll,
+  });
 
   const handle_stop = () => stop_generation();
-
-  const handle_prepare_attachments = async (files: File[]) => {
-    const target_agent_id = session_identity?.agent_id;
-    if (!target_agent_id) {
-      throw new Error("当前会话尚未准备好，暂时无法附加文件。");
-    }
-    return prepare_workspace_attachments(target_agent_id, files);
-  };
 
   const handle_create_goal = useCallback(async (objective: string) => {
     if (!session_key) {
@@ -309,40 +254,6 @@ export function DmChatPanel({
     });
     refresh_goal_panel();
   }, [refresh_goal_panel, session_key]);
-
-  useEffect(() => {
-    const normalized_draft = initial_draft?.trim() ?? "";
-    if (
-      !session_key ||
-      !normalized_draft ||
-      is_loading
-    ) {
-      return;
-    }
-
-    const initial_draft_signature = `${session_key}:${normalized_draft}`;
-    if (consumed_initial_draft_ref.current === initial_draft_signature) {
-      return;
-    }
-
-    consumed_initial_draft_ref.current = initial_draft_signature;
-    scroll_to_bottom("auto");
-    void send_message(normalized_draft)
-      .then(() => {
-        on_initial_draft_consumed?.();
-      })
-      .catch((error) => {
-        consumed_initial_draft_ref.current = null;
-        console.error("Failed to auto send initial DM prompt:", error);
-      });
-  }, [
-    initial_draft,
-    is_loading,
-    on_initial_draft_consumed,
-    scroll_to_bottom,
-    send_message,
-    session_key,
-  ]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">

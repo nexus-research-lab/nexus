@@ -102,14 +102,16 @@ func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, boo
 
 // UpdateMeta 更新消息级元信息。
 func (s *AssistantSegment) UpdateMeta(model string, usage map[string]any, stopReason string) {
-	if strings.TrimSpace(model) != "" {
-		s.model = strings.TrimSpace(model)
+	model = strings.TrimSpace(model)
+	if model != "" {
+		s.model = model
 	}
 	if len(usage) > 0 {
 		s.usage = cloneMap(usage)
 	}
-	if strings.TrimSpace(stopReason) != "" {
-		s.stopReason = strings.TrimSpace(stopReason)
+	stopReason = strings.TrimSpace(stopReason)
+	if stopReason != "" {
+		s.stopReason = stopReason
 	}
 }
 

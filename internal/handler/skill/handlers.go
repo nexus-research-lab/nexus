@@ -51,7 +51,7 @@ func (h *Handlers) HandleListSkills(writer http.ResponseWriter, request *http.Re
 // HandleGetSkillDetail 返回单个技能详情。
 func (h *Handlers) HandleGetSkillDetail(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.skills.GetSkillDetail(request.Context(), chi.URLParam(request, "skill_name"), request.URL.Query().Get("agent_id"))
-	if errors.Is(err, agentpkg.ErrAgentNotFound) || strings.Contains(strings.ToLower(handlershared.ErrString(err)), "not found") {
+	if errors.Is(err, agentpkg.ErrAgentNotFound) || (err != nil && strings.Contains(strings.ToLower(err.Error()), "not found")) {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return
 	}

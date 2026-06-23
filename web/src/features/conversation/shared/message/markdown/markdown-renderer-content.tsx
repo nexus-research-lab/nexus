@@ -7,14 +7,18 @@ import "katex/dist/katex.min.css";
 import {
   create_markdown_components,
   create_markdown_summary_components,
+} from "./markdown-components";
+import {
   MARKDOWN_BODY_CLASS_NAME,
   MARKDOWN_SUMMARY_CLASS_NAME,
   MARKDOWN_PLUGINS,
   normalize_markdown_content,
   REHYPE_PLUGINS,
+} from "./markdown-renderer-shared";
+import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
-} from "./markdown-renderer-shared";
+} from "./markdown-workspace-artifacts";
 import {
   StableMarkdownText,
   StreamingMarkdownText,

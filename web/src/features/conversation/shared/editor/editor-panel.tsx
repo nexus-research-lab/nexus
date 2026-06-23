@@ -1,13 +1,9 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Eye,
-  EyeOff,
-  FileImage,
-  FileSpreadsheet,
   FileText,
-  FileWarning,
   LoaderCircle,
   Pencil,
   Save,
@@ -16,21 +12,36 @@ import {
 import {
   get_workspace_file_content_api,
   update_workspace_file_content_api,
-  get_workspace_file_preview_url,
 } from "@/lib/api/agent-manage-api";
-import { get_workspace_file_external_action_copy } from "@/lib/workspace-file-action";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
 import { MarkdownRendererContent } from "@/features/conversation/shared/message/markdown/markdown-renderer-content";
 import { LazyMermaidView } from "@/features/conversation/shared/message/markdown/lazy-mermaid-view";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
+import { HtmlFilePreview } from "./html-file-preview";
+import {
+  BinaryFilePlaceholder,
+  ImagePreview,
+  PdfPreview,
+} from "./media-file-preview";
+import {
+  DocumentPreviewFallback,
+  PresentationPreviewFallback,
+  SpreadsheetPreviewFallback,
+} from "./office-preview-fallbacks";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
   WorkspaceFilePreviewHeader,
   WorkspaceFileToolbarButton,
 } from "./workspace-file-preview-chrome";
+import {
+  get_workspace_file_preview_kind,
+  is_workspace_text_preview_kind,
+  workspace_file_kind_label,
+  type WorkspaceFilePreviewKind,
+} from "./workspace-file-preview-kind";
 
 const SpreadsheetFilePreview = lazy(() => import("./spreadsheet-file-preview").then((module) => ({
   default: module.SpreadsheetFilePreview,
@@ -44,44 +55,6 @@ const PresentationFilePreview = lazy(() => import("./presentation-file-preview")
   default: module.PresentationFilePreview,
 })));
 
-// 文件类型检测
-type WorkspaceFilePreviewKind =
-  | "text"
-  | "markdown"
-  | "html"
-  | "mermaid"
-  | "pdf"
-  | "image"
-  | "spreadsheet"
-  | "document"
-  | "presentation"
-  | "binary"
-  | "unknown";
-
-function get_file_type(path: string): WorkspaceFilePreviewKind {
-  const ext = path.split(".").pop()?.toLowerCase() || "";
-  const textExtensions = new Set([
-    "txt", "json", "jsonl", "yaml", "yml", "toml", "xml",
-    "csv", "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "java", "go", "rs",
-    "rb", "php", "sh", "bash", "zsh", "sql", "r", "css", "scss", "less",
-    "log", "ini", "conf", "env", "dockerfile", "makefile", "cmake", "gradle",
-    "proto", "graphql", "rst", "adoc"
-  ]);
-  const imageExtensions = new Set([
-    "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"
-  ]);
-  if (ext === "pdf") return "pdf";
-  if (imageExtensions.has(ext)) return "image";
-  if (ext === "xlsx") return "spreadsheet";
-  if (ext === "docx") return "document";
-  if (ext === "pptx") return "presentation";
-  if (ext === "md" || ext === "markdown") return "markdown";
-  if (ext === "html" || ext === "htm") return "html";
-  if (ext === "mmd" || ext === "mermaid") return "mermaid";
-  if (textExtensions.has(ext)) return "text";
-  return "binary";
-}
-
 interface EditorPanelProps {
   agent_id: string;
   path: string | null;
@@ -92,242 +65,6 @@ interface EditorPanelProps {
   is_preview_focused?: boolean;
   on_resize_start: () => void;
   on_toggle_preview_focus?: () => void;
-}
-
-function workspace_file_kind_label(file_type: WorkspaceFilePreviewKind): string {
-  switch (file_type) {
-    case "markdown":
-      return "Markdown 预览";
-    case "html":
-      return "HTML 预览";
-    case "mermaid":
-      return "Mermaid 预览";
-    case "text":
-      return "文本预览";
-    default:
-      return "文件预览";
-  }
-}
-
-const HTML_PREVIEW_WIDTH = 1920;
-const HTML_PREVIEW_HEIGHT = 1080;
-const HTML_PREVIEW_PADDING = 32;
-const HTML_PREVIEW_COMMIT_INTERVAL_MS = 250;
-
-const HTML_PREVIEW_STORAGE_SHIM = `<script>
-(() => {
-  const createStorage = () => {
-    const values = new Map();
-    return {
-      get length() { return values.size; },
-      clear: () => values.clear(),
-      getItem: (key) => values.has(String(key)) ? values.get(String(key)) : null,
-      key: (index) => Array.from(values.keys())[Number(index)] ?? null,
-      removeItem: (key) => values.delete(String(key)),
-      setItem: (key, value) => values.set(String(key), String(value)),
-    };
-  };
-  const installStorage = (name) => {
-    try {
-      const storage = window[name];
-      const testKey = "__nexus_preview_storage_test__";
-      storage.setItem(testKey, "1");
-      storage.removeItem(testKey);
-    } catch (_) {
-      Object.defineProperty(window, name, {
-        configurable: true,
-        value: createStorage(),
-      });
-    }
-  };
-  installStorage("localStorage");
-  installStorage("sessionStorage");
-})();
-</script>`;
-
-function build_html_preview_document(content: string): string {
-  if (/<head(\s[^>]*)?>/i.test(content)) {
-    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${HTML_PREVIEW_STORAGE_SHIM}`);
-  }
-  if (/<html(\s[^>]*)?>/i.test(content)) {
-    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${HTML_PREVIEW_STORAGE_SHIM}</head>`);
-  }
-  return `${HTML_PREVIEW_STORAGE_SHIM}${content}`;
-}
-
-function is_html_preview_head_ready(content: string): boolean {
-  const normalized = content.trim().toLowerCase();
-  if (!/<(?:head|style)(?:\s|>)/i.test(normalized)) {
-    return true;
-  }
-
-  return (
-    normalized.includes("</head>") ||
-    normalized.includes("</style>") ||
-    normalized.includes("<body") ||
-    normalized.includes("</body>") ||
-    normalized.includes("</html>")
-  );
-}
-
-function should_defer_html_preview_commit(content: string): boolean {
-  return content.trim().length > 0 && !is_html_preview_head_ready(content);
-}
-
-function useHtmlPreviewDocument(content: string, is_streaming: boolean) {
-  const [committed_content, setCommittedContent] = useState<string | null>(() => (
-    is_streaming && should_defer_html_preview_commit(content) ? null : content
-  ));
-  const latest_content_ref = useRef(content);
-  const last_commit_ts_ref = useRef(0);
-  const pending_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clear_pending_timer = useCallback(() => {
-    if (pending_timer_ref.current) {
-      clearTimeout(pending_timer_ref.current);
-      pending_timer_ref.current = null;
-    }
-  }, []);
-
-  const commit_content = useCallback((next_content: string) => {
-    clear_pending_timer();
-    last_commit_ts_ref.current = Date.now();
-    setCommittedContent(next_content);
-  }, [clear_pending_timer]);
-
-  useEffect(() => {
-    latest_content_ref.current = content;
-  }, [content]);
-
-  useEffect(() => {
-    if (!is_streaming) {
-      commit_content(content);
-      return;
-    }
-
-    if (should_defer_html_preview_commit(content)) {
-      return;
-    }
-
-    const elapsed = Date.now() - last_commit_ts_ref.current;
-    if (elapsed >= HTML_PREVIEW_COMMIT_INTERVAL_MS) {
-      commit_content(content);
-      return;
-    }
-
-    if (pending_timer_ref.current) {
-      return;
-    }
-
-    pending_timer_ref.current = setTimeout(() => {
-      pending_timer_ref.current = null;
-      const latest_content = latest_content_ref.current;
-      if (!should_defer_html_preview_commit(latest_content)) {
-        commit_content(latest_content);
-      }
-    }, HTML_PREVIEW_COMMIT_INTERVAL_MS - elapsed);
-  }, [commit_content, content, is_streaming]);
-
-  useEffect(() => () => clear_pending_timer(), [clear_pending_timer]);
-
-  const preview_document = useMemo(
-    () => committed_content === null ? "" : build_html_preview_document(committed_content),
-    [committed_content],
-  );
-
-  return {
-    has_committed_content: committed_content !== null,
-    is_waiting_for_head: is_streaming && committed_content === null && should_defer_html_preview_commit(content),
-    preview_document,
-  };
-}
-
-function HtmlFilePreview({
-  content,
-  is_streaming = false,
-  title,
-}: {
-  content: string;
-  is_streaming?: boolean;
-  title: string;
-}) {
-  const container_ref = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const { has_committed_content, is_waiting_for_head, preview_document } = useHtmlPreviewDocument(content, is_streaming);
-
-  useEffect(() => {
-    const el = container_ref.current;
-    if (!el) {
-      return;
-    }
-
-    const update_scale = (width: number, height: number) => {
-      const available_width = Math.max(width - HTML_PREVIEW_PADDING, 1);
-      const available_height = Math.max(height - HTML_PREVIEW_PADDING, 1);
-      setScale(
-        Math.min(
-          available_width / HTML_PREVIEW_WIDTH,
-          available_height / HTML_PREVIEW_HEIGHT,
-          1,
-        ),
-      );
-    };
-
-    const bounds = el.getBoundingClientRect();
-    update_scale(bounds.width, bounds.height);
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
-        return;
-      }
-      update_scale(entry.contentRect.width, entry.contentRect.height);
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  if (!has_committed_content && is_waiting_for_head) {
-    return (
-      <div className="soft-scrollbar h-full min-h-0 w-full overflow-auto bg-(--surface-panel-subtle-background) p-4">
-        <pre className="message-cjk-code-font whitespace-pre-wrap break-words text-sm leading-6 text-(--text-muted)">
-          {content}
-        </pre>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={container_ref}
-      className="soft-scrollbar flex h-full min-h-0 w-full items-start justify-center overflow-auto bg-(--surface-panel-subtle-background) p-4"
-    >
-      <div
-        className="shrink-0 overflow-hidden rounded-[10px] border border-(--surface-paper-border) bg-(--surface-paper-background) shadow-(--surface-paper-shadow)"
-        style={{
-          height: HTML_PREVIEW_HEIGHT * scale,
-          width: HTML_PREVIEW_WIDTH * scale,
-        }}
-      >
-        <div
-          style={{
-            height: HTML_PREVIEW_HEIGHT,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            width: HTML_PREVIEW_WIDTH,
-          }}
-        >
-          <iframe
-            className="h-full w-full bg-(--surface-paper-background)"
-            sandbox="allow-downloads allow-forms allow-modals allow-popups allow-scripts"
-            srcDoc={preview_document}
-            title={title}
-          />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function TextFilePreview({
@@ -379,422 +116,6 @@ function TextFilePreview({
   );
 }
 
-// PDF 预览组件
-function PdfPreview({
-  agent_id,
-  path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
-  embedded,
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-  on_resize_start: () => void;
-  embedded?: boolean;
-}) {
-  const [is_loaded, setIsLoaded] = useState(false);
-  const preview_url = get_workspace_file_preview_url(agent_id, path);
-
-  return (
-    <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
-        />
-      ) : null}
-
-      <WorkspaceFilePreviewHeader
-        actions={(
-          <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-            />
-          </>
-        )}
-        embedded={embedded}
-        meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
-              PDF 预览
-            </span>
-            {is_loaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                加载中
-              </span>
-            )}
-          </>
-        )}
-        title={file_name}
-      />
-
-      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
-        <iframe
-          className="h-full w-full"
-          src={preview_url}
-          title={file_name}
-          onLoad={() => setIsLoaded(true)}
-        />
-      </div>
-    </>
-  );
-}
-
-// 图片预览组件
-function ImagePreview({
-  agent_id,
-  path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
-  embedded,
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-  on_resize_start: () => void;
-  embedded?: boolean;
-}) {
-  const [is_loaded, setIsLoaded] = useState(false);
-  const [has_error, setHasError] = useState(false);
-  const file_action_copy = get_workspace_file_external_action_copy(file_name);
-  const preview_url = get_workspace_file_preview_url(agent_id, path);
-
-  return (
-    <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
-        />
-      ) : null}
-
-      <WorkspaceFilePreviewHeader
-        actions={(
-          <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-            />
-          </>
-        )}
-        embedded={embedded}
-        meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileImage className="h-3 w-3" />
-              图片预览
-            </span>
-            {has_error ? (
-              <span className="flex items-center gap-1 text-destructive">
-                <EyeOff className="h-3 w-3" />
-                加载失败
-              </span>
-            ) : is_loaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                加载中
-              </span>
-            )}
-          </>
-        )}
-        title={file_name}
-      />
-
-      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-6">
-        {has_error ? (
-          <div className="m-auto text-center">
-            <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
-            <p className="mt-4 text-sm font-medium text-(--text-strong)">图片加载失败</p>
-            <p className="mt-2 text-xs text-(--text-soft)">
-              请尝试{file_action_copy.label}文件
-            </p>
-          </div>
-        ) : (
-          <img
-            className="max-h-full max-w-full rounded-lg object-contain"
-            src={preview_url}
-            alt={file_name}
-            onLoad={() => setIsLoaded(true)}
-            onError={() => { setIsLoaded(true); setHasError(true); }}
-          />
-        )}
-      </div>
-    </>
-  );
-}
-
-// 二进制文件提示组件
-function BinaryFilePlaceholder({
-  agent_id,
-  path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  embedded,
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-  embedded?: boolean;
-}) {
-  const file_action_copy = get_workspace_file_external_action_copy(file_name);
-  const action_description = file_action_copy.mode === "reveal"
-    ? "在文件夹中显示此文件"
-    : "获取此文件";
-  return (
-    <>
-      <WorkspaceFilePreviewHeader
-        actions={(
-          <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-            />
-          </>
-        )}
-        embedded={embedded}
-        meta={(
-          <span className="flex items-center gap-1">
-            <FileWarning className="h-3 w-3" />
-            此文件类型不支持预览
-          </span>
-        )}
-        title={file_name}
-      />
-
-      <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)] p-8">
-        <div className="m-auto max-w-xs text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-(--surface-panel-subtle-border) bg-(--card-default-background)">
-            <FileWarning className="h-8 w-8 text-(--icon-muted)" />
-          </div>
-          <p className="text-sm font-medium text-(--text-strong)">不支持预览此文件</p>
-          <p className="mt-2 text-xs leading-5 text-(--text-soft)">
-            当前预览仅支持文本、PDF、图片、xlsx、docx 和 pptx 文件。您可以点击上方"{file_action_copy.label}"按钮{action_description}。
-          </p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function SpreadsheetPreviewFallback({
-  agent_id,
-  path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
-  embedded,
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-  on_resize_start: () => void;
-  embedded?: boolean;
-}) {
-  return (
-    <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
-        />
-      ) : null}
-
-      <WorkspaceFilePreviewHeader
-        actions={(
-          <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-            />
-          </>
-        )}
-        embedded={embedded}
-        meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileSpreadsheet className="h-3 w-3" />
-              xlsx 预览
-            </span>
-            <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载预览组件中
-            </span>
-          </>
-        )}
-        title={file_name}
-      />
-
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
-        <div className="max-w-xs">
-          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 text-sm font-medium text-(--text-strong)">正在加载 xlsx 预览组件</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function DocumentPreviewFallback({
-  agent_id,
-  path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
-  embedded,
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-  on_resize_start: () => void;
-  embedded?: boolean;
-}) {
-  return (
-    <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
-        />
-      ) : null}
-
-      <WorkspaceFilePreviewHeader
-        actions={(
-          <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-            />
-          </>
-        )}
-        embedded={embedded}
-        meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
-              docx 预览
-            </span>
-            <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载预览组件中
-            </span>
-          </>
-        )}
-        title={file_name}
-      />
-
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
-        <div className="max-w-xs">
-          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 text-sm font-medium text-(--text-strong)">正在加载 docx 预览组件</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function PresentationPreviewFallback({
-  agent_id,
-  path,
-  file_name,
-  is_preview_focused,
-  on_toggle_preview_focus,
-  on_resize_start,
-  embedded,
-}: {
-  agent_id: string;
-  path: string;
-  file_name: string;
-  is_preview_focused?: boolean;
-  on_toggle_preview_focus?: () => void;
-  on_resize_start: () => void;
-  embedded?: boolean;
-}) {
-  return (
-    <>
-      {!embedded ? (
-        <ConversationResizeHandle
-          aria_label="调整编辑器宽度"
-          class_name="flex"
-          on_mouse_down={on_resize_start}
-        />
-      ) : null}
-
-      <WorkspaceFilePreviewHeader
-        actions={(
-          <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
-            <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-            />
-          </>
-        )}
-        embedded={embedded}
-        meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
-              pptx 预览
-            </span>
-            <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载预览组件中
-            </span>
-          </>
-        )}
-        title={file_name}
-      />
-
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
-        <div className="max-w-xs">
-          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 text-sm font-medium text-(--text-strong)">正在加载 pptx 预览组件</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
 export function EditorPanel({
   agent_id,
   path,
@@ -817,14 +138,13 @@ export function EditorPanel({
   const textarea_ref = useRef<HTMLTextAreaElement>(null);
   const file_states = useWorkspaceLiveStore((state) => state.file_states);
 
-  // 检测文件类型
-  const file_type = path ? get_file_type(path) : "unknown";
+  const file_type = path ? get_workspace_file_preview_kind(path) : "unknown";
   const is_pdf = file_type === "pdf";
   const is_image = file_type === "image";
   const is_spreadsheet = file_type === "spreadsheet";
   const is_document = file_type === "document";
   const is_presentation = file_type === "presentation";
-  const is_text = file_type === "text" || file_type === "markdown" || file_type === "html" || file_type === "mermaid";
+  const is_text = is_workspace_text_preview_kind(file_type);
   const is_binary = !is_text && !is_pdf && !is_image && !is_spreadsheet && !is_document && !is_presentation && file_type !== "unknown";
   const file_name = path ? path.split("/").at(-1) || "" : "";
 

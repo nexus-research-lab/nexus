@@ -28,8 +28,8 @@ import { SidebarListItem } from "@/shared/ui/sidebar/collapsible-section";
 import { SIDEBAR_CAPABILITY_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
 
 import { CAPABILITY_SUMMARY_MUTATED_EVENT } from "./capability-summary-events";
+import { SCHEDULED_TASKS_MUTATED_EVENT } from "./scheduled-task-events";
 
-const SCHEDULED_TASKS_MUTATED_EVENT = "nexus:scheduled-tasks-mutated";
 const CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS = 60_000;
 
 interface CapabilitySidebarItem {

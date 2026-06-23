@@ -1,6 +1,7 @@
 package room
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -345,7 +346,7 @@ func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgen
 		}
 		members = append(members, memberLine{
 			agentID: normalizedAgentID,
-			name:    firstNonEmpty(strings.TrimSpace(name), normalizedAgentID),
+			name:    cmp.Or(strings.TrimSpace(name), normalizedAgentID),
 		})
 	}
 	if len(members) == 0 {
@@ -361,7 +362,7 @@ func buildRoomGoalCollaborationContext(agentNameByID map[string]string, leadAgen
 	for _, member := range members {
 		lines = append(lines, fmt.Sprintf("- @%s (agent_id=%s)", member.name, member.agentID))
 	}
-	leadName := firstNonEmpty(strings.TrimSpace(agentNameByID[leadAgentID]), leadAgentID)
+	leadName := cmp.Or(strings.TrimSpace(agentNameByID[leadAgentID]), leadAgentID)
 	return strings.TrimSpace(fmt.Sprintf(`
 Room Goal collaboration requirement:
 - This Room Goal has multiple members. Visible collaboration is a required part of completing the Goal, not optional polish.

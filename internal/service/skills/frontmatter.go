@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -43,12 +44,12 @@ func parseSkillFrontmatter(content string, fallbackName string) frontmatterData 
 			pendingKey = ""
 			pendingList = pendingList[:0]
 		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) != 2 {
+		key, value, found := strings.Cut(line, ":")
+		if !found {
 			continue
 		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
 		if isFrontmatterBlockScalarMarker(value) {
 			blockLines := make([]string, 0, 4)
 			index++
@@ -91,11 +92,11 @@ func extractFrontmatter(content string) string {
 		return ""
 	}
 	rest := strings.TrimPrefix(content, "---")
-	index := strings.Index(rest, "\n---")
-	if index < 0 {
+	frontmatter, _, ok := strings.Cut(rest, "\n---")
+	if !ok {
 		return ""
 	}
-	return strings.TrimSpace(rest[:index])
+	return strings.TrimSpace(frontmatter)
 }
 
 func parseFrontmatterScalar(value string) any {
@@ -127,8 +128,8 @@ func isFrontmatterTopLevelKeyLine(line string) bool {
 	if strings.TrimSpace(line) == "" || strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
 		return false
 	}
-	parts := strings.SplitN(line, ":", 2)
-	return len(parts) == 2 && strings.TrimSpace(parts[0]) != ""
+	key, _, found := strings.Cut(line, ":")
+	return found && strings.TrimSpace(key) != ""
 }
 
 func parseFrontmatterBlockScalar(marker string, lines []string) string {
@@ -238,7 +239,7 @@ func toString(value any) string {
 func toStringSlice(value any) []string {
 	switch typed := value.(type) {
 	case []string:
-		return append(make([]string, 0, len(typed)), typed...)
+		return slices.Clone(typed)
 	case string:
 		if typed == "" {
 			return []string{}

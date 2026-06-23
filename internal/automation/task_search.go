@@ -1,7 +1,8 @@
 package automation
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -142,8 +143,8 @@ func queryTextTokens(query string) []string {
 		removeTerms = append(removeTerms, aliases...)
 	}
 	removeTerms = append(removeTerms, queryFillerTerms()...)
-	sort.Slice(removeTerms, func(i, j int) bool {
-		return utf8.RuneCountInString(removeTerms[i]) > utf8.RuneCountInString(removeTerms[j])
+	slices.SortFunc(removeTerms, func(left string, right string) int {
+		return cmp.Compare(utf8.RuneCountInString(right), utf8.RuneCountInString(left))
 	})
 	for _, term := range removeTerms {
 		normalized := strings.ToLower(strings.TrimSpace(term))

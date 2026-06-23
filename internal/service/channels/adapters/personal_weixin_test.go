@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
 
 type recordingPersonalWeixinIngress struct {

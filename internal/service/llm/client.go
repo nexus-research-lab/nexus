@@ -132,8 +132,8 @@ func normalizeMessages(messages []Message) []Message {
 
 func messagesWithSystem(systemPrompt string, messages []Message) []Message {
 	result := make([]Message, 0, len(messages)+1)
-	if strings.TrimSpace(systemPrompt) != "" {
-		result = append(result, Message{Role: "system", Content: strings.TrimSpace(systemPrompt)})
+	if systemPrompt != "" {
+		result = append(result, Message{Role: "system", Content: systemPrompt})
 	}
 	result = append(result, messages...)
 	return result
@@ -203,36 +203,6 @@ func normalizeAPIFormat(apiFormat string) string {
 	}
 }
 
-func parseTextResponse(apiFormat string, body []byte) (string, error) {
-	switch normalizeAPIFormat(apiFormat) {
-	case providersvc.APIFormatResponses:
-		var payload responsesResponse
-		if err := json.Unmarshal(body, &payload); err != nil {
-			return "", err
-		}
-		if text := payload.firstText(); text != "" {
-			return text, nil
-		}
-		var fallback chatCompletionsResponse
-		if err := json.Unmarshal(body, &fallback); err == nil {
-			return fallback.firstText(), nil
-		}
-		return "", nil
-	case providersvc.APIFormatChatCompletions:
-		var payload chatCompletionsResponse
-		if err := json.Unmarshal(body, &payload); err != nil {
-			return "", err
-		}
-		return payload.firstText(), nil
-	default:
-		var payload anthropicMessagesResponse
-		if err := json.Unmarshal(body, &payload); err != nil {
-			return "", err
-		}
-		return payload.firstText(), nil
-	}
-}
-
 type anthropicMessagesRequest struct {
 	Model       string    `json:"model"`
 	MaxTokens   int       `json:"max_tokens"`
@@ -255,90 +225,4 @@ type responsesRequest struct {
 	MaxOutputTokens int       `json:"max_output_tokens"`
 	Temperature     float64   `json:"temperature,omitempty"`
 	Stream          bool      `json:"stream"`
-}
-
-type anthropicMessagesResponse struct {
-	Content []anthropicContentBlock `json:"content"`
-}
-
-type anthropicContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-func (r anthropicMessagesResponse) firstText() string {
-	for _, item := range r.Content {
-		if strings.TrimSpace(item.Type) == "text" && strings.TrimSpace(item.Text) != "" {
-			return item.Text
-		}
-	}
-	return ""
-}
-
-type chatCompletionsResponse struct {
-	Choices []chatChoice `json:"choices"`
-}
-
-type chatChoice struct {
-	Message chatMessage `json:"message"`
-	Text    string      `json:"text"`
-}
-
-type chatMessage struct {
-	Content string `json:"content"`
-}
-
-func (r chatCompletionsResponse) firstText() string {
-	for _, choice := range r.Choices {
-		if strings.TrimSpace(choice.Message.Content) != "" {
-			return choice.Message.Content
-		}
-		if strings.TrimSpace(choice.Text) != "" {
-			return choice.Text
-		}
-	}
-	return ""
-}
-
-type responsesResponse struct {
-	OutputText string           `json:"output_text"`
-	Output     []responsesItem  `json:"output"`
-	Choices    []chatChoice     `json:"choices"`
-	Content    []responsesBlock `json:"content"`
-}
-
-type responsesItem struct {
-	Type    string           `json:"type"`
-	Content []responsesBlock `json:"content"`
-}
-
-type responsesBlock struct {
-	Type       string `json:"type"`
-	Text       string `json:"text"`
-	OutputText string `json:"output_text"`
-}
-
-func (r responsesResponse) firstText() string {
-	if strings.TrimSpace(r.OutputText) != "" {
-		return r.OutputText
-	}
-	for _, item := range r.Output {
-		for _, block := range item.Content {
-			if strings.TrimSpace(block.Text) != "" {
-				return block.Text
-			}
-			if strings.TrimSpace(block.OutputText) != "" {
-				return block.OutputText
-			}
-		}
-	}
-	for _, block := range r.Content {
-		if strings.TrimSpace(block.Text) != "" {
-			return block.Text
-		}
-		if strings.TrimSpace(block.OutputText) != "" {
-			return block.OutputText
-		}
-	}
-	return (chatCompletionsResponse{Choices: r.Choices}).firstText()
 }

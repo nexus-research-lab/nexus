@@ -101,14 +101,6 @@ func (s *Service) appendRuntimeHistoryMessage(
 	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
 }
 
-func (s *Service) appendSyntheticHistoryMessage(
-	workspacePath string,
-	sessionValue protocol.Session,
-	message protocol.Message,
-) error {
-	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
-}
-
 func (s *Service) refreshSessionMetaAfterRoundMarker(
 	workspacePath string,
 	current protocol.Session,

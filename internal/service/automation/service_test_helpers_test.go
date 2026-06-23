@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -537,12 +538,9 @@ func firstNonEmptyString(values ...string) string {
 
 func containsString(items []string, target string) bool {
 	target = strings.TrimSpace(target)
-	for _, item := range items {
-		if strings.TrimSpace(item) == target {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(items, func(item string) bool {
+		return strings.TrimSpace(item) == target
+	})
 }
 
 type testAgentResolver struct {

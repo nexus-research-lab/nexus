@@ -11,10 +11,6 @@ import (
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) recoverInterruptedJobRuntime(ctx context.Context, job protocol.CronJob) protocol.CronJob {
-	return s.recoverJobRuntimeAsCancelled(ctx, job, "scheduler restarted before run completed")
-}
-
 func (s *Service) recoverJobRuntimeAsCancelled(ctx context.Context, job protocol.CronJob, message string) protocol.CronJob {
 	if strings.TrimSpace(job.RunningRunID) == "" {
 		return job

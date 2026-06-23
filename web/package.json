@@ -19,7 +19,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "clsx": "^2.1.1",
     "docx-preview": "^0.3.7",
-    "dompurify": "^3.4.5",
+    "dompurify": "^3.4.11",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
     "katex": "^0.16.25",
@@ -30,7 +30,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.15.0",
+    "react-router-dom": "^7.18.0",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",
@@ -63,7 +63,12 @@
   },
   "pnpm": {
     "overrides": {
-      "postcss": ">=8.5.10"
+      "postcss": ">=8.5.10",
+      "opencollective>minimist": "1.2.8",
+      "opencollective>node-fetch": "2.7.0",
+      "external-editor>tmp": "0.2.7",
+      "exceljs>tmp": "0.2.7",
+      "exceljs>uuid": "11.1.1"
     }
   }
 }

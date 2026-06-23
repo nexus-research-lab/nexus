@@ -195,10 +195,7 @@ func normalizePageSize(value int, fallback int, max int) int {
 	if value <= 0 {
 		return fallback
 	}
-	if value > max {
-		return max
-	}
-	return value
+	return min(value, max)
 }
 
 func sdkWikiSpace(space *larkwiki.Space) WikiSpace {

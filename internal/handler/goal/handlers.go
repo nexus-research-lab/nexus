@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 // Handlers 封装 Goal HTTP handlers。
@@ -89,7 +90,7 @@ func (h *Handlers) HandleClearGoal(writer http.ResponseWriter, request *http.Req
 		h.writeGoalError(writer, err)
 		return
 	}
-	h.api.WriteSuccess(writer, protocol.ThreadGoalClearResponse{Cleared: cleared})
+	h.api.WriteSuccess(writer, goalappserver.ThreadGoalClearResponse{Cleared: cleared})
 }
 
 // HandleGoalEvents 返回 Goal 审计事件。

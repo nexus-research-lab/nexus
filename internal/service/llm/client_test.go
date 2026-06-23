@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -183,6 +184,40 @@ func TestGenerateTextSupportsResponses(t *testing.T) {
 	}
 	if receivedInputCount != 2 {
 		t.Fatalf("Responses input 不正确: %d", receivedInputCount)
+	}
+}
+
+func TestGenerateTextRejectsResponsesWithoutText(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]any{
+						"content": "wrong response shape",
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.Client())
+	text, err := client.GenerateText(context.Background(), GenerateTextRequest{
+		Config: &clientopts.RuntimeConfig{
+			Provider:  "openai",
+			AuthToken: "openai-key",
+			BaseURL:   server.URL + "/v1",
+			Model:     "gpt-4.1-mini",
+			APIFormat: provider.APIFormatResponses,
+		},
+		Messages:  []Message{{Role: "user", Content: "整理一下用户需求"}},
+		MaxTokens: 32,
+	})
+	if err == nil || !strings.Contains(err.Error(), "missing text") {
+		t.Fatalf("Responses 空文本应失败: text=%q err=%v", text, err)
 	}
 }
 

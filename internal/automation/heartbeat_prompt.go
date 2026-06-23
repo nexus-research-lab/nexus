@@ -129,13 +129,11 @@ func ParseHeartbeatTasks(text string) []HeartbeatTask {
 }
 
 func parseHeartbeatKeyValue(line string) (string, string) {
-	index := strings.Index(line, ":")
-	if index <= 0 {
+	key, value, found := strings.Cut(line, ":")
+	if !found || strings.TrimSpace(key) == "" {
 		return "", ""
 	}
-	key := strings.TrimSpace(line[:index])
-	value := strings.TrimSpace(line[index+1:])
-	return key, cleanHeartbeatValue(value)
+	return strings.TrimSpace(key), cleanHeartbeatValue(strings.TrimSpace(value))
 }
 
 func cleanHeartbeatValue(value string) string {

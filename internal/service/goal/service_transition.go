@@ -76,7 +76,7 @@ func (s *Service) persistTransitionWithOptions(
 	if shouldPreserveBudgetLimitedStopRequest(item.Status, status) {
 		if !options.persistBudgetLimitedStopRequest {
 			s.clearWallClockGoal(item)
-			if shouldClearAccountingAfterMutation(source) {
+			if source != protocol.GoalUpdateSourceModel {
 				s.clearExternalGoalAccounting(item)
 			}
 			return &item, nil
@@ -89,13 +89,9 @@ func (s *Service) persistTransitionWithOptions(
 	expectedVersion := item.Version
 	now := s.nowFn()
 	item.Status = status
-	if resetEmptyProgressForTransition(source, status) {
+	if resetCountersForActiveTransition(source, status) {
 		item.EmptyProgressCount = 0
-	}
-	if resetContinuationCountForTransition(source, status) {
 		item.ContinuationCount = 0
-	}
-	if resetCompletionToolRetryForTransition(source, status) {
 		item.Metadata = clearCompletionToolRetryMetadata(item.Metadata)
 	}
 	item.Version++
@@ -128,7 +124,7 @@ func (s *Service) persistTransitionWithOptions(
 		}
 	} else {
 		s.clearWallClockGoal(*updated)
-		if shouldClearAccountingAfterMutation(source) {
+		if source != protocol.GoalUpdateSourceModel {
 			s.clearExternalGoalAccounting(*updated)
 		}
 	}

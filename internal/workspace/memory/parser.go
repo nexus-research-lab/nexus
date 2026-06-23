@@ -93,9 +93,9 @@ func parseEntry(lines []string, path string) (*Entry, error) {
 }
 
 func splitHeadingBody(kind string, body string) (string, string) {
-	if strings.Contains(body, ": ") {
-		parts := strings.SplitN(body, ": ", 2)
-		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	heading, rest, found := strings.Cut(body, ": ")
+	if found {
+		return strings.TrimSpace(heading), strings.TrimSpace(rest)
 	}
 	return "", strings.TrimSpace(body)
 }

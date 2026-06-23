@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -81,14 +82,6 @@ type RuntimeEmotionContextUpdate struct {
 	Valence   int
 	Trigger   string
 	Timestamp time.Time
-}
-
-type runtimeEmotionLegacyState struct {
-	Mood      string     `json:"mood"`
-	Energy    *int       `json:"energy"`
-	Valence   *int       `json:"valence"`
-	Summary   string     `json:"summary"`
-	UpdatedAt *time.Time `json:"updated_at"`
 }
 
 // LoadRuntimeEmotionView 读取指定 workspace 的当前情绪视图。
@@ -195,25 +188,6 @@ func loadRuntimeEmotionState(workspacePath string, now time.Time) RuntimeEmotion
 	var fileState RuntimeEmotionState
 	if err = json.Unmarshal(payload, &fileState); err == nil && strings.TrimSpace(fileState.Base.Mood) != "" {
 		return normalizeRuntimeEmotionState(fileState, now)
-	}
-	var legacy runtimeEmotionLegacyState
-	if err = json.Unmarshal(payload, &legacy); err == nil && strings.TrimSpace(legacy.Mood) != "" {
-		base := defaultRuntimeEmotionBase(now)
-		base.Mood = strings.TrimSpace(legacy.Mood)
-		if legacy.Energy != nil {
-			base.Energy = *legacy.Energy
-		}
-		if legacy.Valence != nil {
-			base.Valence = *legacy.Valence
-		}
-		if strings.TrimSpace(legacy.Summary) != "" {
-			base.Description = strings.TrimSpace(legacy.Summary)
-		}
-		if legacy.UpdatedAt != nil {
-			base.UpdatedAt = *legacy.UpdatedAt
-		}
-		state.Base = base
-		return normalizeRuntimeEmotionState(state, now)
 	}
 	return state
 }
@@ -387,11 +361,7 @@ func normalizeRuntimeEmotionContext(contextValue RuntimeEmotionContext, now time
 }
 
 func normalizeRuntimeEmotionContextID(contextID string) string {
-	contextID = strings.TrimSpace(contextID)
-	if contextID == "" {
-		return defaultRuntimeEmotionContextID
-	}
-	return contextID
+	return cmp.Or(strings.TrimSpace(contextID), defaultRuntimeEmotionContextID)
 }
 
 func isRuntimeEmotionExpired(updatedAt time.Time, now time.Time, ttl time.Duration) bool {
@@ -399,21 +369,9 @@ func isRuntimeEmotionExpired(updatedAt time.Time, now time.Time, ttl time.Durati
 }
 
 func clampRuntimeEmotionScore(value int) int {
-	if value < 0 {
-		return 0
-	}
-	if value > 10 {
-		return 10
-	}
-	return value
+	return min(max(value, 0), 10)
 }
 
 func clampFatigueScore(value int) int {
-	if value < 0 {
-		return 0
-	}
-	if value > 100 {
-		return 100
-	}
-	return value
+	return min(max(value, 0), 100)
 }

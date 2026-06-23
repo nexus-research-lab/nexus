@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	automationmcp "github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation"
-	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/runtime/mcp/automation/contract"
+	automationmcp "github.com/nexus-research-lab/nexus/internal/mcp/automation"
+	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/service/agent"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"

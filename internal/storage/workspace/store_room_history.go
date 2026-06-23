@@ -169,9 +169,11 @@ func buildRoomTranscriptReference(
 	if protocol.MessageRole(message) != "assistant" {
 		return nil
 	}
+	workspacePath = strings.TrimSpace(workspacePath)
+	privateSessionKey = strings.TrimSpace(privateSessionKey)
 	sessionID := stringFromAny(message["session_id"])
 	messageID := stringFromAny(message["message_id"])
-	if sessionID == "" || messageID == "" || strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(privateSessionKey) == "" {
+	if sessionID == "" || messageID == "" || workspacePath == "" || privateSessionKey == "" {
 		return nil
 	}
 
@@ -183,8 +185,8 @@ func buildRoomTranscriptReference(
 		"round_id":            stringFromAny(message["round_id"]),
 		"session_id":          sessionID,
 		"timestamp":           messageTimestamp(message),
-		"workspace_path":      strings.TrimSpace(workspacePath),
-		"private_session_key": strings.TrimSpace(privateSessionKey),
+		"workspace_path":      workspacePath,
+		"private_session_key": privateSessionKey,
 	}
 	return row
 }

@@ -12,20 +12,22 @@ func (p *Processor) processAssistantAPIError(message sdkprotocol.ReceivedMessage
 	if message.Assistant == nil {
 		return nil
 	}
-	if !message.Assistant.IsAPIError && strings.TrimSpace(message.Assistant.Error) == "" && strings.TrimSpace(message.Assistant.APIError) == "" {
+	assistantError := strings.TrimSpace(message.Assistant.Error)
+	assistantAPIError := strings.TrimSpace(message.Assistant.APIError)
+	if !message.Assistant.IsAPIError && assistantError == "" && assistantAPIError == "" {
 		return nil
 	}
 	text := firstNonEmpty(
 		assistantTextFromEnvelope(message.Assistant.Message),
 		message.Assistant.ErrorDetails,
-		message.Assistant.APIError,
-		message.Assistant.Error,
+		assistantAPIError,
+		assistantError,
 		"Runtime API request failed",
 	)
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		firstNonEmpty(strings.TrimSpace(message.UUID), "result_"+p.ctx.RoundID),
+		firstNonEmpty(message.UUID, "result_"+p.ctx.RoundID),
 		"result",
 	)
 	payload["subtype"] = "error"
@@ -35,7 +37,8 @@ func (p *Processor) processAssistantAPIError(message sdkprotocol.ReceivedMessage
 	payload["usage"] = map[string]any{}
 	payload["result"] = text
 	payload["is_error"] = true
-	if reason := firstNonEmpty(message.Assistant.Error, message.Assistant.APIError); reason != "" {
+	reason := firstNonEmpty(assistantError, assistantAPIError)
+	if reason != "" {
 		payload["terminal_reason"] = reason
 		payload["errors"] = []string{reason}
 	}

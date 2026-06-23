@@ -1,8 +1,10 @@
 package permission
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -100,14 +102,12 @@ func (c *Context) UnregisterSender(sender Sender) []string {
 		return nil
 	}
 
-	changed := make([]string, 0, len(sessions))
-	for sessionKey := range sessions {
+	changed := slices.Sorted(maps.Keys(sessions))
+	for _, sessionKey := range changed {
 		c.removeBindingLocked(sessionKey, senderKey)
 		c.pruneClosedBindingsLocked(sessionKey)
-		changed = append(changed, sessionKey)
 	}
 	delete(c.senderSessions, senderKey)
-	sort.Strings(changed)
 	return changed
 }
 
@@ -139,8 +139,8 @@ func (c *Context) ResolveSessionSenders(sessionKey string) []Sender {
 		}
 		result = append(result, binding.Sender)
 	}
-	sort.Slice(result, func(i int, j int) bool {
-		return result[i].Key() < result[j].Key()
+	slices.SortFunc(result, func(left Sender, right Sender) int {
+		return cmp.Compare(left.Key(), right.Key())
 	})
 	return result
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
 )
 
 func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testing.T) {
@@ -32,14 +33,14 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 	if len(sender.payloads) != 1 {
 		t.Fatalf("app-server notifications = %d, want 1", len(sender.payloads))
 	}
-	notification, ok := sender.payloads[0].(protocol.AppServerJSONRPCNotification)
+	notification, ok := sender.payloads[0].(goalappserver.AppServerJSONRPCNotification)
 	if !ok {
 		t.Fatalf("notification type = %T", sender.payloads[0])
 	}
 	if notification.Method != "thread/goal/cleared" {
 		t.Fatalf("notification method = %q, want thread/goal/cleared", notification.Method)
 	}
-	params, ok := notification.Params.(protocol.ThreadGoalClearedNotification)
+	params, ok := notification.Params.(goalappserver.ThreadGoalClearedNotification)
 	if !ok || params.ThreadID != threadID {
 		t.Fatalf("notification params = %#v", notification.Params)
 	}
@@ -88,21 +89,21 @@ func TestGoalEventBroadcasterSendsContinuationNotificationToRPCSubscribers(t *te
 	if len(sender.payloads) != 1 {
 		t.Fatalf("app-server notifications = %d, want 1", len(sender.payloads))
 	}
-	notification, ok := sender.payloads[0].(protocol.AppServerJSONRPCNotification)
+	notification, ok := sender.payloads[0].(goalappserver.AppServerJSONRPCNotification)
 	if !ok {
 		t.Fatalf("notification type = %T", sender.payloads[0])
 	}
 	if notification.Method != "thread/goal/updated" {
 		t.Fatalf("notification method = %q, want thread/goal/updated", notification.Method)
 	}
-	params, ok := notification.Params.(protocol.ThreadGoalUpdatedNotification)
+	params, ok := notification.Params.(goalappserver.ThreadGoalUpdatedNotification)
 	if !ok {
 		t.Fatalf("notification params = %#v", notification.Params)
 	}
 	if params.TurnID == nil || *params.TurnID != "goal_continuation_2" {
 		t.Fatalf("notification turnId = %#v, want goal_continuation_2", params.TurnID)
 	}
-	if params.Goal.Status != protocol.ThreadGoalStatusActive {
+	if params.Goal.Status != goalappserver.ThreadGoalStatusActive {
 		t.Fatalf("notification goal = %#v", params.Goal)
 	}
 }
