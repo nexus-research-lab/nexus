@@ -131,6 +131,12 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 			output.DurableMessages = append(output.DurableMessages, *durable)
 			output.AssistantCompleted = true
 		}
+	case sdkprotocol.MessageTypeStreamRequestStart,
+		sdkprotocol.MessageTypeToolUseSummary,
+		sdkprotocol.MessageTypeRateLimitEvent,
+		sdkprotocol.MessageTypePromptSuggestion,
+		sdkprotocol.MessageTypeAuthStatus:
+		return output
 	}
 	return output
 }

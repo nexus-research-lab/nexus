@@ -89,6 +89,15 @@ func appendRoundStreamStopErrorDetail(detail string, diagnostics RoundStreamStop
 		diagnostics.StopReason,
 		diagnostics.MessagesAfter,
 	)
+	if diagnostics.MessagesAfter > 0 {
+		detail += fmt.Sprintf(
+			" conversation_after_last_stream_stop=%d progress_after_last_stream_stop=%d passive_after_last_stream_stop=%d unknown_after_last_stream_stop=%d",
+			diagnostics.ConversationMessagesAfter,
+			diagnostics.ProgressMessagesAfter,
+			diagnostics.PassiveMessagesAfter,
+			diagnostics.UnknownMessagesAfter,
+		)
+	}
 	if diagnostics.Age > 0 {
 		detail += " last_stream_stop_age=" + diagnostics.Age.String()
 	}

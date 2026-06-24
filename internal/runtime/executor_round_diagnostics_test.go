@@ -184,6 +184,10 @@ func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
 	if !stop.Observed ||
 		stop.MessageIndex != 3 ||
 		stop.MessagesAfter != 1 ||
+		stop.ProgressMessagesAfter != 1 ||
+		stop.ConversationMessagesAfter != 0 ||
+		stop.PassiveMessagesAfter != 0 ||
+		stop.UnknownMessagesAfter != 0 ||
 		stop.StopReason != "tool_use" ||
 		stop.SessionID != "sdk-session-1" ||
 		stop.MessageID != "assistant-1" ||
@@ -193,9 +197,65 @@ func TestExecuteRoundReturnsLastStreamStopDiagnostics(t *testing.T) {
 	if !strings.Contains(err.Error(), "messages_after_last_stream_stop=1") {
 		t.Fatalf("错误字符串缺少 message_stop 诊断: %v", err)
 	}
+	if !strings.Contains(err.Error(), "progress_after_last_stream_stop=1") {
+		t.Fatalf("错误字符串缺少 message_stop 分类诊断: %v", err)
+	}
 	fields := RoundStreamStopDiagnosticLogFields(stop)
 	if len(fields) == 0 {
 		t.Fatalf("message_stop 日志字段为空: %+v", stop)
+	}
+}
+
+func TestExecuteRoundClassifiesMessagesAfterLastStreamStop(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-1",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 6),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_delta",
+				"delta": map[string]any{
+					"stop_reason": "tool_use",
+				},
+			},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-1",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{"type": "message_stop"},
+		},
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeToolProgress}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeToolUseSummary}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeUnknown}
+	close(client.messages)
+
+	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Query:  "需要工具",
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{
+			results: []RoundMapResult{{}, {}, {}, {}, {}},
+		},
+	})
+	if !errors.Is(err, ErrRoundStreamClosedBeforeTerminal) {
+		t.Fatalf("期望 ErrRoundStreamClosedBeforeTerminal，实际 %v", err)
+	}
+	var streamErr *RoundStreamClosedError
+	if !errors.As(err, &streamErr) {
+		t.Fatalf("期望 RoundStreamClosedError，实际 %T %[1]v", err)
+	}
+	stop := streamErr.LastStreamStop
+	if stop.MessagesAfter != 3 ||
+		stop.ProgressMessagesAfter != 1 ||
+		stop.PassiveMessagesAfter != 1 ||
+		stop.UnknownMessagesAfter != 1 ||
+		stop.ConversationMessagesAfter != 0 {
+		t.Fatalf("message_stop 后消息分类不正确: %+v", stop)
 	}
 }
 

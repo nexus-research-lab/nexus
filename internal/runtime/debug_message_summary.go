@@ -11,6 +11,8 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 	switch message.Type {
 	case sdkprotocol.MessageTypeStreamEvent:
 		return summarizeStreamMessage(message)
+	case sdkprotocol.MessageTypeStreamRequestStart:
+		return "stream_request_start"
 	case sdkprotocol.MessageTypeUser:
 		return summarizeUserMessage(message)
 	case sdkprotocol.MessageTypeAssistant:
@@ -21,8 +23,16 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 		return summarizeSystemMessage(message)
 	case sdkprotocol.MessageTypeToolProgress:
 		return summarizeToolProgressMessage(message)
+	case sdkprotocol.MessageTypeToolUseSummary:
+		return summarizeToolUseSummaryMessage(message)
 	case sdkprotocol.MessageTypeTaskProgress:
 		return summarizeTaskProgressMessage(message)
+	case sdkprotocol.MessageTypeRateLimitEvent:
+		return "rate_limit_event"
+	case sdkprotocol.MessageTypePromptSuggestion:
+		return summarizePromptSuggestionMessage(message)
+	case sdkprotocol.MessageTypeAuthStatus:
+		return summarizeAuthStatusMessage(message)
 	default:
 		return string(message.Type)
 	}
@@ -151,6 +161,33 @@ func summarizeToolProgressMessage(message sdkprotocol.ReceivedMessage) string {
 		return "tool_progress"
 	}
 	return "tool_progress " + toolName
+}
+
+func summarizeToolUseSummaryMessage(message sdkprotocol.ReceivedMessage) string {
+	if message.ToolUseSummary == nil {
+		return "tool_use_summary"
+	}
+	return appendSummaryPreview("tool_use_summary", strings.TrimSpace(message.ToolUseSummary.Summary))
+}
+
+func summarizePromptSuggestionMessage(message sdkprotocol.ReceivedMessage) string {
+	if message.PromptSuggestion == nil {
+		return "prompt_suggestion"
+	}
+	return appendSummaryPreview("prompt_suggestion", strings.TrimSpace(message.PromptSuggestion.Suggestion))
+}
+
+func summarizeAuthStatusMessage(message sdkprotocol.ReceivedMessage) string {
+	if message.AuthStatus == nil {
+		return "auth_status"
+	}
+	if message.AuthStatus.IsAuthenticating {
+		return "auth_status authenticating"
+	}
+	if strings.TrimSpace(message.AuthStatus.Error) != "" {
+		return "auth_status error"
+	}
+	return "auth_status"
 }
 
 func appendSummaryPreview(summary string, preview string) string {
