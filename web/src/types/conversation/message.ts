@@ -375,7 +375,7 @@ export function get_system_message_display_meta(
     };
   }
 
-  if (subtype === "task_notification" || subtype === "status") {
+  if (subtype === "task_notification" || subtype === "task_updated" || subtype === "status") {
     return {
       label: "状态更新",
       tone: "neutral",

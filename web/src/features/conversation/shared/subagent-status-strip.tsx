@@ -104,32 +104,39 @@ function are_tasks_equal(
   });
 }
 
+function record_from_metadata(value: unknown): Record<string, any> | undefined {
+  return typeof value === "object" && value !== null ? value as Record<string, any> : undefined;
+}
+
+function string_from_metadata(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function extract_system_task_event(message: SystemMessage): Partial<SubagentStatusItem> | null {
-  if (message.metadata?.subtype !== "task_started" && message.metadata?.subtype !== "task_notification") {
+  if (
+    message.metadata?.subtype !== "task_started" &&
+    message.metadata?.subtype !== "task_notification" &&
+    message.metadata?.subtype !== "task_updated"
+  ) {
     return null;
   }
-  const task_id =
-    typeof message.metadata.task_id === "string" && message.metadata.task_id.trim()
-      ? message.metadata.task_id.trim()
-      : typeof message.metadata.tool_use_id === "string" && message.metadata.tool_use_id.trim()
-        ? message.metadata.tool_use_id.trim()
-        : message.message_id;
-  const usage = typeof message.metadata.usage === "object" && message.metadata.usage
-    ? message.metadata.usage as Record<string, any>
-    : undefined;
-  if (message.metadata.subtype === "task_notification") {
+  const metadata_task_id = string_from_metadata(message.metadata.task_id);
+  const metadata_tool_use_id = string_from_metadata(message.metadata.tool_use_id);
+  const task_id = metadata_task_id ?? metadata_tool_use_id ?? message.message_id;
+  const patch = record_from_metadata(message.metadata.patch);
+  const usage = record_from_metadata(message.metadata.usage) ?? record_from_metadata(patch?.usage);
+  if (message.metadata.subtype === "task_notification" || message.metadata.subtype === "task_updated") {
+    const status = string_from_metadata(message.metadata.status) ?? string_from_metadata(patch?.status) ?? "completed";
+    const description =
+      string_from_metadata(patch?.description) ??
+      string_from_metadata(message.metadata.description) ??
+      message.content.trim();
     return {
       task_id,
-      description: message.content.trim() || "子 Agent 状态已更新",
+      description: description || "子 Agent 状态已更新",
       duration_ms: number_from_usage(usage, "duration_ms"),
-      output_file:
-        typeof message.metadata.output_file === "string"
-          ? message.metadata.output_file
-          : null,
-      status:
-        typeof message.metadata.status === "string"
-          ? message.metadata.status
-          : "completed",
+      output_file: string_from_metadata(message.metadata.output_file) ?? string_from_metadata(patch?.output_file),
+      status,
       timestamp: message.timestamp,
       total_tokens: number_from_usage(usage, "total_tokens"),
       tool_uses: number_from_usage(usage, "tool_uses"),
@@ -139,10 +146,7 @@ function extract_system_task_event(message: SystemMessage): Partial<SubagentStat
     task_id,
     description: message.content.trim() || "子 Agent 已启动",
     status: "running",
-    task_type:
-      typeof message.metadata.task_type === "string"
-        ? message.metadata.task_type
-        : null,
+    task_type: string_from_metadata(message.metadata.task_type),
     timestamp: message.timestamp,
   };
 }
