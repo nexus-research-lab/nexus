@@ -321,6 +321,7 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE",
 		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST",
 		runtimectx.AgentSDKDiagnosticsEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
 		runtimectx.AgentSDKDebugEnvName,
 		runtimectx.AgentSDKProviderDebugBodyEnvName,
 	} {
@@ -340,6 +341,12 @@ func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	}
 	if options.Env[runtimectx.AgentSDKDiagnosticsEnvName] != "stderr" {
 		t.Fatalf("%s = %q, want stderr; env=%+v", runtimectx.AgentSDKDiagnosticsEnvName, options.Env[runtimectx.AgentSDKDiagnosticsEnvName], options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" {
+		t.Fatalf("%s = %q, want 0; env=%+v",
+			runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+			options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName],
+			options.Env)
 	}
 	if _, ok := options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName]; ok {
 		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)

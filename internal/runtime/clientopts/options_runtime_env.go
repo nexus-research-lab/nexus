@@ -137,7 +137,8 @@ func nxsDiagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]strin
 		return nil
 	}
 	return map[string]string{
-		runtimectx.AgentSDKDiagnosticsEnvName: "stderr",
+		runtimectx.AgentSDKDiagnosticsEnvName:               "stderr",
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName: "0",
 	}
 }
 

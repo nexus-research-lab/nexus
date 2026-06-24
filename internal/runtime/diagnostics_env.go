@@ -7,6 +7,8 @@ import (
 const (
 	// AgentSDKDiagnosticsEnvName 控制 Agent SDK 诊断事件输出。
 	AgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
+	// AgentSDKDiagnosticsStreamProgressEnvName 控制瞬时 stream 诊断事件输出。
+	AgentSDKDiagnosticsStreamProgressEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS_STREAM_PROGRESS"
 	// AgentSDKDebugEnvName 兼容 SDK debug 开关，开启后也输出诊断事件。
 	AgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
 	// AgentSDKProviderDebugBodyEnvName 控制 provider 请求体诊断输出范围。
