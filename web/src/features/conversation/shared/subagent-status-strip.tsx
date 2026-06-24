@@ -1,6 +1,13 @@
 "use client";
 
-import { Bot, GaugeCircle, Loader2, Wrench } from "lucide-react";
+import {
+  Bot,
+  CheckCircle2,
+  GaugeCircle,
+  Loader2,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { cn, format_tokens } from "@/lib/utils";
@@ -63,6 +70,37 @@ function upsert_task(
     timestamp: Math.max(patch.timestamp ?? 0, current?.timestamp ?? 0),
     total_tokens: patch.total_tokens ?? current?.total_tokens,
     tool_uses: patch.tool_uses ?? current?.tool_uses,
+  });
+}
+
+function is_same_task(left: SubagentStatusItem, right: SubagentStatusItem): boolean {
+  return (
+    left.task_id === right.task_id &&
+    left.description === right.description &&
+    left.duration_ms === right.duration_ms &&
+    left.last_tool_name === right.last_tool_name &&
+    left.output_file === right.output_file &&
+    left.status === right.status &&
+    left.task_type === right.task_type &&
+    left.timestamp === right.timestamp &&
+    left.total_tokens === right.total_tokens &&
+    left.tool_uses === right.tool_uses
+  );
+}
+
+function are_tasks_equal(
+  left: SubagentStatusItem[],
+  right: SubagentStatusItem[],
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((item, index) => {
+    const right_item = right[index];
+    return Boolean(right_item && is_same_task(item, right_item));
   });
 }
 
@@ -220,6 +258,45 @@ function metric_label(task: SubagentStatusItem): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
+function latest_active_task(tasks: SubagentStatusItem[]): SubagentStatusItem {
+  for (let index = tasks.length - 1; index >= 0; index -= 1) {
+    const task = tasks[index];
+    if (!task) {
+      continue;
+    }
+    if (!is_terminal_status(task.status)) {
+      return task;
+    }
+  }
+  return tasks[tasks.length - 1]!;
+}
+
+function status_icon(status?: string | null) {
+  switch (status_label(status)) {
+    case "完成":
+      return <CheckCircle2 className="h-3.5 w-3.5" />;
+    case "失败":
+      return <TriangleAlert className="h-3.5 w-3.5" />;
+    case "停止":
+      return <Bot className="h-3.5 w-3.5" />;
+    default:
+      return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+  }
+}
+
+function overview_label(tasks: SubagentStatusItem[]): string {
+  const running_count = tasks.filter((task) => !is_terminal_status(task.status)).length;
+  const completed_count = tasks.filter((task) => status_label(task.status) === "完成").length;
+  const stopped_count = tasks.filter((task) => status_label(task.status) === "停止").length;
+  const failed_count = tasks.filter((task) => status_label(task.status) === "失败").length;
+  return [
+    running_count > 0 ? `进行中 ${running_count}` : null,
+    completed_count > 0 ? `完成 ${completed_count}` : null,
+    stopped_count > 0 ? `停止 ${stopped_count}` : null,
+    failed_count > 0 ? `失败 ${failed_count}` : null,
+  ].filter(Boolean).join(" · ");
+}
+
 export function SubagentStatusStrip({
   compact = false,
   live_round_ids,
@@ -234,13 +311,17 @@ export function SubagentStatusStrip({
   const [retained_until, set_retained_until] = useState(0);
 
   useEffect(() => {
+    if (live_tasks.length === 0) {
+      return;
+    }
+    set_retained_tasks((current) => (
+      are_tasks_equal(current, live_tasks) ? current : live_tasks
+    ));
+    set_retained_until((current) => (current === 0 ? current : 0));
+  }, [live_tasks]);
+
+  useEffect(() => {
     if (live_tasks.length > 0) {
-      set_retained_tasks(live_tasks);
-      set_retained_until(
-        live_tasks.every((task) => is_terminal_status(task.status))
-          ? Date.now() + TERMINAL_RETAIN_MS
-          : 0,
-      );
       return;
     }
     if (retained_tasks.length === 0) {
@@ -256,13 +337,68 @@ export function SubagentStatusStrip({
       set_retained_until(0);
     }, delay);
     return () => window.clearTimeout(timeout_id);
-  }, [live_tasks, retained_tasks.length, retained_until]);
+  }, [live_tasks.length, retained_tasks.length, retained_until]);
 
   const tasks = live_tasks.length > 0 ? live_tasks : retained_tasks;
 
   if (tasks.length === 0) {
     return null;
   }
+
+  const task = latest_active_task(tasks);
+  const metrics = metric_label(task);
+  const is_running = !is_terminal_status(task.status);
+  const overview = overview_label(tasks);
+  const tool_detail = [
+    task.task_type ? task.task_type : null,
+    task.last_tool_name ? `当前 ${task.last_tool_name}` : null,
+    metrics,
+  ].filter(Boolean).join(" · ");
+  const content = (
+    <>
+      <span
+        className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-[7px]",
+          status_class_name(task.status),
+        )}
+      >
+        {status_icon(task.status)}
+      </span>
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
+          <span className="shrink-0">{is_running ? "Agent 正在执行" : "Agent 执行结束"}</span>
+          <span
+            className={cn(
+              "shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold",
+              status_class_name(task.status),
+            )}
+          >
+            {status_label(task.status)}
+          </span>
+          {overview ? (
+            <span className="hidden min-w-0 truncate text-(--text-soft) sm:inline">
+              {overview}
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-0.5 block truncate text-[13px] font-medium leading-5 text-(--text-strong)">
+          {task.description}
+        </span>
+        {tool_detail ? (
+          <span className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[11px] text-(--text-soft)">
+            {task.last_tool_name ? <Wrench className="h-3 w-3 shrink-0" /> : null}
+            <span className="truncate">{tool_detail}</span>
+          </span>
+        ) : null}
+      </span>
+      {on_open_background_tasks ? (
+        <span className="hidden shrink-0 items-center gap-1 text-[11px] font-medium text-(--text-muted) sm:inline-flex">
+          <GaugeCircle className="h-3.5 w-3.5" />
+          查看详情
+        </span>
+      ) : null}
+    </>
+  );
 
   return (
     <div
@@ -271,67 +407,35 @@ export function SubagentStatusStrip({
         compact ? "px-2" : "px-4 sm:px-6 xl:px-8",
       )}
     >
-      <div className="mx-auto flex w-full max-w-[980px] flex-col gap-1.5">
-        {tasks.map((task) => {
-          const metrics = metric_label(task);
-          const is_running = !is_terminal_status(task.status);
-          const content = (
-            <>
-              <span className={cn("flex h-7 w-7 items-center justify-center rounded-[7px]", status_class_name(task.status))}>
-                <Bot className="h-3.5 w-3.5" />
-              </span>
-              <span className="min-w-0">
-                <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-(--text-muted)">
-                  {is_running ? (
-                    <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
-                  ) : null}
-                  <span className="shrink-0">Subagent</span>
-                  <span className={cn("shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold", status_class_name(task.status))}>
-                    {status_label(task.status)}
-                  </span>
-                  {task.task_type ? (
-                    <span className="truncate text-(--text-soft)">{task.task_type}</span>
-                  ) : null}
-                  {task.last_tool_name ? (
-                    <span className="inline-flex min-w-0 items-center gap-1 truncate text-(--text-soft)">
-                      <Wrench className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{task.last_tool_name}</span>
-                    </span>
-                  ) : null}
-                  {metrics ? (
-                    <span className="ml-auto hidden max-w-[180px] shrink-0 items-center gap-1 truncate text-(--text-soft) sm:inline-flex">
-                      <GaugeCircle className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{metrics}</span>
-                    </span>
-                  ) : null}
-                </span>
-                <span className="mt-0.5 block truncate text-[13px] font-medium leading-5 text-(--text-strong)">
-                  {task.description}
-                </span>
-              </span>
-            </>
-          );
-          return (
-            on_open_background_tasks ? (
-              <button
-                key={task.task_id}
-                className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2 text-left transition-colors hover:bg-(--surface-hover-background)"
-                onClick={on_open_background_tasks}
-                title="查看后台 Subagent"
-                type="button"
-              >
-                {content}
-              </button>
-            ) : (
-              <div
-                key={task.task_id}
-                className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2"
-              >
-                {content}
-              </div>
-            )
-          );
-        })}
+      <div className="mx-auto w-full max-w-[980px]">
+        {on_open_background_tasks ? (
+          <button
+            className={cn(
+              "relative grid w-full min-w-0 grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2 text-left transition-colors hover:bg-(--surface-hover-background)",
+              is_running && "border-primary/20",
+            )}
+            onClick={on_open_background_tasks}
+            title="查看后台 Agent 任务"
+            type="button"
+          >
+            {content}
+            {is_running ? (
+              <span className="absolute inset-x-0 bottom-0 h-px bg-primary/25" />
+            ) : null}
+          </button>
+        ) : (
+          <div
+            className={cn(
+              "relative grid min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-2 overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-elevated-background) px-2.5 py-2",
+              is_running && "border-primary/20",
+            )}
+          >
+            {content}
+            {is_running ? (
+              <span className="absolute inset-x-0 bottom-0 h-px bg-primary/25" />
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );

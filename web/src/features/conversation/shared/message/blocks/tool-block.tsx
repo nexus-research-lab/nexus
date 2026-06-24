@@ -7,7 +7,17 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { CheckCircle, ChevronDown, ChevronRight, Clock, Loader, Sparkles, XCircle } from 'lucide-react';
+import {
+  Check,
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Copy,
+  Loader,
+  Sparkles,
+  XCircle,
+} from 'lucide-react';
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { cn } from '@/lib/utils';
@@ -158,6 +168,22 @@ export function ToolBlock({
         : isWaiting
           ? 'waiting'
           : 'default';
+  const statusText = isWaiting
+    ? '待确认'
+    : isRunning
+      ? '执行中'
+      : isError
+        ? '失败'
+        : isSuccess
+          ? '完成'
+          : '待处理';
+  const statusBadgeClassName = isSuccess
+    ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
+    : isError
+      ? "bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)"
+      : isWaiting
+        ? "bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-(--warning)"
+        : "bg-primary/10 text-primary";
   const waitingConfirmationText = permission_request?.expires_at
     ? `${new Date(permission_request.expires_at).toLocaleTimeString()} 前确认`
     : '确认后继续执行';
@@ -191,18 +217,28 @@ export function ToolBlock({
   return (
     <div
       ref={toolAnchorRef as React.RefObject<HTMLDivElement>}
-      className="border-l-2 pl-4"
-      style={{ borderColor: "color-mix(in srgb, var(--foreground) 18%, transparent)" }}
+      className="message-cjk-font group/tool-block min-w-0"
     >
       <div
         className={cn(
-          "message-cjk-font flex min-w-0 flex-wrap cursor-pointer select-none items-center gap-x-2 gap-y-1 py-1 text-xs transition-colors sm:flex-nowrap",
-          isRunning && "animate-pulse"
+          "grid min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 rounded-[7px] px-1.5 py-1 text-xs transition-colors",
+          hasResult
+            ? "cursor-pointer hover:bg-(--surface-interactive-hover-background)"
+            : "cursor-default",
+          isRunning && "bg-primary/5",
+          isWaiting && "bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)]",
         )}
         onClick={() => hasResult && toggleExpanded()}
       >
         {/* 工具图标 */}
-        <div data-timeline-anchor data-timeline-anchor-mode="box" className={cn("flex h-5 w-5 items-center justify-center rounded-full", TOOL_TONE_STYLES[statusTone])}>
+        <div
+          data-timeline-anchor
+          data-timeline-anchor-mode="box"
+          className={cn(
+            "flex h-5 w-5 items-center justify-center rounded-full",
+            TOOL_TONE_STYLES[statusTone],
+          )}
+        >
           {isRunning ? (
             <Loader className="h-3.5 w-3.5 animate-spin" />
           ) : isSuccess ? (
@@ -217,9 +253,17 @@ export function ToolBlock({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
             <span className={cn("shrink-0 text-[11px] font-medium", TOOL_LABEL_STYLES[statusTone])}>
               {toolTitle}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold",
+                statusBadgeClassName,
+              )}
+            >
+              {statusText}
             </span>
             {isWaiting ? (
               <span className="shrink-0 text-[11px] text-(--text-soft)">{waitingActionHint}</span>
@@ -246,91 +290,79 @@ export function ToolBlock({
           </div>
         </div>
 
-        <div className="hidden flex-1 sm:block" />
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          {isWaiting && permission_request ? (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  permission_request.on_deny();
+                }}
+                disabled={interaction_disabled}
+                title={interaction_disabled ? interaction_disabled_reason : undefined}
+                className={cn(
+                  "rounded-[7px] border border-(--divider-subtle-color) px-2 py-1 text-xs font-medium text-(--text-muted) transition-colors",
+                  interaction_disabled
+                    ? "cursor-not-allowed opacity-(--disabled-opacity)"
+                    : "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                )}
+              >
+                拒绝
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const selectedUpdate = selectedSuggestionIndex >= 0 && permission_request.suggestions
+                    ? [permission_request.suggestions[selectedSuggestionIndex]]
+                    : undefined;
+                  permission_request.on_allow(selectedUpdate);
+                }}
+                disabled={interaction_disabled}
+                title={interaction_disabled ? interaction_disabled_reason : undefined}
+                className={cn(
+                  "rounded-[7px] border px-2 py-1 text-xs font-medium transition-colors",
+                  interaction_disabled
+                    ? "cursor-not-allowed border-(--divider-subtle-color) bg-transparent text-(--text-soft)"
+                    : "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
+                )}
+              >
+                允许
+              </button>
+            </>
+          ) : null}
 
-        {isWaiting && permission_request ? (
-          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {hasResult && !isWaiting ? (
             <button
               type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                permission_request.on_deny();
-              }}
-              disabled={interaction_disabled}
-              title={interaction_disabled ? interaction_disabled_reason : undefined}
+              aria-label={copied ? '已复制结果' : '复制结果'}
+              title={copied ? '已复制结果' : '复制结果'}
+              onClick={handleCopyResult}
               className={cn(
-                "rounded-[8px] border border-(--divider-subtle-color) px-2.5 py-1 text-xs font-medium text-(--text-muted) transition-colors",
-                interaction_disabled
-                  ? "cursor-not-allowed opacity-(--disabled-opacity)"
-                  : "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                "inline-flex h-6 w-6 items-center justify-center rounded-[6px] transition-colors",
+                copied
+                  ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
+                  : "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
               )}
             >
-              拒绝
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                const selectedUpdate = selectedSuggestionIndex >= 0 && permission_request.suggestions
-                  ? [permission_request.suggestions[selectedSuggestionIndex]]
-                  : undefined;
-                permission_request.on_allow(selectedUpdate);
-              }}
-              disabled={interaction_disabled}
-              title={interaction_disabled ? interaction_disabled_reason : undefined}
-              className={cn(
-                "rounded-[8px] border px-2.5 py-1 text-xs font-medium transition-colors",
-                interaction_disabled
-                  ? "cursor-not-allowed border-(--divider-subtle-color) bg-transparent text-(--text-soft)"
-                  : "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
-              )}
-            >
-              允许
-            </button>
-          </div>
-        ) : null}
+          ) : null}
 
-        {/* 复制按钮（有结果时） */}
-        {hasResult && !isWaiting ? (
-          <button
-            onClick={handleCopyResult}
-            className={cn(
-              "ml-auto sm:ml-0",
-              "rounded px-1.5 py-0.5 text-[10px] transition-all",
-              copied
-                ? "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)"
-                : "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            )}
-          >
-            {copied ? '✓' : '复制'}
-          </button>
-        ) : null}
-
-        {/* 展开指示器 */}
-        {hasResult && (
-          <div className="shrink-0 text-(--icon-muted)">
-            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </div>
-        )}
+          {hasResult ? (
+            <div className="shrink-0 text-(--icon-muted)">
+              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {isRunning && (
-        <div
-          className="ml-7 h-px"
-          style={{ backgroundColor: "color-mix(in srgb, var(--foreground) 12%, transparent)" }}
-        />
-      )}
-
-      {!hasResult && isRunning && (
-        <div className="ml-7 mt-2 flex items-center gap-2 text-xs text-(--text-muted)">
-          <div className="flex gap-1">
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_infinite]" />
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.2s_infinite]" />
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-[pulse_1s_ease-in-out_0.4s_infinite]" />
-          </div>
-          <span className="text-[11px] text-(--text-soft)">处理中</span>
+      {!hasResult && isRunning ? (
+        <div className="ml-7 mt-1 h-px overflow-hidden rounded-full bg-primary/15">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/60" />
         </div>
-      )}
+      ) : null}
 
       {hasResult && isExpanded && (
         <div className="message-cjk-font ml-7 mt-2 min-w-0">

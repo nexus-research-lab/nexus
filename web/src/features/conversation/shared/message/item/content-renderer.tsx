@@ -20,8 +20,6 @@ import { WorkspaceFileArtifactBlock } from "../blocks/workspace-file-artifacts";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
 import {
-  MessageCallout,
-  MessageCalloutTitle,
   MessageRail,
   MessageRailBody,
   MessageRailLabel,
@@ -291,15 +289,28 @@ export function ContentRenderer(
 
         if (block.type === 'task_progress') {
           return wrap_block(index, (
-            <MessageRail>
-              <MessageCallout>
-                <MessageCalloutTitle data-timeline-anchor>
-                  {block.last_tool_name || '后台任务'} 正在执行
-                </MessageCalloutTitle>
-                <div className="mt-1 whitespace-pre-wrap break-words text-(--text-muted)">
+            <MessageRail class_name="min-w-0">
+              <MessageRailLabel active>
+                <span
+                  data-timeline-anchor
+                  data-timeline-anchor-mode="box"
+                  className="flex h-4 w-4 shrink-0 items-center justify-center"
+                >
+                  <SystemEventIcon
+                    icon="progress"
+                    class_name="h-3 w-3 text-primary"
+                  />
+                </span>
+                <span className="truncate">{block.last_tool_name || '后台任务'}</span>
+                <span className="shrink-0 rounded-[6px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  执行中
+                </span>
+              </MessageRailLabel>
+              <MessageRailBody class_name="pt-0.5 text-[12px] leading-5 text-(--text-muted)">
+                <span className="block truncate">
                   {block.description || '正在处理中…'}
-                </div>
-              </MessageCallout>
+                </span>
+              </MessageRailBody>
             </MessageRail>
           ));
         }

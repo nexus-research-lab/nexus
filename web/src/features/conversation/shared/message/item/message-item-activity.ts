@@ -2,11 +2,17 @@ import type { AgentConversationRuntimePhase } from "@/types/agent/agent-conversa
 import type { ContentBlock } from "@/types/conversation/message";
 import type { PendingPermission } from "@/types/conversation/permission";
 
+import {
+  get_input_summary,
+  get_tool_title,
+} from "../blocks/tool-block-model";
 import type { MessageActivityState } from "../ui/message-primitives";
 import {
   find_latest_streaming_block,
   map_runtime_phase_to_activity_state,
 } from "./message-item-support";
+
+const PROCESS_SUMMARY_DETAIL_LIMIT = 72;
 
 export function build_process_summary({
   pending_permission_count,
@@ -67,7 +73,44 @@ export function build_process_summary({
     summary_parts.push(`${guidance_count} 次引导`);
   }
 
-  return summary_parts.length > 0 ? summary_parts.join(" · ") : "查看过程";
+  const summary = summary_parts.length > 0 ? summary_parts.join(" · ") : "查看过程";
+  const latest_detail = latest_process_detail(process_content);
+  return latest_detail ? `${summary} · 最近：${latest_detail}` : summary;
+}
+
+function latest_process_detail(process_content: ContentBlock[]): string | null {
+  for (let index = process_content.length - 1; index >= 0; index -= 1) {
+    const block = process_content[index];
+    if (block.type === "task_progress") {
+      return compact_process_detail(
+        block.description || block.last_tool_name || "后台任务正在执行",
+      );
+    }
+    if (block.type === "tool_use") {
+      const detail = get_input_summary(block.input);
+      return compact_process_detail(
+        detail ? `${get_tool_title(block.name)}：${detail}` : get_tool_title(block.name),
+      );
+    }
+    if (block.type === "system_event") {
+      return compact_process_detail(block.content || block.label);
+    }
+    if (block.type === "tool_use_error") {
+      return compact_process_detail(block.content);
+    }
+  }
+  return null;
+}
+
+function compact_process_detail(value: string): string | null {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (!text) {
+    return null;
+  }
+  if (text.length <= PROCESS_SUMMARY_DETAIL_LIMIT) {
+    return text;
+  }
+  return `${text.slice(0, PROCESS_SUMMARY_DETAIL_LIMIT - 1)}…`;
 }
 
 export function resolve_live_activity_state({
