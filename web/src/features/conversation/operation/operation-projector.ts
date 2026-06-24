@@ -158,22 +158,6 @@ export function project_operation_snapshot({
     events.push(project_unmatched_permission(permission, session_key, agent_id));
   }
 
-  for (const live_round_id of live_round_ids) {
-    if (events.some((event) => event.round_id === live_round_id)) {
-      continue;
-    }
-
-    const placeholder = project_live_round_placeholder({
-      live_round_id,
-      session_key,
-      agent_id,
-      messages: projected_messages,
-    });
-    if (placeholder) {
-      events.push(placeholder);
-    }
-  }
-
   const relevant_workspace_events = filter_workspace_events_for_stage(
     agent_workspace_events,
     session_key,
@@ -272,60 +256,6 @@ function project_system_event({
     started_at: message.timestamp,
     updated_at: block.timestamp || message.timestamp,
   };
-}
-
-function project_live_round_placeholder({
-  live_round_id,
-  session_key,
-  agent_id,
-  messages,
-}: {
-  live_round_id: string;
-  session_key: string | null;
-  agent_id?: string | null;
-  messages: Message[];
-}): NexusOperationEvent | null {
-  const related_message = [...messages].reverse().find((message) => message.round_id === live_round_id);
-  if (!related_message) {
-    return null;
-  }
-
-  const user_prompt = related_message.role === "user"
-    ? related_message.content
-    : find_round_user_prompt(messages, live_round_id);
-  const resolved_agent_id = agent_id
-    ?? ("agent_id" in related_message ? related_message.agent_id : null);
-  if (!resolved_agent_id) {
-    return null;
-  }
-
-  return {
-    id: `live-round:${live_round_id}`,
-    session_key: session_key ?? related_message.session_key,
-    round_id: live_round_id,
-    agent_id: resolved_agent_id,
-    message_id: related_message.message_id,
-    kind: "unknown",
-    surface: "conversation",
-    phase: "running",
-    title: "桌面待命",
-    target: "等待第一个应用窗口",
-    summary: user_prompt || "Nexus 桌面已打开，还没有进入具体工具。",
-    input_preview: user_prompt ? { prompt: user_prompt } : null,
-    evidence: [
-      { type: "status", label: "round", value: "running" },
-    ],
-    started_at: related_message.timestamp,
-    updated_at: Date.now(),
-  };
-}
-
-function find_round_user_prompt(messages: Message[], round_id: string): string | null {
-  const user_message = [...messages].reverse().find((message) => (
-    message.round_id === round_id &&
-    message.role === "user"
-  ));
-  return user_message?.role === "user" ? user_message.content : null;
 }
 
 function collect_tool_results(messages: Message[]): Map<string, ToolResultContent> {

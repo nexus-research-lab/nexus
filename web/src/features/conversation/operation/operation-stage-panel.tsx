@@ -16,14 +16,13 @@ import {
   operation_event_from_runtime_event,
 } from "./operation-desktop-intents";
 import {
+  plan_operation_desktop,
+} from "./operation-scene-planner";
+import {
   derive_operation_stage_experience_phase,
 } from "./operation-stage-experience";
 import {
-  EmptyStage,
-} from "./operation-stage-idle";
-import {
   PHASE_META,
-  SURFACE_META,
 } from "./operation-stage-panel-style";
 import {
   build_stage_transition_style,
@@ -68,12 +67,17 @@ export function OperationStagePanel({
     const runtime_event = (snapshot?.runtime_events ?? []).at(-1) ?? null;
     return runtime_event ? operation_event_from_runtime_event(runtime_event) : null;
   }, [snapshot?.runtime_events]);
-  const display_event = runtime_display_event ?? snapshot?.active_event ?? snapshot?.events.at(-1) ?? null;
+  const display_event_candidate = runtime_display_event ?? snapshot?.active_event ?? snapshot?.events.at(-1) ?? null;
+  const display_event = useMemo(() => (
+    display_event_candidate && plan_operation_desktop({
+      event: display_event_candidate,
+      snapshot: snapshot ?? null,
+    }).windows.length > 0
+      ? display_event_candidate
+      : null
+  ), [display_event_candidate, snapshot]);
   const phase_meta = display_event ? PHASE_META[display_event.phase] : null;
   const PhaseIcon = phase_meta?.Icon;
-  const subtitle = display_event
-    ? `${agent_name || display_event.agent_id || "Agent"} / ${SURFACE_META[display_event.surface].label}`
-    : agent_name || "Agent";
   const stage_surface = (
     <>
       <OperationStageMotionStyles />
@@ -83,7 +87,6 @@ export function OperationStagePanel({
         on_permission_response={permission_response_handler}
         presentation={presentation}
         snapshot={snapshot ?? null}
-        subtitle={subtitle}
       />
     </>
   );
@@ -120,14 +123,12 @@ export function OperationStagePanel({
 function StageSurface({
   active_event,
   snapshot,
-  subtitle,
   presentation,
   header_action,
   on_permission_response,
 }: {
   active_event: NexusOperationEvent | null;
   snapshot: NexusOperationSnapshot | null;
-  subtitle: string;
   presentation: "panel" | "stage";
   header_action?: ReactNode;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
@@ -137,12 +138,10 @@ function StageSurface({
   const is_scene_entering = stage_transition.phase === "priming" || stage_transition.phase === "materializing";
   const experience_phase = derive_operation_stage_experience_phase(active_event, snapshot);
   const transition_style = build_stage_transition_style(stage_transition.intent);
-  const round_event_count = active_event && snapshot
-    ? snapshot.events.filter((item) => item.round_id === active_event.round_id).length
-    : active_event ? 1 : 0;
-  const previous_round_event = active_event && snapshot
-    ? find_previous_round_event(active_event, snapshot)
-    : null;
+
+  if (!active_event) {
+    return null;
+  }
 
   return (
     <section className={cn(
@@ -164,18 +163,6 @@ function StageSurface({
           )}>
             {active_event ? (
               <>
-                {is_scene_entering ? (
-                  <EmptyStage
-                    active_event={active_event}
-                    exiting
-                    key={`idle-exit-${stage_transition.sequence}`}
-                    previous_event={previous_round_event}
-                    round_event_count={round_event_count}
-                    snapshot={snapshot}
-                    subtitle={subtitle}
-                    transition_intent={stage_transition.intent}
-                  />
-                ) : null}
                 <div
                   className={cn("h-full min-h-0", is_scene_entering && "operation-stage-scene-enter")}
                   key={is_scene_entering ? `scene-enter-${stage_transition.sequence}` : "scene-live"}
@@ -189,9 +176,7 @@ function StageSurface({
                   />
                 </div>
               </>
-            ) : (
-              <EmptyStage snapshot={snapshot} subtitle={subtitle} />
-            )}
+            ) : null}
           </div>
         </div>
       </div>
@@ -218,20 +203,6 @@ function StageScene({
       snapshot={snapshot}
     />
   );
-}
-
-function find_previous_round_event(
-  active_event: NexusOperationEvent,
-  snapshot: NexusOperationSnapshot,
-): NexusOperationEvent | null {
-  const round_events = snapshot.events
-    .filter((item) => item.round_id === active_event.round_id)
-    .sort((left, right) => left.updated_at - right.updated_at);
-  const active_index = round_events.findIndex((item) => item.id === active_event.id);
-  if (active_index <= 0) {
-    return null;
-  }
-  return round_events[active_index - 1] ?? null;
 }
 
 function useStageTransition(active_event: NexusOperationEvent | null): StageTransitionState {

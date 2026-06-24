@@ -283,7 +283,7 @@ verify_html_artifact_opens_browser_srcdoc({
   project_operation_snapshot,
 });
 verify_pending_permissions_are_scoped_and_precise(now);
-verify_live_round_placeholder(now);
+verify_live_round_without_tool_events_stays_hidden(now);
 verify_synthetic_error_summary(now);
 
 console.log("operation-stage projector verification passed");
@@ -2628,7 +2628,7 @@ function verify_pending_permissions_are_scoped_and_precise(now) {
   assert(!snapshot.events.some((event) => event.id === "permission:permission-unscoped"), "unscoped permission should not enter a session-specific stage");
 }
 
-function verify_live_round_placeholder(now) {
+function verify_live_round_without_tool_events_stays_hidden(now) {
   const messages = [{
     role: "user",
     message_id: "msg-user",
@@ -2648,18 +2648,8 @@ function verify_live_round_placeholder(now) {
     live_round_ids: ["round-live"],
     workspace_events: [],
   });
-  assert(snapshot.active_event?.id === "live-round:round-live", "live round without tool events should create a placeholder event");
-  assert(snapshot.active_event?.phase === "running", `live round placeholder should be running, got ${snapshot.active_event?.phase}`);
-  assert(snapshot.active_event?.surface === "conversation", `live round placeholder should use conversation surface, got ${snapshot.active_event?.surface}`);
-  assert(snapshot.active_event?.title === "桌面待命", `live round placeholder should read as a desktop idle state, got ${snapshot.active_event?.title}`);
-  assert(snapshot.active_event?.target === "等待第一个应用窗口", `live round placeholder should wait for the first app window, got ${snapshot.active_event?.target}`);
-  const desktop = plan_operation_desktop({
-    event: snapshot.active_event,
-    snapshot,
-  });
-  assert(desktop.active_window_id === null, `live round should keep the desktop idle before tools, got ${desktop.active_window_id}`);
-  assert(desktop.windows.length === 0, `live round should not open app windows before tools, got ${desktop.windows.length}`);
-  assert(!desktop.windows.some((window) => window.kind === "summary"), "live round should not reuse summary window before tools exist");
+  assert(snapshot.active_event === null, "live round without tool events should not create a placeholder active event");
+  assert(snapshot.events.length === 0, `live round without tool events should stay out of the stage timeline, got ${snapshot.events.length}`);
 }
 
 function verify_synthetic_error_summary(now) {

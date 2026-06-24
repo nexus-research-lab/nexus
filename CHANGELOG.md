@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Removed the Operation Stage empty desktop placeholder so new user queries do not open a blank Nexus OS scene before real app work exists.
 - Added manual Operation Stage window resizing and removed the image preview inspector rail.
 - Removed the Operation Stage generic tool detail window; unclassified actions now stay in the execution path until a real app/result can represent them.
 - Routed Operation Stage tool results with generated file paths directly into preview apps instead of the generic tool surface.

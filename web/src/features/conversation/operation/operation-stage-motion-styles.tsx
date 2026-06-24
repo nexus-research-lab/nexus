@@ -76,43 +76,6 @@ export function OperationStageMotionStyles() {
           100% { opacity: 1; transform: scale(1); filter: blur(0); }
         }
 
-        @keyframes nexus-operation-idle-exit {
-          0% { opacity: 1; transform: scale(1); filter: blur(0); }
-          46% { opacity: .68; filter: blur(.5px); }
-          100% {
-            opacity: 0;
-            transform:
-              translate3d(
-                var(--operation-idle-exit-x, 0),
-                var(--operation-idle-exit-y, 0),
-                0
-              )
-              scale(var(--operation-idle-exit-scale, 1.035));
-            filter: blur(var(--operation-idle-exit-blur, 4px));
-          }
-        }
-
-        @keyframes nexus-operation-idle-particles-yield {
-          0% { opacity: .94; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
-          38% { opacity: .82; transform: translate3d(0, -2px, 0) scale(.99); filter: blur(.2px); }
-          100% {
-            opacity: 0;
-            transform:
-              translate3d(
-                calc(var(--operation-idle-exit-x, 0) * .42),
-                calc(var(--operation-idle-exit-y, 0) * .42),
-                0
-              )
-              scale(.86);
-            filter: blur(2.5px);
-          }
-        }
-
-        @keyframes nexus-operation-idle-pulse {
-          0%, 100% { opacity: .9; transform: translate3d(0, 0, 0) scale(1); }
-          50% { opacity: 1; transform: translate3d(0, -2px, 0) scale(1.006); }
-        }
-
         @keyframes nexus-operation-boot-signal {
           0% { opacity: 0; transform: translate3d(0, 12px, 0) scale(.985); filter: blur(4px); }
           42% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
@@ -369,25 +332,6 @@ export function OperationStageMotionStyles() {
           animation: nexus-operation-scene-enter 920ms cubic-bezier(.16,.84,.24,1) both;
         }
 
-        .operation-idle-stage-exit {
-          animation: nexus-operation-idle-exit 920ms cubic-bezier(.16,.84,.24,1) both;
-          background: transparent !important;
-        }
-
-        .operation-idle-stage-exit .operation-idle-sky,
-        .operation-idle-stage-exit .operation-idle-grid,
-        .operation-idle-stage-exit .operation-idle-dotfield {
-          opacity: 0;
-          transition: opacity 180ms ease-out;
-        }
-
-        .operation-idle-stage-exit .operation-idle-agent-pill,
-        .operation-idle-stage-exit .operation-idle-status-card,
-        .operation-idle-stage-exit .operation-idle-clock {
-          opacity: 0;
-          transition: opacity 220ms ease-out;
-        }
-
         .operation-boot-signal {
           animation: nexus-operation-boot-signal 1040ms cubic-bezier(.2,.8,.2,1) both;
         }
@@ -434,7 +378,6 @@ export function OperationStageMotionStyles() {
           .operation-phase-meter,
           .operation-focus-dot,
           .operation-stage-scene-enter,
-          .operation-idle-stage-exit,
           .operation-boot-signal,
           .operation-boot-line,
           .operation-event-signal,

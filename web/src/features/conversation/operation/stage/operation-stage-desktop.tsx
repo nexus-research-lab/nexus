@@ -14,7 +14,6 @@ import type {
   NexusOperationEvent,
   NexusOperationSnapshot,
 } from "../operation-types";
-import { EmptyStage } from "../operation-stage-idle";
 import {
   build_stage_narrative,
   collect_narrative_events,
@@ -390,13 +389,7 @@ export function OperationStageDesktop({
   };
 
   if (!stage_windows.length) {
-    return (
-      <EmptyStage
-        on_launch_app={launch_dock_app}
-        snapshot={snapshot}
-        subtitle={event.agent_id || "Nexus"}
-      />
-    );
+    return null;
   }
 
   return (
