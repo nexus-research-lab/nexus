@@ -61,3 +61,40 @@ func TestBuildSubagentTasksMergesStartedAndNotification(t *testing.T) {
 		t.Fatalf("task usage = %+v, want tokens/tool uses", task.Usage)
 	}
 }
+
+func TestBuildSubagentTasksMergesTaskUpdatedTerminal(t *testing.T) {
+	messages := []protocol.Message{
+		{
+			"content":   "子 Agent 开始排查",
+			"round_id":  "round-1",
+			"timestamp": int64(1000),
+			"metadata": map[string]any{
+				"subtype":    "task_started",
+				"task_id":    "task-1",
+				"agent_id":   "agent-1",
+				"agent_type": "worker",
+			},
+		},
+		{
+			"content":   "后台子 Agent 已停止",
+			"round_id":  "round-1",
+			"timestamp": int64(2000),
+			"metadata": map[string]any{
+				"subtype": "task_updated",
+				"task_id": "task-1",
+				"status":  "killed",
+				"patch": map[string]any{
+					"status": "killed",
+				},
+			},
+		},
+	}
+
+	tasks := buildSubagentTasks("agent:nexus:ws:dm:test", messages)
+	if len(tasks) != 1 {
+		t.Fatalf("len(tasks) = %d, want 1", len(tasks))
+	}
+	if tasks[0].Status != "killed" || tasks[0].UpdatedAt != 2000 {
+		t.Fatalf("task = %+v, want killed update", tasks[0])
+	}
+}

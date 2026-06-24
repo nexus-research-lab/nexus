@@ -197,7 +197,7 @@ func buildSubagentTasks(sessionKey string, messages []protocol.Message) []Subage
 	for _, message := range messages {
 		metadata := subagentTaskMetadata(message)
 		subtype := stringFromAny(metadata["subtype"])
-		if subtype != "task_started" && subtype != "task_notification" {
+		if subtype != "task_started" && subtype != "task_notification" && subtype != "task_updated" {
 			continue
 		}
 		taskID := stringFromAny(metadata["task_id"])
@@ -248,6 +248,11 @@ func mergeSubagentTaskMessage(task *SubagentTask, message protocol.Message, meta
 	}
 	if status := stringFromAny(metadata["status"]); status != "" {
 		task.Status = status
+	}
+	if task.Status == "" || task.Status == "running" {
+		if patchStatus := stringFromAny(mapFromAny(metadata["patch"])["status"]); patchStatus != "" {
+			task.Status = patchStatus
+		}
 	}
 }
 

@@ -261,6 +261,46 @@ func TestMessageMapperMapsTaskNotification(t *testing.T) {
 	}
 }
 
+func TestMessageMapperMapsTaskUpdated(t *testing.T) {
+	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-task-updated")
+
+	events, _, _, _, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeSystem,
+		SessionID: "sdk-session-task",
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "task_updated",
+			Data: map[string]any{
+				"subtype":    "task_updated",
+				"task_id":    "task-1",
+				"agent_id":   "agent-1",
+				"agent_type": "worker",
+				"patch": map[string]any{
+					"status":          "completed",
+					"description":     "子 Agent 完成排查",
+					"is_backgrounded": false,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("task_updated 映射失败: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("task_updated 事件数量不正确: %+v", events)
+	}
+	if events[0].EventType != protocol.EventTypeMessage || events[0].DeliveryMode != "durable" {
+		t.Fatalf("task_updated 事件类型不正确: %+v", events[0])
+	}
+	metadata, _ := events[0].Data["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_updated" || metadata["task_id"] != "task-1" || metadata["status"] != "completed" {
+		t.Fatalf("task_updated metadata 不正确: %+v", metadata)
+	}
+	patch, _ := metadata["patch"].(map[string]any)
+	if patch["description"] != "子 Agent 完成排查" {
+		t.Fatalf("task_updated patch 不正确: %+v", patch)
+	}
+}
+
 func TestMessageMapperEmitsApiRetryAsEphemeralSystemMessage(t *testing.T) {
 	mapper := NewMessageMapper("agent:nexus:ws:dm:test", "nexus", "round-api-retry")
 
