@@ -19,6 +19,8 @@ func BuildSDKMessageLogSummary(message sdkprotocol.ReceivedMessage) string {
 		return summarizeResultMessage(message)
 	case sdkprotocol.MessageTypeSystem:
 		return summarizeSystemMessage(message)
+	case sdkprotocol.MessageTypeToolProgress:
+		return summarizeToolProgressMessage(message)
 	case sdkprotocol.MessageTypeTaskProgress:
 		return summarizeTaskProgressMessage(message)
 	default:
@@ -138,6 +140,17 @@ func summarizeTaskProgressMessage(message sdkprotocol.ReceivedMessage) string {
 		return "task_progress"
 	}
 	return "task_progress " + toolName
+}
+
+func summarizeToolProgressMessage(message sdkprotocol.ReceivedMessage) string {
+	if message.ToolProgress == nil {
+		return "tool_progress"
+	}
+	toolName := strings.TrimSpace(message.ToolProgress.ToolName)
+	if toolName == "" {
+		return "tool_progress"
+	}
+	return "tool_progress " + toolName
 }
 
 func appendSummaryPreview(summary string, preview string) string {

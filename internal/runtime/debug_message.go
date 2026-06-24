@@ -42,6 +42,8 @@ func BuildSDKMessageLogFieldsWithOptions(
 			return nil
 		}
 		fields = append(fields, buildStreamEventFields(message)...)
+	case sdkprotocol.MessageTypeToolProgress:
+		fields = append(fields, buildToolProgressFields(message)...)
 	case sdkprotocol.MessageTypeTaskProgress:
 		fields = append(fields, buildTaskProgressFields(message)...)
 	case sdkprotocol.MessageTypeSystem:

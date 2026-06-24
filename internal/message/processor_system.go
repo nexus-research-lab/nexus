@@ -72,6 +72,34 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 	)
 }
 
+func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.ToolProgress == nil {
+		return nil
+	}
+	progress := message.ToolProgress
+	data := mapValue(progress.Additional["data"])
+	if normalizeString(data["type"]) != "agent_progress" {
+		return nil
+	}
+	taskID := firstNonEmpty(
+		strings.TrimSpace(progress.TaskID),
+		normalizeString(data["agent_id"]),
+		strings.TrimSpace(progress.ToolUseID),
+	)
+	description := firstNonEmpty(
+		normalizeString(data["description"]),
+		normalizeString(data["agent_type"]),
+		"子 Agent 正在执行",
+	)
+	return p.buildTaskProgressMessage(
+		taskID,
+		description,
+		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
+		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
+		mapValue(data["usage"]),
+	)
+}
+
 func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.TaskStarted == nil {
 		return nil
@@ -356,6 +384,28 @@ func taskUsageMap(usage sdkprotocol.TaskUsage) map[string]any {
 		values["duration_ms"] = usage.DurationMS
 	}
 	return values
+}
+
+func agentProgressLastToolName(data map[string]any) string {
+	message := mapValue(data["message"])
+	if normalizeString(message["type"]) != "assistant" {
+		return ""
+	}
+	envelope := mapValue(message["message"])
+	items, ok := envelope["content"].([]any)
+	if !ok {
+		return ""
+	}
+	for index := len(items) - 1; index >= 0; index-- {
+		block := mapValue(items[index])
+		if normalizeString(block["type"]) != "tool_use" {
+			continue
+		}
+		if name := normalizeString(block["name"]); name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 func firstTaskStartedDescription(message *sdkprotocol.SystemMessage) string {

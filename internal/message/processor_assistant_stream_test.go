@@ -184,6 +184,73 @@ func TestProcessorMergesSequentialAssistantSnapshots(t *testing.T) {
 	}
 }
 
+func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
+	parentToolUseID := "call-agent"
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-agent-progress",
+		ParentID:   "round-agent-progress",
+	}, "sdk-session-agent-progress")
+
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeStreamEvent,
+		SessionID: "sdk-session-agent-progress",
+		Stream: &sdkprotocol.StreamEvent{
+			Event: map[string]any{
+				"type": "message_start",
+				"message": map[string]any{
+					"id":    "assistant-agent-progress-1",
+					"model": "glm-5.2",
+				},
+			},
+		},
+	})
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeToolProgress,
+		SessionID: "sdk-session-agent-progress",
+		ToolProgress: &sdkprotocol.ToolProgressMessage{
+			ToolUseID:       "agent-msg-child",
+			ToolName:        "Agent",
+			ParentToolUseID: &parentToolUseID,
+			TaskID:          "agent-1",
+			Additional: map[string]any{
+				"data": map[string]any{
+					"type":        "agent_progress",
+					"agent_id":    "agent-1",
+					"agent_type":  "Explore",
+					"description": "检查 a11y 配置",
+					"message": map[string]any{
+						"type": "assistant",
+						"message": map[string]any{
+							"content": []any{
+								map[string]any{
+									"type": "tool_use",
+									"name": "Bash",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("agent_progress 未并入 assistant durable 消息: %+v", output)
+	}
+	content, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	if len(content) != 1 || content[0]["type"] != "task_progress" {
+		t.Fatalf("agent_progress 内容块不正确: %+v", output.DurableMessages[0])
+	}
+	if content[0]["task_id"] != "agent-1" || content[0]["tool_use_id"] != "call-agent" {
+		t.Fatalf("task_progress 任务标识不正确: %+v", content[0])
+	}
+	if content[0]["description"] != "检查 a11y 配置" || content[0]["last_tool_name"] != "Bash" {
+		t.Fatalf("task_progress 摘要不正确: %+v", content[0])
+	}
+}
+
 func TestProcessorMergesSequentialAssistantToolUseSnapshots(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

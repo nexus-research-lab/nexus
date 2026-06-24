@@ -175,6 +175,28 @@ func buildTaskProgressFields(message sdkprotocol.ReceivedMessage) []any {
 	return fields
 }
 
+func buildToolProgressFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.ToolProgress == nil {
+		return nil
+	}
+	fields := []any{}
+	if toolName := strings.TrimSpace(message.ToolProgress.ToolName); toolName != "" {
+		fields = append(fields, "tool", toolName)
+	}
+	if taskID := strings.TrimSpace(message.ToolProgress.TaskID); taskID != "" {
+		fields = append(fields, "task_id", taskID)
+	}
+	if toolUseID := strings.TrimSpace(message.ToolProgress.ToolUseID); toolUseID != "" {
+		fields = append(fields, "tool_use_id", toolUseID)
+	}
+	if message.ToolProgress.ParentToolUseID != nil {
+		if parentToolUseID := strings.TrimSpace(*message.ToolProgress.ParentToolUseID); parentToolUseID != "" {
+			fields = append(fields, "parent_tool_use_id", parentToolUseID)
+		}
+	}
+	return fields
+}
+
 func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
 	if message.System == nil {
 		return nil
