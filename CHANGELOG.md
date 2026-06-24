@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Resumed DM and Room Goal continuations after background subagent terminal notifications instead of suppressing waiting rounds as empty progress.
+- Preserved SDK terminal `errors` text in round failure summaries instead of falling back to a generic runtime failure message.
 - Restored the scroll-to-bottom affordance inside Room Thread detail panels.
 - Fixed Room Goal auto-continuation from background contexts so missing request ownership no longer makes active Room Goals disappear.
 - Clarified conversation connection error copy and provider retry UI so runtime stalls are not presented as a stopped backend service.
