@@ -75,11 +75,43 @@ func terminalErrorMessage(mapResult RoundMapResult) string {
 		if terminalReason := strings.TrimSpace(messageString(messageValue["terminal_reason"])); terminalReason != "" {
 			return terminalReason
 		}
+		if errorsText := terminalErrorsText(messageValue["errors"]); errorsText != "" {
+			return errorsText
+		}
 	}
 	if mapResult.ResultSubtype == "error" || mapResult.TerminalStatus == "error" {
 		return "Runtime request failed"
 	}
 	return ""
+}
+
+func terminalErrorsText(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case []string:
+		return strings.TrimSpace(strings.Join(trimNonEmptyStrings(typed), "; "))
+	case []any:
+		parts := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text := strings.TrimSpace(messageString(item)); text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.TrimSpace(strings.Join(parts, "; "))
+	default:
+		return ""
+	}
+}
+
+func trimNonEmptyStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if text := strings.TrimSpace(value); text != "" {
+			result = append(result, text)
+		}
+	}
+	return result
 }
 
 func terminalAssistantResult(mapResult RoundMapResult) (RoundExecutionResult, bool) {
