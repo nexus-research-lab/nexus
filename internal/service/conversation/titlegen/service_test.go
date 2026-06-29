@@ -259,6 +259,81 @@ func TestScheduleSkipsNonDefaultTitles(t *testing.T) {
 	}
 }
 
+func TestScheduleUpdatesSessionWhenConversationTitleIsCustom(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "text",
+					"text": "会议纪要",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	sessionStore := &fakeSessionService{
+		sessions: map[string]*protocol.Session{
+			"agent:a:ws:dm:conv_1": {
+				SessionKey: "agent:a:ws:dm:conv_1",
+				Title:      "New Chat",
+			},
+		},
+	}
+	roomStore := &fakeRoomService{
+		contexts: map[string]*protocol.ConversationContextAggregate{
+			"conv_1": {
+				Room: protocol.RoomRecord{
+					ID:   "room_1",
+					Name: "协作房间",
+				},
+				Conversation: protocol.ConversationRecord{
+					ID:    "conv_1",
+					Title: "用户自定义话题",
+				},
+			},
+		},
+	}
+	service := NewService(
+		&fakeProviderResolver{
+			config: &clientopts.RuntimeConfig{
+				Provider:  "kimi",
+				AuthToken: "token-1",
+				BaseURL:   server.URL,
+				Model:     "kimi-k2.5",
+			},
+		},
+		sessionStore,
+		roomStore,
+		&fakeEventBroadcaster{},
+	)
+	service.runAsync = func(job func()) {
+		job()
+	}
+
+	service.Schedule(context.Background(), Request{
+		SessionKey:               "agent:a:ws:dm:conv_1",
+		Content:                  "帮我整理这次产品会议的纪要",
+		SessionTitle:             "New Chat",
+		SessionMessageCount:      0,
+		ConversationID:           "conv_1",
+		ConversationRoomID:       "room_1",
+		ConversationTitle:        "用户自定义话题",
+		ConversationRoomName:     "协作房间",
+		ConversationMessageCount: 0,
+	})
+
+	if got := sessionStore.sessions["agent:a:ws:dm:conv_1"].Title; got != "会议纪要" {
+		t.Fatalf("session title = %q, want generated title", got)
+	}
+	if got := roomStore.contexts["conv_1"].Conversation.Title; got != "用户自定义话题" {
+		t.Fatalf("conversation title should keep custom value: %q", got)
+	}
+}
+
 func TestScheduleUpdatesDefaultSessionTitleAfterInitialMessage(t *testing.T) {
 	t.Parallel()
 
