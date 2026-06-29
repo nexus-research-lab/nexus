@@ -220,6 +220,140 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	}
 }
 
+func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID:   "user-room-directed-message-queue",
+		Username: "room-owner",
+		Role:     authsvc.RoleOwner,
+	})
+	amy := createTestAgent(t, agentService, ctx, "Amy")
+	devin := createTestAgent(t, agentService, ctx, "Devin")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:               []string{amy.AgentID, devin.AgentID},
+		Name:                   "私信排队 Room",
+		PrivateMessagesEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	devinCurrentClient := newFakeRoomClient()
+	devinQueuedClient := newFakeRoomClient()
+	devinCurrentClient.onQuery = func(context.Context, string) error {
+		return nil
+	}
+	queuedPrompt := make(chan string, 1)
+	devinQueuedClient.onQuery = func(_ context.Context, prompt string) error {
+		queuedPrompt <- prompt
+		go sendFakeAssistantResult(devinQueuedClient, "devin-directed-message-after-busy", "这是给 Amy 的排队私下回复")
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := roomsvc.NewRealtimeServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient, devinQueuedClient}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := newRealtimeTestSender("room-sender-directed-message-queue")
+	permission.BindSession(sharedSessionKey, sender)
+
+	if err = service.HandleChat(ctx, roomsvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Devin 先处理一个长任务",
+		RoundID:        "room-round-devin-directed-busy",
+		ReqID:          "room-round-devin-directed-busy",
+	}); err != nil {
+		t.Fatalf("启动 Devin 长任务失败: %v", err)
+	}
+	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID
+	})
+
+	message, err := service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
+		SourceAgentID: amy.AgentID,
+		Recipients:    []string{devin.AgentID},
+		Content:       "只给 Devin 的排队私信",
+		WakePolicy:    protocol.RoomWakePolicyImmediate,
+		ReplyRoute: protocol.RoomReplyRoute{
+			Mode:       protocol.RoomReplyRoutePrivate,
+			Recipients: []string{amy.AgentID},
+			WakePolicy: protocol.RoomWakePolicyNone,
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 directed message 失败: %v", err)
+	}
+
+	targetQueueLocation := workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  devin.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, devin.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	targetQueueItems, err := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(targetQueueLocation)
+	if err != nil {
+		t.Fatalf("读取目标 agent session 队列失败: %v", err)
+	}
+	if len(targetQueueItems) != 1 {
+		t.Fatalf("directed message 应排队到目标 agent session: %+v", targetQueueItems)
+	}
+	queuedItem := targetQueueItems[0]
+	if queuedItem.Source != protocol.InputQueueSourceAgentRoomMessage ||
+		queuedItem.SourceAgentID != amy.AgentID ||
+		queuedItem.SourceMessageID != message.MessageID ||
+		len(queuedItem.TargetAgentIDs) != 1 ||
+		queuedItem.TargetAgentIDs[0] != devin.AgentID ||
+		queuedItem.ReplyRoute.Mode != protocol.RoomReplyRoutePrivate ||
+		len(queuedItem.ReplyRoute.Recipients) != 1 ||
+		queuedItem.ReplyRoute.Recipients[0] != amy.AgentID {
+		t.Fatalf("directed message 队列项缺少来源、目标或 reply_route: %+v", queuedItem)
+	}
+	if strings.Contains(queuedItem.Content, "只给 Devin 的排队私信") {
+		t.Fatalf("directed message 队列项不应泄漏私信正文: %+v", queuedItem)
+	}
+	select {
+	case prompt := <-queuedPrompt:
+		t.Fatalf("目标 agent 尚未空闲前不应启动 queued directed message: %s", prompt)
+	default:
+	}
+
+	go sendFakeAssistantResult(devinCurrentClient, "devin-current-directed-task-done", "当前长任务完成。")
+	select {
+	case prompt := <-queuedPrompt:
+		for _, expected := range []string{
+			"<room_directed_messages>",
+			"只给 Devin 的排队私信",
+			"reply_route=private recipients=Amy",
+		} {
+			if !strings.Contains(prompt, expected) {
+				t.Fatalf("queued directed message prompt 缺少片段 %q:\n%s", expected, prompt)
+			}
+		}
+	case <-time.After(time.Second):
+		t.Fatal("目标 agent 空闲后未派发 queued directed message")
+	}
+
+	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
+	waitForRoomDirectedMessageContent(t, messageStore, roomContext.Conversation.ID, amy.AgentID, "这是给 Amy 的排队私下回复")
+}
+
 func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
