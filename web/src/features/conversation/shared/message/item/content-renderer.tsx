@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   ContentBlock,
   SystemEventContent,
+  TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
@@ -170,6 +171,15 @@ export function ContentRenderer(
     }
   });
 
+  // 第三遍：把 task_progress 按 tool_use_id 折叠到对应工具块（子 Agent 实时进度）。
+  // 不再单独渲染 task_progress 行，统一并入它所属的 Agent ToolBlock。
+  const taskProgressByToolUseId = new Map<string, TaskProgressContent>();
+  content.forEach((block) => {
+    if (block.type === 'task_progress' && block.tool_use_id) {
+      taskProgressByToolUseId.set(block.tool_use_id, block);
+    }
+  });
+
   // 只要当前轮次仍在进行，就持续在块尾渲染一个状态行；
   // 不再要求“没有 streaming block”才显示，否则纯文本回复阶段会出现状态空窗。
   const activityState = is_streaming
@@ -287,33 +297,7 @@ export function ContentRenderer(
           ));
         }
 
-        if (block.type === 'task_progress') {
-          return wrap_block(index, (
-            <MessageRail class_name="min-w-0">
-              <MessageRailLabel active>
-                <span
-                  data-timeline-anchor
-                  data-timeline-anchor-mode="box"
-                  className="flex h-4 w-4 shrink-0 items-center justify-center"
-                >
-                  <SystemEventIcon
-                    icon="progress"
-                    class_name="h-3 w-3 text-primary"
-                  />
-                </span>
-                <span className="truncate">{block.last_tool_name || '后台任务'}</span>
-                <span className="shrink-0 rounded-[6px] bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                  执行中
-                </span>
-              </MessageRailLabel>
-              <MessageRailBody class_name="pt-0.5 text-[12px] leading-5 text-(--text-muted)">
-                <span className="block truncate">
-                  {block.description || '正在处理中…'}
-                </span>
-              </MessageRailBody>
-            </MessageRail>
-          ));
-        }
+        // task_progress 不再单独渲染：已按 tool_use_id 折叠进对应 Agent ToolBlock。
 
         if (block.type === 'workspace_file_artifact') {
           return wrap_block(index, (
@@ -378,6 +362,7 @@ export function ContentRenderer(
               <ToolBlock
                 tool_use={block}
                 tool_result={toolData?.result}
+                live_progress={taskProgressByToolUseId.get(block.id) ?? null}
                 status={toolStatus}
                 permission_request={isThisToolPendingPermission ? {
                   request_id: pending_permission!.request_id,

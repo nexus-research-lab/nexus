@@ -55,6 +55,7 @@ export function OnboardingGuideCenter({
   };
 
   const dialog = (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-close + Escape is a standard modal dialog pattern
     <div
       aria-describedby="onboarding-guide-center-description"
       aria-labelledby="onboarding-guide-center-title"
@@ -62,12 +63,19 @@ export function OnboardingGuideCenter({
       className={`${DIALOG_BACKDROP_CLASS_NAME} z-[11050]`}
       data-modal-root="true"
       onClick={on_close}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          on_close();
+        }
+      }}
       role="dialog"
     >
       <div
         className="relative w-full max-w-lg"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
+        role="presentation"
       >
         <img
           alt=""

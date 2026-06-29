@@ -122,7 +122,7 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
   );
 });
 
-export function UiSearchInput({
+export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(function UiSearchInput({
   action,
   class_name,
   className,
@@ -134,7 +134,7 @@ export function UiSearchInput({
   value,
   variant,
   ...props
-}: UiSearchInputProps) {
+}: UiSearchInputProps, ref) {
   const handle_change = (event: ChangeEvent<HTMLInputElement>) => {
     on_change(event.target.value);
   };
@@ -156,9 +156,10 @@ export function UiSearchInput({
         placeholder={placeholder}
         type={type ?? "search"}
         value={value}
+        ref={ref}
         {...props}
       />
       {action}
     </label>
   );
-}
+});

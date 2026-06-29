@@ -165,7 +165,7 @@ export function SettingsGeneralBehaviorSection({
           on_change={on_default_model_change}
           options={default_model_options}
           provider_options_loading={provider_options_loading}
-          role="agent_runtime"
+          model_category="agent_runtime"
           saving_role={default_model_saving_role}
           title_key="settings.general.default_model_title"
           value={default_model_value}
@@ -180,7 +180,7 @@ export function SettingsGeneralBehaviorSection({
           on_change={on_default_model_change}
           options={default_image_model_options}
           provider_options_loading={provider_options_loading}
-          role="image_generation"
+          model_category="image_generation"
           saving_role={default_model_saving_role}
           title_key="settings.general.default_image_model_title"
           value={default_image_model_value}
@@ -196,7 +196,7 @@ export function SettingsGeneralBehaviorSection({
           on_change={on_default_model_change}
           options={default_background_model_options}
           provider_options_loading={provider_options_loading}
-          role="background_task"
+          model_category="background_task"
           saving_role={default_model_saving_role}
           title_key="settings.general.default_background_model_title"
           value={default_background_model_value}

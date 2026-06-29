@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Repeat2 } from "lucide-react";
 
 import { list_loops_api } from "@/lib/api/loop-api";
@@ -51,6 +51,13 @@ export function LoopPickerDialog({
   const [loading, set_loading] = useState(false);
   const [busy_slug, set_busy_slug] = useState<string | null>(null);
   const [error, set_error] = useState<string | null>(null);
+  const search_input_ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (is_open) {
+      search_input_ref.current?.focus();
+    }
+  }, [is_open]);
 
   useEffect(() => {
     if (!is_open) {
@@ -129,9 +136,10 @@ export function LoopPickerDialog({
           <UiDialogBody class_name="flex min-h-0 flex-1 flex-col gap-3">
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
               <UiSearchInput
-                autoFocus
+                aria-label={t("composer.loop_search_placeholder")}
                 class_name="min-w-0 flex-1"
                 input_class_name="text-[13px]"
+                ref={search_input_ref}
                 on_change={set_query}
                 placeholder={t("composer.loop_search_placeholder")}
                 value={query}

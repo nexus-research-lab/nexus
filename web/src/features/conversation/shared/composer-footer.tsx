@@ -108,6 +108,7 @@ export function ComposerFooter({
                   <span
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
+                    role="presentation"
                   >
                     <GlassSwitch
                       checked={is_goal_mode}

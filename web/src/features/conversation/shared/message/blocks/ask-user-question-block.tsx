@@ -240,9 +240,10 @@ export function AskUserQuestionBlock({
     return (
         <MessageRail class_name="my-1.5">
             {/* ═══════════ 头部（可点击展开/收起） ═══════════ */}
-            <div
+            <button
+                type="button"
                 className={cn(
-                    "flex min-h-8 cursor-pointer select-none items-center gap-2 py-0.5 text-xs transition duration-(--motion-duration-fast) ease-out",
+                    "flex min-h-8 w-full cursor-pointer select-none items-center gap-2 py-0.5 text-left text-xs transition duration-(--motion-duration-fast) ease-out",
                 )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
@@ -298,7 +299,7 @@ export function AskUserQuestionBlock({
                         <ChevronRight className="w-3.5 h-3.5" />
                     )}
                 </div>
-            </div>
+            </button>
 
             {/* ═══════════ 问题列表（可收起） ═══════════ */}
             {isExpanded && (

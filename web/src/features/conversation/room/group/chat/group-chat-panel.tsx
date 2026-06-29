@@ -19,13 +19,11 @@ import { Agent } from "@/types/agent/agent";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { BackgroundTasksDialog } from "@/features/conversation/shared/background-tasks-dialog";
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
 import { prepare_room_conversation_attachments } from "@/features/conversation/shared/composer-attachments";
 import { ConversationErrorBubble } from "@/features/conversation/shared/conversation-error-bubble";
 import { is_provider_error } from "@/features/conversation/shared/conversation-error-utils";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
-import { SubagentStatusStrip } from "@/features/conversation/shared/subagent-status-strip";
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal-continuation-hold";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
@@ -111,14 +109,6 @@ export function GroupChatPanel({
     : null;
   const default_delivery_policy = useDefaultChatDeliveryPolicy();
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
-  const [background_tasks_open, set_background_tasks_open] = useState(false);
-  const background_tasks_source = useMemo(
-    () =>
-      room_id && conversation_id
-        ? { kind: "room" as const, room_id, conversation_id }
-        : null,
-    [conversation_id, room_id],
-  );
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -498,20 +488,6 @@ export function GroupChatPanel({
           {show_provider_warning ? (
             <ProviderUnavailableBanner compact={is_mobile_layout} />
           ) : null}
-
-          <SubagentStatusStrip
-            compact={is_mobile_layout}
-            live_round_ids={live_round_ids}
-            messages={messages}
-            on_open_background_tasks={() => set_background_tasks_open(true)}
-          />
-
-          <BackgroundTasksDialog
-            compact={is_mobile_layout}
-            open={background_tasks_open}
-            source={background_tasks_source}
-            on_close={() => set_background_tasks_open(false)}
-          />
 
           <RoomGoalPanel
             activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}

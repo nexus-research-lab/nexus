@@ -27,7 +27,7 @@ interface SettingsDefaultModelRowProps {
   on_change: (value: string, role: DefaultModelPreferenceRole) => void;
   options: UiSelectMenuOption[];
   provider_options_loading: boolean;
-  role: DefaultModelPreferenceRole;
+  model_category: DefaultModelPreferenceRole;
   saving_role: DefaultModelPreferenceRole | null;
   title_key: TranslationKey;
   value: string;
@@ -41,7 +41,7 @@ export function SettingsDefaultModelRow({
   on_change,
   options,
   provider_options_loading,
-  role,
+  model_category,
   saving_role,
   title_key,
   value,
@@ -72,9 +72,9 @@ export function SettingsDefaultModelRow({
           button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
           class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
           disabled={provider_options_loading || !!saving_role || options.length === 0}
-          leading={saving_role === role ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+          leading={saving_role === model_category ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
           menu_class_name="min-w-[260px]"
-          on_change={(next_value) => on_change(next_value, role)}
+          on_change={(next_value) => on_change(next_value, model_category)}
           options={options}
           placeholder={provider_options_loading
             ? t("settings.general.default_model_loading")

@@ -223,12 +223,18 @@ function MermaidImagePreviewDialog({
   }
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-close + Escape is a standard modal dialog pattern
     <div
       aria-labelledby="mermaid-image-preview-title"
       aria-modal="true"
       className="dialog-backdrop z-[10000] overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
       data-modal-root="true"
       onClick={on_close}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          on_close();
+        }
+      }}
       onWheel={(event) => {
         if (event.target === event.currentTarget) {
           event.preventDefault();
@@ -239,6 +245,8 @@ function MermaidImagePreviewDialog({
       <section
         className="dialog-shell surface-radius-md relative flex h-[88vh] w-[94vw] max-w-7xl flex-col overflow-hidden overscroll-contain animate-in zoom-in-95 duration-(--motion-duration-fast)"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        role="presentation"
       >
         <h2 className="sr-only" id="mermaid-image-preview-title">
           Mermaid 预览

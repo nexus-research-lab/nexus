@@ -139,7 +139,7 @@ export function LoopsDirectory() {
         ) : (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {filtered_loops.map((loop) => (
-              <article
+              <div
                 className="cursor-pointer rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-raised-background) p-4 transition-colors hover:bg-(--surface-interactive-hover-background)"
                 key={loop.slug}
                 onClick={() => navigate(AppRouteBuilders.loop_detail(loop.slug))}
@@ -196,7 +196,7 @@ export function LoopsDirectory() {
                 <p className="mt-3 border-t border-(--divider-subtle-color) pt-3 text-[12px] leading-5 text-(--text-soft)">
                   {t("capability.loops_exit")}: {loop.exit_condition.description}
                 </p>
-              </article>
+              </div>
             ))}
           </div>
         )}

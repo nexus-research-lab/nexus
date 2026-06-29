@@ -57,9 +57,10 @@ export function AskUserQuestionCard({
           : "color-mix(in srgb, var(--surface-panel-background) 84%, transparent)",
       }}
     >
-      <div
+      <button
+        type="button"
         className={cn(
-          "message-cjk-font flex cursor-pointer select-none items-center gap-2 px-3 py-2 transition duration-(--motion-duration-fast) ease-out",
+          "message-cjk-font flex w-full cursor-pointer select-none items-center gap-2 px-3 py-2 text-left transition duration-(--motion-duration-fast) ease-out",
           isExpanded && "border-b border-(--divider-subtle-color)",
           !isExpanded && "hover:bg-(--surface-interactive-hover-background)",
         )}
@@ -105,7 +106,7 @@ export function AskUserQuestionCard({
             <ChevronRight className="h-3.5 w-3.5" />
           )}
         </div>
-      </div>
+      </button>
 
       {isExpanded && (
         <div className="message-cjk-font p-2.5">
@@ -165,6 +166,8 @@ export function AskUserQuestionCard({
               <div
                 className="px-3 py-2"
                 onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+                role="presentation"
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">自定义回答</div>

@@ -20,11 +20,11 @@ import {
 } from 'lucide-react';
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { cn } from '@/lib/utils';
+import { cn, format_tokens } from '@/lib/utils';
 import { get_ui_choice_class_name } from "@/shared/ui/choice-styles";
 import { CodeBlock } from './code-block';
 import { ImageBlock } from "./image-block";
-import { type ToolResultContent, type ToolUseContent } from '@/types/conversation/message';
+import { type TaskProgressContent, type ToolResultContent, type ToolUseContent } from '@/types/conversation/message';
 import { type PermissionRiskLevel, type PermissionUpdate } from '@/types/conversation/permission';
 import {
   FIELD_LABEL_MAP,
@@ -54,6 +54,8 @@ interface ToolPermissionRequest {
 interface ToolBlockProps {
   tool_use: ToolUseContent;
   tool_result?: ToolResultContent;
+  /** 子 Agent 运行中的实时进度（按 tool_use_id 折叠进来），仅运行态展示。 */
+  live_progress?: TaskProgressContent | null;
   status?: "pending" | "running" | "success" | "error" | "waiting_permission";
   start_time?: number;
   end_time?: number;
@@ -77,6 +79,7 @@ const TOOL_DETAIL_SCROLL_CLASS_NAME =
 export function ToolBlock({
   tool_use,
   tool_result,
+  live_progress,
   status = 'success',
   start_time,
   end_time,
@@ -151,6 +154,17 @@ export function ToolBlock({
     if (readablePermissionFields.length === 0) return null;
     return readablePermissionFields.map((field) => `${field.label}：${field.value}`).join(' · ');
   }, [readablePermissionFields]);
+
+  // 子 Agent 实时进度行（仅运行态）：当前子工具 · token 数
+  const liveStatusText = useMemo(() => {
+    if (!live_progress) return null;
+    const total_tokens = live_progress.usage?.total_tokens;
+    const parts = [
+      live_progress.last_tool_name ? `当前 ${live_progress.last_tool_name}` : null,
+      typeof total_tokens === "number" && total_tokens > 0 ? format_tokens(total_tokens) : null,
+    ].filter(Boolean);
+    return parts.length ? parts.join(" · ") : null;
+  }, [live_progress]);
 
   // 最终状态
   const finalStatus = tool_result?.is_error ? 'error' : status;
@@ -229,6 +243,14 @@ export function ToolBlock({
           isWaiting && "bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)]",
         )}
         onClick={() => hasResult && toggleExpanded()}
+        onKeyDown={hasResult ? (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleExpanded();
+          }
+        } : undefined}
+        role={hasResult ? "button" : undefined}
+        tabIndex={hasResult ? 0 : undefined}
       >
         {/* 工具图标 */}
         <div
@@ -288,6 +310,11 @@ export function ToolBlock({
               <span>{isWaiting ? '等待确认' : '处理中…'}</span>
             )}
           </div>
+          {isRunning && liveStatusText ? (
+            <div className="mt-0.5 truncate text-[11px] text-(--text-soft)">
+              {liveStatusText}
+            </div>
+          ) : null}
         </div>
 
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">

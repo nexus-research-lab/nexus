@@ -107,12 +107,13 @@ export function ConnectorOAuthClientDialog({
             </UiPanel>
           </div>
 
-          <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
+          <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)" htmlFor="oauth-client-id">
             <span>Client ID</span>
             <UiInput
               autoCapitalize="off"
               autoCorrect="off"
               control_size="sm"
+              id="oauth-client-id"
               onChange={(event) => set_client_id(event.target.value)}
               placeholder="飞书应用 App ID"
               spellCheck={false}
@@ -120,7 +121,7 @@ export function ConnectorOAuthClientDialog({
             />
           </label>
 
-          <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)">
+          <label className="block space-y-1 text-[12px] font-medium text-(--text-muted)" htmlFor="oauth-client-secret">
             <span>Client Secret</span>
             <UiInput
               autoCapitalize="off"
@@ -129,6 +130,7 @@ export function ConnectorOAuthClientDialog({
               control_size="sm"
               data-form-type="other"
               data-lpignore="true"
+              id="oauth-client-secret"
               name="feishu-docx-client-secret"
               onChange={(event) => set_client_secret(event.target.value)}
               placeholder={is_configured ? "重新填写后保存" : "飞书应用 App Secret"}

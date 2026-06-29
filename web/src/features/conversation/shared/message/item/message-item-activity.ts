@@ -24,7 +24,6 @@ export function build_process_summary({
   let tool_count = 0;
   let thinking_count = 0;
   let error_count = 0;
-  let progress_count = 0;
   let guidance_count = 0;
 
   for (const block of process_content) {
@@ -38,10 +37,6 @@ export function build_process_summary({
     }
     if (block.type === "tool_result" && block.is_error) {
       error_count += 1;
-      continue;
-    }
-    if (block.type === "task_progress") {
-      progress_count += 1;
       continue;
     }
     if (
@@ -65,9 +60,6 @@ export function build_process_summary({
   }
   if (error_count > 0) {
     summary_parts.push(`${error_count} 个异常`);
-  }
-  if (progress_count > 0) {
-    summary_parts.push(`${progress_count} 条进度`);
   }
   if (guidance_count > 0) {
     summary_parts.push(`${guidance_count} 次引导`);
