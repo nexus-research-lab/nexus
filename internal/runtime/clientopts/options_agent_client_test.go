@@ -108,7 +108,7 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
-	if options.Env["ENABLE_TOOL_SEARCH"] != "false" {
+	if options.Env[enableToolSearchEnvName] != "false" {
 		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
 	}
 	if options.Env[claudeAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
@@ -208,6 +208,17 @@ func TestAnthropicRuntimeEnvClearsConflictingCredentialEnv(t *testing.T) {
 	}
 	if _, ok := officialEnv[anthropicAuthTokenEnvName]; !ok || officialEnv[anthropicAuthTokenEnvName] != "" {
 		t.Fatalf("官方 Anthropic endpoint 应显式清空 bearer token，避免继承系统环境: %+v", officialEnv)
+	}
+}
+
+func TestAnthropicRuntimeEnvEnablesToolSearchForGLM(t *testing.T) {
+	env := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
+		Provider: "glm-coding-plan",
+		BaseURL:  "https://open.bigmodel.cn/api/anthropic",
+		Model:    "glm-5.2",
+	})
+	if env[enableToolSearchEnvName] != "true" {
+		t.Fatalf("GLM Anthropic-compatible runtime 应显式开启 tool search: %+v", env)
 	}
 }
 

@@ -28,6 +28,7 @@ const anthropicBaseURLEnvName = "ANTHROPIC_BASE_URL"
 const anthropicAPIKeyEnvName = "ANTHROPIC_API_KEY"
 const anthropicAuthTokenEnvName = "ANTHROPIC_AUTH_TOKEN"
 const anthropicModelEnvName = "ANTHROPIC_MODEL"
+const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
 
@@ -67,10 +68,23 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
-	if strings.Contains(strings.ToLower(runtimeConfig.Model), "kimi") {
-		env["ENABLE_TOOL_SEARCH"] = "false"
-	}
+	applyToolSearchRuntimeEnv(env, runtimeConfig)
 	return env
+}
+
+func applyToolSearchRuntimeEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+	provider := strings.ToLower(strings.TrimSpace(runtimeConfig.Provider))
+	model := strings.ToLower(strings.TrimSpace(runtimeConfig.Model))
+	baseURL := strings.ToLower(strings.TrimSpace(runtimeConfig.BaseURL))
+	if strings.Contains(provider, "kimi") || strings.Contains(model, "kimi") {
+		env[enableToolSearchEnvName] = "false"
+		return
+	}
+	if strings.Contains(provider, "glm") ||
+		strings.Contains(model, "glm") ||
+		strings.Contains(baseURL, "bigmodel.cn") {
+		env[enableToolSearchEnvName] = "true"
+	}
 }
 
 func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
