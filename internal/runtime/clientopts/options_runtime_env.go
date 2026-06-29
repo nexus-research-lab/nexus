@@ -31,6 +31,7 @@ const anthropicModelEnvName = "ANTHROPIC_MODEL"
 const enableToolSearchEnvName = "ENABLE_TOOL_SEARCH"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
+const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -150,9 +151,35 @@ func nxsDiagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]strin
 	if !enabled || !runtimeProfileForKind(runtimeKind).isNXS() {
 		return nil
 	}
-	return map[string]string{
-		runtimectx.AgentSDKDiagnosticsEnvName: "stderr",
+	env := map[string]string{
+		runtimectx.AgentSDKDiagnosticsJSONLEnvName:          "1",
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName: "0",
 	}
+	if value := strings.TrimSpace(os.Getenv(runtimectx.AgentSDKProviderDebugBodyEnvName)); value != "" {
+		env[runtimectx.AgentSDKProviderDebugBodyEnvName] = value
+	}
+	return env
+}
+
+func explicitNXSProcessRuntimeEnv(runtimeKind string) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	env := map[string]string{}
+	for _, key := range []string{
+		runtimectx.AgentSDKDiagnosticsJSONLEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+		runtimectx.AgentSDKProviderDebugBodyEnvName,
+		nexusCachedMicrocompactEnvName,
+	} {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			env[key] = value
+		}
+	}
+	if len(env) == 0 {
+		return nil
+	}
+	return env
 }
 
 func buildScopedRuntimeEnv(ctx context.Context) map[string]string {

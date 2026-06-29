@@ -310,6 +310,7 @@ func TestBuildAgentClientOptionsInjectsReasoningCapabilities(t *testing.T) {
 func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	t.Setenv(nexusNXSCommandPathEnvName, "")
 	t.Setenv(runtimectx.AgentSDKDiagnosticsEnvName, "stderr")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
 	t.Setenv(runtimectx.AgentSDKDebugEnvName, "1")
 	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
 
@@ -325,6 +326,12 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 	if strings.TrimSpace(options.CLIPath) != "" {
 		t.Fatalf("nxs 默认路径不应由 Nexus 解析: CLIPath=%q", options.CLIPath)
 	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
+		t.Fatalf("显式 JSONL diagnostics env 应透传给 nxs: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName] != "full" {
+		t.Fatalf("显式 provider body env 应透传给 nxs: %+v", options.Env)
+	}
 	for _, key := range []string{
 		"NEXUS_CACHED_MICROCOMPACT",
 		"NEXUS_API_CLEAR_TOOL_RESULTS",
@@ -332,8 +339,8 @@ func TestBuildAgentClientOptionsUsesBridgeRuntimeKind(t *testing.T) {
 		"NEXUS_PROMPT_CACHE_1H_ELIGIBLE",
 		"NEXUS_PROMPT_CACHE_1H_ALLOWLIST",
 		runtimectx.AgentSDKDiagnosticsEnvName,
+		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
 		runtimectx.AgentSDKDebugEnvName,
-		runtimectx.AgentSDKProviderDebugBodyEnvName,
 	} {
 		if _, ok := options.Env[key]; ok {
 			t.Fatalf("%s 应由 bridge 处理或显式输入，不应由 Nexus 默认注入: %+v", key, options.Env)
@@ -349,11 +356,51 @@ func TestBuildAgentClientOptionsEnablesNXSAgentSDKDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[runtimectx.AgentSDKDiagnosticsEnvName] != "stderr" {
-		t.Fatalf("%s = %q, want stderr; env=%+v", runtimectx.AgentSDKDiagnosticsEnvName, options.Env[runtimectx.AgentSDKDiagnosticsEnvName], options.Env)
+	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
+		t.Fatalf("%s = %q, want 1; env=%+v",
+			runtimectx.AgentSDKDiagnosticsJSONLEnvName,
+			options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName],
+			options.Env)
+	}
+	if _, ok := options.Env[runtimectx.AgentSDKDiagnosticsEnvName]; ok {
+		t.Fatalf("宿主默认不应继续注入旧 stderr diagnostics env: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" {
+		t.Fatalf("%s = %q, want 0; env=%+v",
+			runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
+			options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName],
+			options.Env)
 	}
 	if _, ok := options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName]; ok {
 		t.Fatalf("开启 diagnostics 不应强制请求体 dump 范围: %+v", options.Env)
+	}
+	if !runtimectx.AgentSDKDiagnosticsEnabled(options.Env) {
+		t.Fatalf("JSONL diagnostics env 应被运行时摘要识别为已开启: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
+	t.Setenv(runtimectx.AgentSDKDiagnosticsJSONLEnvName, "1")
+	t.Setenv(runtimectx.AgentSDKDiagnosticsStreamProgressEnvName, "0")
+	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
+	t.Setenv(nexusCachedMicrocompactEnvName, "1")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind: runtimeKindNXS,
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsJSONLEnvName] != "1" {
+		t.Fatalf("diagnostics jsonl env 未透传: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKDiagnosticsStreamProgressEnvName] != "0" {
+		t.Fatalf("diagnostics stream progress env 未透传: %+v", options.Env)
+	}
+	if options.Env[runtimectx.AgentSDKProviderDebugBodyEnvName] != "full" {
+		t.Fatalf("provider debug body env 未透传: %+v", options.Env)
+	}
+	if options.Env[nexusCachedMicrocompactEnvName] != "1" {
+		t.Fatalf("cached microcompact env 未透传: %+v", options.Env)
 	}
 }
 

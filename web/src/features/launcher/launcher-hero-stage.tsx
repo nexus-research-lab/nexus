@@ -151,6 +151,8 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
     <div
       className="relative z-10 flex w-full max-w-[1180px] flex-col items-center"
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      role="presentation"
     >
       <HeroBlobShell class_name="z-10 transition-transform duration-500 ease-out">
         <div className="space-y-3 sm:space-y-4">

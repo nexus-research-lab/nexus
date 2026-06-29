@@ -72,6 +72,34 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 	)
 }
 
+func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.ToolProgress == nil {
+		return nil
+	}
+	progress := message.ToolProgress
+	data := mapValue(progress.Additional["data"])
+	if normalizeString(data["type"]) != "agent_progress" {
+		return nil
+	}
+	taskID := firstNonEmpty(
+		strings.TrimSpace(progress.TaskID),
+		normalizeString(data["agent_id"]),
+		strings.TrimSpace(progress.ToolUseID),
+	)
+	description := firstNonEmpty(
+		normalizeString(data["description"]),
+		normalizeString(data["agent_type"]),
+		"子 Agent 正在执行",
+	)
+	return p.buildTaskProgressMessage(
+		taskID,
+		description,
+		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
+		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
+		mapValue(data["usage"]),
+	)
+}
+
 func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.TaskStarted == nil {
 		return nil
@@ -100,6 +128,29 @@ func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedM
 		taskUsageMap(notification.Usage),
 		notification.Additional,
 	)
+}
+
+func (p *Processor) buildTaskUpdatedMessage(taskID string, status string, patch map[string]any, additional map[string]any) *protocol.Message {
+	if strings.TrimSpace(taskID) == "" {
+		return nil
+	}
+	status = strings.TrimSpace(status)
+	payload := baseMessageEnvelope(
+		p.ctx,
+		p.sessionID,
+		fmt.Sprintf("system_task_updated_%s_%s_%s", p.ctx.RoundID, strings.TrimSpace(taskID), firstNonEmpty(status, "patch")),
+		"system",
+	)
+	payload["content"] = taskUpdatedContent(status)
+	payload["metadata"] = map[string]any{
+		"subtype": "task_updated",
+		"task_id": strings.TrimSpace(taskID),
+		"status":  emptyToNil(status),
+		"patch":   firstNonNilMap(patch, map[string]any{}),
+	}
+	copyTaskEventMetadata(payload["metadata"].(map[string]any), additional)
+	messageValue := protocol.Message(payload)
+	return &messageValue
 }
 
 func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskType string, toolUseID string, additional map[string]any) *protocol.Message {
@@ -210,6 +261,14 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 			firstNonNilMap(mapValue(message.Data["usage"]), firstTaskNotificationUsage(message)),
 			message.Data,
 		), false
+	case "task_updated":
+		patch := mapValue(message.Data["patch"])
+		return p.buildTaskUpdatedMessage(
+			normalizeString(message.Data["task_id"]),
+			normalizeString(patch["status"]),
+			patch,
+			message.Data,
+		), false
 	case "api_retry", "api_error":
 		metadata = normalizeAPIRetryMetadata(message.Data)
 		content = firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata))
@@ -232,6 +291,21 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 	payload["metadata"] = metadata
 	messageValue := protocol.Message(payload)
 	return &messageValue, ephemeral
+}
+
+func taskUpdatedContent(status string) string {
+	switch strings.TrimSpace(status) {
+	case "running":
+		return "后台子 Agent 正在运行"
+	case "completed":
+		return "后台子 Agent 已完成"
+	case "failed", "error":
+		return "后台子 Agent 执行失败"
+	case "killed", "stopped", "cancelled":
+		return "后台子 Agent 已停止"
+	default:
+		return "后台子 Agent 状态已更新"
+	}
 }
 
 func normalizeAPIRetryMetadata(data map[string]any) map[string]any {
@@ -356,6 +430,28 @@ func taskUsageMap(usage sdkprotocol.TaskUsage) map[string]any {
 		values["duration_ms"] = usage.DurationMS
 	}
 	return values
+}
+
+func agentProgressLastToolName(data map[string]any) string {
+	message := mapValue(data["message"])
+	if normalizeString(message["type"]) != "assistant" {
+		return ""
+	}
+	envelope := mapValue(message["message"])
+	items, ok := envelope["content"].([]any)
+	if !ok {
+		return ""
+	}
+	for index := len(items) - 1; index >= 0; index-- {
+		block := mapValue(items[index])
+		if normalizeString(block["type"]) != "tool_use" {
+			continue
+		}
+		if name := normalizeString(block["name"]); name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 func firstTaskStartedDescription(message *sdkprotocol.SystemMessage) string {

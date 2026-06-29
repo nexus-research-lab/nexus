@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Clock3, MessageSquarePlus, Pencil, Trash2, X } from "lucide-react";
 
 import { get_session_channel_label } from "@/features/conversation/external-session-labels";
@@ -223,6 +223,13 @@ function ConversationHistoryItem({
   const { t } = useI18n();
   const [is_editing, set_is_editing] = useState(false);
   const [edit_value, set_edit_value] = useState("");
+  const edit_input_ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (is_editing) {
+      edit_input_ref.current?.focus();
+    }
+  }, [is_editing]);
   const show_actions = !is_editing && (can_rename || delete_state.enabled);
   const external_session_label = get_external_session_label(conversation);
 
@@ -271,8 +278,9 @@ function ConversationHistoryItem({
           {is_editing ? (
             <div className="flex items-center gap-1.5">
               <input
-                autoFocus
+                aria-label="编辑对话标题"
                 className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-[13px] font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
+                ref={edit_input_ref}
                 maxLength={64}
                 onChange={(e) => set_edit_value(e.target.value)}
                 onKeyDown={(e) => {

@@ -175,6 +175,73 @@ func buildTaskProgressFields(message sdkprotocol.ReceivedMessage) []any {
 	return fields
 }
 
+func buildToolProgressFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.ToolProgress == nil {
+		return nil
+	}
+	fields := []any{}
+	if toolName := strings.TrimSpace(message.ToolProgress.ToolName); toolName != "" {
+		fields = append(fields, "tool", toolName)
+	}
+	if taskID := strings.TrimSpace(message.ToolProgress.TaskID); taskID != "" {
+		fields = append(fields, "task_id", taskID)
+	}
+	if toolUseID := strings.TrimSpace(message.ToolProgress.ToolUseID); toolUseID != "" {
+		fields = append(fields, "tool_use_id", toolUseID)
+	}
+	if message.ToolProgress.ParentToolUseID != nil {
+		if parentToolUseID := strings.TrimSpace(*message.ToolProgress.ParentToolUseID); parentToolUseID != "" {
+			fields = append(fields, "parent_tool_use_id", parentToolUseID)
+		}
+	}
+	return fields
+}
+
+func buildToolUseSummaryFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.ToolUseSummary == nil {
+		return nil
+	}
+	fields := []any{}
+	if summary := strings.TrimSpace(message.ToolUseSummary.Summary); summary != "" {
+		fields = append(fields, "tool_summary", streamDebugText(summary))
+	}
+	if count := len(message.ToolUseSummary.PrecedingToolUseIDs); count > 0 {
+		fields = append(fields, "tool_summary_count", count)
+	}
+	return fields
+}
+
+func buildRateLimitEventFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.RateLimit == nil || len(message.RateLimit.RateLimitInfo) == 0 {
+		return nil
+	}
+	return []any{"rate_limit_info", message.RateLimit.RateLimitInfo}
+}
+
+func buildPromptSuggestionFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.PromptSuggestion == nil {
+		return nil
+	}
+	if suggestion := strings.TrimSpace(message.PromptSuggestion.Suggestion); suggestion != "" {
+		return []any{"prompt_suggestion", streamDebugText(suggestion)}
+	}
+	return nil
+}
+
+func buildAuthStatusFields(message sdkprotocol.ReceivedMessage) []any {
+	if message.AuthStatus == nil {
+		return nil
+	}
+	fields := []any{"auth_is_authenticating", message.AuthStatus.IsAuthenticating}
+	if outputCount := len(message.AuthStatus.Output); outputCount > 0 {
+		fields = append(fields, "auth_output_count", outputCount)
+	}
+	if errorText := strings.TrimSpace(message.AuthStatus.Error); errorText != "" {
+		fields = append(fields, "auth_error", streamDebugText(errorText))
+	}
+	return fields
+}
+
 func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
 	if message.System == nil {
 		return nil

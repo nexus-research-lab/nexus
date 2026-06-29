@@ -60,9 +60,6 @@ func (s *Service) generateAndApply(ctx context.Context, request Request) {
 			}
 		}
 	}
-	if request.ConversationID != "" {
-		sessionEligible = sessionEligible && conversationEligible
-	}
 	if !sessionEligible && !conversationEligible {
 		s.logger.Debug("跳过标题生成：目标当前不可自动更新",
 			"session_key", request.SessionKey,

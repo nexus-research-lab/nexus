@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ListPlus, Loader2 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -39,6 +40,13 @@ export function ProviderAddModelDialog({
   set_manual_model_id,
 }: ProviderAddModelDialogProps) {
   const { t } = useI18n();
+  const model_input_ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (is_open) {
+      model_input_ref.current?.focus();
+    }
+  }, [is_open]);
 
   if (!is_open) {
     return null;
@@ -74,11 +82,12 @@ export function ProviderAddModelDialog({
               label={t("settings.providers.model_id")}
             >
               <UiInput
+                aria-label={t("settings.providers.model_id")}
                 autoCapitalize="off"
                 autoCorrect="off"
-                autoFocus
                 control_size="lg"
                 class_name="font-mono"
+                ref={model_input_ref}
                 onChange={(event) => set_manual_model_id(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {

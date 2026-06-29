@@ -13,31 +13,6 @@ import {
   LauncherRoomSummary,
 } from "@/types/app/launcher";
 
-interface LauncherBootstrapState {
-  agents: LauncherAgentSummary[];
-  rooms: LauncherRoomSummary[];
-  conversations: LauncherConversationSummary[];
-}
-
-let launcher_bootstrap_inflight: Promise<LauncherBootstrapState> | null = null;
-
-function run_launcher_bootstrap(): Promise<LauncherBootstrapState> {
-  if (launcher_bootstrap_inflight) {
-    return launcher_bootstrap_inflight;
-  }
-
-  launcher_bootstrap_inflight = get_launcher_bootstrap_api()
-    .then((payload) => ({
-      agents: payload.agents,
-      rooms: payload.rooms,
-      conversations: payload.conversations,
-    }))
-    .finally(() => {
-      launcher_bootstrap_inflight = null;
-    });
-  return launcher_bootstrap_inflight;
-}
-
 export function useLauncherPageController() {
   const stored_agents = useAgentStore((state) => state.agents);
   const current_agent_id = useAgentStore((state) => state.current_agent_id);
@@ -81,7 +56,7 @@ export function useLauncherPageController() {
   useEffect(() => {
     let is_cancelled = false;
 
-    void run_launcher_bootstrap()
+    void get_launcher_bootstrap_api()
       .then((payload) => {
         if (!is_cancelled) {
           set_agents(payload.agents);

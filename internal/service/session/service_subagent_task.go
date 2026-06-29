@@ -197,26 +197,39 @@ func buildSubagentTasks(sessionKey string, messages []protocol.Message) []Subage
 	for _, message := range messages {
 		metadata := subagentTaskMetadata(message)
 		subtype := stringFromAny(metadata["subtype"])
-		if subtype != "task_started" && subtype != "task_notification" {
-			continue
+		if subtype == "task_started" || subtype == "task_notification" || subtype == "task_updated" {
+			taskID := stringFromAny(metadata["task_id"])
+			if taskID != "" {
+				task := ensureSubagentTask(tasks, &order, sessionKey, taskID)
+				mergeSubagentTaskMessage(task, message, metadata, subtype)
+			}
 		}
-		taskID := stringFromAny(metadata["task_id"])
-		if taskID == "" {
-			continue
+
+		for _, block := range subagentTaskProgressBlocks(message) {
+			taskID := stringFromAny(block["task_id"])
+			if taskID == "" {
+				continue
+			}
+			task := ensureSubagentTask(tasks, &order, sessionKey, taskID)
+			mergeSubagentTaskProgress(task, message, block)
 		}
-		task := tasks[taskID]
-		if task == nil {
-			task = &SubagentTask{TaskID: taskID, SessionKey: sessionKey, Status: "running"}
-			tasks[taskID] = task
-			order = append(order, taskID)
-		}
-		mergeSubagentTaskMessage(task, message, metadata, subtype)
 	}
 	results := make([]SubagentTask, 0, len(order))
 	for _, taskID := range order {
 		results = append(results, *tasks[taskID])
 	}
 	return results
+}
+
+func ensureSubagentTask(tasks map[string]*SubagentTask, order *[]string, sessionKey string, taskID string) *SubagentTask {
+	task := tasks[taskID]
+	if task != nil {
+		return task
+	}
+	task = &SubagentTask{TaskID: taskID, SessionKey: sessionKey, Status: "running"}
+	tasks[taskID] = task
+	*order = append(*order, taskID)
+	return task
 }
 
 func mergeSubagentTaskMessage(task *SubagentTask, message protocol.Message, metadata map[string]any, subtype string) {
@@ -249,10 +262,73 @@ func mergeSubagentTaskMessage(task *SubagentTask, message protocol.Message, meta
 	if status := stringFromAny(metadata["status"]); status != "" {
 		task.Status = status
 	}
+	if task.Status == "" || task.Status == "running" {
+		if patchStatus := stringFromAny(mapFromAny(metadata["patch"])["status"]); patchStatus != "" {
+			task.Status = patchStatus
+		}
+	}
+}
+
+func mergeSubagentTaskProgress(task *SubagentTask, message protocol.Message, block map[string]any) {
+	timestamp := int64FromAny(message["timestamp"])
+	if task.RoundID == "" {
+		task.RoundID = stringFromAny(message["round_id"])
+	}
+	if timestamp > 0 {
+		task.UpdatedAt = timestamp
+	}
+	setSubagentTaskString(&task.ToolUseID, block, "tool_use_id")
+	setSubagentTaskString(&task.Description, block, "description")
+	if usage := mapFromAny(block["usage"]); len(usage) > 0 {
+		task.Usage = usage
+	}
+	if status := inferSubagentTaskProgressStatus(
+		stringFromAny(block["last_tool_name"]) + " " + stringFromAny(block["description"]),
+	); status != "" {
+		task.Status = status
+	}
 }
 
 func subagentTaskMetadata(message protocol.Message) map[string]any {
 	return mapFromAny(message["metadata"])
+}
+
+func subagentTaskProgressBlocks(message protocol.Message) []map[string]any {
+	content, ok := message["content"].([]any)
+	if !ok {
+		return nil
+	}
+	blocks := make([]map[string]any, 0)
+	for _, item := range content {
+		block := mapFromAny(item)
+		if stringFromAny(block["type"]) == "task_progress" {
+			blocks = append(blocks, block)
+		}
+	}
+	return blocks
+}
+
+func inferSubagentTaskProgressStatus(text string) string {
+	normalized := strings.ToLower(strings.TrimSpace(text))
+	if normalized == "" {
+		return ""
+	}
+	for _, marker := range []string{"completed", "complete", "finished", "done", "已完成", "完成"} {
+		if strings.Contains(normalized, marker) {
+			return "completed"
+		}
+	}
+	for _, marker := range []string{"failed", "error", "失败", "错误"} {
+		if strings.Contains(normalized, marker) {
+			return "failed"
+		}
+	}
+	for _, marker := range []string{"running", "in_progress", "in progress", "正在", "处理中"} {
+		if strings.Contains(normalized, marker) {
+			return "running"
+		}
+	}
+	return ""
 }
 
 func setSubagentTaskString(target *string, source map[string]any, key string) {

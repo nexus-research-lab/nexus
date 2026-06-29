@@ -63,13 +63,20 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 	if subtype == "task_started" && !dmMetadataLooksLikeSubagentTask(metadata) {
 		return
 	}
+	if subtype == "task_updated" && !dmIsTerminalSubagentTaskStatus(status) && !dmMetadataLooksLikeSubagentTask(metadata) {
+		return
+	}
 	r.goalUsageMu.Lock()
 	defer r.goalUsageMu.Unlock()
 	if r.subagentTasks == nil {
 		r.subagentTasks = map[string]struct{}{}
 	}
 	switch subtype {
-	case "task_started":
+	case "task_started", "task_updated":
+		if dmIsTerminalSubagentTaskStatus(status) {
+			delete(r.subagentTasks, taskID)
+			return
+		}
 		r.subagentTasks[taskID] = struct{}{}
 	case "task_notification":
 		if dmIsTerminalSubagentTaskStatus(status) {

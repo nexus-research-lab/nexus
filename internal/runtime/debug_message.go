@@ -42,8 +42,18 @@ func BuildSDKMessageLogFieldsWithOptions(
 			return nil
 		}
 		fields = append(fields, buildStreamEventFields(message)...)
+	case sdkprotocol.MessageTypeToolProgress:
+		fields = append(fields, buildToolProgressFields(message)...)
+	case sdkprotocol.MessageTypeToolUseSummary:
+		fields = append(fields, buildToolUseSummaryFields(message)...)
 	case sdkprotocol.MessageTypeTaskProgress:
 		fields = append(fields, buildTaskProgressFields(message)...)
+	case sdkprotocol.MessageTypeRateLimitEvent:
+		fields = append(fields, buildRateLimitEventFields(message)...)
+	case sdkprotocol.MessageTypePromptSuggestion:
+		fields = append(fields, buildPromptSuggestionFields(message)...)
+	case sdkprotocol.MessageTypeAuthStatus:
+		fields = append(fields, buildAuthStatusFields(message)...)
 	case sdkprotocol.MessageTypeSystem:
 		fields = append(fields, buildSystemMessageFields(message)...)
 	}

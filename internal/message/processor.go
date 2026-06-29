@@ -118,6 +118,10 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 		if messageValue := p.processTaskProgressMessage(message); messageValue != nil {
 			output.DurableMessages = append(output.DurableMessages, *messageValue)
 		}
+	case sdkprotocol.MessageTypeToolProgress:
+		if messageValue := p.processToolProgressMessage(message); messageValue != nil {
+			output.DurableMessages = append(output.DurableMessages, *messageValue)
+		}
 	case sdkprotocol.MessageTypeTaskNotification:
 		if messageValue := p.processTaskNotificationMessage(message); messageValue != nil {
 			output.DurableMessages = append(output.DurableMessages, *messageValue)
@@ -127,6 +131,12 @@ func (p *Processor) Process(message sdkprotocol.ReceivedMessage) Output {
 			output.DurableMessages = append(output.DurableMessages, *durable)
 			output.AssistantCompleted = true
 		}
+	case sdkprotocol.MessageTypeStreamRequestStart,
+		sdkprotocol.MessageTypeToolUseSummary,
+		sdkprotocol.MessageTypeRateLimitEvent,
+		sdkprotocol.MessageTypePromptSuggestion,
+		sdkprotocol.MessageTypeAuthStatus:
+		return output
 	}
 	return output
 }

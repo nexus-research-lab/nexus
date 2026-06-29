@@ -22,13 +22,13 @@ func TestRoomSlotTracksRunningSubagentTasks(t *testing.T) {
 
 	slot.rememberSubagentTaskMessage(protocol.Message{
 		"metadata": map[string]any{
-			"subtype": "task_notification",
+			"subtype": "task_updated",
 			"task_id": "task-1",
-			"status":  "completed",
+			"status":  "killed",
 		},
 	})
 	if slot.hasRunningSubagentTask() {
-		t.Fatal("terminal task_notification 后应清除 running subagent")
+		t.Fatal("terminal task_updated 后应清除 running subagent")
 	}
 }
 

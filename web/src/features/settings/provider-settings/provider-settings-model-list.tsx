@@ -163,6 +163,7 @@ export function ProviderSettingsModelList({
                   {pending_model ? (
                     <Loader2 className="h-4 w-4 animate-spin text-(--text-muted)" />
                   ) : (
+                    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- 禁用态默认开关的点击反馈包装;键盘可达性由内部 GlassSwitch 提供
                     <span
                       onClick={() => {
                         if (model.is_default) {

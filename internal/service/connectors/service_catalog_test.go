@@ -68,6 +68,26 @@ func TestServiceListsConnectorsAndBuildsAuthURL(t *testing.T) {
 	}
 }
 
+func TestServiceConnectorDetailKeepsEmptySlices(t *testing.T) {
+	cfg := newConnectorsTestConfig(t)
+	migrateConnectorsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	service := NewService(cfg, db)
+	detail, err := service.GetConnectorDetail(context.Background(), auth.SystemUserID, "google-calendar")
+	if err != nil {
+		t.Fatalf("读取连接器详情失败: %v", err)
+	}
+	if detail.Scopes == nil || detail.Features == nil || detail.FeatureDetails == nil {
+		t.Fatalf("详情数组字段不应为 nil: scopes=%v features=%v feature_details=%v", detail.Scopes, detail.Features, detail.FeatureDetails)
+	}
+}
+
 func TestServiceScopesConnectionStateByOwner(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)

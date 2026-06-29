@@ -112,6 +112,7 @@ export function WorkspaceCatalogCard({
   const is_interactive = interactive ?? Boolean(onClick);
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- role="button" + tabIndex are set at runtime when interactive
     <article
       className={cn(
         "flex flex-col border border-(--divider-subtle-color) bg-transparent transition duration-(--motion-duration-fast) ease-out",
@@ -122,6 +123,14 @@ export function WorkspaceCatalogCard({
         class_name,
       )}
       onClick={onClick}
+      onKeyDown={is_interactive ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement).click();
+        }
+      } : undefined}
+      role={is_interactive ? "button" : undefined}
+      tabIndex={is_interactive ? 0 : undefined}
       {...props}
     >
       {children}
@@ -373,6 +382,7 @@ export function WorkspaceCatalogGhostCard({
   size?: Extract<CatalogCardSize, "compact" | "catalog" | "comfort" | "panel">;
 }) {
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- role="button" + tabIndex are set at runtime when onClick is provided
     <article
       className={cn(
         "flex flex-col items-center justify-center border border-dashed border-(--divider-subtle-color) bg-transparent text-center transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
@@ -381,6 +391,14 @@ export function WorkspaceCatalogGhostCard({
         class_name,
       )}
       onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement).click();
+        }
+      } : undefined}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       {...props}
     >
       {children}

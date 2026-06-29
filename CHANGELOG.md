@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added session-scoped Agent SDK provider cache JSONL diagnostics for `nxs` instead of defaulting the runtime diagnostics setting to stderr logs.
 - Added real background subagent task lifecycle support across SDK task events, Nexus indexing, and DM/Room task transcript UI.
 - Added a Background Tasks follow-up composer that queues messages to running subagents and refreshes the subagent transcript.
 

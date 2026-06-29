@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   ContentBlock,
   SystemEventContent,
+  TaskProgressContent,
   ToolResultContent,
   ToolUseContent,
 } from "@/types/conversation/message";
@@ -20,8 +21,6 @@ import { WorkspaceFileArtifactBlock } from "../blocks/workspace-file-artifacts";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageActivityState, MessageActivityStatus } from "../ui/message-primitives";
 import {
-  MessageCallout,
-  MessageCalloutTitle,
   MessageRail,
   MessageRailBody,
   MessageRailLabel,
@@ -172,6 +171,15 @@ export function ContentRenderer(
     }
   });
 
+  // 第三遍：把 task_progress 按 tool_use_id 折叠到对应工具块（子 Agent 实时进度）。
+  // 不再单独渲染 task_progress 行，统一并入它所属的 Agent ToolBlock。
+  const taskProgressByToolUseId = new Map<string, TaskProgressContent>();
+  content.forEach((block) => {
+    if (block.type === 'task_progress' && block.tool_use_id) {
+      taskProgressByToolUseId.set(block.tool_use_id, block);
+    }
+  });
+
   // 只要当前轮次仍在进行，就持续在块尾渲染一个状态行；
   // 不再要求“没有 streaming block”才显示，否则纯文本回复阶段会出现状态空窗。
   const activityState = is_streaming
@@ -289,20 +297,7 @@ export function ContentRenderer(
           ));
         }
 
-        if (block.type === 'task_progress') {
-          return wrap_block(index, (
-            <MessageRail>
-              <MessageCallout>
-                <MessageCalloutTitle data-timeline-anchor>
-                  {block.last_tool_name || '后台任务'} 正在执行
-                </MessageCalloutTitle>
-                <div className="mt-1 whitespace-pre-wrap break-words text-(--text-muted)">
-                  {block.description || '正在处理中…'}
-                </div>
-              </MessageCallout>
-            </MessageRail>
-          ));
-        }
+        // task_progress 不再单独渲染：已按 tool_use_id 折叠进对应 Agent ToolBlock。
 
         if (block.type === 'workspace_file_artifact') {
           return wrap_block(index, (
@@ -367,6 +362,7 @@ export function ContentRenderer(
               <ToolBlock
                 tool_use={block}
                 tool_result={toolData?.result}
+                live_progress={taskProgressByToolUseId.get(block.id) ?? null}
                 status={toolStatus}
                 permission_request={isThisToolPendingPermission ? {
                   request_id: pending_permission!.request_id,

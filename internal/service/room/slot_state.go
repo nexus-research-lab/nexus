@@ -240,13 +240,20 @@ func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message
 	if subtype == "task_started" && !metadataLooksLikeSubagentTask(metadata) {
 		return
 	}
+	if subtype == "task_updated" && !isTerminalSubagentTaskStatus(status) && !metadataLooksLikeSubagentTask(metadata) {
+		return
+	}
 	slot.stateMu.Lock()
 	defer slot.stateMu.Unlock()
 	if slot.SubagentTasks == nil {
 		slot.SubagentTasks = map[string]struct{}{}
 	}
 	switch subtype {
-	case "task_started":
+	case "task_started", "task_updated":
+		if isTerminalSubagentTaskStatus(status) {
+			delete(slot.SubagentTasks, taskID)
+			return
+		}
 		slot.SubagentTasks[taskID] = struct{}{}
 	case "task_notification":
 		if isTerminalSubagentTaskStatus(status) {

@@ -108,6 +108,7 @@ export function UiDialogBackdrop({
   });
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- backdrop click-to-close + Escape is a standard modal dialog pattern
     <div
       ref={root_ref}
       aria-describedby={described_by}
@@ -119,6 +120,11 @@ export function UiDialogBackdrop({
       onClick={(event) => {
         onClick?.(event);
         if (!event.defaultPrevented && event.target === event.currentTarget) {
+          on_close?.();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
           on_close?.();
         }
       }}

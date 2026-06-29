@@ -9,15 +9,19 @@ import (
 
 // RoundStreamStopDiagnostics 表示最近一次 provider message_stop 的定位信息。
 type RoundStreamStopDiagnostics struct {
-	Observed      bool
-	MessageIndex  int
-	MessagesAfter int
-	Age           time.Duration
-	Summary       string
-	StopReason    string
-	SessionID     string
-	MessageID     string
-	Model         string
+	Observed                  bool
+	MessageIndex              int
+	MessagesAfter             int
+	ConversationMessagesAfter int
+	ProgressMessagesAfter     int
+	PassiveMessagesAfter      int
+	UnknownMessagesAfter      int
+	Age                       time.Duration
+	Summary                   string
+	StopReason                string
+	SessionID                 string
+	MessageID                 string
+	Model                     string
 }
 
 // RoundStreamStopDiagnosticLogFields 返回 message_stop 诊断日志字段。
@@ -34,6 +38,15 @@ func RoundStreamStopDiagnosticLogFields(diagnostics RoundStreamStopDiagnostics) 
 		"stream_last_stop_message_index", diagnostics.MessageIndex,
 		"stream_messages_after_last_stop", diagnostics.MessagesAfter,
 	}
+	if diagnostics.MessagesAfter > 0 {
+		fields = append(
+			fields,
+			"stream_conversation_messages_after_last_stop", diagnostics.ConversationMessagesAfter,
+			"stream_progress_messages_after_last_stop", diagnostics.ProgressMessagesAfter,
+			"stream_passive_messages_after_last_stop", diagnostics.PassiveMessagesAfter,
+			"stream_unknown_messages_after_last_stop", diagnostics.UnknownMessagesAfter,
+		)
+	}
 	if diagnostics.Age > 0 {
 		fields = append(fields, "stream_last_stop_age", diagnostics.Age.String())
 	}
@@ -49,6 +62,7 @@ type roundStreamDiagnostics struct {
 }
 
 func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, messageIndex int, observedAt time.Time) {
+	d.observeAfterLastStop(message, messageIndex)
 	if message.Type != sdkprotocol.MessageTypeStreamEvent || message.Stream == nil {
 		return
 	}
@@ -79,6 +93,23 @@ func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, me
 	}
 }
 
+func (d *roundStreamDiagnostics) observeAfterLastStop(message sdkprotocol.ReceivedMessage, messageIndex int) {
+	if !d.lastStreamStop.Observed || messageIndex <= d.lastStreamStop.MessageIndex {
+		return
+	}
+	d.lastStreamStop.MessagesAfter++
+	switch roundMessageDiagnosticClass(message) {
+	case "conversation":
+		d.lastStreamStop.ConversationMessagesAfter++
+	case "progress":
+		d.lastStreamStop.ProgressMessagesAfter++
+	case "passive":
+		d.lastStreamStop.PassiveMessagesAfter++
+	default:
+		d.lastStreamStop.UnknownMessagesAfter++
+	}
+}
+
 func (d roundStreamDiagnostics) Snapshot(messagesSeen int, now time.Time) RoundStreamStopDiagnostics {
 	result := d.lastStreamStop
 	if !result.Observed {
@@ -91,6 +122,29 @@ func (d roundStreamDiagnostics) Snapshot(messagesSeen int, now time.Time) RoundS
 		result.Age = now.Sub(d.lastStreamStopAt)
 	}
 	return result
+}
+
+func roundMessageDiagnosticClass(message sdkprotocol.ReceivedMessage) string {
+	switch message.Type {
+	case sdkprotocol.MessageTypeAssistant,
+		sdkprotocol.MessageTypeUser,
+		sdkprotocol.MessageTypeResult,
+		sdkprotocol.MessageTypeStreamEvent:
+		return "conversation"
+	case sdkprotocol.MessageTypeToolProgress,
+		sdkprotocol.MessageTypeTaskStarted,
+		sdkprotocol.MessageTypeTaskProgress,
+		sdkprotocol.MessageTypeTaskNotification:
+		return "progress"
+	case sdkprotocol.MessageTypeStreamRequestStart,
+		sdkprotocol.MessageTypeToolUseSummary,
+		sdkprotocol.MessageTypeRateLimitEvent,
+		sdkprotocol.MessageTypePromptSuggestion,
+		sdkprotocol.MessageTypeAuthStatus:
+		return "passive"
+	default:
+		return "unknown"
+	}
 }
 
 func streamEventPayload(message sdkprotocol.ReceivedMessage) map[string]any {

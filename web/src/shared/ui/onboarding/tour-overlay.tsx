@@ -345,6 +345,12 @@ export function OnboardingTourOverlay({
       <div
         className="absolute inset-0 bg-[rgba(11,16,24,0.46)] backdrop-blur-[1px]"
         onClick={() => on_close()}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            on_close();
+          }
+        }}
+        role="presentation"
       />
 
       {target_rect ? (

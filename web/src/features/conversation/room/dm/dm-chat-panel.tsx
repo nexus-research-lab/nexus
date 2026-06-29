@@ -17,7 +17,6 @@ import { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import { TodoItem } from "@/types/conversation/todo";
 
 import { ComposerPanel } from "@/features/conversation/shared/composer-panel";
-import { BackgroundTasksDialog } from "@/features/conversation/shared/background-tasks-dialog";
 import {
   prepare_workspace_attachments,
 } from "@/features/conversation/shared/composer-attachments";
@@ -28,7 +27,6 @@ import { goal_continuation_hold_for_permission } from "@/features/conversation/s
 import { GoalPanel } from "@/features/conversation/shared/goal-panel";
 import { ProviderUnavailableBanner } from "@/features/conversation/shared/provider-unavailable-banner";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
-import { SubagentStatusStrip } from "@/features/conversation/shared/subagent-status-strip";
 import { build_timeline_round_ids } from "@/features/conversation/shared/timeline-rounds";
 import { useConversationComposerHandlers } from "@/features/conversation/shared/use-conversation-composer-handlers";
 import { useConversationHistoryLoader } from "@/features/conversation/shared/use-conversation-history-loader";
@@ -81,11 +79,6 @@ export function DmChatPanel({
   const { status: auth_status } = useAuth();
   const current_user_avatar = auth_status?.avatar ?? null;
   const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
-  const [background_tasks_open, set_background_tasks_open] = useState(false);
-  const background_tasks_source = useMemo(
-    () => (session_key ? { kind: "session" as const, session_key } : null),
-    [session_key],
-  );
   const refresh_goal_panel = useCallback(() => {
     set_goal_refresh_seq((value) => value + 1);
   }, []);
@@ -325,20 +318,6 @@ export function DmChatPanel({
       {show_provider_warning ? (
         <ProviderUnavailableBanner compact={is_mobile_layout} />
       ) : null}
-
-      <SubagentStatusStrip
-        compact={is_mobile_layout}
-        live_round_ids={live_round_ids}
-        messages={messages}
-        on_open_background_tasks={() => set_background_tasks_open(true)}
-      />
-
-      <BackgroundTasksDialog
-        compact={is_mobile_layout}
-        open={background_tasks_open}
-        source={background_tasks_source}
-        on_close={() => set_background_tasks_open(false)}
-      />
 
       <GoalPanel
         activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}

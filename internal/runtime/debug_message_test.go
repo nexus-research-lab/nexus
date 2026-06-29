@@ -454,6 +454,62 @@ func TestBuildSDKMessageLogFieldsRedactsToolInputDelta(t *testing.T) {
 	}
 }
 
+func TestBuildSDKMessageLogFieldsIncludesPassiveMessageTypes(t *testing.T) {
+	tests := []struct {
+		name    string
+		message sdkprotocol.ReceivedMessage
+		summary string
+		field   string
+	}{
+		{
+			name: "tool use summary",
+			message: sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeToolUseSummary,
+				ToolUseSummary: &sdkprotocol.ToolUseSummaryMessage{
+					Summary:             "Read x2",
+					PrecedingToolUseIDs: []string{"tool-1", "tool-2"},
+				},
+			},
+			summary: "tool_use_summary",
+			field:   "tool_summary_count",
+		},
+		{
+			name: "prompt suggestion",
+			message: sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypePromptSuggestion,
+				PromptSuggestion: &sdkprotocol.PromptSuggestionMessage{
+					Suggestion: "继续检查测试",
+				},
+			},
+			summary: "prompt_suggestion",
+			field:   "prompt_suggestion",
+		},
+		{
+			name: "auth status",
+			message: sdkprotocol.ReceivedMessage{
+				Type: sdkprotocol.MessageTypeAuthStatus,
+				AuthStatus: &sdkprotocol.AuthStatusMessage{
+					IsAuthenticating: true,
+					Output:           []string{"登录中"},
+				},
+			},
+			summary: "auth_status authenticating",
+			field:   "auth_is_authenticating",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := BuildSDKMessageLogSummary(tt.message); !strings.Contains(got, tt.summary) {
+				t.Fatalf("summary = %q, want contains %q", got, tt.summary)
+			}
+			fields := BuildSDKMessageLogFields(tt.message)
+			if !hasLogFieldKey(fields, tt.field) {
+				t.Fatalf("缺少字段 %q: %+v", tt.field, fields)
+			}
+		})
+	}
+}
+
 func hasLogField(fields []any, key string, value any) bool {
 	for index := 0; index+1 < len(fields); index += 2 {
 		if fields[index] == key && fields[index+1] == value {

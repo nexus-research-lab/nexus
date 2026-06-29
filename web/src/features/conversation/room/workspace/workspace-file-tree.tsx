@@ -120,6 +120,14 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         style={{ paddingLeft: `${8 + depth * 12}px` }}
         onClick={handle_click}
         onContextMenu={handle_context_menu}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handle_click();
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         {is_selected ? (
           <span

@@ -7,15 +7,22 @@ import (
 const (
 	// AgentSDKDiagnosticsEnvName 控制 Agent SDK 诊断事件输出。
 	AgentSDKDiagnosticsEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS"
+	// AgentSDKDiagnosticsJSONLEnvName 控制 Agent SDK session JSONL 诊断输出。
+	AgentSDKDiagnosticsJSONLEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS_JSONL"
+	// AgentSDKDiagnosticsStreamProgressEnvName 控制瞬时 stream 诊断事件输出。
+	AgentSDKDiagnosticsStreamProgressEnvName = "NEXUS_AGENT_SDK_DIAGNOSTICS_STREAM_PROGRESS"
 	// AgentSDKDebugEnvName 兼容 SDK debug 开关，开启后也输出诊断事件。
 	AgentSDKDebugEnvName = "NEXUS_AGENT_SDK_DEBUG"
-	// AgentSDKProviderDebugBodyEnvName 控制 provider 请求体诊断输出范围。
+	// AgentSDKProviderDebugBodyEnvName 控制 provider 请求/响应正文诊断输出范围。
 	AgentSDKProviderDebugBodyEnvName = "NEXUS_AGENT_SDK_PROVIDER_DEBUG_BODY"
 )
 
 // AgentSDKDiagnosticsEnabled 判断当前 runtime 环境是否开启 Agent SDK 诊断。
 func AgentSDKDiagnosticsEnabled(env map[string]string) bool {
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDiagnosticsEnvName); exists {
+		return runtimeEnvTruthy(value)
+	}
+	if value, exists := lookupRuntimeEnv(env, AgentSDKDiagnosticsJSONLEnvName); exists {
 		return runtimeEnvTruthy(value)
 	}
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDebugEnvName); exists {
@@ -29,13 +36,19 @@ func AgentSDKDiagnosticsValue(env map[string]string) string {
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDiagnosticsEnvName); exists {
 		return strings.TrimSpace(value)
 	}
+	if value, exists := lookupRuntimeEnv(env, AgentSDKDiagnosticsJSONLEnvName); exists {
+		if runtimeEnvTruthy(value) {
+			return "jsonl"
+		}
+		return strings.TrimSpace(value)
+	}
 	if value, exists := lookupRuntimeEnv(env, AgentSDKDebugEnvName); exists {
 		return strings.TrimSpace(value)
 	}
 	return ""
 }
 
-// AgentSDKProviderDebugBodyValue 返回请求体诊断开关值，仅用于日志摘要。
+// AgentSDKProviderDebugBodyValue 返回正文诊断开关值，仅用于日志摘要。
 func AgentSDKProviderDebugBodyValue(env map[string]string) string {
 	value, _ := lookupRuntimeEnv(env, AgentSDKProviderDebugBodyEnvName)
 	return strings.TrimSpace(value)
@@ -52,7 +65,7 @@ func lookupRuntimeEnv(env map[string]string, key string) (string, bool) {
 
 func runtimeEnvTruthy(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "on", "stderr", "terminal", "debug":
+	case "1", "true", "yes", "on", "stderr", "terminal", "debug", "jsonl", "file", "debug-file":
 		return true
 	default:
 		return false

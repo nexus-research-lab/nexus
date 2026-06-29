@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Download, FileText, FolderUp, GitBranch, Info, PackageCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -60,12 +60,15 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   const [git_url, set_git_url] = useState("");
   const [git_branch, set_git_branch] = useState("");
   const [git_path, set_git_path] = useState("");
+  const git_url_input_ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!mode) {
       set_git_url("");
       set_git_branch("");
       set_git_path("");
+    } else if (mode === "git") {
+      git_url_input_ref.current?.focus();
     }
   }, [mode]);
 
@@ -120,9 +123,10 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                     label="Git 仓库 URL"
                   >
                     <UiInput
-                      autoFocus
+                      aria-label="Git 仓库 URL"
                       onChange={(event) => set_git_url(event.target.value)}
                       placeholder="https://github.com/owner/repo.git"
+                      ref={git_url_input_ref}
                       required
                       type="url"
                       value={git_url}
