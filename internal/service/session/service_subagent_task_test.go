@@ -98,3 +98,40 @@ func TestBuildSubagentTasksMergesTaskUpdatedTerminal(t *testing.T) {
 		t.Fatalf("task = %+v, want killed update", tasks[0])
 	}
 }
+
+func TestBuildSubagentTasksIncludesAssistantTaskProgress(t *testing.T) {
+	messages := []protocol.Message{
+		{
+			"content": []any{
+				map[string]any{
+					"type":           "task_progress",
+					"task_id":        "task-1",
+					"description":    "统计HTML小游戏数量",
+					"tool_use_id":    "toolu-1",
+					"last_tool_name": "Read",
+					"usage": map[string]any{
+						"total_tokens": 321,
+					},
+				},
+			},
+			"round_id":  "round-1",
+			"role":      "assistant",
+			"timestamp": int64(1000),
+		},
+	}
+
+	tasks := buildSubagentTasks("agent:nexus:ws:dm:test", messages)
+	if len(tasks) != 1 {
+		t.Fatalf("len(tasks) = %d, want 1", len(tasks))
+	}
+	task := tasks[0]
+	if task.TaskID != "task-1" || task.Status != "running" {
+		t.Fatalf("task identity = %+v, want running task-1", task)
+	}
+	if task.Description != "统计HTML小游戏数量" || task.ToolUseID != "toolu-1" {
+		t.Fatalf("task progress fields = %+v, want description/tool use id", task)
+	}
+	if task.Usage["total_tokens"] != 321 || task.UpdatedAt != 1000 {
+		t.Fatalf("task metrics = %+v/%d, want usage and updated time", task.Usage, task.UpdatedAt)
+	}
+}
