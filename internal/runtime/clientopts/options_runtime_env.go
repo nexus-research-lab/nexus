@@ -69,23 +69,7 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
-	applyToolSearchRuntimeEnv(env, runtimeConfig)
 	return env
-}
-
-func applyToolSearchRuntimeEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
-	provider := strings.ToLower(strings.TrimSpace(runtimeConfig.Provider))
-	model := strings.ToLower(strings.TrimSpace(runtimeConfig.Model))
-	baseURL := strings.ToLower(strings.TrimSpace(runtimeConfig.BaseURL))
-	if strings.Contains(provider, "kimi") || strings.Contains(model, "kimi") {
-		env[enableToolSearchEnvName] = "false"
-		return
-	}
-	if strings.Contains(provider, "glm") ||
-		strings.Contains(model, "glm") ||
-		strings.Contains(baseURL, "bigmodel.cn") {
-		env[enableToolSearchEnvName] = "true"
-	}
 }
 
 func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {

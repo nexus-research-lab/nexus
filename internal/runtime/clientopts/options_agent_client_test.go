@@ -108,8 +108,8 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Model != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 SDK options: %+v", options)
 	}
-	if options.Env[enableToolSearchEnvName] != "false" {
-		t.Fatalf("kimi 模型应关闭 tool search: %+v", options.Env)
+	if _, ok := options.Env[enableToolSearchEnvName]; ok {
+		t.Fatalf("宿主不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", options.Env)
 	}
 	if options.Env[claudeAutoCompactPctOverrideEnvName] != defaultClaudeAutoCompactPctOverride {
 		t.Fatalf("默认自动压缩阈值未注入: %+v", options.Env)
@@ -211,14 +211,16 @@ func TestAnthropicRuntimeEnvClearsConflictingCredentialEnv(t *testing.T) {
 	}
 }
 
-func TestAnthropicRuntimeEnvEnablesToolSearchForGLM(t *testing.T) {
-	env := anthropicRuntimeEnvFromConfig(&RuntimeConfig{
-		Provider: "glm-coding-plan",
-		BaseURL:  "https://open.bigmodel.cn/api/anthropic",
-		Model:    "glm-5.2",
-	})
-	if env[enableToolSearchEnvName] != "true" {
-		t.Fatalf("GLM Anthropic-compatible runtime 应显式开启 tool search: %+v", env)
+func TestAnthropicRuntimeEnvLeavesToolSearchUnsetForCompatibleProviders(t *testing.T) {
+	tests := []RuntimeConfig{
+		{Provider: "glm-coding-plan", BaseURL: "https://open.bigmodel.cn/api/anthropic", Model: "glm-5.2"},
+		{Provider: "kimi", BaseURL: "https://api.moonshot.cn/anthropic", Model: "kimi-k2"},
+	}
+	for _, test := range tests {
+		env := anthropicRuntimeEnvFromConfig(&test)
+		if _, ok := env[enableToolSearchEnvName]; ok {
+			t.Fatalf("Anthropic-compatible runtime 不应注入 tool search 开关，应交给 SDK 按 CC 规则判断: %+v", env)
+		}
 	}
 }
 
@@ -228,6 +230,7 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 		ExtraEnv: map[string]string{
 			claudeAutoCompactPctOverrideEnvName:    "80",
 			nexusDisableProjectInstructionsEnvName: "0",
+			enableToolSearchEnvName:                "true",
 		},
 	})
 	if err != nil {
@@ -238,6 +241,9 @@ func TestBuildAgentClientOptionsAllowsExtraEnvOverride(t *testing.T) {
 	}
 	if options.Env[nexusDisableProjectInstructionsEnvName] != "0" {
 		t.Fatalf("ExtraEnv 应允许覆盖项目指令加载开关: %+v", options.Env)
+	}
+	if options.Env[enableToolSearchEnvName] != "true" {
+		t.Fatalf("ExtraEnv 应允许显式覆盖 tool search 开关: %+v", options.Env)
 	}
 }
 
