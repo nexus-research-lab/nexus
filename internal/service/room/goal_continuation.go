@@ -165,7 +165,7 @@ func (s *RealtimeService) dispatchPostRoundWork(ctx context.Context, roundValue 
 	if roundValue == nil {
 		return
 	}
-	if roundValue.RunningSubagents {
+	if roundValue.RunningSubagents.Load() {
 		return
 	}
 	if s.ShouldDeferGoalContinuation(ctx, roundValue.SessionKey) {

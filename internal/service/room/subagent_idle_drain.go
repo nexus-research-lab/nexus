@@ -136,8 +136,8 @@ func (s *RealtimeService) releaseRoundSubagentWait(roundValue *activeRoomRound) 
 	}
 	shouldDispatch := false
 	s.mu.Lock()
-	if roundValue.RunningSubagents && !roundValue.hasRunningSubagentTasks() {
-		roundValue.RunningSubagents = false
+	if roundValue.RunningSubagents.Load() && !roundValue.hasRunningSubagentTasks() {
+		roundValue.RunningSubagents.Store(false)
 		shouldDispatch = true
 	}
 	s.mu.Unlock()

@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -77,7 +78,7 @@ type activeRoomRound struct {
 	GoalContext       string
 	Slots             map[string]*activeRoomSlot
 	PublicMentions    []publicMentionWake
-	RunningSubagents  bool
+	RunningSubagents  atomic.Bool
 	Done              chan struct{}
 	doneOnce          sync.Once
 }
