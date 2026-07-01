@@ -435,7 +435,7 @@ const ComposerPanelView = memo(({
     const native_event = event.nativeEvent as ComposerNativeKeyboardEvent;
     const just_finished_composition =
       last_composition_end_at_ref.current > 0 &&
-      Date.now() - last_composition_end_at_ref.current <= COMPOSITION_END_ENTER_GUARD_MS;
+      event.timeStamp - last_composition_end_at_ref.current <= COMPOSITION_END_ENTER_GUARD_MS;
 
     // Safari 在中文输入法确认候选词后，可能补发一个不带 composing 标记的 Enter。
     // 这里同时拦截 IME 的 229/Process 信号，并且只吞掉紧跟 compositionend 的下一次 Enter，
@@ -579,6 +579,7 @@ const ComposerPanelView = memo(({
 
           <div className="relative min-w-0 flex-1">
             <textarea
+              aria-label={t("composer.default_placeholder")}
               ref={textarea_ref}
               className={cn(
                 "multiline-cursor soft-scrollbar min-h-6 w-full min-w-0 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
@@ -595,10 +596,10 @@ const ComposerPanelView = memo(({
                   event.stopPropagation();
                 }
               }}
-              onCompositionEnd={() => {
+              onCompositionEnd={(event) => {
                 is_composing_ref.current = false;
                 ignore_next_enter_after_composition_ref.current = true;
-                last_composition_end_at_ref.current = Date.now();
+                last_composition_end_at_ref.current = event.timeStamp;
               }}
               onCompositionStart={() => {
                 is_composing_ref.current = true;

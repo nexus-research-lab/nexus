@@ -225,6 +225,7 @@ export function PromptDialog({
             {multiline ? (
               <>
                 <textarea
+                  aria-label={placeholder || "输入内容"}
                   ref={inputRef as RefObject<HTMLTextAreaElement>}
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
@@ -239,6 +240,7 @@ export function PromptDialog({
               </>
             ) : (
               <input
+                aria-label={placeholder || "输入内容"}
                 ref={inputRef as RefObject<HTMLInputElement>}
                 type="text"
                 value={value}

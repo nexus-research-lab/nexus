@@ -189,6 +189,7 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
 
   return (
     <video
+      aria-label="主题动态背景"
       ref={video_ref}
       src="/sunny/leaves.mp4"
       muted

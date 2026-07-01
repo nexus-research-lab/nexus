@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Download, FileText, FolderUp, GitBranch, Info, PackageCheck } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
 import { UiButton } from "@/shared/ui/button";
 import {
@@ -57,17 +58,14 @@ function download_room_collaboration_mechanism() {
 export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   const mode = ctrl.import_dialog_mode;
   const set_import_dialog_mode = ctrl.set_import_dialog_mode;
-  const [git_url, set_git_url] = useState("");
-  const [git_branch, set_git_branch] = useState("");
-  const [git_path, set_git_path] = useState("");
+  const import_reset_key = mode ? "open" : "closed";
+  const [git_url, set_git_url] = useResettableState("", import_reset_key);
+  const [git_branch, set_git_branch] = useResettableState("", import_reset_key);
+  const [git_path, set_git_path] = useResettableState("", import_reset_key);
   const git_url_input_ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!mode) {
-      set_git_url("");
-      set_git_branch("");
-      set_git_path("");
-    } else if (mode === "git") {
+    if (mode === "git") {
       git_url_input_ref.current?.focus();
     }
   }, [mode]);

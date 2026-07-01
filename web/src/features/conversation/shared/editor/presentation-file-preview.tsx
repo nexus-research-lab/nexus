@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
@@ -40,12 +41,13 @@ export function PresentationFilePreview({
   path,
 }: PresentationFilePreviewProps) {
   const cleanup_urls_ref = useRef<() => void>(() => undefined);
-  const [slides, set_slides] = useState<PresentationSlide[]>([]);
-  const [active_slide_index, set_active_slide_index] = useState(0);
-  const [status, set_status] = useState<PresentationPreviewStatus>({
+  const preview_key = `${agent_id}\x1f${path}`;
+  const [slides, set_slides] = useResettableState<PresentationSlide[]>([], preview_key);
+  const [active_slide_index, set_active_slide_index] = useResettableState(0, preview_key);
+  const [status, set_status] = useResettableState<PresentationPreviewStatus>({
     state: "loading",
     message: "加载演示文稿预览中",
-  });
+  }, preview_key);
 
   useEffect(() => {
     const abort_controller = new AbortController();
@@ -53,12 +55,8 @@ export function PresentationFilePreview({
 
     cleanup_urls_ref.current();
     cleanup_urls_ref.current = () => undefined;
-    set_slides([]);
-    set_active_slide_index(0);
 
     async function load_preview() {
-      set_status({ state: "loading", message: "读取 pptx 文件中" });
-
       try {
         const preview_url = get_workspace_file_preview_url(agent_id, path);
         const response = await fetch(preview_url, {

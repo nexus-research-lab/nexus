@@ -8,6 +8,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { ChannelLoginView } from "@/lib/api/channel-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiButton } from "@/shared/ui/button";
@@ -52,16 +53,12 @@ function channel_login_status_tone(status: string): "default" | "success" | "war
 }
 
 function LoginQRCode({ payload }: { payload?: string }) {
-  const [image_url, set_image_url] = useState("");
+  const value = payload?.trim() || "";
+  const [generated_image_url, set_generated_image_url] = useResettableState("", value);
+  const image_url = value.startsWith("data:image/") ? value : generated_image_url;
 
   useEffect(() => {
-    const value = payload?.trim() || "";
-    if (!value) {
-      set_image_url("");
-      return;
-    }
-    if (value.startsWith("data:image/")) {
-      set_image_url(value);
+    if (!value || value.startsWith("data:image/")) {
       return;
     }
     let cancelled = false;
@@ -74,18 +71,18 @@ function LoginQRCode({ payload }: { payload?: string }) {
       }))
       .then((url) => {
         if (!cancelled) {
-          set_image_url(url);
+          set_generated_image_url(url);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          set_image_url("");
+          set_generated_image_url("");
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [payload]);
+  }, [set_generated_image_url, value]);
 
   if (!payload) {
     return null;

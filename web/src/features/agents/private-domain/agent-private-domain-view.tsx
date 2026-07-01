@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { PrivateEventTimeline } from "@/features/agents/private-domain/agent-private-domain-timeline";
 import { PrivateDomainToolbar } from "@/features/agents/private-domain/agent-private-domain-toolbar";
 import { PrivateThreadList } from "@/features/agents/private-domain/agent-private-domain-thread-list";
@@ -34,14 +35,21 @@ export function AgentPrivateDomainView({
   conversation_id = null,
   variant = "full",
 }: AgentPrivateDomainViewProps) {
-  const [threads, set_threads] = useState<AgentPrivateThread[]>([]);
-  const [selected_thread_id, set_selected_thread_id] = useState<string | null>(null);
-  const [events, set_events] = useState<AgentPrivateEvent[]>([]);
-  const [threads_loading, set_threads_loading] = useState(false);
-  const [events_loading, set_events_loading] = useState(false);
-  const [error, set_error] = useState<string | null>(null);
   const is_preview = variant === "preview";
   const is_external_session_conversation = is_external_session_conversation_id(conversation_id);
+  const query_reset_key = [
+    agent.agent_id,
+    room_id ?? "",
+    conversation_id ?? "",
+    variant,
+  ].join("\x1f");
+  const [threads, set_threads] = useResettableState<AgentPrivateThread[]>([], query_reset_key);
+  const [selected_thread_id, set_selected_thread_id] = useResettableState<string | null>(null, query_reset_key);
+  const events_reset_key = `${query_reset_key}\x1e${selected_thread_id ?? ""}`;
+  const [events, set_events] = useResettableState<AgentPrivateEvent[]>([], events_reset_key);
+  const [threads_loading, set_threads_loading] = useResettableState(true, query_reset_key);
+  const [events_loading, set_events_loading] = useResettableState(Boolean(selected_thread_id), events_reset_key);
+  const [error, set_error] = useResettableState<string | null>(null, events_reset_key);
 
   const query = useMemo<AgentPrivateDomainQuery>(() => ({
     room_id,
@@ -95,8 +103,6 @@ export function AgentPrivateDomainView({
 
   useEffect(() => {
     let cancelled = false;
-    set_threads_loading(true);
-    set_error(null);
     void list_agent_private_threads_api(agent.agent_id, query)
       .then((page) => {
         if (cancelled) return;
@@ -123,13 +129,10 @@ export function AgentPrivateDomainView({
   useEffect(() => {
     let cancelled = false;
     if (!selected_thread_id) {
-      set_events([]);
       return () => {
         cancelled = true;
       };
     }
-    set_events_loading(true);
-    set_error(null);
     void list_agent_private_events_api(agent.agent_id, selected_thread_id, {
       ...query,
       limit: is_preview ? 40 : 120,

@@ -4,6 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useRef, useState } from "re
 import { Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
 import type { Options as DocxPreviewOptions } from "docx-preview";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
@@ -63,11 +64,12 @@ export function DocumentFilePreview({
   const viewport_ref = useRef<HTMLDivElement>(null);
   const container_ref = useRef<HTMLDivElement>(null);
   const style_container_ref = useRef<HTMLDivElement>(null);
-  const [preview_scale, set_preview_scale] = useState(1);
-  const [status, set_status] = useState<DocumentPreviewStatus>({
+  const preview_key = `${agent_id}\x1f${path}`;
+  const [preview_scale, set_preview_scale] = useResettableState(1, preview_key);
+  const [status, set_status] = useResettableState<DocumentPreviewStatus>({
     state: "loading",
     message: "加载文档预览中",
-  });
+  }, preview_key);
 
   const update_preview_scale = useCallback(() => {
     const viewport = viewport_ref.current;
@@ -102,14 +104,11 @@ export function DocumentFilePreview({
     if (style_container) {
       style_container.innerHTML = "";
     }
-    set_preview_scale(1);
 
     async function load_preview() {
       if (!container || !style_container) {
         return;
       }
-
-      set_status({ state: "loading", message: "读取 docx 文件中" });
 
       try {
         const preview_url = get_workspace_file_preview_url(agent_id, path);

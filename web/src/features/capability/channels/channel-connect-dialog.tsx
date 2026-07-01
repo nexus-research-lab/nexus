@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect } from "react";
 import {
   ExternalLink,
   Loader2,
@@ -22,6 +22,7 @@ import {
   submit_channel_login_verify_code_api,
   upsert_channel_config_api,
 } from "@/lib/api/channel-api";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { UiButton } from "@/shared/ui/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/confirm-dialog";
 import {
@@ -80,34 +81,29 @@ function channel_field_input_name(channel_type: ChannelConfigView["channel_type"
 }
 
 export function ChannelConnectDialog({ item, agents, on_close, on_deleted, on_saved, on_error }: ChannelConnectDialogProps) {
-  const [current_item, set_current_item] = useState(item);
-  const [agent_id, set_agent_id] = useState(item.agent_id || agents[0]?.agent_id || "");
-  const [config, set_config] = useState<Record<string, string>>(item.public_config || {});
-  const [credentials, set_credentials] = useState<Record<string, string>>({});
-  const [saving, set_saving] = useState(false);
-  const [deleting, set_deleting] = useState(false);
-  const [deleting_account_id, set_deleting_account_id] = useState("");
-  const [pending_delete, set_pending_delete] = useState<PendingChannelDelete | null>(null);
-  const [login_loading, set_login_loading] = useState(false);
-  const [login_view, set_login_view] = useState<ChannelLoginView | null>(null);
+  const initial_agent_id = item.agent_id || agents[0]?.agent_id || "";
+  const item_reset_key = [
+    item.channel_type,
+    item.agent_id || "",
+    initial_agent_id,
+    JSON.stringify(item.public_config || {}),
+  ].join("\x1f");
+  const [current_item, set_current_item] = useResettableState(item, item_reset_key);
+  const [agent_id, set_agent_id] = useResettableState(initial_agent_id, item_reset_key);
+  const [config, set_config] = useResettableState<Record<string, string>>(item.public_config || {}, item_reset_key);
+  const [credentials, set_credentials] = useResettableState<Record<string, string>>({}, item_reset_key);
+  const [saving, set_saving] = useResettableState(false, item_reset_key);
+  const [deleting, set_deleting] = useResettableState(false, item_reset_key);
+  const [deleting_account_id, set_deleting_account_id] = useResettableState("", item_reset_key);
+  const [pending_delete, set_pending_delete] = useResettableState<PendingChannelDelete | null>(null, item_reset_key);
+  const [login_loading, set_login_loading] = useResettableState(false, item_reset_key);
+  const [login_view, set_login_view] = useResettableState<ChannelLoginView | null>(null, item_reset_key);
   const is_planned = is_channel_planned(current_item);
   const discord_oauth_url = current_item.channel_type === "discord" ? build_discord_oauth_url(config) : "";
   const supports_personal_weixin_login = is_personal_weixin_channel(current_item.channel_type);
   const login_running = is_channel_login_running(login_view);
   const login_id = login_view?.login_id || "";
   const login_status = login_view?.status || "";
-
-  useEffect(() => {
-    set_current_item(item);
-    set_agent_id(item.agent_id || agents[0]?.agent_id || "");
-    set_config(item.public_config || {});
-    set_credentials({});
-    set_login_view(null);
-    set_login_loading(false);
-    set_deleting(false);
-    set_deleting_account_id("");
-    set_pending_delete(null);
-  }, [agents, item]);
 
   const handle_field_change = (field: ChannelCredentialField, value: string) => {
     if (field.secret) {

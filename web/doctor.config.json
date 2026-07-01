@@ -1,0 +1,20 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "ignore": {
+    "tags": [
+      "test-noise"
+    ]
+  },
+  "rules": {
+    "react-doctor/jsx-no-jsx-as-prop": "off",
+    "react-doctor/prefer-tag-over-role": "off",
+    "react-doctor/prefer-html-dialog": "off",
+    "react-doctor/no-multi-comp": "off",
+    "react-doctor/no-polymorphic-children": "off",
+    "react-doctor/no-fetch-in-effect": "off",
+    "react-doctor/no-static-element-interactions": "off",
+    "react-doctor/click-events-have-key-events": "off",
+    "react-doctor/no-noninteractive-element-interactions": "off",
+    "react-doctor/only-export-components": "off"
+  }
+}

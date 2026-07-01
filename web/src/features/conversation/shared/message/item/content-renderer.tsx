@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type Key, type ReactNode } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
 import {
   ContentBlock,
@@ -62,13 +63,15 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
     typeof block.retry_delay_ms === "number" && block.retry_delay_ms > 0
       ? block.retry_delay_ms
       : 0;
-  const [now_ms, set_now_ms] = useState(() => Date.now());
+  const [now_ms, set_now_ms] = useResettableState(
+    Date.now(),
+    `${block.timestamp}\x1f${retry_delay_ms}`,
+  );
 
   useEffect(() => {
     if (retry_delay_ms <= 0) {
       return;
     }
-    set_now_ms(Date.now());
     const interval_id = window.setInterval(() => set_now_ms(Date.now()), 1000);
     return () => window.clearInterval(interval_id);
   }, [block.timestamp, retry_delay_ms]);

@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload, } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
@@ -53,7 +54,10 @@ export function RoomWorkspaceView(
   const is_compact_file_tree = useMediaQuery("(max-width: 1280px)");
   const [file_list_width, set_file_list_width] = useState(WORKSPACE_FILE_LIST_DEFAULT_WIDTH);
   const [is_resizing_file_list, set_is_resizing_file_list] = useState(false);
-  const [is_preview_focused, set_is_preview_focused] = useState(false);
+  const [is_preview_focused, set_is_preview_focused] = useResettableState(
+    false,
+    active_workspace_path ? "has-path" : "no-path",
+  );
   const file_list_min_width = is_compact_file_tree
     ? COMPACT_WORKSPACE_FILE_LIST_MIN_WIDTH
     : WORKSPACE_FILE_LIST_MIN_WIDTH;
@@ -122,12 +126,6 @@ export function RoomWorkspaceView(
   };
 
   useEffect(() => {
-    if (!active_workspace_path) {
-      set_is_preview_focused(false);
-    }
-  }, [active_workspace_path]);
-
-  useEffect(() => {
     if (is_compact_file_tree) {
       set_file_list_width((current) => Math.min(current, COMPACT_WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
       return;
@@ -171,6 +169,7 @@ export function RoomWorkspaceView(
   return (
     <>
       <input
+        aria-label="上传工作区文件"
         ref={file_input_ref}
         type="file"
         className="hidden"

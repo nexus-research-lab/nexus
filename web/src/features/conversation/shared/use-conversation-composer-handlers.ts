@@ -59,12 +59,12 @@ export function useConversationComposerHandlers({
       return;
     }
 
-    const initial_draft_signature = `${session_key}:${normalized_draft}`;
-    if (consumed_initial_draft_ref.current === initial_draft_signature) {
+    const initial_draft_key = `${session_key}:${normalized_draft}`;
+    if (consumed_initial_draft_ref.current === initial_draft_key) {
       return;
     }
 
-    consumed_initial_draft_ref.current = initial_draft_signature;
+    consumed_initial_draft_ref.current = initial_draft_key;
     scroll_to_bottom("auto");
     void send_message(normalized_draft)
       .then(() => {

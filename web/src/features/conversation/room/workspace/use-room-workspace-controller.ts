@@ -6,6 +6,7 @@
 
 import { ChangeEvent, MouseEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
   create_workspace_entry_api,
   delete_workspace_entry_api,
@@ -97,9 +98,9 @@ export function useRoomWorkspaceController(
     agent_id,
     is_dm,
     on_open_workspace_file,
-    file_input_ref,
-  }: UseRoomWorkspaceControllerOptions) {
-  const [selected_agent_id, set_selected_agent_id] = useState(agent_id);
+  file_input_ref,
+}: UseRoomWorkspaceControllerOptions) {
+  const [selected_agent_id, set_selected_agent_id] = useResettableState(agent_id, agent_id);
   const [is_uploading, set_is_uploading] = useState(false);
   const [is_loading_files, set_is_loading_files] = useState(false);
   const [error_message, set_error_message] = useState<string | null>(null);
@@ -109,7 +110,6 @@ export function useRoomWorkspaceController(
   });
   const [prompt_state, set_prompt_state] = useState<WorkspacePromptState>(null);
   const [delete_target, set_delete_target] = useState<WorkspaceFileEntry | null>(null);
-  const [focused_directory_path, set_focused_directory_path] = useState<string | null>(null);
   const [upload_target_directory, set_upload_target_directory] = useState<string | null>(null);
 
   const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
@@ -118,11 +118,8 @@ export function useRoomWorkspaceController(
 
   const previous_view_agent_id_ref = useRef<string>(is_dm ? agent_id : selected_agent_id);
   const view_agent_id = is_dm ? agent_id : selected_agent_id;
+  const [focused_directory_path, set_focused_directory_path] = useResettableState<string | null>(null, view_agent_id);
   const files = useMemo(() => files_by_agent[view_agent_id] || [], [files_by_agent, view_agent_id]);
-
-  useEffect(() => {
-    set_selected_agent_id(agent_id);
-  }, [agent_id]);
 
   useEffect(() => {
     const previous_view_agent_id = previous_view_agent_id_ref.current;
@@ -130,7 +127,6 @@ export function useRoomWorkspaceController(
 
     if (previous_view_agent_id !== view_agent_id) {
       on_open_workspace_file(null);
-      set_focused_directory_path(null);
     }
 
     let ignore = false;

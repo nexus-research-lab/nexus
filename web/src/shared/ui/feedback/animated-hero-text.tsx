@@ -38,6 +38,31 @@ function split_graphemes(text: string, font: string): string[] {
   }
 }
 
+interface KeyedGrapheme {
+  char: string;
+  key: string;
+  position: number;
+}
+
+function get_keyed_graphemes(graphemes: string[]): KeyedGrapheme[] {
+  const seen_counts = new Map<string, number>();
+  const keyed_graphemes: KeyedGrapheme[] = [];
+  let position = 0;
+
+  for (const char of graphemes) {
+    const occurrence = seen_counts.get(char) ?? 0;
+    seen_counts.set(char, occurrence + 1);
+    keyed_graphemes.push({
+      char,
+      key: `${char}-${occurrence}`,
+      position,
+    });
+    position += 1;
+  }
+
+  return keyed_graphemes;
+}
+
 export function AnimatedHeroText({
   text,
   class_name,
@@ -68,9 +93,9 @@ export function AnimatedHeroText({
 
   return (
     <span ref={ref} className={class_name} aria-label={text}>
-      {graphemes.map((char, i) => (
+      {get_keyed_graphemes(graphemes).map(({ char, key, position }) => (
         <span
-          key={i}
+          key={key}
           aria-hidden
           className="inline-block"
           style={{
@@ -81,7 +106,7 @@ export function AnimatedHeroText({
               transform: "translateY(8px) scale(0.94)",
             }),
             transition: "opacity 0.4s ease, transform 0.45s cubic-bezier(0.22,1,0.36,1)",
-            transitionDelay: visible ? `${initial_delay_ms + i * stagger_ms}ms` : "0ms",
+            transitionDelay: visible ? `${initial_delay_ms + position * stagger_ms}ms` : "0ms",
             whiteSpace: char === " " ? "pre" : undefined,
           }}
         >
@@ -137,46 +162,6 @@ export function FadeSlideIn({
       }}
     >
       {children}
-    </div>
-  );
-}
-
-// ─── StaggerList ─────────────────────────────────────────────────────────────
-// Wraps a list of items and applies staggered FadeSlideIn to each child.
-
-interface StaggerListProps {
-  children: React.ReactNode[];
-  base_delay_ms?: number;
-  stagger_ms?: number;
-  duration_ms?: number;
-  y_offset?: number;
-  class_name?: string;
-  item_class_name?: string;
-}
-
-function StaggerList({
-  children,
-  base_delay_ms = 0,
-  stagger_ms = 55,
-  duration_ms = 380,
-  y_offset = 8,
-  class_name,
-  item_class_name,
-}: StaggerListProps) {
-  return (
-    <div className={class_name}>
-      {children.map((child, i) => (
-        <FadeSlideIn
-          key={i}
-          delay_ms={base_delay_ms + i * stagger_ms}
-          duration_ms={duration_ms}
-          y_offset={y_offset}
-          class_name={item_class_name}
-          style={{ display: "contents" }}
-        >
-          {child}
-        </FadeSlideIn>
-      ))}
     </div>
   );
 }

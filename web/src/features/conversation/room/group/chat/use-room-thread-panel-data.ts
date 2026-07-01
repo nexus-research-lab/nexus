@@ -71,7 +71,7 @@ function get_thread_pending_permissions(
  * 由 source（GroupChatPanel 发布的会话切片）+ active_thread 派生出 Thread 面板数据。
  * 纯函数，无副作用——在消费者 render 内调用，不写回渲染周期。
  */
-export function derive_thread_panel_data(
+function derive_thread_panel_data(
   source: RoomThreadSource | null,
   active_thread: ThreadTarget | null,
 ): ThreadPanelData | null {

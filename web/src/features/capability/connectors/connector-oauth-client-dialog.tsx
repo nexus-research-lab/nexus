@@ -1,10 +1,11 @@
 "use client";
 
 import { Check, Copy, ExternalLink, KeyRound, Save, Trash2 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback } from "react";
 
 import { get_connector_oauth_redirect_uri } from "@/config/desktop-runtime";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -33,14 +34,10 @@ export function ConnectorOAuthClientDialog({
   on_save,
   on_delete,
 }: ConnectorOAuthClientDialogProps) {
-  const [client_id, set_client_id] = useState("");
-  const [client_secret, set_client_secret] = useState("");
+  const detail_reset_key = `${detail?.connector_id ?? ""}\x1f${detail?.oauth_client_id ?? ""}`;
+  const [client_id, set_client_id] = useResettableState(detail?.oauth_client_id ?? "", detail_reset_key);
+  const [client_secret, set_client_secret] = useResettableState("", detail_reset_key);
   const { copied: callback_url_copied, copy: copy_callback_url } = useCopyToClipboard();
-
-  useEffect(() => {
-    set_client_id(detail?.oauth_client_id ?? "");
-    set_client_secret("");
-  }, [detail?.connector_id, detail?.oauth_client_id]);
 
   const handle_submit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {

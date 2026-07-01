@@ -98,6 +98,7 @@ export function PdfPreview({
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         <iframe
           className="h-full w-full"
+          sandbox="allow-downloads allow-same-origin"
           src={preview_url}
           title={file_name}
           onLoad={() => setIsLoaded(true)}

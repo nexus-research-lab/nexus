@@ -28,6 +28,13 @@ export * from './app/workspace-live';
 // WebSocket 相关类型
 export * from './system/websocket';
 
+// 后端协议生成类型
+export type {
+  EventMessage as GeneratedEventMessage,
+  EventType as GeneratedEventType,
+  RoundStatusData as GeneratedRoundStatusData,
+} from './generated/protocol';
+
 // Launcher 相关类型
 export * from './app/launcher';
 export * from './app/route';

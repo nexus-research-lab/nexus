@@ -2,8 +2,10 @@ import { cn } from "@/lib/utils";
 import {
   ROUND_RECT_MAX_RADIUS,
   ROUND_RECT_RADIUS_RATIO,
+  type PresentationParagraph,
   type PresentationShapeElement,
   type PresentationSlide,
+  type PresentationTextRun,
 } from "./presentation-preview-model";
 
 export function PresentationSlideCanvas({
@@ -84,16 +86,16 @@ function PresentationShape({
               width: "100%",
             }}
           >
-            {shape.paragraphs.map((paragraph, index) => (
+            {shape.paragraphs.map((paragraph) => (
               <p
-                key={`${shape.id}-paragraph-${index}`}
+                key={get_paragraph_key(shape.id, paragraph)}
                 style={{
                   columnGap: paragraph.bullet ? paragraph.font_size * 0.45 : undefined,
                   display: paragraph.bullet ? "grid" : "block",
                   fontSize: paragraph.font_size,
                   gridTemplateColumns: paragraph.bullet ? `${paragraph.bullet_indent}px minmax(0, 1fr)` : undefined,
                   lineHeight: paragraph.line_height,
-                  margin: index === 0 ? 0 : `${paragraph.font_size * 0.42}px 0 0`,
+                  margin: paragraph === shape.paragraphs[0] ? 0 : `${paragraph.font_size * 0.42}px 0 0`,
                   textAlign: paragraph.align || "left",
                   whiteSpace: "normal",
                   wordBreak: paragraph.align === "center" ? "keep-all" : "normal",
@@ -113,9 +115,9 @@ function PresentationShape({
                   </span>
                 ) : null}
                 <span style={{ minWidth: 0, overflowWrap: paragraph.align === "center" ? "normal" : "break-word" }}>
-                  {paragraph.runs.map((run, run_index) => (
+                  {paragraph.runs.map((run) => (
                     <span
-                      key={`${shape.id}-paragraph-${index}-run-${run_index}`}
+                      key={get_text_run_key(shape.id, paragraph, run)}
                       style={{
                         color: run.color || "#111827",
                         fontFamily: run.font_face || "Arial, sans-serif",
@@ -135,6 +137,35 @@ function PresentationShape({
       ) : null}
     </g>
   );
+}
+
+function get_paragraph_key(shape_id: string, paragraph: PresentationParagraph): string {
+  return [
+    shape_id,
+    "paragraph",
+    paragraph.text,
+    paragraph.bullet ?? "",
+    paragraph.align ?? "",
+    paragraph.font_size,
+    paragraph.line_height,
+  ].join(":");
+}
+
+function get_text_run_key(
+  shape_id: string,
+  paragraph: PresentationParagraph,
+  run: PresentationTextRun,
+): string {
+  return [
+    get_paragraph_key(shape_id, paragraph),
+    "run",
+    run.text,
+    run.font_face ?? "",
+    run.font_size,
+    run.color ?? "",
+    run.bold ? "bold" : "normal",
+    run.italic ? "italic" : "roman",
+  ].join(":");
 }
 
 function render_shape_geometry(shape: PresentationShapeElement, fill: string, stroke: string) {

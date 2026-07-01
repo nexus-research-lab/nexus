@@ -162,6 +162,7 @@ export function MessageActionButton({
         ACTION_TONE_CLASS_MAP[tone],
         class_name,
       )}
+      type="button"
       {...props}
     >
       {children}

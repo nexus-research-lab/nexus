@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { History, RefreshCw, X } from "lucide-react";
 
 import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { list_scheduled_task_runs_api } from "@/lib/api/scheduled-task-api";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { close_on_escape } from "@/shared/ui/dialog/dialog-keyboard";
@@ -23,6 +24,17 @@ interface ScheduledTaskRunHistoryDialogProps {
   on_recover_task_run?: (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => void | Promise<void>;
 }
 
+interface RunHistoryDialogState {
+  action_message: string | null;
+  copied_run_id: string | null;
+  error_message: string | null;
+  is_loading: boolean;
+  recovering_run_id: string | null;
+  retrying_delivery_run_id: string | null;
+  retrying_run_id: string | null;
+  runs: ScheduledTaskRunItem[];
+}
+
 export function ScheduledTaskRunHistoryDialog({
   task,
   is_open,
@@ -31,55 +43,64 @@ export function ScheduledTaskRunHistoryDialog({
   on_retry_delivery,
   on_recover_task_run,
 }: ScheduledTaskRunHistoryDialogProps) {
-  const [runs, set_runs] = useState<ScheduledTaskRunItem[]>([]);
-  const [is_loading, set_is_loading] = useState(false);
-  const [error_message, set_error_message] = useState<string | null>(null);
-  const [action_message, set_action_message] = useState<string | null>(null);
-  const [copied_run_id, set_copied_run_id] = useState<string | null>(null);
-  const [retrying_run_id, set_retrying_run_id] = useState<string | null>(null);
-  const [retrying_delivery_run_id, set_retrying_delivery_run_id] = useState<string | null>(null);
-  const [recovering_run_id, set_recovering_run_id] = useState<string | null>(null);
   const active_task_job_id_ref = useRef<string | null>(null);
   const runs_request_token_ref = useRef(0);
   const task_job_id = task?.job_id ?? null;
+  const [state, set_state] = useResettableState<RunHistoryDialogState>(
+    {
+      action_message: null,
+      copied_run_id: null,
+      error_message: null,
+      is_loading: Boolean(is_open && task_job_id),
+      recovering_run_id: null,
+      retrying_delivery_run_id: null,
+      retrying_run_id: null,
+      runs: [],
+    },
+    is_open && task_job_id ? task_job_id : "closed",
+  );
+  const {
+    action_message,
+    copied_run_id,
+    error_message,
+    is_loading,
+    recovering_run_id,
+    retrying_delivery_run_id,
+    retrying_run_id,
+    runs,
+  } = state;
 
   const load_runs = useCallback(async (job_id: string) => {
     const request_token = runs_request_token_ref.current + 1;
     runs_request_token_ref.current = request_token;
-    set_is_loading(true);
-    set_error_message(null);
+    set_state((current) => ({ ...current, error_message: null, is_loading: true }));
     try {
       const result = await list_scheduled_task_runs_api(job_id);
       if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
         return;
       }
-      set_runs(result);
+      set_state((current) => ({ ...current, runs: result }));
     } catch (error) {
       if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
         return;
       }
-      set_error_message(error instanceof Error ? error.message : "加载运行历史失败");
-      set_runs([]);
+      set_state((current) => ({
+        ...current,
+        error_message: error instanceof Error ? error.message : "加载运行历史失败",
+        runs: [],
+      }));
     } finally {
       if (active_task_job_id_ref.current !== job_id || runs_request_token_ref.current !== request_token) {
         return;
       }
-      set_is_loading(false);
+      set_state((current) => ({ ...current, is_loading: false }));
     }
-  }, []);
+  }, [set_state]);
 
   useEffect(() => {
     if (!is_open) {
       active_task_job_id_ref.current = null;
       runs_request_token_ref.current += 1;
-      set_runs([]);
-      set_error_message(null);
-      set_action_message(null);
-      set_copied_run_id(null);
-      set_retrying_run_id(null);
-      set_retrying_delivery_run_id(null);
-      set_recovering_run_id(null);
-      set_is_loading(false);
       return;
     }
     const on_key_down = (event: KeyboardEvent) => close_on_escape(event, on_close);
@@ -93,14 +114,9 @@ export function ScheduledTaskRunHistoryDialog({
     if (!is_open || !task_job_id) {
       active_task_job_id_ref.current = null;
       runs_request_token_ref.current += 1;
-      set_runs([]);
-      set_error_message(null);
-      set_action_message(null);
-      set_is_loading(false);
       return;
     }
     active_task_job_id_ref.current = task_job_id;
-    set_runs([]);
     void load_runs(task_job_id);
   }, [is_open, load_runs, task_job_id]);
 
@@ -115,27 +131,35 @@ export function ScheduledTaskRunHistoryDialog({
   const handle_copy_diagnostic = async (run: ScheduledTaskRunItem) => {
     const diagnostic = build_run_diagnostic(task, run);
     if (await write_text_to_clipboard(diagnostic)) {
-      set_copied_run_id(run.run_id);
-      set_action_message("诊断信息已复制");
+      set_state((current) => ({
+        ...current,
+        action_message: "诊断信息已复制",
+        copied_run_id: run.run_id,
+      }));
       return;
     }
-    set_action_message("浏览器未允许写入剪贴板，请使用运行产物查看完整诊断");
+    set_state((current) => ({
+      ...current,
+      action_message: "浏览器未允许写入剪贴板，请使用运行产物查看完整诊断",
+    }));
   };
 
   const handle_retry = async (run: ScheduledTaskRunItem) => {
     if (!on_retry_task || !task_job_id) {
       return;
     }
-    set_retrying_run_id(run.run_id);
-    set_action_message(null);
+    set_state((current) => ({ ...current, action_message: null, retrying_run_id: run.run_id }));
     try {
       await on_retry_task(task);
       await load_runs(task_job_id);
-      set_action_message("已触发重新运行");
+      set_state((current) => ({ ...current, action_message: "已触发重新运行" }));
     } catch (error) {
-      set_action_message(error instanceof Error ? error.message : "重新运行失败");
+      set_state((current) => ({
+        ...current,
+        action_message: error instanceof Error ? error.message : "重新运行失败",
+      }));
     } finally {
-      set_retrying_run_id(null);
+      set_state((current) => ({ ...current, retrying_run_id: null }));
     }
   };
 
@@ -143,16 +167,18 @@ export function ScheduledTaskRunHistoryDialog({
     if (!on_retry_delivery || !task_job_id) {
       return;
     }
-    set_retrying_delivery_run_id(run.run_id);
-    set_action_message(null);
+    set_state((current) => ({ ...current, action_message: null, retrying_delivery_run_id: run.run_id }));
     try {
       await on_retry_delivery(task, run);
       await load_runs(task_job_id);
-      set_action_message("已重试投递");
+      set_state((current) => ({ ...current, action_message: "已重试投递" }));
     } catch (error) {
-      set_action_message(error instanceof Error ? error.message : "重试投递失败");
+      set_state((current) => ({
+        ...current,
+        action_message: error instanceof Error ? error.message : "重试投递失败",
+      }));
     } finally {
-      set_retrying_delivery_run_id(null);
+      set_state((current) => ({ ...current, retrying_delivery_run_id: null }));
     }
   };
 
@@ -163,16 +189,18 @@ export function ScheduledTaskRunHistoryDialog({
     if (!window.confirm(`确认释放 run ${run.run_id} 的运行占用吗？该 run 会被标记为 cancelled。`)) {
       return;
     }
-    set_recovering_run_id(run.run_id);
-    set_action_message(null);
+    set_state((current) => ({ ...current, action_message: null, recovering_run_id: run.run_id }));
     try {
       await on_recover_task_run(task, run);
       await load_runs(task_job_id);
-      set_action_message("已释放运行占用");
+      set_state((current) => ({ ...current, action_message: "已释放运行占用" }));
     } catch (error) {
-      set_action_message(error instanceof Error ? error.message : "释放运行占用失败");
+      set_state((current) => ({
+        ...current,
+        action_message: error instanceof Error ? error.message : "释放运行占用失败",
+      }));
     } finally {
-      set_recovering_run_id(null);
+      set_state((current) => ({ ...current, recovering_run_id: null }));
     }
   };
 

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Crown, Hash, Plus, Search } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { get_available_skills_api } from "@/lib/api/skill-api";
 import { cn } from "@/lib/utils";
 import { ROOM_ICON_ID_END, ROOM_ICON_ID_START } from "@/lib/utils";
@@ -67,6 +68,12 @@ interface CreateRoomDialogProps {
   ) => void;
 }
 
+interface RoomSkillsState {
+  error: string | null;
+  items: SkillInfo[];
+  loading: boolean;
+}
+
 const MAX_MEMBERS = 10;
 const EMPTY_STRING_LIST: string[] = [];
 const STRING_LIST_SIGNATURE_SEPARATOR = "\x1f";
@@ -89,18 +96,15 @@ export function CreateRoomDialog({
   on_confirm,
 }: CreateRoomDialogProps) {
   const { t } = useI18n();
-  const [search_query, set_search_query] = useState("");
-  const [selected_ids, set_selected_ids] = useState<string[]>([]);
-  const [room_name, set_room_name] = useState("");
-  const [selected_avatar, set_selected_avatar] = useState("");
-  const [selected_room_skill_names, set_selected_room_skill_names] = useState<string[]>([]);
-  const [available_room_skills, set_available_room_skills] = useState<SkillInfo[]>([]);
-  const [is_loading_room_skills, set_is_loading_room_skills] = useState(false);
-  const [room_skill_error, set_room_skill_error] = useState<string | null>(null);
-  const [room_skill_query, set_room_skill_query] = useState("");
-  const [selected_host_agent_id, set_selected_host_agent_id] = useState<string>("");
-  const [host_auto_reply_enabled, set_host_auto_reply_enabled] = useState(false);
-  const [private_messages_enabled, set_private_messages_enabled] = useState(false);
+  const [room_skills_state, set_room_skills_state] = useResettableState<RoomSkillsState>(
+    { error: null, items: [], loading: is_open },
+    is_open ? "open" : "closed",
+  );
+  const {
+    error: room_skill_error,
+    items: available_room_skills,
+    loading: is_loading_room_skills,
+  } = room_skills_state;
   const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
   const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
   // 数组 props 往往每次 render 都是新引用，依赖内容签名，
@@ -127,60 +131,62 @@ export function CreateRoomDialog({
         : initial_room_skill_names_signature.split(STRING_LIST_SIGNATURE_SEPARATOR),
     [initial_room_skill_names_signature],
   );
-
-  // 打开时重置状态
-  useEffect(() => {
-    if (is_open) {
-      set_search_query("");
-      set_selected_ids(stable_initial_selected_ids);
-      set_room_name(initial_name);
-      set_selected_avatar(initial_avatar);
-      set_selected_room_skill_names(stable_initial_room_skill_names);
-      set_selected_host_agent_id(initial_host_agent_id?.trim() ?? "");
-      set_host_auto_reply_enabled(initial_host_auto_reply_enabled);
-      set_private_messages_enabled(initial_private_messages_enabled);
-      set_room_skill_query("");
-    }
-  }, [
-    initial_avatar,
-    initial_host_agent_id,
-    initial_host_auto_reply_enabled,
-    initial_private_messages_enabled,
+  const dialog_reset_key = [
+    is_open ? "open" : "closed",
     initial_name,
-    initial_room_skill_names_signature,
+    initial_avatar,
     initial_selected_ids_signature,
-    is_open,
+    initial_room_skill_names_signature,
+    initial_host_agent_id?.trim() ?? "",
+    String(initial_host_auto_reply_enabled),
+    String(initial_private_messages_enabled),
+  ].join("\x1e");
+  const [search_query, set_search_query] = useResettableState("", dialog_reset_key);
+  const [selected_ids, set_selected_ids] = useResettableState<string[]>(stable_initial_selected_ids, dialog_reset_key);
+  const [room_name, set_room_name] = useResettableState(initial_name, dialog_reset_key);
+  const [selected_avatar, set_selected_avatar] = useResettableState(initial_avatar, dialog_reset_key);
+  const [selected_room_skill_names, set_selected_room_skill_names] = useResettableState<string[]>(
     stable_initial_room_skill_names,
-    stable_initial_selected_ids,
-  ]);
+    dialog_reset_key,
+  );
+  const [room_skill_query, set_room_skill_query] = useResettableState("", dialog_reset_key);
+  const [selected_host_agent_id, set_selected_host_agent_id] = useResettableState<string>(
+    initial_host_agent_id?.trim() ?? "",
+    dialog_reset_key,
+  );
+  const [host_auto_reply_enabled, set_host_auto_reply_enabled] = useResettableState(
+    initial_host_auto_reply_enabled,
+    dialog_reset_key,
+  );
+  const [private_messages_enabled, set_private_messages_enabled] = useResettableState(
+    initial_private_messages_enabled,
+    dialog_reset_key,
+  );
 
   useEffect(() => {
     if (!is_open) {
       return;
     }
     let is_cancelled = false;
-    set_is_loading_room_skills(true);
-    set_room_skill_error(null);
     get_available_skills_api({scope: "room"})
       .then((items) => {
         if (!is_cancelled) {
-          set_available_room_skills(items);
+          set_room_skills_state({ error: null, items, loading: false });
         }
       })
       .catch((error: unknown) => {
         if (!is_cancelled) {
-          set_room_skill_error(error instanceof Error ? error.message : t("room.skills_load_error"));
-        }
-      })
-      .finally(() => {
-        if (!is_cancelled) {
-          set_is_loading_room_skills(false);
+          set_room_skills_state({
+            error: error instanceof Error ? error.message : t("room.skills_load_error"),
+            items: [],
+            loading: false,
+          });
         }
       });
     return () => {
       is_cancelled = true;
     };
-  }, [is_open, t]);
+  }, [is_open, set_room_skills_state, t]);
 
   // 搜索过滤
   const filtered_agents = useMemo(() => {
@@ -196,18 +202,16 @@ export function CreateRoomDialog({
     [agents, selected_id_set],
   );
 
-  useEffect(() => {
-    if (selected_ids.length === 0) {
-      set_selected_host_agent_id("");
-      set_host_auto_reply_enabled(false);
-      return;
-    }
-    if (selected_host_agent_id && selected_ids.includes(selected_host_agent_id)) {
-      return;
-    }
+  if (
+    selected_ids.length === 0 &&
+    (selected_host_agent_id || host_auto_reply_enabled)
+  ) {
     set_selected_host_agent_id("");
     set_host_auto_reply_enabled(false);
-  }, [selected_host_agent_id, selected_ids]);
+  } else if (selected_host_agent_id && !selected_ids.includes(selected_host_agent_id)) {
+    set_selected_host_agent_id("");
+    set_host_auto_reply_enabled(false);
+  }
 
   const filtered_room_skills = useMemo(() => {
     const query = room_skill_query.trim().toLowerCase();
@@ -315,6 +319,7 @@ export function CreateRoomDialog({
                       title={room_name || resolved_dialog_title}
                     />
                     <input
+                      aria-label={t("room.settings_title")}
                       className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
                       data-autofocus="true"
                       maxLength={64}
@@ -401,6 +406,7 @@ export function CreateRoomDialog({
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)" />
                   <input
+                    aria-label={t("room.search_agent_placeholder")}
                     className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
                     onChange={(e) => set_search_query(e.target.value)}
                     placeholder={t("room.search_agent_placeholder")}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolve_agent_id } from "@/config/options";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
   get_heartbeat_config_api,
   update_heartbeat_api,
@@ -70,12 +71,12 @@ export function useAutomationController(
 ): AutomationController {
   const agent_id = resolve_agent_id(options.agent_id);
   const include_all_tasks = Boolean(options.include_all_tasks);
-  const [heartbeat, set_heartbeat] = useState<HeartbeatConfig | null>(null);
-  const [scheduled_tasks, set_scheduled_tasks] = useState<ScheduledTaskItem[]>([]);
-  const [heartbeat_loading, set_heartbeat_loading] = useState(true);
-  const [tasks_loading, set_tasks_loading] = useState(true);
-  const [heartbeat_error, set_heartbeat_error] = useState<string | null>(null);
-  const [tasks_error, set_tasks_error] = useState<string | null>(null);
+  const [heartbeat, set_heartbeat] = useResettableState<HeartbeatConfig | null>(null, agent_id);
+  const [scheduled_tasks, set_scheduled_tasks] = useResettableState<ScheduledTaskItem[]>([], agent_id);
+  const [heartbeat_loading, set_heartbeat_loading] = useResettableState(true, agent_id);
+  const [tasks_loading, set_tasks_loading] = useResettableState(true, agent_id);
+  const [heartbeat_error, set_heartbeat_error] = useResettableState<string | null>(null, agent_id);
+  const [tasks_error, set_tasks_error] = useResettableState<string | null>(null, agent_id);
   const active_agent_id_ref = useRef(agent_id);
   const heartbeat_request_token_ref = useRef(0);
   const tasks_request_token_ref = useRef(0);
@@ -108,12 +109,6 @@ export function useAutomationController(
     active_agent_id_ref.current = agent_id;
     heartbeat_request_token_ref.current += 1;
     tasks_request_token_ref.current += 1;
-    set_heartbeat(null);
-    set_scheduled_tasks([]);
-    set_heartbeat_error(null);
-    set_tasks_error(null);
-    set_heartbeat_loading(true);
-    set_tasks_loading(true);
   }, [agent_id]);
 
   const refresh_heartbeat = useCallback(async () => {

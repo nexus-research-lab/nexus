@@ -306,7 +306,7 @@ export function AskUserQuestionBlock({
                 <div className="mt-2 space-y-2">
                     {questions.map((question, index) => (
                         <AskUserQuestionCard
-                            key={index}
+                            key={`${question.header ?? "question"}:${question.question}`}
                             question={question}
                             question_index={index}
                             selected_options={selections.get(index) || new Set()}
@@ -334,6 +334,7 @@ export function AskUserQuestionBlock({
                     </span>
 
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             void handleSubmit();

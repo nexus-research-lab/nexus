@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { get_agent_sessions_api } from "@/lib/api/agent-api";
 import { subscribe_room_directory_updates } from "@/lib/api/room-api";
 import {
@@ -87,7 +88,11 @@ export function useRoomExternalSessions({
   room_id: string | null;
   room_type: string | null;
 }) {
-  const [external_agent_sessions, set_external_agent_sessions] = useState<AgentSession[]>([]);
+  const external_sessions_reset_key = room_type === "dm" && agent_id ? agent_id : "inactive";
+  const [external_agent_sessions, set_external_agent_sessions] = useResettableState<AgentSession[]>(
+    [],
+    external_sessions_reset_key,
+  );
   const [external_session_refresh_version, set_external_session_refresh_version] = useState(0);
 
   useEffect(
@@ -99,7 +104,6 @@ export function useRoomExternalSessions({
 
   useEffect(() => {
     if (room_type !== "dm" || !agent_id) {
-      set_external_agent_sessions([]);
       return undefined;
     }
 

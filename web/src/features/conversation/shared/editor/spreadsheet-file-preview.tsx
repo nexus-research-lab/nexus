@@ -4,6 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
 import { Eye, FileSpreadsheet, FileWarning, LoaderCircle } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { get_workspace_file_preview_url } from "@/lib/api/agent-manage-api";
 import { cn } from "@/lib/utils";
 import { ConversationResizeHandle } from "./conversation-resize-handle";
@@ -68,23 +69,19 @@ export function SpreadsheetFilePreview({
   on_toggle_preview_focus,
   path,
 }: SpreadsheetFilePreviewProps) {
-  const [workbook_data, set_workbook_data] = useState<SpreadsheetPreviewWorkbookData | null>(null);
-  const [active_sheet_index, set_active_sheet_index] = useState(0);
-  const [status, set_status] = useState<SpreadsheetPreviewStatus>({
+  const preview_key = `${agent_id}\x1f${path}`;
+  const [workbook_data, set_workbook_data] = useResettableState<SpreadsheetPreviewWorkbookData | null>(null, preview_key);
+  const [active_sheet_index, set_active_sheet_index] = useResettableState(0, preview_key);
+  const [status, set_status] = useResettableState<SpreadsheetPreviewStatus>({
     state: "loading",
     message: "加载表格预览中",
-  });
+  }, preview_key);
 
   useEffect(() => {
     const abort_controller = new AbortController();
     let cancelled = false;
 
-    set_workbook_data(null);
-    set_active_sheet_index(0);
-
     async function load_preview() {
-      set_status({ state: "loading", message: "读取 xlsx 文件中" });
-
       try {
         const preview_url = get_workspace_file_preview_url(agent_id, path);
         const response = await fetch(preview_url, {

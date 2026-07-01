@@ -80,7 +80,13 @@ export function AgentOptions({
   }
 
   return createPortal(
-    <div className="dialog-backdrop z-[9999]" data-modal-root="true" role="dialog" aria-modal="true">
+    <div
+      aria-labelledby="agent-options-dialog-title"
+      aria-modal="true"
+      className="dialog-backdrop z-[9999]"
+      data-modal-root="true"
+      role="dialog"
+    >
       <div className="dialog-shell surface-radius-md flex h-[80vh] w-full max-w-[920px] flex-col overflow-hidden">
         <div className="dialog-header px-5 py-4">
           <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
@@ -88,7 +94,10 @@ export function AgentOptions({
               <Settings className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]">
+              <h2
+                className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]"
+                id="agent-options-dialog-title"
+              >
                 {mode === "create" ? t("agent_options.title_create") : initial_title}
               </h2>
               {mode === "edit" && agent_id ? (
@@ -129,4 +138,3 @@ export function AgentOptions({
     document.body,
   );
 }
-

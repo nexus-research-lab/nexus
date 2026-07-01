@@ -24,18 +24,44 @@ function ensure_style(count: number, duration: number) {
   document.head.appendChild(style);
 }
 
+interface KeyedFrame {
+  char: string;
+  key: string;
+  position: number;
+}
+
+function get_keyed_frames(frames: string[]): KeyedFrame[] {
+  const seen_counts = new Map<string, number>();
+  const keyed_frames: KeyedFrame[] = [];
+  let position = 0;
+
+  for (const char of frames) {
+    const occurrence = seen_counts.get(char) ?? 0;
+    seen_counts.set(char, occurrence + 1);
+    keyed_frames.push({
+      char,
+      key: `${char}-${occurrence}`,
+      position,
+    });
+    position += 1;
+  }
+
+  return keyed_frames;
+}
+
 export function LoadingOrb({ frames = DEFAULT_FRAMES }: { frames?: string[] }) {
   ensure_style(frames.length, FRAME_DURATION_MS);
   const total = frames.length * FRAME_DURATION_MS;
+  const keyed_frames = get_keyed_frames(frames);
 
   return (
     <span className="relative inline-block w-3 select-none text-center leading-none text-primary" aria-hidden>
-      {frames.map((char, i) => (
+      {keyed_frames.map(({ char, key, position }) => (
         <span
-          key={i}
-          className={i === 0 ? "nexus-orb-frame" : "nexus-orb-frame absolute inset-0"}
+          key={key}
+          className={position === 0 ? "nexus-orb-frame" : "nexus-orb-frame absolute inset-0"}
           style={{
-            animationDelay: `${i * FRAME_DURATION_MS}ms`,
+            animationDelay: `${position * FRAME_DURATION_MS}ms`,
             animationDuration: `${total}ms`,
             opacity: 0,
           }}

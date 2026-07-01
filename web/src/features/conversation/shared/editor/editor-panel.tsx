@@ -13,6 +13,7 @@ import {
   get_workspace_file_content_api,
   update_workspace_file_content_api,
 } from "@/lib/api/agent-manage-api";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
@@ -131,7 +132,7 @@ export function EditorPanel({
   const [saved_content, setSavedContent] = useState("");
   const [is_loading, setIsLoading] = useState(false);
   const [is_saving, setIsSaving] = useState(false);
-  const [is_editing, setIsEditing] = useState(false);
+  const [is_editing, setIsEditing] = useResettableState(false, path ?? "");
   const [error, setError] = useState<string | null>(null);
   const [editor_width, setEditorWidth] = useState(0);
   const editor_area_ref = useRef<HTMLDivElement>(null);
@@ -195,10 +196,6 @@ export function EditorPanel({
     load_content();
     return () => { load_content_ref.current = true; };
   }, [load_content]);
-
-  useEffect(() => {
-    setIsEditing(false);
-  }, [path]);
 
   useEffect(() => {
     if (!is_editing) {
@@ -499,6 +496,7 @@ export function EditorPanel({
                   </div>
                 ) : (
                   <textarea
+                    aria-label="编辑文件内容"
                     ref={textarea_ref}
                     className="soft-scrollbar h-full w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) outline-none disabled:opacity-70"
                     disabled={is_loading}

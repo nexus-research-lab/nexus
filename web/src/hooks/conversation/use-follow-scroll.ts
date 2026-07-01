@@ -16,6 +16,8 @@ import {
   useState,
 } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+
 const BOTTOM_THRESHOLD_PX = 80;
 const SMOOTH_SCROLL_DURATION_MS = 420;
 const EASE_X1 = 0.23;
@@ -137,7 +139,7 @@ export function useFollowScroll({
   } | null>(null);
   const touch_start_y_ref = useRef<number | null>(null);
   const show_scroll_to_bottom_ref = useRef(false);
-  const [show_scroll_to_bottom, setShowScrollToBottom] = useState(false);
+  const [show_scroll_to_bottom, setShowScrollToBottom] = useResettableState(false, session_key ?? "");
 
   // ==================== 跟随状态 ====================
 
@@ -305,10 +307,11 @@ export function useFollowScroll({
 
   // session 切换时重置
   useEffect(() => {
-    update_follow_state();
+    should_follow_latest_ref.current = true;
+    show_scroll_to_bottom_ref.current = false;
     last_scroll_top_ref.current = scroll_ref.current?.scrollTop || 0;
     pending_prepend_restore_ref.current = null;
-  }, [update_follow_state, session_key]);
+  }, [session_key]);
 
   // 卸载时清理
   useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { list_provider_options_api } from "@/lib/api/provider-config-api";
 import type {
   AgentNameValidationResult,
@@ -55,78 +56,57 @@ export function useAgentOptionsEditorController({
     () => initial_title || t("agent_options.default_name"),
     [initial_title, t],
   );
+  const initial_vibe_tags_signature = initial_vibe_tags.join("\x1f");
+  const sourceModel = sourceOptions.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
+  const initial_provider = sourceModel
+    ? normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
+    : DEFAULT_AGENT_OPTION_PROVIDER;
+  const initial_permission_mode = sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE;
+  const initial_allowed_tools = sourceOptions.allowed_tools || [];
+  const initial_disallowed_tools = sourceOptions.disallowed_tools || [];
+  const initial_allowed_tools_signature = initial_allowed_tools.join("\x1f");
+  const initial_disallowed_tools_signature = initial_disallowed_tools.join("\x1f");
+  const editor_reset_key = [
+    is_active ? "active" : "inactive",
+    initial_resolved_title,
+    initial_avatar,
+    initial_description,
+    initial_vibe_tags_signature,
+    initial_provider,
+    sourceModel,
+    initial_permission_mode,
+    initial_allowed_tools_signature,
+    initial_disallowed_tools_signature,
+  ].join("\x1e");
 
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<TabKey>("identity");
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useResettableState<TabKey>("identity", editor_reset_key);
   const activeTab = active_tab ?? uncontrolledActiveTab;
   const setActiveTab = on_tab_change ?? setUncontrolledActiveTab;
 
-  const [title, setTitle] = useState(initial_title || t("agent_options.default_name"));
-  const [avatar, setAvatar] = useState(initial_avatar);
-  const [description, setDescription] = useState(initial_description);
-  const [vibeTags, setVibeTags] = useState<string[]>(initial_vibe_tags);
-  const sourceModel = sourceOptions.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
-  const [provider, setProvider] = useState<AgentProvider>(
-    sourceModel
-      ? normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
-      : DEFAULT_AGENT_OPTION_PROVIDER
-  );
-  const [model, setModel] = useState<string>(sourceModel);
-  const [defaultProvider, setDefaultProvider] = useState<AgentProvider>("");
-  const [defaultModel, setDefaultModel] = useState<string>("");
+  const [title, setTitle] = useResettableState(initial_resolved_title, editor_reset_key);
+  const [avatar, setAvatar] = useResettableState(initial_avatar, editor_reset_key);
+  const [description, setDescription] = useResettableState(initial_description, editor_reset_key);
+  const [vibeTags, setVibeTags] = useResettableState<string[]>(initial_vibe_tags, editor_reset_key);
+  const [provider, setProvider] = useResettableState<AgentProvider>(initial_provider, editor_reset_key);
+  const [model, setModel] = useResettableState<string>(sourceModel, editor_reset_key);
+  const [defaultProvider, setDefaultProvider] = useResettableState<AgentProvider>("", editor_reset_key);
+  const [defaultModel, setDefaultModel] = useResettableState<string>("", editor_reset_key);
   const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
-  const [providerOptionsError, setProviderOptionsError] = useState<string | null>(null);
-  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
+  const [providerOptionsError, setProviderOptionsError] = useResettableState<string | null>(null, editor_reset_key);
+  const [saveFeedback, setSaveFeedback] = useResettableState<SaveFeedback | null>(null, `${is_active ? "active" : "inactive"}\x1f${agent_id}`);
   const saveFeedbackTimerRef = useRef<number | null>(null);
 
-  const [permissionMode, setPermissionMode] = useState(
-    sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE
-  );
-  const [allowedTools, setAllowedTools] = useState<string[]>(
-    sourceOptions.allowed_tools || []
-  );
-  const [disallowedTools, setDisallowedTools] = useState<string[]>(
-    sourceOptions.disallowed_tools || []
-  );
+  const [permissionMode, setPermissionMode] = useResettableState(initial_permission_mode, editor_reset_key);
+  const [allowedTools, setAllowedTools] = useResettableState<string[]>(initial_allowed_tools, editor_reset_key);
+  const [disallowedTools, setDisallowedTools] = useResettableState<string[]>(initial_disallowed_tools, editor_reset_key);
 
   const [nameValidation, setNameValidation] =
-    useState<AgentNameValidationResult | null>(null);
-  const [isValidatingName, setIsValidatingName] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+    useResettableState<AgentNameValidationResult | null>(null, editor_reset_key);
+  const [isValidatingName, setIsValidatingName] = useResettableState(false, editor_reset_key);
+  const [isSaving, setIsSaving] = useResettableState(false, editor_reset_key);
   const trimmed_title = title.trim();
   const has_title_changed = trimmed_title !== initial_resolved_title.trim();
-
-  useEffect(() => {
-    if (!is_active) return;
-    const opts = initial_options as AgentDialogInitialOptions;
-    setUncontrolledActiveTab("identity");
-    setTitle(initial_resolved_title);
-    setAvatar(initial_avatar);
-    setDescription(initial_description);
-    setVibeTags(initial_vibe_tags);
-    const nextModel = opts.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
-    setProvider(nextModel ? normalize_agent_option_provider(opts.provider) : DEFAULT_AGENT_OPTION_PROVIDER);
-    setModel(nextModel);
-    setDefaultProvider("");
-    setDefaultModel("");
-    setProviderOptionsError(null);
-    setPermissionMode(opts.permission_mode || DEFAULT_AGENT_PERMISSION_MODE);
-    setAllowedTools(opts.allowed_tools || []);
-    setDisallowedTools(opts.disallowed_tools || []);
-    setNameValidation(null);
-    setIsValidatingName(false);
-    setIsSaving(false);
-  }, [initial_avatar, initial_description, initial_options, initial_resolved_title, initial_vibe_tags, is_active]);
-
-  useEffect(() => {
-    if (!is_active) {
-      setSaveFeedback(null);
-    }
-  }, [is_active]);
-
-  useEffect(() => {
-    setSaveFeedback(null);
-  }, [agent_id]);
 
   useEffect(() => {
     return () => {

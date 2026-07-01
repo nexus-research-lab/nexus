@@ -68,27 +68,19 @@ export function GlassSwitch({
     set_can_use_true_glass(supports_true_liquid_glass());
   }, []);
 
-  useEffect(() => {
-    /**
-     * 中文注释：首屏渲染时 previous_checked_ref 与当前值一致，
-     * 不应把初始化当成一次开关动画，否则会错误显示 glass 覆盖层。
-     */
-    if (previous_checked_ref.current === checked) {
-      return;
-    }
-
+  /**
+   * 中文注释：首屏渲染时 previous_checked_ref 与当前值一致，
+   * 不应把初始化当成一次开关动画，否则会错误显示 glass 覆盖层。
+   */
+  if (previous_checked_ref.current !== checked) {
     previous_checked_ref.current = checked;
     set_is_transitioning(true);
-  }, [checked]);
+  }
 
-  useEffect(() => {
-    if (!disabled) {
-      return;
-    }
-
+  if (disabled && (is_pressed || is_transitioning)) {
     set_is_pressed(false);
     set_is_transitioning(false);
-  }, [disabled]);
+  }
 
   const show_interaction_filter = can_use_true_glass
     && (is_pressed || is_transitioning);

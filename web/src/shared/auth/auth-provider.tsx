@@ -14,6 +14,7 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -137,17 +138,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return next_status;
   }, []);
 
+  const context_value = useMemo(() => ({
+    status,
+    loading,
+    is_bootstrapped,
+    error,
+    refresh_status,
+    login,
+    logout,
+  }), [error, is_bootstrapped, loading, login, logout, refresh_status, status]);
+
   return (
     <AUTH_CONTEXT.Provider
-      value={{
-        status,
-        loading,
-        is_bootstrapped,
-        error,
-        refresh_status,
-        login,
-        logout,
-      }}
+      value={context_value}
     >
       {children}
     </AUTH_CONTEXT.Provider>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Brain, ChevronRight } from "lucide-react";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { MessageRail, MessageRailBody, MessageRailLabel } from "../ui/message-rail";
@@ -12,14 +12,16 @@ interface ThinkingBlockProps {
 }
 
 export function ThinkingBlock({ thinking, is_streaming, workspace_agent_id }: ThinkingBlockProps) {
-  const [is_expanded, set_is_expanded] = useState(false);
+  const [is_expanded, set_is_expanded] = useState(Boolean(is_streaming));
+  const [was_streaming, set_was_streaming] = useState(Boolean(is_streaming));
 
   // 流式思考需要即时可见，历史思考默认保持收起。
-  useEffect(() => {
-    if (is_streaming) {
-      set_is_expanded(true);
-    }
-  }, [is_streaming]);
+  if (is_streaming && !was_streaming) {
+    set_was_streaming(true);
+    set_is_expanded(true);
+  } else if (!is_streaming && was_streaming) {
+    set_was_streaming(false);
+  }
 
   if (!thinking) return null;
 

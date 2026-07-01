@@ -239,6 +239,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   style={{ color: "var(--launcher-input-icon)" }}
                 />
                 <input
+                  aria-label="输入启动器指令"
                   ref={input_ref}
                   className="flex-1 bg-transparent text-[14px] outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-[15px]"
                   style={{ color: "var(--launcher-input-text)" }}

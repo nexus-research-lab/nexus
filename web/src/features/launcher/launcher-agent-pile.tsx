@@ -18,6 +18,12 @@ interface SpotlightTokenPileProps {
   on_select_agent: (agent_id: string) => void;
 }
 
+function random_launcher_velocity(min: number, max: number): number {
+  const buffer = new Uint32Array(1);
+  crypto.getRandomValues(buffer);
+  return min + (buffer[0] / 0xffffffff) * (max - min);
+}
+
 export function AgentPile({
   class_name,
   tokens,
@@ -112,10 +118,10 @@ export function AgentPile({
 
       Body.setAngle(body, config.angle);
       Body.setVelocity(body, {
-        x: Math.random() * 2.6 - 1.3,
-        y: 3.8 + Math.random() * 1.8,
+        x: random_launcher_velocity(-1.3, 1.3),
+        y: random_launcher_velocity(3.8, 5.6),
       });
-      Body.setAngularVelocity(body, (Math.random() * 0.06 - 0.03) * (token.kind === "room" ? 1.2 : 0.8));
+      Body.setAngularVelocity(body, random_launcher_velocity(-0.03, 0.03) * (token.kind === "room" ? 1.2 : 0.8));
       bodyMap.set(config.key, body);
 
       const timeoutId = window.setTimeout(() => {

@@ -16,6 +16,7 @@ import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-p
 import { AgentOptionsEditor } from "@/features/agents/options/agent-options-editor";
 import type { TabKey } from "@/features/agents/options/components/agent-options-nav";
 import { ContactsAgentMemoryTab } from "@/features/contacts/contacts-agent-memory-tab";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
@@ -61,7 +62,10 @@ export function ContactsAgentDetail({
   on_validate_agent_name,
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
-  const [active_tab, set_active_tab] = useState<ContactDetailTabKey>("private_domain");
+  const [active_tab, set_active_tab] = useResettableState<ContactDetailTabKey>(
+    "private_domain",
+    agent.agent_id,
+  );
 
   const config_tabs = useMemo(
     () => [
@@ -79,10 +83,6 @@ export function ContactsAgentDetail({
       .map((tag) => tag.trim())
       .filter(Boolean);
   }, [agent.vibe_tags]);
-
-  useEffect(() => {
-    set_active_tab("private_domain");
-  }, [agent.agent_id]);
 
   const initial_options = useMemo(
     () => ({

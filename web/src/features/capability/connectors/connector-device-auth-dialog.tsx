@@ -4,6 +4,7 @@ import { Check, Copy, ExternalLink, Github, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { poll_connector_device_auth_api } from "@/lib/api/connector-api";
 import {
   UiDialogBackdrop,
@@ -32,7 +33,10 @@ export function ConnectorDeviceAuthDialog({
   on_error,
 }: ConnectorDeviceAuthDialogProps) {
   const [copied, set_copied] = useState(false);
-  const [polling_message, set_polling_message] = useState("等待 GitHub 授权确认");
+  const [polling_message, set_polling_message] = useResettableState(
+    "等待 GitHub 授权确认",
+    session?.device_code ?? null,
+  );
   const on_connected_ref = useRef(on_connected);
   const on_close_ref = useRef(on_close);
   const on_error_ref = useRef(on_error);
@@ -95,7 +99,6 @@ export function ConnectorDeviceAuthDialog({
       }
     };
 
-    set_polling_message("等待 GitHub 授权确认");
     schedule_next_poll();
     return () => {
       cancelled = true;

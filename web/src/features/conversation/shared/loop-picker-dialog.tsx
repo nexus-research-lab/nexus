@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Repeat2 } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { list_loops_api } from "@/lib/api/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -25,6 +26,12 @@ interface LoopPickerDialogProps {
   on_select: (loop: LoopCatalogItem) => void | Promise<void>;
 }
 
+interface LoopPickerState {
+  error: string | null;
+  loading: boolean;
+  loops: LoopCatalogItem[];
+}
+
 function matches_loop(loop: LoopCatalogItem, query: string): boolean {
   if (!query) {
     return true;
@@ -45,12 +52,14 @@ export function LoopPickerDialog({
   on_select,
 }: LoopPickerDialogProps) {
   const { locale, t } = useI18n();
-  const [loops, set_loops] = useState<LoopCatalogItem[]>([]);
+  const [loop_state, set_loop_state] = useResettableState<LoopPickerState>(
+    { error: null, loading: is_open, loops: [] },
+    `${is_open ? "open" : "closed"}\x1f${locale}`,
+  );
+  const { error, loading, loops } = loop_state;
   const [query, set_query] = useState("");
   const [category, set_category] = useState(ALL_CATEGORIES);
-  const [loading, set_loading] = useState(false);
   const [busy_slug, set_busy_slug] = useState<string | null>(null);
-  const [error, set_error] = useState<string | null>(null);
   const search_input_ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,28 +73,25 @@ export function LoopPickerDialog({
       return;
     }
     let cancelled = false;
-    set_loading(true);
-    set_error(null);
     list_loops_api(locale)
       .then((items) => {
         if (!cancelled) {
-          set_loops(items);
+          set_loop_state({ error: null, loading: false, loops: items });
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          set_error(err instanceof Error ? err.message : t("composer.loop_picker_failed"));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_loading(false);
+          set_loop_state({
+            error: err instanceof Error ? err.message : t("composer.loop_picker_failed"),
+            loading: false,
+            loops: [],
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [is_open, locale, t]);
+  }, [is_open, locale, set_loop_state, t]);
 
   const category_options = useMemo(() => {
     const categories = Array.from(new Set(loops.map((loop) => loop.category))).sort();
@@ -105,16 +111,19 @@ export function LoopPickerDialog({
 
   const handle_select = useCallback(async (loop: LoopCatalogItem) => {
     set_busy_slug(loop.slug);
-    set_error(null);
+    set_loop_state((current) => ({ ...current, error: null }));
     try {
       await on_select(loop);
       on_close();
     } catch (err) {
-      set_error(err instanceof Error ? err.message : t("composer.loop_picker_failed"));
+      set_loop_state((current) => ({
+        ...current,
+        error: err instanceof Error ? err.message : t("composer.loop_picker_failed"),
+      }));
     } finally {
       set_busy_slug(null);
     }
-  }, [on_close, on_select, t]);
+  }, [on_close, on_select, set_loop_state, t]);
 
   if (!is_open) {
     return null;

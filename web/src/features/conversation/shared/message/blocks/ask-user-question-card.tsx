@@ -179,6 +179,7 @@ export function AskUserQuestionCard({
                 </div>
                 <div className="border-b border-(--divider-subtle-color)">
                   <textarea
+                    aria-label="自定义回答"
                     className={cn(
                       "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-(--motion-duration-fast) ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                       "placeholder:text-muted-foreground/70",

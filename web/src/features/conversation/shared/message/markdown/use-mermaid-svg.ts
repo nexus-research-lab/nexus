@@ -37,11 +37,22 @@ export function useMermaidSvg(
   const normalized_chart = chart.trim();
   const latest_chart_ref = useRef(normalized_chart);
   const render_index_ref = useRef(0);
+  const render_state_key = `${normalized_chart}\x1f${is_streaming ? "streaming" : "static"}`;
+  const [active_render_state_key, set_active_render_state_key] = useState(render_state_key);
   const [render_state, set_render_state] = useState<MermaidRenderState>({
     error: null,
-    is_rendering: false,
+    is_rendering: Boolean(normalized_chart),
     svg: "",
   });
+
+  if (active_render_state_key !== render_state_key) {
+    set_active_render_state_key(render_state_key);
+    set_render_state((previous) => ({
+      error: null,
+      is_rendering: Boolean(normalized_chart),
+      svg: is_streaming ? previous.svg : "",
+    }));
+  }
 
   useEffect(() => {
     latest_chart_ref.current = normalized_chart;
@@ -50,20 +61,7 @@ export function useMermaidSvg(
   useEffect(() => {
     let cancelled = false;
 
-    if (!normalized_chart) {
-      set_render_state({
-        error: null,
-        is_rendering: false,
-        svg: "",
-      });
-      return;
-    }
-
-    set_render_state((previous) => ({
-      error: null,
-      is_rendering: true,
-      svg: is_streaming ? previous.svg : "",
-    }));
+    if (!normalized_chart) return;
 
     const commit_render_error = (message: string) => {
       if (cancelled || latest_chart_ref.current !== normalized_chart) {

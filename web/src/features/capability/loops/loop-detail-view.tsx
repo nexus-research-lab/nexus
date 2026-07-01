@@ -5,6 +5,7 @@ import { ArrowLeft, Check, Copy } from "lucide-react";
 
 import { get_loop_api } from "@/lib/api/loop-api";
 import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -15,37 +16,42 @@ interface LoopDetailViewProps {
   on_back: () => void;
 }
 
+interface LoopDetailState {
+  error: string | null;
+  loading: boolean;
+  loop: LoopCatalogItem | null;
+}
+
 export function LoopDetailView({ slug, on_back }: LoopDetailViewProps) {
   const { locale, t } = useI18n();
-  const [loop, set_loop] = useState<LoopCatalogItem | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [error, set_error] = useState<string | null>(null);
+  const [state, set_state] = useResettableState<LoopDetailState>(
+    { error: null, loading: true, loop: null },
+    `${slug}\x1f${locale}`,
+  );
   const [copied, set_copied] = useState(false);
+  const { error, loading, loop } = state;
 
   useEffect(() => {
     let cancelled = false;
-    set_loading(true);
-    set_error(null);
     get_loop_api(slug, locale)
       .then((item) => {
         if (!cancelled) {
-          set_loop(item);
+          set_state({ error: null, loading: false, loop: item });
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          set_error(err instanceof Error ? err.message : t("capability.loops_loading_failed"));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          set_loading(false);
+          set_state({
+            error: err instanceof Error ? err.message : t("capability.loops_loading_failed"),
+            loading: false,
+            loop: null,
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [locale, slug, t]);
+  }, [locale, set_state, slug, t]);
 
   const copy_prompt = async () => {
     if (!loop) {

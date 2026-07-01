@@ -71,6 +71,13 @@ export function useMessageItemStreamingLayout({
         // 这里只保留上一次可用高度，避免流式阶段因为排版测量失败产生闪动。
       }
     }, STREAMING_LAYOUT_DELAY_MS);
+
+    return () => {
+      if (layout_throttle_ref.current !== null) {
+        clearTimeout(layout_throttle_ref.current);
+        layout_throttle_ref.current = null;
+      }
+    };
   }, [
     assistant_content_mode,
     direct_content,

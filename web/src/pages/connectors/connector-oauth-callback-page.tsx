@@ -18,7 +18,7 @@ import {
 
 /** OAuth 回调专用页面，位于弹窗内，负责把结果回传给 opener 并自行关闭。 */
 export function ConnectorOAuthCallbackPage() {
-  const location = useLocation();
+  const { pathname, search } = useLocation();
   const completed_ref = useRef(false);
   const [message, set_message] = useState("正在完成连接……");
 
@@ -28,7 +28,7 @@ export function ConnectorOAuthCallbackPage() {
     }
     completed_ref.current = true;
 
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(search);
     const code = params.get("code");
     const state = params.get("state");
     const error = params.get("error");
@@ -90,7 +90,7 @@ export function ConnectorOAuthCallbackPage() {
         const text = err instanceof Error ? err.message : "OAuth 连接失败";
         post_and_close("connector-oauth:error", text);
       });
-  }, [location.pathname, location.search]);
+  }, [pathname, search]);
 
   return (
     <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">

@@ -2,7 +2,7 @@ import {
   AssistantMessageStatus,
   RoundLifecycleStatus,
 } from "@/types";
-import { AgentConversationRuntimeSnapshot } from "./agent-conversation-runtime-machine";
+import type { AgentConversationRuntimeSnapshot } from "./agent-conversation-runtime-machine";
 
 export function are_runtime_snapshots_equal(
   left: AgentConversationRuntimeSnapshot,

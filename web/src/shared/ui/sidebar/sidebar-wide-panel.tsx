@@ -71,6 +71,7 @@ export function SidebarWidePanel() {
   const { t } = useI18n();
   const { logout } = useAuth();
   const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
   const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
@@ -82,8 +83,8 @@ export function SidebarWidePanel() {
   const wide_panel_collapsed = useSidebarStore((s) => s.wide_panel_collapsed);
   const set_wide_panel_collapsed = useSidebarStore((s) => s.set_wide_panel_collapsed);
   const toggle_wide_panel_collapsed = useSidebarStore((s) => s.toggle_wide_panel_collapsed);
-  const is_settings_route = location.pathname.startsWith(AppRouteBuilders.settings());
-  const active_primary_tab = derive_primary_tab_from_path(location.pathname);
+  const is_settings_route = pathname.startsWith(AppRouteBuilders.settings());
+  const active_primary_tab = derive_primary_tab_from_path(pathname);
   const should_show_logout = !is_desktop_runtime();
   const prefers_reduced_motion = usePrefersReducedMotion();
   const default_agent_id = get_default_agent_id();
@@ -116,12 +117,12 @@ export function SidebarWidePanel() {
 
   /** 路由变化时统一同步侧栏高亮，避免能力和房间走两套状态。 */
   useEffect(() => {
-    const next_active_item_id = derive_sidebar_item_id_from_path(location.pathname);
+    const next_active_item_id = derive_sidebar_item_id_from_path(pathname);
     if (next_active_item_id === active_panel_item_id) {
       return;
     }
     set_active_panel_item(next_active_item_id);
-  }, [active_panel_item_id, location.pathname, set_active_panel_item]);
+  }, [active_panel_item_id, pathname, set_active_panel_item]);
 
   const handle_open_nexus = useCallback(() => {
     if (!default_agent_id) {
@@ -138,7 +139,7 @@ export function SidebarWidePanel() {
 
   const handle_select_primary_tab = useCallback((tab: SidebarPrimaryTab) => {
     if (tab === "chat") {
-      if (!location.pathname.startsWith("/rooms/")) {
+      if (!pathname.startsWith("/rooms/")) {
         navigate(AppRouteBuilders.home());
       }
       return;
@@ -152,7 +153,7 @@ export function SidebarWidePanel() {
 
     set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
     navigate(AppRouteBuilders.skills());
-  }, [location.pathname, navigate, set_active_panel_item]);
+  }, [navigate, pathname, set_active_panel_item]);
 
   const primary_tabs: {
     key: SidebarPrimaryTab;

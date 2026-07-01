@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useScrollAnchoredState } from "@/hooks/conversation/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn, format_tokens } from '@/lib/utils';
 import { get_ui_choice_class_name } from "@/shared/ui/choice-styles";
 import { CodeBlock } from './code-block';
@@ -94,7 +95,10 @@ export function ToolBlock({
     toggle: toggleExpanded,
     anchor_ref: toolAnchorRef,
   } = useScrollAnchoredState(false);
-  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useResettableState<number>(
+    -1,
+    permission_request?.request_id ?? null,
+  );
   const { copied, copy } = useCopyToClipboard();
 
   // 复制工具执行结果
@@ -223,10 +227,6 @@ export function ToolBlock({
     return expandedInputDetail?.value.trim() || inputSummary || resultSummary || null;
   }, [expandedInputDetail, inputSummary, isWaiting, permissionFieldSummary, resultSummary]);
   const headerDetailText = isExpanded ? expandedDetailText : collapsedDetailText;
-
-  useEffect(() => {
-    setSelectedSuggestionIndex(-1);
-  }, [permission_request?.request_id]);
 
   return (
     <div
@@ -400,17 +400,17 @@ export function ToolBlock({
               </pre>
             ) : Array.isArray(tool_result.content) && tool_result.content.some(is_image_content) ? (
               <div className="space-y-2">
-                {tool_result.content.map((item, index) => (
+                {tool_result.content.map((item) => (
                   is_image_content(item) ? (
                     <ImageBlock
-                      key={`tool-result-image-${index}`}
+                      key={get_tool_result_content_key(item)}
                       block={item}
                       on_open_workspace_file={on_open_workspace_file}
                       workspace_agent_id={workspace_agent_id}
                     />
                   ) : (
                     <CodeBlock
-                      key={`tool-result-json-${index}`}
+                      key={get_tool_result_content_key(item)}
                       language="json"
                       value={JSON.stringify(item, null, 2)}
                     />
@@ -484,4 +484,8 @@ export function ToolBlock({
       )}
     </div>
   );
+}
+
+function get_tool_result_content_key(item: unknown): string {
+  return `tool-result-${JSON.stringify(item)}`;
 }

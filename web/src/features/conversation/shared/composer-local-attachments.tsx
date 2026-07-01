@@ -64,6 +64,7 @@ export function ComposerAttachmentList({
               aria-label={remove_label}
               className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
               onClick={() => on_remove(attachment.id)}
+              type="button"
             >
               <X size={12} />
             </button>

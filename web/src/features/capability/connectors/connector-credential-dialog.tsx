@@ -1,8 +1,9 @@
 "use client";
 
 import { ExternalLink, KeyRound, Save } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { UiButton, UiLinkButton } from "@/shared/ui/button";
 import {
   UiDialogBackdrop,
@@ -74,11 +75,7 @@ export function ConnectorCredentialDialog({
   on_close,
   on_save,
 }: ConnectorCredentialDialogProps) {
-  const [credential, set_credential] = useState("");
-
-  useEffect(() => {
-    set_credential("");
-  }, [detail?.connector_id]);
+  const [credential, set_credential] = useResettableState("", detail?.connector_id ?? null);
 
   const handle_submit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {

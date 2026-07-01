@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
 
 export interface MentionTargetItem {
@@ -34,7 +35,7 @@ export const MentionTargetPopover = memo(({
     on_close,
     placement = "auto",
 }: MentionTargetPopoverProps) => {
-    const [active_index, set_active_index] = useState(0);
+    const [active_index, set_active_index] = useResettableState(0, filter);
     const list_ref = useRef<HTMLDivElement>(null);
 
     const normalized_filter = filter.trim().toLowerCase();
@@ -42,10 +43,6 @@ export const MentionTargetPopover = memo(({
         item.label.toLowerCase().includes(normalized_filter)
         || item.subtitle?.toLowerCase().includes(normalized_filter),
     ), [items, normalized_filter]);
-
-    useEffect(() => {
-        set_active_index(0);
-    }, [filter]);
 
     useEffect(() => {
         if (filtered_items.length === 0) {

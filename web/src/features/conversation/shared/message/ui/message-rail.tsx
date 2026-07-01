@@ -69,7 +69,7 @@ export function MessageRailBody({
   );
 }
 
-export function MessageCallout({
+function MessageCallout({
   children,
   class_name,
 }: {
@@ -89,7 +89,7 @@ export function MessageCallout({
   );
 }
 
-export function MessageCalloutTitle({
+function MessageCalloutTitle({
   children,
   class_name,
   ...props

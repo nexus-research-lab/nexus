@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/lib/utils";
 import { write_text_to_clipboard } from "@/hooks/ui/clipboard";
 import { DIALOG_ICON_BUTTON_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
@@ -99,8 +100,9 @@ function MermaidSourceView({
   constrain_height: boolean;
 }) {
   return (
-    <div
-      className={cn(
+          <div
+          aria-label="放大预览 Mermaid 图表"
+          className={cn(
         "soft-scrollbar min-w-0 overflow-auto bg-(--surface-panel-background)",
         get_mermaid_body_class_name(compact, constrain_height),
       )}
@@ -136,12 +138,11 @@ function MermaidImagePreviewDialog({
   const image_url = useMemo(() => build_svg_data_url(svg), [svg]);
   const preview_scroll_ref = useRef<HTMLDivElement | null>(null);
   const drag_state_ref = useRef<MermaidPreviewDragState | null>(null);
-  const [is_dragging, set_is_dragging] = useState(false);
+  const [is_dragging, set_is_dragging] = useResettableState(false, `${is_open ? "open" : "closed"}\x1f${svg}`);
 
   useEffect(() => {
     if (is_open) {
       drag_state_ref.current = null;
-      set_is_dragging(false);
     }
   }, [is_open, svg]);
 
@@ -229,7 +230,11 @@ function MermaidImagePreviewDialog({
       aria-modal="true"
       className="dialog-backdrop z-[10000] overscroll-contain animate-in fade-in duration-(--motion-duration-fast)"
       data-modal-root="true"
-      onClick={on_close}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          on_close();
+        }
+      }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           on_close();
@@ -244,9 +249,6 @@ function MermaidImagePreviewDialog({
     >
       <section
         className="dialog-shell surface-radius-md relative flex h-[88vh] w-[94vw] max-w-7xl flex-col overflow-hidden overscroll-contain animate-in zoom-in-95 duration-(--motion-duration-fast)"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-        role="presentation"
       >
         <h2 className="sr-only" id="mermaid-image-preview-title">
           Mermaid 预览
@@ -263,6 +265,7 @@ function MermaidImagePreviewDialog({
           <X className="h-5 w-5" />
         </button>
         <div
+          aria-label="放大预览 Mermaid 图表"
           className={cn(
             "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-(--surface-paper-background)",
             is_dragging ? "cursor-grabbing" : "cursor-grab",
@@ -371,6 +374,7 @@ export function MermaidView({
     return (
       <div className={cn("group relative min-h-0 w-full", !compact && "flex flex-1")}>
         <div
+          aria-label="放大预览 Mermaid 图表"
           className={cn(
             "mermaid-view soft-scrollbar relative flex min-w-0 w-full cursor-zoom-in items-center justify-center overflow-auto bg-(--surface-paper-background) p-4 text-(--surface-paper-foreground) outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-primary/28",
             get_mermaid_body_class_name(compact, constrain_height),

@@ -10,6 +10,7 @@ import {
 import {
   get_agent_ws_url,
 } from "@/config/options";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
 import { useAgentStore } from "@/store/agent";
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
@@ -121,12 +122,11 @@ export function useAgentConversation(
     useCallback((cb) => runtime_machine_ref.current.subscribe(cb), []),
     useCallback(() => runtime_machine_ref.current.snapshot(), []),
   );
+  const identity_session_key = identity?.session_key?.trim() || null;
 
   const [messages, set_messages_state] = useState<Message[]>([]);
   const [error, set_error] = useState<string | null>(null);
-  const [session_key, set_session_key] = useState<string | null>(
-    identity?.session_key ?? null,
-  );
+  const [session_key, set_session_key] = useResettableState<string | null>(identity_session_key, identity_session_key);
   const [is_session_loading, set_is_session_loading] = useState(false);
   const [is_history_loading, set_is_history_loading_state] = useState(false);
   const [has_more_history, set_has_more_history_state] = useState(false);
@@ -141,9 +141,7 @@ export function useAgentConversation(
     UseAgentConversationReturn["pending_permissions"]
   >([]);
 
-  const active_session_key_ref = useRef<string | null>(
-    identity?.session_key ?? null,
-  );
+  const active_session_key_ref = useRef<string | null>(identity_session_key);
   const active_identity_key_ref = useRef<string | null>(
     get_agent_conversation_identity_key(identity),
   );
@@ -722,36 +720,31 @@ export function useAgentConversation(
     runtime_machine_ref.current.emit();
   }, [chat_type]);
 
-  useEffect(() => {
-    const next_identity_key = get_agent_conversation_identity_key(identity);
-    if (active_identity_key_ref.current === next_identity_key) {
-      return;
-    }
-
+  const next_identity_key = get_agent_conversation_identity_key(identity);
+  const should_reset_identity_state = active_identity_key_ref.current !== next_identity_key;
+  if (should_reset_identity_state) {
     active_identity_key_ref.current = next_identity_key;
-    cancel_pending_chat_acks("会话上下文已切换，未确认的消息发送已取消");
     session_seq_cursor_ref.current = 0;
     room_seq_cursor_ref.current = 0;
-    reset_runtime_machine();
     reset_history_pagination();
     clear_live_session_state();
+  }
+
+  useEffect(() => {
+    if (!should_reset_identity_state) {
+      return;
+    }
+    cancel_pending_chat_acks("会话上下文已切换，未确认的消息发送已取消");
+    reset_runtime_machine();
   }, [
     cancel_pending_chat_acks,
-    clear_live_session_state,
-    identity,
-    reset_history_pagination,
+    should_reset_identity_state,
     reset_runtime_machine,
   ]);
 
   useEffect(() => {
-    const next_session_key = identity?.session_key?.trim() || null;
-    active_session_key_ref.current = next_session_key;
-    set_session_key((current_session_key) =>
-      current_session_key === next_session_key
-        ? current_session_key
-        : next_session_key,
-    );
-  }, [identity?.session_key]);
+    active_session_key_ref.current = identity_session_key;
+  }, [identity_session_key]);
 
   useEffect(() => {
     return () => {

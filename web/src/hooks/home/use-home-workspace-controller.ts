@@ -6,6 +6,7 @@ import {
   clamp_home_editor_width_percent,
   HOME_EDITOR_DEFAULT_WIDTH_PERCENT,
 } from "@/lib/layout/home-layout";
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import { TodoItem } from "@/types/conversation/todo";
 import { HomeWorkspaceControllerOptions } from "@/types/app/workspace";
@@ -14,12 +15,13 @@ export function useHomeWorkspaceController({
   current_agent_id,
   workspace_agent_ids,
 }: HomeWorkspaceControllerOptions) {
-  const [active_workspace_path, setActiveWorkspacePath] = useState<string | null>(null);
-  const [is_editor_open, setIsEditorOpen] = useState(false);
+  const agent_reset_key = current_agent_id ? "has-agent" : "no-agent";
+  const [active_workspace_path, setActiveWorkspacePath] = useResettableState<string | null>(null, agent_reset_key);
+  const [is_editor_open, setIsEditorOpen] = useResettableState(false, agent_reset_key);
   const [editor_width_percent, setEditorWidthPercent] = useState(HOME_EDITOR_DEFAULT_WIDTH_PERCENT);
   const [is_resizing_editor, setIsResizingEditor] = useState(false);
-  const [current_todos, setCurrentTodos] = useState<TodoItem[]>([]);
-  const [is_conversation_busy, setIsConversationBusy] = useState(false);
+  const [current_todos, setCurrentTodos] = useResettableState<TodoItem[]>([], agent_reset_key);
+  const [is_conversation_busy, setIsConversationBusy] = useResettableState(false, agent_reset_key);
   const workspace_split_ref = useRef<HTMLElement | null>(null);
   const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
   const refresh_files = useWorkspaceFilesStore((state) => state.refresh_files);
@@ -37,17 +39,6 @@ export function useHomeWorkspaceController({
     }
     return Array.from(agent_ids);
   }, [current_agent_id, workspace_agent_ids]);
-
-  useEffect(() => {
-    if (current_agent_id) {
-      return;
-    }
-
-    setActiveWorkspacePath(null);
-    setIsEditorOpen(false);
-    setCurrentTodos([]);
-    setIsConversationBusy(false);
-  }, [current_agent_id]);
 
   useEffect(() => {
     if (preload_workspace_agent_ids.length === 0) {

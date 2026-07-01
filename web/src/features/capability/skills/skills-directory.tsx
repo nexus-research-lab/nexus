@@ -71,6 +71,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
       {/* 隐藏的文件选择器 */}
       <input
         accept=".zip,application/zip"
+        aria-label="导入 Skill 压缩包"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

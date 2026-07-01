@@ -30,11 +30,9 @@ export function WorkspaceTaskStrip({
   const [expanded_task_index, set_expanded_task_index] = useState<number | null>(null);
   const root_ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (todos.length === 0 || (expanded_task_index !== null && expanded_task_index >= todos.length)) {
-      set_expanded_task_index(null);
-    }
-  }, [expanded_task_index, todos.length]);
+  if (expanded_task_index !== null && (todos.length === 0 || expanded_task_index >= todos.length)) {
+    set_expanded_task_index(null);
+  }
 
   useEffect(() => {
     if (!is_open) {
