@@ -175,6 +175,27 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Devin @Amy 后未继续触发 Amy")
 	}
+	// Wait for background room_mention rounds to finish before TempDir cleanup.
+	// The reciprocal chain produces multiple mention rounds; drain events
+	// until the channel is idle (no new events for 500ms), ensuring all
+	// overlay writes complete. This prevents the flaky "directory not empty"
+	// error under -race.
+	idleTimeout := 500 * time.Millisecond
+	timer := time.NewTimer(idleTimeout)
+	for {
+		select {
+		case <-sender.events:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			timer.Reset(idleTimeout)
+		case <-timer.C:
+			return
+		}
+	}
 }
 
 func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
