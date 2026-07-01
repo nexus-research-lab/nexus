@@ -313,7 +313,14 @@ func inferSubagentTaskProgressStatus(text string) string {
 	if normalized == "" {
 		return ""
 	}
-	for _, marker := range []string{"completed", "complete", "finished", "done", "已完成", "完成"} {
+	// Check negation markers first to avoid false positives.
+	// e.g. "incomplete" contains "complete", "not completed" contains "completed".
+	for _, negMarker := range []string{"incomplete", "not completed", "not done", "not complete", "未完成"} {
+		if strings.Contains(normalized, negMarker) {
+			return ""
+		}
+	}
+	for _, marker := range []string{"completed", "finished", "done", "已完成", "完成"} {
 		if strings.Contains(normalized, marker) {
 			return "completed"
 		}
