@@ -14,6 +14,17 @@ interface MemoryItemsResponse {
   items: MemoryItem[];
 }
 
+export interface RoomAgentMemoryGroup {
+  agent_id: string;
+  agent_name: string;
+  agent_avatar?: string | null;
+  items: MemoryItem[];
+}
+
+interface RoomAgentMemoryGroupsResponse {
+  items: RoomAgentMemoryGroup[];
+}
+
 function agent_memory_base_url(agent_id: string): string {
   return `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/memory`;
 }
@@ -71,6 +82,19 @@ export async function list_room_shared_memory_items_api(
   const suffix = memory_items_query(params);
   const result = await request_api<MemoryItemsResponse>(
     `${room_conversation_memory_base_url(room_id, conversation_id)}/items${suffix}`,
+    { method: "GET" },
+  );
+  return result.items;
+}
+
+export async function list_room_agent_session_memory_api(
+  room_id: string,
+  conversation_id: string,
+  params: { limit?: number; status?: string } = {},
+): Promise<RoomAgentMemoryGroup[]> {
+  const suffix = memory_items_query(params);
+  const result = await request_api<RoomAgentMemoryGroupsResponse>(
+    `${room_conversation_memory_base_url(room_id, conversation_id)}/members${suffix}`,
     { method: "GET" },
   );
   return result.items;

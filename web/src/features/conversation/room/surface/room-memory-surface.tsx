@@ -8,9 +8,11 @@ import {
   add_room_shared_memory_item_api,
   delete_room_shared_memory_item_api,
   get_room_shared_memory_stats_api,
+  list_room_agent_session_memory_api,
   list_room_shared_memory_items_api,
   update_room_shared_memory_item_api,
 } from "@/lib/api/memory-api";
+import type { RoomAgentMemoryGroup } from "@/lib/api/memory-api";
 import { cn } from "@/lib/utils";
 import {
   format_memory_time,
@@ -22,6 +24,7 @@ import {
   WorkspaceSurfaceToolbarAction,
 } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { UiButton, UiIconButton } from "@/shared/ui/button";
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 import { UiStateBlock } from "@/shared/ui/state-block";
@@ -39,6 +42,7 @@ export function RoomMemorySurface({
   header_action,
 }: RoomMemorySurfaceProps) {
   const [items, set_items] = useState<MemoryItem[]>([]);
+  const [member_groups, set_member_groups] = useState<RoomAgentMemoryGroup[]>([]);
   const [stats, set_stats] = useState<MemoryStats | null>(null);
   const [loading, set_loading] = useState(false);
   const [mutating_id, set_mutating_id] = useState("");
@@ -54,17 +58,20 @@ export function RoomMemorySurface({
   const refresh = useCallback(async () => {
     if (!room_id || !conversation_id) {
       set_items([]);
+      set_member_groups([]);
       set_stats(null);
       return;
     }
     set_loading(true);
     set_error(null);
     try {
-      const [next_items, next_stats] = await Promise.all([
+      const [next_items, next_stats, next_member_groups] = await Promise.all([
         list_room_shared_memory_items_api(room_id, conversation_id, { limit: 200 }),
         get_room_shared_memory_stats_api(room_id, conversation_id),
+        list_room_agent_session_memory_api(room_id, conversation_id, { limit: 100 }),
       ]);
       set_items(next_items);
+      set_member_groups(next_member_groups);
       set_stats(next_stats);
     } catch (err) {
       set_error(err instanceof Error ? err.message : "读取 Room 记忆失败");
@@ -82,7 +89,13 @@ export function RoomMemorySurface({
     ["候选", stats?.candidate ?? 0],
     ["已访问", stats?.accessed ?? 0],
     ["检查点", stats?.checkpointed ?? 0],
-  ], [stats]);
+    ["成员", member_groups.reduce((total, group) => total + group.items.length, 0)],
+  ], [member_groups, stats]);
+
+  const total_member_items = useMemo(
+    () => member_groups.reduce((total, group) => total + group.items.length, 0),
+    [member_groups],
+  );
 
   const handle_add = async () => {
     if (!room_id || !conversation_id || !new_content.trim()) {
@@ -172,7 +185,7 @@ export function RoomMemorySurface({
           badge={`${stats?.total ?? items.length}`}
           density="compact"
           leading={<Brain className="h-4 w-4" />}
-          subtitle="当前 conversation 的 room_shared 记忆"
+          subtitle="当前 conversation 的 shared 与 member session 记忆"
           title="Room Memory"
           trailing={(
             <>
@@ -241,17 +254,17 @@ export function RoomMemorySurface({
             title="读取失败"
             tone="danger"
           />
-        ) : loading && items.length === 0 ? (
+        ) : loading && items.length === 0 && total_member_items === 0 ? (
           <UiStateBlock
             description="正在读取当前 Room conversation 的共享记忆。"
             title="加载中"
           />
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && total_member_items === 0 ? (
           <UiStateBlock
             description="当前 conversation 还没有自动提取或手动写入的 shared memory。"
             title="还没有 Room 记忆"
           />
-        ) : (
+        ) : items.length === 0 ? null : (
           <div className="space-y-2">
             {items.map((item) => (
               <article
@@ -347,6 +360,74 @@ export function RoomMemorySurface({
             ))}
           </div>
         )}
+
+        {total_member_items > 0 ? (
+          <section className="mt-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-[13px] font-semibold text-(--text-strong)">Member Session Memory</h3>
+                <p className="text-[11px] text-(--text-muted)">各成员 agent 的 room_agent_session 记忆，只读展示。</p>
+              </div>
+              <MemoryMetaChip>{total_member_items} items</MemoryMetaChip>
+            </div>
+
+            {member_groups
+              .filter((group) => group.items.length > 0)
+              .map((group) => (
+                <div
+                  className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-3"
+                  key={group.agent_id}
+                >
+                  <div className="mb-3 flex items-center gap-2">
+                    <UiAgentAvatar
+                      avatar={group.agent_avatar}
+                      name={group.agent_name || group.agent_id}
+                      size="xs"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-[12px] font-semibold text-(--text-strong)">
+                        {group.agent_name || group.agent_id}
+                      </div>
+                      <div className="text-[10px] text-(--text-muted)">{group.items.length} memories</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {group.items.map((item) => (
+                      <article
+                        className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2"
+                        key={item.entry_id}
+                      >
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h4 className="truncate text-[12px] font-semibold text-(--text-strong)">
+                              {item.title || item.entry_id}
+                            </h4>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <MemoryStatusBadge status={item.status} />
+                              <MemoryMetaChip>{item.kind}</MemoryMetaChip>
+                              {item.priority ? <MemoryMetaChip>{item.priority}</MemoryMetaChip> : null}
+                            </div>
+                          </div>
+                          <span className="hidden shrink-0 text-[10px] tabular-nums text-(--text-muted) sm:inline">
+                            {format_memory_time(item.created_at)}
+                          </span>
+                        </div>
+                        <p className="mt-2 line-clamp-3 text-[12px] leading-5 text-(--text-default)">
+                          {item.content}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <MemoryMetaChip>{memory_scope_label(item.scope)}</MemoryMetaChip>
+                          <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
+                          {item.source ? <MemoryMetaChip>{item.source}</MemoryMetaChip> : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </section>
+        ) : null}
       </div>
     </WorkspaceSurfaceScaffold>
   );

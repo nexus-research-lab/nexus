@@ -11,6 +11,13 @@ import (
 	memorysvc "github.com/nexus-research-lab/nexus/internal/workspace/memory"
 )
 
+type RoomAgentMemoryGroup struct {
+	AgentID     string                 `json:"agent_id"`
+	AgentName   string                 `json:"agent_name"`
+	AgentAvatar string                 `json:"agent_avatar,omitempty"`
+	Items       []memorysvc.MemoryItem `json:"items"`
+}
+
 func (s *Service) memoryOptions() memorysvc.MemoryOptions {
 	return memorysvc.MemoryOptions{
 		Enabled:        s.config.MemoryEnabled,
@@ -90,6 +97,46 @@ func (s *Service) DeleteRoomSharedMemory(ctx context.Context, roomID string, con
 		return err
 	}
 	return engine.Delete(ctx, entryID)
+}
+
+func (s *Service) ListRoomAgentSessionMemory(ctx context.Context, roomID string, conversationID string, limit int, statuses []string) ([]RoomAgentMemoryGroup, error) {
+	contextValue, err := s.GetConversationContext(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	if contextValue.Room.ID != strings.TrimSpace(roomID) {
+		return nil, ErrConversationNotFound
+	}
+	groups := make([]RoomAgentMemoryGroup, 0, len(contextValue.MemberAgents))
+	for _, agentValue := range contextValue.MemberAgents {
+		if strings.TrimSpace(agentValue.AgentID) == "" || strings.TrimSpace(agentValue.WorkspacePath) == "" {
+			continue
+		}
+		scope := memorysvc.MemoryScope{
+			Kind:           memorysvc.ScopeKindRoomAgentSession,
+			UserID:         contextValue.Room.OwnerUserID,
+			AgentID:        agentValue.AgentID,
+			SessionKey:     protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, agentValue.AgentID, contextValue.Room.RoomType),
+			RoomID:         contextValue.Room.ID,
+			ConversationID: contextValue.Conversation.ID,
+		}
+		engine := memorysvc.NewEngine(agentValue.WorkspacePath, s.memoryOptions())
+		items, err := engine.List(ctx, memorysvc.MemoryListOptions{
+			Limit:    limit,
+			Statuses: statuses,
+			Scope:    scope.Key(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, RoomAgentMemoryGroup{
+			AgentID:     agentValue.AgentID,
+			AgentName:   agentValue.Name,
+			AgentAvatar: agentValue.Avatar,
+			Items:       items,
+		})
+	}
+	return groups, nil
 }
 
 func (s *RealtimeService) memoryOptions() memorysvc.MemoryOptions {

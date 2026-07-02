@@ -128,6 +128,26 @@ func (h *Handlers) HandleConversationMemoryStats(writer http.ResponseWriter, req
 	h.api.WriteSuccess(writer, stats)
 }
 
+// HandleListConversationMemberMemory 返回 Room conversation 中各成员自己的 session 记忆。
+func (h *Handlers) HandleListConversationMemberMemory(writer http.ResponseWriter, request *http.Request) {
+	items, err := h.roomService.ListRoomAgentSessionMemory(
+		request.Context(),
+		chi.URLParam(request, "room_id"),
+		chi.URLParam(request, "conversation_id"),
+		intQuery(request, "limit", 100),
+		splitCSV(request.URL.Query().Get("status")),
+	)
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrConversationNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]any{"items": items})
+}
+
 func intQuery(request *http.Request, key string, fallback int) int {
 	raw := strings.TrimSpace(request.URL.Query().Get(key))
 	if raw == "" {
