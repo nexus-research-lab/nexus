@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a Background Tasks follow-up composer that queues messages to running subagents and refreshes the subagent transcript.
 
 ### Fixed
+- Fixed imported Skill updates when the cached `.nexus-skill.json` manifest is missing but the database still has the import metadata.
 - Made Skill update checks surface available updates at the top of the library and added clearer busy states for update and import actions.
 - Changed Skill library updates to first check imported skill sources and only show per-skill update actions when a newer remote version is detected.
 - Refined desktop window chrome on macOS and Windows so native title bars align with the shared Nexus surface palette.

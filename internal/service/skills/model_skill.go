@@ -112,6 +112,7 @@ type externalManifest struct {
 type catalogRecord struct {
 	Detail     Detail
 	SourcePath string
+	Manifest   externalManifest
 }
 
 type commandRunnerFunc func(ctx context.Context, workDir string, extraEnv []string, command ...string) (string, error)

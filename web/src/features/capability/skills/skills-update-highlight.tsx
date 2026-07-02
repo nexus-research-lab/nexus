@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock3, Loader2, Puzzle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Loader2, Puzzle, RefreshCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
@@ -88,6 +88,7 @@ function UpdateSkillRow({
 
 export function SkillsUpdateHighlight({ ctrl, on_open_skill }: SkillsUpdateHighlightProps) {
   const updates = ctrl.update_available_skills;
+  const has_failure = ctrl.check_update_message?.includes("无法检查") ?? false;
   const should_show = ctrl.checking_updates || Boolean(ctrl.check_update_message) || updates.length > 0;
 
   if (!should_show) return null;
@@ -105,6 +106,8 @@ export function SkillsUpdateHighlight({ ctrl, on_open_skill }: SkillsUpdateHighl
           <div className="mt-1 flex items-center gap-1.5 text-xs text-(--text-muted)">
             {ctrl.checking_updates ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : has_failure ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-(--destructive)" />
             ) : updates.length ? (
               <Clock3 className="h-3.5 w-3.5" />
             ) : (

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -511,6 +512,9 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	}
 	if record == nil || record.GitURL != "https://example.com/skills.git" || record.GitBranch != "main" || record.GitPath != "skills/git-skill" {
 		t.Fatalf("Git 导入 DB 记录不正确: %+v", record)
+	}
+	if err = os.Remove(filepath.Join(service.registryRoot(ctx), "git-skill", ".nexus-skill.json")); err != nil {
+		t.Fatalf("删除缓存 manifest 失败: %v", err)
 	}
 	initialSkills, err := service.ListSkills(ctx, Query{})
 	if err != nil {

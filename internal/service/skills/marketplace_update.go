@@ -115,7 +115,7 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 }
 
 func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRecord) (*Detail, error) {
-	manifest, err := s.readManifest(record.SourcePath)
+	manifest, err := s.manifestForRecord(record)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRec
 }
 
 func (s *Service) checkSingleSkillRecord(ctx context.Context, record catalogRecord) (bool, error) {
-	manifest, err := s.readManifest(record.SourcePath)
+	manifest, err := s.manifestForRecord(record)
 	if err != nil {
 		return false, err
 	}
@@ -148,6 +148,13 @@ func (s *Service) checkSingleSkillRecord(ctx context.Context, record catalogReco
 	default:
 		return false, errSkillUpdateCheckUnsupported
 	}
+}
+
+func (s *Service) manifestForRecord(record catalogRecord) (externalManifest, error) {
+	if strings.TrimSpace(record.Manifest.ImportMode) != "" {
+		return record.Manifest, nil
+	}
+	return s.readManifest(record.SourcePath)
 }
 
 func (s *Service) remoteGitCommit(ctx context.Context, manifest externalManifest) (string, error) {

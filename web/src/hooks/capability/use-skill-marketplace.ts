@@ -17,7 +17,6 @@ import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceInfo,
   ExternalSkillSourceStatus,
-  SkillActionFailure,
   SkillInfo,
 } from "@/types/capability/skill";
 import type {
@@ -303,17 +302,22 @@ export function useSkillMarketplace(): SkillMarketplaceController {
       set_checking_updates(true);
       const result = await check_skill_updates_api();
       const available_count = result.available_skills.length;
+      const failure_count = result.failures.length;
       const checked_at = Date.now();
       window.localStorage.setItem(UPDATE_CHECK_STORAGE_KEY, String(checked_at));
       set_last_update_checked_at(checked_at);
+      const failure_label = failure_count === 1
+        ? `${result.failures[0]?.skill_name || "1 个来源"}无法检查`
+        : `${failure_count} 个来源无法检查`;
       set_check_update_message(
-        available_count > 0 ? `发现 ${available_count} 个可更新` : manual ? "暂无更新" : null,
+        available_count > 0 && failure_count > 0
+          ? `发现 ${available_count} 个可更新，${failure_label}`
+          : available_count > 0
+            ? `发现 ${available_count} 个可更新`
+            : failure_count > 0
+              ? `暂无可更新，${failure_label}`
+              : manual ? "暂无更新" : null,
       );
-      if (result.failures.length) {
-        set_error_message(
-          result.failures.map((i: SkillActionFailure) => `${i.skill_name}: ${i.error}`).join("；"),
-        );
-      }
       await refresh_marketplace();
     } catch (err) {
       if (manual) {
