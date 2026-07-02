@@ -26,6 +26,7 @@ import { ConversationResizeHandle } from "@/features/conversation/shared/editor/
 import { RoomAgentAboutSurface } from "./room-agent-about-surface";
 import { RoomChatSurface } from "./room-chat-surface";
 import { RoomHistorySurface } from "./room-history-surface";
+import { RoomMemorySurface } from "./room-memory-surface";
 import { CONVERSATION_TOUR_ANCHORS } from "../room-tour";
 
 type RoomAgentAboutRequestedTab = "identity" | "private_domain";
@@ -179,6 +180,7 @@ function RoomSurfaceLayoutInner({
   const is_right_panel_open = is_auxiliary_panel_open || is_thread_panel_open;
   const is_wide_auxiliary_panel =
     active_surface_tab === "history" ||
+    active_surface_tab === "memory" ||
     active_surface_tab === "workspace" ||
     active_surface_tab === "about";
   const [about_request, set_about_request] = useState<{
@@ -348,6 +350,15 @@ function RoomSurfaceLayoutInner({
                     is_editor_open={is_editor_open}
                     room_members={room_members}
                     on_open_workspace_file={on_open_workspace_file}
+                  />
+                </div>
+
+                <div
+                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "memory" && "hidden")}>
+                  <RoomMemorySurface
+                    conversation_id={conversation_id}
+                    header_action={auxiliary_close_action}
+                    room_id={room_id}
                   />
                 </div>
 
