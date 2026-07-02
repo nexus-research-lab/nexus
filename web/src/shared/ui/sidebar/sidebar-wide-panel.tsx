@@ -46,7 +46,6 @@ import { useSidebarGuideCenter } from "@/shared/ui/sidebar/use-sidebar-guide-cen
 import { useSidebarPanelResize } from "@/shared/ui/sidebar/use-sidebar-panel-resize";
 
 import { GlassMagnifierStatic } from "@/shared/ui/liquid-glass";
-import { COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { useAgentStore } from "@/store/agent";
 import {
   SIDEBAR_CAPABILITY_ITEM_IDS,
@@ -308,11 +307,10 @@ export function SidebarWidePanel() {
     >
       {/* 面板头部 */}
       <div className={cn(
-        "grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2 border-b divider-subtle px-2",
-        COMPACT_WORKSPACE_HEADER_TOTAL_HEIGHT_CLASS,
+        "grid h-[64px] grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
       )}>
         <button
-          className="group/nexus relative flex h-12 w-[58px] shrink-0 items-center justify-center"
+          className="group/nexus relative flex h-10 w-[46px] shrink-0 items-center justify-center"
           data-tour-anchor={SIDEBAR_TOUR_ANCHORS.nexus_agent}
           onClick={handle_open_nexus}
           title="Nexus"
@@ -324,7 +322,7 @@ export function SidebarWidePanel() {
               !prefers_reduced_motion && "group-hover/nexus:scale-[1.03]",
               is_nexus_active && "drop-shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
             )}
-            height={38}
+            height={34}
             underlay={is_nexus_active ? (
               <>
                 {/* 中文注释：把圆形彩光作为玻璃组件的下层内容，保证折射和高光都基于真实下层，而不是页面层假叠加。 */}
@@ -351,12 +349,12 @@ export function SidebarWidePanel() {
                 <span className="absolute left-1/2 top-1/2 h-[24px] w-[24px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_34%_28%,rgba(255,255,255,0.34),transparent_42%),radial-gradient(circle_at_68%_72%,rgba(255,255,255,0.14),transparent_48%)] opacity-82 blur-[3px]" />
               </>
             ) : undefined}
-            width={58}
+            width={46}
           >
-            <span className="relative flex h-8 w-8 items-center justify-center">
+            <span className="relative flex h-7 w-7 items-center justify-center">
               <span
                 className={cn(
-                  "relative z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+                  "relative z-10 flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
                   is_nexus_active && "shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_0_10px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
                 )}
               >
@@ -388,7 +386,7 @@ export function SidebarWidePanel() {
             to={AppRouteBuilders.launcher()}
           >
             <p
-              className="whitespace-nowrap text-[21px] uppercase tracking-[0.08em]"
+              className="whitespace-nowrap text-[18px] uppercase tracking-[0.07em] text-(--text-default)"
               style={{
                 fontFamily: "\"Panchang\", var(--font-sans)",
                 fontWeight: 200,

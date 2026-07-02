@@ -27,7 +27,7 @@ export function SidebarSearchField({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 px-2.5 pb-2">
+    <div className="flex items-center gap-2 px-2.5 pb-1.5">
       <UiSearchInput
         class_name="flex-1"
         input_class_name="text-[13px]"
@@ -42,13 +42,13 @@ export function SidebarSearchField({
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pb-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
       {Array.from({ length: count }, (_, index) => (
         <div
-          className="flex min-h-[68px] w-full items-center gap-3 rounded-[14px] px-3 py-2.5"
+          className="flex min-h-[58px] w-full items-center gap-2.5 rounded-[13px] px-2.5 py-2"
           key={index}
         >
-          <span className="h-10 w-10 shrink-0 animate-pulse rounded-[10px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <span className="h-8 w-8 shrink-0 animate-pulse rounded-[9px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
           <span className="min-w-0 flex-1 space-y-2">
             <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
             <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
@@ -73,12 +73,13 @@ export function ConversationRow({
   const { t } = useI18n();
   const is_working = item.running_task_count > 0;
   const leading = item.kind === "room" ? (
-    <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} title={item.title} />
+    <UiRoomAvatar avatar={item.avatar} members={item.members} room_id={item.room_id} size="sm" title={item.title} />
   ) : (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
       is_working={is_working}
       name={item.members[0]?.name ?? item.title}
+      size="sm"
     />
   );
   const meta = item.time_label || on_delete ? (
@@ -125,6 +126,7 @@ export function ConversationRow({
   return (
     <UiListRow
       active={is_active}
+      class_name="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
       description={item.summary}
       leading={leading}
       meta={meta}
@@ -164,8 +166,9 @@ export function ContactRow({
   return (
     <UiListRow
       active={is_active}
+      class_name="min-h-[58px] gap-2.5 rounded-[13px] px-2.5 py-2"
       description={subtitle}
-      leading={<UiAgentAvatar avatar={agent.avatar} is_working={is_working} name={agent.name} />}
+      leading={<UiAgentAvatar avatar={agent.avatar} is_working={is_working} name={agent.name} size="sm" />}
       meta={status}
       on_click={on_open_directory}
       right={(
