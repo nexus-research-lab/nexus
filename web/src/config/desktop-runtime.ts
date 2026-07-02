@@ -105,6 +105,17 @@ export function is_desktop_runtime(): boolean {
   return get_desktop_runtime_config()?.app_mode === "desktop";
 }
 
+export function apply_desktop_runtime_document_flags(): void {
+  const runtime_config = get_desktop_runtime_config();
+  if (runtime_config?.app_mode !== "desktop") {
+    return;
+  }
+  document.documentElement.dataset.desktopRuntime = "true";
+  if (runtime_config.platform) {
+    document.documentElement.dataset.desktopPlatform = runtime_config.platform;
+  }
+}
+
 export function get_desktop_session_token(): string {
   return get_desktop_runtime_config()?.auth_token?.trim() || "";
 }

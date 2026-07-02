@@ -83,7 +83,7 @@ function resolve_variant(theme: BackgroundTheme): PatternVariant {
 }
 
 const BACKGROUNDS: Record<PatternVariant, string> = {
-  light: "#ededec",
+  light: "#f0f1ef",
   dark: "#131316",
   rain: "#39424d",
 };

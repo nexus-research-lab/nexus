@@ -10,7 +10,7 @@ export function DesktopEntryLayout({
   children?: ReactNode;
 }) {
   return (
-    <main className="relative flex h-screen w-full overflow-hidden bg-transparent text-foreground">
+    <main className="desktop-window-frame relative flex h-screen w-full overflow-hidden bg-transparent text-foreground">
       <div className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", HOME_PAGE_PADDING_CLASS)}>
         {children ?? <Outlet />}
       </div>

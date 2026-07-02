@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import "@/app/globals.css";
 import {
+  apply_desktop_runtime_document_flags,
   get_desktop_render_snapshot,
   get_desktop_session_token,
   mark_desktop_performance,
@@ -343,6 +344,7 @@ function diagnostic_text(error: unknown): string {
 async function bootstrap(render: () => ReactNode) {
   mark_desktop_performance("bootstrap.start");
   install_global_error_handlers();
+  apply_desktop_runtime_document_flags();
   apply_theme(detect_initial_theme());
   try {
     mark_desktop_performance("runtime_options.hydrate_begin");

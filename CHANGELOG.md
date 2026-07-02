@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Made Skill update checks surface available updates at the top of the library and added clearer busy states for update and import actions.
 - Changed Skill library updates to first check imported skill sources and only show per-skill update actions when a newer remote version is detected.
+- Refined desktop window chrome on macOS and Windows so native title bars align with the shared Nexus surface palette.
 - Resumed DM and Room Goal continuations after background subagent terminal notifications instead of suppressing waiting rounds as empty progress.
 - Preserved SDK terminal `errors` text in round failure summaries instead of falling back to a generic runtime failure message.
 - Restored the scroll-to-bottom affordance inside Room Thread detail panels.
