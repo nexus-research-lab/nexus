@@ -34,44 +34,44 @@ interface WorkspaceContextMenuProps {
 export function WorkspaceContextMenu({
   position,
   entry,
-  can_create_children,
-  on_upload,
-  on_create_file,
-  on_create_folder,
-  on_download,
-  on_rename,
-  on_delete,
-  on_close,
+  can_create_children: canCreateChildren,
+  on_upload: onUpload,
+  on_create_file: onCreateFile,
+  on_create_folder: onCreateFolder,
+  on_download: onDownload,
+  on_rename: onRename,
+  on_delete: onDelete,
+  on_close: onClose,
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n();
-  const menu_ref = useRef<HTMLDivElement>(null);
-  const file_action_copy = get_workspace_file_external_action_copy(entry?.name);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const fileActionCopy = get_workspace_file_external_action_copy(entry?.name);
 
   useEffect(() => {
-    const handle_click_outside = (event: MouseEvent) => {
-      if (menu_ref.current && !menu_ref.current.contains(event.target as Node)) {
-        on_close();
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
       }
     };
 
-    document.addEventListener("mousedown", handle_click_outside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handle_click_outside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [on_close]);
+  }, [onClose]);
 
   useEffect(() => {
-    const handle_key_down = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        on_close();
+        onClose();
       }
     };
 
-    document.addEventListener("keydown", handle_key_down);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("keydown", handle_key_down);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [on_close]);
+  }, [onClose]);
 
   if (!position) {
     return null;
@@ -79,7 +79,7 @@ export function WorkspaceContextMenu({
 
   return createPortal(
     <div
-      ref={menu_ref}
+      ref={menuRef}
       className={DIALOG_POPOVER_CLASS_NAME}
       style={{
         top: `${position.y}px`,
@@ -88,12 +88,12 @@ export function WorkspaceContextMenu({
       }}
     >
       <div className="py-1">
-        {can_create_children ? (
+        {canCreateChildren ? (
           <>
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { on_upload(); on_close(); }}
+              onClick={() => { onUpload(); onClose(); }}
             >
               <Upload className="h-4 w-4" />
               <span>{t("room.workspace_action_upload")}</span>
@@ -101,7 +101,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { on_create_file(); on_close(); }}
+              onClick={() => { onCreateFile(); onClose(); }}
             >
               <FilePlus className="h-4 w-4" />
               <span>{t("room.workspace_action_new_file")}</span>
@@ -109,7 +109,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { on_create_folder(); on_close(); }}
+              onClick={() => { onCreateFolder(); onClose(); }}
             >
               <FolderPlus className="h-4 w-4" />
               <span>{t("room.workspace_action_new_folder")}</span>
@@ -122,24 +122,24 @@ export function WorkspaceContextMenu({
           <>
             {!entry.is_dir ? (
               <button
-                aria-label={file_action_copy.aria_label}
+                aria-label={fileActionCopy.aria_label}
                 type="button"
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                onClick={() => { on_download(); on_close(); }}
-                title={file_action_copy.title}
+                onClick={() => { onDownload(); onClose(); }}
+                title={fileActionCopy.title}
               >
-                {file_action_copy.mode === "reveal" ? (
+                {fileActionCopy.mode === "reveal" ? (
                   <FolderOpen className="h-4 w-4" />
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                <span>{file_action_copy.label}</span>
+                <span>{fileActionCopy.label}</span>
               </button>
             ) : null}
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => { on_rename(); on_close(); }}
+              onClick={() => { onRename(); onClose(); }}
             >
               <Pencil className="h-4 w-4" />
               <span>{t("home.rename")}</span>
@@ -147,7 +147,7 @@ export function WorkspaceContextMenu({
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-destructive"
-              onClick={() => { on_delete(); on_close(); }}
+              onClick={() => { onDelete(); onClose(); }}
             >
               <Trash2 className="h-4 w-4" />
               <span>{t("common.delete")}</span>

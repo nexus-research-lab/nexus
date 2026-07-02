@@ -57,7 +57,7 @@ import {
 
 type SidebarPrimaryTab = "chat" | "contacts" | "capabilities";
 
-function derive_primary_tab_from_path(pathname: string): SidebarPrimaryTab {
+function derivePrimaryTabFromPath(pathname: string): SidebarPrimaryTab {
   if (pathname.startsWith(AppRouteBuilders.contacts())) {
     return "contacts";
   }
@@ -74,70 +74,70 @@ export function SidebarWidePanel() {
   const { pathname } = location;
   const navigate = useNavigate();
   const agents = useAgentStore((s) => s.agents);
-  const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
-  const nexus_room_id = useSidebarStore((s) => s.nexus_room_id);
-  const chat_badge_count = useSidebarStore((s) => s.chat_badge_count);
-  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-  const wide_panel_width = useSidebarStore((s) => s.wide_panel_width);
-  const set_wide_panel_width = useSidebarStore((s) => s.set_wide_panel_width);
-  const wide_panel_collapsed = useSidebarStore((s) => s.wide_panel_collapsed);
-  const set_wide_panel_collapsed = useSidebarStore((s) => s.set_wide_panel_collapsed);
-  const toggle_wide_panel_collapsed = useSidebarStore((s) => s.toggle_wide_panel_collapsed);
-  const is_settings_route = pathname.startsWith(AppRouteBuilders.settings());
-  const active_primary_tab = derive_primary_tab_from_path(pathname);
-  const should_show_logout = !is_desktop_runtime();
-  const prefers_reduced_motion = usePrefersReducedMotion();
-  const default_agent_id = get_default_agent_id();
-  const nexus_agent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
-  const nexus_avatar = nexus_agent?.avatar?.trim() || get_default_agent_avatar();
-  const nexus_avatar_src = get_icon_avatar_src(nexus_avatar);
-  const is_nexus_active = active_panel_item_id === SIDEBAR_SYSTEM_ITEM_IDS.nexus
-    || (nexus_room_id ? active_panel_item_id === nexus_room_id : false);
+  const activePanelItemId = useSidebarStore((s) => s.active_panel_item_id);
+  const nexusRoomId = useSidebarStore((s) => s.nexus_room_id);
+  const chatBadgeCount = useSidebarStore((s) => s.chat_badge_count);
+  const setActivePanelItem = useSidebarStore((s) => s.set_active_panel_item);
+  const widePanelWidth = useSidebarStore((s) => s.wide_panel_width);
+  const setWidePanelWidth = useSidebarStore((s) => s.set_wide_panel_width);
+  const widePanelCollapsed = useSidebarStore((s) => s.wide_panel_collapsed);
+  const setWidePanelCollapsed = useSidebarStore((s) => s.set_wide_panel_collapsed);
+  const toggleWidePanelCollapsed = useSidebarStore((s) => s.toggle_wide_panel_collapsed);
+  const isSettingsRoute = pathname.startsWith(AppRouteBuilders.settings());
+  const activePrimaryTab = derivePrimaryTabFromPath(pathname);
+  const shouldShowLogout = !is_desktop_runtime();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const defaultAgentId = get_default_agent_id();
+  const nexusAgent = agents.find((agent) => is_main_agent(agent.agent_id)) ?? null;
+  const nexusAvatar = nexusAgent?.avatar?.trim() || get_default_agent_avatar();
+  const nexusAvatarSrc = get_icon_avatar_src(nexusAvatar);
+  const isNexusActive = activePanelItemId === SIDEBAR_SYSTEM_ITEM_IDS.nexus
+    || (nexusRoomId ? activePanelItemId === nexusRoomId : false);
   useChatCompletionNotifications();
   const {
-    guide_center_props,
-    is_guide_center_open,
-    open_guide_center,
+    guide_center_props: guideCenterProps,
+    is_guide_center_open: isGuideCenterOpen,
+    open_guide_center: openGuideCenter,
   } = useSidebarGuideCenter({
-    default_agent_id,
-    set_active_panel_item,
+    default_agent_id: defaultAgentId,
+    set_active_panel_item: setActivePanelItem,
   });
 
   const {
-    handle_pointer_down,
-    handle_pointer_leave,
-    handle_pointer_move,
-    handle_pointer_up,
-    is_resize_hotzone_active,
-    root_ref,
+    handle_pointer_down: handlePointerDown,
+    handle_pointer_leave: handlePointerLeave,
+    handle_pointer_move: handlePointerMove,
+    handle_pointer_up: handlePointerUp,
+    is_resize_hotzone_active: isResizeHotzoneActive,
+    root_ref: rootRef,
   } = useSidebarPanelResize({
-    set_wide_panel_width,
-    wide_panel_width,
+    set_wide_panel_width: setWidePanelWidth,
+    wide_panel_width: widePanelWidth,
   });
 
   /** 路由变化时统一同步侧栏高亮，避免能力和房间走两套状态。 */
   useEffect(() => {
-    const next_active_item_id = derive_sidebar_item_id_from_path(pathname);
-    if (next_active_item_id === active_panel_item_id) {
+    const nextActiveItemId = derive_sidebar_item_id_from_path(pathname);
+    if (nextActiveItemId === activePanelItemId) {
       return;
     }
-    set_active_panel_item(next_active_item_id);
-  }, [active_panel_item_id, pathname, set_active_panel_item]);
+    setActivePanelItem(nextActiveItemId);
+  }, [activePanelItemId, pathname, setActivePanelItem]);
 
-  const handle_open_nexus = useCallback(() => {
-    if (!default_agent_id) {
+  const handleOpenNexus = useCallback(() => {
+    if (!defaultAgentId) {
       return;
     }
 
-    set_active_panel_item(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
-    void resolve_direct_room_navigation_target(default_agent_id).then(({ route }) => {
+    setActivePanelItem(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
+    void resolve_direct_room_navigation_target(defaultAgentId).then(({ route }) => {
       navigate(route);
     }).catch((error) => {
       console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
     });
-  }, [default_agent_id, navigate, set_active_panel_item]);
+  }, [defaultAgentId, navigate, setActivePanelItem]);
 
-  const handle_select_primary_tab = useCallback((tab: SidebarPrimaryTab) => {
+  const handleSelectPrimaryTab = useCallback((tab: SidebarPrimaryTab) => {
     if (tab === "chat") {
       if (!pathname.startsWith("/rooms/")) {
         navigate(AppRouteBuilders.home());
@@ -146,16 +146,16 @@ export function SidebarWidePanel() {
     }
 
     if (tab === "contacts") {
-      set_active_panel_item(null);
+      setActivePanelItem(null);
       navigate(AppRouteBuilders.contacts());
       return;
     }
 
-    set_active_panel_item(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
+    setActivePanelItem(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
     navigate(AppRouteBuilders.skills());
-  }, [navigate, pathname, set_active_panel_item]);
+  }, [navigate, pathname, setActivePanelItem]);
 
-  const primary_tabs: {
+  const primaryTabs: {
     key: SidebarPrimaryTab;
     label: string;
     icon: LucideIcon;
@@ -167,13 +167,13 @@ export function SidebarWidePanel() {
       label: t("sidebar.tab_chat"),
       icon: MessageCircle,
       anchor: SIDEBAR_TOUR_ANCHORS.chat_tab,
-      badge_count: active_primary_tab === "chat" ? 0 : chat_badge_count,
+      badge_count: activePrimaryTab === "chat" ? 0 : chatBadgeCount,
     },
     { key: "contacts", label: t("sidebar.tab_contacts"), icon: Users2, anchor: SIDEBAR_TOUR_ANCHORS.contacts_tab },
     { key: "capabilities", label: t("sidebar.tab_capabilities"), icon: Puzzle, anchor: SIDEBAR_TOUR_ANCHORS.capabilities_tab },
   ];
 
-  if (wide_panel_collapsed) {
+  if (widePanelCollapsed) {
     return (
       <aside
         className={cn(
@@ -187,42 +187,42 @@ export function SidebarWidePanel() {
             aria-label="Nexus"
             className={cn(
               "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[10px] font-semibold uppercase text-(--text-subtle) shadow-(--surface-avatar-shadow) transition-(transform,border-color,box-shadow) duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border)",
-              is_nexus_active && "border-(--surface-interactive-active-border) shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
+              isNexusActive && "border-(--surface-interactive-active-border) shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]",
             )}
-            onClick={handle_open_nexus}
+            onClick={handleOpenNexus}
             title="Nexus"
             type="button"
           >
-            {nexus_avatar_src ? (
+            {nexusAvatarSrc ? (
               <img
                 alt=""
                 className="h-full w-full object-cover"
-                src={nexus_avatar_src}
+                src={nexusAvatarSrc}
               />
             ) : "NX"}
           </button>
 
           <div className="mt-1 flex flex-col items-center gap-1.5">
-            {primary_tabs.map((tab) => {
+            {primaryTabs.map((tab) => {
               const Icon = tab.icon;
-              const is_active = active_primary_tab === tab.key;
+              const isActive = activePrimaryTab === tab.key;
               return (
                 <button
                   aria-label={tab.label}
-                  aria-current={is_active ? "page" : undefined}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-(background,color,transform) duration-(--motion-duration-fast) hover:-translate-y-px hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                    is_active && "bg-(--surface-interactive-active-background) text-(--primary)",
+                    isActive && "bg-(--surface-interactive-active-background) text-(--primary)",
                   )}
                   key={tab.key}
-                  onClick={() => handle_select_primary_tab(tab.key)}
+                  onClick={() => handleSelectPrimaryTab(tab.key)}
                   title={tab.label}
                   type="button"
                 >
                   <Icon
                     className={cn(
                       "h-4 w-4",
-                      is_active && "fill-(--primary) stroke-(--primary)",
+                      isActive && "fill-(--primary) stroke-(--primary)",
                     )}
                   />
                   <UiCounterBadge
@@ -240,7 +240,7 @@ export function SidebarWidePanel() {
             aria-label={t("sidebar.settings")}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-              is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+              isSettingsRoute && "bg-(--surface-interactive-active-background) text-(--text-strong)",
             )}
             title={t("sidebar.settings")}
             to={AppRouteBuilders.settings()}
@@ -252,16 +252,16 @@ export function SidebarWidePanel() {
             aria-label={t("common.guide_center")}
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-              is_guide_center_open && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+              isGuideCenterOpen && "bg-(--surface-interactive-active-background) text-(--text-strong)",
             )}
-            onClick={open_guide_center}
+            onClick={openGuideCenter}
             title={t("common.guide_center")}
             type="button"
           >
             <Compass className="h-4 w-4" />
           </button>
 
-          {should_show_logout ? (
+          {shouldShowLogout ? (
             <button
               aria-label={t("sidebar.logout")}
               className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
@@ -278,7 +278,7 @@ export function SidebarWidePanel() {
           <button
             aria-label={t("sidebar.expand_panel")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-            onClick={toggle_wide_panel_collapsed}
+            onClick={toggleWidePanelCollapsed}
             title={t("sidebar.expand_panel")}
             type="button"
           >
@@ -287,7 +287,7 @@ export function SidebarWidePanel() {
         </div>
 
         <OnboardingGuideCenter
-          {...guide_center_props}
+          {...guideCenterProps}
         />
       </aside>
     );
@@ -298,14 +298,14 @@ export function SidebarWidePanel() {
       className={cn(
         "desktop-rail relative flex h-full shrink-0 flex-col",
         HOME_SIDEBAR_PADDING_CLASS,
-        is_resize_hotzone_active && "cursor-col-resize",
+        isResizeHotzoneActive && "cursor-col-resize",
       )}
-      onPointerDown={handle_pointer_down}
-      onPointerLeave={handle_pointer_leave}
-      onPointerMove={handle_pointer_move}
-      onPointerUp={handle_pointer_up}
-      ref={root_ref}
-      style={{ width: wide_panel_width }}
+      onPointerDown={handlePointerDown}
+      onPointerLeave={handlePointerLeave}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      ref={rootRef}
+      style={{ width: widePanelWidth }}
     >
       {/* 面板头部 */}
       <div className={cn(
@@ -315,24 +315,24 @@ export function SidebarWidePanel() {
         <button
           className="group/nexus relative flex h-12 w-[58px] shrink-0 items-center justify-center"
           data-tour-anchor={SIDEBAR_TOUR_ANCHORS.nexus_agent}
-          onClick={handle_open_nexus}
+          onClick={handleOpenNexus}
           title="Nexus"
           type="button"
         >
           <GlassMagnifierStatic
             class_name={cn(
               "relative z-10 transition-transform duration-(--motion-duration-normal)",
-              !prefers_reduced_motion && "group-hover/nexus:scale-[1.03]",
-              is_nexus_active && "drop-shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
+              !prefersReducedMotion && "group-hover/nexus:scale-[1.03]",
+              isNexusActive && "drop-shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_12%,transparent)]",
             )}
             height={38}
-            underlay={is_nexus_active ? (
+            underlay={isNexusActive ? (
               <>
                 {/* 中文注释：把圆形彩光作为玻璃组件的下层内容，保证折射和高光都基于真实下层，而不是页面层假叠加。 */}
                 <span
                   className={cn(
                     "absolute left-1/2 top-1/2 h-[36px] w-[36px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-88 blur-[0.5px]",
-                    !prefers_reduced_motion && "animate-[spin_5.2s_linear_infinite]",
+                    !prefersReducedMotion && "animate-[spin_5.2s_linear_infinite]",
                   )}
                   style={{
                     background: "conic-gradient(from 180deg, transparent 0deg, transparent 24deg, rgba(96,165,250,0.98) 58deg, rgba(167,139,250,0.92) 104deg, transparent 146deg, transparent 206deg, rgba(52,211,153,0.9) 240deg, rgba(245,158,11,0.92) 280deg, rgba(244,114,182,0.94) 320deg, transparent 348deg, transparent 360deg)",
@@ -343,7 +343,7 @@ export function SidebarWidePanel() {
                 <span
                   className={cn(
                     "absolute left-1/2 top-1/2 h-[28px] w-[28px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-48 blur-[8px]",
-                    !prefers_reduced_motion && "animate-[spin_8.6s_linear_infinite_reverse]",
+                    !prefersReducedMotion && "animate-[spin_8.6s_linear_infinite_reverse]",
                   )}
                   style={{
                     background: "conic-gradient(from 180deg, transparent 0deg, rgba(96,165,250,0.84) 66deg, transparent 136deg, transparent 214deg, rgba(244,114,182,0.82) 292deg, rgba(52,211,153,0.74) 336deg, transparent 360deg)",
@@ -358,21 +358,21 @@ export function SidebarWidePanel() {
               <span
                 className={cn(
                   "relative z-10 flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
-                  is_nexus_active && "shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_0_10px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+                  isNexusActive && "shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_0_10px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
                 )}
               >
-                {is_nexus_active ? (
+                {isNexusActive ? (
                   <>
                     {/* 中文注释：这一层只做很轻的玻璃反光，不再承担主动画；主动态来自下层彩光被玻璃折射。 */}
                     <span className="pointer-events-none absolute inset-0 z-20 rounded-full bg-[radial-gradient(circle_at_28%_24%,rgba(255,255,255,0.24),transparent_38%),linear-gradient(132deg,rgba(255,255,255,0.18),transparent_42%,transparent_60%,rgba(255,255,255,0.08))] mix-blend-screen opacity-72" />
                     <span className="pointer-events-none absolute inset-[1px] z-20 rounded-full border border-[rgba(255,255,255,0.22)] opacity-72" />
                   </>
                 ) : null}
-                {nexus_avatar_src ? (
+                {nexusAvatarSrc ? (
                   <img
                     alt="Nexus"
                     className="relative z-10 h-full w-full object-cover"
-                    src={nexus_avatar_src}
+                    src={nexusAvatarSrc}
                   />
                 ) : (
                   <span className="relative z-10 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-subtle)">NX</span>
@@ -404,29 +404,29 @@ export function SidebarWidePanel() {
       {/* 一级 Tab：聊天、联系人、能力 */}
       <div className="border-b divider-subtle px-3 py-2">
         <div className="grid grid-cols-3 gap-1 rounded-[14px] bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)] p-1">
-          {primary_tabs.map((tab) => {
+          {primaryTabs.map((tab) => {
             const Icon = tab.icon;
-            const is_active = active_primary_tab === tab.key;
+            const isActive = activePrimaryTab === tab.key;
             return (
               <button
-                aria-current={is_active ? "page" : undefined}
-                aria-pressed={is_active}
+                aria-current={isActive ? "page" : undefined}
+                aria-pressed={isActive}
                 className={cn(
                   "flex h-9 items-center justify-center gap-1.5 rounded-[11px] text-[13px] font-medium transition-[background,color,box-shadow] duration-(--motion-duration-fast)",
-                  is_active
+                  isActive
                     ? "bg-[color:color-mix(in_srgb,var(--primary)_14%,var(--surface-elevated-background))] text-(--primary) shadow-[0_8px_22px_color-mix(in_srgb,var(--primary)_10%,transparent)]"
                     : "text-(--text-muted) hover:text-(--text-strong)",
                 )}
                 data-tour-anchor={tab.anchor}
                 key={tab.key}
-                onClick={() => handle_select_primary_tab(tab.key)}
+                onClick={() => handleSelectPrimaryTab(tab.key)}
                 type="button"
               >
                 <span className="relative flex h-4 w-4 items-center justify-center">
                   <Icon
                     className={cn(
                       "h-3.5 w-3.5",
-                      is_active && "fill-(--primary) stroke-(--primary)",
+                      isActive && "fill-(--primary) stroke-(--primary)",
                     )}
                   />
                   <UiCounterBadge
@@ -443,15 +443,15 @@ export function SidebarWidePanel() {
 
       {/* 面板内容 */}
       <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col overflow-y-auto py-2.5">
-        {active_primary_tab === "chat" ? (
+        {activePrimaryTab === "chat" ? (
           <ChatSidebarPanelContent />
         ) : null}
 
-        {active_primary_tab === "contacts" ? (
+        {activePrimaryTab === "contacts" ? (
           <ContactsSidebarPanelContent />
         ) : null}
 
-        {active_primary_tab === "capabilities" ? (
+        {activePrimaryTab === "capabilities" ? (
           <div className="flex min-h-0 flex-1 flex-col px-2" data-tour-anchor={SIDEBAR_TOUR_ANCHORS.capabilities_list}>
             <CapabilitiesPanelContent />
           </div>
@@ -463,7 +463,7 @@ export function SidebarWidePanel() {
             <Link
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                is_settings_route && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+                isSettingsRoute && "bg-(--surface-interactive-active-background) text-(--text-strong)",
               )}
               title={t("sidebar.settings")}
               to={AppRouteBuilders.settings()}
@@ -474,10 +474,10 @@ export function SidebarWidePanel() {
             <button
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                is_guide_center_open && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+                isGuideCenterOpen && "bg-(--surface-interactive-active-background) text-(--text-strong)",
               )}
               data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
-              onClick={open_guide_center}
+              onClick={openGuideCenter}
               title={t("common.guide_center")}
               type="button"
             >
@@ -488,7 +488,7 @@ export function SidebarWidePanel() {
           <div className="min-w-0 flex-1" />
 
           <div className="flex items-center gap-2.5">
-            {should_show_logout ? (
+            {shouldShowLogout ? (
               <button
                 aria-label={t("sidebar.logout")}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
@@ -505,7 +505,7 @@ export function SidebarWidePanel() {
             <button
               aria-label={t("sidebar.collapse_panel")}
               className="flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              onClick={() => set_wide_panel_collapsed(true)}
+              onClick={() => setWidePanelCollapsed(true)}
               title={t("sidebar.collapse_panel")}
               type="button"
             >
@@ -515,7 +515,7 @@ export function SidebarWidePanel() {
       </div>
 
       <OnboardingGuideCenter
-        {...guide_center_props}
+        {...guideCenterProps}
       />
     </div>
   );

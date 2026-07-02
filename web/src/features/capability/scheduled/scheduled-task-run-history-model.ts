@@ -1,16 +1,16 @@
 import type { ScheduledTaskItem, ScheduledTaskRunItem } from "@/types/capability/scheduled-task";
 import { format_scheduled_datetime } from "./scheduled-formatters";
 
-export function format_duration(started_at: number | null, finished_at: number | null): string {
-  if (!started_at || !finished_at) {
+export function format_duration(startedAt: number | null, finishedAt: number | null): string {
+  if (!startedAt || !finishedAt) {
     return "未完成";
   }
-  const diff_seconds = Math.max(0, Math.round((finished_at - started_at) / 1000));
-  if (diff_seconds < 60) {
-    return `${diff_seconds} 秒`;
+  const diffSeconds = Math.max(0, Math.round((finishedAt - startedAt) / 1000));
+  if (diffSeconds < 60) {
+    return `${diffSeconds} 秒`;
   }
-  const minutes = Math.floor(diff_seconds / 60);
-  const seconds = diff_seconds % 60;
+  const minutes = Math.floor(diffSeconds / 60);
+  const seconds = diffSeconds % 60;
   return `${minutes} 分 ${seconds} 秒`;
 }
 

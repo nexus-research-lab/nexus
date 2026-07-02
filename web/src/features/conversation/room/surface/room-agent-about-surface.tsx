@@ -40,88 +40,88 @@ interface RoomAgentAboutSurfaceProps {
   requested_tab?: RoomAgentPanelTabKey;
   request_key?: number;
   on_save_agent_options: (
-    agent_id: string,
+    agentId: string,
     title: string,
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => Promise<void>;
   on_validate_agent_name: (
     name: string,
-    agent_id?: string,
+    agentId?: string,
   ) => Promise<AgentNameValidationResult>;
 }
 
 export function RoomAgentAboutSurface({
   agent,
-  room_id,
-  conversation_id,
-  room_members,
-  header_action,
-  is_visible,
-  requested_agent_id,
-  requested_tab,
-  request_key,
-  on_save_agent_options,
-  on_validate_agent_name,
+  room_id: roomId,
+  conversation_id: conversationId,
+  room_members: roomMembers,
+  header_action: headerAction,
+  is_visible: isVisible,
+  requested_agent_id: requestedAgentId,
+  requested_tab: requestedTab,
+  request_key: requestKey,
+  on_save_agent_options: onSaveAgentOptions,
+  on_validate_agent_name: onValidateAgentName,
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
-  const [selected_agent_id, set_selected_agent_id] = useState(agent.agent_id);
-  const [active_tab, set_active_tab] = useState<RoomAgentPanelTabKey>("private_domain");
+  const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
+  const [activeTab, setActiveTab] = useState<RoomAgentPanelTabKey>("private_domain");
 
   useEffect(() => {
-    set_selected_agent_id(requested_agent_id ?? agent.agent_id);
-    set_active_tab(requested_tab ?? "private_domain");
-  }, [agent.agent_id, request_key, requested_agent_id, requested_tab]);
+    setSelectedAgentId(requestedAgentId ?? agent.agent_id);
+    setActiveTab(requestedTab ?? "private_domain");
+  }, [agent.agent_id, requestKey, requestedAgentId, requestedTab]);
 
-  const selected_agent = useMemo(() => {
-    return room_members.find((member) => member.agent_id === selected_agent_id) ?? agent;
-  }, [agent, room_members, selected_agent_id]);
+  const selectedAgent = useMemo(() => {
+    return roomMembers.find((member) => member.agent_id === selectedAgentId) ?? agent;
+  }, [agent, roomMembers, selectedAgentId]);
 
-  const initial_options = useMemo(() => ({
-    provider: selected_agent.options.provider,
-    model: selected_agent.options.model,
-    permission_mode: selected_agent.options.permission_mode,
-    allowed_tools: selected_agent.options.allowed_tools,
-    disallowed_tools: selected_agent.options.disallowed_tools,
-    max_turns: selected_agent.options.max_turns,
-    max_thinking_tokens: selected_agent.options.max_thinking_tokens,
-    mcp_servers: selected_agent.options.mcp_servers,
-    setting_sources: selected_agent.options.setting_sources,
+  const initialOptions = useMemo(() => ({
+    provider: selectedAgent.options.provider,
+    model: selectedAgent.options.model,
+    permission_mode: selectedAgent.options.permission_mode,
+    allowed_tools: selectedAgent.options.allowed_tools,
+    disallowed_tools: selectedAgent.options.disallowed_tools,
+    max_turns: selectedAgent.options.max_turns,
+    max_thinking_tokens: selectedAgent.options.max_thinking_tokens,
+    mcp_servers: selectedAgent.options.mcp_servers,
+    setting_sources: selectedAgent.options.setting_sources,
   }), [
-    selected_agent.options.allowed_tools,
-    selected_agent.options.disallowed_tools,
-    selected_agent.options.max_thinking_tokens,
-    selected_agent.options.max_turns,
-    selected_agent.options.mcp_servers,
-    selected_agent.options.model,
-    selected_agent.options.permission_mode,
-    selected_agent.options.provider,
-    selected_agent.options.setting_sources,
+    selectedAgent.options.allowed_tools,
+    selectedAgent.options.disallowed_tools,
+    selectedAgent.options.max_thinking_tokens,
+    selectedAgent.options.max_turns,
+    selectedAgent.options.mcp_servers,
+    selectedAgent.options.model,
+    selectedAgent.options.permission_mode,
+    selectedAgent.options.provider,
+    selectedAgent.options.setting_sources,
   ]);
 
-  const handle_save = useCallback(async (
+  const handleSave = useCallback(async (
     title: string,
     options: AgentOptions,
     identity: AgentIdentityDraft,
   ) => {
-    await on_save_agent_options(selected_agent.agent_id, title, options, identity);
-  }, [on_save_agent_options, selected_agent.agent_id]);
+    await onSaveAgentOptions(selectedAgent.agent_id, title, options, identity);
+  }, [onSaveAgentOptions, selectedAgent.agent_id]);
 
-  const handle_validate_name = useCallback(async (name: string) => {
-    return on_validate_agent_name(name, selected_agent.agent_id);
-  }, [on_validate_agent_name, selected_agent.agent_id]);
+  const handleValidateName = useCallback(async (name: string) => {
+    return onValidateAgentName(name, selectedAgent.agent_id);
+  }, [onValidateAgentName, selectedAgent.agent_id]);
 
-  const title_trailing = room_members.length > 1 ? (
+  const titleTrailing = roomMembers.length > 1 ? (
     <RoomAgentSwitcher
-      members={room_members}
-      selected_id={selected_agent.agent_id}
-      on_select={set_selected_agent_id}
+      members={roomMembers}
+      selected_id={selectedAgent.agent_id}
+      on_select={setSelectedAgentId}
     />
   ) : null;
 
   return (
     <WorkspaceSurfaceView
-      action={header_action}
+      action={headerAction}
       body_class_name="flex min-h-0 flex-1 flex-col px-0 py-0"
       body_scrollable={false}
       content_class_name="flex h-full min-h-0 flex-1 flex-col"
@@ -129,36 +129,36 @@ export function RoomAgentAboutSurface({
       max_width_class_name="max-w-none"
       show_eyebrow={false}
       title={t("room.about")}
-      title_trailing={title_trailing}
+      title_trailing={titleTrailing}
     >
       <div className="flex h-full min-h-0 flex-1 flex-col">
         <RoomAgentPanelTabs
-          active_tab={active_tab}
-          on_change={set_active_tab}
+          active_tab={activeTab}
+          on_change={setActiveTab}
         />
-        {active_tab === "private_domain" ? (
+        {activeTab === "private_domain" ? (
           <AgentPrivateDomainView
-            agent={selected_agent}
-            conversation_id={conversation_id}
-            room_id={room_id}
+            agent={selectedAgent}
+            conversation_id={conversationId}
+            room_id={roomId}
             variant="preview"
           />
         ) : (
           <AgentOptionsEditor
-            active_tab={active_tab}
-            agent_id={selected_agent.agent_id}
+            active_tab={activeTab}
+            agent_id={selectedAgent.agent_id}
             content_max_width_class_name="max-w-[860px]"
             hide_inline_nav
-            initial_avatar={selected_agent.avatar ?? ""}
-            initial_description={selected_agent.description ?? ""}
-            initial_options={initial_options}
-            initial_title={selected_agent.name}
-            initial_vibe_tags={selected_agent.vibe_tags ?? []}
-            is_active={is_visible}
+            initial_avatar={selectedAgent.avatar ?? ""}
+            initial_description={selectedAgent.description ?? ""}
+            initial_options={initialOptions}
+            initial_title={selectedAgent.name}
+            initial_vibe_tags={selectedAgent.vibe_tags ?? []}
+            is_active={isVisible}
             mode="edit"
-            on_save={handle_save}
-            on_tab_change={set_active_tab}
-            on_validate_name={handle_validate_name}
+            on_save={handleSave}
+            on_tab_change={setActiveTab}
+            on_validate_name={handleValidateName}
             show_cancel_button={false}
             show_delete_button={false}
             variant="inline"
@@ -181,8 +181,8 @@ const ROOM_AGENT_PANEL_TABS: Array<{
 ];
 
 function RoomAgentPanelTabs({
-  active_tab,
-  on_change,
+  active_tab: activeTab,
+  on_change: onChange,
 }: {
   active_tab: RoomAgentPanelTabKey;
   on_change: (tab: RoomAgentPanelTabKey) => void;
@@ -190,11 +190,11 @@ function RoomAgentPanelTabs({
   return (
     <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
       <UiUnderlineTabs
-        active_value={active_tab}
+        active_value={activeTab}
         aria_label="Agent 面板切换"
         class_name="-mx-0.5 flex-1 px-0.5"
         item_class_name="h-full"
-        on_change={on_change}
+        on_change={onChange}
         options={ROOM_AGENT_PANEL_TABS.map((item) => ({
           icon: item.icon,
           label: item.label,

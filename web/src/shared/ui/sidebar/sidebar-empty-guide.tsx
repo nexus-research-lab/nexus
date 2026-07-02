@@ -23,15 +23,15 @@ export function SidebarEmptyGuide({
   icon: Icon,
   title,
   description,
-  action_label,
-  on_action,
-  class_name,
+  action_label: actionLabel,
+  on_action: onAction,
+  class_name: className,
 }: SidebarEmptyGuideProps) {
   return (
     <div
       className={cn(
         "flex flex-col gap-1 rounded-[12px] border border-(--divider-subtle-color) px-2.5 py-2",
-        class_name,
+        className,
       )}
     >
       <div className="flex items-center gap-1.5 text-(--text-muted)">
@@ -41,13 +41,13 @@ export function SidebarEmptyGuide({
       <p className="text-[11px] leading-relaxed text-(--text-soft)">
         {description}
       </p>
-      {action_label && on_action ? (
+      {actionLabel && onAction ? (
         <button
           className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-[8px] bg-(--surface-interactive-hover-background) px-2 py-[3px] text-[11px] font-semibold text-(--primary) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background)"
-          onClick={on_action}
+          onClick={onAction}
           type="button"
         >
-          {action_label}
+          {actionLabel}
         </button>
       ) : null}
     </div>

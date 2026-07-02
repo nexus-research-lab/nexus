@@ -7,13 +7,13 @@ export type ConnectorOAuthEvent = {
 };
 
 const CONNECTOR_OAUTH_CHANNEL = "nexus.connector-oauth";
-const handled_oauth_event_ids = new Set<string>();
+const handledOauthEventIds = new Set<string>();
 
-function create_event_id(): string {
+function createEventId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function is_connector_oauth_event(value: unknown): value is ConnectorOAuthEvent {
+function isConnectorOAuthEvent(value: unknown): value is ConnectorOAuthEvent {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -30,7 +30,7 @@ export function publish_connector_oauth_event(
   message: string,
 ): void {
   const payload: ConnectorOAuthEvent = {
-    event_id: create_event_id(),
+    event_id: createEventId(),
     type,
     message,
   };
@@ -49,36 +49,36 @@ export function publish_connector_oauth_event(
 export function subscribe_connector_oauth_event(
   handler: (event: ConnectorOAuthEvent) => void,
 ): () => void {
-  const handle_event = (event: ConnectorOAuthEvent) => {
-    if (handled_oauth_event_ids.has(event.event_id)) {
+  const handleEvent = (event: ConnectorOAuthEvent) => {
+    if (handledOauthEventIds.has(event.event_id)) {
       return;
     }
-    handled_oauth_event_ids.add(event.event_id);
+    handledOauthEventIds.add(event.event_id);
     handler(event);
   };
 
-  const handle_window_message = (event: MessageEvent) => {
-    if (event.origin !== window.location.origin || !is_connector_oauth_event(event.data)) {
+  const handleWindowMessage = (event: MessageEvent) => {
+    if (event.origin !== window.location.origin || !isConnectorOAuthEvent(event.data)) {
       return;
     }
-    handle_event(event.data);
+    handleEvent(event.data);
   };
 
-  window.addEventListener("message", handle_window_message);
+  window.addEventListener("message", handleWindowMessage);
 
   const channel = typeof BroadcastChannel !== "undefined"
     ? new BroadcastChannel(CONNECTOR_OAUTH_CHANNEL)
     : null;
-  const handle_channel_message = (event: MessageEvent) => {
-    if (is_connector_oauth_event(event.data)) {
-      handle_event(event.data);
+  const handleChannelMessage = (event: MessageEvent) => {
+    if (isConnectorOAuthEvent(event.data)) {
+      handleEvent(event.data);
     }
   };
-  channel?.addEventListener("message", handle_channel_message);
+  channel?.addEventListener("message", handleChannelMessage);
 
   return () => {
-    window.removeEventListener("message", handle_window_message);
-    channel?.removeEventListener("message", handle_channel_message);
+    window.removeEventListener("message", handleWindowMessage);
+    channel?.removeEventListener("message", handleChannelMessage);
     channel?.close();
   };
 }

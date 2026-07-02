@@ -14,15 +14,15 @@ interface MemoryItemsResponse {
   items: MemoryItem[];
 }
 
-function agent_memory_base_url(agent_id: string): string {
-  return `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/memory`;
+function agentMemoryBaseUrl(agentId: string): string {
+  return `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/memory`;
 }
 
-function user_memory_base_url(): string {
+function userMemoryBaseUrl(): string {
   return `${AGENT_API_BASE_URL}/memory`;
 }
 
-function memory_items_query(params: { limit?: number; status?: string; scope?: string } = {}): string {
+function memoryItemsQuery(params: { limit?: number; status?: string; scope?: string } = {}): string {
   const query = new URLSearchParams();
   if (params.limit) {
     query.set("limit", String(params.limit));
@@ -37,12 +37,12 @@ function memory_items_query(params: { limit?: number; status?: string; scope?: s
 }
 
 export async function list_memory_items_api(
-  agent_id: string,
+  agentId: string,
   params: { limit?: number; status?: string; scope?: string } = {},
 ): Promise<MemoryItem[]> {
-  const suffix = memory_items_query(params);
+  const suffix = memoryItemsQuery(params);
   const result = await request_api<MemoryItemsResponse>(
-    `${agent_memory_base_url(agent_id)}/items${suffix}`,
+    `${agentMemoryBaseUrl(agentId)}/items${suffix}`,
     { method: "GET" },
   );
   return result.items;
@@ -51,52 +51,52 @@ export async function list_memory_items_api(
 export async function list_user_memory_items_api(
   params: { limit?: number; status?: string; scope?: string } = {},
 ): Promise<MemoryItem[]> {
-  const suffix = memory_items_query(params);
+  const suffix = memoryItemsQuery(params);
   const result = await request_api<MemoryItemsResponse>(
-    `${user_memory_base_url()}/items${suffix}`,
+    `${userMemoryBaseUrl()}/items${suffix}`,
     { method: "GET" },
   );
   return result.items;
 }
 
 export async function search_memory_items_api(
-  agent_id: string,
-  query_text: string,
+  agentId: string,
+  queryText: string,
   limit = 8,
 ): Promise<MemoryItem[]> {
-  const query = new URLSearchParams({ q: query_text, limit: String(limit) });
+  const query = new URLSearchParams({ q: queryText, limit: String(limit) });
   const result = await request_api<MemoryItemsResponse>(
-    `${agent_memory_base_url(agent_id)}/search?${query.toString()}`,
+    `${agentMemoryBaseUrl(agentId)}/search?${query.toString()}`,
     { method: "GET" },
   );
   return result.items;
 }
 
 export async function search_user_memory_items_api(
-  query_text: string,
+  queryText: string,
   limit = 8,
 ): Promise<MemoryItem[]> {
-  const query = new URLSearchParams({ q: query_text, limit: String(limit) });
+  const query = new URLSearchParams({ q: queryText, limit: String(limit) });
   const result = await request_api<MemoryItemsResponse>(
-    `${user_memory_base_url()}/search?${query.toString()}`,
+    `${userMemoryBaseUrl()}/search?${query.toString()}`,
     { method: "GET" },
   );
   return result.items;
 }
 
 export async function add_user_memory_item_api(input: MemoryWriteInput): Promise<MemoryItem> {
-  return request_api<MemoryItem>(`${user_memory_base_url()}/items`, {
+  return request_api<MemoryItem>(`${userMemoryBaseUrl()}/items`, {
     method: "POST",
     body: { ...input },
   });
 }
 
 export async function update_user_memory_item_api(
-  entry_id: string,
+  entryId: string,
   input: MemoryWriteInput,
 ): Promise<MemoryItem> {
   return request_api<MemoryItem>(
-    `${user_memory_base_url()}/items/${encodeURIComponent(entry_id)}`,
+    `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}`,
     {
       method: "PATCH",
       body: { ...input },
@@ -105,30 +105,30 @@ export async function update_user_memory_item_api(
 }
 
 export async function delete_memory_item_api(
-  agent_id: string,
-  entry_id: string,
+  agentId: string,
+  entryId: string,
 ): Promise<{ deleted: boolean }> {
   return request_api<{ deleted: boolean }>(
-    `${agent_memory_base_url(agent_id)}/items/${encodeURIComponent(entry_id)}`,
+    `${agentMemoryBaseUrl(agentId)}/items/${encodeURIComponent(entryId)}`,
     { method: "DELETE" },
   );
 }
 
 export async function delete_user_memory_item_api(
-  entry_id: string,
+  entryId: string,
 ): Promise<{ deleted: boolean }> {
   return request_api<{ deleted: boolean }>(
-    `${user_memory_base_url()}/items/${encodeURIComponent(entry_id)}`,
+    `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}`,
     { method: "DELETE" },
   );
 }
 
 export async function promote_user_memory_item_api(
-  entry_id: string,
+  entryId: string,
   target = "memory",
 ): Promise<{ path: string; content: string }> {
   return request_api<{ path: string; content: string }>(
-    `${user_memory_base_url()}/items/${encodeURIComponent(entry_id)}/promote`,
+    `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}/promote`,
     {
       method: "POST",
       body: { target },
@@ -137,11 +137,11 @@ export async function promote_user_memory_item_api(
 }
 
 export async function ignore_user_memory_item_api(
-  entry_id: string,
+  entryId: string,
   note = "",
 ): Promise<MemoryItem> {
   return request_api<MemoryItem>(
-    `${user_memory_base_url()}/items/${encodeURIComponent(entry_id)}/ignore`,
+    `${userMemoryBaseUrl()}/items/${encodeURIComponent(entryId)}/ignore`,
     {
       method: "POST",
       body: { note },
@@ -149,27 +149,27 @@ export async function ignore_user_memory_item_api(
   );
 }
 
-export async function get_memory_stats_api(agent_id: string): Promise<MemoryStats> {
-  return request_api<MemoryStats>(`${agent_memory_base_url(agent_id)}/stats`, {
+export async function get_memory_stats_api(agentId: string): Promise<MemoryStats> {
+  return request_api<MemoryStats>(`${agentMemoryBaseUrl(agentId)}/stats`, {
     method: "GET",
   });
 }
 
 export async function get_user_memory_stats_api(): Promise<MemoryStats> {
-  return request_api<MemoryStats>(`${user_memory_base_url()}/stats`, {
+  return request_api<MemoryStats>(`${userMemoryBaseUrl()}/stats`, {
     method: "GET",
   });
 }
 
-export async function cleanup_memory_api(agent_id: string): Promise<MemoryCleanupResult> {
-  return request_api<MemoryCleanupResult>(`${agent_memory_base_url(agent_id)}/cleanup`, {
+export async function cleanup_memory_api(agentId: string): Promise<MemoryCleanupResult> {
+  return request_api<MemoryCleanupResult>(`${agentMemoryBaseUrl(agentId)}/cleanup`, {
     method: "POST",
     body: {},
   });
 }
 
 export async function cleanup_user_memory_api(): Promise<MemoryCleanupResult> {
-  return request_api<MemoryCleanupResult>(`${user_memory_base_url()}/cleanup`, {
+  return request_api<MemoryCleanupResult>(`${userMemoryBaseUrl()}/cleanup`, {
     method: "POST",
     body: {},
   });

@@ -45,7 +45,7 @@ const MERMAID_MARKDOWN_MAX_HEIGHT_CLASS_NAME = "max-h-[420px]";
 function MermaidModeButton({
   active,
   children,
-  on_click,
+  on_click: onClick,
 }: {
   active: boolean;
   children: ReactNode;
@@ -61,7 +61,7 @@ function MermaidModeButton({
       )}
       aria-selected={active}
       data-active={active}
-      onClick={on_click}
+      onClick={onClick}
       role="tab"
       type="button"
     >
@@ -70,21 +70,21 @@ function MermaidModeButton({
   );
 }
 
-function get_mermaid_body_class_name(compact: boolean, constrain_height: boolean) {
+function getMermaidBodyClassName(compact: boolean, constrainHeight: boolean) {
   if (compact) {
     return MERMAID_COMPACT_MAX_HEIGHT_CLASS_NAME;
   }
-  if (constrain_height) {
+  if (constrainHeight) {
     return MERMAID_MARKDOWN_MAX_HEIGHT_CLASS_NAME;
   }
   return "min-h-0 flex-1";
 }
 
-function get_mermaid_svg_class_name(compact: boolean, constrain_height: boolean) {
+function getMermaidSvgClassName(compact: boolean, constrainHeight: boolean) {
   if (compact) {
     return "[&>svg]:!h-auto [&>svg]:!max-h-[288px] [&>svg]:!max-w-full [&>svg]:!w-auto";
   }
-  if (constrain_height) {
+  if (constrainHeight) {
     return "[&>svg]:!h-auto [&>svg]:!max-h-[388px] [&>svg]:!max-w-full [&>svg]:!w-auto";
   }
   return "[&>svg]:!h-auto [&>svg]:!max-w-full [&>svg]:!w-auto";
@@ -93,7 +93,7 @@ function get_mermaid_svg_class_name(compact: boolean, constrain_height: boolean)
 function MermaidSourceView({
   chart,
   compact,
-  constrain_height,
+  constrain_height: constrainHeight,
 }: {
   chart: string;
   compact: boolean;
@@ -104,7 +104,7 @@ function MermaidSourceView({
           aria-label="放大预览 Mermaid 图表"
           className={cn(
         "soft-scrollbar min-w-0 overflow-auto bg-(--surface-panel-background)",
-        get_mermaid_body_class_name(compact, constrain_height),
+        getMermaidBodyClassName(compact, constrainHeight),
       )}
     >
       <pre className="message-cjk-code-font min-w-full whitespace-pre px-4 py-3.5 text-[13px] leading-[1.6] text-(--text-strong)">
@@ -114,7 +114,7 @@ function MermaidSourceView({
   );
 }
 
-function build_svg_data_url(svg: string): string {
+function buildSvgDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -127,99 +127,99 @@ interface MermaidPreviewDragState {
 }
 
 function MermaidImagePreviewDialog({
-  is_open,
+  is_open: isOpen,
   svg,
-  on_close,
+  on_close: onClose,
 }: {
   is_open: boolean;
   svg: string;
   on_close: () => void;
 }) {
-  const image_url = useMemo(() => build_svg_data_url(svg), [svg]);
-  const preview_scroll_ref = useRef<HTMLDivElement | null>(null);
-  const drag_state_ref = useRef<MermaidPreviewDragState | null>(null);
-  const [is_dragging, set_is_dragging] = useResettableState(false, `${is_open ? "open" : "closed"}\x1f${svg}`);
+  const imageUrl = useMemo(() => buildSvgDataUrl(svg), [svg]);
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<MermaidPreviewDragState | null>(null);
+  const [isDragging, setIsDragging] = useResettableState(false, `${isOpen ? "open" : "closed"}\x1f${svg}`);
 
   useEffect(() => {
-    if (is_open) {
-      drag_state_ref.current = null;
+    if (isOpen) {
+      dragStateRef.current = null;
     }
-  }, [is_open, svg]);
+  }, [isOpen, svg]);
 
   useEffect(() => {
-    if (!is_open) return;
+    if (!isOpen) return;
 
-    const handle_key_down = (event: globalThis.KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        on_close();
+        onClose();
       }
     };
 
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_open, on_close]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (!is_open || typeof document === "undefined") return;
+    if (!isOpen || typeof document === "undefined") return;
 
-    const original_overflow = document.body.style.overflow;
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = original_overflow;
+      document.body.style.overflow = originalOverflow;
     };
-  }, [is_open]);
+  }, [isOpen]);
 
-  const handle_preview_pointer_down = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePreviewPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
       return;
     }
 
-    const scroll_el = preview_scroll_ref.current;
-    if (!scroll_el) {
+    const scrollEl = previewScrollRef.current;
+    if (!scrollEl) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    drag_state_ref.current = {
+    dragStateRef.current = {
       pointer_id: event.pointerId,
       start_x: event.clientX,
       start_y: event.clientY,
-      scroll_left: scroll_el.scrollLeft,
-      scroll_top: scroll_el.scrollTop,
+      scroll_left: scrollEl.scrollLeft,
+      scroll_top: scrollEl.scrollTop,
     };
-    set_is_dragging(true);
+    setIsDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handle_preview_pointer_move = (event: PointerEvent<HTMLDivElement>) => {
-    const drag_state = drag_state_ref.current;
-    const scroll_el = preview_scroll_ref.current;
-    if (!drag_state || !scroll_el || drag_state.pointer_id !== event.pointerId) {
+  const handlePreviewPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    const scrollEl = previewScrollRef.current;
+    if (!dragState || !scrollEl || dragState.pointer_id !== event.pointerId) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    scroll_el.scrollLeft = drag_state.scroll_left - (event.clientX - drag_state.start_x);
-    scroll_el.scrollTop = drag_state.scroll_top - (event.clientY - drag_state.start_y);
+    scrollEl.scrollLeft = dragState.scroll_left - (event.clientX - dragState.start_x);
+    scrollEl.scrollTop = dragState.scroll_top - (event.clientY - dragState.start_y);
   };
 
-  const finish_preview_drag = (event: PointerEvent<HTMLDivElement>) => {
-    const drag_state = drag_state_ref.current;
-    if (!drag_state || drag_state.pointer_id !== event.pointerId) {
+  const finishPreviewDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState || dragState.pointer_id !== event.pointerId) {
       return;
     }
 
-    drag_state_ref.current = null;
-    set_is_dragging(false);
+    dragStateRef.current = null;
+    setIsDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
 
-  if (!is_open || !svg || typeof document === "undefined") {
+  if (!isOpen || !svg || typeof document === "undefined") {
     return null;
   }
 
@@ -232,12 +232,12 @@ function MermaidImagePreviewDialog({
       data-modal-root="true"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          on_close();
+          onClose();
         }
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
-          on_close();
+          onClose();
         }
       }}
       onWheel={(event) => {
@@ -259,7 +259,7 @@ function MermaidImagePreviewDialog({
             DIALOG_ICON_BUTTON_CLASS_NAME,
             "absolute right-3 top-3 z-10 border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_88%,transparent)] text-(--surface-paper-foreground) shadow-sm backdrop-blur",
           )}
-          onClick={on_close}
+          onClick={onClose}
           type="button"
         >
           <X className="h-5 w-5" />
@@ -268,21 +268,21 @@ function MermaidImagePreviewDialog({
           aria-label="放大预览 Mermaid 图表"
           className={cn(
             "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-(--surface-paper-background)",
-            is_dragging ? "cursor-grabbing" : "cursor-grab",
+            isDragging ? "cursor-grabbing" : "cursor-grab",
           )}
-          onPointerCancel={finish_preview_drag}
-          onPointerDown={handle_preview_pointer_down}
-          onPointerMove={handle_preview_pointer_move}
-          onPointerUp={finish_preview_drag}
+          onPointerCancel={finishPreviewDrag}
+          onPointerDown={handlePreviewPointerDown}
+          onPointerMove={handlePreviewPointerMove}
+          onPointerUp={finishPreviewDrag}
           onWheel={(event) => event.stopPropagation()}
-          ref={preview_scroll_ref}
+          ref={previewScrollRef}
         >
           <div className="flex min-h-full min-w-full items-start justify-start p-6">
             <img
               alt="Mermaid 图表预览"
               className="max-h-none max-w-none object-contain"
               draggable={false}
-              src={image_url}
+              src={imageUrl}
             />
           </div>
         </div>
@@ -295,58 +295,58 @@ function MermaidImagePreviewDialog({
 export function MermaidView({
   chart,
   compact = false,
-  class_name,
-  constrain_height = true,
-  is_streaming = false,
-  show_header = true,
+  class_name: className,
+  constrain_height: constrainHeight = true,
+  is_streaming: isStreaming = false,
+  show_header: showHeader = true,
 }: MermaidViewProps) {
-  const render_id_prefix = `mermaid-${useId().replace(/:/g, "")}`;
-  const copy_reset_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { error, is_rendering, svg } = useMermaidSvg(chart, is_streaming, render_id_prefix);
-  const [view_mode, set_view_mode] = useState<MermaidViewMode>("preview");
-  const [copied, set_copied] = useState(false);
-  const [is_image_preview_open, set_is_image_preview_open] = useState(false);
+  const renderIdPrefix = `mermaid-${useId().replace(/:/g, "")}`;
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { error, is_rendering: isRendering, svg } = useMermaidSvg(chart, isStreaming, renderIdPrefix);
+  const [viewMode, setViewMode] = useState<MermaidViewMode>("preview");
+  const [copied, setCopied] = useState(false);
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
 
   useEffect(() => {
     return () => {
-      if (copy_reset_timer_ref.current) {
-        clearTimeout(copy_reset_timer_ref.current);
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
       }
     };
   }, []);
 
-  const handle_copy_source = async () => {
+  const handleCopySource = async () => {
     if (!await write_text_to_clipboard(chart)) {
       return;
     }
 
-    set_copied(true);
-    if (copy_reset_timer_ref.current) {
-      clearTimeout(copy_reset_timer_ref.current);
+    setCopied(true);
+    if (copyResetTimerRef.current) {
+      clearTimeout(copyResetTimerRef.current);
     }
-    copy_reset_timer_ref.current = setTimeout(() => set_copied(false), 1600);
+    copyResetTimerRef.current = setTimeout(() => setCopied(false), 1600);
   };
 
-  const handle_open_image_preview = () => {
+  const handleOpenImagePreview = () => {
     if (svg) {
-      set_is_image_preview_open(true);
+      setIsImagePreviewOpen(true);
     }
   };
 
-  const handle_preview_key_down = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handlePreviewKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Enter" && event.key !== " ") {
       return;
     }
     event.preventDefault();
-    handle_open_image_preview();
+    handleOpenImagePreview();
   };
 
-  const render_preview = () => {
-    if (is_rendering && !svg) {
+  const renderPreview = () => {
+    if (isRendering && !svg) {
       return (
         <div className={cn("flex items-center justify-center text-(--text-muted)", compact ? "min-h-24" : "min-h-56")}>
           <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-          {is_streaming ? "等待完整图表" : "正在渲染图表"}
+          {isStreaming ? "等待完整图表" : "正在渲染图表"}
         </div>
       );
     }
@@ -366,7 +366,7 @@ export function MermaidView({
     if (!svg) {
       return (
         <div className={cn("flex items-center justify-center text-(--text-muted)", compact ? "min-h-24" : "min-h-56")}>
-          {is_streaming ? "等待完整图表" : "暂无图表预览"}
+          {isStreaming ? "等待完整图表" : "暂无图表预览"}
         </div>
       );
     }
@@ -377,12 +377,12 @@ export function MermaidView({
           aria-label="放大预览 Mermaid 图表"
           className={cn(
             "mermaid-view soft-scrollbar relative flex min-w-0 w-full cursor-zoom-in items-center justify-center overflow-auto bg-(--surface-paper-background) p-4 text-(--surface-paper-foreground) outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-primary/28",
-            get_mermaid_body_class_name(compact, constrain_height),
-            get_mermaid_svg_class_name(compact, constrain_height),
+            getMermaidBodyClassName(compact, constrainHeight),
+            getMermaidSvgClassName(compact, constrainHeight),
           )}
           dangerouslySetInnerHTML={{ __html: svg }}
-          onClick={handle_open_image_preview}
-          onKeyDown={handle_preview_key_down}
+          onClick={handleOpenImagePreview}
+          onKeyDown={handlePreviewKeyDown}
           role="button"
           tabIndex={0}
           title="放大预览"
@@ -390,7 +390,7 @@ export function MermaidView({
         <div className="pointer-events-none absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] text-(--surface-paper-muted) opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <Maximize2 className="h-3.5 w-3.5" />
         </div>
-        {is_rendering ? (
+        {isRendering ? (
           <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-[11px] text-(--surface-paper-muted) shadow-sm">
             <LoaderCircle className="mr-1.5 h-3 w-3 animate-spin" />
             更新中
@@ -404,21 +404,21 @@ export function MermaidView({
     <div
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-(--divider-subtle-color)",
-        compact ? "my-2 max-h-[360px]" : constrain_height ? "my-3 max-h-[460px]" : "min-h-0",
-        class_name,
+        compact ? "my-2 max-h-[360px]" : constrainHeight ? "my-3 max-h-[460px]" : "min-h-0",
+        className,
       )}
-      data-mermaid-streaming={is_streaming}
+      data-mermaid-streaming={isStreaming}
     >
-      {show_header ? (
+      {showHeader ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 py-1.5">
           <div className="message-cjk-code-font min-w-0 truncate text-[11px] uppercase text-(--text-muted)">
             Mermaid
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {view_mode === "source" ? (
+            {viewMode === "source" ? (
               <button
                 className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] text-(--text-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
-                onClick={() => void handle_copy_source()}
+                onClick={() => void handleCopySource()}
                 title={copied ? "已复制源码" : "复制源码"}
                 type="button"
               >
@@ -431,15 +431,15 @@ export function MermaidView({
               role="tablist"
             >
               <MermaidModeButton
-                active={view_mode === "preview"}
-                on_click={() => set_view_mode("preview")}
+                active={viewMode === "preview"}
+                on_click={() => setViewMode("preview")}
               >
                 <Eye className="h-3.5 w-3.5" />
                 预览
               </MermaidModeButton>
               <MermaidModeButton
-                active={view_mode === "source"}
-                on_click={() => set_view_mode("source")}
+                active={viewMode === "source"}
+                on_click={() => setViewMode("source")}
               >
                 <Code2 className="h-3.5 w-3.5" />
                 源码
@@ -453,21 +453,21 @@ export function MermaidView({
           "min-w-0",
           compact
             ? MERMAID_COMPACT_MAX_HEIGHT_CLASS_NAME
-            : constrain_height
+            : constrainHeight
               ? MERMAID_MARKDOWN_MAX_HEIGHT_CLASS_NAME
               : "flex min-h-0 flex-1",
         )}
       >
-        {view_mode === "source" ? (
-          <MermaidSourceView chart={chart} compact={compact} constrain_height={constrain_height} />
+        {viewMode === "source" ? (
+          <MermaidSourceView chart={chart} compact={compact} constrain_height={constrainHeight} />
         ) : (
-          render_preview()
+          renderPreview()
         )}
       </div>
       <MermaidImagePreviewDialog
-        is_open={is_image_preview_open}
+        is_open={isImagePreviewOpen}
         svg={svg}
-        on_close={() => set_is_image_preview_open(false)}
+        on_close={() => setIsImagePreviewOpen(false)}
       />
     </div>
   );

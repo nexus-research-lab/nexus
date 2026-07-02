@@ -49,16 +49,16 @@ interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
 
 export function UiField({
   children,
-  class_name,
+  class_name: className,
   description,
   error,
-  html_for,
+  html_for: htmlFor,
   label,
 }: UiFieldProps) {
   return (
-    <div className={cn("dialog-field", class_name)}>
+    <div className={cn("dialog-field", className)}>
       {label ? (
-        <label className="dialog-label" htmlFor={html_for}>
+        <label className="dialog-label" htmlFor={htmlFor}>
           {label}
         </label>
       ) : null}
@@ -78,9 +78,9 @@ export function UiField({
 
 export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInput(
   {
-    class_name,
+    class_name: legacyClassName,
     className,
-    control_size,
+    control_size: controlSize,
     type = "text",
     variant,
     ...props
@@ -91,8 +91,8 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
     <input
       ref={ref}
       className={get_ui_form_control_class_name(
-        { size: control_size, variant },
-        cn(className, class_name),
+        { size: controlSize, variant },
+        cn(className, legacyClassName),
       )}
       type={type}
       {...props}
@@ -102,9 +102,9 @@ export const UiInput = forwardRef<HTMLInputElement, UiInputProps>(function UiInp
 
 export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(function UiTextarea(
   {
-    class_name,
+    class_name: legacyClassName,
     className,
-    control_size,
+    control_size: controlSize,
     variant,
     ...props
   },
@@ -114,8 +114,8 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
     <textarea
       ref={ref}
       className={get_ui_form_control_class_name(
-        { multiline: true, size: control_size, variant },
-        cn("resize-y", className, class_name),
+        { multiline: true, size: controlSize, variant },
+        cn("resize-y", className, legacyClassName),
       )}
       {...props}
     />
@@ -124,35 +124,35 @@ export const UiTextarea = forwardRef<HTMLTextAreaElement, UiTextareaProps>(funct
 
 export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(function UiSearchInput({
   action,
-  class_name,
+  class_name: legacyClassName,
   className,
-  control_size,
-  input_class_name,
-  on_change,
+  control_size: controlSize,
+  input_class_name: inputClassName,
+  on_change: onChange,
   placeholder = "搜索",
   type,
   value,
   variant,
   ...props
 }: UiSearchInputProps, ref) {
-  const handle_change = (event: ChangeEvent<HTMLInputElement>) => {
-    on_change(event.target.value);
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onChange(event.target.value);
   };
 
   return (
     <label
       className={get_ui_search_input_shell_class_name(
-        { size: control_size, variant },
-        cn(className, class_name),
+        { size: controlSize, variant },
+        cn(className, legacyClassName),
       )}
     >
       <Search className="h-4 w-4 shrink-0 text-(--icon-default)" />
       <input
         className={cn(
           "min-w-0 flex-1 bg-transparent text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
-          input_class_name,
+          inputClassName,
         )}
-        onChange={handle_change}
+        onChange={handleChange}
         placeholder={placeholder}
         type={type ?? "search"}
         value={value}

@@ -21,36 +21,36 @@ import { useMessageItemState } from "./use-message-item-state";
 
 function MessageItemInner({
   compact = false,
-  current_agent_name,
-  current_agent_avatar,
-  workspace_agent_id,
-  current_user_avatar,
-  on_edit_user_message,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  hidden_tool_names = ["TodoWrite"],
-  assistant_header_action,
-  assistant_content_mode = "dm_archived",
-  class_name,
-  ...rest_props
+  current_agent_name: currentAgentName,
+  current_agent_avatar: currentAgentAvatar,
+  workspace_agent_id: workspaceAgentId,
+  current_user_avatar: currentUserAvatar,
+  on_edit_user_message: onEditUserMessage,
+  on_open_agent_contact: onOpenAgentContact,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  on_permission_response: onPermissionResponse,
+  can_respond_to_permissions: canRespondToPermissions = true,
+  permission_read_only_reason: permissionReadOnlyReason,
+  hidden_tool_names: hiddenToolNames = ["TodoWrite"],
+  assistant_header_action: assistantHeaderAction,
+  assistant_content_mode: assistantContentMode = "dm_archived",
+  class_name: className,
+  ...restProps
 }: MessageItemProps) {
   const state = useMessageItemState({
     compact,
-    current_agent_name,
-    current_agent_avatar,
-    on_edit_user_message,
-    on_open_workspace_file,
-    on_permission_response,
-    can_respond_to_permissions,
-    permission_read_only_reason,
-    hidden_tool_names,
-    assistant_header_action,
-    assistant_content_mode,
-    class_name,
-    ...rest_props,
+    current_agent_name: currentAgentName,
+    current_agent_avatar: currentAgentAvatar,
+    on_edit_user_message: onEditUserMessage,
+    on_open_workspace_file: onOpenWorkspaceFile,
+    on_permission_response: onPermissionResponse,
+    can_respond_to_permissions: canRespondToPermissions,
+    permission_read_only_reason: permissionReadOnlyReason,
+    hidden_tool_names: hiddenToolNames,
+    assistant_header_action: assistantHeaderAction,
+    assistant_content_mode: assistantContentMode,
+    class_name: className,
+    ...restProps,
   });
 
   return (
@@ -58,7 +58,7 @@ function MessageItemInner({
       class_name={cn(
         "nexus-chat-message-round animate-in fade-in slide-in-from-bottom-2 space-y-2 py-3 duration-300",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
-        class_name,
+        className,
       )}
       separated={!compact}
     >
@@ -67,27 +67,27 @@ function MessageItemInner({
         user_message={state.user_message}
         user_content={state.user_content}
         user_attachments={state.user_attachments}
-        current_user_avatar={current_user_avatar}
+        current_user_avatar={currentUserAvatar}
         copied_user={state.copied_user}
         on_copy_user={state.handle_copy_user}
-        on_edit_user_message={on_edit_user_message}
-        on_open_workspace_file={on_open_workspace_file}
-        workspace_agent_id={workspace_agent_id}
+        on_edit_user_message={onEditUserMessage}
+        on_open_workspace_file={onOpenWorkspaceFile}
+        workspace_agent_id={workspaceAgentId}
       />
 
       <MessageAssistantSection
         compact={compact}
-        current_agent_name={current_agent_name}
-        current_agent_avatar={current_agent_avatar}
-        can_respond_to_permissions={can_respond_to_permissions}
-        permission_read_only_reason={permission_read_only_reason}
-        on_permission_response={on_permission_response}
-        on_open_agent_contact={on_open_agent_contact}
-        on_open_workspace_file={on_open_workspace_file}
-        workspace_agent_id={workspace_agent_id}
-        hidden_tool_names={hidden_tool_names}
-        assistant_header_action={assistant_header_action}
-        assistant_content_mode={assistant_content_mode}
+        current_agent_name={currentAgentName}
+        current_agent_avatar={currentAgentAvatar}
+        can_respond_to_permissions={canRespondToPermissions}
+        permission_read_only_reason={permissionReadOnlyReason}
+        on_permission_response={onPermissionResponse}
+        on_open_agent_contact={onOpenAgentContact}
+        on_open_workspace_file={onOpenWorkspaceFile}
+        workspace_agent_id={workspaceAgentId}
+        hidden_tool_names={hiddenToolNames}
+        assistant_header_action={assistantHeaderAction}
+        assistant_content_mode={assistantContentMode}
         state={state}
       />
     </MessageShell>

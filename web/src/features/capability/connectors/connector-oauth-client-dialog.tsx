@@ -22,53 +22,53 @@ interface ConnectorOAuthClientDialogProps {
   detail: ConnectorDetail | null;
   busy: boolean;
   on_close: () => void;
-  on_save: (connector_id: string, client_id: string, client_secret: string) => void;
-  on_delete: (connector_id: string) => void;
+  on_save: (connectorId: string, clientId: string, clientSecret: string) => void;
+  on_delete: (connectorId: string) => void;
 }
 
 /** OAuth Client 配置弹窗。 */
 export function ConnectorOAuthClientDialog({
   detail,
   busy,
-  on_close,
-  on_save,
-  on_delete,
+  on_close: onClose,
+  on_save: onSave,
+  on_delete: onDelete,
 }: ConnectorOAuthClientDialogProps) {
-  const detail_reset_key = `${detail?.connector_id ?? ""}\x1f${detail?.oauth_client_id ?? ""}`;
-  const [client_id, set_client_id] = useResettableState(detail?.oauth_client_id ?? "", detail_reset_key);
-  const [client_secret, set_client_secret] = useResettableState("", detail_reset_key);
-  const { copied: callback_url_copied, copy: copy_callback_url } = useCopyToClipboard();
+  const detailResetKey = `${detail?.connector_id ?? ""}\x1f${detail?.oauth_client_id ?? ""}`;
+  const [clientId, setClientId] = useResettableState(detail?.oauth_client_id ?? "", detailResetKey);
+  const [clientSecret, setClientSecret] = useResettableState("", detailResetKey);
+  const { copied: callbackUrlCopied, copy: copyCallbackUrl } = useCopyToClipboard();
 
-  const handle_submit = useCallback(
+  const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!detail) return;
-      on_save(detail.connector_id, client_id, client_secret);
+      onSave(detail.connector_id, clientId, clientSecret);
     },
-    [client_id, client_secret, detail, on_save],
+    [clientId, clientSecret, detail, onSave],
   );
 
   if (!detail) return null;
 
-  const is_configured = detail.oauth_client_configured ?? false;
-  const can_save = client_id.trim() !== "" && client_secret.trim() !== "";
-  const callback_url = get_connector_oauth_redirect_uri();
-  const provider_name = detail.connector_id === "feishu-docx" ? "飞书开放平台应用" : "OAuth 应用";
+  const isConfigured = detail.oauth_client_configured ?? false;
+  const canSave = clientId.trim() !== "" && clientSecret.trim() !== "";
+  const callbackUrl = get_connector_oauth_redirect_uri();
+  const providerName = detail.connector_id === "feishu-docx" ? "飞书开放平台应用" : "OAuth 应用";
 
   return (
-    <UiDialogBackdrop on_close={on_close}>
-      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handle_submit} size="sm">
+    <UiDialogBackdrop on_close={onClose}>
+      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
         <UiDialogHeader
           icon={<KeyRound className="h-4 w-4" />}
           icon_class_name="h-9 w-9 rounded-[14px]"
-          on_close={on_close}
+          on_close={onClose}
           subtitle={detail.title}
           title="配置应用"
         />
 
         <UiDialogBody class_name="space-y-3" scrollable>
           <UiPanel class_name="text-[12px] leading-relaxed" padding="sm" variant="inset">
-            在{provider_name}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
+            在{providerName}中填写下面的 Callback URL，再复制 App ID 和 App Secret。
           </UiPanel>
 
           {detail.docs_url ? (
@@ -89,17 +89,17 @@ export function ConnectorOAuthClientDialog({
             <div className="text-[12px] font-medium text-(--text-muted)">Callback URL</div>
             <UiPanel class_name="flex min-h-9 items-center gap-2" padding="sm" radius="sm" variant="inset">
               <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-(--text-strong)">
-                {callback_url}
+                {callbackUrl}
               </code>
               <UiIconButton
-                aria-label={callback_url_copied ? "已复制 Callback URL" : "复制 Callback URL"}
+                aria-label={callbackUrlCopied ? "已复制 Callback URL" : "复制 Callback URL"}
                 class_name="shrink-0"
-                onClick={() => void copy_callback_url(callback_url)}
+                onClick={() => void copyCallbackUrl(callbackUrl)}
                 size="sm"
-                title={callback_url_copied ? "已复制" : "复制 Callback URL"}
+                title={callbackUrlCopied ? "已复制" : "复制 Callback URL"}
                 type="button"
               >
-                {callback_url_copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {callbackUrlCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </UiIconButton>
             </UiPanel>
           </div>
@@ -111,10 +111,10 @@ export function ConnectorOAuthClientDialog({
               autoCorrect="off"
               control_size="sm"
               id="oauth-client-id"
-              onChange={(event) => set_client_id(event.target.value)}
+              onChange={(event) => setClientId(event.target.value)}
               placeholder="飞书应用 App ID"
               spellCheck={false}
-              value={client_id}
+              value={clientId}
             />
           </label>
 
@@ -129,20 +129,20 @@ export function ConnectorOAuthClientDialog({
               data-lpignore="true"
               id="oauth-client-secret"
               name="feishu-docx-client-secret"
-              onChange={(event) => set_client_secret(event.target.value)}
-              placeholder={is_configured ? "重新填写后保存" : "飞书应用 App Secret"}
+              onChange={(event) => setClientSecret(event.target.value)}
+              placeholder={isConfigured ? "重新填写后保存" : "飞书应用 App Secret"}
               spellCheck={false}
               type="password"
-              value={client_secret}
+              value={clientSecret}
             />
           </label>
         </UiDialogBody>
 
         <UiDialogFooter class_name="flex-wrap gap-1.5">
-          {is_configured ? (
+          {isConfigured ? (
             <UiButton
               disabled={busy}
-              onClick={() => on_delete(detail.connector_id)}
+              onClick={() => onDelete(detail.connector_id)}
               size="sm"
               tone="danger"
               type="button"
@@ -153,7 +153,7 @@ export function ConnectorOAuthClientDialog({
             </UiButton>
           ) : null}
           <UiButton
-            disabled={busy || !can_save}
+            disabled={busy || !canSave}
             size="sm"
             tone="primary"
             type="submit"

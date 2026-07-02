@@ -29,147 +29,147 @@ import type {
 const MIN_EXTERNAL_SEARCH_LENGTH = 2;
 
 export function useSkillMarketplace(): SkillMarketplaceController {
-  const [skills, set_skills] = useState<SkillInfo[]>([]);
-  const [search_query, set_search_query] = useState("");
-  const [debounced_search_query, set_debounced_search_query] = useState("");
-  const [discovery_mode, set_discovery_mode] = useState<DiscoveryMode>("catalog");
-  const [active_category, set_active_category] = useState<string>("all");
-  const [external_query, set_external_query] = useState("");
-  const [external_submitted_query, set_external_submitted_query] = useState("");
-  const [external_search_revision, set_external_search_revision] = useState(0);
-  const [external_results, set_external_results] = useState<ExternalSkillSearchItem[]>([]);
-  const [external_source_statuses, set_external_source_statuses] = useState<ExternalSkillSourceStatus[]>([]);
-  const [external_sources, set_external_sources] = useState<ExternalSkillSourceInfo[]>([]);
-  const [preview_external_item, set_preview_external_item] = useState<ExternalSkillSearchItem | null>(null);
-  const [external_loading, set_external_loading] = useState(false);
-  const [external_preview_loading, set_external_preview_loading] = useState(false);
-  const [source_manager_open, set_source_manager_open] = useState(false);
-  const [source_loading, set_source_loading] = useState(false);
-  const [source_revision, set_source_revision] = useState(0);
-  const [busy_external_key, set_busy_external_key] = useState<string | null>(null);
-  const [import_dialog_mode, set_import_dialog_mode] = useState<SkillImportDialogMode | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [busy_skill_name, set_busy_skill_name] = useState<string | null>(null);
-  const [status_message, set_status_message] = useState<string | null>(null);
-  const [error_message, set_error_message] = useState<string | null>(null);
-  const file_input_ref = useRef<HTMLInputElement | null>(null);
-  const external_search_request_ref = useRef(0);
-  const external_search_abort_ref = useRef<AbortController | null>(null);
+  const [skills, setSkills] = useState<SkillInfo[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [discoveryMode, setDiscoveryMode] = useState<DiscoveryMode>("catalog");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [externalQuery, setExternalQuery] = useState("");
+  const [externalSubmittedQuery, setExternalSubmittedQuery] = useState("");
+  const [externalSearchRevision, setExternalSearchRevision] = useState(0);
+  const [externalResults, setExternalResults] = useState<ExternalSkillSearchItem[]>([]);
+  const [externalSourceStatuses, setExternalSourceStatuses] = useState<ExternalSkillSourceStatus[]>([]);
+  const [externalSources, setExternalSources] = useState<ExternalSkillSourceInfo[]>([]);
+  const [previewExternalItem, setPreviewExternalItem] = useState<ExternalSkillSearchItem | null>(null);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [externalPreviewLoading, setExternalPreviewLoading] = useState(false);
+  const [sourceManagerOpen, setSourceManagerOpen] = useState(false);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceRevision, setSourceRevision] = useState(0);
+  const [busyExternalKey, setBusyExternalKey] = useState<string | null>(null);
+  const [importDialogMode, setImportDialogMode] = useState<SkillImportDialogMode | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busySkillName, setBusySkillName] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const externalSearchRequestRef = useRef(0);
+  const externalSearchAbortRef = useRef<AbortController | null>(null);
 
   /* ── 数据加载 ───────────────────────────────── */
 
-  const load_skills = useCallback(async (query: string) => {
-    const next_skills = await get_available_skills_api({
+  const loadSkills = useCallback(async (query: string) => {
+    const nextSkills = await get_available_skills_api({
       q: query || undefined,
     });
-    set_skills(next_skills);
+    setSkills(nextSkills);
   }, []);
 
-  const refresh_external_sources = useCallback(async () => {
+  const refreshExternalSources = useCallback(async () => {
     try {
-      set_source_loading(true);
-      set_error_message(null);
-      const next_sources = await list_external_skill_sources_api();
-      set_external_sources(next_sources);
+      setSourceLoading(true);
+      setErrorMessage(null);
+      const nextSources = await list_external_skill_sources_api();
+      setExternalSources(nextSources);
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "来源加载失败");
+      setErrorMessage(err instanceof Error ? err.message : "来源加载失败");
     } finally {
-      set_source_loading(false);
+      setSourceLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      set_debounced_search_query(search_query);
+      setDebouncedSearchQuery(searchQuery);
     }, 250);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [search_query]);
+  }, [searchQuery]);
 
   useEffect(() => {
-    if (discovery_mode !== "catalog") return;
+    if (discoveryMode !== "catalog") return;
     void (async () => {
       try {
-        set_loading(true);
-        set_error_message(null);
-        await load_skills(debounced_search_query);
+        setLoading(true);
+        setErrorMessage(null);
+        await loadSkills(debouncedSearchQuery);
       } catch (err) {
-        set_error_message(err instanceof Error ? err.message : "加载失败");
+        setErrorMessage(err instanceof Error ? err.message : "加载失败");
       } finally {
-        set_loading(false);
+        setLoading(false);
       }
     })();
-  }, [debounced_search_query, discovery_mode, load_skills]);
+  }, [debouncedSearchQuery, discoveryMode, loadSkills]);
 
   useEffect(() => {
-    if (discovery_mode !== "external") return;
-    void refresh_external_sources();
-  }, [discovery_mode, refresh_external_sources]);
+    if (discoveryMode !== "external") return;
+    void refreshExternalSources();
+  }, [discoveryMode, refreshExternalSources]);
 
   useEffect(() => {
-    if (!source_manager_open) return;
-    void refresh_external_sources();
-  }, [source_manager_open, refresh_external_sources]);
+    if (!sourceManagerOpen) return;
+    void refreshExternalSources();
+  }, [sourceManagerOpen, refreshExternalSources]);
 
   useEffect(() => {
-    if (discovery_mode !== "external") return;
-    if (external_query.trim().length >= MIN_EXTERNAL_SEARCH_LENGTH) return;
-    external_search_abort_ref.current?.abort();
-    external_search_request_ref.current += 1;
-    set_external_submitted_query("");
-    set_external_loading(false);
-    set_external_results([]);
-    set_external_source_statuses([]);
-    set_error_message(null);
-  }, [discovery_mode, external_query]);
+    if (discoveryMode !== "external") return;
+    if (externalQuery.trim().length >= MIN_EXTERNAL_SEARCH_LENGTH) return;
+    externalSearchAbortRef.current?.abort();
+    externalSearchRequestRef.current += 1;
+    setExternalSubmittedQuery("");
+    setExternalLoading(false);
+    setExternalResults([]);
+    setExternalSourceStatuses([]);
+    setErrorMessage(null);
+  }, [discoveryMode, externalQuery]);
 
   useEffect(() => {
-    if (discovery_mode !== "external") return;
+    if (discoveryMode !== "external") return;
 
-    const query = external_submitted_query.trim();
-    const request_id = ++external_search_request_ref.current;
+    const query = externalSubmittedQuery.trim();
+    const requestId = ++externalSearchRequestRef.current;
 
     if (!query || query.length < MIN_EXTERNAL_SEARCH_LENGTH) {
-      external_search_abort_ref.current?.abort();
-      external_search_abort_ref.current = null;
-      set_external_loading(false);
-      set_external_results([]);
-      set_external_source_statuses([]);
-      set_error_message(null);
+      externalSearchAbortRef.current?.abort();
+      externalSearchAbortRef.current = null;
+      setExternalLoading(false);
+      setExternalResults([]);
+      setExternalSourceStatuses([]);
+      setErrorMessage(null);
       return;
     }
 
-    external_search_abort_ref.current?.abort();
-    const abort_controller = new AbortController();
-    external_search_abort_ref.current = abort_controller;
+    externalSearchAbortRef.current?.abort();
+    const abortController = new AbortController();
+    externalSearchAbortRef.current = abortController;
     void (async () => {
       try {
-        set_external_loading(true);
-        set_error_message(null);
-        const response = await search_external_skills_api(query, false, abort_controller.signal);
-        if (request_id !== external_search_request_ref.current) return;
-        set_external_results(response.results);
-        set_external_source_statuses(response.sources);
+        setExternalLoading(true);
+        setErrorMessage(null);
+        const response = await search_external_skills_api(query, false, abortController.signal);
+        if (requestId !== externalSearchRequestRef.current) return;
+        setExternalResults(response.results);
+        setExternalSourceStatuses(response.sources);
       } catch (err) {
-        if (abort_controller.signal.aborted) return;
-        if (request_id !== external_search_request_ref.current) return;
-        set_external_source_statuses([]);
-        set_error_message(err instanceof Error ? err.message : "搜索失败");
+        if (abortController.signal.aborted) return;
+        if (requestId !== externalSearchRequestRef.current) return;
+        setExternalSourceStatuses([]);
+        setErrorMessage(err instanceof Error ? err.message : "搜索失败");
       } finally {
-        if (external_search_abort_ref.current === abort_controller) {
-          external_search_abort_ref.current = null;
+        if (externalSearchAbortRef.current === abortController) {
+          externalSearchAbortRef.current = null;
         }
-        if (request_id === external_search_request_ref.current) {
-          set_external_loading(false);
+        if (requestId === externalSearchRequestRef.current) {
+          setExternalLoading(false);
         }
       }
     })();
 
     return () => {
-      external_search_abort_ref.current?.abort();
+      externalSearchAbortRef.current?.abort();
     };
-  }, [discovery_mode, external_search_revision, external_submitted_query, source_revision]);
+  }, [discoveryMode, externalSearchRevision, externalSubmittedQuery, sourceRevision]);
 
   /* ── 派生数据 ───────────────────────────────── */
 
@@ -181,27 +181,27 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     );
   }, [skills]);
 
-  const visible_skills = useMemo(() => {
+  const visibleSkills = useMemo(() => {
     let list = skills;
-    if (active_category !== "all") {
-      list = list.filter((s) => s.category_key === active_category);
+    if (activeCategory !== "all") {
+      list = list.filter((s) => s.category_key === activeCategory);
     }
     return list;
-  }, [active_category, skills]);
+  }, [activeCategory, skills]);
 
-  const grouped_skills = useMemo(() => {
+  const groupedSkills = useMemo(() => {
     const map = new Map<string, SkillInfo[]>();
-    visible_skills.forEach((s) => {
+    visibleSkills.forEach((s) => {
       const list = map.get(s.category_name) ?? [];
       list.push(s);
       map.set(s.category_name, list);
     });
     return Array.from(map.entries());
-  }, [visible_skills]);
+  }, [visibleSkills]);
 
-  const catalog_count = skills.length;
+  const catalogCount = skills.length;
 
-  const imported_external_sources = useMemo(() => {
+  const importedExternalSources = useMemo(() => {
     const map = new Map<string, Set<string>>();
     skills.forEach((s) => {
       if (s.source_type !== "external") return;
@@ -215,209 +215,209 @@ export function useSkillMarketplace(): SkillMarketplaceController {
 
   /* ── 操作 ───────────────────────────────────── */
 
-  const clear_messages = () => {
-    set_status_message(null);
-    set_error_message(null);
+  const clearMessages = () => {
+    setStatusMessage(null);
+    setErrorMessage(null);
   };
 
-  const refresh_marketplace = useCallback(async () => {
-    await load_skills(search_query);
-  }, [load_skills, search_query]);
+  const refreshMarketplace = useCallback(async () => {
+    await loadSkills(searchQuery);
+  }, [loadSkills, searchQuery]);
 
-  const submit_external_search = useCallback(() => {
-    const query = external_query.trim();
+  const submitExternalSearch = useCallback(() => {
+    const query = externalQuery.trim();
     if (!query || query.length < MIN_EXTERNAL_SEARCH_LENGTH) {
-      external_search_abort_ref.current?.abort();
-      external_search_request_ref.current += 1;
-      set_external_submitted_query("");
-      set_external_loading(false);
-      set_external_results([]);
-      set_external_source_statuses([]);
-      set_error_message(null);
+      externalSearchAbortRef.current?.abort();
+      externalSearchRequestRef.current += 1;
+      setExternalSubmittedQuery("");
+      setExternalLoading(false);
+      setExternalResults([]);
+      setExternalSourceStatuses([]);
+      setErrorMessage(null);
       return;
     }
-    set_external_submitted_query(query);
-    set_external_search_revision((value) => value + 1);
-  }, [external_query]);
+    setExternalSubmittedQuery(query);
+    setExternalSearchRevision((value) => value + 1);
+  }, [externalQuery]);
 
-  const handle_update_single = useCallback(async (skill_name: string) => {
-    clear_messages();
+  const handleUpdateSingle = useCallback(async (skillName: string) => {
+    clearMessages();
     try {
-      set_busy_skill_name(skill_name);
-      await update_single_skill_api(skill_name);
-      set_status_message(`已更新 ${skill_name}`);
-      await refresh_marketplace();
+      setBusySkillName(skillName);
+      await update_single_skill_api(skillName);
+      setStatusMessage(`已更新 ${skillName}`);
+      await refreshMarketplace();
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "更新失败");
+      setErrorMessage(err instanceof Error ? err.message : "更新失败");
     } finally {
-      set_busy_skill_name(null);
+      setBusySkillName(null);
     }
-  }, [refresh_marketplace]);
+  }, [refreshMarketplace]);
 
-  const handle_delete_skill = useCallback(async (skill: SkillInfo) => {
-    clear_messages();
+  const handleDeleteSkill = useCallback(async (skill: SkillInfo) => {
+    clearMessages();
     try {
-      set_busy_skill_name(skill.name);
+      setBusySkillName(skill.name);
       await delete_skill_api(skill.name);
-      set_status_message(`${skill.title || skill.name} 已从技能库删除`);
-      await refresh_marketplace();
+      setStatusMessage(`${skill.title || skill.name} 已从技能库删除`);
+      await refreshMarketplace();
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "删除失败");
+      setErrorMessage(err instanceof Error ? err.message : "删除失败");
     } finally {
-      set_busy_skill_name(null);
+      setBusySkillName(null);
     }
-  }, [refresh_marketplace]);
+  }, [refreshMarketplace]);
 
-  const handle_update_installed = useCallback(async () => {
-    clear_messages();
+  const handleUpdateInstalled = useCallback(async () => {
+    clearMessages();
     try {
       const result = await update_imported_skills_api();
-      set_status_message(
+      setStatusMessage(
         `更新完成：更新 ${result.updated_skills.length} 个，跳过 ${result.skipped_skills.length} 个`,
       );
       if (result.failures.length) {
-        set_error_message(
+        setErrorMessage(
           result.failures.map((i: SkillActionFailure) => `${i.skill_name}: ${i.error}`).join("；"),
         );
       }
-      await refresh_marketplace();
+      await refreshMarketplace();
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "更新失败");
+      setErrorMessage(err instanceof Error ? err.message : "更新失败");
     }
-  }, [refresh_marketplace]);
+  }, [refreshMarketplace]);
 
-  const handle_local_import = useCallback(async (file: File) => {
-    clear_messages();
+  const handleLocalImport = useCallback(async (file: File) => {
+    clearMessages();
     try {
       await import_local_skill_api(file);
-      set_status_message(`已导入：${file.name}`);
-      set_import_dialog_mode(null);
-      await refresh_marketplace();
+      setStatusMessage(`已导入：${file.name}`);
+      setImportDialogMode(null);
+      await refreshMarketplace();
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "导入失败");
+      setErrorMessage(err instanceof Error ? err.message : "导入失败");
     }
-  }, [refresh_marketplace]);
+  }, [refreshMarketplace]);
 
-  const handle_git_import = useCallback(async (url: string, branch?: string, path?: string) => {
-    clear_messages();
+  const handleGitImport = useCallback(async (url: string, branch?: string, path?: string) => {
+    clearMessages();
     if (!url.trim()) return;
     try {
       await import_git_skill_api(url.trim(), branch?.trim() || undefined, path?.trim() || undefined);
-      set_status_message("已通过 Git 导入");
-      set_import_dialog_mode(null);
-      await refresh_marketplace();
+      setStatusMessage("已通过 Git 导入");
+      setImportDialogMode(null);
+      await refreshMarketplace();
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "Git 导入失败");
+      setErrorMessage(err instanceof Error ? err.message : "Git 导入失败");
     }
-  }, [refresh_marketplace]);
+  }, [refreshMarketplace]);
 
-  const handle_preview_external = useCallback(async (item: ExternalSkillSearchItem) => {
-    set_preview_external_item(item);
+  const handlePreviewExternal = useCallback(async (item: ExternalSkillSearchItem) => {
+    setPreviewExternalItem(item);
     if (item.source_kind === "skills_sh" || item.import_mode === "skills_sh") {
       return;
     }
-    const preview_url = item.raw_url || item.detail_url;
-    if (item.readme_markdown || !preview_url) {
+    const previewUrl = item.raw_url || item.detail_url;
+    if (item.readme_markdown || !previewUrl) {
       return;
     }
     try {
-      set_external_preview_loading(true);
-      const result = await get_external_skill_preview_api(preview_url);
-      set_preview_external_item((prev) => {
+      setExternalPreviewLoading(true);
+      const result = await get_external_skill_preview_api(previewUrl);
+      setPreviewExternalItem((prev) => {
         if (!prev || prev.detail_url !== item.detail_url) return prev;
         return { ...prev, readme_markdown: result.readme_markdown };
       });
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "预览加载失败");
+      setErrorMessage(err instanceof Error ? err.message : "预览加载失败");
     } finally {
-      set_external_preview_loading(false);
+      setExternalPreviewLoading(false);
     }
   }, []);
 
-  const handle_import_external = useCallback(async (item: ExternalSkillSearchItem) => {
-    clear_messages();
-    const external_key = `${item.source_key || item.package_spec}@@${item.skill_slug}`;
+  const handleImportExternal = useCallback(async (item: ExternalSkillSearchItem) => {
+    clearMessages();
+    const externalKey = `${item.source_key || item.package_spec}@@${item.skill_slug}`;
     try {
-      set_busy_external_key(external_key);
+      setBusyExternalKey(externalKey);
       await import_external_skill_api(item);
-      set_status_message(`已导入：${item.skill_slug}`);
-      await refresh_marketplace();
-      set_preview_external_item(null);
+      setStatusMessage(`已导入：${item.skill_slug}`);
+      await refreshMarketplace();
+      setPreviewExternalItem(null);
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "导入失败");
+      setErrorMessage(err instanceof Error ? err.message : "导入失败");
     } finally {
-      set_busy_external_key(null);
+      setBusyExternalKey(null);
     }
-  }, [refresh_marketplace]);
+  }, [refreshMarketplace]);
 
-  const handle_toggle_external_source = useCallback(async (
+  const handleToggleExternalSource = useCallback(async (
     source: ExternalSkillSourceInfo,
     enabled: boolean,
   ) => {
-    clear_messages();
+    clearMessages();
     try {
-      set_source_loading(true);
+      setSourceLoading(true);
       await update_external_skill_source_api(source.source_id, { enabled });
-      set_status_message(`${source.name} 已${enabled ? "启用" : "停用"}`);
-      await refresh_external_sources();
-      set_source_revision((value) => value + 1);
+      setStatusMessage(`${source.name} 已${enabled ? "启用" : "停用"}`);
+      await refreshExternalSources();
+      setSourceRevision((value) => value + 1);
     } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "来源更新失败");
+      setErrorMessage(err instanceof Error ? err.message : "来源更新失败");
     } finally {
-      set_source_loading(false);
+      setSourceLoading(false);
     }
-  }, [refresh_external_sources]);
+  }, [refreshExternalSources]);
 
   return {
     // 状态
     skills,
-    search_query,
-    discovery_mode,
-    active_category,
-    external_query,
-    external_submitted_query,
-    external_results,
-    external_source_statuses,
-    external_sources,
-    preview_external_item,
-    external_loading,
-    external_preview_loading,
-    source_manager_open,
-    source_loading,
-    import_dialog_mode,
+    search_query: searchQuery,
+    discovery_mode: discoveryMode,
+    active_category: activeCategory,
+    external_query: externalQuery,
+    external_submitted_query: externalSubmittedQuery,
+    external_results: externalResults,
+    external_source_statuses: externalSourceStatuses,
+    external_sources: externalSources,
+    preview_external_item: previewExternalItem,
+    external_loading: externalLoading,
+    external_preview_loading: externalPreviewLoading,
+    source_manager_open: sourceManagerOpen,
+    source_loading: sourceLoading,
+    import_dialog_mode: importDialogMode,
     loading,
-    busy_skill_name,
-    busy_external_key,
-    status_message,
-    error_message,
-    file_input_ref,
+    busy_skill_name: busySkillName,
+    busy_external_key: busyExternalKey,
+    status_message: statusMessage,
+    error_message: errorMessage,
+    file_input_ref: fileInputRef,
     // 派生数据
     categories,
-    visible_skills,
-    grouped_skills,
-    catalog_count,
-    imported_external_sources,
+    visible_skills: visibleSkills,
+    grouped_skills: groupedSkills,
+    catalog_count: catalogCount,
+    imported_external_sources: importedExternalSources,
     // setter
-    set_search_query,
-    set_discovery_mode,
-    set_active_category,
-    set_external_query,
-    set_preview_external_item,
-    set_source_manager_open,
-    set_import_dialog_mode,
-    set_status_message,
-    set_error_message,
+    set_search_query: setSearchQuery,
+    set_discovery_mode: setDiscoveryMode,
+    set_active_category: setActiveCategory,
+    set_external_query: setExternalQuery,
+    set_preview_external_item: setPreviewExternalItem,
+    set_source_manager_open: setSourceManagerOpen,
+    set_import_dialog_mode: setImportDialogMode,
+    set_status_message: setStatusMessage,
+    set_error_message: setErrorMessage,
     // 操作
-    refresh_marketplace,
-    submit_external_search,
-    handle_update_single,
-    handle_delete_skill,
-    handle_update_installed,
-    handle_local_import,
-    handle_git_import,
-    handle_preview_external,
-    handle_import_external,
-    refresh_external_sources,
-    handle_toggle_external_source,
+    refresh_marketplace: refreshMarketplace,
+    submit_external_search: submitExternalSearch,
+    handle_update_single: handleUpdateSingle,
+    handle_delete_skill: handleDeleteSkill,
+    handle_update_installed: handleUpdateInstalled,
+    handle_local_import: handleLocalImport,
+    handle_git_import: handleGitImport,
+    handle_preview_external: handlePreviewExternal,
+    handle_import_external: handleImportExternal,
+    refresh_external_sources: refreshExternalSources,
+    handle_toggle_external_source: handleToggleExternalSource,
   };
 }

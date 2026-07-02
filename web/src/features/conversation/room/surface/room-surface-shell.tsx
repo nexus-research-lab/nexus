@@ -41,164 +41,164 @@ interface RoomSurfaceShellProps {
   on_replay_tour?: () => void;
   on_back_to_directory: () => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
-  on_select_conversation: (conversation_id: string) => void;
-  on_close_conversation: (conversation_id: string) => Promise<void>;
-  on_delete_conversation: (conversation_id: string) => Promise<string | null>;
-  on_add_room_member: (agent_id: string) => Promise<void>;
-  on_remove_room_member: (agent_id: string) => Promise<void>;
+  on_select_conversation: (conversationId: string) => void;
+  on_close_conversation: (conversationId: string) => Promise<void>;
+  on_delete_conversation: (conversationId: string) => Promise<string | null>;
+  on_add_room_member: (agentId: string) => Promise<void>;
+  on_remove_room_member: (agentId: string) => Promise<void>;
   on_open_member_manager: () => Promise<void>;
-  on_save_agent_options: (agent_id: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
-  on_validate_agent_name: (name: string, agent_id?: string) => Promise<AgentNameValidationResult>;
-  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
-  on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
+  on_save_agent_options: (agentId: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
+  on_validate_agent_name: (name: string, agentId?: string) => Promise<AgentNameValidationResult>;
+  on_update_room: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  on_update_conversation_title: (conversationId: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
   on_start_editor_resize: () => void;
-  on_loading_change: (is_loading: boolean) => void;
+  on_loading_change: (isLoading: boolean) => void;
   on_todos_change: (todos: TodoItem[]) => void;
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
-  on_room_event?: (event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
+  on_room_event?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
 }
 
 export function RoomSurfaceShell({
-  current_agent,
-  current_room_type,
-  room_id,
-  room_avatar,
-  room_members,
-  available_room_agents,
-  current_room_title,
-  room_skill_names,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  room_private_messages_enabled,
-  current_room_conversation,
-  current_agent_session_identity,
-  conversation_id,
-  current_room_conversations,
-  active_workspace_path,
-  initial_draft,
-  on_initial_draft_consumed,
-  is_editor_open,
-  editor_width_percent,
-  is_resizing_editor,
-  is_conversation_busy,
-  current_todos,
-  workspace_split_ref,
-  on_replay_tour,
-  on_back_to_directory,
-  on_create_conversation,
-  on_select_conversation,
-  on_close_conversation,
-  on_delete_conversation,
-  on_add_room_member,
-  on_remove_room_member,
-  on_open_member_manager,
-  on_save_agent_options,
-  on_validate_agent_name,
-  on_update_room,
-  on_update_conversation_title,
-  on_open_workspace_file,
-  on_start_editor_resize,
-  on_loading_change,
-  on_todos_change,
-  on_conversation_snapshot_change,
-  on_room_event,
+  current_agent: currentAgent,
+  current_room_type: currentRoomType,
+  room_id: roomId,
+  room_avatar: roomAvatar,
+  room_members: roomMembers,
+  available_room_agents: availableRoomAgents,
+  current_room_title: currentRoomTitle,
+  room_skill_names: roomSkillNames,
+  room_host_agent_id: roomHostAgentId,
+  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
+  room_private_messages_enabled: roomPrivateMessagesEnabled,
+  current_room_conversation: currentRoomConversation,
+  current_agent_session_identity: currentAgentSessionIdentity,
+  conversation_id: conversationId,
+  current_room_conversations: currentRoomConversations,
+  active_workspace_path: activeWorkspacePath,
+  initial_draft: initialDraft,
+  on_initial_draft_consumed: onInitialDraftConsumed,
+  is_editor_open: isEditorOpen,
+  editor_width_percent: editorWidthPercent,
+  is_resizing_editor: isResizingEditor,
+  is_conversation_busy: isConversationBusy,
+  current_todos: currentTodos,
+  workspace_split_ref: workspaceSplitRef,
+  on_replay_tour: onReplayTour,
+  on_back_to_directory: onBackToDirectory,
+  on_create_conversation: onCreateConversation,
+  on_select_conversation: onSelectConversation,
+  on_close_conversation: onCloseConversation,
+  on_delete_conversation: onDeleteConversation,
+  on_add_room_member: onAddRoomMember,
+  on_remove_room_member: onRemoveRoomMember,
+  on_open_member_manager: onOpenMemberManager,
+  on_save_agent_options: onSaveAgentOptions,
+  on_validate_agent_name: onValidateAgentName,
+  on_update_room: onUpdateRoom,
+  on_update_conversation_title: onUpdateConversationTitle,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  on_start_editor_resize: onStartEditorResize,
+  on_loading_change: onLoadingChange,
+  on_todos_change: onTodosChange,
+  on_conversation_snapshot_change: onConversationSnapshotChange,
+  on_room_event: onRoomEvent,
 }: RoomSurfaceShellProps) {
-  const is_mobile = useMediaQuery("(max-width: 767px)");
-  const [active_surface_tab, set_active_surface_tab] = useState<RoomSurfaceTabKey>("chat");
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
 
-  const handle_select_conversation_in_shell = useCallback((conversation_id: string) => {
-    on_select_conversation(conversation_id);
-  }, [on_select_conversation]);
+  const handleSelectConversationInShell = useCallback((conversationId: string) => {
+    onSelectConversation(conversationId);
+  }, [onSelectConversation]);
 
-  const handle_change_surface_tab = useCallback((next_tab: RoomSurfaceTabKey) => {
-    set_active_surface_tab(next_tab);
+  const handleChangeSurfaceTab = useCallback((nextTab: RoomSurfaceTabKey) => {
+    setActiveSurfaceTab(nextTab);
   }, []);
 
-  const handle_create_conversation_in_shell = useCallback(async (title?: string) => {
-    const next_conversation_id = await on_create_conversation(title);
-    set_active_surface_tab("chat");
-    return next_conversation_id;
-  }, [on_create_conversation]);
+  const handleCreateConversationInShell = useCallback(async (title?: string) => {
+    const nextConversationId = await onCreateConversation(title);
+    setActiveSurfaceTab("chat");
+    return nextConversationId;
+  }, [onCreateConversation]);
 
-  const handle_open_workspace_file_in_shell = useCallback((path: string | null) => {
-    on_open_workspace_file(path);
+  const handleOpenWorkspaceFileInShell = useCallback((path: string | null) => {
+    onOpenWorkspaceFile(path);
     if (path) {
-      set_active_surface_tab("workspace");
+      setActiveSurfaceTab("workspace");
     }
-  }, [on_open_workspace_file]);
+  }, [onOpenWorkspaceFile]);
 
-  if (is_mobile) {
+  if (isMobile) {
     return (
       <RoomMobileSurface
-        current_agent={current_agent}
-        current_room_type={current_room_type}
-        room_id={room_id}
-        room_members={room_members}
-        room_host_agent_id={room_host_agent_id}
-        room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-        current_room_conversation={current_room_conversation}
-        current_agent_session_identity={current_agent_session_identity}
-        conversation_id={conversation_id}
-        current_room_conversations={current_room_conversations}
-        current_room_title={current_room_title}
-        initial_draft={initial_draft}
-        on_initial_draft_consumed={on_initial_draft_consumed}
-        on_back_to_directory={on_back_to_directory}
-        on_conversation_snapshot_change={on_conversation_snapshot_change}
-        on_create_conversation={handle_create_conversation_in_shell}
-        on_loading_change={on_loading_change}
-        on_room_event={on_room_event}
-        on_select_conversation={handle_select_conversation_in_shell}
+        current_agent={currentAgent}
+        current_room_type={currentRoomType}
+        room_id={roomId}
+        room_members={roomMembers}
+        room_host_agent_id={roomHostAgentId}
+        room_host_auto_reply_enabled={roomHostAutoReplyEnabled}
+        current_room_conversation={currentRoomConversation}
+        current_agent_session_identity={currentAgentSessionIdentity}
+        conversation_id={conversationId}
+        current_room_conversations={currentRoomConversations}
+        current_room_title={currentRoomTitle}
+        initial_draft={initialDraft}
+        on_initial_draft_consumed={onInitialDraftConsumed}
+        on_back_to_directory={onBackToDirectory}
+        on_conversation_snapshot_change={onConversationSnapshotChange}
+        on_create_conversation={handleCreateConversationInShell}
+        on_loading_change={onLoadingChange}
+        on_room_event={onRoomEvent}
+        on_select_conversation={handleSelectConversationInShell}
       />
     );
   }
 
   return (
     <RoomSurfaceLayout
-      active_workspace_path={active_workspace_path}
-      active_surface_tab={active_surface_tab}
-      available_room_agents={available_room_agents}
-      current_agent={current_agent}
-      current_room_type={current_room_type}
-      room_id={room_id}
-      room_avatar={room_avatar}
-      room_members={room_members}
-      current_room_title={current_room_title}
-      room_skill_names={room_skill_names}
-      room_host_agent_id={room_host_agent_id}
-      room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-      room_private_messages_enabled={room_private_messages_enabled}
-      current_agent_session_identity={current_agent_session_identity}
-      conversation_id={conversation_id}
-      current_room_conversations={current_room_conversations}
-      initial_draft={initial_draft}
-      on_initial_draft_consumed={on_initial_draft_consumed}
-      current_todos={current_todos}
-      editor_width_percent={editor_width_percent}
-      is_editor_open={is_editor_open}
-      is_resizing_editor={is_resizing_editor}
-      is_conversation_busy={is_conversation_busy}
-      on_replay_tour={on_replay_tour}
-      on_add_room_member={on_add_room_member}
-      on_open_member_manager={on_open_member_manager}
-      on_remove_room_member={on_remove_room_member}
-      on_save_agent_options={on_save_agent_options}
-      on_validate_agent_name={on_validate_agent_name}
-      on_change_surface_tab={handle_change_surface_tab}
-      on_conversation_snapshot_change={on_conversation_snapshot_change}
-      on_create_conversation={handle_create_conversation_in_shell}
-      on_close_conversation={on_close_conversation}
-      on_delete_conversation={on_delete_conversation}
-      on_loading_change={on_loading_change}
-      on_open_workspace_file={handle_open_workspace_file_in_shell}
-      on_update_room={on_update_room}
-      on_update_conversation_title={on_update_conversation_title}
-      on_select_conversation={handle_select_conversation_in_shell}
-      on_start_editor_resize={on_start_editor_resize}
-      on_todos_change={on_todos_change}
-      workspace_split_ref={workspace_split_ref}
-      on_room_event={on_room_event}
+      active_workspace_path={activeWorkspacePath}
+      active_surface_tab={activeSurfaceTab}
+      available_room_agents={availableRoomAgents}
+      current_agent={currentAgent}
+      current_room_type={currentRoomType}
+      room_id={roomId}
+      room_avatar={roomAvatar}
+      room_members={roomMembers}
+      current_room_title={currentRoomTitle}
+      room_skill_names={roomSkillNames}
+      room_host_agent_id={roomHostAgentId}
+      room_host_auto_reply_enabled={roomHostAutoReplyEnabled}
+      room_private_messages_enabled={roomPrivateMessagesEnabled}
+      current_agent_session_identity={currentAgentSessionIdentity}
+      conversation_id={conversationId}
+      current_room_conversations={currentRoomConversations}
+      initial_draft={initialDraft}
+      on_initial_draft_consumed={onInitialDraftConsumed}
+      current_todos={currentTodos}
+      editor_width_percent={editorWidthPercent}
+      is_editor_open={isEditorOpen}
+      is_resizing_editor={isResizingEditor}
+      is_conversation_busy={isConversationBusy}
+      on_replay_tour={onReplayTour}
+      on_add_room_member={onAddRoomMember}
+      on_open_member_manager={onOpenMemberManager}
+      on_remove_room_member={onRemoveRoomMember}
+      on_save_agent_options={onSaveAgentOptions}
+      on_validate_agent_name={onValidateAgentName}
+      on_change_surface_tab={handleChangeSurfaceTab}
+      on_conversation_snapshot_change={onConversationSnapshotChange}
+      on_create_conversation={handleCreateConversationInShell}
+      on_close_conversation={onCloseConversation}
+      on_delete_conversation={onDeleteConversation}
+      on_loading_change={onLoadingChange}
+      on_open_workspace_file={handleOpenWorkspaceFileInShell}
+      on_update_room={onUpdateRoom}
+      on_update_conversation_title={onUpdateConversationTitle}
+      on_select_conversation={handleSelectConversationInShell}
+      on_start_editor_resize={onStartEditorResize}
+      on_todos_change={onTodosChange}
+      workspace_split_ref={workspaceSplitRef}
+      on_room_event={onRoomEvent}
     />
   );
 }

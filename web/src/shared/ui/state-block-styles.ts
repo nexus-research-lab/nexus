@@ -36,7 +36,7 @@ const STATE_BLOCK_VARIANT_CLASS_MAP: Record<UiStateBlockVariant, Record<UiStateB
 
 export function get_ui_state_block_class_name(
   options: UiStateBlockStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     size = "md",
@@ -48,6 +48,6 @@ export function get_ui_state_block_class_name(
     STATE_BLOCK_BASE_CLASS_NAME,
     STATE_BLOCK_SIZE_CLASS_MAP[size],
     STATE_BLOCK_VARIANT_CLASS_MAP[variant][tone],
-    class_name,
+    className,
   );
 }

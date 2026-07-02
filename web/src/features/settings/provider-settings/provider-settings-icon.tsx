@@ -15,27 +15,27 @@ const PROVIDER_ICON_SRC: Record<string, string> = {
   azure: "/icon/provider/azureai.svg",
 };
 
-function get_provider_icon_src(preset_key?: string | null): string {
-  return PROVIDER_ICON_SRC[preset_key || ""] ?? "";
+function getProviderIconSrc(presetKey?: string | null): string {
+  return PROVIDER_ICON_SRC[presetKey || ""] ?? "";
 }
 
-function get_custom_provider_initials(name: string): string {
+function getCustomProviderInitials(name: string): string {
   const normalized = name.trim() || "AI";
   const words = normalized.split(/[^a-zA-Z0-9]+/).filter(Boolean);
-  const first_word = words[0] ?? normalized;
+  const firstWord = words[0] ?? normalized;
   if (words.length >= 2) {
     return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
   }
-  if (/^[A-Z0-9]{2,3}$/.test(first_word)) {
-    return first_word;
+  if (/^[A-Z0-9]{2,3}$/.test(firstWord)) {
+    return firstWord;
   }
-  return first_word.slice(0, 2).toUpperCase();
+  return firstWord.slice(0, 2).toUpperCase();
 }
 
 export function ProviderIcon({
   active = false,
   name,
-  preset_key,
+  preset_key: presetKey,
   size = "sm",
 }: {
   active?: boolean;
@@ -43,8 +43,8 @@ export function ProviderIcon({
   preset_key?: string | null;
   size?: "sm" | "md";
 }) {
-  if ((preset_key || "custom") === "custom") {
-    const initials = get_custom_provider_initials(name);
+  if ((presetKey || "custom") === "custom") {
+    const initials = getCustomProviderInitials(name);
     return (
       <span
         aria-hidden="true"
@@ -59,7 +59,7 @@ export function ProviderIcon({
     );
   }
 
-  const icon_src = get_provider_icon_src(preset_key);
+  const iconSrc = getProviderIconSrc(presetKey);
   return (
     <span
       aria-hidden="true"
@@ -73,11 +73,11 @@ export function ProviderIcon({
         className={cn(size === "md" ? "h-6 w-6" : "h-4.5 w-4.5")}
         style={{
           backgroundColor: "var(--text-strong)",
-          maskImage: icon_src ? `url(${icon_src})` : undefined,
+          maskImage: iconSrc ? `url(${iconSrc})` : undefined,
           maskPosition: "center",
           maskRepeat: "no-repeat",
           maskSize: "contain",
-          WebkitMaskImage: icon_src ? `url(${icon_src})` : undefined,
+          WebkitMaskImage: iconSrc ? `url(${iconSrc})` : undefined,
           WebkitMaskPosition: "center",
           WebkitMaskRepeat: "no-repeat",
           WebkitMaskSize: "contain",

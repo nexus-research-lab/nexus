@@ -33,7 +33,7 @@ interface PairingListProps {
   ) => void | Promise<void>;
 }
 
-function status_tone(status: ImPairingStatus): UiBadgeTone {
+function statusTone(status: ImPairingStatus): UiBadgeTone {
   switch (status) {
   case "active":
     return "success";
@@ -46,36 +46,36 @@ function status_tone(status: ImPairingStatus): UiBadgeTone {
   }
 }
 
-function format_target(item: PairingView) {
+function formatTarget(item: PairingView) {
   const thread = item.thread_id ? ` / ${item.thread_id}` : "";
   return `${item.external_ref}${thread}`;
 }
 
-function chat_type_label(item: PairingView) {
+function chatTypeLabel(item: PairingView) {
   return CHAT_TYPE_OPTIONS.find((option) => option.value === item.chat_type)?.label ?? item.chat_type;
 }
 
-function binding_key(item: PairingView) {
+function bindingKey(item: PairingView) {
   return [
     CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
     item.account_id || "default",
-    chat_type_label(item),
+    chatTypeLabel(item),
     item.external_ref,
     item.thread_id || "-",
   ].join(" / ");
 }
 
-function session_key_for_pairing(item: PairingView) {
+function sessionKeyForPairing(item: PairingView) {
   return item.session_key || "";
 }
 
 export function PairingList({
   agents,
-  busy_id,
+  busy_id: busyId,
   groups,
-  on_copy_session_key,
-  on_delete_pairing,
-  on_update_pairing,
+  on_copy_session_key: onCopySessionKey,
+  on_delete_pairing: onDeletePairing,
+  on_update_pairing: onUpdatePairing,
 }: PairingListProps) {
   return (
     <div className="space-y-5">
@@ -101,17 +101,17 @@ export function PairingList({
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <UiBadge>{CHANNEL_LABELS[item.channel_type] ?? item.channel_type}</UiBadge>
-                    <UiBadge tone={status_tone(item.status)}>
+                    <UiBadge tone={statusTone(item.status)}>
                       {STATUS_LABELS[item.status]}
                     </UiBadge>
-                    <UiBadge>{chat_type_label(item)}</UiBadge>
+                    <UiBadge>{chatTypeLabel(item)}</UiBadge>
                     {item.account_id ? <UiBadge tone="default">{item.account_id}</UiBadge> : null}
                   </div>
                   <div className="mt-2 truncate text-[16px] font-bold text-(--text-strong)">
-                    {item.external_name || format_target(item)}
+                    {item.external_name || formatTarget(item)}
                   </div>
                   <div className="mt-1 truncate font-mono text-[12px] text-(--text-muted)">
-                    {format_target(item)}
+                    {formatTarget(item)}
                   </div>
                   {item.account_id ? (
                     <div className="mt-1 truncate font-mono text-[11px] text-(--text-soft)" title={item.account_id}>
@@ -123,8 +123,8 @@ export function PairingList({
                 <UiField class_name="min-w-0" label="处理智能体">
                   <UiSelectMenu
                     aria_label="选择配对处理智能体"
-                    disabled={busy_id === item.pairing_id}
-                    on_change={(value) => void on_update_pairing(item, { agent_id: value })}
+                    disabled={busyId === item.pairing_id}
+                    on_change={(value) => void onUpdatePairing(item, { agent_id: value })}
                     options={agents.map((agent) => ({
                       value: agent.agent_id,
                       label: agent.name,
@@ -137,8 +137,8 @@ export function PairingList({
                 <div className="min-w-0 space-y-1.5 text-[12px] leading-5 text-(--text-muted)">
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold uppercase text-(--text-soft)">绑定键</div>
-                    <div className="truncate font-mono text-(--text-default)" title={binding_key(item)}>
-                      {binding_key(item)}
+                    <div className="truncate font-mono text-(--text-default)" title={bindingKey(item)}>
+                      {bindingKey(item)}
                     </div>
                   </div>
                   <div className="min-w-0">
@@ -146,8 +146,8 @@ export function PairingList({
                       <span>IM Session</span>
                       <UiIconButton
                         class_name="h-6 w-6"
-                        disabled={busy_id === item.pairing_id}
-                        onClick={() => void on_copy_session_key(item)}
+                        disabled={busyId === item.pairing_id}
+                        onClick={() => void onCopySessionKey(item)}
                         size="sm"
                         title="复制 IM session key"
                         type="button"
@@ -156,8 +156,8 @@ export function PairingList({
                         <Copy className="h-3.5 w-3.5" />
                       </UiIconButton>
                     </div>
-                    <div className="truncate font-mono text-(--text-default)" title={session_key_for_pairing(item)}>
-                      {session_key_for_pairing(item)}
+                    <div className="truncate font-mono text-(--text-default)" title={sessionKeyForPairing(item)}>
+                      {sessionKeyForPairing(item)}
                     </div>
                   </div>
                   <div className="truncate">
@@ -168,8 +168,8 @@ export function PairingList({
                 <div className="flex items-center justify-end gap-2 max-lg:justify-start">
                   {item.status !== "active" ? (
                     <UiButton
-                      disabled={busy_id === item.pairing_id}
-                      onClick={() => void on_update_pairing(item, { status: "active" })}
+                      disabled={busyId === item.pairing_id}
+                      onClick={() => void onUpdatePairing(item, { status: "active" })}
                       size="sm"
                       tone="primary"
                       type="button"
@@ -181,8 +181,8 @@ export function PairingList({
                   ) : null}
                   {item.status === "pending" ? (
                     <UiButton
-                      disabled={busy_id === item.pairing_id}
-                      onClick={() => void on_update_pairing(item, { status: "rejected" })}
+                      disabled={busyId === item.pairing_id}
+                      onClick={() => void onUpdatePairing(item, { status: "rejected" })}
                       size="sm"
                       tone="danger"
                       type="button"
@@ -194,8 +194,8 @@ export function PairingList({
                   ) : null}
                   {item.status === "active" ? (
                     <UiButton
-                      disabled={busy_id === item.pairing_id}
-                      onClick={() => void on_update_pairing(item, { status: "disabled" })}
+                      disabled={busyId === item.pairing_id}
+                      onClick={() => void onUpdatePairing(item, { status: "disabled" })}
                       size="sm"
                       type="button"
                     >
@@ -203,8 +203,8 @@ export function PairingList({
                     </UiButton>
                   ) : null}
                   <UiIconButton
-                    disabled={busy_id === item.pairing_id}
-                    onClick={() => on_delete_pairing(item)}
+                    disabled={busyId === item.pairing_id}
+                    onClick={() => onDeletePairing(item)}
                     size="lg"
                     title="删除"
                     tone="danger"

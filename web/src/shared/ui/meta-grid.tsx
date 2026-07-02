@@ -17,13 +17,13 @@ interface UiMetaItemProps extends HTMLAttributes<HTMLDivElement> {
 
 export function UiMetaGrid({
   children,
-  class_name,
+  class_name: legacyClassName,
   className,
   ...props
 }: UiMetaGridProps) {
   return (
     <div
-      className={cn("mt-3 grid gap-4 text-sm text-(--text-default) md:grid-cols-2", className, class_name)}
+      className={cn("mt-3 grid gap-4 text-sm text-(--text-default) md:grid-cols-2", className, legacyClassName)}
       {...props}
     >
       {children}
@@ -32,14 +32,14 @@ export function UiMetaGrid({
 }
 
 export function UiMetaItem({
-  class_name,
+  class_name: legacyClassName,
   className,
   label,
   value,
   ...props
 }: UiMetaItemProps) {
   return (
-    <div className={cn("min-w-0", className, class_name)} {...props}>
+    <div className={cn("min-w-0", className, legacyClassName)} {...props}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
         {label}
       </p>

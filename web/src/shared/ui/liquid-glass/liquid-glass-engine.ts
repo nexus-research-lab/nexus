@@ -41,35 +41,35 @@ function smootherstep(value: number): number {
 
 // squircle 曲面轮廓 y = ⁴√(1-(1-x)⁴)，
 // 比 smootherstep 幂曲线产生更柔和的边缘过渡。
-function squircle_surface_profile(x: number): number {
+function squircleSurfaceProfile(x: number): number {
   const t = clamp(x, 0, 1);
   return Math.pow(1 - Math.pow(1 - t, 4), 0.25);
 }
 
-function lip_surface_profile(x: number): number {
+function lipSurfaceProfile(x: number): number {
   const t = clamp(x, 0, 1);
-  const convex = squircle_surface_profile(1 - t);
-  const concave = squircle_surface_profile(t);
+  const convex = squircleSurfaceProfile(1 - t);
+  const concave = squircleSurfaceProfile(t);
   const blend = smootherstep(t);
   return convex * (1 - blend) - concave * blend * 0.28;
 }
 
-function get_rounded_rect_sdf(x: number, y: number, width: number, height: number, radius: number): number {
-  const half_width = width / 2;
-  const half_height = height / 2;
-  const dx = Math.abs(x - half_width) - (half_width - radius);
-  const dy = Math.abs(y - half_height) - (half_height - radius);
-  const outer_x = Math.max(dx, 0);
-  const outer_y = Math.max(dy, 0);
-  return Math.hypot(outer_x, outer_y) + Math.min(Math.max(dx, dy), 0) - radius;
+function getRoundedRectSdf(x: number, y: number, width: number, height: number, radius: number): number {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const dx = Math.abs(x - halfWidth) - (halfWidth - radius);
+  const dy = Math.abs(y - halfHeight) - (halfHeight - radius);
+  const outerX = Math.max(dx, 0);
+  const outerY = Math.max(dy, 0);
+  return Math.hypot(outerX, outerY) + Math.min(Math.max(dx, dy), 0) - radius;
 }
 
-function get_sdf_normal(x: number, y: number, width: number, height: number, radius: number): Vector2 {
+function getSdfNormal(x: number, y: number, width: number, height: number, radius: number): Vector2 {
   const epsilon = 0.85;
-  const dx = get_rounded_rect_sdf(x + epsilon, y, width, height, radius)
-    - get_rounded_rect_sdf(x - epsilon, y, width, height, radius);
-  const dy = get_rounded_rect_sdf(x, y + epsilon, width, height, radius)
-    - get_rounded_rect_sdf(x, y - epsilon, width, height, radius);
+  const dx = getRoundedRectSdf(x + epsilon, y, width, height, radius)
+    - getRoundedRectSdf(x - epsilon, y, width, height, radius);
+  const dy = getRoundedRectSdf(x, y + epsilon, width, height, radius)
+    - getRoundedRectSdf(x, y - epsilon, width, height, radius);
   const length = Math.hypot(dx, dy);
 
   if (length < 0.0001) {
@@ -82,7 +82,7 @@ function get_sdf_normal(x: number, y: number, width: number, height: number, rad
   };
 }
 
-function create_canvas_context(width: number, height: number): CanvasRenderingContext2D | null {
+function createCanvasContext(width: number, height: number): CanvasRenderingContext2D | null {
   if (typeof document === "undefined") {
     return null;
   }
@@ -93,19 +93,19 @@ function create_canvas_context(width: number, height: number): CanvasRenderingCo
   return canvas.getContext("2d");
 }
 
-function encode_vector_channel(value: number): number {
+function encodeVectorChannel(value: number): number {
   return Math.round(clamp(128 + value * 127, 0, 255));
 }
 
-function build_cache_key({
+function buildCacheKey({
   width,
   height,
   radius,
   bezel,
-  surface_profile = "convex",
-  light_angle_deg = DEFAULT_LIGHT_ANGLE_DEG,
-  specular_power = 2.2,
-  specular_opacity = 1.0,
+  surface_profile: surfaceProfile = "convex",
+  light_angle_deg: lightAngleDeg = DEFAULT_LIGHT_ANGLE_DEG,
+  specular_power: specularPower = 2.2,
+  specular_opacity: specularOpacity = 1.0,
 }: LiquidGlassAssetOptions): string {
   // 折射贴图按尺寸档位复用，避免每个像素级尺寸都生成新位移图。
   return [
@@ -113,116 +113,116 @@ function build_cache_key({
     quantize(height, CACHE_SIZE_STEP),
     quantize(radius, CACHE_RADIUS_STEP),
     quantize(bezel, CACHE_RADIUS_STEP),
-    surface_profile,
-    Math.round(light_angle_deg * 10),
-    Math.round(specular_power * 10),
-    Math.round(specular_opacity * 100),
+    surfaceProfile,
+    Math.round(lightAngleDeg * 10),
+    Math.round(specularPower * 10),
+    Math.round(specularOpacity * 100),
   ].join(":");
 }
 
-function create_glass_assets({
+function createGlassAssets({
   width,
   height,
   radius,
   bezel,
-  surface_profile = "convex",
-  light_angle_deg = DEFAULT_LIGHT_ANGLE_DEG,
-  specular_power = 2.2,
-  specular_opacity = 1.0,
+  surface_profile: surfaceProfile = "convex",
+  light_angle_deg: lightAngleDeg = DEFAULT_LIGHT_ANGLE_DEG,
+  specular_power: specularPower = 2.2,
+  specular_opacity: specularOpacity = 1.0,
 }: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
-  const scale_ratio = clamp(MAX_SAMPLE_EDGE / Math.max(width, height), MIN_SAMPLE_SIZE / Math.min(width, height), 1);
-  const sample_width = Math.max(MIN_SAMPLE_SIZE, Math.round(width * scale_ratio));
-  const sample_height = Math.max(MIN_SAMPLE_SIZE, Math.round(height * scale_ratio));
-  const sample_radius = clamp(radius * scale_ratio, 4, Math.min(sample_width, sample_height) / 2);
-  const sample_bezel = clamp(bezel * scale_ratio, 6, Math.min(sample_radius, sample_width / 3, sample_height / 3));
-  const displacement_context = create_canvas_context(sample_width, sample_height);
-  const highlight_context = create_canvas_context(sample_width, sample_height);
+  const scaleRatio = clamp(MAX_SAMPLE_EDGE / Math.max(width, height), MIN_SAMPLE_SIZE / Math.min(width, height), 1);
+  const sampleWidth = Math.max(MIN_SAMPLE_SIZE, Math.round(width * scaleRatio));
+  const sampleHeight = Math.max(MIN_SAMPLE_SIZE, Math.round(height * scaleRatio));
+  const sampleRadius = clamp(radius * scaleRatio, 4, Math.min(sampleWidth, sampleHeight) / 2);
+  const sampleBezel = clamp(bezel * scaleRatio, 6, Math.min(sampleRadius, sampleWidth / 3, sampleHeight / 3));
+  const displacementContext = createCanvasContext(sampleWidth, sampleHeight);
+  const highlightContext = createCanvasContext(sampleWidth, sampleHeight);
 
-  if (!displacement_context || !highlight_context) {
+  if (!displacementContext || !highlightContext) {
     return null;
   }
 
-  const displacement_data = displacement_context.createImageData(sample_width, sample_height);
-  const highlight_data = highlight_context.createImageData(sample_width, sample_height);
-  const displacement_buffer = displacement_data.data;
-  const highlight_buffer = highlight_data.data;
-  const light_radians = light_angle_deg * (Math.PI / 180);
-  const light_direction = {
-    x: Math.cos(light_radians),
-    y: Math.sin(light_radians),
+  const displacementData = displacementContext.createImageData(sampleWidth, sampleHeight);
+  const highlightData = highlightContext.createImageData(sampleWidth, sampleHeight);
+  const displacementBuffer = displacementData.data;
+  const highlightBuffer = highlightData.data;
+  const lightRadians = lightAngleDeg * (Math.PI / 180);
+  const lightDirection = {
+    x: Math.cos(lightRadians),
+    y: Math.sin(lightRadians),
   };
 
   // 这里按“圆角矩形 SDF + 法线近似”生成折射位移图，
   // 不是简单高斯模糊叠层，而是真正给 feDisplacementMap 提供向量场。
-  for (let y = 0; y < sample_height; y += 1) {
-    for (let x = 0; x < sample_width; x += 1) {
-      const pixel_index = (y * sample_width + x) * 4;
-      const signed_distance = get_rounded_rect_sdf(x + 0.5, y + 0.5, sample_width, sample_height, sample_radius);
+  for (let y = 0; y < sampleHeight; y += 1) {
+    for (let x = 0; x < sampleWidth; x += 1) {
+      const pixelIndex = (y * sampleWidth + x) * 4;
+      const signedDistance = getRoundedRectSdf(x + 0.5, y + 0.5, sampleWidth, sampleHeight, sampleRadius);
 
-      displacement_buffer[pixel_index] = 128;
-      displacement_buffer[pixel_index + 1] = 128;
-      displacement_buffer[pixel_index + 2] = 128;
-      displacement_buffer[pixel_index + 3] = 255;
-      highlight_buffer[pixel_index] = 255;
-      highlight_buffer[pixel_index + 1] = 255;
-      highlight_buffer[pixel_index + 2] = 255;
-      highlight_buffer[pixel_index + 3] = 0;
+      displacementBuffer[pixelIndex] = 128;
+      displacementBuffer[pixelIndex + 1] = 128;
+      displacementBuffer[pixelIndex + 2] = 128;
+      displacementBuffer[pixelIndex + 3] = 255;
+      highlightBuffer[pixelIndex] = 255;
+      highlightBuffer[pixelIndex + 1] = 255;
+      highlightBuffer[pixelIndex + 2] = 255;
+      highlightBuffer[pixelIndex + 3] = 0;
 
-      if (signed_distance > 0) {
+      if (signedDistance > 0) {
         continue;
       }
 
-      const distance_from_edge = -signed_distance;
-      if (distance_from_edge > sample_bezel * 1.18) {
+      const distanceFromEdge = -signedDistance;
+      if (distanceFromEdge > sampleBezel * 1.18) {
         continue;
       }
 
-      const outward_normal = get_sdf_normal(x + 0.5, y + 0.5, sample_width, sample_height, sample_radius);
-      const inward_normal = {
-        x: -outward_normal.x,
-        y: -outward_normal.y,
+      const outwardNormal = getSdfNormal(x + 0.5, y + 0.5, sampleWidth, sampleHeight, sampleRadius);
+      const inwardNormal = {
+        x: -outwardNormal.x,
+        y: -outwardNormal.y,
       };
-      const normalized_bezel_position = clamp(distance_from_edge / sample_bezel, 0, 1);
+      const normalizedBezelPosition = clamp(distanceFromEdge / sampleBezel, 0, 1);
       // switch 走 lip 轮廓，外缘向内折射，内槽轻微向外散，
       // 让中部看起来被“拉远”，更接近参考站的玻璃开关。
-      const profile_strength = surface_profile === "lip"
-        ? lip_surface_profile(normalized_bezel_position)
-        : squircle_surface_profile(1 - normalized_bezel_position);
-      const displacement_strength = profile_strength * (0.82 + (1 - normalized_bezel_position) * 0.18);
+      const profileStrength = surfaceProfile === "lip"
+        ? lipSurfaceProfile(normalizedBezelPosition)
+        : squircleSurfaceProfile(1 - normalizedBezelPosition);
+      const displacementStrength = profileStrength * (0.82 + (1 - normalizedBezelPosition) * 0.18);
 
-      displacement_buffer[pixel_index] = encode_vector_channel(inward_normal.x * displacement_strength);
-      displacement_buffer[pixel_index + 1] = encode_vector_channel(inward_normal.y * displacement_strength);
+      displacementBuffer[pixelIndex] = encodeVectorChannel(inwardNormal.x * displacementStrength);
+      displacementBuffer[pixelIndex + 1] = encodeVectorChannel(inwardNormal.y * displacementStrength);
 
-      const light_facing = Math.max(0, outward_normal.x * light_direction.x + outward_normal.y * light_direction.y);
-      const rim_strength = Math.pow(1 - normalized_bezel_position, 2.35);
-      const diffuse_glow = Math.pow(1 - normalized_bezel_position, 3.8) * 0.18;
-      const highlight_alpha = clamp((Math.pow(light_facing, specular_power) * rim_strength + diffuse_glow) * specular_opacity * 255, 0, 255);
-      highlight_buffer[pixel_index + 3] = Math.round(highlight_alpha);
+      const lightFacing = Math.max(0, outwardNormal.x * lightDirection.x + outwardNormal.y * lightDirection.y);
+      const rimStrength = Math.pow(1 - normalizedBezelPosition, 2.35);
+      const diffuseGlow = Math.pow(1 - normalizedBezelPosition, 3.8) * 0.18;
+      const highlightAlpha = clamp((Math.pow(lightFacing, specularPower) * rimStrength + diffuseGlow) * specularOpacity * 255, 0, 255);
+      highlightBuffer[pixelIndex + 3] = Math.round(highlightAlpha);
     }
   }
 
-  displacement_context.putImageData(displacement_data, 0, 0);
-  highlight_context.putImageData(highlight_data, 0, 0);
+  displacementContext.putImageData(displacementData, 0, 0);
+  highlightContext.putImageData(highlightData, 0, 0);
 
   return {
-    displacement_map_url: displacement_context.canvas.toDataURL("image/png"),
-    highlight_map_url: highlight_context.canvas.toDataURL("image/png"),
+    displacement_map_url: displacementContext.canvas.toDataURL("image/png"),
+    highlight_map_url: highlightContext.canvas.toDataURL("image/png"),
   };
 }
 
-function get_liquid_glass_assets(options: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
-  const cache_key = build_cache_key(options);
-  const cached = LIQUID_GLASS_CACHE.get(cache_key);
+function getLiquidGlassAssets(options: LiquidGlassAssetOptions): LiquidGlassAssetBundle | null {
+  const cacheKey = buildCacheKey(options);
+  const cached = LIQUID_GLASS_CACHE.get(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const assets = create_glass_assets(options);
+  const assets = createGlassAssets(options);
   if (!assets) {
     return null;
   }
 
-  LIQUID_GLASS_CACHE.set(cache_key, assets);
+  LIQUID_GLASS_CACHE.set(cacheKey, assets);
   return assets;
 }
 
@@ -235,20 +235,20 @@ export function supports_true_liquid_glass(): boolean {
     return false;
   }
 
-  const supports_backdrop = CSS.supports("backdrop-filter", "blur(1px)")
+  const supportsBackdrop = CSS.supports("backdrop-filter", "blur(1px)")
     || CSS.supports("-webkit-backdrop-filter", "blur(1px)");
-  if (!supports_backdrop) {
+  if (!supportsBackdrop) {
     return false;
   }
 
-  const user_agent = navigator.userAgent;
-  const is_firefox = /Firefox\//i.test(user_agent);
-  const navigator_connection = navigator as Navigator & {
+  const userAgent = navigator.userAgent;
+  const isFirefox = /Firefox\//i.test(userAgent);
+  const navigatorConnection = navigator as Navigator & {
     connection?: {
       saveData?: boolean;
     };
   };
-  if (navigator_connection.connection?.saveData) {
+  if (navigatorConnection.connection?.saveData) {
     return false;
   }
 
@@ -256,5 +256,5 @@ export function supports_true_liquid_glass(): boolean {
    * 这里不再用浏览器品牌做硬编码拦截。
    * 我们只排除已知表现不稳定的 Firefox，其余浏览器交给能力检测和实际渲染结果决定。
    */
-  return !is_firefox;
+  return !isFirefox;
 }

@@ -26,27 +26,27 @@ const DEFAULT_RELEASE_PAGE_URL =
 
 export function SettingsSystemSection() {
   const { t } = useI18n();
-  const [system_version, set_system_version] =
+  const [systemVersion, setSystemVersion] =
     useState<SystemVersionInfo | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [feedback_message, set_feedback_message] = useState<string | null>(
+  const [loading, setLoading] = useState(true);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(
     null,
   );
 
   useEffect(() => {
     let cancelled = false;
-    const load_system_version = async () => {
+    const loadSystemVersion = async () => {
       try {
-        set_loading(true);
+        setLoading(true);
         const result = await get_system_version_api();
         if (cancelled) {
           return;
         }
-        set_system_version(result);
-        set_feedback_message(null);
+        setSystemVersion(result);
+        setFeedbackMessage(null);
       } catch (error) {
         if (!cancelled) {
-          set_feedback_message(
+          setFeedbackMessage(
             error instanceof Error
               ? error.message
               : t("settings.system.version_failed"),
@@ -54,22 +54,22 @@ export function SettingsSystemSection() {
         }
       } finally {
         if (!cancelled) {
-          set_loading(false);
+          setLoading(false);
         }
       }
     };
-    void load_system_version();
+    void loadSystemVersion();
     return () => {
       cancelled = true;
     };
   }, [t]);
 
-  const release_page_url =
-    system_version?.release_url || DEFAULT_RELEASE_PAGE_URL;
-  const version_description = system_version
+  const releasePageUrl =
+    systemVersion?.release_url || DEFAULT_RELEASE_PAGE_URL;
+  const versionDescription = systemVersion
     ? t("settings.system.version_value")
-      .replace("{version}", system_version.version)
-      .replace("{target}", system_version.target)
+      .replace("{version}", systemVersion.version)
+      .replace("{target}", systemVersion.target)
     : loading
       ? t("settings.system.version_loading")
       : t("settings.system.version_unavailable");
@@ -80,9 +80,9 @@ export function SettingsSystemSection() {
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.system.section_title")}
         </h2>
-        {feedback_message ? (
+        {feedbackMessage ? (
           <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
-            {feedback_message}
+            {feedbackMessage}
           </span>
         ) : null}
       </div>
@@ -97,13 +97,13 @@ export function SettingsSystemSection() {
                 {t("settings.system.version_title")}
               </h3>
               <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {version_description}
+                {versionDescription}
               </p>
             </div>
           </div>
           <a
             className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
-            href={release_page_url}
+            href={releasePageUrl}
             rel="noreferrer"
             target="_blank"
           >

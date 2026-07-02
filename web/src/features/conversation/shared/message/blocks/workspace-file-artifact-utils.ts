@@ -7,7 +7,7 @@ import type {
   WorkspaceFileArtifactContent,
 } from "@/types/conversation/message";
 
-function collect_workspace_file_artifacts_from_content_blocks(
+function collectWorkspaceFileArtifactsFromContentBlocks(
   content: ContentBlock[],
 ): WorkspaceFileArtifactContent[] {
   return content.filter(
@@ -20,7 +20,7 @@ export function useWorkspaceFileArtifactsFromContent(
   content: ContentBlock[],
 ): WorkspaceFileArtifactContent[] {
   return useMemo(
-    () => collect_workspace_file_artifacts_from_content_blocks(content),
+    () => collectWorkspaceFileArtifactsFromContentBlocks(content),
     [content],
   );
 }

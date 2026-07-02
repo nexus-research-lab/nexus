@@ -18,15 +18,15 @@ interface OfficePreviewFallbackProps {
 }
 
 function OfficePreviewFallback({
-  agent_id,
+  agent_id: agentId,
   embedded,
-  file_name,
+  file_name: fileName,
   icon,
   label,
-  loading_label,
-  on_resize_start,
-  on_toggle_preview_focus,
-  is_preview_focused,
+  loading_label: loadingLabel,
+  on_resize_start: onResizeStart,
+  on_toggle_preview_focus: onTogglePreviewFocus,
+  is_preview_focused: isPreviewFocused,
   path,
 }: OfficePreviewFallbackProps & {
   icon: "spreadsheet" | "document";
@@ -41,17 +41,17 @@ function OfficePreviewFallback({
         <ConversationResizeHandle
           aria_label="调整编辑器宽度"
           class_name="flex"
-          on_mouse_down={on_resize_start}
+          on_mouse_down={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -68,13 +68,13 @@ function OfficePreviewFallback({
             </span>
           </>
         )}
-        title={file_name}
+        title={fileName}
       />
 
       <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--surface-panel-subtle-background)] p-8 text-center">
         <div className="max-w-xs">
           <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
-          <p className="mt-3 text-sm font-medium text-(--text-strong)">{loading_label}</p>
+          <p className="mt-3 text-sm font-medium text-(--text-strong)">{loadingLabel}</p>
         </div>
       </div>
     </>

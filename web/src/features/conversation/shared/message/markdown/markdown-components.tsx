@@ -30,8 +30,8 @@ interface CreateMarkdownComponentsOptions {
 const URL_TRAILING_PUNCTUATION_PATTERN = /[.,;:!?，。；：！？、]+$/u;
 const ALLOWED_MARKDOWN_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
-function is_block_code(node: MarkdownNodeLike | null | undefined, class_name: string | undefined, value: string): boolean {
-  if (class_name && /language-\w+/.test(class_name)) {
+function isBlockCode(node: MarkdownNodeLike | null | undefined, className: string | undefined, value: string): boolean {
+  if (className && /language-\w+/.test(className)) {
     return true;
   }
 
@@ -39,12 +39,12 @@ function is_block_code(node: MarkdownNodeLike | null | undefined, class_name: st
     return true;
   }
 
-  const start_line = node?.position?.start?.line;
-  const end_line = node?.position?.end?.line;
-  return typeof start_line === "number" && typeof end_line === "number" && start_line !== end_line;
+  const startLine = node?.position?.start?.line;
+  const endLine = node?.position?.end?.line;
+  return typeof startLine === "number" && typeof endLine === "number" && startLine !== endLine;
 }
 
-function get_plain_text_from_children(children: ReactNode): string | null {
+function getPlainTextFromChildren(children: ReactNode): string | null {
   if (typeof children === "string" || typeof children === "number") {
     return String(children);
   }
@@ -68,52 +68,52 @@ function get_plain_text_from_children(children: ReactNode): string | null {
   return parts.join("");
 }
 
-function count_char(value: string, char: string): number {
+function countChar(value: string, char: string): number {
   return Array.from(value).filter((item) => item === char).length;
 }
 
-function split_trailing_url_punctuation(value: string): { href: string; trailing_text: string } {
+function splitTrailingUrlPunctuation(value: string): { href: string; trailing_text: string } {
   let href = value.trim();
-  let trailing_text = "";
+  let trailingText = "";
 
-  const append_trailing = (text: string) => {
-    trailing_text = `${text}${trailing_text}`;
+  const appendTrailing = (text: string) => {
+    trailingText = `${text}${trailingText}`;
   };
 
   while (href) {
-    const punctuation_match = URL_TRAILING_PUNCTUATION_PATTERN.exec(href);
-    if (punctuation_match?.[0]) {
-      href = href.slice(0, -punctuation_match[0].length);
-      append_trailing(punctuation_match[0]);
+    const punctuationMatch = URL_TRAILING_PUNCTUATION_PATTERN.exec(href);
+    if (punctuationMatch?.[0]) {
+      href = href.slice(0, -punctuationMatch[0].length);
+      appendTrailing(punctuationMatch[0]);
       continue;
     }
 
-    const last_char = href.at(-1);
+    const lastChar = href.at(-1);
     if (
-      last_char === ")" &&
-      count_char(href, ")") > count_char(href, "(")
+      lastChar === ")" &&
+      countChar(href, ")") > countChar(href, "(")
     ) {
       href = href.slice(0, -1);
-      append_trailing(")");
+      appendTrailing(")");
       continue;
     }
 
     if (
-      last_char === "]" &&
-      count_char(href, "]") > count_char(href, "[")
+      lastChar === "]" &&
+      countChar(href, "]") > countChar(href, "[")
     ) {
       href = href.slice(0, -1);
-      append_trailing("]");
+      appendTrailing("]");
       continue;
     }
 
     break;
   }
 
-  return { href, trailing_text };
+  return { href, trailing_text: trailingText };
 }
 
-function normalize_external_markdown_href(href: string): string | null {
+function normalizeExternalMarkdownHref(href: string): string | null {
   const trimmed = href.trim();
   if (!trimmed) {
     return null;
@@ -128,7 +128,7 @@ function normalize_external_markdown_href(href: string): string | null {
   }
 }
 
-function compact_external_url_label(href: string): string {
+function compactExternalUrlLabel(href: string): string {
   if (href.startsWith("mailto:")) {
     return href.slice("mailto:".length);
   }
@@ -145,9 +145,9 @@ function compact_external_url_label(href: string): string {
 }
 
 export function create_markdown_components(
-  resolve_file_path: ResolveWorkspaceFilePath,
-  on_open_workspace_file?: (path: string) => void,
-  current_agent_id?: string | null,
+  resolveFilePath: ResolveWorkspaceFilePath,
+  onOpenWorkspaceFile?: (path: string) => void,
+  currentAgentId?: string | null,
   options: CreateMarkdownComponentsOptions = {},
 ): Components {
   return {
@@ -156,7 +156,7 @@ export function create_markdown_components(
     },
     code({ children, className, node }) {
       const value = String(children).replace(/\n$/, "");
-      if (is_block_code(node as MarkdownNodeLike | undefined, className, value)) {
+      if (isBlockCode(node as MarkdownNodeLike | undefined, className, value)) {
         const language = /language-(\w+)/.exec(className || "")?.[1] || "text";
         if (language.toLowerCase() === "mermaid" || language.toLowerCase() === "mmd") {
           return (
@@ -171,13 +171,13 @@ export function create_markdown_components(
         return <CodeBlock language={language} value={value} is_streaming={options.stream_code_blocks} />;
       }
 
-      const resolved_path = resolve_workspace_artifact_path(value, resolve_file_path);
-      if (resolved_path && on_open_workspace_file) {
+      const resolvedPath = resolve_workspace_artifact_path(value, resolveFilePath);
+      if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <WorkspaceFileButton
             label={value}
-            path={resolved_path}
-            on_open_workspace_file={on_open_workspace_file}
+            path={resolvedPath}
+            on_open_workspace_file={onOpenWorkspaceFile}
           />
         );
       }
@@ -212,88 +212,88 @@ export function create_markdown_components(
       );
     },
     a({ href, children }) {
-      const raw_href = String(href ?? "").trim();
-      if (!raw_href) {
+      const rawHref = String(href ?? "").trim();
+      if (!rawHref) {
         return <span className="text-primary">{children}</span>;
       }
 
-      const resolved_path = resolve_workspace_artifact_path(raw_href, resolve_file_path);
-      if (resolved_path && on_open_workspace_file) {
+      const resolvedPath = resolve_workspace_artifact_path(rawHref, resolveFilePath);
+      if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <WorkspaceFileButton
             label={children}
-            path={resolved_path}
-            on_open_workspace_file={on_open_workspace_file}
+            path={resolvedPath}
+            on_open_workspace_file={onOpenWorkspaceFile}
           />
         );
       }
 
-      if (raw_href.startsWith("#")) {
+      if (rawHref.startsWith("#")) {
         return (
           <a
             className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
-            href={raw_href}
+            href={rawHref}
           >
             {children}
           </a>
         );
       }
 
-      const { href: href_without_trailing, trailing_text } = split_trailing_url_punctuation(raw_href);
-      const external_href = normalize_external_markdown_href(href_without_trailing);
-      if (!external_href) {
+      const { href: hrefWithoutTrailing, trailing_text: trailingText } = splitTrailingUrlPunctuation(rawHref);
+      const externalHref = normalizeExternalMarkdownHref(hrefWithoutTrailing);
+      if (!externalHref) {
         return <span className="text-primary">{children}</span>;
       }
 
-      const plain_text = get_plain_text_from_children(children);
-      const plain_text_href = plain_text
-        ? normalize_external_markdown_href(split_trailing_url_punctuation(plain_text).href)
+      const plainText = getPlainTextFromChildren(children);
+      const plainTextHref = plainText
+        ? normalizeExternalMarkdownHref(splitTrailingUrlPunctuation(plainText).href)
         : null;
-      const link_children = plain_text && (
-        plain_text === raw_href ||
-        plain_text === href_without_trailing ||
-        plain_text === external_href ||
-        plain_text_href === external_href
+      const linkChildren = plainText && (
+        plainText === rawHref ||
+        plainText === hrefWithoutTrailing ||
+        plainText === externalHref ||
+        plainTextHref === externalHref
       )
-        ? compact_external_url_label(external_href)
+        ? compactExternalUrlLabel(externalHref)
         : children;
 
       return (
         <>
           <a
             className="inline max-w-full text-primary transition-all decoration-primary/30 underline-offset-4 break-words hover:underline"
-            href={external_href}
+            href={externalHref}
             rel="noopener noreferrer"
-            target={external_href.startsWith("mailto:") ? undefined : "_blank"}
-            title={external_href}
+            target={externalHref.startsWith("mailto:") ? undefined : "_blank"}
+            title={externalHref}
           >
-            {link_children}
+            {linkChildren}
           </a>
-          {trailing_text}
+          {trailingText}
         </>
       );
     },
     img({ alt, src }) {
-      const raw_src = String(src || "").trim();
-      const resolved_path = resolve_workspace_artifact_path(raw_src, resolve_file_path);
-      const image_src = resolved_path && current_agent_id
-        ? get_workspace_file_preview_url(current_agent_id, resolved_path)
-        : raw_src;
+      const rawSrc = String(src || "").trim();
+      const resolvedPath = resolve_workspace_artifact_path(rawSrc, resolveFilePath);
+      const imageSrc = resolvedPath && currentAgentId
+        ? get_workspace_file_preview_url(currentAgentId, resolvedPath)
+        : rawSrc;
       const image = (
         <img
           alt={alt || ""}
           className="my-3 block h-auto max-h-[420px] w-auto max-w-full rounded-[8px] border border-(--divider-subtle-color) object-contain sm:max-w-[560px]"
           loading="lazy"
-          src={image_src}
+          src={imageSrc}
         />
       );
 
-      if (resolved_path && on_open_workspace_file) {
+      if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <button
             className="block w-fit max-w-full text-left"
-            onClick={() => on_open_workspace_file(resolved_path)}
-            title={resolved_path}
+            onClick={() => onOpenWorkspaceFile(resolvedPath)}
+            title={resolvedPath}
             type="button"
           >
             {image}
@@ -346,14 +346,14 @@ export function create_markdown_components(
 }
 
 export function create_markdown_summary_components(
-  resolve_file_path: ResolveWorkspaceFilePath,
-  on_open_workspace_file?: (path: string) => void,
-  current_agent_id?: string | null,
+  resolveFilePath: ResolveWorkspaceFilePath,
+  onOpenWorkspaceFile?: (path: string) => void,
+  currentAgentId?: string | null,
 ): Components {
-  const base_components = create_markdown_components(resolve_file_path, on_open_workspace_file, current_agent_id);
+  const baseComponents = create_markdown_components(resolveFilePath, onOpenWorkspaceFile, currentAgentId);
 
   return {
-    ...base_components,
+    ...baseComponents,
     // 主时间线摘要需要保留 Markdown 的基础语义，但必须压成单行内联展示，
     // 不能再沿用正文里的块级布局，否则会把占位卡撑高并造成跳动。
     p({ children }) {

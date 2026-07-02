@@ -28,27 +28,27 @@ import type {
   ScheduledTaskDialogScheduleSnapshot,
 } from "./scheduled-task-dialog-types";
 
-function build_room_executor_selection_from_session_key(session_key: string, agent_id: string): string {
-  const parsed = parse_session_key(session_key);
-  const shared_session_key = parsed.kind === "room"
-    ? session_key
+function buildRoomExecutorSelectionFromSessionKey(sessionKey: string, agentId: string): string {
+  const parsed = parse_session_key(sessionKey);
+  const sharedSessionKey = parsed.kind === "room"
+    ? sessionKey
     : parsed.kind === "agent" && parsed.ref
       ? build_room_shared_session_key(parsed.ref)
-      : session_key;
-  if (!shared_session_key.trim() || !agent_id.trim()) {
+      : sessionKey;
+  if (!sharedSessionKey.trim() || !agentId.trim()) {
     return "";
   }
-  return build_room_executor_selection_key(shared_session_key, agent_id);
+  return build_room_executor_selection_key(sharedSessionKey, agentId);
 }
 
-function build_room_task_executor_selection_key(task: ScheduledTaskItem): string {
-  const execution_session_key = task.session_target.kind === "bound"
+function buildRoomTaskExecutorSelectionKey(task: ScheduledTaskItem): string {
+  const executionSessionKey = task.session_target.kind === "bound"
     ? task.session_target.bound_session_key
     : task.source?.session_key || "";
-  return build_room_executor_selection_from_session_key(execution_session_key, task.agent_id);
+  return buildRoomExecutorSelectionFromSessionKey(executionSessionKey, task.agent_id);
 }
 
-function build_default_schedule_snapshot(): ScheduledTaskDialogScheduleSnapshot {
+function buildDefaultScheduleSnapshot(): ScheduledTaskDialogScheduleSnapshot {
   return {
     schedule_kind: "every",
     every_value: "30",
@@ -56,12 +56,12 @@ function build_default_schedule_snapshot(): ScheduledTaskDialogScheduleSnapshot 
   };
 }
 
-export function build_default_dialog_initial_state(agent_id: string): ScheduledTaskDialogInitialState {
+export function build_default_dialog_initial_state(agentId: string): ScheduledTaskDialogInitialState {
   return {
     task_name: "",
     target_type: "agent",
     execution_kind: "agent",
-    selected_agent_id: agent_id,
+    selected_agent_id: agentId,
     selected_room_id: "",
     execution_mode: "existing",
     selected_session_key: "",
@@ -71,40 +71,40 @@ export function build_default_dialog_initial_state(agent_id: string): ScheduledT
     timezone: get_default_timezone(),
     enabled: true,
     instruction: "",
-    schedule_snapshot: build_default_schedule_snapshot(),
+    schedule_snapshot: buildDefaultScheduleSnapshot(),
   };
 }
 
-function build_task_schedule_snapshot(task: ScheduledTaskItem): ScheduledTaskDialogScheduleSnapshot {
+function buildTaskScheduleSnapshot(task: ScheduledTaskItem): ScheduledTaskDialogScheduleSnapshot {
   if (task.schedule.kind === "every") {
-    const interval_seconds = task.schedule.interval_seconds;
-    if (interval_seconds % 3600 === 0) {
+    const intervalSeconds = task.schedule.interval_seconds;
+    if (intervalSeconds % 3600 === 0) {
       return {
         schedule_kind: "every",
-        every_value: String(interval_seconds / 3600),
+        every_value: String(intervalSeconds / 3600),
         every_unit: "hours",
       };
     }
-    if (interval_seconds % 60 === 0) {
+    if (intervalSeconds % 60 === 0) {
       return {
         schedule_kind: "every",
-        every_value: String(interval_seconds / 60),
+        every_value: String(intervalSeconds / 60),
         every_unit: "minutes",
       };
     }
     return {
       schedule_kind: "every",
-      every_value: String(interval_seconds),
+      every_value: String(intervalSeconds),
       every_unit: "seconds",
     };
   }
 
   if (task.schedule.kind === "cron") {
-    const parsed_cron = parse_daily_cron_expression(task.schedule.cron_expression);
+    const parsedCron = parse_daily_cron_expression(task.schedule.cron_expression);
     return {
       schedule_kind: "cron",
-      daily_time: parsed_cron?.daily_time,
-      selected_weekdays: parsed_cron?.selected_weekdays,
+      daily_time: parsedCron?.daily_time,
+      selected_weekdays: parsedCron?.selected_weekdays,
     };
   }
 
@@ -119,24 +119,24 @@ function build_task_schedule_snapshot(task: ScheduledTaskItem): ScheduledTaskDia
 export function build_task_dialog_initial_state(
   task: ScheduledTaskItem,
 ): ScheduledTaskDialogInitialState {
-  const source_context_type = task.source?.context_type === "room" ? "room" : "agent";
-  const execution_kind = task.execution_kind === "script" ? "script" : "agent";
-  const execution_delivery_target = task.session_target.kind === "bound"
+  const sourceContextType = task.source?.context_type === "room" ? "room" : "agent";
+  const executionKind = task.execution_kind === "script" ? "script" : "agent";
+  const executionDeliveryTarget = task.session_target.kind === "bound"
     ? task.session_target.bound_session_key
-    : source_context_type === "room"
+    : sourceContextType === "room"
       ? (task.source?.session_key || "")
       : "";
 
   return {
     task_name: task.name,
-    target_type: execution_kind === "script" ? "agent" : source_context_type,
-    execution_kind,
-    selected_agent_id: execution_kind === "script"
+    target_type: executionKind === "script" ? "agent" : sourceContextType,
+    execution_kind: executionKind,
+    selected_agent_id: executionKind === "script"
       ? task.agent_id
-      : source_context_type === "agent"
+      : sourceContextType === "agent"
       ? (task.source?.context_id || task.agent_id)
       : task.agent_id,
-    selected_room_id: execution_kind === "script" ? "" : source_context_type === "room" ? (task.source?.context_id || "") : "",
+    selected_room_id: executionKind === "script" ? "" : sourceContextType === "room" ? (task.source?.context_id || "") : "",
     execution_mode: task.session_target.kind === "main"
       ? "main"
       : task.session_target.kind === "named"
@@ -144,34 +144,34 @@ export function build_task_dialog_initial_state(
         : task.session_target.kind === "isolated"
           ? "temporary"
           : "existing",
-    selected_session_key: source_context_type === "room"
-      ? build_room_task_executor_selection_key(task)
+    selected_session_key: sourceContextType === "room"
+      ? buildRoomTaskExecutorSelectionKey(task)
       : task.session_target.kind === "bound"
         ? task.session_target.bound_session_key
         : "",
-    reply_mode: execution_kind === "script"
+    reply_mode: executionKind === "script"
       ? "none"
       : task.delivery.mode === "none"
       ? "none"
       : task.delivery.mode === "explicit"
         && task.delivery.to
-        && execution_delivery_target
-        && task.delivery.to !== execution_delivery_target
+        && executionDeliveryTarget
+        && task.delivery.to !== executionDeliveryTarget
         ? "selected"
-        : task.delivery.mode === "explicit" && !execution_delivery_target
+        : task.delivery.mode === "explicit" && !executionDeliveryTarget
           ? "selected"
           : "execution",
     selected_reply_session_key: task.delivery.mode === "explicit"
       && task.delivery.to
-      && task.delivery.to !== execution_delivery_target
-      ? source_context_type === "room"
-        ? build_room_executor_selection_from_session_key(task.delivery.to, task.agent_id)
+      && task.delivery.to !== executionDeliveryTarget
+      ? sourceContextType === "room"
+        ? buildRoomExecutorSelectionFromSessionKey(task.delivery.to, task.agent_id)
         : task.delivery.to
       : "",
     dedicated_session_key: task.session_target.kind === "named" ? task.session_target.named_session_key : "",
     timezone: task.schedule.timezone?.trim() || get_default_timezone(),
     enabled: task.enabled,
     instruction: task.instruction,
-    schedule_snapshot: build_task_schedule_snapshot(task),
+    schedule_snapshot: buildTaskScheduleSnapshot(task),
   };
 }

@@ -31,27 +31,27 @@ interface DmConversationHeaderProps {
   active_tab: RoomSurfaceTabKey;
   on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
-  on_select_conversation: (conversation_id: string) => void;
-  on_close_conversation: (conversation_id: string) => Promise<void>;
+  on_select_conversation: (conversationId: string) => void;
+  on_close_conversation: (conversationId: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
 }
 
 const DmConversationHeaderView = memo(({
-  conversation_id,
+  conversation_id: conversationId,
   conversations,
-  current_agent_name,
-  current_agent_avatar,
+  current_agent_name: currentAgentName,
+  current_agent_avatar: currentAgentAvatar,
   todos,
-  active_tab,
-  on_replay_tour,
-  on_change_tab,
-  on_select_conversation,
-  on_close_conversation,
-  on_create_conversation,
+  active_tab: activeTab,
+  on_replay_tour: onReplayTour,
+  on_change_tab: onChangeTab,
+  on_select_conversation: onSelectConversation,
+  on_close_conversation: onCloseConversation,
+  on_create_conversation: onCreateConversation,
 }: DmConversationHeaderProps) => {
   const { t } = useI18n();
-  const header_title = current_agent_name?.trim() || t("room.untitled_dm");
-  const dm_tabs: {
+  const headerTitle = currentAgentName?.trim() || t("room.untitled_dm");
+  const dmTabs: {
     key: RoomSurfaceTabKey;
     label: string;
     icon: LucideIcon;
@@ -62,31 +62,31 @@ const DmConversationHeaderView = memo(({
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
-  const conversation_tabs = (
+  const conversationTabs = (
     <WorkspaceConversationTabs
       conversations={conversations}
-      conversation_id={conversation_id}
-      on_close_conversation={on_close_conversation}
-      on_create_conversation={on_create_conversation}
-      on_select_conversation={on_select_conversation}
+      conversation_id={conversationId}
+      on_close_conversation={onCloseConversation}
+      on_create_conversation={onCreateConversation}
+      on_select_conversation={onSelectConversation}
       tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
 
   return (
     <WorkspaceSurfaceHeader
-      active_tab={active_tab}
+      active_tab={activeTab}
       badge="DM"
       density="compact"
-      leading={<UiAgentAvatar avatar={current_agent_avatar} class_name="h-full w-full border-0 shadow-none" name={header_title} size="sm" />}
-      on_change_tab={on_change_tab}
-      tabs_leading={conversation_tabs}
+      leading={<UiAgentAvatar avatar={currentAgentAvatar} class_name="h-full w-full border-0 shadow-none" name={headerTitle} size="sm" />}
+      on_change_tab={onChangeTab}
+      tabs_leading={conversationTabs}
       tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
-      tabs={dm_tabs}
-      title={header_title}
-      trailing={on_replay_tour ? (
+      tabs={dmTabs}
+      title={headerTitle}
+      trailing={onReplayTour ? (
         <div className="flex items-center gap-2">
-          <WorkspaceSurfaceToolbarAction onClick={on_replay_tour}>
+          <WorkspaceSurfaceToolbarAction onClick={onReplayTour}>
             <Compass className="h-3.5 w-3.5" />
             {t("common.view_guide")}
           </WorkspaceSurfaceToolbarAction>

@@ -38,42 +38,42 @@ interface GoalPanelProps {
   on_goal_change?: (goal: Goal | null) => void;
 }
 
-function is_goal_unavailable(error: unknown) {
+function isGoalUnavailable(error: unknown) {
   return error instanceof ApiRequestError && error.status === 403;
 }
 
-function is_goal_missing(error: unknown) {
+function isGoalMissing(error: unknown) {
   return error instanceof ApiRequestError && error.status === 404;
 }
 
-function normalize_budget(value: string): number | null {
+function normalizeBudget(value: string): number | null {
   const parsed = Number.parseInt(value.trim(), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function next_budget_input(goal: Goal | null, value: string): number | null | undefined {
+function nextBudgetInput(goal: Goal | null, value: string): number | null | undefined {
   if (value.trim() !== "") {
-    return normalize_budget(value);
+    return normalizeBudget(value);
   }
   return goal?.token_budget ? null : undefined;
 }
 
-function should_prompt_resume_goal(status: GoalStatus): boolean {
+function shouldPromptResumeGoal(status: GoalStatus): boolean {
   return status === "blocked" || status === "usage_limited";
 }
 
-function can_resume_status(status: GoalStatus): boolean {
+function canResumeStatus(status: GoalStatus): boolean {
   return status === "paused" || status === "blocked" || status === "usage_limited";
 }
 
-function can_resume_goal(goal: Goal): boolean {
+function canResumeGoal(goal: Goal): boolean {
   return (
-    can_resume_status(goal.status) ||
+    canResumeStatus(goal.status) ||
     (goal.status === "active" && (goal.empty_progress_count ?? 0) > 0)
   );
 }
 
-function draft_save_loading_label(phase: GoalDraftSavePhase): string | null {
+function draftSaveLoadingLabel(phase: GoalDraftSavePhase): string | null {
   switch (phase) {
     case "updating":
       return "正在更新目标";
@@ -82,192 +82,192 @@ function draft_save_loading_label(phase: GoalDraftSavePhase): string | null {
   }
 }
 
-function resume_prompt_key(goal: Goal): string {
+function resumePromptKey(goal: Goal): string {
   return `${goal.id}:${goal.status}:${goal.updated_at}`;
 }
 
 export function GoalPanel({
-  session_key,
+  session_key: sessionKey,
   compact = false,
-  continuation_hold = null,
+  continuation_hold: continuationHold = null,
   disabled = false,
-  activity_key = null,
-  is_generating = false,
-  scope_label = "会话 Goal",
-  status_extra = null,
-  on_goal_change,
+  activity_key: activityKey = null,
+  is_generating: isGenerating = false,
+  scope_label: scopeLabel = "会话 Goal",
+  status_extra: statusExtra = null,
+  on_goal_change: onGoalChange,
 }: GoalPanelProps) {
-  const [goal, set_goal] = useState<Goal | null>(null);
-  const [is_available, set_is_available] = useState(true);
-  const [is_loading, set_is_loading] = useState(false);
-  const [is_editing, set_is_editing] = useState(false);
-  const [draft_save_phase, set_draft_save_phase] =
+  const [goal, setGoal] = useState<Goal | null>(null);
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftSavePhase, setDraftSavePhase] =
     useState<GoalDraftSavePhase>("idle");
-  const [objective, set_objective] = useState("");
-  const [budget, set_budget] = useState("");
-  const [error, set_error] = useState<string | null>(null);
-  const [resume_prompt_goal, set_resume_prompt_goal] = useState<Goal | null>(null);
-  const [is_clear_confirm_open, set_is_clear_confirm_open] = useState(false);
-  const resume_prompt_key_ref = useRef<string | null>(null);
+  const [objective, setObjective] = useState("");
+  const [budget, setBudget] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [resumePromptGoal, setResumePromptGoal] = useState<Goal | null>(null);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const resumePromptKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    on_goal_change?.(goal);
-  }, [goal, on_goal_change]);
+    onGoalChange?.(goal);
+  }, [goal, onGoalChange]);
 
-  const maybe_prompt_resume_goal = useCallback(
+  const maybePromptResumeGoal = useCallback(
     (current: Goal) => {
-      if (disabled || !should_prompt_resume_goal(current.status)) {
-        set_resume_prompt_goal(null);
+      if (disabled || !shouldPromptResumeGoal(current.status)) {
+        setResumePromptGoal(null);
         return;
       }
-      const key = resume_prompt_key(current);
-      if (resume_prompt_key_ref.current === key) {
+      const key = resumePromptKey(current);
+      if (resumePromptKeyRef.current === key) {
         return;
       }
-      resume_prompt_key_ref.current = key;
-      set_resume_prompt_goal(current);
+      resumePromptKeyRef.current = key;
+      setResumePromptGoal(current);
     },
     [disabled],
   );
 
-  const refresh_goal = useCallback(async () => {
-    if (!session_key) {
-      set_goal(null);
-      set_is_editing(false);
+  const refreshGoal = useCallback(async () => {
+    if (!sessionKey) {
+      setGoal(null);
+      setIsEditing(false);
       return;
     }
-    set_is_loading(true);
+    setIsLoading(true);
     try {
-      const current = await get_current_goal_api(session_key);
+      const current = await get_current_goal_api(sessionKey);
       if (!current) {
-        set_goal(null);
-        set_resume_prompt_goal(null);
-        set_is_available(true);
-        set_error(null);
+        setGoal(null);
+        setResumePromptGoal(null);
+        setIsAvailable(true);
+        setError(null);
         return;
       }
-      set_goal(current);
-      maybe_prompt_resume_goal(current);
-      set_is_available(true);
-      set_error(null);
+      setGoal(current);
+      maybePromptResumeGoal(current);
+      setIsAvailable(true);
+      setError(null);
     } catch (err) {
-      if (is_goal_unavailable(err)) {
-        set_is_available(false);
-        set_goal(null);
-        set_is_editing(false);
-        set_resume_prompt_goal(null);
+      if (isGoalUnavailable(err)) {
+        setIsAvailable(false);
+        setGoal(null);
+        setIsEditing(false);
+        setResumePromptGoal(null);
         return;
       }
-      if (is_goal_missing(err)) {
-        set_goal(null);
-        set_resume_prompt_goal(null);
-        set_error(null);
+      if (isGoalMissing(err)) {
+        setGoal(null);
+        setResumePromptGoal(null);
+        setError(null);
         return;
       }
-      set_error(err instanceof Error ? err.message : "Goal 状态读取失败");
+      setError(err instanceof Error ? err.message : "Goal 状态读取失败");
     } finally {
-      set_is_loading(false);
+      setIsLoading(false);
     }
-  }, [maybe_prompt_resume_goal, session_key]);
+  }, [maybePromptResumeGoal, sessionKey]);
 
   useEffect(() => {
-    void refresh_goal();
-  }, [refresh_goal, activity_key]);
+    void refreshGoal();
+  }, [refreshGoal, activityKey]);
 
-  const begin_editing_goal = useCallback((current: Goal) => {
-    set_objective(current.objective);
-    set_budget(current.token_budget ? String(current.token_budget) : "");
-    set_is_editing(true);
+  const beginEditingGoal = useCallback((current: Goal) => {
+    setObjective(current.objective);
+    setBudget(current.token_budget ? String(current.token_budget) : "");
+    setIsEditing(true);
   }, []);
 
-  const submit_goal = async (event: FormEvent) => {
+  const submitGoal = async (event: FormEvent) => {
     event.preventDefault();
-    if (!session_key || !goal || !objective.trim()) return;
-    set_error(null);
-    set_draft_save_phase("updating");
-    set_is_loading(true);
+    if (!sessionKey || !goal || !objective.trim()) return;
+    setError(null);
+    setDraftSavePhase("updating");
+    setIsLoading(true);
     try {
-      const token_budget = next_budget_input(goal, budget);
+      const tokenBudget = nextBudgetInput(goal, budget);
       const updated = await update_goal_api(goal.id, {
         objective: objective.trim(),
-        token_budget,
+        token_budget: tokenBudget,
       });
-      set_goal(updated);
-      set_objective("");
-      set_budget("");
-      set_is_editing(false);
-      set_error(null);
+      setGoal(updated);
+      setObjective("");
+      setBudget("");
+      setIsEditing(false);
+      setError(null);
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "Goal 保存失败");
+      setError(err instanceof Error ? err.message : "Goal 保存失败");
     } finally {
-      set_draft_save_phase("idle");
-      set_is_loading(false);
+      setDraftSavePhase("idle");
+      setIsLoading(false);
     }
   };
 
-  const mutate_goal = async (action: (goal_id: string) => Promise<Goal>) => {
+  const mutateGoal = async (action: (goalId: string) => Promise<Goal>) => {
     if (!goal || disabled) return;
-    set_is_loading(true);
+    setIsLoading(true);
     try {
       const updated = await action(goal.id);
-      set_goal(updated);
-      set_error(null);
+      setGoal(updated);
+      setError(null);
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "Goal 操作失败");
+      setError(err instanceof Error ? err.message : "Goal 操作失败");
     } finally {
-      set_is_loading(false);
+      setIsLoading(false);
     }
   };
 
-  const clear_current_goal = async () => {
+  const clearCurrentGoal = async () => {
     if (!goal || disabled) return;
-    set_is_loading(true);
+    setIsLoading(true);
     try {
       const result = await clear_goal_api(goal.id);
       if (result.cleared) {
-        set_goal(null);
-        set_is_editing(false);
+        setGoal(null);
+        setIsEditing(false);
       }
-      set_error(null);
+      setError(null);
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "Goal 操作失败");
+      setError(err instanceof Error ? err.message : "Goal 操作失败");
     } finally {
-      set_is_loading(false);
+      setIsLoading(false);
     }
   };
 
-  const confirm_resume_prompt = () => {
-    set_resume_prompt_goal(null);
-    void mutate_goal(resume_goal_api);
+  const confirmResumePrompt = () => {
+    setResumePromptGoal(null);
+    void mutateGoal(resume_goal_api);
   };
 
-  const cancel_resume_prompt = () => {
-    set_resume_prompt_goal(null);
+  const cancelResumePrompt = () => {
+    setResumePromptGoal(null);
   };
 
-  const confirm_clear_goal = () => {
-    set_is_clear_confirm_open(false);
-    void clear_current_goal();
+  const confirmClearGoal = () => {
+    setIsClearConfirmOpen(false);
+    void clearCurrentGoal();
   };
 
-  const start_editing_goal = () => {
+  const startEditingGoal = () => {
     if (!goal) return;
-    begin_editing_goal(goal);
+    beginEditingGoal(goal);
   };
 
-  const cancel_editing_goal = () => {
-    set_objective("");
-    set_budget("");
-    set_draft_save_phase("idle");
-    set_is_editing(false);
+  const cancelEditingGoal = () => {
+    setObjective("");
+    setBudget("");
+    setDraftSavePhase("idle");
+    setIsEditing(false);
   };
 
-  const can_resume_current_goal = useMemo(
-    () => (goal ? can_resume_goal(goal) : false),
+  const canResumeCurrentGoal = useMemo(
+    () => (goal ? canResumeGoal(goal) : false),
     [goal],
   );
 
-  if (!is_available || !session_key) {
+  if (!isAvailable || !sessionKey) {
     return null;
   }
 
@@ -278,54 +278,54 @@ export function GoalPanel({
   return (
     <>
       <GoalStatusStrip
-        can_resume={can_resume_current_goal}
+        can_resume={canResumeCurrentGoal}
         compact={compact}
-        continuation_hold={continuation_hold}
+        continuation_hold={continuationHold}
         disabled={disabled}
         error={error}
         goal={goal}
-        is_generating={is_generating}
-        is_loading={is_loading}
-        scope_label={scope_label}
-        status_extra={status_extra}
-        on_clear_request={() => set_is_clear_confirm_open(true)}
-        on_edit={start_editing_goal}
-        on_pause={() => void mutate_goal(pause_goal_api)}
-        on_refresh={() => void refresh_goal()}
-        on_resume={() => void mutate_goal(resume_goal_api)}
+        is_generating={isGenerating}
+        is_loading={isLoading}
+        scope_label={scopeLabel}
+        status_extra={statusExtra}
+        on_clear_request={() => setIsClearConfirmOpen(true)}
+        on_edit={startEditingGoal}
+        on_pause={() => void mutateGoal(pause_goal_api)}
+        on_refresh={() => void refreshGoal()}
+        on_resume={() => void mutateGoal(resume_goal_api)}
       />
-      {is_editing ? (
+      {isEditing ? (
         <GoalDraftForm
           budget={budget}
           disabled={disabled}
           error={error}
-          is_loading={is_loading}
-          loading_label={draft_save_loading_label(draft_save_phase)}
+          is_loading={isLoading}
+          loading_label={draftSaveLoadingLabel(draftSavePhase)}
           objective={objective}
-          on_budget_change={set_budget}
-          on_cancel={cancel_editing_goal}
-          on_objective_change={set_objective}
-          on_submit={submit_goal}
+          on_budget_change={setBudget}
+          on_cancel={cancelEditingGoal}
+          on_objective_change={setObjective}
+          on_submit={submitGoal}
         />
       ) : null}
       <ConfirmDialog
         cancel_text="取消"
         confirm_text="清除"
-        is_open={is_clear_confirm_open}
+        is_open={isClearConfirmOpen}
         message={`Goal：${goal.objective}`}
         title="清除当前 Goal?"
         variant="danger"
-        on_cancel={() => set_is_clear_confirm_open(false)}
-        on_confirm={confirm_clear_goal}
+        on_cancel={() => setIsClearConfirmOpen(false)}
+        on_confirm={confirmClearGoal}
       />
       <ConfirmDialog
         cancel_text="暂不继续"
         confirm_text="继续"
-        is_open={resume_prompt_goal !== null}
-        message={`Goal：${resume_prompt_goal?.objective ?? ""}`}
+        is_open={resumePromptGoal !== null}
+        message={`Goal：${resumePromptGoal?.objective ?? ""}`}
         title="继续当前 Goal?"
-        on_cancel={cancel_resume_prompt}
-        on_confirm={confirm_resume_prompt}
+        on_cancel={cancelResumePrompt}
+        on_confirm={confirmResumePrompt}
       />
     </>
   );

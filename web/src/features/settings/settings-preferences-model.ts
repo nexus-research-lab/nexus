@@ -56,17 +56,17 @@ export function normalize_preferences(preferences: UserPreferences | null): User
           ["project"]),
       ],
     },
-    default_image_model_selection: normalize_model_selection_preference(
+    default_image_model_selection: normalizeModelSelectionPreference(
       preferences?.default_image_model_selection ?? fallback.default_image_model_selection,
     ),
-    default_background_model_selection: normalize_model_selection_preference(
+    default_background_model_selection: normalizeModelSelectionPreference(
       preferences?.default_background_model_selection ?? fallback.default_background_model_selection,
     ),
     updated_at: preferences?.updated_at,
   };
 }
 
-function normalize_model_selection_preference(
+function normalizeModelSelectionPreference(
   selection: UserPreferences["default_image_model_selection"],
 ): UserPreferences["default_image_model_selection"] {
   const provider = selection?.provider?.trim();
@@ -77,7 +77,7 @@ function normalize_model_selection_preference(
   return { provider, model };
 }
 
-function encode_default_model_value(provider: string, model: string): string {
+function encodeDefaultModelValue(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
 }
 
@@ -91,12 +91,12 @@ export function decode_default_model_value(value: string): { provider: string; m
     if (typeof provider !== "string" || typeof model !== "string") {
       return null;
     }
-    const normalized_provider = provider.trim();
-    const normalized_model = model.trim();
-    if (!normalized_provider || !normalized_model) {
+    const normalizedProvider = provider.trim();
+    const normalizedModel = model.trim();
+    if (!normalizedProvider || !normalizedModel) {
       return null;
     }
-    return { provider: normalized_provider, model: normalized_model };
+    return { provider: normalizedProvider, model: normalizedModel };
   } catch {
     return null;
   }
@@ -106,22 +106,22 @@ export function encode_optional_model_selection(
   provider?: string | null,
   model?: string | null,
 ): string {
-  const normalized_provider = provider?.trim();
-  const normalized_model = model?.trim();
-  if (!normalized_provider || !normalized_model) {
+  const normalizedProvider = provider?.trim();
+  const normalizedModel = model?.trim();
+  if (!normalizedProvider || !normalizedModel) {
     return "";
   }
-  return encode_default_model_value(normalized_provider, normalized_model);
+  return encodeDefaultModelValue(normalizedProvider, normalizedModel);
 }
 
-export function build_default_model_options(provider_options: ProviderOption[]) {
-  return provider_options.flatMap((provider) => (
+export function build_default_model_options(providerOptions: ProviderOption[]) {
+  return providerOptions.flatMap((provider) => (
     provider.models.map((model) => {
-      const provider_label = provider.display_name || provider.provider;
-      const model_label = model.display_name || model.model_id;
+      const providerLabel = provider.display_name || provider.provider;
+      const modelLabel = model.display_name || model.model_id;
       return {
-        value: encode_default_model_value(provider.provider, model.model_id),
-        label: `${provider_label} / ${model_label}`,
+        value: encodeDefaultModelValue(provider.provider, model.model_id),
+        label: `${providerLabel} / ${modelLabel}`,
       };
     })
   ));

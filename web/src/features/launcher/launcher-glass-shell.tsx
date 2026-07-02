@@ -24,17 +24,17 @@ const OUTER_INNER_PATH_2 = create_closed_spline_path(
   create_inner_points(DEFAULT_OUTER_POINTS, 0.992, 0.99),
 );
 
-export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
-  const gradient_id = useId();
-  const outer_edge_glow_gradient_id = useId();
-  const outer_edge_glow_id = useId();
-  const tint_gradient_id = useId();
+export function HeroBlobShell({ children, class_name: className }: HeroBlobShellProps) {
+  const gradientId = useId();
+  const outerEdgeGlowGradientId = useId();
+  const outerEdgeGlowId = useId();
+  const tintGradientId = useId();
 
   return (
     <div
       className={cn(
         "relative w-full max-w-[404px] sm:max-w-[980px]",
-        class_name,
+        className,
       )}
     >
       <div
@@ -50,7 +50,7 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
         >
           <defs>
             <linearGradient
-              id={gradient_id}
+              id={gradientId}
               gradientUnits="userSpaceOnUse"
               x1="142"
               x2="900"
@@ -70,7 +70,7 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
                 style={{ stopColor: "var(--launcher-hero-stop-3)" }}
               />
             </linearGradient>
-            <radialGradient id={tint_gradient_id} cx="20%" cy="18%" r="88%">
+            <radialGradient id={tintGradientId} cx="20%" cy="18%" r="88%">
               <stop
                 offset="0%"
                 style={{ stopColor: "var(--launcher-hero-tint-1)" }}
@@ -89,7 +89,7 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
               />
             </radialGradient>
             <linearGradient
-              id={outer_edge_glow_gradient_id}
+              id={outerEdgeGlowGradientId}
               gradientUnits="userSpaceOnUse"
               x1="176"
               x2="888"
@@ -102,7 +102,7 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
               <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
             </linearGradient>
             <filter
-              id={outer_edge_glow_id}
+              id={outerEdgeGlowId}
               x="-20%"
               y="-80%"
               width="140%"
@@ -115,29 +115,29 @@ export function HeroBlobShell({ children, class_name }: HeroBlobShellProps) {
           <path
             d={OUTER_PATH}
             fill="none"
-            filter={`url(#${outer_edge_glow_id})`}
+            filter={`url(#${outerEdgeGlowId})`}
             opacity={0.76}
-            stroke={`url(#${outer_edge_glow_gradient_id})`}
+            stroke={`url(#${outerEdgeGlowGradientId})`}
             strokeWidth="16"
           />
           <path
             d={OUTER_INNER_PATH_1}
             fill="none"
-            filter={`url(#${outer_edge_glow_id})`}
+            filter={`url(#${outerEdgeGlowId})`}
             opacity={0.6}
             stroke="rgba(255,255,255,0.18)"
             strokeWidth="12"
           />
           <path
             d={OUTER_PATH}
-            fill={`url(#${gradient_id})`}
+            fill={`url(#${gradientId})`}
             opacity="0.96"
             stroke="var(--launcher-hero-stroke)"
             strokeWidth="1.8"
           />
           <path
             d={OUTER_PATH}
-            fill={`url(#${tint_gradient_id})`}
+            fill={`url(#${tintGradientId})`}
             style={{ mixBlendMode: "soft-light" }}
           />
           <path

@@ -27,7 +27,7 @@ interface ImageSource {
   workspace_path: string | null;
 }
 
-function first_non_empty(...values: Array<string | null | undefined>): string {
+function firstNonEmpty(...values: Array<string | null | undefined>): string {
   for (const value of values) {
     const trimmed = value?.trim();
     if (trimmed) {
@@ -37,7 +37,7 @@ function first_non_empty(...values: Array<string | null | undefined>): string {
   return "";
 }
 
-function data_url(data: string, mime_type?: string | null): string {
+function dataUrl(data: string, mimeType?: string | null): string {
   const trimmed = data.trim();
   if (!trimmed) {
     return "";
@@ -45,55 +45,55 @@ function data_url(data: string, mime_type?: string | null): string {
   if (/^data:/i.test(trimmed)) {
     return trimmed;
   }
-  return `data:${mime_type?.trim() || "image/png"};base64,${trimmed}`;
+  return `data:${mimeType?.trim() || "image/png"};base64,${trimmed}`;
 }
 
-function resolve_image_source(
+function resolveImageSource(
   block: ImageContent,
-  resolve_file_path: (value: string) => string | null,
-  current_agent_id?: string | null,
+  resolveFilePath: (value: string) => string | null,
+  currentAgentId?: string | null,
 ): ImageSource {
   const source = block.source;
-  const source_data = first_non_empty(source?.data, block.data);
-  if (source_data) {
-    return { src: data_url(source_data, first_non_empty(block.mime_type, source?.mime_type, source?.media_type)), workspace_path: null };
+  const sourceData = firstNonEmpty(source?.data, block.data);
+  if (sourceData) {
+    return { src: dataUrl(sourceData, firstNonEmpty(block.mime_type, source?.mime_type, source?.media_type)), workspace_path: null };
   }
 
-  const raw_path = first_non_empty(block.path, block.url, block.uri, source?.path, source?.url, source?.uri);
-  if (!raw_path) {
+  const rawPath = firstNonEmpty(block.path, block.url, block.uri, source?.path, source?.url, source?.uri);
+  if (!rawPath) {
     return { src: "", workspace_path: null };
   }
-  if (/^(https?:|data:|blob:)/i.test(raw_path)) {
-    return { src: raw_path, workspace_path: null };
+  if (/^(https?:|data:|blob:)/i.test(rawPath)) {
+    return { src: rawPath, workspace_path: null };
   }
 
-  const workspace_path = resolve_workspace_artifact_path(raw_path, resolve_file_path);
-  if (workspace_path && current_agent_id) {
+  const workspacePath = resolve_workspace_artifact_path(rawPath, resolveFilePath);
+  if (workspacePath && currentAgentId) {
     return {
-      src: get_workspace_file_preview_url(current_agent_id, workspace_path),
-      workspace_path,
+      src: get_workspace_file_preview_url(currentAgentId, workspacePath),
+      workspace_path: workspacePath,
     };
   }
-  return { src: raw_path, workspace_path: null };
+  return { src: rawPath, workspace_path: null };
 }
 
-export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }: ImageBlockProps) {
-  const resolve_file_path = useMarkdownFileResolver(workspace_agent_id);
-  const current_agent_id = useMarkdownCurrentAgentID(workspace_agent_id);
-  const { src, workspace_path } = resolve_image_source(block, resolve_file_path, current_agent_id);
-  const can_open = Boolean(workspace_path && on_open_workspace_file);
-  const can_download = Boolean(workspace_path && current_agent_id);
-  const file_action_copy = get_workspace_file_external_action_copy(workspace_path?.split("/").at(-1) || "image");
-  const handle_external_action = () => {
-    if (!workspace_path || !current_agent_id) {
+export function ImageBlock({ block, on_open_workspace_file: onOpenWorkspaceFile, workspace_agent_id: workspaceAgentId }: ImageBlockProps) {
+  const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
+  const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
+  const { src, workspace_path: workspacePath } = resolveImageSource(block, resolveFilePath, currentAgentId);
+  const canOpen = Boolean(workspacePath && onOpenWorkspaceFile);
+  const canDownload = Boolean(workspacePath && currentAgentId);
+  const fileActionCopy = get_workspace_file_external_action_copy(workspacePath?.split("/").at(-1) || "image");
+  const handleExternalAction = () => {
+    if (!workspacePath || !currentAgentId) {
       return;
     }
     void download_workspace_file_api(
-      current_agent_id,
-      workspace_path,
-      workspace_path.split("/").at(-1) || "image",
+      currentAgentId,
+      workspacePath,
+      workspacePath.split("/").at(-1) || "image",
     ).catch((error) => {
-      console.error(`[ImageBlock] ${file_action_copy.label} workspace 图片失败:`, error);
+      console.error(`[ImageBlock] ${fileActionCopy.label} workspace 图片失败:`, error);
     });
   };
 
@@ -111,11 +111,11 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
       <button
         className={cn(
           "block w-fit max-w-full rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1 text-left shadow-[0_1px_0_rgba(0,0,0,0.03)]",
-          can_open ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5" : "cursor-default",
+          canOpen ? "cursor-pointer transition-colors hover:border-primary/30 hover:bg-primary/5" : "cursor-default",
         )}
-        disabled={!can_open}
-        onClick={() => workspace_path && on_open_workspace_file?.(workspace_path)}
-        title={workspace_path || block.alt || "generated image"}
+        disabled={!canOpen}
+        onClick={() => workspacePath && onOpenWorkspaceFile?.(workspacePath)}
+        title={workspacePath || block.alt || "generated image"}
         type="button"
       >
         <img
@@ -130,20 +130,20 @@ export function ImageBlock({ block, on_open_workspace_file, workspace_agent_id }
           {block.alt}
         </figcaption>
       ) : null}
-      {can_download ? (
+      {canDownload ? (
         <button
-          aria-label={file_action_copy.aria_label}
+          aria-label={fileActionCopy.aria_label}
           className="mt-2 inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary"
-          onClick={handle_external_action}
-          title={file_action_copy.title}
+          onClick={handleExternalAction}
+          title={fileActionCopy.title}
           type="button"
         >
-          {file_action_copy.mode === "reveal" ? (
+          {fileActionCopy.mode === "reveal" ? (
             <FolderOpen className="h-3.5 w-3.5" />
           ) : (
             <Download className="h-3.5 w-3.5" />
           )}
-          {file_action_copy.label}
+          {fileActionCopy.label}
         </button>
       ) : null}
     </figure>

@@ -27,24 +27,24 @@ interface TranslateParams {
   [key: string]: string | number;
 }
 
-function detect_initial_locale(): Locale {
+function detectInitialLocale(): Locale {
   if (typeof window === "undefined") {
     return DEFAULT_LOCALE;
   }
 
-  const saved_locale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-  if (saved_locale === "zh" || saved_locale === "en") {
-    return saved_locale;
+  const savedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  if (savedLocale === "zh" || savedLocale === "en") {
+    return savedLocale;
   }
 
-  const navigator_locale = window.navigator.language.toLowerCase();
-  if (navigator_locale.startsWith("zh")) {
+  const navigatorLocale = window.navigator.language.toLowerCase();
+  if (navigatorLocale.startsWith("zh")) {
     return "zh";
   }
   return "en";
 }
 
-function format_message(template: string, params?: TranslateParams): string {
+function formatMessage(template: string, params?: TranslateParams): string {
   if (!params) {
     return template;
   }
@@ -59,7 +59,7 @@ function format_message(template: string, params?: TranslateParams): string {
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, set_locale] = useState<Locale>(detect_initial_locale);
+  const [locale, setLocale] = useState<Locale>(detectInitialLocale);
 
   useEffect(() => {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
@@ -68,8 +68,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const value: I18nContextValue = {
     locale,
-    set_locale,
-    t: (key, params) => format_message(MESSAGES[locale][key] ?? MESSAGES[DEFAULT_LOCALE][key], params),
+    set_locale: setLocale,
+    t: (key, params) => formatMessage(MESSAGES[locale][key] ?? MESSAGES[DEFAULT_LOCALE][key], params),
   };
 
   return (

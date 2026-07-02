@@ -19,14 +19,14 @@ interface ScheduledTaskRealtimeRefreshOptions {
 }
 
 export function useScheduledTaskRealtimeRefresh({
-  enabled_count,
-  refresh_tasks,
-  running_count,
+  enabled_count: enabledCount,
+  refresh_tasks: refreshTasks,
+  running_count: runningCount,
 }: ScheduledTaskRealtimeRefreshOptions): void {
-  const ws_url = get_agent_ws_url();
+  const wsUrl = get_agent_ws_url();
 
-  const handle_realtime_message = useCallback((raw_message: unknown) => {
-    const event = raw_message as EventMessage;
+  const handleRealtimeMessage = useCallback((rawMessage: unknown) => {
+    const event = rawMessage as EventMessage;
     if (event.event_type !== "scheduled_task_changed") {
       return;
     }
@@ -34,68 +34,68 @@ export function useScheduledTaskRealtimeRefresh({
     if (typeof document !== "undefined" && document.visibilityState !== "visible") {
       return;
     }
-    void refresh_tasks({ silent: true }).catch((err: unknown) => {
+    void refreshTasks({ silent: true }).catch((err: unknown) => {
       console.debug("[scheduled-tasks] Realtime refresh failed:", err);
     });
-  }, [refresh_tasks]);
+  }, [refreshTasks]);
 
-  const { send: ws_send, state: ws_state } = useWebSocket({
-    url: ws_url,
+  const { send: wsSend, state: wsState } = useWebSocket({
+    url: wsUrl,
     protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,
-    on_message: handle_realtime_message,
+    on_message: handleRealtimeMessage,
   });
 
-  useAppEventSubscription(ws_send, ws_state);
+  useAppEventSubscription(wsSend, wsState);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const handle_page_revalidate = () => {
+    const handlePageRevalidate = () => {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_tasks({ silent: true }).catch((err: unknown) => {
+      void refreshTasks({ silent: true }).catch((err: unknown) => {
         console.debug("[scheduled-tasks] Background refresh failed:", err);
       });
     };
 
-    window.addEventListener("focus", handle_page_revalidate);
-    document.addEventListener("visibilitychange", handle_page_revalidate);
+    window.addEventListener("focus", handlePageRevalidate);
+    document.addEventListener("visibilitychange", handlePageRevalidate);
 
     return () => {
-      window.removeEventListener("focus", handle_page_revalidate);
-      document.removeEventListener("visibilitychange", handle_page_revalidate);
+      window.removeEventListener("focus", handlePageRevalidate);
+      document.removeEventListener("visibilitychange", handlePageRevalidate);
     };
-  }, [refresh_tasks]);
+  }, [refreshTasks]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
-    if (ws_state === "connected") {
+    if (wsState === "connected") {
       return;
     }
-    const poll_interval_ms = running_count > 0
+    const pollIntervalMs = runningCount > 0
       ? RUNNING_TASK_FALLBACK_POLL_INTERVAL_MS
-      : enabled_count > 0 ? ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS : 0;
-    if (!poll_interval_ms) {
+      : enabledCount > 0 ? ENABLED_TASK_FALLBACK_POLL_INTERVAL_MS : 0;
+    if (!pollIntervalMs) {
       return;
     }
 
-    const interval_id = window.setInterval(() => {
+    const intervalId = window.setInterval(() => {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_tasks({ silent: true }).catch((err: unknown) => {
+      void refreshTasks({ silent: true }).catch((err: unknown) => {
         console.debug("[scheduled-tasks] Background refresh failed:", err);
       });
-    }, poll_interval_ms);
+    }, pollIntervalMs);
 
-    return () => window.clearInterval(interval_id);
-  }, [enabled_count, refresh_tasks, running_count, ws_state]);
+    return () => window.clearInterval(intervalId);
+  }, [enabledCount, refreshTasks, runningCount, wsState]);
 }

@@ -25,11 +25,11 @@ const EASE_Y1 = 1;
 const EASE_X2 = 0.32;
 const EASE_Y2 = 1;
 
-function sample_cubic(a: number, b: number, c: number, t: number): number {
+function sampleCubic(a: number, b: number, c: number, t: number): number {
   return ((a * t + b) * t + c) * t;
 }
 
-function sample_cubic_derivative(
+function sampleCubicDerivative(
   a: number,
   b: number,
   c: number,
@@ -38,8 +38,8 @@ function sample_cubic_derivative(
   return (3 * a * t + 2 * b) * t + c;
 }
 
-function solve_bezier_progress(progress: number): number {
-  const clamped_progress = Math.min(Math.max(progress, 0), 1);
+function solveBezierProgress(progress: number): number {
+  const clampedProgress = Math.min(Math.max(progress, 0), 1);
   const cx = 3 * EASE_X1;
   const bx = 3 * (EASE_X2 - EASE_X1) - cx;
   const ax = 1 - cx - bx;
@@ -47,10 +47,10 @@ function solve_bezier_progress(progress: number): number {
   const by = 3 * (EASE_Y2 - EASE_Y1) - cy;
   const ay = 1 - cy - by;
 
-  let t = clamped_progress;
+  let t = clampedProgress;
   for (let iteration = 0; iteration < 5; iteration += 1) {
-    const x = sample_cubic(ax, bx, cx, t) - clamped_progress;
-    const derivative = sample_cubic_derivative(ax, bx, cx, t);
+    const x = sampleCubic(ax, bx, cx, t) - clampedProgress;
+    const derivative = sampleCubicDerivative(ax, bx, cx, t);
     if (Math.abs(derivative) < 1e-6) {
       break;
     }
@@ -61,11 +61,11 @@ function solve_bezier_progress(progress: number): number {
   let upper = 1;
   t = Math.min(Math.max(t, 0), 1);
   for (let iteration = 0; iteration < 8; iteration += 1) {
-    const x = sample_cubic(ax, bx, cx, t);
-    if (Math.abs(x - clamped_progress) < 1e-5) {
+    const x = sampleCubic(ax, bx, cx, t);
+    if (Math.abs(x - clampedProgress) < 1e-5) {
       break;
     }
-    if (x > clamped_progress) {
+    if (x > clampedProgress) {
       upper = t;
     } else {
       lower = t;
@@ -73,7 +73,7 @@ function solve_bezier_progress(progress: number): number {
     t = (lower + upper) / 2;
   }
 
-  return sample_cubic(ay, by, cy, t);
+  return sampleCubic(ay, by, cy, t);
 }
 
 interface UseFollowScrollOptions {
@@ -119,258 +119,258 @@ interface UseFollowScrollReturn {
 }
 
 export function useFollowScroll({
-  message_count,
-  auxiliary_block_count = 0,
-  auxiliary_block_key = null,
-  is_loading,
-  session_key,
-  history_prepend_token = 0,
+  message_count: messageCount,
+  auxiliary_block_count: auxiliaryBlockCount = 0,
+  auxiliary_block_key: auxiliaryBlockKey = null,
+  is_loading: isLoading,
+  session_key: sessionKey,
+  history_prepend_token: historyPrependToken = 0,
 }: UseFollowScrollOptions): UseFollowScrollReturn {
-  const scroll_ref = useRef<HTMLDivElement>(null);
-  const feed_ref = useRef<HTMLDivElement>(null);
-  const bottom_anchor_ref = useRef<HTMLDivElement>(null);
-  const should_follow_latest_ref = useRef(true);
-  const last_scroll_top_ref = useRef(0);
-  const pending_scroll_frame_ref = useRef<number | null>(null);
-  const pending_scroll_inner_frame_ref = useRef<number | null>(null);
-  const pending_prepend_restore_ref = useRef<{
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
+  const bottomAnchorRef = useRef<HTMLDivElement>(null);
+  const shouldFollowLatestRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
+  const pendingScrollFrameRef = useRef<number | null>(null);
+  const pendingScrollInnerFrameRef = useRef<number | null>(null);
+  const pendingPrependRestoreRef = useRef<{
     scroll_height: number;
     scroll_top: number;
   } | null>(null);
-  const touch_start_y_ref = useRef<number | null>(null);
-  const show_scroll_to_bottom_ref = useRef(false);
-  const [show_scroll_to_bottom, setShowScrollToBottom] = useResettableState(false, session_key ?? "");
+  const touchStartYRef = useRef<number | null>(null);
+  const showScrollToBottomRef = useRef(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useResettableState(false, sessionKey ?? "");
 
   // ==================== 跟随状态 ====================
 
-  const set_scroll_to_bottom_visibility = useCallback((visible: boolean) => {
-    if (show_scroll_to_bottom_ref.current === visible) {
+  const setScrollToBottomVisibility = useCallback((visible: boolean) => {
+    if (showScrollToBottomRef.current === visible) {
       return;
     }
 
-    show_scroll_to_bottom_ref.current = visible;
+    showScrollToBottomRef.current = visible;
     setShowScrollToBottom(visible);
   }, []);
 
-  const update_follow_state = useCallback(() => {
-    const container = scroll_ref.current;
+  const updateFollowState = useCallback(() => {
+    const container = scrollRef.current;
     if (!container) return;
 
-    const distance_to_bottom =
+    const distanceToBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight;
-    const is_near_bottom = distance_to_bottom <= BOTTOM_THRESHOLD_PX;
-    should_follow_latest_ref.current = is_near_bottom;
-    set_scroll_to_bottom_visibility(!is_near_bottom);
-  }, [set_scroll_to_bottom_visibility]);
+    const isNearBottom = distanceToBottom <= BOTTOM_THRESHOLD_PX;
+    shouldFollowLatestRef.current = isNearBottom;
+    setScrollToBottomVisibility(!isNearBottom);
+  }, [setScrollToBottomVisibility]);
 
   // ==================== 滚动调度 ====================
 
-  const cancel_pending_scroll = useCallback(() => {
-    if (pending_scroll_frame_ref.current !== null) {
-      cancelAnimationFrame(pending_scroll_frame_ref.current);
-      pending_scroll_frame_ref.current = null;
+  const cancelPendingScroll = useCallback(() => {
+    if (pendingScrollFrameRef.current !== null) {
+      cancelAnimationFrame(pendingScrollFrameRef.current);
+      pendingScrollFrameRef.current = null;
     }
-    if (pending_scroll_inner_frame_ref.current !== null) {
-      cancelAnimationFrame(pending_scroll_inner_frame_ref.current);
-      pending_scroll_inner_frame_ref.current = null;
+    if (pendingScrollInnerFrameRef.current !== null) {
+      cancelAnimationFrame(pendingScrollInnerFrameRef.current);
+      pendingScrollInnerFrameRef.current = null;
     }
   }, []);
 
-  const schedule_scroll_to_bottom = useCallback(
+  const scheduleScrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
-      cancel_pending_scroll();
+      cancelPendingScroll();
 
-      const container = scroll_ref.current;
+      const container = scrollRef.current;
       if (!container) return;
 
       // 流式输出时直接贴到底部，避免等待两帧后再修正位置导致换行抖动
       if (behavior === "auto") {
         container.scrollTop = container.scrollHeight;
-        last_scroll_top_ref.current = container.scrollTop;
+        lastScrollTopRef.current = container.scrollTop;
         return;
       }
 
-      pending_scroll_frame_ref.current = requestAnimationFrame(() => {
-        const next = scroll_ref.current;
+      pendingScrollFrameRef.current = requestAnimationFrame(() => {
+        const next = scrollRef.current;
         if (!next) return;
-        const target_top = next.scrollHeight;
-        const start_top = next.scrollTop;
-        const distance = target_top - start_top;
+        const targetTop = next.scrollHeight;
+        const startTop = next.scrollTop;
+        const distance = targetTop - startTop;
 
         if (Math.abs(distance) < 1) {
-          next.scrollTop = target_top;
-          last_scroll_top_ref.current = next.scrollTop;
+          next.scrollTop = targetTop;
+          lastScrollTopRef.current = next.scrollTop;
           return;
         }
 
-        const start_time = performance.now();
+        const startTime = performance.now();
 
         // 用固定时长动画替代浏览器默认 smooth，
         // 这样不同容器的滚动速度更一致，也更容易微调。
         const step = (now: number) => {
-          const elapsed = now - start_time;
+          const elapsed = now - startTime;
           const progress = Math.min(elapsed / SMOOTH_SCROLL_DURATION_MS, 1);
-          const eased_progress = solve_bezier_progress(progress);
+          const easedProgress = solveBezierProgress(progress);
 
-          next.scrollTop = start_top + distance * eased_progress;
-          last_scroll_top_ref.current = next.scrollTop;
+          next.scrollTop = startTop + distance * easedProgress;
+          lastScrollTopRef.current = next.scrollTop;
 
           if (progress < 1) {
-            pending_scroll_inner_frame_ref.current =
+            pendingScrollInnerFrameRef.current =
               requestAnimationFrame(step);
           } else {
-            pending_scroll_inner_frame_ref.current = null;
+            pendingScrollInnerFrameRef.current = null;
           }
         };
 
-        pending_scroll_inner_frame_ref.current = requestAnimationFrame(step);
+        pendingScrollInnerFrameRef.current = requestAnimationFrame(step);
       });
     },
-    [cancel_pending_scroll],
+    [cancelPendingScroll],
   );
 
-  const scroll_to_bottom = useCallback(
+  const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
-      should_follow_latest_ref.current = true;
-      set_scroll_to_bottom_visibility(false);
-      schedule_scroll_to_bottom(behavior);
+      shouldFollowLatestRef.current = true;
+      setScrollToBottomVisibility(false);
+      scheduleScrollToBottom(behavior);
     },
-    [schedule_scroll_to_bottom, set_scroll_to_bottom_visibility],
+    [scheduleScrollToBottom, setScrollToBottomVisibility],
   );
 
-  const prepare_history_prepend_restore = useCallback(() => {
-    const container = scroll_ref.current;
+  const prepareHistoryPrependRestore = useCallback(() => {
+    const container = scrollRef.current;
     if (!container) {
       return;
     }
-    cancel_pending_scroll();
-    should_follow_latest_ref.current = false;
-    pending_prepend_restore_ref.current = {
+    cancelPendingScroll();
+    shouldFollowLatestRef.current = false;
+    pendingPrependRestoreRef.current = {
       scroll_height: container.scrollHeight,
       scroll_top: container.scrollTop,
     };
-  }, [cancel_pending_scroll]);
+  }, [cancelPendingScroll]);
 
-  const cancel_history_prepend_restore = useCallback(() => {
-    pending_prepend_restore_ref.current = null;
+  const cancelHistoryPrependRestore = useCallback(() => {
+    pendingPrependRestoreRef.current = null;
   }, []);
 
   // ==================== 副作用 ====================
 
   // 新消息 / loading 变化时自动滚动
   useLayoutEffect(() => {
-    if (!should_follow_latest_ref.current) {
+    if (!shouldFollowLatestRef.current) {
       // 用户主动离开底部后，仅保持按钮可见，避免流式消息期间重复触发同步 setState。
-      set_scroll_to_bottom_visibility(true);
+      setScrollToBottomVisibility(true);
       return;
     }
-    schedule_scroll_to_bottom(is_loading ? "auto" : "smooth");
+    scheduleScrollToBottom(isLoading ? "auto" : "smooth");
   }, [
-    auxiliary_block_count,
-    auxiliary_block_key,
-    is_loading,
-    message_count,
-    schedule_scroll_to_bottom,
-    set_scroll_to_bottom_visibility,
+    auxiliaryBlockCount,
+    auxiliaryBlockKey,
+    isLoading,
+    messageCount,
+    scheduleScrollToBottom,
+    setScrollToBottomVisibility,
   ]);
 
   useLayoutEffect(() => {
-    const container = scroll_ref.current;
-    const snapshot = pending_prepend_restore_ref.current;
+    const container = scrollRef.current;
+    const snapshot = pendingPrependRestoreRef.current;
     if (!container || !snapshot) {
       return;
     }
-    pending_prepend_restore_ref.current = null;
-    const height_delta = container.scrollHeight - snapshot.scroll_height;
-    const next_scroll_top = snapshot.scroll_top + height_delta;
-    container.scrollTop = next_scroll_top;
-    last_scroll_top_ref.current = next_scroll_top;
-    set_scroll_to_bottom_visibility(true);
-  }, [history_prepend_token, set_scroll_to_bottom_visibility]);
+    pendingPrependRestoreRef.current = null;
+    const heightDelta = container.scrollHeight - snapshot.scroll_height;
+    const nextScrollTop = snapshot.scroll_top + heightDelta;
+    container.scrollTop = nextScrollTop;
+    lastScrollTopRef.current = nextScrollTop;
+    setScrollToBottomVisibility(true);
+  }, [historyPrependToken, setScrollToBottomVisibility]);
 
   // feed 内容高度变化时保持跟随
   useEffect(() => {
-    const feed = feed_ref.current;
+    const feed = feedRef.current;
     if (!feed || typeof ResizeObserver === "undefined") return;
 
     const observer = new ResizeObserver(() => {
-      if (!should_follow_latest_ref.current) {
-        set_scroll_to_bottom_visibility(true);
+      if (!shouldFollowLatestRef.current) {
+        setScrollToBottomVisibility(true);
         return;
       }
-      schedule_scroll_to_bottom("auto");
+      scheduleScrollToBottom("auto");
     });
 
     observer.observe(feed);
     return () => observer.disconnect();
-  }, [schedule_scroll_to_bottom, set_scroll_to_bottom_visibility]);
+  }, [scheduleScrollToBottom, setScrollToBottomVisibility]);
 
   // session 切换时重置
   useEffect(() => {
-    should_follow_latest_ref.current = true;
-    show_scroll_to_bottom_ref.current = false;
-    last_scroll_top_ref.current = scroll_ref.current?.scrollTop || 0;
-    pending_prepend_restore_ref.current = null;
-  }, [session_key]);
+    shouldFollowLatestRef.current = true;
+    showScrollToBottomRef.current = false;
+    lastScrollTopRef.current = scrollRef.current?.scrollTop || 0;
+    pendingPrependRestoreRef.current = null;
+  }, [sessionKey]);
 
   // 卸载时清理
   useEffect(() => {
-    return () => cancel_pending_scroll();
-  }, [cancel_pending_scroll]);
+    return () => cancelPendingScroll();
+  }, [cancelPendingScroll]);
 
   // ==================== 事件处理器 ====================
 
-  const on_scroll = useCallback(() => {
-    const container = scroll_ref.current;
+  const onScroll = useCallback(() => {
+    const container = scrollRef.current;
     if (!container) return;
 
-    const current_scroll_top = container.scrollTop;
-    const is_scrolling_up = current_scroll_top < last_scroll_top_ref.current;
-    last_scroll_top_ref.current = current_scroll_top;
+    const currentScrollTop = container.scrollTop;
+    const isScrollingUp = currentScrollTop < lastScrollTopRef.current;
+    lastScrollTopRef.current = currentScrollTop;
 
-    if (is_scrolling_up) cancel_pending_scroll();
-    update_follow_state();
-  }, [cancel_pending_scroll, update_follow_state]);
+    if (isScrollingUp) cancelPendingScroll();
+    updateFollowState();
+  }, [cancelPendingScroll, updateFollowState]);
 
-  const on_wheel = useCallback(
+  const onWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
-      if (event.deltaY < 0) cancel_pending_scroll();
+      if (event.deltaY < 0) cancelPendingScroll();
     },
-    [cancel_pending_scroll],
+    [cancelPendingScroll],
   );
 
-  const on_touch_start = useCallback(
+  const onTouchStart = useCallback(
     (event: React.TouchEvent<HTMLDivElement>) => {
-      touch_start_y_ref.current = event.touches[0]?.clientY ?? null;
+      touchStartYRef.current = event.touches[0]?.clientY ?? null;
     },
     [],
   );
 
-  const on_touch_move = useCallback(
+  const onTouchMove = useCallback(
     (event: React.TouchEvent<HTMLDivElement>) => {
-      const current_y = event.touches[0]?.clientY;
-      if (current_y === undefined || touch_start_y_ref.current === null) return;
-      if (current_y > touch_start_y_ref.current) cancel_pending_scroll();
+      const currentY = event.touches[0]?.clientY;
+      if (currentY === undefined || touchStartYRef.current === null) return;
+      if (currentY > touchStartYRef.current) cancelPendingScroll();
     },
-    [cancel_pending_scroll],
+    [cancelPendingScroll],
   );
 
-  const on_touch_end = useCallback(() => {
-    touch_start_y_ref.current = null;
+  const onTouchEnd = useCallback(() => {
+    touchStartYRef.current = null;
   }, []);
 
   return {
-    scroll_ref,
-    feed_ref,
-    bottom_anchor_ref,
-    show_scroll_to_bottom,
-    scroll_to_bottom,
-    prepare_history_prepend_restore,
-    cancel_history_prepend_restore,
-    on_scroll,
-    on_wheel,
-    on_touch_start,
-    on_touch_move,
-    on_touch_end,
+    scroll_ref: scrollRef,
+    feed_ref: feedRef,
+    bottom_anchor_ref: bottomAnchorRef,
+    show_scroll_to_bottom: showScrollToBottom,
+    scroll_to_bottom: scrollToBottom,
+    prepare_history_prepend_restore: prepareHistoryPrependRestore,
+    cancel_history_prepend_restore: cancelHistoryPrependRestore,
+    on_scroll: onScroll,
+    on_wheel: onWheel,
+    on_touch_start: onTouchStart,
+    on_touch_move: onTouchMove,
+    on_touch_end: onTouchEnd,
   };
 }

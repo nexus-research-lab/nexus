@@ -57,19 +57,19 @@ interface SidebarListItemProps {
 export function SidebarListItem({
   icon,
   label,
-  label_class_name,
-  label_style,
+  label_class_name: labelClassName,
+  label_style: labelStyle,
   meta,
-  is_active = false,
-  active_variant = "default",
-  on_click,
-  on_rename,
-  on_delete,
+  is_active: isActive = false,
+  active_variant: activeVariant = "default",
+  on_click: onClick,
+  on_rename: onRename,
+  on_delete: onDelete,
 }: SidebarListItemProps) {
   const { t } = useI18n();
-  const has_actions = Boolean(on_rename || on_delete);
-  const is_avatar_emphasis_active = is_active && active_variant === "avatar_emphasis";
-  const handle_key_down = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+  const hasActions = Boolean(onRename || onDelete);
+  const isAvatarEmphasisActive = isActive && activeVariant === "avatar_emphasis";
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {
       return;
     }
@@ -77,35 +77,35 @@ export function SidebarListItem({
       return;
     }
     event.preventDefault();
-    on_click();
+    onClick();
   };
 
   return (
     <div
       className={cn(
         "group/item relative box-border flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-[12px] px-2.5 py-[7px] transition-[background,color,transform] duration-(--motion-duration-fast)",
-        is_avatar_emphasis_active
+        isAvatarEmphasisActive
           ? "text-(--text-strong)"
-          : is_active
+          : isActive
           ? "text-(--text-strong)"
           : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
       )}
-      onClick={on_click}
-      onKeyDown={handle_key_down}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      style={is_avatar_emphasis_active ? undefined : is_active ? {
+      style={isAvatarEmphasisActive ? undefined : isActive ? {
         background: "color-mix(in srgb, var(--surface-interactive-active-background) 72%, transparent)",
       } : undefined}
     >
-      {is_active && !is_avatar_emphasis_active ? (
+      {isActive && !isAvatarEmphasisActive ? (
         <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
       ) : null}
 
       <div
         className={cn(
           SIDEBAR_LIST_ITEM_CLASS_NAME,
-          is_active
+          isActive
             ? "font-medium text-(--text-strong)"
             : "text-(--text-default) group-hover/item:text-(--text-strong)",
         )}
@@ -113,14 +113,14 @@ export function SidebarListItem({
         <span
           className={cn(
             "relative flex h-6 w-6 shrink-0 items-center justify-center",
-            is_avatar_emphasis_active
+            isAvatarEmphasisActive
               ? "text-(--text-strong)"
-              : is_active
+              : isActive
                 ? "text-(--primary)"
                 : "text-(--icon-muted)",
           )}
         >
-          {is_avatar_emphasis_active ? (
+          {isAvatarEmphasisActive ? (
             <>
               {/* 中文注释：系统入口激活时只强调头像，不复用常规列表项的底色和左侧指示条。 */}
               <span className="pointer-events-none absolute inset-[-3px] rounded-full bg-[conic-gradient(from_180deg,color-mix(in_srgb,var(--primary)_72%,transparent),transparent_32%,color-mix(in_srgb,var(--primary)_38%,white),transparent_76%,color-mix(in_srgb,var(--primary)_72%,transparent))] opacity-90 animate-[spin_5.5s_linear_infinite]" />
@@ -134,8 +134,8 @@ export function SidebarListItem({
           )}
         </span>
         <span
-          className={cn("min-w-0 flex-1 truncate", label_class_name)}
-          style={label_style}
+          className={cn("min-w-0 flex-1 truncate", labelClassName)}
+          style={labelStyle}
         >
           {label}
         </span>
@@ -143,7 +143,7 @@ export function SidebarListItem({
           <span
             className={cn(
               "shrink-0 text-[12px] font-medium tabular-nums",
-              is_active ? "text-(--text-muted)" : "text-(--text-soft)",
+              isActive ? "text-(--text-muted)" : "text-(--text-soft)",
             )}
           >
             {meta}
@@ -151,32 +151,32 @@ export function SidebarListItem({
         ) : null}
       </div>
 
-      {has_actions ? (
+      {hasActions ? (
         <div className="flex shrink-0 items-center gap-1">
-          {on_rename ? (
+          {onRename ? (
             <UiListActionButton
               aria-label={t("home.rename")}
               onClick={() => {
-                on_rename();
+                onRename();
               }}
               stop_propagation
               title={t("home.rename")}
-              visibility={is_active ? "visible" : "subtle"}
+              visibility={isActive ? "visible" : "subtle"}
             >
               <Pencil className="h-3.5 w-3.5" />
             </UiListActionButton>
           ) : null}
 
-          {on_delete ? (
+          {onDelete ? (
             <UiListActionButton
               aria-label={t("common.delete")}
               onClick={() => {
-                on_delete();
+                onDelete();
               }}
               stop_propagation
               title={t("common.delete")}
               tone="danger"
-              visibility={is_active ? "visible" : "subtle"}
+              visibility={isActive ? "visible" : "subtle"}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </UiListActionButton>
@@ -188,22 +188,22 @@ export function SidebarListItem({
 }
 
 function CollapsibleSection({
-  section_id,
+  section_id: sectionId,
   title,
   count,
   icon,
   children,
-  on_title_click,
-  is_title_active = false,
-  on_action,
-  action_title = "新建",
-  action_icon,
+  on_title_click: onTitleClick,
+  is_title_active: isTitleActive = false,
+  on_action: onAction,
+  action_title: actionTitle = "新建",
+  action_icon: actionIcon,
 }: CollapsibleSectionProps) {
-  const is_collapsed = useSidebarStore(
-    (s) => s.collapsed_sections[section_id] ?? false,
+  const isCollapsed = useSidebarStore(
+    (s) => s.collapsed_sections[sectionId] ?? false,
   );
   const toggle = useSidebarStore((s) => s.toggle_section);
-  const title_content = (
+  const titleContent = (
     <>
       {icon ? <span className="flex items-center">{icon}</span> : null}
       <span>{title}</span>
@@ -216,17 +216,17 @@ function CollapsibleSection({
   return (
     <section className="border-b divider-subtle pb-1.5 last:border-b-0">
       <div className="group/section flex w-full items-center justify-between px-2.5 py-2">
-        {on_title_click ? (
+        {onTitleClick ? (
           <div className="flex min-w-0 flex-1 items-center">
             <button
               className={cn(
                 SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME,
                 "rounded-full text-(--icon-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--icon-default)",
               )}
-              onClick={() => toggle(section_id)}
+              onClick={() => toggle(sectionId)}
               type="button"
             >
-              {is_collapsed ? (
+              {isCollapsed ? (
                 <ChevronRight className="h-3.5 w-3.5" />
               ) : (
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -236,49 +236,49 @@ function CollapsibleSection({
               className={cn(
                 SIDEBAR_SECTION_TRIGGER_CLASS_NAME,
                 "min-w-0 flex-1",
-                is_title_active && "text-(--text-strong)",
+                isTitleActive && "text-(--text-strong)",
               )}
-              onClick={on_title_click}
+              onClick={onTitleClick}
               type="button"
             >
-              {title_content}
+              {titleContent}
             </button>
           </div>
         ) : (
           <button
             className={SIDEBAR_SECTION_TRIGGER_CLASS_NAME}
-            onClick={() => toggle(section_id)}
+            onClick={() => toggle(sectionId)}
             type="button"
           >
             <span className={SIDEBAR_SECTION_CHEVRON_SLOT_CLASS_NAME}>
-              {is_collapsed ? (
+              {isCollapsed ? (
                 <ChevronRight className="h-3.5 w-3.5" />
               ) : (
                 <ChevronDown className="h-3.5 w-3.5" />
               )}
             </span>
-            {title_content}
+            {titleContent}
           </button>
         )}
 
         {/* 右侧操作按钮，固定宽度占位保证对齐 */}
-        {on_action ? (
+        {onAction ? (
           <UiListActionButton
-            onClick={on_action}
+            onClick={onAction}
             shape="round"
             size="md"
             stop_propagation
-            title={action_title}
+            title={actionTitle}
             visibility="visible"
           >
-            {action_icon}
+            {actionIcon}
           </UiListActionButton>
         ) : (
           <span className="flex h-5 w-5 shrink-0" />
         )}
       </div>
 
-      {!is_collapsed ? (
+      {!isCollapsed ? (
         <div className="flex flex-col gap-0.5 pb-1">{children}</div>
       ) : null}
     </section>

@@ -25,8 +25,8 @@ export const useConversationStore = create<ConversationStoreState>()(
       name: "agent-ui-conversations",
       storage: create_browser_json_storage(),
       version: 4,
-      migrate: (persisted_state: unknown): PersistedConversationStoreState => {
-        const state = (persisted_state ?? {}) as PersistedConversationStoreState;
+      migrate: (persistedState: unknown): PersistedConversationStoreState => {
+        const state = (persistedState ?? {}) as PersistedConversationStoreState;
         return {
           conversations: Array.isArray(state.conversations) ? state.conversations : [],
         };

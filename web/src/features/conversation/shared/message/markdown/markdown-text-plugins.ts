@@ -32,64 +32,64 @@ const ENCODED_INLINE_HTML_TAG_PATTERN = new RegExp(
   "gis",
 );
 
-function create_inline_html_node(tag_name: string, value: string): MarkdownAstNode {
+function createInlineHtmlNode(tagName: string, value: string): MarkdownAstNode {
   return {
     children: [{ type: "text", value }],
     data: {
-      hName: tag_name.toLowerCase(),
+      hName: tagName.toLowerCase(),
       hProperties: {},
     },
     type: "inlineHtmlTag",
   };
 }
 
-function replace_child(parent: MarkdownAstNode, index: number, next_nodes: MarkdownAstNode[]) {
-  parent.children?.splice(index, 1, ...next_nodes);
+function replaceChild(parent: MarkdownAstNode, index: number, nextNodes: MarkdownAstNode[]) {
+  parent.children?.splice(index, 1, ...nextNodes);
 }
 
-function visit_children(node: MarkdownAstNode, visitor: (node: MarkdownAstNode) => void) {
+function visitChildren(node: MarkdownAstNode, visitor: (node: MarkdownAstNode) => void) {
   visitor(node);
-  node.children?.forEach((child) => visit_children(child, visitor));
+  node.children?.forEach((child) => visitChildren(child, visitor));
 }
 
-function split_text_by_br(value: string): MarkdownAstNode[] {
+function splitTextByBr(value: string): MarkdownAstNode[] {
   const nodes: MarkdownAstNode[] = [];
-  const br_pattern = /<\s*br\s*\/?>/gi;
-  let last_index = 0;
+  const brPattern = /<\s*br\s*\/?>/gi;
+  let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = br_pattern.exec(value)) !== null) {
-    if (match.index > last_index) {
-      nodes.push({ type: "text", value: value.slice(last_index, match.index) });
+  while ((match = brPattern.exec(value)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push({ type: "text", value: value.slice(lastIndex, match.index) });
     }
     nodes.push({ type: "break" });
-    last_index = match.index + match[0].length;
+    lastIndex = match.index + match[0].length;
   }
 
-  if (last_index < value.length) {
-    nodes.push({ type: "text", value: value.slice(last_index) });
+  if (lastIndex < value.length) {
+    nodes.push({ type: "text", value: value.slice(lastIndex) });
   }
 
   return nodes;
 }
 
-function split_text_by_encoded_inline_html(value: string): MarkdownAstNode[] {
+function splitTextByEncodedInlineHtml(value: string): MarkdownAstNode[] {
   const nodes: MarkdownAstNode[] = [];
-  let last_index = 0;
+  let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   ENCODED_INLINE_HTML_TAG_PATTERN.lastIndex = 0;
   while ((match = ENCODED_INLINE_HTML_TAG_PATTERN.exec(value)) !== null) {
-    if (match.index > last_index) {
-      nodes.push({ type: "text", value: value.slice(last_index, match.index) });
+    if (match.index > lastIndex) {
+      nodes.push({ type: "text", value: value.slice(lastIndex, match.index) });
     }
 
-    nodes.push(create_inline_html_node(match[1], match[2]));
-    last_index = match.index + match[0].length;
+    nodes.push(createInlineHtmlNode(match[1], match[2]));
+    lastIndex = match.index + match[0].length;
   }
 
-  if (last_index < value.length) {
-    nodes.push({ type: "text", value: value.slice(last_index) });
+  if (lastIndex < value.length) {
+    nodes.push({ type: "text", value: value.slice(lastIndex) });
   }
 
   return nodes.length > 0 ? nodes : [{ type: "text", value }];
@@ -97,7 +97,7 @@ function split_text_by_encoded_inline_html(value: string): MarkdownAstNode[] {
 
 export function remarkMarkdownBreaks() {
   return (tree: MarkdownAstNode) => {
-    visit_children(tree, (node) => {
+    visitChildren(tree, (node) => {
       if (!node.children) {
         return;
       }
@@ -105,14 +105,14 @@ export function remarkMarkdownBreaks() {
       for (let index = 0; index < node.children.length; index += 1) {
         const child = node.children[index];
         if (child.type === "html" && /^\s*<\s*br\s*\/?>\s*$/i.test(child.value ?? "")) {
-          replace_child(node, index, [{ type: "break" }]);
+          replaceChild(node, index, [{ type: "break" }]);
           continue;
         }
 
         if (child.type === "text" && /<\s*br\s*\/?>/i.test(child.value ?? "")) {
-          const next_nodes = split_text_by_br(child.value ?? "");
-          replace_child(node, index, next_nodes);
-          index += next_nodes.length - 1;
+          const nextNodes = splitTextByBr(child.value ?? "");
+          replaceChild(node, index, nextNodes);
+          index += nextNodes.length - 1;
         }
       }
     });
@@ -121,7 +121,7 @@ export function remarkMarkdownBreaks() {
 
 export function remarkInlineHtmlTags() {
   return (tree: MarkdownAstNode) => {
-    visit_children(tree, (node) => {
+    visitChildren(tree, (node) => {
       if (!node.children) {
         return;
       }
@@ -130,44 +130,44 @@ export function remarkInlineHtmlTags() {
         const child = node.children[index];
 
         if (child.type === "html" && child.value) {
-          const complete_tag_match = INLINE_HTML_COMPLETE_TAG_PATTERN.exec(child.value);
-          if (complete_tag_match) {
-            replace_child(node, index, [
-              create_inline_html_node(complete_tag_match[1], complete_tag_match[2]),
+          const completeTagMatch = INLINE_HTML_COMPLETE_TAG_PATTERN.exec(child.value);
+          if (completeTagMatch) {
+            replaceChild(node, index, [
+              createInlineHtmlNode(completeTagMatch[1], completeTagMatch[2]),
             ]);
             continue;
           }
 
-          const start_tag_match = INLINE_HTML_TAG_PATTERN.exec(child.value);
-          if (start_tag_match) {
-            const tag_name = start_tag_match[1];
-            const inline_text_nodes: MarkdownAstNode[] = [];
-            let end_index = -1;
+          const startTagMatch = INLINE_HTML_TAG_PATTERN.exec(child.value);
+          if (startTagMatch) {
+            const tagName = startTagMatch[1];
+            const inlineTextNodes: MarkdownAstNode[] = [];
+            let endIndex = -1;
 
             for (let cursor = index + 1; cursor < node.children.length; cursor += 1) {
-              const next_child = node.children[cursor];
+              const nextChild = node.children[cursor];
               if (
-                next_child.type === "html" &&
-                next_child.value?.toLowerCase() === `</${tag_name.toLowerCase()}>`
+                nextChild.type === "html" &&
+                nextChild.value?.toLowerCase() === `</${tagName.toLowerCase()}>`
               ) {
-                end_index = cursor;
+                endIndex = cursor;
                 break;
               }
 
-              if (next_child.type !== "text") {
+              if (nextChild.type !== "text") {
                 break;
               }
 
-              inline_text_nodes.push(next_child);
+              inlineTextNodes.push(nextChild);
             }
 
-            if (end_index >= 0) {
+            if (endIndex >= 0) {
               node.children.splice(
                 index,
-                end_index - index + 1,
-                create_inline_html_node(
-                  tag_name,
-                  inline_text_nodes.map((item) => item.value ?? "").join(""),
+                endIndex - index + 1,
+                createInlineHtmlNode(
+                  tagName,
+                  inlineTextNodes.map((item) => item.value ?? "").join(""),
                 ),
               );
             }
@@ -176,9 +176,9 @@ export function remarkInlineHtmlTags() {
 
         ENCODED_INLINE_HTML_TAG_PATTERN.lastIndex = 0;
         if (child.type === "text" && ENCODED_INLINE_HTML_TAG_PATTERN.test(child.value ?? "")) {
-          const next_nodes = split_text_by_encoded_inline_html(child.value ?? "");
-          replace_child(node, index, next_nodes);
-          index += next_nodes.length - 1;
+          const nextNodes = splitTextByEncodedInlineHtml(child.value ?? "");
+          replaceChild(node, index, nextNodes);
+          index += nextNodes.length - 1;
         }
       }
     });

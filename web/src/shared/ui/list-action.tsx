@@ -24,12 +24,12 @@ interface UiListActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement
 export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButtonProps>(function UiListActionButton(
   {
     children,
-    class_name,
+    class_name: legacyClassName,
     className,
     onClick,
     shape,
     size,
-    stop_propagation = false,
+    stop_propagation: stopPropagation = false,
     tone,
     type = "button",
     visibility,
@@ -37,8 +37,8 @@ export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButt
   },
   ref,
 ) {
-  const handle_click = (event: MouseEvent<HTMLButtonElement>) => {
-    if (stop_propagation) {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    if (stopPropagation) {
       event.stopPropagation();
     }
     onClick?.(event);
@@ -49,9 +49,9 @@ export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButt
       ref={ref}
       className={get_ui_list_action_class_name(
         { shape, size, tone, visibility },
-        cn(className, class_name),
+        cn(className, legacyClassName),
       )}
-      onClick={handle_click}
+      onClick={handleClick}
       type={type}
       {...props}
     >

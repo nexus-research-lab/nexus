@@ -24,7 +24,7 @@ type IntlSegmenterCtor = new (
   options?: { granularity?: "grapheme" | "word" | "sentence" },
 ) => { segment(input: string): Iterable<{ segment: string }> };
 
-function split_graphemes(text: string, font: string): string[] {
+function splitGraphemes(text: string, font: string): string[] {
   try {
     const prepared = prepareWithSegments(text, font);
     return prepared.segments;
@@ -44,15 +44,15 @@ interface KeyedGrapheme {
   position: number;
 }
 
-function get_keyed_graphemes(graphemes: string[]): KeyedGrapheme[] {
-  const seen_counts = new Map<string, number>();
-  const keyed_graphemes: KeyedGrapheme[] = [];
+function getKeyedGraphemes(graphemes: string[]): KeyedGrapheme[] {
+  const seenCounts = new Map<string, number>();
+  const keyedGraphemes: KeyedGrapheme[] = [];
   let position = 0;
 
   for (const char of graphemes) {
-    const occurrence = seen_counts.get(char) ?? 0;
-    seen_counts.set(char, occurrence + 1);
-    keyed_graphemes.push({
+    const occurrence = seenCounts.get(char) ?? 0;
+    seenCounts.set(char, occurrence + 1);
+    keyedGraphemes.push({
       char,
       key: `${char}-${occurrence}`,
       position,
@@ -60,14 +60,14 @@ function get_keyed_graphemes(graphemes: string[]): KeyedGrapheme[] {
     position += 1;
   }
 
-  return keyed_graphemes;
+  return keyedGraphemes;
 }
 
 export function AnimatedHeroText({
   text,
-  class_name,
-  stagger_ms = 26,
-  initial_delay_ms = 100,
+  class_name: className,
+  stagger_ms: staggerMs = 26,
+  initial_delay_ms: initialDelayMs = 100,
 }: AnimatedHeroTextProps) {
   const [graphemes, setGraphemes] = useState<string[]>([]);
   const [visible, setVisible] = useState(false);
@@ -78,22 +78,22 @@ export function AnimatedHeroText({
     const font = el
       ? window.getComputedStyle(el).font || "800 42px system-ui"
       : "800 42px system-ui";
-    setGraphemes(split_graphemes(text, font));
+    setGraphemes(splitGraphemes(text, font));
     const t = setTimeout(() => setVisible(true), 16);
     return () => clearTimeout(t);
   }, [text]);
 
   if (graphemes.length === 0) {
     return (
-      <span ref={ref} className={cn("opacity-0", class_name)} aria-hidden>
+      <span ref={ref} className={cn("opacity-0", className)} aria-hidden>
         {text}
       </span>
     );
   }
 
   return (
-    <span ref={ref} className={class_name} aria-label={text}>
-      {get_keyed_graphemes(graphemes).map(({ char, key, position }) => (
+    <span ref={ref} className={className} aria-label={text}>
+      {getKeyedGraphemes(graphemes).map(({ char, key, position }) => (
         <span
           key={key}
           aria-hidden
@@ -106,7 +106,7 @@ export function AnimatedHeroText({
               transform: "translateY(8px) scale(0.94)",
             }),
             transition: "opacity 0.4s ease, transform 0.45s cubic-bezier(0.22,1,0.36,1)",
-            transitionDelay: visible ? `${initial_delay_ms + position * stagger_ms}ms` : "0ms",
+            transitionDelay: visible ? `${initialDelayMs + position * staggerMs}ms` : "0ms",
             whiteSpace: char === " " ? "pre" : undefined,
           }}
         >
@@ -133,10 +133,10 @@ interface FadeSlideInProps {
 
 export function FadeSlideIn({
   children,
-  delay_ms = 0,
-  duration_ms = 420,
-  y_offset = 10,
-  class_name,
+  delay_ms: delayMs = 0,
+  duration_ms: durationMs = 420,
+  y_offset: yOffset = 10,
+  class_name: className,
   style,
 }: FadeSlideInProps) {
   const [visible, setVisible] = useState(false);
@@ -148,16 +148,16 @@ export function FadeSlideIn({
 
   return (
     <div
-      className={class_name}
+      className={className}
       style={{
         // 容器完成进入动画后不再保留 transform，
         // 这样 launcher 推荐按钮和 Hero 分组不会持续挂在独立层上。
         ...(visible ? null : {
           opacity: 0,
-          transform: `translateY(${y_offset}px)`,
+          transform: `translateY(${yOffset}px)`,
         }),
-        transition: `opacity ${duration_ms}ms ease, transform ${duration_ms}ms cubic-bezier(0.22,1,0.36,1)`,
-        transitionDelay: `${delay_ms}ms`,
+        transition: `opacity ${durationMs}ms ease, transform ${durationMs}ms cubic-bezier(0.22,1,0.36,1)`,
+        transitionDelay: `${delayMs}ms`,
         ...style,
       }}
     >

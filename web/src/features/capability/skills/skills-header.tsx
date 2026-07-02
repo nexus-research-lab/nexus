@@ -20,7 +20,7 @@ interface SkillsHeaderProps {
   on_replay_tour?: () => void;
 }
 
-export function SkillsHeader({ ctrl, on_replay_tour }: SkillsHeaderProps) {
+export function SkillsHeader({ ctrl, on_replay_tour: onReplayTour }: SkillsHeaderProps) {
   const { t } = useI18n();
 
   return (
@@ -56,9 +56,9 @@ export function SkillsHeader({ ctrl, on_replay_tour }: SkillsHeaderProps) {
               {t("capability.skill_sources")}
             </WorkspaceSurfaceToolbarAction>
           </div>
-          {on_replay_tour ? (
+          {onReplayTour ? (
             <div className="flex items-center">
-              <WorkspaceSurfaceToolbarAction onClick={on_replay_tour}>
+              <WorkspaceSurfaceToolbarAction onClick={onReplayTour}>
                 <Compass className="h-3.5 w-3.5" />
                 {t("common.view_guide")}
               </WorkspaceSurfaceToolbarAction>

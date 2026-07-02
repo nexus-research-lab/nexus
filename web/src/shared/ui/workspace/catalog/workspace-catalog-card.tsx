@@ -94,7 +94,7 @@ const CATALOG_DESCRIPTION_CLASS_MAP: Record<CatalogDescriptionSize, string> = {
 /** 中文注释：这组目录卡片是高频共享块，长相收回组件层，避免全局 CSS 继续膨胀。 */
 export function WorkspaceCatalogCard({
   children,
-  class_name,
+  class_name: className,
   muted = false,
   size = "catalog",
   align = "start",
@@ -109,7 +109,7 @@ export function WorkspaceCatalogCard({
   align?: CatalogCardAlign;
   interactive?: boolean;
 }) {
-  const is_interactive = interactive ?? Boolean(onClick);
+  const isInteractive = interactive ?? Boolean(onClick);
 
   return (
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- role="button" + tabIndex are set at runtime when interactive
@@ -118,19 +118,19 @@ export function WorkspaceCatalogCard({
         "flex flex-col border border-(--divider-subtle-color) bg-transparent transition duration-(--motion-duration-fast) ease-out",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         align === "center" && "items-center text-center",
-        is_interactive && "cursor-pointer hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+        isInteractive && "cursor-pointer hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
         muted && "opacity-70",
-        class_name,
+        className,
       )}
       onClick={onClick}
-      onKeyDown={is_interactive ? (event) => {
+      onKeyDown={isInteractive ? (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           (event.currentTarget as HTMLElement).click();
         }
       } : undefined}
-      role={is_interactive ? "button" : undefined}
-      tabIndex={is_interactive ? 0 : undefined}
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
       {...props}
     >
       {children}
@@ -140,7 +140,7 @@ export function WorkspaceCatalogCard({
 
 export function WorkspaceCatalogHeader({
   children,
-  class_name,
+  class_name: className,
   align = "start",
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
@@ -150,7 +150,7 @@ export function WorkspaceCatalogHeader({
 }) {
   return (
     <div
-      className={cn(CATALOG_HEADER_ALIGN_CLASS_MAP[align], class_name)}
+      className={cn(CATALOG_HEADER_ALIGN_CLASS_MAP[align], className)}
       {...props}
     >
       {children}
@@ -160,7 +160,7 @@ export function WorkspaceCatalogHeader({
 
 export function WorkspaceCatalogBody({
   children,
-  class_name,
+  class_name: className,
   grow = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
@@ -169,7 +169,7 @@ export function WorkspaceCatalogBody({
   grow?: boolean;
 }) {
   return (
-    <div className={cn("mt-2.5", grow && "flex-1", class_name)} {...props}>
+    <div className={cn("mt-2.5", grow && "flex-1", className)} {...props}>
       {children}
     </div>
   );
@@ -177,7 +177,7 @@ export function WorkspaceCatalogBody({
 
 export function WorkspaceCatalogFooter({
   children,
-  class_name,
+  class_name: className,
   justify = "between",
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
@@ -190,7 +190,7 @@ export function WorkspaceCatalogFooter({
       className={cn(
         "mt-3 flex min-h-[32px] items-end gap-3",
         CATALOG_FOOTER_JUSTIFY_CLASS_MAP[justify],
-        class_name,
+        className,
       )}
       {...props}
     >
@@ -202,7 +202,7 @@ export function WorkspaceCatalogFooter({
 export function WorkspaceCatalogTitle({
   children,
   as,
-  class_name,
+  class_name: className,
   size = "md",
   truncate = false,
   ...props
@@ -220,7 +220,7 @@ export function WorkspaceCatalogTitle({
         CATALOG_TITLE_CLASS_MAP[size],
         "text-(--text-strong)",
         truncate && "truncate",
-        class_name,
+        className,
       )}
       {...props}
     >
@@ -231,9 +231,9 @@ export function WorkspaceCatalogTitle({
 
 export function WorkspaceCatalogDescription({
   children,
-  class_name,
+  class_name: className,
   lines = 2,
-  min_height = false,
+  min_height: minHeight = false,
   size = "sm",
   ...props
 }: HTMLAttributes<HTMLParagraphElement> & {
@@ -243,16 +243,16 @@ export function WorkspaceCatalogDescription({
   min_height?: boolean;
   size?: CatalogDescriptionSize;
 }) {
-  const line_clamp_class_name =
+  const lineClampClassName =
     lines === 1 ? "line-clamp-1" : lines === 3 ? "line-clamp-3" : "line-clamp-2";
   return (
     <p
       className={cn(
         CATALOG_DESCRIPTION_CLASS_MAP[size],
         "text-(--text-default)",
-        line_clamp_class_name,
-        min_height && lines === 2 && "min-h-[40px]",
-        class_name,
+        lineClampClassName,
+        minHeight && lines === 2 && "min-h-[40px]",
+        className,
       )}
       {...props}
     >
@@ -264,7 +264,7 @@ export function WorkspaceCatalogDescription({
 /** 中文注释：统一高频图标容器，侧栏、卡片和弹窗都用这套边界语法。 */
 export function WorkspaceIconFrame({
   children,
-  class_name,
+  class_name: className,
   shape = "rounded",
   size = "md",
   tone = "default",
@@ -276,7 +276,7 @@ export function WorkspaceIconFrame({
   size?: IconFrameSize;
   tone?: IconFrameTone;
 }) {
-  const tone_style = tone === "default" ? undefined : ICON_FRAME_TONE_STYLE_MAP[tone];
+  const toneStyle = tone === "default" ? undefined : ICON_FRAME_TONE_STYLE_MAP[tone];
 
   return (
     <div
@@ -285,9 +285,9 @@ export function WorkspaceIconFrame({
         ICON_FRAME_SIZE_CLASS_MAP[size],
         ICON_FRAME_TONE_CLASS_MAP[tone],
         shape === "round" && "rounded-full",
-        class_name,
+        className,
       )}
-      style={tone_style}
+      style={toneStyle}
       {...props}
     >
       {children}
@@ -297,7 +297,7 @@ export function WorkspaceIconFrame({
 
 export function WorkspaceCatalogAction({
   children,
-  class_name,
+  class_name: className,
   tone = "default",
   size = "md",
   type = "button",
@@ -310,7 +310,7 @@ export function WorkspaceCatalogAction({
 }) {
   return (
     <UiListActionButton
-      class_name={class_name}
+      class_name={className}
       size={size === "sm" ? "xs" : "md"}
       tone={tone}
       type={type}
@@ -324,7 +324,7 @@ export function WorkspaceCatalogAction({
 
 export function WorkspaceCatalogTextAction({
   children,
-  class_name,
+  class_name: className,
   tone = "default",
   type = "button",
   ...props
@@ -335,7 +335,7 @@ export function WorkspaceCatalogTextAction({
 }) {
   return (
     <UiButton
-      class_name={class_name}
+      class_name={className}
       size="sm"
       tone={tone}
       type={type}
@@ -349,7 +349,7 @@ export function WorkspaceCatalogTextAction({
 
 export function WorkspaceCatalogTag({
   children,
-  class_name,
+  class_name: className,
 }: {
   children: ReactNode;
   class_name?: string;
@@ -358,7 +358,7 @@ export function WorkspaceCatalogTag({
     <span
       className={cn(
         "inline-flex h-5 items-center rounded-full px-2 text-2xs font-medium leading-none text-(--text-default)",
-        class_name,
+        className,
       )}
       style={{
         background: "color-mix(in srgb, var(--surface-panel-subtle-background) 58%, transparent)",
@@ -372,7 +372,7 @@ export function WorkspaceCatalogTag({
 
 export function WorkspaceCatalogGhostCard({
   children,
-  class_name,
+  class_name: className,
   size = "comfort",
   onClick,
   ...props
@@ -388,7 +388,7 @@ export function WorkspaceCatalogGhostCard({
         "flex flex-col items-center justify-center border border-dashed border-(--divider-subtle-color) bg-transparent text-center transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
         CATALOG_CARD_SIZE_CLASS_MAP[size],
         onClick && "cursor-pointer",
-        class_name,
+        className,
       )}
       onClick={onClick}
       onKeyDown={onClick ? (event) => {

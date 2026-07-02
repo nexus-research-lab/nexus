@@ -19,12 +19,12 @@ interface MessageStatsProps {
 export function MessageStats(
   {
     stats,
-    show_cursor,
+    show_cursor: showCursor,
     compact = false,
-    copied_assistant,
-    on_copy_assistant,
+    copied_assistant: copiedAssistant,
+    on_copy_assistant: onCopyAssistant,
   }: MessageStatsProps) {
-  const stat_items = [
+  const statItems = [
     stats?.duration ?? null,
     stats?.tokens ?? null,
     stats?.cost ?? null,
@@ -42,7 +42,7 @@ export function MessageStats(
           "nexus-chat-message-stat-list flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 leading-none",
           compact ? "max-w-full" : "max-w-[calc(100%-2.5rem)]",
         )}>
-        {stat_items.map((item, index) => (
+        {statItems.map((item, index) => (
           <span key={`${item}-${index}`} className="contents">
             {index > 0 ? (
               <span className="shrink-0 text-(--text-soft)/70">•</span>
@@ -55,24 +55,24 @@ export function MessageStats(
       </div>
 
       <div className="ml-auto shrink-0">
-        {show_cursor ? (
+        {showCursor ? (
           <span
             aria-hidden="true"
             className="mt-[2px] inline-flex h-1.5 w-1.5 rounded-full bg-(--text-soft) opacity-70 animate-pulse"
           />
         ) : (
           <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-(--motion-duration-fast) sm:group-hover:opacity-100">
-            {on_copy_assistant ? (
+            {onCopyAssistant ? (
               <button
-                onClick={on_copy_assistant}
+                onClick={onCopyAssistant}
                 className={cn(
                   "inline-flex h-5 w-5 items-center justify-center rounded-md text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-                  copied_assistant && "text-(--success)",
+                  copiedAssistant && "text-(--success)",
                 )}
                 title="复制回答"
                 type="button"
               >
-                {copied_assistant ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copiedAssistant ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               </button>
             ) : null}
           </div>

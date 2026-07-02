@@ -28,112 +28,112 @@ export function LauncherPage() {
   const { theme } = useTheme();
   const controller = useLauncherPageController();
   const navigate = useNavigate();
-  const set_active_panel_item = useSidebarStore(
+  const setActivePanelItem = useSidebarStore(
     (state) => state.set_active_panel_item,
   );
-  const default_agent_id = get_default_agent_id();
-  const [pending_delete_agent, set_pending_delete_agent] = useState<{
+  const defaultAgentId = get_default_agent_id();
+  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<{
     id: string;
     name: string;
   } | null>(null);
 
-  const open_navigation_route = useCallback(
+  const openNavigationRoute = useCallback(
     (route: string) => {
       navigate(route);
     },
     [navigate],
   );
 
-  const open_agent_dm = useCallback(
-    (agent_id: string, initial_prompt?: string) => {
-      const next_active_item_id = is_main_agent(agent_id)
+  const openAgentDm = useCallback(
+    (agentId: string, initialPrompt?: string) => {
+      const nextActiveItemId = is_main_agent(agentId)
         ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
-        : agent_id;
-      set_active_panel_item(next_active_item_id);
+        : agentId;
+      setActivePanelItem(nextActiveItemId);
 
-      void resolve_direct_room_navigation_target(agent_id, initial_prompt)
+      void resolve_direct_room_navigation_target(agentId, initialPrompt)
         .then(({ context, route }) => {
-          controller.handle_select_agent(agent_id);
-          set_active_panel_item(
-            is_main_agent(agent_id)
+          controller.handle_select_agent(agentId);
+          setActivePanelItem(
+            is_main_agent(agentId)
               ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
               : context.room.id,
           );
-          open_navigation_route(route);
+          openNavigationRoute(route);
         })
         .catch((error) => {
           console.error("[LauncherPage] 打开 Agent DM 失败:", error);
         });
     },
-    [controller, open_navigation_route, set_active_panel_item],
+    [controller, openNavigationRoute, setActivePanelItem],
   );
 
-  const handle_open_main_agent_dm = useCallback(
-    (initial_prompt?: string) => {
-      if (!default_agent_id) {
+  const handleOpenMainAgentDm = useCallback(
+    (initialPrompt?: string) => {
+      if (!defaultAgentId) {
         console.error("[LauncherPage] 主智能体 ID 未就绪，无法打开 DM。");
         return;
       }
-      open_agent_dm(default_agent_id, initial_prompt);
+      openAgentDm(defaultAgentId, initialPrompt);
     },
-    [default_agent_id, open_agent_dm],
+    [defaultAgentId, openAgentDm],
   );
 
-  const handle_select_agent = useCallback(
-    (agent_id: string) => {
-      open_agent_dm(agent_id);
+  const handleSelectAgent = useCallback(
+    (agentId: string) => {
+      openAgentDm(agentId);
     },
-    [open_agent_dm],
+    [openAgentDm],
   );
 
-  const handle_save_agent_options = useCallback(
+  const handleSaveAgentOptions = useCallback(
     async (
       _title: string,
       options: AgentConfigOptions,
       identity: AgentIdentityDraft,
     ) => {
-      const should_open_room_after_create = controller.dialog_mode === "create";
+      const shouldOpenRoomAfterCreate = controller.dialog_mode === "create";
       await controller.handle_save_agent_options(_title, options, identity);
 
-      if (!should_open_room_after_create) {
+      if (!shouldOpenRoomAfterCreate) {
         return;
       }
 
-      const next_agent_id = useAgentStore.getState().current_agent_id;
-      if (!next_agent_id) {
+      const nextAgentId = useAgentStore.getState().current_agent_id;
+      if (!nextAgentId) {
         return;
       }
 
       const { context, route } =
-        await resolve_direct_room_navigation_target(next_agent_id);
-      set_active_panel_item(context.room.id);
-      open_navigation_route(route);
+        await resolve_direct_room_navigation_target(nextAgentId);
+      setActivePanelItem(context.room.id);
+      openNavigationRoute(route);
     },
-    [controller, open_navigation_route, set_active_panel_item],
+    [controller, openNavigationRoute, setActivePanelItem],
   );
 
-  const handle_request_delete_agent = useCallback(
-    (agent_id: string) => {
-      const target_agent = controller.agents.find(
-        (agent) => agent.id === agent_id,
+  const handleRequestDeleteAgent = useCallback(
+    (agentId: string) => {
+      const targetAgent = controller.agents.find(
+        (agent) => agent.id === agentId,
       );
       controller.set_is_dialog_open(false);
-      set_pending_delete_agent({
-        id: agent_id,
-        name: target_agent?.name ?? "该 Agent",
+      setPendingDeleteAgent({
+        id: agentId,
+        name: targetAgent?.name ?? "该 Agent",
       });
     },
     [controller],
   );
 
-  const handle_confirm_delete_agent = useCallback(async () => {
-    if (!pending_delete_agent) {
+  const handleConfirmDeleteAgent = useCallback(async () => {
+    if (!pendingDeleteAgent) {
       return;
     }
 
-    await controller.handle_delete_agent(pending_delete_agent.id);
-    set_pending_delete_agent(null);
-  }, [controller, pending_delete_agent]);
+    await controller.handle_delete_agent(pendingDeleteAgent.id);
+    setPendingDeleteAgent(null);
+  }, [controller, pendingDeleteAgent]);
 
   if (!controller.is_hydrated) {
     return <AppLoadingScreen />;
@@ -150,9 +150,9 @@ export function LauncherPage() {
           rooms={controller.rooms}
           conversations={controller.conversations}
           current_agent_id={controller.current_agent_id}
-          on_open_main_agent_dm={handle_open_main_agent_dm}
-          on_open_route={open_navigation_route}
-          on_select_agent={handle_select_agent}
+          on_open_main_agent_dm={handleOpenMainAgentDm}
+          on_open_route={openNavigationRoute}
+          on_select_agent={handleSelectAgent}
         />
       </div>
 
@@ -165,8 +165,8 @@ export function LauncherPage() {
             on_close={() => {
               controller.set_is_dialog_open(false);
             }}
-            on_delete={handle_request_delete_agent}
-            on_save={handle_save_agent_options}
+            on_delete={handleRequestDeleteAgent}
+            on_save={handleSaveAgentOptions}
             on_validate_name={controller.handle_validate_agent_name}
             initial_avatar={controller.dialog_initial_avatar}
             initial_description={controller.dialog_initial_description}
@@ -176,14 +176,14 @@ export function LauncherPage() {
           />
         ) : null}
 
-        {pending_delete_agent ? (
+        {pendingDeleteAgent ? (
           <ConfirmDialog
             confirm_text="删除成员"
-            is_open={Boolean(pending_delete_agent)}
-            message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
-            on_cancel={() => set_pending_delete_agent(null)}
+            is_open={Boolean(pendingDeleteAgent)}
+            message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
+            on_cancel={() => setPendingDeleteAgent(null)}
             on_confirm={() => {
-              void handle_confirm_delete_agent();
+              void handleConfirmDeleteAgent();
             }}
             title="删除成员"
             variant="danger"

@@ -24,100 +24,100 @@ interface UseComposerMentionOptions {
 
 export function useComposerMention({
   input,
-  is_goal_mode,
-  mention_unavailable_agent_ids,
-  room_members,
-  set_input,
-  textarea_ref,
+  is_goal_mode: isGoalMode,
+  mention_unavailable_agent_ids: mentionUnavailableAgentIds,
+  room_members: roomMembers,
+  set_input: setInput,
+  textarea_ref: textareaRef,
 }: UseComposerMentionOptions) {
-  const available_room_members = useMemo(() => {
-    const unavailable_ids = new Set(mention_unavailable_agent_ids);
-    return room_members.filter(
-      (member) => !unavailable_ids.has(member.agent_id),
+  const availableRoomMembers = useMemo(() => {
+    const unavailableIds = new Set(mentionUnavailableAgentIds);
+    return roomMembers.filter(
+      (member) => !unavailableIds.has(member.agent_id),
     );
-  }, [mention_unavailable_agent_ids, room_members]);
+  }, [mentionUnavailableAgentIds, roomMembers]);
 
-  const mention_target_items = useMemo(
+  const mentionTargetItems = useMemo(
     () =>
-      available_room_members.map<MentionTargetItem>((member) => ({
+      availableRoomMembers.map<MentionTargetItem>((member) => ({
         id: member.agent_id,
         label: member.name,
         subtitle: null,
         kind: "agent",
       })),
-    [available_room_members],
+    [availableRoomMembers],
   );
 
-  const [mention_active, set_mention_active] = useState(false);
-  const [mention_filter, set_mention_filter] = useState("");
-  const [mention_start_pos, set_mention_start_pos] = useState(-1);
+  const [mentionActive, setMentionActive] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [mentionStartPos, setMentionStartPos] = useState(-1);
 
-  const close_mention = useCallback(() => {
-    set_mention_active(false);
+  const closeMention = useCallback(() => {
+    setMentionActive(false);
   }, []);
 
-  const update_mention_for_input = useCallback((value: string) => {
-    if (is_goal_mode || available_room_members.length === 0) {
-      set_mention_active(false);
+  const updateMentionForInput = useCallback((value: string) => {
+    if (isGoalMode || availableRoomMembers.length === 0) {
+      setMentionActive(false);
       return;
     }
 
-    const cursor_pos = textarea_ref.current?.selectionStart ?? value.length;
-    const before_cursor = value.slice(0, cursor_pos);
-    const at_index = before_cursor.lastIndexOf("@");
+    const cursorPos = textareaRef.current?.selectionStart ?? value.length;
+    const beforeCursor = value.slice(0, cursorPos);
+    const atIndex = beforeCursor.lastIndexOf("@");
 
-    if (at_index >= 0) {
-      const char_before_at = at_index > 0 ? before_cursor[at_index - 1] : " ";
-      if (char_before_at === " " || char_before_at === "\n" || at_index === 0) {
-        const filter_text = before_cursor.slice(at_index + 1);
-        if (!filter_text.includes(" ")) {
-          set_mention_active(true);
-          set_mention_filter(filter_text);
-          set_mention_start_pos(at_index);
+    if (atIndex >= 0) {
+      const charBeforeAt = atIndex > 0 ? beforeCursor[atIndex - 1] : " ";
+      if (charBeforeAt === " " || charBeforeAt === "\n" || atIndex === 0) {
+        const filterText = beforeCursor.slice(atIndex + 1);
+        if (!filterText.includes(" ")) {
+          setMentionActive(true);
+          setMentionFilter(filterText);
+          setMentionStartPos(atIndex);
           return;
         }
       }
     }
 
-    set_mention_active(false);
+    setMentionActive(false);
   }, [
-    available_room_members.length,
-    is_goal_mode,
-    textarea_ref,
+    availableRoomMembers.length,
+    isGoalMode,
+    textareaRef,
   ]);
 
-  const select_mention_item = useCallback((item: MentionTargetItem) => {
-    const selected_member = available_room_members.find((member) => member.agent_id === item.id);
-    if (!selected_member) {
+  const selectMentionItem = useCallback((item: MentionTargetItem) => {
+    const selectedMember = availableRoomMembers.find((member) => member.agent_id === item.id);
+    if (!selectedMember) {
       return;
     }
 
-    const before = input.slice(0, mention_start_pos);
-    const cursor_pos = textarea_ref.current?.selectionStart ?? input.length;
-    const after = input.slice(cursor_pos);
-    const next_input = `${before}@${selected_member.name} ${after}`;
-    set_input(next_input);
-    set_mention_active(false);
+    const before = input.slice(0, mentionStartPos);
+    const cursorPos = textareaRef.current?.selectionStart ?? input.length;
+    const after = input.slice(cursorPos);
+    const nextInput = `${before}@${selectedMember.name} ${after}`;
+    setInput(nextInput);
+    setMentionActive(false);
 
     requestAnimationFrame(() => {
-      const new_cursor = mention_start_pos + selected_member.name.length + 2;
-      textarea_ref.current?.setSelectionRange(new_cursor, new_cursor);
-      textarea_ref.current?.focus();
+      const newCursor = mentionStartPos + selectedMember.name.length + 2;
+      textareaRef.current?.setSelectionRange(newCursor, newCursor);
+      textareaRef.current?.focus();
     });
   }, [
-    available_room_members,
+    availableRoomMembers,
     input,
-    mention_start_pos,
-    set_input,
-    textarea_ref,
+    mentionStartPos,
+    setInput,
+    textareaRef,
   ]);
 
   return {
-    close_mention,
-    mention_active,
-    mention_filter,
-    mention_target_items,
-    select_mention_item,
-    update_mention_for_input,
+    close_mention: closeMention,
+    mention_active: mentionActive,
+    mention_filter: mentionFilter,
+    mention_target_items: mentionTargetItems,
+    select_mention_item: selectMentionItem,
+    update_mention_for_input: updateMentionForInput,
   };
 }

@@ -35,196 +35,196 @@ import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
 
 interface UseSidebarGuideCenterInput {
   default_agent_id: string;
-  set_active_panel_item: (item_id: string | null) => void;
+  set_active_panel_item: (itemId: string | null) => void;
 }
 
 export function useSidebarGuideCenter({
-  default_agent_id,
-  set_active_panel_item,
+  default_agent_id: defaultAgentId,
+  set_active_panel_item: setActivePanelItem,
 }: UseSidebarGuideCenterInput) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [is_guide_center_open, set_is_guide_center_open] = useState(false);
-  const has_auto_started_tour_ref = useRef(false);
+  const [isGuideCenterOpen, setIsGuideCenterOpen] = useState(false);
+  const hasAutoStartedTourRef = useRef(false);
   const {
-    active_tour_id,
-    has_completed_tour,
-    is_tour_registered,
-    is_tour_state_ready,
-    register_tour,
-    reset_version,
-    reset_all_tours,
-    start_tour,
-    unregister_tour,
+    active_tour_id: activeTourId,
+    has_completed_tour: hasCompletedTour,
+    is_tour_registered: isTourRegistered,
+    is_tour_state_ready: isTourStateReady,
+    register_tour: registerTour,
+    reset_version: resetVersion,
+    reset_all_tours: resetAllTours,
+    start_tour: startTour,
+    unregister_tour: unregisterTour,
   } = useOnboardingTour();
-  const sidebar_navigation_tour = useMemo(
+  const sidebarNavigationTour = useMemo(
     () => build_sidebar_navigation_tour(t),
     [t],
   );
-  const is_dm_tour_registered = is_tour_registered(DM_CONVERSATION_TOUR_ID);
-  const registered_room_tour_id = useMemo(() => {
-    if (is_tour_registered(ROOM_CONVERSATION_TOUR_ID)) {
+  const isDmTourRegistered = isTourRegistered(DM_CONVERSATION_TOUR_ID);
+  const registeredRoomTourId = useMemo(() => {
+    if (isTourRegistered(ROOM_CONVERSATION_TOUR_ID)) {
       return ROOM_CONVERSATION_TOUR_ID;
     }
-    if (is_tour_registered(ROOM_EMPTY_CONVERSATION_TOUR_ID)) {
+    if (isTourRegistered(ROOM_EMPTY_CONVERSATION_TOUR_ID)) {
       return ROOM_EMPTY_CONVERSATION_TOUR_ID;
     }
     return null;
-  }, [is_tour_registered]);
+  }, [isTourRegistered]);
 
   useEffect(() => {
-    register_tour(sidebar_navigation_tour);
+    registerTour(sidebarNavigationTour);
     return () => {
-      unregister_tour(sidebar_navigation_tour.id);
+      unregisterTour(sidebarNavigationTour.id);
     };
-  }, [register_tour, sidebar_navigation_tour, unregister_tour]);
+  }, [registerTour, sidebarNavigationTour, unregisterTour]);
 
   useEffect(() => {
-    if (has_auto_started_tour_ref.current) {
+    if (hasAutoStartedTourRef.current) {
       return;
     }
-    if (!is_tour_state_ready) {
+    if (!isTourStateReady) {
       return;
     }
-    if (active_tour_id) {
+    if (activeTourId) {
       return;
     }
-    if (has_completed_tour(SIDEBAR_NAVIGATION_TOUR_ID)) {
+    if (hasCompletedTour(SIDEBAR_NAVIGATION_TOUR_ID)) {
       return;
     }
-    has_auto_started_tour_ref.current = true;
-    const timeout_id = window.setTimeout(() => {
-      start_tour(SIDEBAR_NAVIGATION_TOUR_ID);
+    hasAutoStartedTourRef.current = true;
+    const timeoutId = window.setTimeout(() => {
+      startTour(SIDEBAR_NAVIGATION_TOUR_ID);
     }, 220);
 
     return () => {
-      window.clearTimeout(timeout_id);
+      window.clearTimeout(timeoutId);
     };
-  }, [active_tour_id, has_completed_tour, is_tour_state_ready, start_tour]);
+  }, [activeTourId, hasCompletedTour, isTourStateReady, startTour]);
 
   useEffect(() => {
-    has_auto_started_tour_ref.current = false;
-  }, [reset_version]);
+    hasAutoStartedTourRef.current = false;
+  }, [resetVersion]);
 
-  const open_guide_center = useCallback(() => {
-    set_is_guide_center_open(true);
+  const openGuideCenter = useCallback(() => {
+    setIsGuideCenterOpen(true);
   }, []);
 
-  const close_guide_center = useCallback(() => {
-    set_is_guide_center_open(false);
+  const closeGuideCenter = useCallback(() => {
+    setIsGuideCenterOpen(false);
   }, []);
 
-  const handle_reset_guides = useCallback(() => {
-    reset_all_tours();
-    set_is_guide_center_open(false);
-  }, [reset_all_tours]);
+  const handleResetGuides = useCallback(() => {
+    resetAllTours();
+    setIsGuideCenterOpen(false);
+  }, [resetAllTours]);
 
-  const handle_start_tour_from_center = useCallback((tour_id: string) => {
-    set_is_guide_center_open(false);
+  const handleStartTourFromCenter = useCallback((tourId: string) => {
+    setIsGuideCenterOpen(false);
     window.setTimeout(() => {
-      start_tour(tour_id);
+      startTour(tourId);
     }, 0);
-  }, [start_tour]);
+  }, [startTour]);
 
-  const handle_request_page_tour = useCallback((
-    tour_id: string,
+  const handleRequestPageTour = useCallback((
+    tourId: string,
     route: string,
-    sidebar_item_id?: string | null,
+    sidebarItemId?: string | null,
   ) => {
-    set_requested_tour_id(tour_id);
-    set_is_guide_center_open(false);
-    if (sidebar_item_id) {
-      set_active_panel_item(sidebar_item_id);
+    set_requested_tour_id(tourId);
+    setIsGuideCenterOpen(false);
+    if (sidebarItemId) {
+      setActivePanelItem(sidebarItemId);
     }
     navigate(route);
-  }, [navigate, set_active_panel_item]);
+  }, [navigate, setActivePanelItem]);
 
-  const handle_open_dm_tour = useCallback(async () => {
-    if (is_dm_tour_registered) {
-      handle_start_tour_from_center(DM_CONVERSATION_TOUR_ID);
+  const handleOpenDmTour = useCallback(async () => {
+    if (isDmTourRegistered) {
+      handleStartTourFromCenter(DM_CONVERSATION_TOUR_ID);
       return;
     }
 
-    set_is_guide_center_open(false);
-    if (!default_agent_id) {
+    setIsGuideCenterOpen(false);
+    if (!defaultAgentId) {
       navigate(AppRouteBuilders.contacts());
       return;
     }
 
     try {
-      const target = await resolve_direct_room_navigation_target(default_agent_id);
+      const target = await resolve_direct_room_navigation_target(defaultAgentId);
       set_requested_tour_id(DM_CONVERSATION_TOUR_ID);
-      set_active_panel_item(target.context.room.id);
+      setActivePanelItem(target.context.room.id);
       navigate(target.route);
     } catch (error) {
       console.error("[SidebarWidePanel] 打开 DM 引导失败:", error);
       navigate(AppRouteBuilders.contacts());
     }
   }, [
-    default_agent_id,
-    handle_start_tour_from_center,
-    is_dm_tour_registered,
+    defaultAgentId,
+    handleStartTourFromCenter,
+    isDmTourRegistered,
     navigate,
-    set_active_panel_item,
+    setActivePanelItem,
   ]);
 
-  const handle_open_room_tour = useCallback(async () => {
-    if (registered_room_tour_id) {
-      handle_start_tour_from_center(registered_room_tour_id);
+  const handleOpenRoomTour = useCallback(async () => {
+    if (registeredRoomTourId) {
+      handleStartTourFromCenter(registeredRoomTourId);
       return;
     }
 
-    set_is_guide_center_open(false);
+    setIsGuideCenterOpen(false);
 
     try {
       const payload = await get_launcher_bootstrap_api();
-      const target_room = payload.rooms.find((room) => room.room_type === "room");
+      const targetRoom = payload.rooms.find((room) => room.room_type === "room");
 
-      if (!target_room) {
+      if (!targetRoom) {
         navigate(AppRouteBuilders.home());
         return;
       }
 
-      const room_conversations = payload.conversations
-        .filter((conversation) => conversation.room_id === target_room.id)
+      const roomConversations = payload.conversations
+        .filter((conversation) => conversation.room_id === targetRoom.id)
         .sort((left, right) =>
           new Date(right.last_activity).getTime() - new Date(left.last_activity).getTime()
         );
 
-      set_active_panel_item(target_room.id);
-      if (room_conversations.length > 0 && room_conversations[0].conversation_id) {
+      setActivePanelItem(targetRoom.id);
+      if (roomConversations.length > 0 && roomConversations[0].conversation_id) {
         set_requested_tour_id(ROOM_CONVERSATION_TOUR_ID);
         navigate(
           AppRouteBuilders.room_conversation(
-            target_room.id,
-            room_conversations[0].conversation_id,
+            targetRoom.id,
+            roomConversations[0].conversation_id,
           ),
         );
         return;
       }
 
       set_requested_tour_id(ROOM_EMPTY_CONVERSATION_TOUR_ID);
-      navigate(AppRouteBuilders.room(target_room.id));
+      navigate(AppRouteBuilders.room(targetRoom.id));
     } catch (error) {
       console.error("[SidebarWidePanel] 打开 Room 引导失败:", error);
       navigate(AppRouteBuilders.home());
     }
   }, [
-    handle_start_tour_from_center,
+    handleStartTourFromCenter,
     navigate,
-    registered_room_tour_id,
-    set_active_panel_item,
+    registeredRoomTourId,
+    setActivePanelItem,
   ]);
 
-  const guide_center_items = useMemo<OnboardingGuideCenterItem[]>(() => [
+  const guideCenterItems = useMemo<OnboardingGuideCenterItem[]>(() => [
     {
       id: LAUNCHER_TOUR_ID,
       icon: Rocket,
       title: t("launcher.tour_intro_title"),
       description: t("launcher.tour_intro_description"),
       action_label: t("common.view_guide"),
-      completed: has_completed_tour(LAUNCHER_TOUR_ID),
-      on_action: () => handle_request_page_tour(
+      completed: hasCompletedTour(LAUNCHER_TOUR_ID),
+      on_action: () => handleRequestPageTour(
         LAUNCHER_TOUR_ID,
         AppRouteBuilders.launcher(),
       ),
@@ -235,8 +235,8 @@ export function useSidebarGuideCenter({
       title: t("sidebar.tour_intro_title"),
       description: t("sidebar.tour_intro_description"),
       action_label: t("common.view_guide"),
-      completed: has_completed_tour(SIDEBAR_NAVIGATION_TOUR_ID),
-      on_action: () => handle_start_tour_from_center(SIDEBAR_NAVIGATION_TOUR_ID),
+      completed: hasCompletedTour(SIDEBAR_NAVIGATION_TOUR_ID),
+      on_action: () => handleStartTourFromCenter(SIDEBAR_NAVIGATION_TOUR_ID),
     },
     {
       id: DM_CONVERSATION_TOUR_ID,
@@ -244,9 +244,9 @@ export function useSidebarGuideCenter({
       title: t("room.tour_dm_intro_title"),
       description: t("room.tour_dm_intro_description"),
       action_label: t("common.view_guide"),
-      completed: has_completed_tour(DM_CONVERSATION_TOUR_ID),
+      completed: hasCompletedTour(DM_CONVERSATION_TOUR_ID),
       on_action: () => {
-        void handle_open_dm_tour();
+        void handleOpenDmTour();
       },
     },
     {
@@ -255,10 +255,10 @@ export function useSidebarGuideCenter({
       title: t("room.tour_group_intro_title"),
       description: t("room.tour_group_intro_description"),
       action_label: t("common.view_guide"),
-      completed: has_completed_tour(ROOM_CONVERSATION_TOUR_ID)
-        || has_completed_tour(ROOM_EMPTY_CONVERSATION_TOUR_ID),
+      completed: hasCompletedTour(ROOM_CONVERSATION_TOUR_ID)
+        || hasCompletedTour(ROOM_EMPTY_CONVERSATION_TOUR_ID),
       on_action: () => {
-        void handle_open_room_tour();
+        void handleOpenRoomTour();
       },
     },
     {
@@ -267,13 +267,13 @@ export function useSidebarGuideCenter({
       title: t("capability.skills_tour_intro_title"),
       description: t("capability.skills_tour_intro_description"),
       action_label: t("common.view_guide"),
-      completed: has_completed_tour(SKILLS_TOUR_ID),
+      completed: hasCompletedTour(SKILLS_TOUR_ID),
       on_action: () => {
-        if (is_tour_registered(SKILLS_TOUR_ID)) {
-          handle_start_tour_from_center(SKILLS_TOUR_ID);
+        if (isTourRegistered(SKILLS_TOUR_ID)) {
+          handleStartTourFromCenter(SKILLS_TOUR_ID);
           return;
         }
-        handle_request_page_tour(
+        handleRequestPageTour(
           SKILLS_TOUR_ID,
           AppRouteBuilders.skills(),
           SIDEBAR_CAPABILITY_ITEM_IDS.skills,
@@ -281,36 +281,36 @@ export function useSidebarGuideCenter({
       },
     },
   ], [
-    handle_open_dm_tour,
-    handle_open_room_tour,
-    handle_request_page_tour,
-    handle_start_tour_from_center,
-    has_completed_tour,
-    is_tour_registered,
+    handleOpenDmTour,
+    handleOpenRoomTour,
+    handleRequestPageTour,
+    handleStartTourFromCenter,
+    hasCompletedTour,
+    isTourRegistered,
     t,
   ]);
 
-  const guide_center_props = useMemo(() => ({
+  const guideCenterProps = useMemo(() => ({
     close_label: t("common.close"),
     description: t("onboarding.guide_center_description"),
-    is_open: is_guide_center_open,
-    items: guide_center_items,
-    on_close: close_guide_center,
-    on_reset: handle_reset_guides,
+    is_open: isGuideCenterOpen,
+    items: guideCenterItems,
+    on_close: closeGuideCenter,
+    on_reset: handleResetGuides,
     reset_label: t("common.reset_guides"),
     reviewed_label: t("common.reviewed"),
     title: t("common.guide_center"),
   }), [
-    close_guide_center,
-    guide_center_items,
-    handle_reset_guides,
-    is_guide_center_open,
+    closeGuideCenter,
+    guideCenterItems,
+    handleResetGuides,
+    isGuideCenterOpen,
     t,
   ]);
 
   return {
-    guide_center_props,
-    is_guide_center_open,
-    open_guide_center,
+    guide_center_props: guideCenterProps,
+    is_guide_center_open: isGuideCenterOpen,
+    open_guide_center: openGuideCenter,
   };
 }

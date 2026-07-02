@@ -25,28 +25,28 @@ import {
 
 export function SettingsDesktopSection() {
   const { t } = useI18n();
-  const [desktop_available] = useState(() => is_desktop_bridge_available());
-  const [desktop_version, set_desktop_version] =
+  const [desktopAvailable] = useState(() => is_desktop_bridge_available());
+  const [desktopVersion, setDesktopVersion] =
     useState<DesktopAppVersion | null>(null);
-  const [feedback_message, set_feedback_message] = useState<string | null>(
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(
     null,
   );
-  const [exporting_logs, set_exporting_logs] = useState(false);
+  const [exportingLogs, setExportingLogs] = useState(false);
 
   useEffect(() => {
-    if (!desktop_available) {
+    if (!desktopAvailable) {
       return;
     }
     let cancelled = false;
-    const load_version = async () => {
+    const loadVersion = async () => {
       try {
         const version = await get_desktop_app_version();
         if (!cancelled) {
-          set_desktop_version(version);
+          setDesktopVersion(version);
         }
       } catch (error) {
         if (!cancelled) {
-          set_feedback_message(
+          setFeedbackMessage(
             error instanceof Error
               ? error.message
               : t("settings.desktop.version_failed"),
@@ -54,21 +54,21 @@ export function SettingsDesktopSection() {
         }
       }
     };
-    void load_version();
+    void loadVersion();
     return () => {
       cancelled = true;
     };
-  }, [desktop_available, t]);
+  }, [desktopAvailable, t]);
 
-  const handle_export_logs = useCallback(async () => {
+  const handleExportLogs = useCallback(async () => {
     try {
-      set_exporting_logs(true);
-      set_feedback_message(null);
+      setExportingLogs(true);
+      setFeedbackMessage(null);
       const result = await export_desktop_logs();
       if (result.cancelled) {
         return;
       }
-      set_feedback_message(
+      setFeedbackMessage(
         result.path
           ? t("settings.desktop.export_logs_success_with_path").replace(
             "{path}",
@@ -77,17 +77,17 @@ export function SettingsDesktopSection() {
           : t("settings.desktop.export_logs_success"),
       );
     } catch (error) {
-      set_feedback_message(
+      setFeedbackMessage(
         error instanceof Error
           ? error.message
           : t("settings.desktop.export_logs_failed"),
       );
     } finally {
-      set_exporting_logs(false);
+      setExportingLogs(false);
     }
   }, [t]);
 
-  if (!desktop_available) {
+  if (!desktopAvailable) {
     return null;
   }
 
@@ -97,9 +97,9 @@ export function SettingsDesktopSection() {
         <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
           {t("settings.desktop.section_title")}
         </h2>
-        {feedback_message ? (
+        {feedbackMessage ? (
           <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
-            {feedback_message}
+            {feedbackMessage}
           </span>
         ) : null}
       </div>
@@ -114,10 +114,10 @@ export function SettingsDesktopSection() {
                 {t("settings.desktop.version_title")}
               </h3>
               <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {desktop_version
+                {desktopVersion
                   ? t("settings.desktop.version_value")
-                    .replace("{version}", desktop_version.app_version)
-                    .replace("{build}", desktop_version.build_number)
+                    .replace("{version}", desktopVersion.app_version)
+                    .replace("{build}", desktopVersion.build_number)
                   : t("settings.desktop.version_loading")}
               </p>
             </div>
@@ -125,11 +125,11 @@ export function SettingsDesktopSection() {
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <button
               className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
-              disabled={exporting_logs}
-              onClick={handle_export_logs}
+              disabled={exportingLogs}
+              onClick={handleExportLogs}
               type="button"
             >
-              {exporting_logs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+              {exportingLogs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
               {t("settings.desktop.export_logs")}
             </button>
           </div>

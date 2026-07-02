@@ -13,8 +13,8 @@ interface WorkspaceConversationTabsProps {
   conversations: RoomConversationView[];
   conversation_id: string | null;
   tour_anchor?: string;
-  on_select_conversation: (conversation_id: string) => void;
-  on_close_conversation?: (conversation_id: string) => Promise<void>;
+  on_select_conversation: (conversationId: string) => void;
+  on_close_conversation?: (conversationId: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
 }
 
@@ -30,7 +30,7 @@ const ACTIVE_TAB_MIN_WIDTH = 142;
 const INACTIVE_TAB_MIN_WIDTH = 92;
 const ACTIVE_TAB_WIDTH_WEIGHT = 1.32;
 
-function get_conversation_ids_by_activity(conversations: RoomConversationView[]): string[] {
+function getConversationIdsByActivity(conversations: RoomConversationView[]): string[] {
   return [...conversations]
     .sort((left, right) => {
       if (left.last_activity_at !== right.last_activity_at) {
@@ -41,47 +41,47 @@ function get_conversation_ids_by_activity(conversations: RoomConversationView[])
     .map((conversation) => conversation.conversation_id);
 }
 
-function are_conversation_ids_equal(left_ids: string[], right_ids: string[]): boolean {
-  if (left_ids.length !== right_ids.length) {
+function areConversationIdsEqual(leftIds: string[], rightIds: string[]): boolean {
+  if (leftIds.length !== rightIds.length) {
     return false;
   }
-  return left_ids.every((id, index) => id === right_ids[index]);
+  return leftIds.every((id, index) => id === rightIds[index]);
 }
 
-function is_external_session_conversation(conversation?: RoomConversationView): boolean {
+function isExternalSessionConversation(conversation?: RoomConversationView): boolean {
   return conversation?.options?.external_session === true;
 }
 
-function string_option(options: Record<string, unknown>, key: string): string | null {
+function stringOption(options: Record<string, unknown>, key: string): string | null {
   const value = options[key];
   return typeof value === "string" ? value : null;
 }
 
-function get_external_session_label(conversation: RoomConversationView): string | null {
-  if (!is_external_session_conversation(conversation)) {
+function getExternalSessionLabel(conversation: RoomConversationView): string | null {
+  if (!isExternalSessionConversation(conversation)) {
     return null;
   }
   return get_session_channel_label(
-    string_option(conversation.options, "channel_type"),
+    stringOption(conversation.options, "channel_type"),
     conversation.session_key,
   );
 }
 
-function get_initial_open_conversation_ids(
-  conversation_id: string | null,
-  recent_conversation_ids: string[],
+function getInitialOpenConversationIds(
+  conversationId: string | null,
+  recentConversationIds: string[],
 ): string[] {
-  if (conversation_id && recent_conversation_ids.includes(conversation_id)) {
-    return [conversation_id];
+  if (conversationId && recentConversationIds.includes(conversationId)) {
+    return [conversationId];
   }
-  return recent_conversation_ids[0] ? [recent_conversation_ids[0]] : [];
+  return recentConversationIds[0] ? [recentConversationIds[0]] : [];
 }
 
-function calculate_filled_tab_widths({
-  active_conversation_id,
-  has_create_button,
-  ordered_conversations,
-  track_width,
+function calculateFilledTabWidths({
+  active_conversation_id: activeConversationId,
+  has_create_button: hasCreateButton,
+  ordered_conversations: orderedConversations,
+  track_width: trackWidth,
 }: {
   active_conversation_id: string | null;
   has_create_button: boolean;
@@ -89,44 +89,44 @@ function calculate_filled_tab_widths({
   track_width: number;
 }): Map<string, number> {
   const widths = new Map<string, number>();
-  if (!track_width || ordered_conversations.length === 0) {
+  if (!trackWidth || orderedConversations.length === 0) {
     return widths;
   }
 
-  const available_width = Math.max(
+  const availableWidth = Math.max(
     0,
-    track_width -
+    trackWidth -
       TRACK_HORIZONTAL_PADDING -
-      (has_create_button ? CREATE_CONVERSATION_BUTTON_SPACE : 0),
+      (hasCreateButton ? CREATE_CONVERSATION_BUTTON_SPACE : 0),
   );
 
-  if (ordered_conversations.length === 1) {
+  if (orderedConversations.length === 1) {
     widths.set(
-      ordered_conversations[0].conversation_id,
-      Math.max(ACTIVE_TAB_MIN_WIDTH, available_width),
+      orderedConversations[0].conversation_id,
+      Math.max(ACTIVE_TAB_MIN_WIDTH, availableWidth),
     );
     return widths;
   }
 
-  const inactive_count = ordered_conversations.length - 1;
-  const minimum_total_width = ACTIVE_TAB_MIN_WIDTH + INACTIVE_TAB_MIN_WIDTH * inactive_count;
-  let active_width = ACTIVE_TAB_MIN_WIDTH;
-  let inactive_width = INACTIVE_TAB_MIN_WIDTH;
+  const inactiveCount = orderedConversations.length - 1;
+  const minimumTotalWidth = ACTIVE_TAB_MIN_WIDTH + INACTIVE_TAB_MIN_WIDTH * inactiveCount;
+  let activeWidth = ACTIVE_TAB_MIN_WIDTH;
+  let inactiveWidth = INACTIVE_TAB_MIN_WIDTH;
 
-  if (available_width > minimum_total_width) {
-    const weighted_unit_width = available_width / (inactive_count + ACTIVE_TAB_WIDTH_WEIGHT);
-    const maximum_active_width = available_width - INACTIVE_TAB_MIN_WIDTH * inactive_count;
-    active_width = Math.min(
-      maximum_active_width,
-      Math.max(ACTIVE_TAB_MIN_WIDTH, weighted_unit_width * ACTIVE_TAB_WIDTH_WEIGHT),
+  if (availableWidth > minimumTotalWidth) {
+    const weightedUnitWidth = availableWidth / (inactiveCount + ACTIVE_TAB_WIDTH_WEIGHT);
+    const maximumActiveWidth = availableWidth - INACTIVE_TAB_MIN_WIDTH * inactiveCount;
+    activeWidth = Math.min(
+      maximumActiveWidth,
+      Math.max(ACTIVE_TAB_MIN_WIDTH, weightedUnitWidth * ACTIVE_TAB_WIDTH_WEIGHT),
     );
-    inactive_width = (available_width - active_width) / inactive_count;
+    inactiveWidth = (availableWidth - activeWidth) / inactiveCount;
   }
 
-  ordered_conversations.forEach((conversation) => {
+  orderedConversations.forEach((conversation) => {
     widths.set(
       conversation.conversation_id,
-      conversation.conversation_id === active_conversation_id ? active_width : inactive_width,
+      conversation.conversation_id === activeConversationId ? activeWidth : inactiveWidth,
     );
   });
 
@@ -135,172 +135,172 @@ function calculate_filled_tab_widths({
 
 export function WorkspaceConversationTabs({
   conversations,
-  conversation_id,
-  tour_anchor,
-  on_select_conversation,
-  on_close_conversation,
-  on_create_conversation,
+  conversation_id: conversationId,
+  tour_anchor: tourAnchor,
+  on_select_conversation: onSelectConversation,
+  on_close_conversation: onCloseConversation,
+  on_create_conversation: onCreateConversation,
 }: WorkspaceConversationTabsProps) {
   const { t } = useI18n();
-  const track_ref = useRef<HTMLElement | null>(null);
-  const [track_width, set_track_width] = useState(0);
-  const [is_creating, set_is_creating] = useState(false);
-  const [hovered_conversation_id, set_hovered_conversation_id] = useState<string | null>(null);
-  const [optimistic_active_conversation_id, set_optimistic_active_conversation_id] = useState<string | null>(null);
-  const [pending_closed_active_conversation_id, set_pending_closed_active_conversation_id] = useState<string | null>(null);
-  const recent_conversation_ids = useMemo(
-    () => get_conversation_ids_by_activity(conversations),
+  const trackRef = useRef<HTMLElement | null>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const [isCreating, setIsCreating] = useState(false);
+  const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
+  const [optimisticActiveConversationId, setOptimisticActiveConversationId] = useState<string | null>(null);
+  const [pendingClosedActiveConversationId, setPendingClosedActiveConversationId] = useState<string | null>(null);
+  const recentConversationIds = useMemo(
+    () => getConversationIdsByActivity(conversations),
     [conversations],
   );
-  const [open_conversation_ids, set_open_conversation_ids] = useState<string[]>(() => (
-    get_initial_open_conversation_ids(conversation_id, recent_conversation_ids)
+  const [openConversationIds, setOpenConversationIds] = useState<string[]>(() => (
+    getInitialOpenConversationIds(conversationId, recentConversationIds)
   ));
-  const conversations_by_id = useMemo(
+  const conversationsById = useMemo(
     () => new Map(conversations.map((conversation) => [conversation.conversation_id, conversation])),
     [conversations],
   );
-  const ordered_conversations = useMemo(
-    () => open_conversation_ids
-      .map((id) => conversations_by_id.get(id))
+  const orderedConversations = useMemo(
+    () => openConversationIds
+      .map((id) => conversationsById.get(id))
       .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
-    [conversations_by_id, open_conversation_ids],
+    [conversationsById, openConversationIds],
   );
-  const optimistic_active_conversation_exists = Boolean(
-    optimistic_active_conversation_id &&
-      ordered_conversations.some((conversation) => (
-        conversation.conversation_id === optimistic_active_conversation_id
+  const optimisticActiveConversationExists = Boolean(
+    optimisticActiveConversationId &&
+      orderedConversations.some((conversation) => (
+        conversation.conversation_id === optimisticActiveConversationId
       )),
   );
-  const active_conversation_id = optimistic_active_conversation_exists
-    ? optimistic_active_conversation_id
-    : conversation_id;
-  const tab_widths = useMemo(() => (
-    calculate_filled_tab_widths({
-      active_conversation_id,
-      has_create_button: Boolean(on_create_conversation),
-      ordered_conversations,
-      track_width,
+  const activeConversationId = optimisticActiveConversationExists
+    ? optimisticActiveConversationId
+    : conversationId;
+  const tabWidths = useMemo(() => (
+    calculateFilledTabWidths({
+      active_conversation_id: activeConversationId,
+      has_create_button: Boolean(onCreateConversation),
+      ordered_conversations: orderedConversations,
+      track_width: trackWidth,
     })
   ), [
-    active_conversation_id,
-    on_create_conversation,
-    ordered_conversations,
-    track_width,
+    activeConversationId,
+    onCreateConversation,
+    orderedConversations,
+    trackWidth,
   ]);
 
   useLayoutEffect(() => {
-    const track_element = track_ref.current;
-    if (!track_element) {
+    const trackElement = trackRef.current;
+    if (!trackElement) {
       return undefined;
     }
 
-    const update_track_width = () => {
-      set_track_width((current_width) => {
-        const next_width = track_element.clientWidth;
-        return current_width === next_width ? current_width : next_width;
+    const updateTrackWidth = () => {
+      setTrackWidth((currentWidth) => {
+        const nextWidth = trackElement.clientWidth;
+        return currentWidth === nextWidth ? currentWidth : nextWidth;
       });
     };
 
-    update_track_width();
-    const resize_observer = new ResizeObserver(update_track_width);
-    resize_observer.observe(track_element);
-    return () => resize_observer.disconnect();
+    updateTrackWidth();
+    const resizeObserver = new ResizeObserver(updateTrackWidth);
+    resizeObserver.observe(trackElement);
+    return () => resizeObserver.disconnect();
   }, []);
 
   useEffect(() => {
     // 会话标签页采用浏览器模型：进入默认只打开当前会话，历史列表点击后再显式加入。
-    const live_ids = new Set(recent_conversation_ids);
-    const active_id = conversation_id && live_ids.has(conversation_id)
-      ? conversation_id
+    const liveIds = new Set(recentConversationIds);
+    const activeId = conversationId && liveIds.has(conversationId)
+      ? conversationId
       : null;
-    const fallback_id = active_id ?? recent_conversation_ids[0] ?? null;
+    const fallbackId = activeId ?? recentConversationIds[0] ?? null;
 
-    set_open_conversation_ids((current_ids) => {
-      let next_ids = current_ids.filter((id) => live_ids.has(id));
+    setOpenConversationIds((currentIds) => {
+      let nextIds = currentIds.filter((id) => liveIds.has(id));
       if (
-        active_id &&
-        active_id !== pending_closed_active_conversation_id &&
-        !next_ids.includes(active_id)
+        activeId &&
+        activeId !== pendingClosedActiveConversationId &&
+        !nextIds.includes(activeId)
       ) {
-        next_ids = [...next_ids, active_id];
+        nextIds = [...nextIds, activeId];
       }
-      if (next_ids.length === 0 && fallback_id) {
-        next_ids = [fallback_id];
+      if (nextIds.length === 0 && fallbackId) {
+        nextIds = [fallbackId];
       }
-      return are_conversation_ids_equal(current_ids, next_ids) ? current_ids : next_ids;
+      return areConversationIdsEqual(currentIds, nextIds) ? currentIds : nextIds;
     });
   }, [
-    conversation_id,
-    pending_closed_active_conversation_id,
-    recent_conversation_ids,
+    conversationId,
+    pendingClosedActiveConversationId,
+    recentConversationIds,
   ]);
 
   useEffect(() => {
-    set_pending_closed_active_conversation_id((current_id) => (
-      current_id && current_id !== conversation_id ? null : current_id
+    setPendingClosedActiveConversationId((currentId) => (
+      currentId && currentId !== conversationId ? null : currentId
     ));
-  }, [conversation_id]);
+  }, [conversationId]);
 
   useEffect(() => {
-    set_optimistic_active_conversation_id((current_id) => {
-      if (!current_id || current_id === conversation_id || !conversations_by_id.has(current_id)) {
+    setOptimisticActiveConversationId((currentId) => {
+      if (!currentId || currentId === conversationId || !conversationsById.has(currentId)) {
         return null;
       }
-      return current_id;
+      return currentId;
     });
-  }, [conversation_id, conversations_by_id]);
+  }, [conversationId, conversationsById]);
 
-  const handle_create_conversation = async () => {
-    if (!on_create_conversation || is_creating) {
+  const handleCreateConversation = async () => {
+    if (!onCreateConversation || isCreating) {
       return;
     }
 
-    set_is_creating(true);
+    setIsCreating(true);
     try {
-      await on_create_conversation();
+      await onCreateConversation();
     } finally {
-      set_is_creating(false);
+      setIsCreating(false);
     }
   };
 
-  const commit_optimistic_active_conversation = (next_conversation_id: string) => {
-    if (next_conversation_id === active_conversation_id) {
+  const commitOptimisticActiveConversation = (nextConversationId: string) => {
+    if (nextConversationId === activeConversationId) {
       return;
     }
     flushSync(() => {
-      set_optimistic_active_conversation_id(next_conversation_id);
+      setOptimisticActiveConversationId(nextConversationId);
     });
   };
 
-  const handle_close_conversation_tab = (
+  const handleCloseConversationTab = (
     event: MouseEvent<HTMLButtonElement>,
-    target_conversation_id: string,
+    targetConversationId: string,
   ) => {
     event.stopPropagation();
 
-    if (ordered_conversations.length <= 1) {
+    if (orderedConversations.length <= 1) {
       return;
     }
 
-    const visible_ids = ordered_conversations.map((conversation) => conversation.conversation_id);
-    const target_index = visible_ids.indexOf(target_conversation_id);
-    const next_active_id = target_index >= 0
-      ? visible_ids[target_index + 1] ?? visible_ids[target_index - 1] ?? null
+    const visibleIds = orderedConversations.map((conversation) => conversation.conversation_id);
+    const targetIndex = visibleIds.indexOf(targetConversationId);
+    const nextActiveId = targetIndex >= 0
+      ? visibleIds[targetIndex + 1] ?? visibleIds[targetIndex - 1] ?? null
       : null;
 
-    set_open_conversation_ids((current_ids) => (
-      current_ids.filter((id) => id !== target_conversation_id)
+    setOpenConversationIds((currentIds) => (
+      currentIds.filter((id) => id !== targetConversationId)
     ));
-    if (target_conversation_id === active_conversation_id) {
-      set_pending_closed_active_conversation_id(target_conversation_id);
-      if (next_active_id) {
-        commit_optimistic_active_conversation(next_active_id);
-        on_select_conversation(next_active_id);
+    if (targetConversationId === activeConversationId) {
+      setPendingClosedActiveConversationId(targetConversationId);
+      if (nextActiveId) {
+        commitOptimisticActiveConversation(nextActiveId);
+        onSelectConversation(nextActiveId);
       }
     }
-    const target_conversation = conversations_by_id.get(target_conversation_id);
-    if (on_close_conversation && !is_external_session_conversation(target_conversation)) {
-      void on_close_conversation(target_conversation_id).catch(() => undefined);
+    const targetConversation = conversationsById.get(targetConversationId);
+    if (onCloseConversation && !isExternalSessionConversation(targetConversation)) {
+      void onCloseConversation(targetConversationId).catch(() => undefined);
     }
   };
 
@@ -308,76 +308,76 @@ export function WorkspaceConversationTabs({
     <nav
       aria-label={t("room.session_tabs_label")}
       className={CONVERSATION_TAB_TRACK_CLASS_NAME}
-      data-tour-anchor={tour_anchor}
-      ref={track_ref}
+      data-tour-anchor={tourAnchor}
+      ref={trackRef}
     >
-      {on_create_conversation ? (
+      {onCreateConversation ? (
         <button
           aria-label={t("room.new_conversation")}
           className="relative mr-1 inline-flex h-6.5 w-[84px] shrink-0 items-center justify-start rounded-[13px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_76%,transparent)] pl-[22px] pr-2 text-left text-[11px] font-semibold leading-none text-(--text-default) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)] transition-[background-color,border-color,color,box-shadow] duration-(--motion-duration-fast) ease-out hover:border-[color:color-mix(in_srgb,var(--success)_24%,var(--divider-subtle-color)_76%)] hover:bg-(--surface-interactive-hover-background) hover:text-(--success) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--success)_8%,transparent)] disabled:opacity-60"
-          disabled={is_creating}
+          disabled={isCreating}
           onClick={() => {
-            void handle_create_conversation();
+            void handleCreateConversation();
           }}
           title={t("room.new_conversation")}
           type="button"
         >
-          <Plus className={cn("absolute left-[7px] top-1/2 h-3 w-3 -translate-y-1/2", is_creating && "animate-spin")} />
+          <Plus className={cn("absolute left-[7px] top-1/2 h-3 w-3 -translate-y-1/2", isCreating && "animate-spin")} />
           <span className="min-w-0 truncate">{t("room.new_conversation")}</span>
         </button>
       ) : null}
 
-      {ordered_conversations.map((conversation, conversation_index) => {
-        const is_active = conversation.conversation_id === active_conversation_id;
-        const is_hovered = conversation.conversation_id === hovered_conversation_id;
-        const previous_conversation = ordered_conversations[conversation_index - 1];
-        const is_previous_highlighted =
-          Boolean(previous_conversation) &&
+      {orderedConversations.map((conversation, conversationIndex) => {
+        const isActive = conversation.conversation_id === activeConversationId;
+        const isHovered = conversation.conversation_id === hoveredConversationId;
+        const previousConversation = orderedConversations[conversationIndex - 1];
+        const isPreviousHighlighted =
+          Boolean(previousConversation) &&
           (
-            previous_conversation.conversation_id === active_conversation_id ||
-            previous_conversation.conversation_id === hovered_conversation_id
+            previousConversation.conversation_id === activeConversationId ||
+            previousConversation.conversation_id === hoveredConversationId
           );
-        const should_show_separator = conversation_index > 0 && !is_active && !is_hovered && !is_previous_highlighted;
+        const shouldShowSeparator = conversationIndex > 0 && !isActive && !isHovered && !isPreviousHighlighted;
         const title = conversation.title?.trim() || t("room.untitled_conversation");
-        const external_session_label = get_external_session_label(conversation);
-        const tab_width = tab_widths.get(conversation.conversation_id);
+        const externalSessionLabel = getExternalSessionLabel(conversation);
+        const tabWidth = tabWidths.get(conversation.conversation_id);
 
         return (
           <div
             className={cn(
               CONVERSATION_TAB_BASE_CLASS_NAME,
-              is_active
+              isActive
                 ? "z-10 border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color)_82%)] bg-(--surface-interactive-active-background) text-(--text-strong) shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_6%,transparent)] hover:border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color)_78%)] hover:bg-(--surface-interactive-hover-background) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]"
                 : "border-transparent bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) hover:shadow-[inset_0_1px_0_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
-              should_show_separator &&
+              shouldShowSeparator &&
                 "before:pointer-events-none before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-px before:bg-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] before:content-['']",
             )}
             key={conversation.conversation_id}
-            onMouseEnter={() => set_hovered_conversation_id(conversation.conversation_id)}
+            onMouseEnter={() => setHoveredConversationId(conversation.conversation_id)}
             onMouseLeave={() => {
-              set_hovered_conversation_id((current_id) => (
-                current_id === conversation.conversation_id ? null : current_id
+              setHoveredConversationId((currentId) => (
+                currentId === conversation.conversation_id ? null : currentId
               ));
             }}
             style={{
-              minWidth: is_active ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH,
-              width: tab_width ?? (is_active ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH),
+              minWidth: isActive ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH,
+              width: tabWidth ?? (isActive ? ACTIVE_TAB_MIN_WIDTH : INACTIVE_TAB_MIN_WIDTH),
             }}
-            title={external_session_label ? `${title} · IM ${external_session_label}` : title}
+            title={externalSessionLabel ? `${title} · IM ${externalSessionLabel}` : title}
           >
             <button
-              aria-current={is_active ? "page" : undefined}
-              aria-pressed={is_active}
+              aria-current={isActive ? "page" : undefined}
+              aria-pressed={isActive}
               className="flex h-full w-full min-w-0 items-center justify-start pl-[22px] pr-7 text-left"
               onClick={() => {
-                commit_optimistic_active_conversation(conversation.conversation_id);
-                on_select_conversation(conversation.conversation_id);
+                commitOptimisticActiveConversation(conversation.conversation_id);
+                onSelectConversation(conversation.conversation_id);
               }}
               onPointerDown={(event) => {
                 if (event.button !== 0) {
                   return;
                 }
-                commit_optimistic_active_conversation(conversation.conversation_id);
+                commitOptimisticActiveConversation(conversation.conversation_id);
               }}
               type="button"
             >
@@ -385,27 +385,27 @@ export function WorkspaceConversationTabs({
                 aria-hidden="true"
                 className={cn(
                   "absolute left-2.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast)",
-                  is_active
+                  isActive
                     ? "bg-(--primary) shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_14%,transparent)]"
                     : "border border-[color:color-mix(in_srgb,var(--icon-muted)_72%,transparent)] bg-transparent group-hover:border-(--icon-default) group-hover:bg-[color:color-mix(in_srgb,var(--icon-default)_28%,transparent)]",
                 )}
               />
               <span className="min-w-0 truncate">{title}</span>
-              {external_session_label ? (
+              {externalSessionLabel ? (
                 <span className="ml-1 inline-flex shrink-0 items-center rounded-[5px] border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-bold leading-none text-(--primary)">
                   IM
                 </span>
               ) : null}
             </button>
-            {ordered_conversations.length > 1 ? (
+            {orderedConversations.length > 1 ? (
               <button
                 aria-label={t("room.close_conversation")}
                 className={cn(
                   "absolute right-1 top-1/2 flex h-5 w-5 shrink-0 -translate-y-1/2 items-center justify-center rounded-full text-(--icon-muted) transition duration-(--motion-duration-fast) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)",
-                  is_active ? "opacity-100" : "opacity-70 group-hover:opacity-100",
+                  isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100",
                 )}
                 onClick={(event) => {
-                  handle_close_conversation_tab(event, conversation.conversation_id);
+                  handleCloseConversationTab(event, conversation.conversation_id);
                 }}
                 title={t("room.close_conversation")}
                 type="button"

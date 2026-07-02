@@ -37,115 +37,115 @@ import { HeroStageProps, LauncherMentionMatch } from "./launcher-console-types";
 const MemoAgentPile = memo(AgentPile);
 
 export const LauncherHeroStage = memo(function LauncherHeroStage({
-  current_agent_id,
-  decorative_tokens,
-  mention_targets,
-  on_enter_home,
-  on_open_main_agent_dm,
-  on_query_change,
-  on_select_agent,
-  on_open_recent_entry,
-  on_submit,
+  current_agent_id: currentAgentId,
+  decorative_tokens: decorativeTokens,
+  mention_targets: mentionTargets,
+  on_enter_home: onEnterHome,
+  on_open_main_agent_dm: onOpenMainAgentDm,
+  on_query_change: onQueryChange,
+  on_select_agent: onSelectAgent,
+  on_open_recent_entry: onOpenRecentEntry,
+  on_submit: onSubmit,
   query,
-  recent_entries,
-  is_query_loading,
+  recent_entries: recentEntries,
+  is_query_loading: isQueryLoading,
 }: HeroStageProps) {
   const { t } = useI18n();
-  const is_composing_ref = useRef(false);
-  const input_ref = useRef<HTMLInputElement>(null);
-  const [local_query, set_local_query] = useState(query);
-  const [mention_match, set_mention_match] =
+  const isComposingRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [localQuery, setLocalQuery] = useState(query);
+  const [mentionMatch, setMentionMatch] =
     useState<LauncherMentionMatch | null>(null);
 
-  const visible_mention_targets = useMemo(() => {
-    if (!mention_match) {
+  const visibleMentionTargets = useMemo(() => {
+    if (!mentionMatch) {
       return [];
     }
-    return mention_targets.filter((item) =>
-      mention_match.trigger === "@"
+    return mentionTargets.filter((item) =>
+      mentionMatch.trigger === "@"
         ? item.kind === "agent"
         : item.kind === "room",
     );
-  }, [mention_match, mention_targets]);
+  }, [mentionMatch, mentionTargets]);
 
-  const sync_mention_match = useCallback(
-    (value: string, cursor_pos: number) => {
-      set_mention_match(find_launcher_mention_match(value, cursor_pos));
+  const syncMentionMatch = useCallback(
+    (value: string, cursorPos: number) => {
+      setMentionMatch(find_launcher_mention_match(value, cursorPos));
     },
     [],
   );
 
-  const handle_mention_close = useCallback(() => {
-    set_mention_match(null);
+  const handleMentionClose = useCallback(() => {
+    setMentionMatch(null);
   }, []);
 
-  const handle_enter_home_click = useCallback(
+  const handleEnterHomeClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
-      on_enter_home();
+      onEnterHome();
     },
-    [on_enter_home],
+    [onEnterHome],
   );
 
-  const handle_query_change = useCallback(
+  const handleQueryChange = useCallback(
     (value: string) => {
-      set_local_query(value);
-      on_query_change(value);
-      const cursor_pos = input_ref.current?.selectionStart ?? value.length;
-      sync_mention_match(value, cursor_pos);
+      setLocalQuery(value);
+      onQueryChange(value);
+      const cursorPos = inputRef.current?.selectionStart ?? value.length;
+      syncMentionMatch(value, cursorPos);
     },
-    [on_query_change, sync_mention_match],
+    [onQueryChange, syncMentionMatch],
   );
 
-  const handle_mention_select = useCallback(
+  const handleMentionSelect = useCallback(
     (item: MentionTargetItem) => {
-      if (!mention_match) {
+      if (!mentionMatch) {
         return;
       }
-      const cursor_pos =
-        input_ref.current?.selectionStart ?? local_query.length;
-      const before = local_query.slice(0, mention_match.start_pos);
-      const after = local_query.slice(cursor_pos);
-      const next_query = `${before}${mention_match.trigger}${item.label} ${after}`;
-      set_local_query(next_query);
-      on_query_change(next_query);
-      set_mention_match(null);
+      const cursorPos =
+        inputRef.current?.selectionStart ?? localQuery.length;
+      const before = localQuery.slice(0, mentionMatch.start_pos);
+      const after = localQuery.slice(cursorPos);
+      const nextQuery = `${before}${mentionMatch.trigger}${item.label} ${after}`;
+      setLocalQuery(nextQuery);
+      onQueryChange(nextQuery);
+      setMentionMatch(null);
 
       requestAnimationFrame(() => {
-        const next_cursor = mention_match.start_pos + item.label.length + 2;
-        input_ref.current?.setSelectionRange(next_cursor, next_cursor);
-        input_ref.current?.focus();
+        const nextCursor = mentionMatch.start_pos + item.label.length + 2;
+        inputRef.current?.setSelectionRange(nextCursor, nextCursor);
+        inputRef.current?.focus();
       });
     },
-    [local_query, mention_match, on_query_change],
+    [localQuery, mentionMatch, onQueryChange],
   );
 
   useEffect(() => {
-    set_local_query(query);
+    setLocalQuery(query);
   }, [query]);
 
   useEffect(() => {
-    if (!local_query) {
-      set_mention_match(null);
+    if (!localQuery) {
+      setMentionMatch(null);
     }
-  }, [local_query]);
+  }, [localQuery]);
 
-  const handle_submit = useCallback(() => {
-    const trimmed_query = local_query.trim();
-    if (!trimmed_query) {
+  const handleSubmit = useCallback(() => {
+    const trimmedQuery = localQuery.trim();
+    if (!trimmedQuery) {
       return;
     }
 
-    const did_submit = on_submit(trimmed_query);
-    if (!did_submit) {
+    const didSubmit = onSubmit(trimmedQuery);
+    if (!didSubmit) {
       return;
     }
 
     // 提交后先在本地立即清空，避免受控值回流慢一拍。
-    set_local_query("");
-    on_query_change("");
-    set_mention_match(null);
-  }, [local_query, on_query_change, on_submit]);
+    setLocalQuery("");
+    onQueryChange("");
+    setMentionMatch(null);
+  }, [localQuery, onQueryChange, onSubmit]);
 
   return (
     <div
@@ -169,7 +169,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                       "inset 0 0 0 1px var(--launcher-input-stroke), 0 12px 26px rgba(48, 63, 88, 0.10)",
                     color: "var(--launcher-input-text)",
                   }}
-                  onClick={handle_enter_home_click}
+                  onClick={handleEnterHomeClick}
                   type="button"
                 >
                   <span
@@ -222,15 +222,15 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               }}
             >
               <div className="relative flex min-w-0 items-center gap-2.5 sm:gap-3">
-                {mention_match ? (
+                {mentionMatch ? (
                   <MentionTargetPopover
                     anchor_rect={
-                      input_ref.current?.getBoundingClientRect() ?? null
+                      inputRef.current?.getBoundingClientRect() ?? null
                     }
-                    filter={mention_match.filter}
-                    items={visible_mention_targets}
-                    on_close={handle_mention_close}
-                    on_select={handle_mention_select}
+                    filter={mentionMatch.filter}
+                    items={visibleMentionTargets}
+                    on_close={handleMentionClose}
+                    on_select={handleMentionSelect}
                     placement="below"
                   />
                 ) : null}
@@ -240,33 +240,33 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 />
                 <input
                   aria-label="输入启动器指令"
-                  ref={input_ref}
+                  ref={inputRef}
                   className="flex-1 bg-transparent text-[14px] outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none sm:text-[15px]"
                   style={{ color: "var(--launcher-input-text)" }}
                   onBlur={() => {
                     requestAnimationFrame(() => {
-                      if (document.activeElement !== input_ref.current) {
-                        set_mention_match(null);
+                      if (document.activeElement !== inputRef.current) {
+                        setMentionMatch(null);
                       }
                     });
                   }}
-                  onChange={(event) => handle_query_change(event.target.value)}
+                  onChange={(event) => handleQueryChange(event.target.value)}
                   onCompositionEnd={() => {
-                    is_composing_ref.current = false;
+                    isComposingRef.current = false;
                   }}
                   onCompositionStart={() => {
-                    is_composing_ref.current = true;
+                    isComposingRef.current = true;
                   }}
                   onKeyDown={(event) => {
                     if (
-                      is_composing_ref.current ||
+                      isComposingRef.current ||
                       event.nativeEvent.isComposing
                     ) {
                       return;
                     }
                     if (
-                      mention_match &&
-                      visible_mention_targets.length > 0 &&
+                      mentionMatch &&
+                      visibleMentionTargets.length > 0 &&
                       [
                         "ArrowDown",
                         "ArrowUp",
@@ -279,44 +279,44 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                     }
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      handle_submit();
+                      handleSubmit();
                     }
                   }}
                   onSelect={(event) => {
                     const target = event.target as HTMLInputElement;
-                    sync_mention_match(
+                    syncMentionMatch(
                       target.value,
                       target.selectionStart ?? target.value.length,
                     );
                   }}
-                  value={local_query}
+                  value={localQuery}
                   placeholder={t("launcher.query_placeholder")}
-                  disabled={is_query_loading}
+                  disabled={isQueryLoading}
                 />
                 <button
                   className={cn(
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition duration-150 ease-out hover:-translate-y-0.5 sm:h-11 sm:w-11",
-                    is_query_loading &&
+                    isQueryLoading &&
                       "cursor-not-allowed opacity-(--disabled-opacity) hover:translate-y-0",
                   )}
                   style={{
-                    background: is_query_loading
+                    background: isQueryLoading
                       ? "var(--launcher-submit-background)"
                       : "transparent",
-                    borderColor: is_query_loading
+                    borderColor: isQueryLoading
                       ? "rgba(255,255,255,0.34)"
                       : "transparent",
                     boxShadow:
-                      is_query_loading
+                      isQueryLoading
                         ? "inset 0 1px 0 rgba(255,255,255,0.26), var(--launcher-submit-shadow)"
                         : "none",
                     color: "var(--launcher-submit-color)",
                   }}
-                  onClick={handle_submit}
+                  onClick={handleSubmit}
                   type="button"
-                  disabled={is_query_loading}
+                  disabled={isQueryLoading}
                 >
-                  {is_query_loading ? (
+                  {isQueryLoading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
                     <img alt="Send" className="h-10 w-10 object-contain sm:h-11 sm:w-11" src="/nexus/launcher-send-mascot.png" />
@@ -333,7 +333,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
               "mt-3 sm:mt-4",
             )}
           >
-            {recent_entries.map((entry, index) => (
+            {recentEntries.map((entry, index) => (
               <FadeSlideIn
                 key={entry.key}
                 delay_ms={580 + index * 55}
@@ -379,7 +379,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                     }}
                     onClick={(event) => {
                       event.stopPropagation();
-                      on_open_recent_entry(entry);
+                      onOpenRecentEntry(entry);
                     }}
                     type="button"
                   >
@@ -400,7 +400,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
             ))}
 
             <FadeSlideIn
-              delay_ms={580 + recent_entries.length * 55}
+              delay_ms={580 + recentEntries.length * 55}
               duration_ms={360}
               y_offset={6}
               style={{ display: "inline-flex" }}
@@ -409,7 +409,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                 data-tour-anchor={LAUNCHER_TOUR_ANCHORS.handoff}
                 className="px-1 text-xs font-medium transition-colors duration-150 ease-out hover:text-(--launcher-handoff-hover-color) sm:text-sm"
                 style={{ color: "var(--launcher-handoff-color)" }}
-                onClick={() => on_open_main_agent_dm(query)}
+                onClick={() => onOpenMainAgentDm(query)}
                 type="button"
               >
                 <span className="inline-flex items-center gap-1.5">
@@ -424,9 +424,9 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
 
       <MemoAgentPile
         class_name="hidden min-[400px]:block"
-        current_agent_id={current_agent_id}
-        on_select_agent={on_select_agent}
-        tokens={decorative_tokens}
+        current_agent_id={currentAgentId}
+        on_select_agent={onSelectAgent}
+        tokens={decorativeTokens}
       />
     </div>
   );

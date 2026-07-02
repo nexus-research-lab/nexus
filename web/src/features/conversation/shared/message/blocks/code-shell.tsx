@@ -24,23 +24,23 @@ interface CodeShellProps {
 /** 中文注释：代码块壳层只在消息区复用，直接收进组件层，避免全局样式继续承担细节实现。 */
 export function CodeShell({
   language,
-  right_slot,
-  content_class_name,
-  class_name,
+  right_slot: rightSlot,
+  content_class_name: contentClassName,
+  class_name: className,
   children,
 }: CodeShellProps) {
   return (
     <div
       className={cn(
         "relative overflow-hidden rounded-[10px] border",
-        class_name,
+        className,
       )}
       style={{
         background: "color-mix(in srgb, var(--surface-panel-background) 90%, transparent)",
         borderColor: "color-mix(in srgb, var(--surface-panel-subtle-border) 80%, transparent)",
       }}
     >
-      {language || right_slot ? (
+      {language || rightSlot ? (
         <div
           className="flex items-center justify-between gap-2 border-b px-2.5"
           style={{ borderColor: "var(--divider-subtle-color)" }}
@@ -51,14 +51,14 @@ export function CodeShell({
           >
             {language || "text"}
           </span>
-          {right_slot ? (
+          {rightSlot ? (
             <div className="shrink-0">
-              {right_slot}
+              {rightSlot}
             </div>
           ) : null}
         </div>
       ) : null}
-      <div className={content_class_name}>
+      <div className={contentClassName}>
         {children}
       </div>
     </div>

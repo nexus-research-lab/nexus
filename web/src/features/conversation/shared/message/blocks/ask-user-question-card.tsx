@@ -16,8 +16,8 @@ interface AskUserQuestionCardProps {
   question_index: number;
   selected_options: Set<string>;
   custom_answer: string;
-  on_toggle_option: (question_index: number, option_label: string, multi_select: boolean) => void;
-  on_custom_answer_change: (question_index: number, custom_answer: string, multi_select: boolean) => void;
+  on_toggle_option: (questionIndex: number, optionLabel: string, multiSelect: boolean) => void;
+  on_custom_answer_change: (questionIndex: number, customAnswer: string, multiSelect: boolean) => void;
   is_submitted: boolean;
   default_expanded?: boolean;
 }
@@ -25,21 +25,21 @@ interface AskUserQuestionCardProps {
 /** 单个问题卡片（支持独立收起） */
 export function AskUserQuestionCard({
   question,
-  question_index,
-  selected_options,
-  custom_answer,
-  on_toggle_option,
-  on_custom_answer_change,
-  is_submitted,
-  default_expanded = false,
+  question_index: questionIndex,
+  selected_options: selectedOptions,
+  custom_answer: customAnswer,
+  on_toggle_option: onToggleOption,
+  on_custom_answer_change: onCustomAnswerChange,
+  is_submitted: isSubmitted,
+  default_expanded: defaultExpanded = false,
 }: AskUserQuestionCardProps) {
-  const [isExpanded, setIsExpanded] = useState(default_expanded);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const isMultiSelect = question.multi_select ?? false;
-  const hasCustomAnswer = custom_answer.trim().length > 0;
-  const showCustomAnswer = !is_submitted || hasCustomAnswer;
-  const hasSelection = selected_options.size > 0 || hasCustomAnswer;
-  const selectedCount = selected_options.size + (hasCustomAnswer ? 1 : 0);
-  const summaryItems = [...Array.from(selected_options), ...(hasCustomAnswer ? [custom_answer.trim()] : [])];
+  const hasCustomAnswer = customAnswer.trim().length > 0;
+  const showCustomAnswer = !isSubmitted || hasCustomAnswer;
+  const hasSelection = selectedOptions.size > 0 || hasCustomAnswer;
+  const selectedCount = selectedOptions.size + (hasCustomAnswer ? 1 : 0);
+  const summaryItems = [...Array.from(selectedOptions), ...(hasCustomAnswer ? [customAnswer.trim()] : [])];
   const selectionSummary = summaryItems.slice(0, 2).join("、") +
     (summaryItems.length > 2 ? "..." : "");
 
@@ -70,7 +70,7 @@ export function AskUserQuestionCard({
           "shrink-0 text-[10px] font-semibold tabular-nums tracking-[0.12em] text-(--text-soft)",
           hasSelection && "text-primary",
         )}>
-          {String(question_index + 1).padStart(2, "0")}
+          {String(questionIndex + 1).padStart(2, "0")}
         </span>
 
         {question.header && (
@@ -112,7 +112,7 @@ export function AskUserQuestionCard({
         <div className="message-cjk-font p-2.5">
           <div className="overflow-hidden rounded-[8px] border border-(--divider-subtle-color)">
             {question.options.map((option, optIndex) => {
-              const isSelected = selected_options.has(option.label);
+              const isSelected = selectedOptions.has(option.label);
               const Icon = isMultiSelect
                 ? (isSelected ? CheckSquare : Square)
                 : (isSelected ? CheckCircle : Circle);
@@ -125,12 +125,12 @@ export function AskUserQuestionCard({
                     isSelected
                       ? "bg-primary/4"
                       : "bg-transparent hover:bg-(--surface-interactive-hover-background)",
-                    is_submitted && "cursor-not-allowed opacity-60",
+                    isSubmitted && "cursor-not-allowed opacity-60",
                   )}
-                  disabled={is_submitted}
+                  disabled={isSubmitted}
                   onClick={(e) => {
                     e.stopPropagation();
-                    on_toggle_option(question_index, option.label, isMultiSelect);
+                    onToggleOption(questionIndex, option.label, isMultiSelect);
                   }}
                   type="button"
                 >
@@ -183,13 +183,13 @@ export function AskUserQuestionCard({
                     className={cn(
                       "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-(--motion-duration-fast) ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
                       "placeholder:text-muted-foreground/70",
-                      is_submitted && "cursor-not-allowed opacity-60",
+                      isSubmitted && "cursor-not-allowed opacity-60",
                     )}
-                    disabled={is_submitted}
-                    value={custom_answer}
+                    disabled={isSubmitted}
+                    value={customAnswer}
                     onChange={(event) => {
-                      on_custom_answer_change(
-                        question_index,
+                      onCustomAnswerChange(
+                        questionIndex,
                         event.target.value,
                         isMultiSelect,
                       );

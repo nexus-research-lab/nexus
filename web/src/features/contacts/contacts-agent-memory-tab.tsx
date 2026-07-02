@@ -61,104 +61,104 @@ const LAYER_OPTIONS: Array<{ value: MemoryLayerFilter; label: string }> = [
 ];
 
 export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
-  const [items, set_items] = useState<MemoryItem[]>([]);
-  const [stats, set_stats] = useState<MemoryStats | null>(null);
-  const [selected_item_id, set_selected_item_id] = useState("");
-  const [status_filter, set_status_filter] = useState("");
-  const [layer_filter, set_layer_filter] = useState<MemoryLayerFilter>("all");
-  const [query, set_query] = useState("");
-  const [loading, set_loading] = useState(false);
-  const [cleaning, set_cleaning] = useState(false);
-  const [deleting_item_id, set_deleting_item_id] = useState("");
-  const [error, set_error] = useState<string | null>(null);
+  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [stats, setStats] = useState<MemoryStats | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [layerFilter, setLayerFilter] = useState<MemoryLayerFilter>("all");
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const visible_items = useMemo(() => {
+  const visibleItems = useMemo(() => {
     return items.filter((item) => {
-      if (status_filter && item.status !== status_filter) {
+      if (statusFilter && item.status !== statusFilter) {
         return false;
       }
-      return layer_filter === "all" || memory_layer_key(item.scope) === layer_filter;
+      return layerFilter === "all" || memory_layer_key(item.scope) === layerFilter;
     });
-  }, [items, layer_filter, status_filter]);
+  }, [items, layerFilter, statusFilter]);
 
-  const selected_item = useMemo(
-    () => visible_items.find((item) => item.entry_id === selected_item_id) ?? visible_items[0] ?? null,
-    [selected_item_id, visible_items],
+  const selectedItem = useMemo(
+    () => visibleItems.find((item) => item.entry_id === selectedItemId) ?? visibleItems[0] ?? null,
+    [selectedItemId, visibleItems],
   );
 
-  const load_memory = useCallback(async () => {
-    set_loading(true);
-    set_error(null);
+  const loadMemory = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const [next_items, next_stats] = await Promise.all([
+      const [nextItems, nextStats] = await Promise.all([
         query.trim()
           ? search_memory_items_api(agent.agent_id, query.trim(), 80)
           : list_memory_items_api(agent.agent_id, {
               limit: 120,
-              status: status_filter,
+              status: statusFilter,
             }),
         get_memory_stats_api(agent.agent_id),
       ]);
-      set_items(next_items);
-      set_stats(next_stats);
-      set_selected_item_id((current) => {
-        if (current && next_items.some((item) => item.entry_id === current)) {
+      setItems(nextItems);
+      setStats(nextStats);
+      setSelectedItemId((current) => {
+        if (current && nextItems.some((item) => item.entry_id === current)) {
           return current;
         }
-        return next_items[0]?.entry_id ?? "";
+        return nextItems[0]?.entry_id ?? "";
       });
-    } catch (load_error) {
-      set_error(load_error instanceof Error ? load_error.message : "加载记忆失败");
-      set_items([]);
-      set_stats(null);
-      set_selected_item_id("");
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "加载记忆失败");
+      setItems([]);
+      setStats(null);
+      setSelectedItemId("");
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
-  }, [agent.agent_id, query, status_filter]);
+  }, [agent.agent_id, query, statusFilter]);
 
   useEffect(() => {
-    void load_memory();
-  }, [load_memory]);
+    void loadMemory();
+  }, [loadMemory]);
 
-  const handle_delete = useCallback(
+  const handleDelete = useCallback(
     async (item: MemoryItem) => {
       if (!window.confirm("确定删除这条记忆？删除后不会参与召回。")) {
         return;
       }
-      set_deleting_item_id(item.entry_id);
-      set_error(null);
+      setDeletingItemId(item.entry_id);
+      setError(null);
       try {
         await delete_memory_item_api(agent.agent_id, item.entry_id);
-        set_items((current) => current.filter((candidate) => candidate.entry_id !== item.entry_id));
-        set_selected_item_id("");
-        await load_memory();
-      } catch (delete_error) {
-        set_error(delete_error instanceof Error ? delete_error.message : "删除记忆失败");
+        setItems((current) => current.filter((candidate) => candidate.entry_id !== item.entry_id));
+        setSelectedItemId("");
+        await loadMemory();
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "删除记忆失败");
       } finally {
-        set_deleting_item_id("");
+        setDeletingItemId("");
       }
     },
-    [agent.agent_id, load_memory],
+    [agent.agent_id, loadMemory],
   );
 
-  const handle_cleanup = useCallback(async () => {
+  const handleCleanup = useCallback(async () => {
     if (!window.confirm("清理无有效条目关联的会话摘要和检查点？")) {
       return;
     }
-    set_cleaning(true);
-    set_error(null);
+    setCleaning(true);
+    setError(null);
     try {
       await cleanup_memory_api(agent.agent_id);
-      await load_memory();
-    } catch (cleanup_error) {
-      set_error(cleanup_error instanceof Error ? cleanup_error.message : "清理记忆失败");
+      await loadMemory();
+    } catch (cleanupError) {
+      setError(cleanupError instanceof Error ? cleanupError.message : "清理记忆失败");
     } finally {
-      set_cleaning(false);
+      setCleaning(false);
     }
-  }, [agent.agent_id, load_memory]);
+  }, [agent.agent_id, loadMemory]);
 
-  const stat_items = useMemo(
+  const statItems = useMemo(
     () => [
       { label: "总数", value: stats?.total ?? 0 },
       { label: "候选", value: stats?.candidate ?? 0 },
@@ -182,13 +182,13 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
               </span>
               <span className="truncate text-sm font-semibold text-(--text-strong)">记忆</span>
               <span className="truncate text-[11px] font-medium text-(--text-soft)">
-                {visible_items.length}/{items.length}
+                {visibleItems.length}/{items.length}
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <UiIconButton
                 aria-label="刷新记忆"
-                onClick={() => void load_memory()}
+                onClick={() => void loadMemory()}
                 size="sm"
                 type="button"
               >
@@ -197,7 +197,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
               <UiIconButton
                 aria-label="清理脏记忆"
                 disabled={cleaning}
-                onClick={() => void handle_cleanup()}
+                onClick={() => void handleCleanup()}
                 size="sm"
                 title="清理脏记忆"
                 type="button"
@@ -208,7 +208,7 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
           </div>
 
           <div className="grid grid-cols-4 gap-2 border-b border-(--divider-subtle-color) px-3.5 py-3">
-            {stat_items.map((stat) => (
+            {statItems.map((stat) => (
               <div
                 className="min-w-0 rounded-[10px] border border-(--divider-subtle-color) px-2 py-2"
                 key={stat.label}
@@ -226,24 +226,24 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
           <div className="flex flex-col gap-2 border-b border-(--divider-subtle-color) p-3">
             <UiSearchInput
               control_size="sm"
-              on_change={set_query}
+              on_change={setQuery}
               placeholder="搜索记忆"
               value={query}
             />
             <div className="grid grid-cols-2 gap-2">
               <UiSelectMenu
                 aria_label="筛选记忆状态"
-                on_change={set_status_filter}
+                on_change={setStatusFilter}
                 options={STATUS_OPTIONS}
                 size="sm"
-                value={status_filter}
+                value={statusFilter}
               />
               <UiSelectMenu
                 aria_label="筛选记忆层级"
-                on_change={(value) => set_layer_filter(value as MemoryLayerFilter)}
+                on_change={(value) => setLayerFilter(value as MemoryLayerFilter)}
                 options={LAYER_OPTIONS}
                 size="sm"
-                value={layer_filter}
+                value={layerFilter}
               />
             </div>
           </div>
@@ -251,16 +251,16 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
           <MemoryItemList
             error={error}
             is_loading={loading}
-            items={visible_items}
-            on_select={set_selected_item_id}
-            selected_item_id={selected_item?.entry_id ?? ""}
+            items={visibleItems}
+            on_select={setSelectedItemId}
+            selected_item_id={selectedItem?.entry_id ?? ""}
           />
         </section>
 
         <MemoryItemInspector
-          is_deleting={selected_item ? deleting_item_id === selected_item.entry_id : false}
-          item={selected_item}
-          on_delete={handle_delete}
+          is_deleting={selectedItem ? deletingItemId === selectedItem.entry_id : false}
+          item={selectedItem}
+          on_delete={handleDelete}
         />
       </div>
     </div>
@@ -269,18 +269,18 @@ export function ContactsAgentMemoryTab({ agent }: ContactsAgentMemoryTabProps) {
 
 function MemoryItemList({
   error,
-  is_loading,
+  is_loading: isLoading,
   items,
-  on_select,
-  selected_item_id,
+  on_select: onSelect,
+  selected_item_id: selectedItemId,
 }: {
   error: string | null;
   is_loading: boolean;
   items: MemoryItem[];
-  on_select: (entry_id: string) => void;
+  on_select: (entryId: string) => void;
   selected_item_id: string;
 }) {
-  if (is_loading && items.length === 0) {
+  if (isLoading && items.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center text-(--text-soft)">
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -316,13 +316,13 @@ function MemoryItemList({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {items.map((item) => {
-        const active = item.entry_id === selected_item_id;
+        const active = item.entry_id === selectedItemId;
         return (
           <UiListRow
             active={active}
             class_name="min-h-[112px] rounded-none border-b border-(--divider-subtle-color) px-3.5 py-3"
             key={item.entry_id}
-            on_click={() => on_select(item.entry_id)}
+            on_click={() => onSelect(item.entry_id)}
           >
             <div className="flex min-w-0 items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-(--text-strong)">
@@ -348,9 +348,9 @@ function MemoryItemList({
 }
 
 function MemoryItemInspector({
-  is_deleting,
+  is_deleting: isDeleting,
   item,
-  on_delete,
+  on_delete: onDelete,
 }: {
   is_deleting: boolean;
   item: MemoryItem | null;
@@ -364,7 +364,7 @@ function MemoryItemInspector({
     );
   }
 
-  const raw_fields = (item.fields ?? []).filter((field) => field.value.trim() !== "");
+  const rawFields = (item.fields ?? []).filter((field) => field.value.trim() !== "");
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden">
@@ -386,14 +386,14 @@ function MemoryItemInspector({
           <MemoryStatusBadge status={item.status} />
           <UiIconButton
             aria-label="删除记忆"
-            disabled={is_deleting}
-            onClick={() => on_delete(item)}
+            disabled={isDeleting}
+            onClick={() => onDelete(item)}
             size="sm"
             title="删除记忆"
             tone="danger"
             type="button"
           >
-            {is_deleting ? (
+            {isDeleting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Trash2 className="h-3.5 w-3.5" />
@@ -436,13 +436,13 @@ function MemoryItemInspector({
           <MemoryMetaRow label="round" value={item.round_id} />
         </dl>
 
-        {raw_fields.length > 0 ? (
+        {rawFields.length > 0 ? (
           <details className="mt-4 border-t border-(--divider-subtle-color) pt-3 text-[11px] leading-5 text-(--text-soft)">
             <summary className="cursor-pointer select-none font-medium">
-              原始字段 {raw_fields.length}
+              原始字段 {rawFields.length}
             </summary>
             <dl className="mt-2 grid gap-1.5">
-              {raw_fields.map((field) => (
+              {rawFields.map((field) => (
                 <MemoryMetaRow
                   key={`${field.key}:${field.value}`}
                   label={field.key}

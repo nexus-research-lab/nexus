@@ -33,40 +33,40 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer(props: MarkdownRendererProps) {
-  const { content, class_name, is_streaming, on_open_workspace_file, workspace_agent_id } = props;
-  const resolve_file_path = useMarkdownFileResolver(workspace_agent_id);
-  const current_agent_id = useMarkdownCurrentAgentID(workspace_agent_id);
-  const should_stream = Boolean(is_streaming);
-  const displayed_content = useSmoothStreamingMarkdownContent(content, should_stream);
-  const markdown_components = useMemo(
-    () => create_markdown_components(resolve_file_path, on_open_workspace_file, current_agent_id),
-    [current_agent_id, on_open_workspace_file, resolve_file_path],
+  const { content, class_name: className, is_streaming: isStreaming, on_open_workspace_file: onOpenWorkspaceFile, workspace_agent_id: workspaceAgentId } = props;
+  const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
+  const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
+  const shouldStream = Boolean(isStreaming);
+  const displayedContent = useSmoothStreamingMarkdownContent(content, shouldStream);
+  const markdownComponents = useMemo(
+    () => create_markdown_components(resolveFilePath, onOpenWorkspaceFile, currentAgentId),
+    [currentAgentId, onOpenWorkspaceFile, resolveFilePath],
   );
-  const streaming_markdown_components = useMemo(
+  const streamingMarkdownComponents = useMemo(
     () => create_markdown_components(
-      resolve_file_path,
-      on_open_workspace_file,
-      current_agent_id,
+      resolveFilePath,
+      onOpenWorkspaceFile,
+      currentAgentId,
       { stream_code_blocks: true, stream_mermaid: true },
     ),
-    [current_agent_id, on_open_workspace_file, resolve_file_path],
+    [currentAgentId, onOpenWorkspaceFile, resolveFilePath],
   );
-  const content_segments = useMemo(
-    () => on_open_workspace_file
-      ? split_markdown_file_artifacts(displayed_content, resolve_file_path)
-      : [{ type: "text" as const, text: displayed_content }],
-    [displayed_content, on_open_workspace_file, resolve_file_path],
+  const contentSegments = useMemo(
+    () => onOpenWorkspaceFile
+      ? split_markdown_file_artifacts(displayedContent, resolveFilePath)
+      : [{ type: "text" as const, text: displayedContent }],
+    [displayedContent, onOpenWorkspaceFile, resolveFilePath],
   );
 
   return (
     <div
       className={cn(
         MARKDOWN_BODY_CLASS_NAME,
-        is_streaming && "animate-in fade-in-0",
-        class_name,
+        isStreaming && "animate-in fade-in-0",
+        className,
       )}
     >
-      {content_segments.map((segment, index) => {
+      {contentSegments.map((segment, index) => {
         if (segment.type === "file_artifact") {
           return (
             <FileArtifactBlock
@@ -74,8 +74,8 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
               label={segment.label}
               path={segment.path}
               display_path={segment.display_path}
-              workspace_agent_id={workspace_agent_id}
-              on_open_workspace_file={on_open_workspace_file}
+              workspace_agent_id={workspaceAgentId}
+              on_open_workspace_file={onOpenWorkspaceFile}
             />
           );
         }
@@ -84,26 +84,26 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
           return null;
         }
 
-        const normalized_text = normalize_markdown_content(
+        const normalizedText = normalize_markdown_content(
           segment.text,
-          resolve_file_path,
-          on_open_workspace_file,
-          { is_streaming: should_stream },
+          resolveFilePath,
+          onOpenWorkspaceFile,
+          { is_streaming: shouldStream },
         );
         const key = `text-${index}`;
-        const shared_props = {
-          components: markdown_components,
-          content: normalized_text,
+        const sharedProps = {
+          components: markdownComponents,
+          content: normalizedText,
           rehype_plugins: REHYPE_PLUGINS,
           remark_plugins: MARKDOWN_PLUGINS,
         };
 
-        if (should_stream) {
+        if (shouldStream) {
           return (
             <StreamingMarkdownText
               key={key}
-              {...shared_props}
-              streaming_components={streaming_markdown_components}
+              {...sharedProps}
+              streaming_components={streamingMarkdownComponents}
             />
           );
         }
@@ -111,7 +111,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
         return (
           <StableMarkdownText
             key={key}
-            {...shared_props}
+            {...sharedProps}
           />
         );
       })}

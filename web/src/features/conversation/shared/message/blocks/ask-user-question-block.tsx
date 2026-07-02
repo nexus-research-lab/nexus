@@ -32,7 +32,7 @@ import {
 interface AskUserQuestionBlockProps {
     tool_use: ToolUseContent;
     tool_result?: ToolResultContent;
-    on_submit?: (tool_use_id: string, answers: UserQuestionAnswer[]) => boolean | Promise<boolean>;
+    on_submit?: (toolUseId: string, answers: UserQuestionAnswer[]) => boolean | Promise<boolean>;
     is_submitted?: boolean;
     is_ready?: boolean;
     interaction_disabled?: boolean;
@@ -40,27 +40,27 @@ interface AskUserQuestionBlockProps {
 }
 
 export function AskUserQuestionBlock({
-    tool_use,
-    tool_result,
-    on_submit,
+    tool_use: toolUse,
+    tool_result: toolResult,
+    on_submit: onSubmit,
     is_submitted: initialSubmitted = false,
-    is_ready = true,
-    interaction_disabled = false,
-    interaction_disabled_reason,
+    is_ready: isReady = true,
+    interaction_disabled: interactionDisabled = false,
+    interaction_disabled_reason: interactionDisabledReason,
 }: AskUserQuestionBlockProps) {
     // 解析输入
-    const input = tool_use.input as AskUserQuestionInput;
+    const input = toolUse.input as AskUserQuestionInput;
     const questions = useMemo(
         () => (input?.questions || []).map(normalize_question),
         [input?.questions],
     );
-    const submitted_selection_state = useMemo(
-        () => build_submitted_selection_state(questions, tool_result),
-        [questions, tool_result],
+    const submittedSelectionState = useMemo(
+        () => build_submitted_selection_state(questions, toolResult),
+        [questions, toolResult],
     );
-    const has_submitted_selection_state = useMemo(
-        () => has_selection_state_content(submitted_selection_state),
-        [submitted_selection_state],
+    const hasSubmittedSelectionState = useMemo(
+        () => has_selection_state_content(submittedSelectionState),
+        [submittedSelectionState],
     );
 
     // 状态：每个问题的选中选项
@@ -70,11 +70,11 @@ export function AskUserQuestionBlock({
     const [customAnswers, setCustomAnswers] = useState<Map<number, string>>(
         () => create_empty_question_selection_state(questions).custom_answers,
     );
-    const isTimedOut = is_ask_user_question_timed_out_result(tool_result);
-    const isFailed = Boolean(tool_result?.is_error && !isTimedOut);
+    const isTimedOut = is_ask_user_question_timed_out_result(toolResult);
+    const isFailed = Boolean(toolResult?.is_error && !isTimedOut);
     const [hasLocalSubmission, setHasLocalSubmission] = useState(false);
     const isSubmitted = initialSubmitted || hasLocalSubmission;
-    const isObserverReadOnly = interaction_disabled && !isSubmitted && !isTimedOut && !isFailed;
+    const isObserverReadOnly = interactionDisabled && !isSubmitted && !isTimedOut && !isFailed;
     const shouldStartCollapsed = initialSubmitted || isTimedOut || isFailed;
     // 展开/收起状态：首帧就按最终状态初始化，避免先展开再收起的闪动
     const [isExpanded, setIsExpanded] = useState(() => !shouldStartCollapsed);
@@ -86,20 +86,20 @@ export function AskUserQuestionBlock({
     }, [initialSubmitted, isFailed, isTimedOut]);
 
     useEffect(() => {
-        const empty_state = create_empty_question_selection_state(questions);
-        setSelections(empty_state.selections);
-        setCustomAnswers(empty_state.custom_answers);
+        const emptyState = create_empty_question_selection_state(questions);
+        setSelections(emptyState.selections);
+        setCustomAnswers(emptyState.custom_answers);
     }, [questions]);
 
     useEffect(() => {
-        if (!initialSubmitted && !has_submitted_selection_state) {
+        if (!initialSubmitted && !hasSubmittedSelectionState) {
             return;
         }
         setSelections(new Map(
-            Array.from(submitted_selection_state.selections.entries()).map(([index, values]) => [index, new Set(values)]),
+            Array.from(submittedSelectionState.selections.entries()).map(([index, values]) => [index, new Set(values)]),
         ));
-        setCustomAnswers(new Map(submitted_selection_state.custom_answers));
-    }, [has_submitted_selection_state, initialSubmitted, submitted_selection_state]);
+        setCustomAnswers(new Map(submittedSelectionState.custom_answers));
+    }, [hasSubmittedSelectionState, initialSubmitted, submittedSelectionState]);
 
     // 切换选项
     const handleToggleOption = useCallback((questionIndex: number, optionLabel: string, multiSelect: boolean) => {
@@ -168,7 +168,7 @@ export function AskUserQuestionBlock({
 
     // 提交回答
     const handleSubmit = useCallback(async () => {
-        if (!canSubmit || isSubmitted || !is_ready || interaction_disabled) return;
+        if (!canSubmit || isSubmitted || !isReady || interactionDisabled) return;
 
         const answers: UserQuestionAnswer[] = questions.map((_, index) => {
             const selectedOptions = Array.from(selections.get(index) || []);
@@ -183,13 +183,13 @@ export function AskUserQuestionBlock({
             };
         });
 
-        const submitted = await on_submit?.(tool_use.id, answers);
+        const submitted = await onSubmit?.(toolUse.id, answers);
         if (submitted === false) {
             return;
         }
         setHasLocalSubmission(true);
         setIsExpanded(false); // 提交后收起
-    }, [canSubmit, customAnswers, interaction_disabled, isSubmitted, is_ready, on_submit, questions, selections, tool_use.id]);
+    }, [canSubmit, customAnswers, interactionDisabled, isSubmitted, isReady, onSubmit, questions, selections, toolUse.id]);
 
     // 计算已选数量
     const totalSelected = useMemo(() => {
@@ -324,10 +324,10 @@ export function AskUserQuestionBlock({
             {!isReadOnly && isExpanded && (
                 <div className="message-cjk-font mt-2 flex min-h-0 items-center justify-between gap-3 border-t border-(--divider-subtle-color) pt-2">
                     <span className="text-[11px] leading-none text-muted-foreground">
-                        {!is_ready
+                        {!isReady
                             ? '等待提问就绪'
                             : isObserverReadOnly
-                                ? (interaction_disabled_reason || '当前暂不可操作')
+                                ? (interactionDisabledReason || '当前暂不可操作')
                                 : canSubmit
                                     ? '✓ 所有问题都已回应'
                                     : '每个问题至少回应一次'}
@@ -339,11 +339,11 @@ export function AskUserQuestionBlock({
                             e.stopPropagation();
                             void handleSubmit();
                         }}
-                        disabled={!canSubmit || !is_ready || interaction_disabled}
-                        title={interaction_disabled ? interaction_disabled_reason : undefined}
+                        disabled={!canSubmit || !isReady || interactionDisabled}
+                        title={interactionDisabled ? interactionDisabledReason : undefined}
                         className={cn(
                             "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] border px-2.5 py-1 text-xs font-medium leading-none transition-colors",
-                            canSubmit && is_ready && !interaction_disabled
+                            canSubmit && isReady && !interactionDisabled
                                 ? "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12"
                                 : "border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
                         )}

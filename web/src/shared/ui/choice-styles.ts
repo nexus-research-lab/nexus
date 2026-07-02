@@ -64,7 +64,7 @@ const CALENDAR_CHOICE_INACTIVE_CLASS_NAME =
 
 export function get_ui_choice_class_name(
   options: UiChoiceStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     active = false,
@@ -81,7 +81,7 @@ export function get_ui_choice_class_name(
       PICKER_CHOICE_BASE_CLASS_NAME,
       active ? PICKER_CHOICE_ACTIVE_CLASS_NAME : PICKER_CHOICE_INACTIVE_CLASS_NAME,
       disabled && "pointer-events-none",
-      class_name,
+      className,
     );
   }
 
@@ -91,7 +91,7 @@ export function get_ui_choice_class_name(
       active ? CALENDAR_CHOICE_ACTIVE_CLASS_NAME : CALENDAR_CHOICE_INACTIVE_CLASS_NAME,
       muted && !active && "text-(--text-soft)",
       disabled && "pointer-events-none text-(--text-soft)",
-      class_name,
+      className,
     );
   }
 
@@ -101,6 +101,6 @@ export function get_ui_choice_class_name(
     shape === "pill" ? "rounded-full" : SURFACE_CHOICE_ROUNDED_CLASS_MAP[size],
     active ? CHOICE_ACTIVE_CLASS_MAP[tone] : CHOICE_INACTIVE_CLASS_NAME,
     disabled && "pointer-events-none",
-    class_name,
+    className,
   );
 }

@@ -45,148 +45,148 @@ export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font
 
 export function normalize_markdown_content(
   content: string,
-  resolve_file_path: ResolveWorkspaceFilePath,
-  on_open_workspace_file?: (path: string) => void,
+  resolveFilePath: ResolveWorkspaceFilePath,
+  onOpenWorkspaceFile?: (path: string) => void,
   options: NormalizeMarkdownContentOptions = {},
 ): string {
-  const normalized_content = stabilize_streaming_url_tail(
-    escape_identifier_asterisks_before_brackets(content),
+  const normalizedContent = stabilizeStreamingUrlTail(
+    escapeIdentifierAsterisksBeforeBrackets(content),
     Boolean(options.is_streaming),
   );
-  return normalized_content.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
+  return normalizedContent.replace(WORKSPACE_FILE_PATTERN, (match, offset: number) => {
     if (
-      is_inside_markdown_protected_region(normalized_content, offset) ||
-      is_inside_markdown_link_destination(normalized_content, offset, match.length)
+      isInsideMarkdownProtectedRegion(normalizedContent, offset) ||
+      isInsideMarkdownLinkDestination(normalizedContent, offset, match.length)
     ) {
       return match;
     }
-    const resolved_path = resolve_workspace_artifact_path(match, resolve_file_path);
-    return resolved_path && on_open_workspace_file ? `\`${match}\`` : match;
+    const resolvedPath = resolve_workspace_artifact_path(match, resolveFilePath);
+    return resolvedPath && onOpenWorkspaceFile ? `\`${match}\`` : match;
   });
 }
 
-function stabilize_streaming_url_tail(content: string, is_streaming: boolean): string {
-  if (!is_streaming || !content) {
+function stabilizeStreamingUrlTail(content: string, isStreaming: boolean): string {
+  if (!isStreaming || !content) {
     return content;
   }
 
-  const markdown_link_match = STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN.exec(content);
-  if (markdown_link_match?.[1] && markdown_link_match[2]) {
-    const url_offset = content.length - markdown_link_match[2].length;
-    if (!is_inside_markdown_protected_region(content, url_offset)) {
-      return `${content.slice(0, url_offset)}${escape_markdown_url_tail(markdown_link_match[2])}`;
+  const markdownLinkMatch = STREAMING_MARKDOWN_LINK_DESTINATION_TAIL_PATTERN.exec(content);
+  if (markdownLinkMatch?.[1] && markdownLinkMatch[2]) {
+    const urlOffset = content.length - markdownLinkMatch[2].length;
+    if (!isInsideMarkdownProtectedRegion(content, urlOffset)) {
+      return `${content.slice(0, urlOffset)}${escapeMarkdownUrlTail(markdownLinkMatch[2])}`;
     }
   }
 
-  const autolink_match = STREAMING_AUTOLINK_TAIL_PATTERN.exec(content);
-  if (autolink_match?.[1]) {
-    const url_offset = content.length - autolink_match[1].length;
-    if (!is_inside_markdown_protected_region(content, url_offset)) {
-      return `${content.slice(0, url_offset - 1)}&lt;${escape_markdown_url_tail(autolink_match[1])}`;
+  const autolinkMatch = STREAMING_AUTOLINK_TAIL_PATTERN.exec(content);
+  if (autolinkMatch?.[1]) {
+    const urlOffset = content.length - autolinkMatch[1].length;
+    if (!isInsideMarkdownProtectedRegion(content, urlOffset)) {
+      return `${content.slice(0, urlOffset - 1)}&lt;${escapeMarkdownUrlTail(autolinkMatch[1])}`;
     }
   }
 
-  const url_match = STREAMING_URL_TAIL_PATTERN.exec(content);
-  if (!url_match?.[0]) {
+  const urlMatch = STREAMING_URL_TAIL_PATTERN.exec(content);
+  if (!urlMatch?.[0]) {
     return content;
   }
 
-  const url_offset = content.length - url_match[0].length;
-  if (is_inside_markdown_protected_region(content, url_offset)) {
+  const urlOffset = content.length - urlMatch[0].length;
+  if (isInsideMarkdownProtectedRegion(content, urlOffset)) {
     return content;
   }
 
   // 中文注释：流式尾巴上的 URL 大概率还没写完，先打断 GFM 自动链接，等空白/换行收尾后再恢复为真实链接。
-  return `${content.slice(0, url_offset)}${escape_markdown_url_tail(url_match[0])}`;
+  return `${content.slice(0, urlOffset)}${escapeMarkdownUrlTail(urlMatch[0])}`;
 }
 
-function escape_markdown_url_tail(value: string): string {
-  return value.replace(/([.:<>()[\]])/g, "\\$1");
+function escapeMarkdownUrlTail(value: string): string {
+  return value.replace(/([.:\u003c\u003e()[\]])/g, "\\$1");
 }
 
-function escape_identifier_asterisks_before_brackets(content: string): string {
-  let open_fence: { marker: "`" | "~"; length: number } | null = null;
+function escapeIdentifierAsterisksBeforeBrackets(content: string): string {
+  let openFence: { marker: "`" | "~"; length: number } | null = null;
 
   return (content.match(/[^\n]*(?:\n|$)/g)?.filter((line) => line.length > 0) ?? [])
     .map((line) => {
-      const fence_marker = read_markdown_fence_marker(line);
+      const fenceMarker = read_markdown_fence_marker(line);
 
-      if (open_fence) {
+      if (openFence) {
         if (
-          fence_marker &&
-          fence_marker.marker === open_fence.marker &&
-          fence_marker.length >= open_fence.length
+          fenceMarker &&
+          fenceMarker.marker === openFence.marker &&
+          fenceMarker.length >= openFence.length
         ) {
-          open_fence = null;
+          openFence = null;
         }
         return line;
       }
 
-      if (fence_marker) {
-        open_fence = fence_marker;
+      if (fenceMarker) {
+        openFence = fenceMarker;
         return line;
       }
 
-      return escape_inline_markdown_identifier_asterisks(line);
+      return escapeInlineMarkdownIdentifierAsterisks(line);
     })
     .join("");
 }
 
-function escape_inline_markdown_identifier_asterisks(line: string): string {
-  let in_code = false;
-  let code_marker = "";
+function escapeInlineMarkdownIdentifierAsterisks(line: string): string {
+  let inCode = false;
+  let codeMarker = "";
 
   return line
     .split(/(`+)/)
     .map((part) => {
       if (/^`+$/.test(part)) {
-        if (!in_code) {
-          in_code = true;
-          code_marker = part;
-        } else if (part.length === code_marker.length) {
-          in_code = false;
-          code_marker = "";
+        if (!inCode) {
+          inCode = true;
+          codeMarker = part;
+        } else if (part.length === codeMarker.length) {
+          inCode = false;
+          codeMarker = "";
         }
         return part;
       }
 
-      return in_code
+      return inCode
         ? part
         : part.replace(MARKDOWN_IDENTIFIER_ASTERISK_BEFORE_BRACKET_PATTERN, "\\*");
     })
     .join("");
 }
 
-function is_inside_inline_code(content: string, offset: number): boolean {
+function isInsideInlineCode(content: string, offset: number): boolean {
   const before = content.slice(0, offset);
   return (before.match(/`/g)?.length ?? 0) % 2 === 1;
 }
 
-function is_inside_markdown_protected_region(content: string, offset: number): boolean {
+function isInsideMarkdownProtectedRegion(content: string, offset: number): boolean {
   return (
-    is_inside_inline_code(content, offset) ||
+    isInsideInlineCode(content, offset) ||
     find_open_markdown_fence_language(content.slice(0, offset)) !== null
   );
 }
 
-function is_inside_markdown_link_destination(
+function isInsideMarkdownLinkDestination(
   content: string,
   offset: number,
   length: number,
 ): boolean {
   const before = content.slice(0, offset);
-  const open_paren_index = before.lastIndexOf("(");
-  if (open_paren_index < 0 || before.lastIndexOf(")") > open_paren_index) {
+  const openParenIndex = before.lastIndexOf("(");
+  if (openParenIndex < 0 || before.lastIndexOf(")") > openParenIndex) {
     return false;
   }
 
-  const before_destination = before.slice(0, open_paren_index).trimEnd();
-  if (!before_destination.endsWith("]")) {
+  const beforeDestination = before.slice(0, openParenIndex).trimEnd();
+  if (!beforeDestination.endsWith("]")) {
     return false;
   }
 
   const after = content.slice(offset + length);
-  const close_paren_index = after.indexOf(")");
-  const newline_index = after.search(/\r?\n/);
-  return close_paren_index >= 0 && (newline_index < 0 || close_paren_index < newline_index);
+  const closeParenIndex = after.indexOf(")");
+  const newlineIndex = after.search(/\r?\n/);
+  return closeParenIndex >= 0 && (newlineIndex < 0 || closeParenIndex < newlineIndex);
 }

@@ -48,8 +48,8 @@ interface ToolPermissionRequest {
   summary?: string;
   suggestions?: PermissionUpdate[];
   expires_at?: string;
-  on_allow: (updated_permissions?: PermissionUpdate[]) => void;
-  on_deny: (updated_permissions?: PermissionUpdate[]) => void;
+  on_allow: (updatedPermissions?: PermissionUpdate[]) => void;
+  on_deny: (updatedPermissions?: PermissionUpdate[]) => void;
 }
 
 interface ToolBlockProps {
@@ -69,7 +69,7 @@ interface ToolBlockProps {
 
 // ==================== 辅助函数 ====================
 
-const get_permission_choice_class_name = (selected: boolean) =>
+const getPermissionChoiceClassName = (selected: boolean) =>
   get_ui_choice_class_name({ active: selected, size: "xs", variant: "surface" });
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
@@ -78,17 +78,17 @@ const TOOL_DETAIL_SCROLL_CLASS_NAME =
 // ==================== 主组件 ====================
 
 export function ToolBlock({
-  tool_use,
-  tool_result,
-  live_progress,
+  tool_use: toolUse,
+  tool_result: toolResult,
+  live_progress: liveProgress,
   status = 'success',
-  start_time,
-  end_time,
-  permission_request,
-  interaction_disabled = false,
-  interaction_disabled_reason,
-  on_open_workspace_file,
-  workspace_agent_id,
+  start_time: startTime,
+  end_time: endTime,
+  permission_request: permissionRequest,
+  interaction_disabled: interactionDisabled = false,
+  interaction_disabled_reason: interactionDisabledReason,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  workspace_agent_id: workspaceAgentId,
 }: ToolBlockProps) {
   const {
     is_open: isExpanded,
@@ -97,26 +97,26 @@ export function ToolBlock({
   } = useScrollAnchoredState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useResettableState<number>(
     -1,
-    permission_request?.request_id ?? null,
+    permissionRequest?.request_id ?? null,
   );
   const { copied, copy } = useCopyToClipboard();
 
   // 复制工具执行结果
   const handleCopyResult = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!tool_result) return;
-    const contentToCopy = typeof tool_result.content === 'string'
-      ? tool_result.content
-      : JSON.stringify(tool_result.content, null, 2);
+    if (!toolResult) return;
+    const contentToCopy = typeof toolResult.content === 'string'
+      ? toolResult.content
+      : JSON.stringify(toolResult.content, null, 2);
     await copy(contentToCopy);
-  }, [copy, tool_result]);
+  }, [copy, toolResult]);
 
   // 计算执行时间
   const duration = useMemo(() => {
-    if (end_time && start_time) return end_time - start_time;
-    if (start_time) return Date.now() - start_time;
+    if (endTime && startTime) return endTime - startTime;
+    if (startTime) return Date.now() - startTime;
     return 0;
-  }, [end_time, start_time]);
+  }, [endTime, startTime]);
 
   // 格式化时间
   const durationText = useMemo(() => {
@@ -125,34 +125,34 @@ export function ToolBlock({
   }, [duration]);
 
   // 路径显示
-  const inputSummary = useMemo(() => get_input_summary(tool_use.input), [tool_use.input]);
-  const toolTitle = useMemo(() => get_tool_title(tool_use.name), [tool_use.name]);
+  const inputSummary = useMemo(() => get_input_summary(toolUse.input), [toolUse.input]);
+  const toolTitle = useMemo(() => get_tool_title(toolUse.name), [toolUse.name]);
   const primaryInputDetail = useMemo(
-    () => get_primary_input_detail(permission_request?.tool_input || tool_use.input),
-    [permission_request?.tool_input, tool_use.input],
+    () => get_primary_input_detail(permissionRequest?.tool_input || toolUse.input),
+    [permissionRequest?.tool_input, toolUse.input],
   );
   const readableSuggestions = useMemo(
-    () => get_readable_suggestions(permission_request?.suggestions || []),
-    [permission_request?.suggestions],
+    () => get_readable_suggestions(permissionRequest?.suggestions || []),
+    [permissionRequest?.suggestions],
   );
   const readablePermissionFields = useMemo(() => {
-    if (!permission_request?.tool_input) return [];
+    if (!permissionRequest?.tool_input) return [];
 
-    return Object.entries(permission_request.tool_input)
+    return Object.entries(permissionRequest.tool_input)
       .filter(([key]) => key !== primaryInputDetail?.key)
       .map(([key, value]) => ({
         key,
         label: FIELD_LABEL_MAP[key] || key,
         value: format_permission_value(value),
       }));
-  }, [permission_request?.tool_input, primaryInputDetail?.key]);
+  }, [permissionRequest?.tool_input, primaryInputDetail?.key]);
   const resultSummary = useMemo(() => {
-    if (!tool_result) return null;
-    return get_result_summary(tool_result.content);
-  }, [tool_result]);
+    if (!toolResult) return null;
+    return get_result_summary(toolResult.content);
+  }, [toolResult]);
   const expandedInputDetail = useMemo(
-    () => get_primary_input_detail(tool_use.input),
-    [tool_use.input],
+    () => get_primary_input_detail(toolUse.input),
+    [toolUse.input],
   );
   const permissionFieldSummary = useMemo(() => {
     if (readablePermissionFields.length === 0) return null;
@@ -161,18 +161,18 @@ export function ToolBlock({
 
   // 子 Agent 实时进度行（仅运行态）：当前子工具 · token 数
   const liveStatusText = useMemo(() => {
-    if (!live_progress) return null;
-    const total_tokens = live_progress.usage?.total_tokens;
+    if (!liveProgress) return null;
+    const totalTokens = liveProgress.usage?.total_tokens;
     const parts = [
-      live_progress.last_tool_name ? `当前 ${live_progress.last_tool_name}` : null,
-      typeof total_tokens === "number" && total_tokens > 0 ? format_tokens(total_tokens) : null,
+      liveProgress.last_tool_name ? `当前 ${liveProgress.last_tool_name}` : null,
+      typeof totalTokens === "number" && totalTokens > 0 ? format_tokens(totalTokens) : null,
     ].filter(Boolean);
     return parts.length ? parts.join(" · ") : null;
-  }, [live_progress]);
+  }, [liveProgress]);
 
   // 最终状态
-  const finalStatus = tool_result?.is_error ? 'error' : status;
-  const hasResult = !!tool_result;
+  const finalStatus = toolResult?.is_error ? 'error' : status;
+  const hasResult = !!toolResult;
   const isRunning = finalStatus === 'running';
   const isSuccess = finalStatus === 'success';
   const isError = finalStatus === 'error';
@@ -202,11 +202,11 @@ export function ToolBlock({
       : isWaiting
         ? "bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-(--warning)"
         : "bg-primary/10 text-primary";
-  const waitingConfirmationText = permission_request?.expires_at
-    ? `${new Date(permission_request.expires_at).toLocaleTimeString()} 前确认`
+  const waitingConfirmationText = permissionRequest?.expires_at
+    ? `${new Date(permissionRequest.expires_at).toLocaleTimeString()} 前确认`
     : '确认后继续执行';
-  const waitingActionHint = interaction_disabled
-    ? interaction_disabled_reason || '当前暂不可操作'
+  const waitingActionHint = interactionDisabled
+    ? interactionDisabledReason || '当前暂不可操作'
     : waitingConfirmationText;
   const collapsedDetailText = useMemo(() => {
     if (isWaiting && permissionFieldSummary) {
@@ -318,19 +318,19 @@ export function ToolBlock({
         </div>
 
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-          {isWaiting && permission_request ? (
+          {isWaiting && permissionRequest ? (
             <>
               <button
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  permission_request.on_deny();
+                  permissionRequest.on_deny();
                 }}
-                disabled={interaction_disabled}
-                title={interaction_disabled ? interaction_disabled_reason : undefined}
+                disabled={interactionDisabled}
+                title={interactionDisabled ? interactionDisabledReason : undefined}
                 className={cn(
                   "rounded-[7px] border border-(--divider-subtle-color) px-2 py-1 text-xs font-medium text-(--text-muted) transition-colors",
-                  interaction_disabled
+                  interactionDisabled
                     ? "cursor-not-allowed opacity-(--disabled-opacity)"
                     : "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                 )}
@@ -341,16 +341,16 @@ export function ToolBlock({
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  const selectedUpdate = selectedSuggestionIndex >= 0 && permission_request.suggestions
-                    ? [permission_request.suggestions[selectedSuggestionIndex]]
+                  const selectedUpdate = selectedSuggestionIndex >= 0 && permissionRequest.suggestions
+                    ? [permissionRequest.suggestions[selectedSuggestionIndex]]
                     : undefined;
-                  permission_request.on_allow(selectedUpdate);
+                  permissionRequest.on_allow(selectedUpdate);
                 }}
-                disabled={interaction_disabled}
-                title={interaction_disabled ? interaction_disabled_reason : undefined}
+                disabled={interactionDisabled}
+                title={interactionDisabled ? interactionDisabledReason : undefined}
                 className={cn(
                   "rounded-[7px] border px-2 py-1 text-xs font-medium transition-colors",
-                  interaction_disabled
+                  interactionDisabled
                     ? "cursor-not-allowed border-(--divider-subtle-color) bg-transparent text-(--text-soft)"
                     : "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
                 )}
@@ -394,23 +394,23 @@ export function ToolBlock({
       {hasResult && isExpanded && (
         <div className="message-cjk-font ml-7 mt-2 min-w-0">
           <div className={TOOL_DETAIL_SCROLL_CLASS_NAME}>
-            {typeof tool_result.content === 'string' ? (
+            {typeof toolResult.content === 'string' ? (
               <pre className="message-cjk-font px-0 py-0 text-xs whitespace-pre-wrap break-all text-(--text-strong)">
-                {tool_result.content}
+                {toolResult.content}
               </pre>
-            ) : Array.isArray(tool_result.content) && tool_result.content.some(is_image_content) ? (
+            ) : Array.isArray(toolResult.content) && toolResult.content.some(is_image_content) ? (
               <div className="space-y-2">
-                {tool_result.content.map((item) => (
+                {toolResult.content.map((item) => (
                   is_image_content(item) ? (
                     <ImageBlock
-                      key={get_tool_result_content_key(item)}
+                      key={getToolResultContentKey(item)}
                       block={item}
-                      on_open_workspace_file={on_open_workspace_file}
-                      workspace_agent_id={workspace_agent_id}
+                      on_open_workspace_file={onOpenWorkspaceFile}
+                      workspace_agent_id={workspaceAgentId}
                     />
                   ) : (
                     <CodeBlock
-                      key={get_tool_result_content_key(item)}
+                      key={getToolResultContentKey(item)}
                       language="json"
                       value={JSON.stringify(item, null, 2)}
                     />
@@ -418,13 +418,13 @@ export function ToolBlock({
                 ))}
               </div>
             ) : (
-              <CodeBlock language="json" value={JSON.stringify(tool_result.content, null, 2)} />
+              <CodeBlock language="json" value={JSON.stringify(toolResult.content, null, 2)} />
             )}
           </div>
         </div>
       )}
 
-      {permission_request && isWaiting && (
+      {permissionRequest && isWaiting && (
         <div className="message-cjk-font ml-7 mt-2 space-y-2 border-t border-(--divider-subtle-color) pt-2">
           {primaryInputDetail?.value.trim() ? (
             <div className="space-y-1 px-0 py-0 text-[12px] leading-5 text-(--text-default)">
@@ -444,13 +444,13 @@ export function ToolBlock({
               <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">权限范围</div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <label
-                  className={get_permission_choice_class_name(selectedSuggestionIndex === -1)}
+                  className={getPermissionChoiceClassName(selectedSuggestionIndex === -1)}
                 >
                   <input
                     type="radio"
-                    name={`permission-suggestion-${permission_request.request_id}`}
+                    name={`permission-suggestion-${permissionRequest.request_id}`}
                     checked={selectedSuggestionIndex === -1}
-                    disabled={interaction_disabled}
+                    disabled={interactionDisabled}
                     onChange={() => setSelectedSuggestionIndex(-1)}
                     className="sr-only"
                   />
@@ -459,13 +459,13 @@ export function ToolBlock({
                 {readableSuggestions.map((suggestion) => (
                   <label
                     key={suggestion.index}
-                    className={get_permission_choice_class_name(selectedSuggestionIndex === suggestion.index)}
+                    className={getPermissionChoiceClassName(selectedSuggestionIndex === suggestion.index)}
                   >
                     <input
                       type="radio"
-                      name={`permission-suggestion-${permission_request.request_id}`}
+                      name={`permission-suggestion-${permissionRequest.request_id}`}
                       checked={selectedSuggestionIndex === suggestion.index}
-                      disabled={interaction_disabled}
+                      disabled={interactionDisabled}
                       onChange={() => setSelectedSuggestionIndex(suggestion.index)}
                       className="sr-only"
                     />
@@ -475,9 +475,9 @@ export function ToolBlock({
               </div>
             </div>
           ) : null}
-          {interaction_disabled && interaction_disabled_reason ? (
+          {interactionDisabled && interactionDisabledReason ? (
             <div className="text-[11px] text-(--text-soft)">
-              {interaction_disabled_reason}
+              {interactionDisabledReason}
             </div>
           ) : null}
         </div>
@@ -486,6 +486,6 @@ export function ToolBlock({
   );
 }
 
-function get_tool_result_content_key(item: unknown): string {
+function getToolResultContentKey(item: unknown): string {
   return `tool-result-${JSON.stringify(item)}`;
 }

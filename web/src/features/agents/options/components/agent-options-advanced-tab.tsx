@@ -16,18 +16,18 @@ interface AgentOptionsAdvancedTabProps {
   permission_mode: string;
   on_permission_mode_change: (mode: string) => void;
   allowed_tools: string[];
-  on_toggle_tool: (tool_name: string, type: "allowed" | "disallowed") => void;
+  on_toggle_tool: (toolName: string, type: "allowed" | "disallowed") => void;
 }
 
 /** Advanced Tab 组件 — 权限控制与工具授权 */
 export function AgentOptionsAdvancedTab({
-  permission_mode,
-  on_permission_mode_change,
-  allowed_tools,
-  on_toggle_tool,
+  permission_mode: permissionMode,
+  on_permission_mode_change: onPermissionModeChange,
+  allowed_tools: allowedTools,
+  on_toggle_tool: onToggleTool,
 }: AgentOptionsAdvancedTabProps) {
   const { t } = useI18n();
-  const is_bypass_permission_mode = permission_mode === "bypassPermissions";
+  const isBypassPermissionMode = permissionMode === "bypassPermissions";
 
   return (
     <div className="space-y-4 animate-in slide-in-from-right-4 duration-300 [overflow-anchor:none]">
@@ -49,15 +49,15 @@ export function AgentOptionsAdvancedTab({
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {AGENT_PERMISSION_MODES.map((pm) => (
             <UiChoiceButton
-              active={permission_mode === pm.value}
+              active={permissionMode === pm.value}
               class_name="relative w-full flex-col items-stretch overflow-hidden text-left"
               choice_size="md"
               key={pm.value}
-              onClick={() => on_permission_mode_change(pm.value)}
+              onClick={() => onPermissionModeChange(pm.value)}
             >
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-[13px] font-semibold">{t(pm.label_key)}</span>
-                {permission_mode === pm.value && (
+                {permissionMode === pm.value && (
                   <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                     <svg
                       width="10"
@@ -85,7 +85,7 @@ export function AgentOptionsAdvancedTab({
         </div>
 
         {/* bypassPermissions 警告 */}
-        {is_bypass_permission_mode ? (
+        {isBypassPermissionMode ? (
           <div className="rounded-[15px] border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3.5 py-3 text-[11.5px] leading-[1.55] text-(--warning)">
             {t("agent_options.advanced.bypass_warning")}
           </div>
@@ -103,7 +103,7 @@ export function AgentOptionsAdvancedTab({
             </h3>
           </div>
           <span className="min-w-[92px] text-right text-[11px] tabular-nums text-(--text-soft)">
-            {t("agent_options.advanced.enabled_tools", { count: allowed_tools.length })}
+            {t("agent_options.advanced.enabled_tools", { count: allowedTools.length })}
           </span>
         </div>
 
@@ -136,7 +136,7 @@ export function AgentOptionsAdvancedTab({
         {/* 工具列表 */}
         <div className="grid grid-cols-1 gap-1.5 [overflow-anchor:none]">
           {AVAILABLE_AGENT_TOOLS.map((tool) => {
-            const isChecked = allowed_tools.includes(tool.name);
+            const isChecked = allowedTools.includes(tool.name);
             return (
               <div
                 key={tool.name}
@@ -156,7 +156,7 @@ export function AgentOptionsAdvancedTab({
                 <div className="flex h-7 w-[58px] shrink-0 origin-right scale-[0.84] items-center justify-end">
                   <GlassSwitch
                     checked={isChecked}
-                    on_change={() => on_toggle_tool(tool.name, "allowed")}
+                    on_change={() => onToggleTool(tool.name, "allowed")}
                   />
                 </div>
               </div>

@@ -22,7 +22,7 @@ import {
 import { ThemeOverlay } from "./theme-overlay";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, set_theme] = useState<Theme>(detect_initial_theme);
+  const [theme, setTheme] = useState<Theme>(detect_initial_theme);
 
   useEffect(() => {
     apply_theme(theme);
@@ -31,7 +31,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value: ThemeContextValue = {
     theme,
-    set_theme,
+    set_theme: setTheme,
   };
 
   return (

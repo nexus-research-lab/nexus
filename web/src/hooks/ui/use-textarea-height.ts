@@ -39,10 +39,10 @@ export function useTextareaHeight(
   ref: RefObject<HTMLTextAreaElement | null>,
   value: string,
   {
-    min_height = 24,
-    max_height = 128,
-    line_height = 24,
-    padding_y = 0,
+    min_height: minHeight = 24,
+    max_height: maxHeight = 128,
+    line_height: lineHeight = 24,
+    padding_y: paddingY = 0,
   }: UseTextareaHeightOptions = {},
 ): void {
   // Cache container width across renders — only update on resize
@@ -81,24 +81,24 @@ export function useTextareaHeight(
     try {
       // pretext measures the full text including \n hard breaks
       const prepared = prepare(value || " ", fontRef.current);
-      const result = layout(prepared, widthRef.current, line_height);
-      contentHeight = result.height + padding_y;
+      const result = layout(prepared, widthRef.current, lineHeight);
+      contentHeight = result.height + paddingY;
     } catch {
       // Fallback: count newlines × line_height (rough but reflow-free)
       const lines = (value.match(/\n/g) ?? []).length + 1;
-      contentHeight = lines * line_height + padding_y;
+      contentHeight = lines * lineHeight + paddingY;
     }
 
-    const clamped = Math.min(Math.max(contentHeight, min_height), max_height);
+    const clamped = Math.min(Math.max(contentHeight, minHeight), maxHeight);
     el.style.height = `${clamped}px`;
     el.style.overflowY = "auto";
     if (
-      contentHeight > max_height &&
+      contentHeight > maxHeight &&
       document.activeElement === el &&
       el.selectionStart === value.length &&
       el.selectionEnd === value.length
     ) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [value, line_height, min_height, max_height, padding_y, ref]);
+  }, [value, lineHeight, minHeight, maxHeight, paddingY, ref]);
 }

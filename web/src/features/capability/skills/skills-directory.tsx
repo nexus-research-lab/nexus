@@ -27,28 +27,28 @@ interface SkillsDirectoryProps {
   on_replay_tour?: () => void;
 }
 
-export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
+export function SkillsDirectory({ on_replay_tour: onReplayTour }: SkillsDirectoryProps) {
   const { t } = useI18n();
   const ctrl = useSkillMarketplace();
   const navigate = useNavigate();
-  const { skill_name } = useParams<{ skill_name?: string }>();
-  const open_skill_page = useCallback(
+  const { skill_name: skillName } = useParams<{ skill_name?: string }>();
+  const openSkillPage = useCallback(
     (name: string) => {
       navigate(AppRouteBuilders.skill_detail(name));
     },
     [navigate],
   );
-  const back_to_skills = useCallback(() => {
+  const backToSkills = useCallback(() => {
     navigate(AppRouteBuilders.skills());
   }, [navigate]);
-  const handle_skill_deleted = useCallback(async () => {
+  const handleSkillDeleted = useCallback(async () => {
     await ctrl.refresh_marketplace();
     navigate(AppRouteBuilders.skills());
   }, [ctrl, navigate]);
 
-  const feedback_items: FeedbackBannerItem[] = [];
+  const feedbackItems: FeedbackBannerItem[] = [];
   if (ctrl.status_message) {
-    feedback_items.push({
+    feedbackItems.push({
       key: "status",
       message: ctrl.status_message,
       on_dismiss: () => ctrl.set_status_message(null),
@@ -57,7 +57,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
     });
   }
   if (ctrl.error_message) {
-    feedback_items.push({
+    feedbackItems.push({
       key: "error",
       message: ctrl.error_message,
       on_dismiss: () => ctrl.set_error_message(null),
@@ -86,16 +86,16 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
         body_scrollable
         header={(
           <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
-            <SkillsHeader ctrl={ctrl} on_replay_tour={on_replay_tour} />
+            <SkillsHeader ctrl={ctrl} on_replay_tour={onReplayTour} />
           </div>
         )}
         stable_gutter
       >
-        {skill_name ? (
+        {skillName ? (
           <SkillDetailView
-            skill_name={skill_name}
-            on_back={back_to_skills}
-            on_deleted={handle_skill_deleted}
+            skill_name={skillName}
+            on_back={backToSkills}
+            on_deleted={handleSkillDeleted}
             on_refreshed={ctrl.refresh_marketplace}
           />
         ) : (
@@ -116,14 +116,14 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
               {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
               {ctrl.discovery_mode === "catalog" && (
-                <SkillsCatalogGrid ctrl={ctrl} on_open_skill={open_skill_page} />
+                <SkillsCatalogGrid ctrl={ctrl} on_open_skill={openSkillPage} />
               )}
             </div>
           </div>
         )}
       </WorkspaceSurfaceScaffold>
 
-      <FeedbackBannerStack items={feedback_items} />
+      <FeedbackBannerStack items={feedbackItems} />
 
       <SkillImportDialog ctrl={ctrl} />
 

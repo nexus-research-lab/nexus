@@ -27,68 +27,68 @@ interface RoomGoalPanelProps {
 }
 
 export function RoomGoalPanel({
-  activity_key,
-  can_control_session,
-  is_loading,
-  is_mobile_layout,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  room_members,
-  session_key,
+  activity_key: activityKey,
+  can_control_session: canControlSession,
+  is_loading: isLoading,
+  is_mobile_layout: isMobileLayout,
+  room_host_agent_id: roomHostAgentId,
+  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
+  room_members: roomMembers,
+  session_key: sessionKey,
 }: RoomGoalPanelProps) {
-  const [current_goal, set_current_goal] = useState<Goal | null>(null);
-  const default_lead_agent_id = useMemo(
-    () => resolve_default_room_goal_lead(room_members, room_host_agent_id),
-    [room_host_agent_id, room_members],
+  const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
+  const defaultLeadAgentId = useMemo(
+    () => resolve_default_room_goal_lead(roomMembers, roomHostAgentId),
+    [roomHostAgentId, roomMembers],
   );
-  const effective_lead_agent_id = useMemo(
+  const effectiveLeadAgentId = useMemo(
     () =>
       resolve_room_goal_lead_agent_id(
-        current_goal,
-        room_members,
-        default_lead_agent_id,
+        currentGoal,
+        roomMembers,
+        defaultLeadAgentId,
       ),
-    [current_goal, default_lead_agent_id, room_members],
+    [currentGoal, defaultLeadAgentId, roomMembers],
   );
-  const lead_agent = useMemo(
+  const leadAgent = useMemo(
     () =>
-      room_members.find((agent) => agent.agent_id === effective_lead_agent_id) ??
+      roomMembers.find((agent) => agent.agent_id === effectiveLeadAgentId) ??
       null,
-    [effective_lead_agent_id, room_members],
+    [effectiveLeadAgentId, roomMembers],
   );
-  const continuation_hold = useMemo(
+  const continuationHold = useMemo(
     () =>
       goal_continuation_hold_for_room_target(
-        room_members,
-        effective_lead_agent_id,
-        room_host_auto_reply_enabled,
+        roomMembers,
+        effectiveLeadAgentId,
+        roomHostAutoReplyEnabled,
       ),
-    [effective_lead_agent_id, room_host_auto_reply_enabled, room_members],
+    [effectiveLeadAgentId, roomHostAutoReplyEnabled, roomMembers],
   );
-  const handle_goal_change = useCallback((goal: Goal | null) => {
-    set_current_goal(goal);
+  const handleGoalChange = useCallback((goal: Goal | null) => {
+    setCurrentGoal(goal);
   }, []);
-  const status_extra = lead_agent ? (
+  const statusExtra = leadAgent ? (
     <span
       className="inline-flex min-w-0 items-center gap-1 truncate text-(--text-muted)"
-      title={`Room Goal 负责人：${lead_agent.name}`}
+      title={`Room Goal 负责人：${leadAgent.name}`}
     >
       <UserRound className="h-3 w-3 shrink-0" />
-      <span className="truncate">负责人 {lead_agent.name}</span>
+      <span className="truncate">负责人 {leadAgent.name}</span>
     </span>
   ) : null;
 
   return (
     <GoalPanel
-      activity_key={activity_key}
-      compact={is_mobile_layout}
-      continuation_hold={continuation_hold}
-      disabled={!can_control_session}
-      is_generating={is_loading}
-      session_key={session_key}
+      activity_key={activityKey}
+      compact={isMobileLayout}
+      continuation_hold={continuationHold}
+      disabled={!canControlSession}
+      is_generating={isLoading}
+      session_key={sessionKey}
       scope_label={ROOM_GOAL_SCOPE_LABEL}
-      status_extra={status_extra}
-      on_goal_change={handle_goal_change}
+      status_extra={statusExtra}
+      on_goal_change={handleGoalChange}
     />
   );
 }

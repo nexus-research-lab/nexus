@@ -53,27 +53,27 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   title,
   density = "default",
   leading,
-  title_trailing,
+  title_trailing: titleTrailing,
   subtitle,
   trailing,
   tabs = [],
-  tabs_nav_anchor,
-  tabs_leading,
-  tabs_trailing,
-  active_tab,
-  on_change_tab,
+  tabs_nav_anchor: tabsNavAnchor,
+  tabs_leading: tabsLeading,
+  tabs_trailing: tabsTrailing,
+  active_tab: activeTab,
+  on_change_tab: onChangeTab,
 }: WorkspaceSurfaceHeaderProps<TTabKey>) {
-  const has_secondary_row = density === "compact" || tabs.length > 0 || Boolean(tabs_leading) || Boolean(tabs_trailing);
-  const compact_subtitle = density === "compact" ? subtitle : null;
-  const primary_subtitle = density === "compact" ? null : subtitle;
-  const render_tabs_nav = (class_name: string, aria_label: string) => (
+  const hasSecondaryRow = density === "compact" || tabs.length > 0 || Boolean(tabsLeading) || Boolean(tabsTrailing);
+  const compactSubtitle = density === "compact" ? subtitle : null;
+  const primarySubtitle = density === "compact" ? null : subtitle;
+  const renderTabsNav = (className: string, ariaLabel: string) => (
     <UiUnderlineTabs
-      active_value={active_tab}
-      aria_label={aria_label}
-      class_name={class_name}
+      active_value={activeTab}
+      aria_label={ariaLabel}
+      class_name={className}
       density={density === "compact" ? "compact" : "default"}
-      nav_anchor={tabs_nav_anchor}
-      on_change={on_change_tab}
+      nav_anchor={tabsNavAnchor}
+      on_change={onChangeTab}
       options={tabs.map((tab) => ({
         anchor: tab.anchor,
         icon: tab.icon,
@@ -109,13 +109,13 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
               )}>
                 {title}
               </div>
-              {title_trailing ? (
-                <div className="min-w-0 shrink text-(--text-default)">{title_trailing}</div>
+              {titleTrailing ? (
+                <div className="min-w-0 shrink text-(--text-default)">{titleTrailing}</div>
               ) : null}
             </div>
-            {primary_subtitle ? (
+            {primarySubtitle ? (
               <div className="mt-1 text-[12px] text-(--text-soft)">
-                {primary_subtitle}
+                {primarySubtitle}
               </div>
             ) : null}
           </div>
@@ -128,36 +128,36 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         ) : null}
       </div>
 
-      {has_secondary_row ? (
+      {hasSecondaryRow ? (
         <div className={cn(
           "flex min-w-0",
-          tabs_leading ? "px-3 xl:px-4" : "px-5 xl:px-6",
+          tabsLeading ? "px-3 xl:px-4" : "px-5 xl:px-6",
           density === "compact"
             ? cn(COMPACT_WORKSPACE_HEADER_SECONDARY_HEIGHT_CLASS, "items-center gap-3")
             : "items-end gap-4 pb-0.5",
         )}>
-          {tabs_leading ? (
-            <div className={cn("min-w-0 flex-1", density === "compact" && "self-start")}>{tabs_leading}</div>
+          {tabsLeading ? (
+            <div className={cn("min-w-0 flex-1", density === "compact" && "self-start")}>{tabsLeading}</div>
           ) : tabs.length > 0 ? (
-            render_tabs_nav(
+            renderTabsNav(
               cn(
                 "soft-scrollbar scrollbar-hide -mx-0.5 flex min-w-0 flex-1 overflow-x-auto px-0.5",
                 density === "compact" ? "items-center gap-3" : "items-center gap-4",
               ),
               "视图切换",
             )
-          ) : compact_subtitle ? (
+          ) : compactSubtitle ? (
             <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-soft)">
-              {compact_subtitle}
+              {compactSubtitle}
             </div>
           ) : (
             <div className="min-w-0 flex-1" />
           )}
 
-          {tabs_leading && tabs.length > 0 ? (
+          {tabsLeading && tabs.length > 0 ? (
             <>
               <div className="hidden h-5 w-px shrink-0 bg-(--divider-subtle-color) sm:block" />
-              {render_tabs_nav(
+              {renderTabsNav(
                 cn(
                   "soft-scrollbar scrollbar-hide hidden min-w-0 shrink-0 overflow-x-auto sm:flex",
                   density === "compact" ? "items-center gap-3" : "items-center gap-4",
@@ -167,9 +167,9 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
             </>
           ) : null}
 
-          {tabs_trailing ? (
+          {tabsTrailing ? (
             <div className="shrink-0">
-              {tabs_trailing}
+              {tabsTrailing}
             </div>
           ) : null}
         </div>
@@ -183,18 +183,18 @@ export function WorkspaceSurfaceToolbarAction({
   onClick,
   disabled = false,
   tone = "default",
-  aria_label,
-  class_name,
+  aria_label: ariaLabel,
+  class_name: className,
   title,
 }: WorkspaceSurfaceToolbarActionProps) {
   return (
     <button
-      aria-label={aria_label}
+      aria-label={ariaLabel}
       className={cn(
         "inline-flex items-center gap-1.5 text-[11px] font-semibold transition duration-(--motion-duration-fast) ease-out disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
         tone === "default" && "text-(--text-default) hover:text-(--text-strong)",
         tone === "primary" && "text-(--primary) hover:text-[color:color-mix(in_srgb,var(--primary)_86%,var(--foreground)_14%)]",
-        class_name,
+        className,
       )}
       disabled={disabled}
       onClick={onClick}

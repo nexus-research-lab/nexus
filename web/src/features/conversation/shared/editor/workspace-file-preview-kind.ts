@@ -11,7 +11,7 @@ export type WorkspaceFilePreviewKind =
   | "binary"
   | "unknown";
 
-const text_extensions = new Set([
+const textExtensions = new Set([
   "txt",
   "json",
   "jsonl",
@@ -54,7 +54,7 @@ const text_extensions = new Set([
   "adoc",
 ]);
 
-const image_extensions = new Set([
+const imageExtensions = new Set([
   "png",
   "jpg",
   "jpeg",
@@ -73,7 +73,7 @@ export function get_workspace_file_preview_kind(
   if (ext === "pdf") {
     return "pdf";
   }
-  if (image_extensions.has(ext)) {
+  if (imageExtensions.has(ext)) {
     return "image";
   }
   if (ext === "xlsx") {
@@ -94,7 +94,7 @@ export function get_workspace_file_preview_kind(
   if (ext === "mmd" || ext === "mermaid") {
     return "mermaid";
   }
-  if (text_extensions.has(ext)) {
+  if (textExtensions.has(ext)) {
     return "text";
   }
   return "binary";
@@ -112,9 +112,9 @@ export function is_workspace_text_preview_kind(
 }
 
 export function workspace_file_kind_label(
-  file_type: WorkspaceFilePreviewKind,
+  fileType: WorkspaceFilePreviewKind,
 ): string {
-  switch (file_type) {
+  switch (fileType) {
     case "markdown":
       return "Markdown 预览";
     case "html":

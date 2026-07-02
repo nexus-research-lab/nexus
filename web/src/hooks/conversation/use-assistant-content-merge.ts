@@ -41,24 +41,24 @@ interface UseAssistantContentMergeReturn {
 
 export function useAssistantContentMerge({
   messages,
-  is_last_round,
-  is_loading,
+  is_last_round: isLastRound,
+  is_loading: isLoading,
 }: UseAssistantContentMergeOptions): UseAssistantContentMergeReturn {
   // 分离消息
-  const { user_message, assistant_messages, result_summary } = useMemo(() => {
+  const { user_message: userMessage, assistant_messages: assistantMessages, result_summary: resultSummary } = useMemo(() => {
     const user = messages.find((m) => m.role === "user" && !is_automation_trigger_user_message(m));
     const assistant = messages.filter((m) => m.role === "assistant") as AssistantMessage[];
-    const summary = get_latest_result_summary(assistant);
+    const summary = getLatestResultSummary(assistant);
     return { user_message: user, assistant_messages: assistant, result_summary: summary };
   }, [messages]);
 
-  const streaming_assistant_message_id = useMemo(() => {
-    if (!is_last_round || !is_loading) {
+  const streamingAssistantMessageId = useMemo(() => {
+    if (!isLastRound || !isLoading) {
       return null;
     }
 
-    for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
-      const message = assistant_messages[index];
+    for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
+      const message = assistantMessages[index];
       if (
         message.stream_status !== 'done'
         && message.stream_status !== 'cancelled'
@@ -70,20 +70,20 @@ export function useAssistantContentMerge({
     }
 
     return null;
-  }, [assistant_messages, is_last_round, is_loading]);
+  }, [assistantMessages, isLastRound, isLoading]);
 
   // 合并并去重 assistant 内容
-  const { merged_content, merged_content_source_message_ids, streaming_block_indexes } = useMemo(() => {
+  const { merged_content: mergedContent, merged_content_source_message_ids: mergedContentSourceMessageIds, streaming_block_indexes: streamingBlockIndexes } = useMemo(() => {
     const allBlocks: ContentBlock[] = [];
     const sourceMessageIds: string[] = [];
     const nextStreamingBlockIndexes = new Set<number>();
     const seenToolIds = new Set<string>();
 
-    for (const msg of assistant_messages) {
+    for (const msg of assistantMessages) {
       if (!Array.isArray(msg.content)) continue;
-      const isStreamingMessage = msg.message_id === streaming_assistant_message_id;
+      const isStreamingMessage = msg.message_id === streamingAssistantMessageId;
       const streamingContentIndex = isStreamingMessage
-        ? find_last_streamable_block_index(msg.content)
+        ? findLastStreamableBlockIndex(msg.content)
         : -1;
 
       msg.content.forEach((block, blockIndex) => {
@@ -112,21 +112,21 @@ export function useAssistantContentMerge({
         merged_content_source_message_ids: sourceMessageIds,
         streaming_block_indexes: nextStreamingBlockIndexes,
       };
-  }, [assistant_messages, streaming_assistant_message_id]);
+  }, [assistantMessages, streamingAssistantMessageId]);
 
-  const visible_assistant_text_content = useMemo(() => {
-    return merged_content.filter(
+  const visibleAssistantTextContent = useMemo(() => {
+    return mergedContent.filter(
       (block) => block.type === "text" && Boolean(block.text.trim()),
     );
-  }, [merged_content]);
+  }, [mergedContent]);
 
-  const assistant_text_streaming_indexes = useMemo(() => {
+  const assistantTextStreamingIndexes = useMemo(() => {
     const nextIndexes = new Set<number>();
     let textIndex = 0;
 
-    merged_content.forEach((block, index) => {
+    mergedContent.forEach((block, index) => {
       if (block.type === "text" && Boolean(block.text.trim())) {
-        if (streaming_block_indexes.has(index)) {
+        if (streamingBlockIndexes.has(index)) {
           nextIndexes.add(textIndex);
         }
         textIndex += 1;
@@ -134,37 +134,37 @@ export function useAssistantContentMerge({
     });
 
     return nextIndexes;
-  }, [merged_content, streaming_block_indexes]);
+  }, [mergedContent, streamingBlockIndexes]);
 
-  const assistant_text_content = useMemo(() => {
+  const assistantTextContent = useMemo(() => {
     const texts: string[] = [];
-    for (const block of visible_assistant_text_content) {
+    for (const block of visibleAssistantTextContent) {
       if (block.type === "text" && block.text) {
         texts.push(block.text);
       }
     }
     return texts.join("\n\n");
-  }, [visible_assistant_text_content]);
+  }, [visibleAssistantTextContent]);
 
   return {
-    user_message,
-    assistant_messages,
-    result_summary,
-    streaming_assistant_message_id,
-    merged_content,
-    merged_content_source_message_ids,
-    streaming_block_indexes,
-    visible_assistant_text_content,
-    assistant_text_streaming_indexes,
-    assistant_text_content,
+    user_message: userMessage,
+    assistant_messages: assistantMessages,
+    result_summary: resultSummary,
+    streaming_assistant_message_id: streamingAssistantMessageId,
+    merged_content: mergedContent,
+    merged_content_source_message_ids: mergedContentSourceMessageIds,
+    streaming_block_indexes: streamingBlockIndexes,
+    visible_assistant_text_content: visibleAssistantTextContent,
+    assistant_text_streaming_indexes: assistantTextStreamingIndexes,
+    assistant_text_content: assistantTextContent,
   };
 }
 
-function get_latest_result_summary(
-  assistant_messages: AssistantMessage[],
+function getLatestResultSummary(
+  assistantMessages: AssistantMessage[],
 ): ResultSummary | undefined {
-  for (let index = assistant_messages.length - 1; index >= 0; index -= 1) {
-    const summary = assistant_messages[index].result_summary;
+  for (let index = assistantMessages.length - 1; index >= 0; index -= 1) {
+    const summary = assistantMessages[index].result_summary;
     if (!summary) {
       continue;
     }
@@ -173,7 +173,7 @@ function get_latest_result_summary(
   return undefined;
 }
 
-function find_last_streamable_block_index(blocks: ContentBlock[]): number {
+function findLastStreamableBlockIndex(blocks: ContentBlock[]): number {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     const block = blocks[index];
     if (!block) {

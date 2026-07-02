@@ -57,136 +57,136 @@ interface UiMultiSelectMenuProps {
 }
 
 export function UiMultiSelectMenu({
-  aria_label,
-  button_class_name,
-  class_name,
+  aria_label: ariaLabel,
+  button_class_name: buttonClassName,
+  class_name: className,
   disabled = false,
-  empty_text = "暂无选项",
-  error_text,
+  empty_text: emptyText = "暂无选项",
+  error_text: errorText,
   id,
-  is_loading = false,
+  is_loading: isLoading = false,
   label,
   leading,
-  loading_text = "加载中...",
-  menu_class_name,
-  on_change,
-  on_query_change,
+  loading_text: loadingText = "加载中...",
+  menu_class_name: menuClassName,
+  on_change: onChange,
+  on_query_change: onQueryChange,
   options,
   placement = "auto",
   placeholder = "请选择",
   query = "",
-  search_placeholder = "搜索",
+  search_placeholder: searchPlaceholder = "搜索",
   size = "md",
   surface = "surface",
   value,
 }: UiMultiSelectMenuProps) {
-  const selected_value_set = useMemo(() => new Set(value), [value]);
-  const selected_options = useMemo(
+  const selectedValueSet = useMemo(() => new Set(value), [value]);
+  const selectedOptions = useMemo(
     () => value.map((item) => options.find((option) => option.value === item) ?? { value: item, label: item }),
     [options, value],
   );
-  const has_option_description = options.some((option) => Boolean(option.description));
+  const hasOptionDescription = options.some((option) => Boolean(option.description));
   const {
-    estimated_option_height,
-    height_class_name,
-    option_height_class_name,
-    rounded_class_name,
-    text_class_name,
+    estimated_option_height: estimatedOptionHeight,
+    height_class_name: heightClassName,
+    option_height_class_name: optionHeightClassName,
+    rounded_class_name: roundedClassName,
+    text_class_name: textClassName,
   } = get_select_menu_size_config(size);
-  const has_search = Boolean(on_query_change);
+  const hasSearch = Boolean(onQueryChange);
 
-  const estimate_position = useCallback((button: HTMLButtonElement) => {
+  const estimatePosition = useCallback((button: HTMLButtonElement) => {
     return resolve_select_menu_position({
       button,
       estimated_height: estimate_select_menu_height(
         Math.max(options.length, 1),
-        has_option_description ? 52 : estimated_option_height,
-        has_search ? SELECT_MENU_SEARCH_ROW_HEIGHT + 8 : 8,
+        hasOptionDescription ? 52 : estimatedOptionHeight,
+        hasSearch ? SELECT_MENU_SEARCH_ROW_HEIGHT + 8 : 8,
       ),
-      estimated_option_height: has_option_description ? 52 : estimated_option_height,
+      estimated_option_height: hasOptionDescription ? 52 : estimatedOptionHeight,
       placement,
     });
-  }, [estimated_option_height, has_option_description, has_search, options.length, placement]);
+  }, [estimatedOptionHeight, hasOptionDescription, hasSearch, options.length, placement]);
 
   const {
-    button_ref,
-    is_open,
-    menu_id,
-    menu_position,
-    menu_ref,
-    menu_style,
-    portal_container,
-    root_ref,
-    set_is_open,
-    update_menu_position,
-  } = useSelectMenuLayer({ disabled, estimate_position });
+    button_ref: buttonRef,
+    is_open: isOpen,
+    menu_id: menuId,
+    menu_position: menuPosition,
+    menu_ref: menuRef,
+    menu_style: menuStyle,
+    portal_container: portalContainer,
+    root_ref: rootRef,
+    set_is_open: setIsOpen,
+    update_menu_position: updateMenuPosition,
+  } = useSelectMenuLayer({ disabled, estimate_position: estimatePosition });
 
-  const toggle_open = () => {
+  const toggleOpen = () => {
     if (disabled) {
       return;
     }
-    set_is_open((open) => {
+    setIsOpen((open) => {
       if (!open) {
-        update_menu_position();
+        updateMenuPosition();
       }
       return !open;
     });
   };
 
-  const toggle_value = (next_value: string) => {
+  const toggleValue = (nextValue: string) => {
     if (disabled) {
       return;
     }
-    const next_values = selected_value_set.has(next_value)
-      ? value.filter((item) => item !== next_value)
-      : [...value, next_value];
-    on_change(next_values);
-    update_menu_position();
+    const nextValues = selectedValueSet.has(nextValue)
+      ? value.filter((item) => item !== nextValue)
+      : [...value, nextValue];
+    onChange(nextValues);
+    updateMenuPosition();
   };
 
-  const remove_value = (next_value: string) => {
-    on_change(value.filter((item) => item !== next_value));
-    update_menu_position();
+  const removeValue = (nextValue: string) => {
+    onChange(value.filter((item) => item !== nextValue));
+    updateMenuPosition();
   };
 
-  const handle_key_down = (event: KeyboardEvent<HTMLButtonElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) {
       return;
     }
     if (event.key === "Escape") {
-      set_is_open(false);
+      setIsOpen(false);
       return;
     }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      toggle_open();
+      toggleOpen();
     }
   };
 
-  const menu = is_open ? (
+  const menu = isOpen ? (
     <div
-      ref={menu_ref}
-      aria-label={aria_label}
+      ref={menuRef}
+      aria-label={ariaLabel}
       className={cn(
         "fixed z-[120] flex flex-col overflow-hidden rounded-[14px] border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         get_select_menu_panel_surface_class_name(surface),
-        menu_class_name,
+        menuClassName,
       )}
-      data-placement={menu_position?.placement ?? "bottom"}
+      data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
       data-surface={surface}
       data-ui-select-menu-open="true"
-      id={menu_id}
+      id={menuId}
       role="listbox"
-      style={menu_style}
+      style={menuStyle}
     >
-      {has_search ? (
+      {hasSearch ? (
         <label className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
           <Search className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           <input
             className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-            onChange={(event) => on_query_change?.(event.target.value)}
-            placeholder={search_placeholder}
+            onChange={(event) => onQueryChange?.(event.target.value)}
+            placeholder={searchPlaceholder}
             type="search"
             value={query}
           />
@@ -194,34 +194,34 @@ export function UiMultiSelectMenu({
       ) : null}
 
       <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-1">
-        {is_loading ? (
+        {isLoading ? (
           <div className="flex min-h-10 items-center gap-2 px-2.5 text-[13px] text-(--text-muted)">
             <Loader2 className="h-4 w-4 animate-spin" />
-            {loading_text}
+            {loadingText}
           </div>
-        ) : error_text ? (
+        ) : errorText ? (
           <div className="m-1 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-2.5 py-2 text-[13px] leading-5 text-(--destructive)">
-            {error_text}
+            {errorText}
           </div>
         ) : options.length === 0 ? (
           <div className="flex min-h-10 items-center px-2.5 text-[13px] text-(--text-muted)">
-            {empty_text}
+            {emptyText}
           </div>
         ) : (
           options.map((option) => {
-            const is_active = selected_value_set.has(option.value);
+            const isActive = selectedValueSet.has(option.value);
             return (
               <button
                 key={option.value}
-                aria-selected={is_active}
+                aria-selected={isActive}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-                  option.description ? "py-2 text-[13px]" : option_height_class_name,
-                  get_select_menu_option_state_class_name(surface, is_active),
+                  option.description ? "py-2 text-[13px]" : optionHeightClassName,
+                  get_select_menu_option_state_class_name(surface, isActive),
                 )}
-                data-active={is_active ? "true" : undefined}
+                data-active={isActive ? "true" : undefined}
                 disabled={option.disabled}
-                onClick={() => toggle_value(option.value)}
+                onClick={() => toggleValue(option.value)}
                 role="option"
                 type="button"
               >
@@ -234,7 +234,7 @@ export function UiMultiSelectMenu({
                   ) : null}
                 </span>
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center text-(--primary)">
-                  {is_active ? <Check className="h-3.5 w-3.5" /> : null}
+                  {isActive ? <Check className="h-3.5 w-3.5" /> : null}
                 </span>
               </button>
             );
@@ -246,27 +246,27 @@ export function UiMultiSelectMenu({
 
   return (
     <div
-      ref={root_ref}
-      className={cn("relative w-full", value.length > 0 ? "min-h-10" : height_class_name, class_name)}
-      data-ui-select-menu-open={is_open ? "true" : undefined}
+      ref={rootRef}
+      className={cn("relative w-full", value.length > 0 ? "min-h-10" : heightClassName, className)}
+      data-ui-select-menu-open={isOpen ? "true" : undefined}
     >
       <button
-        ref={button_ref}
-        aria-controls={is_open ? menu_id : undefined}
+        ref={buttonRef}
+        aria-controls={isOpen ? menuId : undefined}
         aria-disabled={disabled}
-        aria-expanded={is_open}
+        aria-expanded={isOpen}
         aria-haspopup="listbox"
-        aria-label={aria_label}
+        aria-label={ariaLabel}
         className={get_select_menu_button_class_name({
-          rounded_class_name,
+          rounded_class_name: roundedClassName,
           surface,
-          text_class_name,
-          class_name: cn(value.length > 0 && "min-h-10 py-1.5", button_class_name),
+          text_class_name: textClassName,
+          class_name: cn(value.length > 0 && "min-h-10 py-1.5", buttonClassName),
         })}
         disabled={disabled}
         id={id}
-        onClick={toggle_open}
-        onKeyDown={handle_key_down}
+        onClick={toggleOpen}
+        onKeyDown={handleKeyDown}
         type="button"
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -280,9 +280,9 @@ export function UiMultiSelectMenu({
             </>
           ) : null}
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            {selected_options.length > 0 ? (
-              selected_options.map((option) => {
-                const accessible_label = typeof option.label === "string" || typeof option.label === "number"
+            {selectedOptions.length > 0 ? (
+              selectedOptions.map((option) => {
+                const accessibleLabel = typeof option.label === "string" || typeof option.label === "number"
                   ? String(option.label)
                   : option.value;
                 return (
@@ -292,11 +292,11 @@ export function UiMultiSelectMenu({
                   >
                     <span className="min-w-0 truncate">{option.label}</span>
                     <span
-                      aria-label={`移除 ${accessible_label}`}
+                      aria-label={`移除 ${accessibleLabel}`}
                       className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
                       onClick={(event) => {
                         event.stopPropagation();
-                        remove_value(option.value);
+                        removeValue(option.value);
                       }}
                       onKeyDown={(event) => event.stopPropagation()}
                       role="button"
@@ -317,12 +317,12 @@ export function UiMultiSelectMenu({
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 text-(--icon-muted) transition-transform",
-            is_open && "rotate-180",
+            isOpen && "rotate-180",
           )}
         />
       </button>
 
-      {menu && portal_container ? createPortal(menu, portal_container) : null}
+      {menu && portalContainer ? createPortal(menu, portalContainer) : null}
     </div>
   );
 }

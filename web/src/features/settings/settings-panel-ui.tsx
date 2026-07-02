@@ -28,15 +28,15 @@ interface SettingsSegmentedControlProps<T extends string> {
 }
 
 export function SettingsSegmentedControl<T extends string>({
-  aria_label,
+  aria_label: ariaLabel,
   disabled,
-  on_change,
+  on_change: onChange,
   options,
   value,
 }: SettingsSegmentedControlProps<T>) {
   return (
     <div
-      aria-label={aria_label}
+      aria-label={ariaLabel}
       className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex w-full items-center rounded-xl border border-(--divider-subtle-color) bg-transparent p-0.5`}
       role="group"
     >
@@ -53,7 +53,7 @@ export function SettingsSegmentedControl<T extends string>({
                 : "text-(--text-soft) hover:text-(--text-default)",
             )}
             disabled={disabled}
-            onClick={() => on_change(option.value)}
+            onClick={() => onChange(option.value)}
             type="button"
           >
             {option.label}

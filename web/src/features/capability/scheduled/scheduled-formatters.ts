@@ -17,12 +17,12 @@ export function format_scheduled_datetime(
   options: FormatScheduledDatetimeOptions = {},
 ): string {
   const {
-    empty_label = "未记录",
-    include_seconds = false,
+    empty_label: emptyLabel = "未记录",
+    include_seconds: includeSeconds = false,
   } = options;
 
   if (!value) {
-    return empty_label;
+    return emptyLabel;
   }
 
   return new Intl.DateTimeFormat("zh-CN", {
@@ -30,6 +30,6 @@ export function format_scheduled_datetime(
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    ...(include_seconds ? { second: "2-digit" as const } : {}),
+    ...(includeSeconds ? { second: "2-digit" as const } : {}),
   }).format(value);
 }

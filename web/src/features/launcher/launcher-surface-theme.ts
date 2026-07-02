@@ -34,7 +34,7 @@ interface LauncherSurfaceConfig {
   submit_shadow: string;
 }
 
-function build_launcher_surface_theme_style(
+function buildLauncherSurfaceThemeStyle(
   config: LauncherSurfaceConfig,
 ): LauncherSurfaceThemeStyle {
   return {
@@ -76,7 +76,7 @@ function build_launcher_surface_theme_style(
   };
 }
 
-const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = build_launcher_surface_theme_style({
+const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
   accent_color: "rgba(126, 34, 206, 0.52)",
   accent_hover_color: "rgba(126, 34, 206, 0.82)",
   divider_color: "rgba(83, 88, 101, 0.10)",
@@ -107,7 +107,7 @@ const LIGHT_LAUNCHER_SURFACE_THEME_STYLE = build_launcher_surface_theme_style({
   submit_shadow: "0 10px 20px rgba(110, 117, 142, 0.14)",
 });
 
-const DARK_LAUNCHER_SURFACE_THEME_STYLE = build_launcher_surface_theme_style({
+const DARK_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
   accent_color: "rgba(154, 187, 255, 0.72)",
   accent_hover_color: "rgba(190, 210, 255, 0.96)",
   divider_color: "rgba(255, 255, 255, 0.08)",
@@ -138,7 +138,7 @@ const DARK_LAUNCHER_SURFACE_THEME_STYLE = build_launcher_surface_theme_style({
   submit_shadow: "0 10px 24px rgba(0, 0, 0, 0.24)",
 });
 
-const RAIN_LAUNCHER_SURFACE_THEME_STYLE = build_launcher_surface_theme_style({
+const RAIN_LAUNCHER_SURFACE_THEME_STYLE = buildLauncherSurfaceThemeStyle({
   accent_color: "rgba(138, 168, 212, 0.7)",
   accent_hover_color: "rgba(180, 206, 238, 0.96)",
   divider_color: "rgba(73, 88, 111, 0.10)",

@@ -11,13 +11,13 @@ interface WorkspacePageFrameProps {
 
 export function WorkspacePageFrame({
   children,
-  content_padding_class_name = "p-4 sm:p-5 xl:p-6",
+  content_padding_class_name: contentPaddingClassName = "p-4 sm:p-5 xl:p-6",
 }: WorkspacePageFrameProps) {
   return (
     <section
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col bg-transparent",
-        content_padding_class_name,
+        contentPaddingClassName,
       )}
     >
       {children}

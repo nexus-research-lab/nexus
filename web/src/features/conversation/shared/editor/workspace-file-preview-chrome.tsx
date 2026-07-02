@@ -72,9 +72,9 @@ export function WorkspaceFilePreviewHeader({
 }
 
 export function WorkspaceFileDownloadButton({
-  agent_id,
+  agent_id: agentId,
   path,
-  file_name,
+  file_name: fileName,
   label,
 }: {
   agent_id: string;
@@ -82,28 +82,28 @@ export function WorkspaceFileDownloadButton({
   file_name: string;
   label?: string;
 }) {
-  const file_action_copy = get_workspace_file_external_action_copy(file_name);
-  const visible_label = label ?? file_action_copy.label;
-  const handle_external_action = () => {
-    void download_workspace_file_api(agent_id, path, file_name).catch((error) => {
-      console.error(`[WorkspaceFileDownloadButton] ${file_action_copy.label} workspace 文件失败:`, error);
+  const fileActionCopy = get_workspace_file_external_action_copy(fileName);
+  const visibleLabel = label ?? fileActionCopy.label;
+  const handleExternalAction = () => {
+    void download_workspace_file_api(agentId, path, fileName).catch((error) => {
+      console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
     });
   };
 
   return (
     <button
-      aria-label={file_action_copy.aria_label}
+      aria-label={fileActionCopy.aria_label}
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
-      onClick={handle_external_action}
-      title={file_action_copy.title}
+      onClick={handleExternalAction}
+      title={fileActionCopy.title}
       type="button"
     >
-      {file_action_copy.mode === "reveal" ? (
+      {fileActionCopy.mode === "reveal" ? (
         <FolderOpen className="h-3.5 w-3.5" />
       ) : (
         <Download className="h-3.5 w-3.5" />
       )}
-      <span className="max-xl:hidden">{visible_label}</span>
+      <span className="max-xl:hidden">{visibleLabel}</span>
     </button>
   );
 }
@@ -111,7 +111,7 @@ export function WorkspaceFileDownloadButton({
 export function WorkspaceFileToolbarButton({
   children,
   disabled = false,
-  on_click,
+  on_click: onClick,
   title,
 }: {
   children: ReactNode;
@@ -124,7 +124,7 @@ export function WorkspaceFileToolbarButton({
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
       disabled={disabled}
       onMouseDown={(event) => event.preventDefault()}
-      onClick={on_click}
+      onClick={onClick}
       title={title}
       type="button"
     >
@@ -134,23 +134,23 @@ export function WorkspaceFileToolbarButton({
 }
 
 export function WorkspaceFilePreviewFocusButton({
-  is_preview_focused = false,
-  on_toggle_preview_focus,
+  is_preview_focused: isPreviewFocused = false,
+  on_toggle_preview_focus: onTogglePreviewFocus,
 }: {
   is_preview_focused?: boolean;
   on_toggle_preview_focus?: () => void;
 }) {
-  if (!on_toggle_preview_focus) {
+  if (!onTogglePreviewFocus) {
     return null;
   }
 
   return (
     <WorkspaceFileToolbarButton
-      on_click={on_toggle_preview_focus}
-      title={is_preview_focused ? "还原文件树" : "聚焦预览"}
+      on_click={onTogglePreviewFocus}
+      title={isPreviewFocused ? "还原文件树" : "聚焦预览"}
     >
-      {is_preview_focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-      <span className="max-xl:hidden">{is_preview_focused ? "还原" : "放大"}</span>
+      {isPreviewFocused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+      <span className="max-xl:hidden">{isPreviewFocused ? "还原" : "放大"}</span>
     </WorkspaceFileToolbarButton>
   );
 }

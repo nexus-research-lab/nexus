@@ -13,7 +13,7 @@ import {
   COMPOSER_ATTACHMENT_ROW_CLASS_NAME,
 } from "./composer-styles";
 
-function get_attachment_kind_label(kind: ComposerAttachmentKind) {
+function getAttachmentKindLabel(kind: ComposerAttachmentKind) {
   if (kind === "image") {
     return "图片";
   }
@@ -23,7 +23,7 @@ function get_attachment_kind_label(kind: ComposerAttachmentKind) {
   return "工作文件";
 }
 
-function get_attachment_icon(kind: ComposerAttachmentKind) {
+function getAttachmentIcon(kind: ComposerAttachmentKind) {
   if (kind === "image") {
     return ImageIcon;
   }
@@ -35,8 +35,8 @@ function get_attachment_icon(kind: ComposerAttachmentKind) {
 
 export function ComposerAttachmentList({
   attachments,
-  on_remove,
-  remove_label,
+  on_remove: onRemove,
+  remove_label: removeLabel,
 }: {
   attachments: ComposerLocalAttachment[];
   on_remove: (id: string) => void;
@@ -49,21 +49,21 @@ export function ComposerAttachmentList({
   return (
     <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
       {attachments.map((attachment) => {
-        const AttachmentIcon = get_attachment_icon(attachment.kind);
+        const AttachmentIcon = getAttachmentIcon(attachment.kind);
         return (
           <div
             key={attachment.id}
             className={COMPOSER_ATTACHMENT_CLASS_NAME}
-            title={`${get_attachment_kind_label(attachment.kind)}：${attachment.file.name}`}
+            title={`${getAttachmentKindLabel(attachment.kind)}：${attachment.file.name}`}
           >
             <AttachmentIcon size={16} className="text-accent" />
             <span className="max-w-[120px] truncate text-xs text-foreground/70">
               {attachment.file.name}
             </span>
             <button
-              aria-label={remove_label}
+              aria-label={removeLabel}
               className={COMPOSER_ATTACHMENT_REMOVE_CLASS_NAME}
-              onClick={() => on_remove(attachment.id)}
+              onClick={() => onRemove(attachment.id)}
               type="button"
             >
               <X size={12} />

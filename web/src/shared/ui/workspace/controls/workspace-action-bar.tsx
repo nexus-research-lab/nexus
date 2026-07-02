@@ -40,12 +40,12 @@ export function WorkspaceActionCard({
   icon,
   title,
   description,
-  on_click,
+  on_click: onClick,
 }: WorkspaceActionCardProps) {
   return (
     <button
       className={ACTION_CARD_CLASS_NAME}
-      onClick={on_click}
+      onClick={onClick}
       type="button"
     >
       {icon}

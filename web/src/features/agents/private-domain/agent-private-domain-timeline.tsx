@@ -20,12 +20,12 @@ import {
 } from "@/types/agent/private-domain";
 
 export function PrivateEventTimeline({
-  agent_id,
-  class_name,
+  agent_id: agentId,
+  class_name: className,
   compact = false,
   error,
   events,
-  is_loading,
+  is_loading: isLoading,
   thread,
 }: {
   agent_id: string;
@@ -43,13 +43,13 @@ export function PrivateEventTimeline({
         compact
           ? "rounded-[14px] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]"
           : "rounded-[16px] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]",
-        class_name,
+        className,
       )}
     >
       <div className={cn("flex items-center justify-between gap-3 border-b border-(--divider-subtle-color)", compact ? "h-10 px-3" : "h-11 px-4")}>
         <div className="min-w-0">
           <p className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[12.5px]" : "text-[13px]")}>
-            {thread ? private_thread_title(thread, agent_id) : "联络消息"}
+            {thread ? private_thread_title(thread, agentId) : "联络消息"}
           </p>
           {thread ? (
             <p className={cn("mt-0.5 truncate font-semibold text-(--text-soft)", compact ? "text-[10px]" : "text-[10.5px]")}>
@@ -57,7 +57,7 @@ export function PrivateEventTimeline({
             </p>
           ) : null}
         </div>
-        {is_loading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" /> : null}
       </div>
 
       <div className={cn("soft-scrollbar min-h-0 flex-1 overflow-y-auto", compact ? "px-3 py-3" : "px-4 py-4")}>
@@ -72,7 +72,7 @@ export function PrivateEventTimeline({
             <span className="text-[12px] font-semibold">选择一条联络记录</span>
           </div>
         ) : null}
-        {!error && thread && events.length === 0 && !is_loading ? (
+        {!error && thread && events.length === 0 && !isLoading ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-(--text-soft)">
             <Inbox className="h-6 w-6" />
             <span className="text-[12px] font-semibold">暂无消息</span>
@@ -81,7 +81,7 @@ export function PrivateEventTimeline({
         <div className="space-y-3">
           {events.map((event) => (
             <PrivateEventBubble
-              agent_id={agent_id}
+              agent_id={agentId}
               compact={compact}
               event={event}
               key={event.message_id}
@@ -94,7 +94,7 @@ export function PrivateEventTimeline({
 }
 
 function PrivateEventBubble({
-  agent_id,
+  agent_id: agentId,
   compact = false,
   event,
 }: {
@@ -102,20 +102,20 @@ function PrivateEventBubble({
   compact?: boolean;
   event: AgentPrivateEvent;
 }) {
-  const is_outgoing = event.direction === "outgoing";
-  const is_self = event.direction === "self";
+  const isOutgoing = event.direction === "outgoing";
+  const isSelf = event.direction === "self";
   const source = event.participants.find((participant) => participant.agent_id === event.source_agent_id);
   return (
-    <div className={cn("flex", is_self ? "justify-center" : is_outgoing ? "justify-end" : "justify-start")}>
+    <div className={cn("flex", isSelf ? "justify-center" : isOutgoing ? "justify-end" : "justify-start")}>
       <div
         className={cn(
           "w-fit border",
           compact
             ? "max-w-[88%] rounded-[13px] px-2.5 py-2 shadow-none"
             : "max-w-[min(720px,78%)] rounded-[16px] px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
-          is_self
+          isSelf
             ? "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_72%,transparent)]"
-            : is_outgoing
+            : isOutgoing
               ? "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]"
               : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
         )}
@@ -123,7 +123,7 @@ function PrivateEventBubble({
         <div className={cn("flex min-w-0 items-center", compact ? "gap-1.5" : "gap-2")}>
           <PrivateParticipantAvatar participant={source} size="sm" />
           <span className={cn("truncate font-bold text-(--text-strong)", compact ? "text-[11.5px]" : "text-[12px]")}>
-            {source?.agent_id === agent_id ? "我" : source?.name || event.source_agent_id}
+            {source?.agent_id === agentId ? "我" : source?.name || event.source_agent_id}
           </span>
           <span className="rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
             私信
@@ -142,7 +142,7 @@ function PrivateEventBubble({
           workspace_agent_id={event.source_agent_id}
         />
         <p className={cn("truncate font-semibold text-(--text-soft)", compact ? "mt-1.5 text-[10px]" : "mt-2 text-[10.5px]")}>
-          {event_route_label(event, agent_id)}
+          {event_route_label(event, agentId)}
         </p>
       </div>
     </div>

@@ -45,43 +45,43 @@ interface ScheduledTaskDialogProps {
 }
 
 export function ScheduledTaskDialog({
-  agent_id,
-  is_open,
-  initial_task = null,
-  on_close,
-  on_created,
-  on_saved,
+  agent_id: agentId,
+  is_open: isOpen,
+  initial_task: initialTask = null,
+  on_close: onClose,
+  on_created: onCreated,
+  on_saved: onSaved,
 }: ScheduledTaskDialogProps) {
   const state = useScheduledTaskDialogState({
-    agent_id,
-    initial_task,
-    is_open,
-    on_close,
-    on_created,
-    on_saved,
+    agent_id: agentId,
+    initial_task: initialTask,
+    is_open: isOpen,
+    on_close: onClose,
+    on_created: onCreated,
+    on_saved: onSaved,
   });
 
-  if (!is_open) return null;
+  if (!isOpen) return null;
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         class_name="z-[9999]"
         labelled_by="create-task-dialog-title"
-        on_close={on_close}
+        on_close={onClose}
         onPointerDown={(event) => event.stopPropagation()}
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
         <UiDialogShell class_name="max-h-[90vh] max-w-[1120px]" size="wide">
           <UiDialogHeader
-            on_close={on_close}
+            on_close={onClose}
             subtitle={
-              initial_task
+              initialTask
                 ? "修改调度、执行会话和结果回传方式。"
                 : "先选目标对象，再决定执行会话和结果回传方式。"
             }
-            title={initial_task ? "编辑任务" : "新建任务"}
+            title={initialTask ? "编辑任务" : "新建任务"}
             title_id="create-task-dialog-title"
           />
 
@@ -208,7 +208,7 @@ export function ScheduledTaskDialog({
             <UiButton
               class_name="min-w-[104px]"
               disabled={state.is_submitting}
-              onClick={on_close}
+              onClick={onClose}
               type="button"
               variant="surface"
             >
@@ -222,10 +222,10 @@ export function ScheduledTaskDialog({
               type="button"
               variant="solid"
             >
-              {state.is_submitting ? (initial_task ? "保存中" : "创建中") : (
+              {state.is_submitting ? (initialTask ? "保存中" : "创建中") : (
                 <>
-                  {initial_task ? <Pencil className="h-3.5 w-3.5" /> : null}
-                  {initial_task ? "保存修改" : "创建"}
+                  {initialTask ? <Pencil className="h-3.5 w-3.5" /> : null}
+                  {initialTask ? "保存修改" : "创建"}
                 </>
               )}
             </UiButton>

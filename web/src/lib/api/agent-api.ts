@@ -29,7 +29,7 @@ const AGENT_API_BASE_URL = get_agent_api_base_url();
 // ==================== 类型转换 ====================
 
 /** 将 API 响应转换为前端标准格式 */
-function transform_api_conversation(api: ApiConversation): Conversation {
+function transformApiConversation(api: ApiConversation): Conversation {
   return {
     session_key: api.session_key,
     agent_id: api.agent_id,
@@ -46,7 +46,7 @@ function transform_api_conversation(api: ApiConversation): Conversation {
   };
 }
 
-function transform_api_agent_session(
+function transformApiAgentSession(
   api: ApiAgentSessionRecord,
 ): AgentSessionRecord {
   return {
@@ -76,32 +76,32 @@ export const get_conversations = async (): Promise<Conversation[]> => {
       method: "GET",
     },
   );
-  return result.map(transform_api_conversation);
+  return result.map(transformApiConversation);
 };
 
 export const get_agent_sessions_api = async (
-  agent_id: string,
+  agentId: string,
 ): Promise<AgentSessionRecord[]> => {
   const result = await request_api<ApiAgentSessionRecord[]>(
-    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/sessions`,
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/sessions`,
     {
       method: "GET",
     },
   );
-  return result.map(transform_api_agent_session);
+  return result.map(transformApiAgentSession);
 };
 
 export async function get_session_messages_api(
-  session_key: string,
+  sessionKey: string,
   options: {
     limit?: number;
     before_round_id?: string | null;
     before_round_timestamp?: number | null;
   } = {},
 ): Promise<RoomConversationMessagePage> {
-  const normalized_session_key = assert_structured_session_key(session_key);
+  const normalizedSessionKey = assert_structured_session_key(sessionKey);
   const params = new URLSearchParams();
-  params.set("session_key", normalized_session_key);
+  params.set("session_key", normalizedSessionKey);
   if (options.limit && options.limit > 0) {
     params.set("limit", String(options.limit));
   }

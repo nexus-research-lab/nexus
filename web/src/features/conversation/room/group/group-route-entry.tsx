@@ -17,17 +17,17 @@ interface GroupRouteEntryProps {
 }
 
 export function GroupRouteEntry({
-  room_id,
-  conversation_id,
+  room_id: roomId,
+  conversation_id: conversationId,
   agents,
   conversations,
 }: GroupRouteEntryProps) {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const room_agent = agents[0] ?? null;
-  const recent_room_conversations = conversations
+  const roomAgent = agents[0] ?? null;
+  const recentRoomConversations = conversations
     .filter((conversation): conversation is RoomConversationView & { conversation_id: string } => (
-      conversation.room_id === room_id && Boolean(conversation.conversation_id)
+      conversation.room_id === roomId && Boolean(conversation.conversation_id)
     ))
     .sort((left, right) => right.last_activity_at - left.last_activity_at)
     .slice(0, 4);
@@ -36,7 +36,7 @@ export function GroupRouteEntry({
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
       <section className="surface-radius-xl border border-(--divider-subtle-color) px-6 py-6">
         <h2 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-(--text-strong)">
-          {room_agent ? room_agent.name : t("room.route_empty_title")}
+          {roomAgent ? roomAgent.name : t("room.route_empty_title")}
         </h2>
 
         <WorkspaceActionBar variant="cards">
@@ -64,28 +64,28 @@ export function GroupRouteEntry({
         <div className="mt-4">
           <div className={METRIC_ROW_CLASS_NAME}>
             <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
-            <p className="text-sm font-semibold text-(--text-strong)">{room_id ?? "-"}</p>
+            <p className="text-sm font-semibold text-(--text-strong)">{roomId ?? "-"}</p>
           </div>
 
           <div className={METRIC_ROW_CLASS_NAME}>
             <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">
               {t("room.route_conversation")}
             </p>
-            <p className="text-sm font-semibold text-(--text-strong)">{conversation_id ?? "-"}</p>
+            <p className="text-sm font-semibold text-(--text-strong)">{conversationId ?? "-"}</p>
           </div>
 
-          {recent_room_conversations.length ? (
+          {recentRoomConversations.length ? (
             <div className="pt-3">
               <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
               <div className="mt-3 divide-y divide-(--divider-subtle-color)">
-                {recent_room_conversations.map((conversation) => (
+                {recentRoomConversations.map((conversation) => (
                   <button
                     key={conversation.conversation_id}
                     className="flex w-full items-center justify-between gap-3 py-3 text-left transition hover:text-(--text-strong)"
                     onClick={() =>
                       navigate(
                         AppRouteBuilders.room_conversation(
-                          conversation.room_id ?? room_id ?? "",
+                          conversation.room_id ?? roomId ?? "",
                           conversation.conversation_id,
                         ),
                       )

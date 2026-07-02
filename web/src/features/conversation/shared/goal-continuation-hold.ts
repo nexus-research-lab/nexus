@@ -8,13 +8,13 @@ export interface GoalContinuationHold {
 }
 
 export function goal_continuation_hold_for_permission(
-  agent_name: string | null | undefined,
-  permission_mode: string | null | undefined,
+  agentName: string | null | undefined,
+  permissionMode: string | null | undefined,
 ): GoalContinuationHold | null {
-  if ((permission_mode ?? "").trim() !== "plan") {
+  if ((permissionMode ?? "").trim() !== "plan") {
     return null;
   }
-  const name = agent_name?.trim();
+  const name = agentName?.trim();
   return {
     detail: name
       ? `${name} 处于 Plan 模式，隐藏 Goal 续跑不会自动启动`
@@ -23,7 +23,7 @@ export function goal_continuation_hold_for_permission(
   };
 }
 
-function goal_continuation_hold_for_agent(
+function goalContinuationHoldForAgent(
   agent: Pick<Agent, "name" | "options"> | null | undefined,
 ): GoalContinuationHold | null {
   return goal_continuation_hold_for_permission(
@@ -33,21 +33,21 @@ function goal_continuation_hold_for_agent(
 }
 
 export function goal_continuation_hold_for_room_target(
-  room_members: Agent[],
-  lead_agent_id: string | null | undefined,
-  room_host_auto_reply_enabled = true,
+  roomMembers: Agent[],
+  leadAgentId: string | null | undefined,
+  roomHostAutoReplyEnabled = true,
 ): GoalContinuationHold | null {
-  const target_agent = resolve_goal_continuation_target_agent(
-    room_members,
-    lead_agent_id,
+  const targetAgent = resolveGoalContinuationTargetAgent(
+    roomMembers,
+    leadAgentId,
   );
-  if (target_agent) {
-    return goal_continuation_hold_for_agent(target_agent);
+  if (targetAgent) {
+    return goalContinuationHoldForAgent(targetAgent);
   }
-  if (room_members.length <= 1) {
+  if (roomMembers.length <= 1) {
     return null;
   }
-  if (!room_host_auto_reply_enabled) {
+  if (!roomHostAutoReplyEnabled) {
     return {
       detail:
         "房间有多个 Agent，但还没有指定 Room Goal 负责人；群主接管未开启，请先选择一个 Agent 负责推进",
@@ -61,16 +61,16 @@ export function goal_continuation_hold_for_room_target(
   };
 }
 
-function resolve_goal_continuation_target_agent(
-  room_members: Agent[],
-  lead_agent_id: string | null | undefined,
+function resolveGoalContinuationTargetAgent(
+  roomMembers: Agent[],
+  leadAgentId: string | null | undefined,
 ): Agent | null {
-  if (room_members.length === 1) {
-    return room_members[0] ?? null;
+  if (roomMembers.length === 1) {
+    return roomMembers[0] ?? null;
   }
-  const normalized_lead_agent_id = lead_agent_id?.trim();
-  if (!normalized_lead_agent_id) {
+  const normalizedLeadAgentId = leadAgentId?.trim();
+  if (!normalizedLeadAgentId) {
     return null;
   }
-  return room_members.find((agent) => agent.agent_id === normalized_lead_agent_id) ?? null;
+  return roomMembers.find((agent) => agent.agent_id === normalizedLeadAgentId) ?? null;
 }

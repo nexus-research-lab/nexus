@@ -15,20 +15,20 @@ interface SpotlightTokenPileProps {
   class_name?: string;
   tokens: SpotlightToken[];
   current_agent_id: string | null;
-  on_select_agent: (agent_id: string) => void;
+  on_select_agent: (agentId: string) => void;
 }
 
-function random_launcher_velocity(min: number, max: number): number {
+function randomLauncherVelocity(min: number, max: number): number {
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
   return min + (buffer[0] / 0xffffffff) * (max - min);
 }
 
 export function AgentPile({
-  class_name,
+  class_name: className,
   tokens,
-  current_agent_id,
-  on_select_agent,
+  current_agent_id: currentAgentId,
+  on_select_agent: onSelectAgent,
 }: SpotlightTokenPileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tokenRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -118,10 +118,10 @@ export function AgentPile({
 
       Body.setAngle(body, config.angle);
       Body.setVelocity(body, {
-        x: random_launcher_velocity(-1.3, 1.3),
-        y: random_launcher_velocity(3.8, 5.6),
+        x: randomLauncherVelocity(-1.3, 1.3),
+        y: randomLauncherVelocity(3.8, 5.6),
       });
-      Body.setAngularVelocity(body, random_launcher_velocity(-0.03, 0.03) * (token.kind === "room" ? 1.2 : 0.8));
+      Body.setAngularVelocity(body, randomLauncherVelocity(-0.03, 0.03) * (token.kind === "room" ? 1.2 : 0.8));
       bodyMap.set(config.key, body);
 
       const timeoutId = window.setTimeout(() => {
@@ -195,14 +195,14 @@ export function AgentPile({
       animationFrame = window.requestAnimationFrame(update);
     };
 
-    const stop_animation = () => {
+    const stopAnimation = () => {
       if (animationFrame !== 0) {
         window.cancelAnimationFrame(animationFrame);
         animationFrame = 0;
       }
     };
 
-    const start_animation = () => {
+    const startAnimation = () => {
       if (disposed || animationFrame !== 0 || !isDocumentVisible || !isInView) {
         return;
       }
@@ -211,38 +211,38 @@ export function AgentPile({
       animationFrame = window.requestAnimationFrame(update);
     };
 
-    const sync_animation_state = () => {
+    const syncAnimationState = () => {
       if (isDocumentVisible && isInView) {
-        start_animation();
+        startAnimation();
         return;
       }
 
-      stop_animation();
+      stopAnimation();
     };
 
     const intersectionObserver = new IntersectionObserver(
       ([entry]) => {
         isInView = entry?.isIntersecting ?? true;
-        sync_animation_state();
+        syncAnimationState();
       },
       { threshold: 0.05 },
     );
     intersectionObserver.observe(container);
 
-    const handle_visibility_change = () => {
+    const handleVisibilityChange = () => {
       isDocumentVisible = document.visibilityState !== "hidden";
-      sync_animation_state();
+      syncAnimationState();
     };
-    document.addEventListener("visibilitychange", handle_visibility_change);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    sync_animation_state();
+    syncAnimationState();
 
     return () => {
       disposed = true;
       timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      stop_animation();
+      stopAnimation();
       intersectionObserver.disconnect();
-      document.removeEventListener("visibilitychange", handle_visibility_change);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       Matter.World.clear(engine.world, false);
       Matter.Engine.clear(engine);
     };
@@ -253,7 +253,7 @@ export function AgentPile({
       ref={containerRef}
       className={cn(
         "pointer-events-none relative z-0 mt-14 h-[286px] w-full max-w-[640px] overflow-hidden mask-[linear-gradient(180deg,transparent_0,black_14%,black_92%,transparent_100%)]",
-        class_name,
+        className,
       )}
     >
       <div className="pointer-events-none absolute bottom-[34px] left-1/2 h-[114px] w-[128%] -translate-x-1/2 rounded-[999px] border-t border-white/22 bg-[radial-gradient(circle_at_50%_8%,rgba(255,255,255,0.14),rgba(255,255,255,0.03)_28%,rgba(255,255,255,0)_62%)]" />
@@ -265,7 +265,7 @@ export function AgentPile({
           return null;
         }
 
-        const isActive = token.agent_id && token.agent_id === current_agent_id;
+        const isActive = token.agent_id && token.agent_id === currentAgentId;
         const brandStyle = get_token_brand_style(token);
 
         return (
@@ -280,7 +280,7 @@ export function AgentPile({
               isActive && "ring-2 ring-white/80",
             )}
             data-token-kind={token.kind}
-            onClick={() => token.agent_id && on_select_agent(token.agent_id)}
+            onClick={() => token.agent_id && onSelectAgent(token.agent_id)}
             style={{
               width: config.size,
               height: config.size,

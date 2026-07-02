@@ -58,13 +58,13 @@ interface CreateRoomDialogProps {
   initial_private_messages_enabled?: boolean;
   on_cancel: () => void;
   on_confirm: (
-    agent_ids: string[],
+    agentIds: string[],
     name: string,
     avatar?: string,
-    skill_names?: string[],
-    host_agent_id?: string | null,
-    host_auto_reply_enabled?: boolean,
-    private_messages_enabled?: boolean,
+    skillNames?: string[],
+    hostAgentId?: string | null,
+    hostAutoReplyEnabled?: boolean,
+    privateMessagesEnabled?: boolean,
   ) => void;
 }
 
@@ -79,104 +79,104 @@ const EMPTY_STRING_LIST: string[] = [];
 const STRING_LIST_SIGNATURE_SEPARATOR = "\x1f";
 export function CreateRoomDialog({
   agents,
-  is_open,
-  is_creating = false,
+  is_open: isOpen,
+  is_creating: isCreating = false,
   mode = "create",
-  dialog_title,
-  dialog_subtitle,
-  confirm_label,
-  initial_name = "",
-  initial_avatar = "",
-  initial_selected_agent_ids,
-  initial_room_skill_names,
-  initial_host_agent_id = null,
-  initial_host_auto_reply_enabled = false,
-  initial_private_messages_enabled = false,
-  on_cancel,
-  on_confirm,
+  dialog_title: dialogTitle,
+  dialog_subtitle: dialogSubtitle,
+  confirm_label: confirmLabel,
+  initial_name: initialName = "",
+  initial_avatar: initialAvatar = "",
+  initial_selected_agent_ids: initialSelectedAgentIds,
+  initial_room_skill_names: initialRoomSkillNames,
+  initial_host_agent_id: initialHostAgentId = null,
+  initial_host_auto_reply_enabled: initialHostAutoReplyEnabled = false,
+  initial_private_messages_enabled: initialPrivateMessagesEnabled = false,
+  on_cancel: onCancel,
+  on_confirm: onConfirm,
 }: CreateRoomDialogProps) {
   const { t } = useI18n();
-  const [room_skills_state, set_room_skills_state] = useResettableState<RoomSkillsState>(
-    { error: null, items: [], loading: is_open },
-    is_open ? "open" : "closed",
+  const [roomSkillsState, setRoomSkillsState] = useResettableState<RoomSkillsState>(
+    { error: null, items: [], loading: isOpen },
+    isOpen ? "open" : "closed",
   );
   const {
-    error: room_skill_error,
-    items: available_room_skills,
-    loading: is_loading_room_skills,
-  } = room_skills_state;
-  const normalized_initial_selected_ids = initial_selected_agent_ids ?? EMPTY_STRING_LIST;
-  const normalized_initial_room_skill_names = initial_room_skill_names ?? EMPTY_STRING_LIST;
+    error: roomSkillError,
+    items: availableRoomSkills,
+    loading: isLoadingRoomSkills,
+  } = roomSkillsState;
+  const normalizedInitialSelectedIds = initialSelectedAgentIds ?? EMPTY_STRING_LIST;
+  const normalizedInitialRoomSkillNames = initialRoomSkillNames ?? EMPTY_STRING_LIST;
   // 数组 props 往往每次 render 都是新引用，依赖内容签名，
   // 避免弹窗打开时因默认空数组或父层重建数组而反复 setState。
-  const initial_selected_ids_signature = useMemo(
-    () => normalized_initial_selected_ids.join(STRING_LIST_SIGNATURE_SEPARATOR),
-    [normalized_initial_selected_ids],
+  const initialSelectedIdsSignature = useMemo(
+    () => normalizedInitialSelectedIds.join(STRING_LIST_SIGNATURE_SEPARATOR),
+    [normalizedInitialSelectedIds],
   );
-  const stable_initial_selected_ids = useMemo(
+  const stableInitialSelectedIds = useMemo(
     () =>
-      initial_selected_ids_signature === ""
+      initialSelectedIdsSignature === ""
         ? []
-        : initial_selected_ids_signature.split(STRING_LIST_SIGNATURE_SEPARATOR),
-    [initial_selected_ids_signature],
+        : initialSelectedIdsSignature.split(STRING_LIST_SIGNATURE_SEPARATOR),
+    [initialSelectedIdsSignature],
   );
-  const initial_room_skill_names_signature = useMemo(
-    () => normalized_initial_room_skill_names.join(STRING_LIST_SIGNATURE_SEPARATOR),
-    [normalized_initial_room_skill_names],
+  const initialRoomSkillNamesSignature = useMemo(
+    () => normalizedInitialRoomSkillNames.join(STRING_LIST_SIGNATURE_SEPARATOR),
+    [normalizedInitialRoomSkillNames],
   );
-  const stable_initial_room_skill_names = useMemo(
+  const stableInitialRoomSkillNames = useMemo(
     () =>
-      initial_room_skill_names_signature === ""
+      initialRoomSkillNamesSignature === ""
         ? []
-        : initial_room_skill_names_signature.split(STRING_LIST_SIGNATURE_SEPARATOR),
-    [initial_room_skill_names_signature],
+        : initialRoomSkillNamesSignature.split(STRING_LIST_SIGNATURE_SEPARATOR),
+    [initialRoomSkillNamesSignature],
   );
-  const dialog_reset_key = [
-    is_open ? "open" : "closed",
-    initial_name,
-    initial_avatar,
-    initial_selected_ids_signature,
-    initial_room_skill_names_signature,
-    initial_host_agent_id?.trim() ?? "",
-    String(initial_host_auto_reply_enabled),
-    String(initial_private_messages_enabled),
+  const dialogResetKey = [
+    isOpen ? "open" : "closed",
+    initialName,
+    initialAvatar,
+    initialSelectedIdsSignature,
+    initialRoomSkillNamesSignature,
+    initialHostAgentId?.trim() ?? "",
+    String(initialHostAutoReplyEnabled),
+    String(initialPrivateMessagesEnabled),
   ].join("\x1e");
-  const [search_query, set_search_query] = useResettableState("", dialog_reset_key);
-  const [selected_ids, set_selected_ids] = useResettableState<string[]>(stable_initial_selected_ids, dialog_reset_key);
-  const [room_name, set_room_name] = useResettableState(initial_name, dialog_reset_key);
-  const [selected_avatar, set_selected_avatar] = useResettableState(initial_avatar, dialog_reset_key);
-  const [selected_room_skill_names, set_selected_room_skill_names] = useResettableState<string[]>(
-    stable_initial_room_skill_names,
-    dialog_reset_key,
+  const [searchQuery, setSearchQuery] = useResettableState("", dialogResetKey);
+  const [selectedIds, setSelectedIds] = useResettableState<string[]>(stableInitialSelectedIds, dialogResetKey);
+  const [roomName, setRoomName] = useResettableState(initialName, dialogResetKey);
+  const [selectedAvatar, setSelectedAvatar] = useResettableState(initialAvatar, dialogResetKey);
+  const [selectedRoomSkillNames, setSelectedRoomSkillNames] = useResettableState<string[]>(
+    stableInitialRoomSkillNames,
+    dialogResetKey,
   );
-  const [room_skill_query, set_room_skill_query] = useResettableState("", dialog_reset_key);
-  const [selected_host_agent_id, set_selected_host_agent_id] = useResettableState<string>(
-    initial_host_agent_id?.trim() ?? "",
-    dialog_reset_key,
+  const [roomSkillQuery, setRoomSkillQuery] = useResettableState("", dialogResetKey);
+  const [selectedHostAgentId, setSelectedHostAgentId] = useResettableState<string>(
+    initialHostAgentId?.trim() ?? "",
+    dialogResetKey,
   );
-  const [host_auto_reply_enabled, set_host_auto_reply_enabled] = useResettableState(
-    initial_host_auto_reply_enabled,
-    dialog_reset_key,
+  const [hostAutoReplyEnabled, setHostAutoReplyEnabled] = useResettableState(
+    initialHostAutoReplyEnabled,
+    dialogResetKey,
   );
-  const [private_messages_enabled, set_private_messages_enabled] = useResettableState(
-    initial_private_messages_enabled,
-    dialog_reset_key,
+  const [privateMessagesEnabled, setPrivateMessagesEnabled] = useResettableState(
+    initialPrivateMessagesEnabled,
+    dialogResetKey,
   );
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
-    let is_cancelled = false;
+    let isCancelled = false;
     get_available_skills_api({scope: "room"})
       .then((items) => {
-        if (!is_cancelled) {
-          set_room_skills_state({ error: null, items, loading: false });
+        if (!isCancelled) {
+          setRoomSkillsState({ error: null, items, loading: false });
         }
       })
       .catch((error: unknown) => {
-        if (!is_cancelled) {
-          set_room_skills_state({
+        if (!isCancelled) {
+          setRoomSkillsState({
             error: error instanceof Error ? error.message : t("room.skills_load_error"),
             items: [],
             loading: false,
@@ -184,98 +184,98 @@ export function CreateRoomDialog({
         }
       });
     return () => {
-      is_cancelled = true;
+      isCancelled = true;
     };
-  }, [is_open, set_room_skills_state, t]);
+  }, [isOpen, setRoomSkillsState, t]);
 
   // 搜索过滤
-  const filtered_agents = useMemo(() => {
-    if (!search_query.trim()) return agents;
-    const q = search_query.toLowerCase();
+  const filteredAgents = useMemo(() => {
+    if (!searchQuery.trim()) return agents;
+    const q = searchQuery.toLowerCase();
     return agents.filter((a) => a.name.toLowerCase().includes(q));
-  }, [agents, search_query]);
+  }, [agents, searchQuery]);
 
   // 已选中的 Agent 对象列表
-  const selected_id_set = useMemo(() => new Set(selected_ids), [selected_ids]);
-  const selected_agents = useMemo(
-    () => agents.filter((a) => selected_id_set.has(a.agent_id)),
-    [agents, selected_id_set],
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedAgents = useMemo(
+    () => agents.filter((a) => selectedIdSet.has(a.agent_id)),
+    [agents, selectedIdSet],
   );
 
   if (
-    selected_ids.length === 0 &&
-    (selected_host_agent_id || host_auto_reply_enabled)
+    selectedIds.length === 0 &&
+    (selectedHostAgentId || hostAutoReplyEnabled)
   ) {
-    set_selected_host_agent_id("");
-    set_host_auto_reply_enabled(false);
-  } else if (selected_host_agent_id && !selected_ids.includes(selected_host_agent_id)) {
-    set_selected_host_agent_id("");
-    set_host_auto_reply_enabled(false);
+    setSelectedHostAgentId("");
+    setHostAutoReplyEnabled(false);
+  } else if (selectedHostAgentId && !selectedIds.includes(selectedHostAgentId)) {
+    setSelectedHostAgentId("");
+    setHostAutoReplyEnabled(false);
   }
 
-  const filtered_room_skills = useMemo(() => {
-    const query = room_skill_query.trim().toLowerCase();
+  const filteredRoomSkills = useMemo(() => {
+    const query = roomSkillQuery.trim().toLowerCase();
     if (!query) {
-      return available_room_skills;
+      return availableRoomSkills;
     }
-    return available_room_skills.filter((skill) =>
+    return availableRoomSkills.filter((skill) =>
       skill.name.toLowerCase().includes(query)
       || skill.title.toLowerCase().includes(query)
       || skill.description.toLowerCase().includes(query),
     );
-  }, [available_room_skills, room_skill_query]);
-  const room_skill_options = useMemo(
-    () => filtered_room_skills.map((skill) => ({
+  }, [availableRoomSkills, roomSkillQuery]);
+  const roomSkillOptions = useMemo(
+    () => filteredRoomSkills.map((skill) => ({
       value: skill.name,
       label: skill.name,
       description: skill.description || skill.title,
     })),
-    [filtered_room_skills],
+    [filteredRoomSkills],
   );
 
-  const toggle_agent = useCallback((agent_id: string) => {
-    set_selected_ids((prev) => {
-      if (prev.includes(agent_id)) {
-        return prev.filter((id) => id !== agent_id);
+  const toggleAgent = useCallback((agentId: string) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(agentId)) {
+        return prev.filter((id) => id !== agentId);
       }
       if (prev.length >= MAX_MEMBERS) return prev;
-      return [...prev, agent_id];
+      return [...prev, agentId];
     });
   }, []);
 
-  const handle_change_host_agent = useCallback((agent_id: string) => {
-    set_selected_host_agent_id(agent_id);
-    if (!agent_id) {
-      set_host_auto_reply_enabled(false);
+  const handleChangeHostAgent = useCallback((agentId: string) => {
+    setSelectedHostAgentId(agentId);
+    if (!agentId) {
+      setHostAutoReplyEnabled(false);
     }
   }, []);
 
-  const handle_create = useCallback(() => {
-    if (selected_ids.length === 0 || !room_name.trim()) return;
-    on_confirm(
-      selected_ids,
-      room_name.trim(),
-      selected_avatar || undefined,
-      selected_room_skill_names,
-      selected_host_agent_id || null,
-      host_auto_reply_enabled && selected_host_agent_id !== "",
-      private_messages_enabled,
+  const handleCreate = useCallback(() => {
+    if (selectedIds.length === 0 || !roomName.trim()) return;
+    onConfirm(
+      selectedIds,
+      roomName.trim(),
+      selectedAvatar || undefined,
+      selectedRoomSkillNames,
+      selectedHostAgentId || null,
+      hostAutoReplyEnabled && selectedHostAgentId !== "",
+      privateMessagesEnabled,
     );
-  }, [host_auto_reply_enabled, on_confirm, private_messages_enabled, room_name, selected_avatar, selected_host_agent_id, selected_ids, selected_room_skill_names]);
+  }, [hostAutoReplyEnabled, onConfirm, privateMessagesEnabled, roomName, selectedAvatar, selectedHostAgentId, selectedIds, selectedRoomSkillNames]);
 
-  if (!is_open) return null;
+  if (!isOpen) return null;
 
-  const can_create = selected_ids.length > 0 && room_name.trim().length > 0 && !is_creating;
-  const resolved_dialog_title = dialog_title ?? (mode === "manage" ? t("room.manage_dialog_title") : t("room.create_dialog_title"));
-  const resolved_dialog_subtitle = dialog_subtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
-  const resolved_confirm_label = confirm_label ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
+  const canCreate = selectedIds.length > 0 && roomName.trim().length > 0 && !isCreating;
+  const resolvedDialogTitle = dialogTitle ?? (mode === "manage" ? t("room.manage_dialog_title") : t("room.create_dialog_title"));
+  const resolvedDialogSubtitle = dialogSubtitle ?? (mode === "manage" ? t("room.manage_dialog_subtitle") : t("room.create_dialog_subtitle"));
+  const resolvedConfirmLabel = confirmLabel ?? (mode === "manage" ? t("common.save") : t("room.create_action"));
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         class_name="z-[9998]"
         labelled_by="create-room-dialog-title"
-        on_close={on_cancel}
+        on_close={onCancel}
       >
         <UiDialogShell
           class_name="max-h-[min(80vh,720px)] pointer-events-auto"
@@ -291,14 +291,14 @@ export function CreateRoomDialog({
                   className="dialog-title truncate"
                   id="create-room-dialog-title"
                 >
-                  {resolved_dialog_title}
+                  {resolvedDialogTitle}
                 </h2>
                 <p className="dialog-subtitle truncate">
-                  {resolved_dialog_subtitle}
+                  {resolvedDialogSubtitle}
                 </p>
               </div>
             </div>
-            <UiDialogCloseButton on_close={on_cancel} />
+            <UiDialogCloseButton on_close={onCancel} />
           </UiDialogHeader>
 
           {/* 内容区：成员管理 + 底部 Room Skill 标签行 */}
@@ -312,40 +312,40 @@ export function CreateRoomDialog({
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-3">
                     <UiRoomAvatar
-                      avatar={selected_avatar}
+                      avatar={selectedAvatar}
                       class_name="h-11 w-11 rounded-[14px]"
                       members={[]}
-                      room_id={room_name}
-                      title={room_name || resolved_dialog_title}
+                      room_id={roomName}
+                      title={roomName || resolvedDialogTitle}
                     />
                     <input
                       aria-label={t("room.settings_title")}
                       className="dialog-input min-w-0 flex-1 rounded-xl px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
                       data-autofocus="true"
                       maxLength={64}
-                      onChange={(e) => set_room_name(e.target.value)}
+                      onChange={(e) => setRoomName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && can_create) {
-                          handle_create();
+                        if (e.key === "Enter" && canCreate) {
+                          handleCreate();
                         }
                       }}
                       placeholder={t("room.name_required_placeholder")}
                       required
                       type="text"
-                      value={room_name}
+                      value={roomName}
                     />
                   </div>
                   <IconPicker
                     class_name="mt-3"
-                    disabled={is_creating}
+                    disabled={isCreating}
                     icon_family="room"
                     layout="row"
                     icon_size="sm"
                     max_icons={ROOM_ICON_ID_END - ROOM_ICON_ID_START + 1}
-                    on_select={set_selected_avatar}
+                    on_select={setSelectedAvatar}
                     show_clear={false}
                     start_icon_id={ROOM_ICON_ID_START}
-                    value={selected_avatar}
+                    value={selectedAvatar}
                   />
                 </div>
 
@@ -358,26 +358,26 @@ export function CreateRoomDialog({
                     <UiSelectMenu
                       aria_label="选择 Room 群主"
                       class_name="min-w-0 flex-1"
-                      disabled={selected_agents.length === 0 || is_creating}
-                      on_change={handle_change_host_agent}
+                      disabled={selectedAgents.length === 0 || isCreating}
+                      on_change={handleChangeHostAgent}
                       options={[
                         { value: "", label: "未设置" },
-                        ...selected_agents.map((agent) => ({
+                        ...selectedAgents.map((agent) => ({
                           value: agent.agent_id,
                           label: agent.name,
                         })),
                       ]}
                       size="sm"
                       surface="dialog"
-                      value={selected_host_agent_id}
+                      value={selectedHostAgentId}
                     />
                   </div>
                   <label className="mt-1.5 flex items-center gap-2 px-0.5 text-[11px] font-medium text-(--text-default)">
                     <input
-                      checked={host_auto_reply_enabled}
+                      checked={hostAutoReplyEnabled}
                       className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
-                      disabled={!selected_host_agent_id || is_creating}
-                      onChange={(event) => set_host_auto_reply_enabled(event.target.checked)}
+                      disabled={!selectedHostAgentId || isCreating}
+                      onChange={(event) => setHostAutoReplyEnabled(event.target.checked)}
                       type="checkbox"
                     />
                     <span className="min-w-0 truncate">
@@ -386,10 +386,10 @@ export function CreateRoomDialog({
                   </label>
                   <label className="flex items-center gap-2 px-0.5 text-[11px] font-medium text-(--text-default)">
                     <input
-                      checked={private_messages_enabled}
+                      checked={privateMessagesEnabled}
                       className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
-                      disabled={is_creating}
-                      onChange={(event) => set_private_messages_enabled(event.target.checked)}
+                      disabled={isCreating}
+                      onChange={(event) => setPrivateMessagesEnabled(event.target.checked)}
                       type="checkbox"
                     />
                     <span className="min-w-0 truncate">
@@ -408,15 +408,15 @@ export function CreateRoomDialog({
                   <input
                     aria-label={t("room.search_agent_placeholder")}
                     className="dialog-input w-full rounded-xl py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
-                    onChange={(e) => set_search_query(e.target.value)}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder={t("room.search_agent_placeholder")}
                     type="text"
-                    value={search_query}
+                    value={searchQuery}
                   />
                 </div>
 
                 <p className="dialog-label">
-                  {t("room.all_agents", { count: filtered_agents.length })}
+                  {t("room.all_agents", { count: filteredAgents.length })}
                 </p>
 
                 <div className="flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden rounded-[16px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
@@ -424,24 +424,24 @@ export function CreateRoomDialog({
                     className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
                     data-room-member-selection-list="true"
                   >
-                    {filtered_agents.map((agent) => {
-                      const is_selected = selected_id_set.has(agent.agent_id);
-                      const action_label = is_selected
+                    {filteredAgents.map((agent) => {
+                      const isSelected = selectedIdSet.has(agent.agent_id);
+                      const actionLabel = isSelected
                         ? t("room.agent_select_remove", { name: agent.name })
                         : t("room.agent_select_add", { name: agent.name });
                       return (
                         <button
-                          aria-label={action_label}
-                          aria-pressed={is_selected}
+                          aria-label={actionLabel}
+                          aria-pressed={isSelected}
                           key={agent.agent_id}
                           className={cn(
                             "flex w-full cursor-pointer items-center gap-3 rounded-[14px] border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
-                            is_selected
+                            isSelected
                               ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
                               : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
                           )}
-                          onClick={() => toggle_agent(agent.agent_id)}
-                          title={action_label}
+                          onClick={() => toggleAgent(agent.agent_id)}
+                          title={actionLabel}
                           type="button"
                         >
                           <UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />
@@ -455,12 +455,12 @@ export function CreateRoomDialog({
                           <div
                             className={cn(
                               "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all",
-                              is_selected
+                              isSelected
                                 ? "bg-primary text-white"
                                 : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
                             )}
                           >
-                            {is_selected ? (
+                            {isSelected ? (
                               <Check className="h-3 w-3" />
                             ) : (
                               <Plus className="h-3 w-3" />
@@ -480,20 +480,20 @@ export function CreateRoomDialog({
               </p>
               <UiMultiSelectMenu
                 aria_label={t("room.skills_label")}
-                disabled={is_creating}
+                disabled={isCreating}
                 empty_text={t("room.skills_empty")}
-                error_text={room_skill_error}
-                is_loading={is_loading_room_skills}
+                error_text={roomSkillError}
+                is_loading={isLoadingRoomSkills}
                 loading_text={t("room.skills_loading")}
-                on_change={set_selected_room_skill_names}
-                on_query_change={set_room_skill_query}
-                options={room_skill_options}
+                on_change={setSelectedRoomSkillNames}
+                on_query_change={setRoomSkillQuery}
+                options={roomSkillOptions}
                 placement="top"
                 placeholder={t("room.skills_none")}
-                query={room_skill_query}
+                query={roomSkillQuery}
                 search_placeholder={t("agent_options.skills.search_placeholder")}
                 surface="dialog"
-                value={selected_room_skill_names}
+                value={selectedRoomSkillNames}
               />
             </div>
           </div>
@@ -503,18 +503,18 @@ export function CreateRoomDialog({
             {/* 操作按钮 */}
             <button
               className={get_dialog_action_class_name("default")}
-              onClick={on_cancel}
+              onClick={onCancel}
               type="button"
             >
               {t("common.cancel")}
             </button>
             <button
-              className={get_dialog_action_class_name(can_create ? "primary" : "default")}
-              disabled={!can_create}
-              onClick={handle_create}
+              className={get_dialog_action_class_name(canCreate ? "primary" : "default")}
+              disabled={!canCreate}
+              onClick={handleCreate}
               type="button"
             >
-              {is_creating ? t("room.creating_action") : resolved_confirm_label}
+              {isCreating ? t("room.creating_action") : resolvedConfirmLabel}
             </button>
           </div>
         </UiDialogShell>

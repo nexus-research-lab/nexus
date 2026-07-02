@@ -13,21 +13,21 @@ import {
 
 export function SystemEventIcon({
   icon,
-  class_name,
+  class_name: className,
 }: {
   icon: SystemEventContent["icon"];
   class_name?: string;
 }) {
   if (icon === "retry") {
-    return <RotateCcw className={class_name} />;
+    return <RotateCcw className={className} />;
   }
   if (icon === "progress") {
-    return <LoaderCircle className={class_name} />;
+    return <LoaderCircle className={className} />;
   }
   if (icon === "guide") {
-    return <CornerDownRight className={class_name} />;
+    return <CornerDownRight className={className} />;
   }
-  return <Info className={class_name} />;
+  return <Info className={className} />;
 }
 
 export function TimelineBlock({
@@ -37,39 +37,39 @@ export function TimelineBlock({
   children: ReactNode;
   active?: boolean;
 }) {
-  const content_ref = useRef<HTMLDivElement | null>(null);
-  const dot_ref = useRef<HTMLSpanElement | null>(null);
-  const dot_top_ref = useRef(DEFAULT_TIMELINE_DOT_TOP);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const dotRef = useRef<HTMLSpanElement | null>(null);
+  const dotTopRef = useRef(DEFAULT_TIMELINE_DOT_TOP);
 
   useLayoutEffect(() => {
-    const content_element = content_ref.current;
-    const dot_element = dot_ref.current;
-    if (!content_element || !dot_element) {
+    const contentElement = contentRef.current;
+    const dotElement = dotRef.current;
+    if (!contentElement || !dotElement) {
       return;
     }
 
     // 圆点位置是纯 DOM 对齐值，避免用 state 回写触发渲染递归。
-    const update_dot_top = () => {
-      const anchor_element = get_timeline_anchor_element(content_element);
-      const next_dot_top = get_timeline_anchor_top(content_element, anchor_element);
-      if (Math.abs(dot_top_ref.current - next_dot_top) < 0.5) {
+    const updateDotTop = () => {
+      const anchorElement = get_timeline_anchor_element(contentElement);
+      const nextDotTop = get_timeline_anchor_top(contentElement, anchorElement);
+      if (Math.abs(dotTopRef.current - nextDotTop) < 0.5) {
         return;
       }
-      dot_top_ref.current = next_dot_top;
-      dot_element.style.top = `${next_dot_top}px`;
+      dotTopRef.current = nextDotTop;
+      dotElement.style.top = `${nextDotTop}px`;
     };
 
-    update_dot_top();
+    updateDotTop();
 
-    const frame_id = window.requestAnimationFrame(update_dot_top);
-    return () => window.cancelAnimationFrame(frame_id);
+    const frameId = window.requestAnimationFrame(updateDotTop);
+    return () => window.cancelAnimationFrame(frameId);
   });
 
   return (
     <div className="nexus-chat-timeline-block relative grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-start gap-3">
       <div className="relative">
         <span
-          ref={dot_ref}
+          ref={dotRef}
           className={cn(
             "absolute left-1/2 block h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--divider-subtle-color)",
             active ? "bg-primary/70" : null,
@@ -77,7 +77,7 @@ export function TimelineBlock({
           style={{ top: `${DEFAULT_TIMELINE_DOT_TOP}px` }}
         />
       </div>
-      <div ref={content_ref} className="min-w-0">
+      <div ref={contentRef} className="min-w-0">
         {children}
       </div>
     </div>

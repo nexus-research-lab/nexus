@@ -26,18 +26,18 @@ export function RoomPage() {
   const params = useParams<RoomRouteParams>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [pending_initial_prompt, set_pending_initial_prompt] = useState<string | null>(null);
-  const [pending_deleted_room, set_pending_deleted_room] = useState<{
+  const [pendingInitialPrompt, setPendingInitialPrompt] = useState<string | null>(null);
+  const [pendingDeletedRoom, setPendingDeletedRoom] = useState<{
     id: string;
     room_type: "room" | "dm";
   } | null>(null);
-  const [pending_delete_agent, set_pending_delete_agent] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<{ id: string; name: string } | null>(null);
   const controller = useRoomPageController({
     room_id: params.room_id,
     conversation_id: params.conversation_id,
     session_key: params.session_key,
   });
-  const conversation_tour = useMemo(() => {
+  const conversationTour = useMemo(() => {
     if (!controller.current_room) {
       return null;
     }
@@ -54,27 +54,27 @@ export function RoomPage() {
     t,
   ]);
 
-  const { start_current_tour } = usePageOnboardingTour({
-    tour: conversation_tour,
+  const { start_current_tour: startCurrentTour } = usePageOnboardingTour({
+    tour: conversationTour,
     enabled: controller.is_hydrated && Boolean(controller.current_room),
     auto_start_delay_ms: 260,
   });
 
   useEffect(() => {
-    const initial_prompt = searchParams.get("initial")?.trim() ?? "";
-    if (!initial_prompt) {
+    const initialPrompt = searchParams.get("initial")?.trim() ?? "";
+    if (!initialPrompt) {
       return;
     }
 
-    set_pending_initial_prompt((current_prompt) => current_prompt || initial_prompt);
+    setPendingInitialPrompt((currentPrompt) => currentPrompt || initialPrompt);
 
-    const next_search_params = new URLSearchParams(searchParams);
-    next_search_params.delete("initial");
-    setSearchParams(next_search_params, { replace: true });
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("initial");
+    setSearchParams(nextSearchParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const handle_consume_initial_prompt = useCallback(() => {
-    set_pending_initial_prompt(null);
+  const handleConsumeInitialPrompt = useCallback(() => {
+    setPendingInitialPrompt(null);
   }, []);
 
   const handleBackToLauncher = useCallback(() => {
@@ -86,54 +86,54 @@ export function RoomPage() {
     await controller.handle_update_room(params);
   }, [controller]);
 
-  const handleSelectConversation = useCallback((conversation_id: string) => {
-    controller.handle_select_conversation(conversation_id);
-    const route_room_id = params.room_id;
-    if (route_room_id) {
-      const external_session_key = get_external_session_key_from_conversation_id(conversation_id);
-      if (external_session_key) {
-        navigate(AppRouteBuilders.room_session(route_room_id, external_session_key));
+  const handleSelectConversation = useCallback((conversationId: string) => {
+    controller.handle_select_conversation(conversationId);
+    const routeRoomId = params.room_id;
+    if (routeRoomId) {
+      const externalSessionKey = get_external_session_key_from_conversation_id(conversationId);
+      if (externalSessionKey) {
+        navigate(AppRouteBuilders.room_session(routeRoomId, externalSessionKey));
         return;
       }
-      navigate(AppRouteBuilders.room_conversation(route_room_id, conversation_id));
+      navigate(AppRouteBuilders.room_conversation(routeRoomId, conversationId));
     }
   }, [controller, navigate, params.room_id]);
 
   const handleCreateConversation = useCallback(async (title?: string) => {
-    const route_room_id = params.room_id;
-    const next_conversation_id = await controller.handle_create_conversation(title);
-    if (route_room_id && next_conversation_id) {
-      navigate(AppRouteBuilders.room_conversation(route_room_id, next_conversation_id));
+    const routeRoomId = params.room_id;
+    const nextConversationId = await controller.handle_create_conversation(title);
+    if (routeRoomId && nextConversationId) {
+      navigate(AppRouteBuilders.room_conversation(routeRoomId, nextConversationId));
     }
-    return next_conversation_id;
+    return nextConversationId;
   }, [controller, navigate, params.room_id]);
 
-  const handleDeleteConversation = useCallback(async (conversation_id: string) => {
-    const route_room_id = params.room_id;
-    const is_deleting_active_conversation = conversation_id === controller.conversation_id;
-    const next_conversation_id = await controller.handle_delete_conversation(conversation_id);
-    if (!route_room_id) {
-      return next_conversation_id;
+  const handleDeleteConversation = useCallback(async (conversationId: string) => {
+    const routeRoomId = params.room_id;
+    const isDeletingActiveConversation = conversationId === controller.conversation_id;
+    const nextConversationId = await controller.handle_delete_conversation(conversationId);
+    if (!routeRoomId) {
+      return nextConversationId;
     }
-    if (!is_deleting_active_conversation) {
-      return next_conversation_id;
+    if (!isDeletingActiveConversation) {
+      return nextConversationId;
     }
-    if (next_conversation_id) {
-      navigate(AppRouteBuilders.room_conversation(route_room_id, next_conversation_id));
-      return next_conversation_id;
+    if (nextConversationId) {
+      navigate(AppRouteBuilders.room_conversation(routeRoomId, nextConversationId));
+      return nextConversationId;
     }
-    navigate(AppRouteBuilders.room(route_room_id));
+    navigate(AppRouteBuilders.room(routeRoomId));
     return null;
   }, [controller, navigate, params.room_id]);
 
-  const handleUpdateConversationTitle = useCallback(async (conversation_id: string, title: string) => {
-    await controller.handle_update_conversation_title(conversation_id, title);
+  const handleUpdateConversationTitle = useCallback(async (conversationId: string, title: string) => {
+    await controller.handle_update_conversation_title(conversationId, title);
   }, [controller]);
 
-  const handleRoomEvent = useCallback((event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
-    if (event_type === "room_deleted") {
+  const handleRoomEvent = useCallback((eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => {
+    if (eventType === "room_deleted") {
       if (data.room_id && data.room_id === params.room_id) {
-        set_pending_deleted_room({
+        setPendingDeletedRoom({
           id: data.room_id,
           room_type: controller.current_room?.room_type === "dm" ? "dm" : "room",
         });
@@ -142,7 +142,7 @@ export function RoomPage() {
       return;
     }
 
-    if (event_type === "room_directed_message") {
+    if (eventType === "room_directed_message") {
       console.debug("[Room] room_directed_message", {
         message_id: data.message_id,
         event_kind: data.event_kind,
@@ -161,7 +161,7 @@ export function RoomPage() {
       return;
     }
 
-    if (event_type === "room_directed_message_consumed") {
+    if (eventType === "room_directed_message_consumed") {
       console.debug("[Room] room_directed_message_consumed", {
         room_id: data.room_id,
         conversation_id: data.conversation_id,
@@ -173,7 +173,7 @@ export function RoomPage() {
       return;
     }
 
-    if (event_type === "room_resync_required" || event_type === "session_resync_required") {
+    if (eventType === "room_resync_required" || eventType === "session_resync_required") {
       void controller.handle_refresh_room_state();
     }
     // room_member_added / room_member_removed are handled by the next server-rendered
@@ -181,7 +181,7 @@ export function RoomPage() {
   }, [controller, params.room_id]);
 
   useEffect(() => {
-    if (!pending_deleted_room) {
+    if (!pendingDeletedRoom) {
       return;
     }
 
@@ -189,48 +189,48 @@ export function RoomPage() {
       return;
     }
 
-    if (!params.room_id || params.room_id !== pending_deleted_room.id) {
-      set_pending_deleted_room(null);
+    if (!params.room_id || params.room_id !== pendingDeletedRoom.id) {
+      setPendingDeletedRoom(null);
       return;
     }
 
     if (controller.current_room && !controller.room_error) {
       // Room 仍可访问，继续留在当前路径。
-      set_pending_deleted_room(null);
+      setPendingDeletedRoom(null);
       return;
     }
 
-    const fallback_route = pending_deleted_room.room_type === "dm"
+    const fallbackRoute = pendingDeletedRoom.room_type === "dm"
       ? AppRouteBuilders.contacts()
       : AppRouteBuilders.home();
-    navigate(fallback_route, { replace: true });
-    set_pending_deleted_room(null);
+    navigate(fallbackRoute, { replace: true });
+    setPendingDeletedRoom(null);
   }, [
     controller.current_room,
     controller.is_hydrated,
     controller.room_error,
     navigate,
     params.room_id,
-    pending_deleted_room,
+    pendingDeletedRoom,
   ]);
 
-  const handle_request_delete_agent = useCallback((agent_id: string) => {
-    const target_agent = controller.agents.find((agent) => agent.agent_id === agent_id);
+  const handleRequestDeleteAgent = useCallback((agentId: string) => {
+    const targetAgent = controller.agents.find((agent) => agent.agent_id === agentId);
     controller.set_is_dialog_open(false);
-    set_pending_delete_agent({
-      id: agent_id,
-      name: target_agent?.name ?? "该 Agent",
+    setPendingDeleteAgent({
+      id: agentId,
+      name: targetAgent?.name ?? "该 Agent",
     });
   }, [controller]);
 
-  const handle_confirm_delete_agent = useCallback(async () => {
-    if (!pending_delete_agent) {
+  const handleConfirmDeleteAgent = useCallback(async () => {
+    if (!pendingDeleteAgent) {
       return;
     }
 
-    await controller.handle_delete_agent(pending_delete_agent.id);
-    set_pending_delete_agent(null);
-  }, [controller, pending_delete_agent]);
+    await controller.handle_delete_agent(pendingDeleteAgent.id);
+    setPendingDeleteAgent(null);
+  }, [controller, pendingDeleteAgent]);
 
   useEffect(() => {
     // 原有逻辑：自动导航到当前对话
@@ -241,14 +241,14 @@ export function RoomPage() {
       !params.conversation_id &&
       !params.session_key &&
       controller.conversation_id &&
-      !pending_initial_prompt
+      !pendingInitialPrompt
     ) {
-      const external_session_key = get_external_session_key_from_conversation_id(
+      const externalSessionKey = get_external_session_key_from_conversation_id(
         controller.conversation_id,
       );
       navigate(
-        external_session_key
-          ? AppRouteBuilders.room_session(params.room_id, external_session_key)
+        externalSessionKey
+          ? AppRouteBuilders.room_session(params.room_id, externalSessionKey)
           : AppRouteBuilders.room_conversation(
             params.room_id,
             controller.conversation_id,
@@ -265,7 +265,7 @@ export function RoomPage() {
     params.session_key,
     controller.current_room?.id,
     controller.conversation_id,
-    pending_initial_prompt,
+    pendingInitialPrompt,
   ]);
 
   // 加载中 — 内联 loading，外层布局由路由层提供
@@ -302,11 +302,11 @@ export function RoomPage() {
             conversation_id={controller.conversation_id}
             current_todos={controller.current_todos}
             editor_width_percent={controller.editor_width_percent}
-            initial_draft={pending_initial_prompt}
+            initial_draft={pendingInitialPrompt}
             is_editor_open={controller.is_editor_open}
             is_resizing_editor={controller.is_resizing_editor}
             is_conversation_busy={controller.is_conversation_busy}
-            on_replay_tour={start_current_tour}
+            on_replay_tour={startCurrentTour}
             on_add_room_member={controller.handle_add_room_member}
             on_open_member_manager={controller.handle_prepare_room_agent_catalog}
             on_remove_room_member={controller.handle_remove_room_member}
@@ -321,7 +321,7 @@ export function RoomPage() {
             on_update_conversation_title={handleUpdateConversationTitle}
             on_select_conversation={handleSelectConversation}
             on_conversation_snapshot_change={controller.handle_conversation_snapshot_change}
-            on_initial_draft_consumed={handle_consume_initial_prompt}
+            on_initial_draft_consumed={handleConsumeInitialPrompt}
             on_start_editor_resize={controller.handle_start_editor_resize}
             on_todos_change={controller.set_current_todos}
             on_validate_agent_name={controller.handle_validate_agent_name_for_agent}
@@ -337,7 +337,7 @@ export function RoomPage() {
           mode={controller.dialog_mode}
           is_open={controller.is_dialog_open}
           on_close={() => controller.set_is_dialog_open(false)}
-          on_delete={handle_request_delete_agent}
+          on_delete={handleRequestDeleteAgent}
           on_save={controller.handle_save_agent_options}
           on_validate_name={controller.handle_validate_agent_name}
           initial_title={controller.dialog_initial_title}
@@ -347,11 +347,11 @@ export function RoomPage() {
 
         <ConfirmDialog
           confirm_text="删除成员"
-          is_open={Boolean(pending_delete_agent)}
-          message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
-          on_cancel={() => set_pending_delete_agent(null)}
+          is_open={Boolean(pendingDeleteAgent)}
+          message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在当前前端列表中。已有历史协作不会自动删除。`}
+          on_cancel={() => setPendingDeleteAgent(null)}
           on_confirm={() => {
-            void handle_confirm_delete_agent();
+            void handleConfirmDeleteAgent();
           }}
           title="删除成员"
           variant="danger"

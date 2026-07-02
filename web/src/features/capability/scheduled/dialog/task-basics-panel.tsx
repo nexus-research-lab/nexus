@@ -58,7 +58,7 @@ interface TaskBasicsPanelProps {
   on_reset_context_error: () => void;
 }
 
-function get_execution_mode_help_text(mode: ExecutionMode): string {
+function getExecutionModeHelpText(mode: ExecutionMode): string {
   if (mode === "main") {
     return "交给目标智能体的主会话处理，适合把任务继续接在主线对话里。";
   }
@@ -71,14 +71,14 @@ function get_execution_mode_help_text(mode: ExecutionMode): string {
   return "第一次执行时创建一个专用长期会话，之后持续复用。";
 }
 
-function get_execution_kind_help_text(kind: ExecutionKind): string {
+function getExecutionKindHelpText(kind: ExecutionKind): string {
   if (kind === "script") {
     return "在目标智能体工作区直接执行脚本，输出会记录到运行历史和产物文件。";
   }
   return "由 Agent 会话执行任务，适合需要上下文、工具调用或自然语言处理的任务。";
 }
 
-function get_reply_mode_help_text(mode: ReplyMode): string {
+function getReplyModeHelpText(mode: ReplyMode): string {
   if (mode === "none") {
     return "执行结果只保存在任务自己的执行会话里。";
   }
@@ -90,68 +90,68 @@ function get_reply_mode_help_text(mode: ReplyMode): string {
 
 export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
   const {
-    name_ref,
-    task_name,
-    set_task_name,
-    execution_kind,
-    set_execution_kind,
-    execution_kind_options,
-    target_type,
-    set_target_type,
-    target_type_options,
-    selected_agent_id,
-    set_selected_agent_id,
-    selected_room_id,
-    set_selected_room_id,
-    agent_options,
-    room_options,
-    agents_loading,
-    rooms_loading,
-    agents_error,
-    rooms_error,
-    execution_mode,
-    set_execution_mode,
-    execution_mode_options,
-    dedicated_session_key,
-    set_dedicated_session_key,
-    selected_session_key,
-    set_selected_session_key,
-    session_options,
-    session_loading,
-    session_error,
-    session_empty_message,
-    require_session_selection,
-    reply_mode,
-    set_reply_mode,
-    reply_mode_options,
-    disabled_reply_modes = [],
-    selected_reply_session_key,
-    set_selected_reply_session_key,
-    on_reset_context_error,
+    name_ref: nameRef,
+    task_name: taskName,
+    set_task_name: setTaskName,
+    execution_kind: executionKind,
+    set_execution_kind: setExecutionKind,
+    execution_kind_options: executionKindOptions,
+    target_type: targetType,
+    set_target_type: setTargetType,
+    target_type_options: targetTypeOptions,
+    selected_agent_id: selectedAgentId,
+    set_selected_agent_id: setSelectedAgentId,
+    selected_room_id: selectedRoomId,
+    set_selected_room_id: setSelectedRoomId,
+    agent_options: agentOptions,
+    room_options: roomOptions,
+    agents_loading: agentsLoading,
+    rooms_loading: roomsLoading,
+    agents_error: agentsError,
+    rooms_error: roomsError,
+    execution_mode: executionMode,
+    set_execution_mode: setExecutionMode,
+    execution_mode_options: executionModeOptions,
+    dedicated_session_key: dedicatedSessionKey,
+    set_dedicated_session_key: setDedicatedSessionKey,
+    selected_session_key: selectedSessionKey,
+    set_selected_session_key: setSelectedSessionKey,
+    session_options: sessionOptions,
+    session_loading: sessionLoading,
+    session_error: sessionError,
+    session_empty_message: sessionEmptyMessage,
+    require_session_selection: requireSessionSelection,
+    reply_mode: replyMode,
+    set_reply_mode: setReplyMode,
+    reply_mode_options: replyModeOptions,
+    disabled_reply_modes: disabledReplyModes = [],
+    selected_reply_session_key: selectedReplySessionKey,
+    set_selected_reply_session_key: setSelectedReplySessionKey,
+    on_reset_context_error: onResetContextError,
   } = props;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <UiField html_for="task-name" label="任务名称">
         <UiInput
-          ref={name_ref}
+          ref={nameRef}
           id="task-name"
-          onChange={(e) => set_task_name(e.target.value)}
+          onChange={(e) => setTaskName(e.target.value)}
           placeholder="输入任务名称"
-          value={task_name}
+          value={taskName}
         />
       </UiField>
 
       <div className="dialog-field">
         <span className="dialog-label">执行方式</span>
         <div className="flex flex-wrap gap-2">
-          {execution_kind_options.map((opt) => (
+          {executionKindOptions.map((opt) => (
             <UiChoiceButton
-              active={execution_kind === opt.key}
+              active={executionKind === opt.key}
               key={opt.key}
               onClick={() => {
-                set_execution_kind(opt.key);
-                on_reset_context_error();
+                setExecutionKind(opt.key);
+                onResetContextError();
               }}
             >
               {opt.label}
@@ -159,21 +159,21 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
           ))}
         </div>
         <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-          {get_execution_kind_help_text(execution_kind)}
+          {getExecutionKindHelpText(executionKind)}
         </p>
       </div>
 
-      {execution_kind === "agent" ? (
+      {executionKind === "agent" ? (
         <div className="dialog-field">
           <span className="dialog-label">发送到</span>
           <div className="flex flex-wrap gap-2">
-            {target_type_options.map((opt) => (
+            {targetTypeOptions.map((opt) => (
               <UiChoiceButton
-                active={target_type === opt.key}
+                active={targetType === opt.key}
                 key={opt.key}
                 onClick={() => {
-                  set_target_type(opt.key);
-                  on_reset_context_error();
+                  setTargetType(opt.key);
+                  onResetContextError();
                 }}
               >
                 {opt.label}
@@ -184,50 +184,50 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
       ) : null}
 
       <UiField
-        error={execution_kind === "script" || target_type === "agent" ? agents_error : rooms_error}
+        error={executionKind === "script" || targetType === "agent" ? agentsError : roomsError}
         html_for="task-target-object"
-        label={execution_kind === "script" || target_type === "agent" ? "目标智能体" : "目标 Room"}
+        label={executionKind === "script" || targetType === "agent" ? "目标智能体" : "目标 Room"}
       >
         <UiSelectMenu
-          aria_label={execution_kind === "script" || target_type === "agent" ? "选择目标智能体" : "选择目标 Room"}
-          disabled={execution_kind === "script" || target_type === "agent" ? agents_loading || agent_options.length === 0 : rooms_loading || room_options.length === 0}
+          aria_label={executionKind === "script" || targetType === "agent" ? "选择目标智能体" : "选择目标 Room"}
+          disabled={executionKind === "script" || targetType === "agent" ? agentsLoading || agentOptions.length === 0 : roomsLoading || roomOptions.length === 0}
           id="task-target-object"
           on_change={(value) => {
-            if (execution_kind === "script" || target_type === "agent") {
-              set_selected_agent_id(value);
+            if (executionKind === "script" || targetType === "agent") {
+              setSelectedAgentId(value);
             } else {
-              set_selected_room_id(value);
+              setSelectedRoomId(value);
             }
-            on_reset_context_error();
+            onResetContextError();
           }}
           options={[
             {
               value: "",
-              label: execution_kind === "script" || target_type === "agent"
-                ? (agents_loading ? "正在加载智能体..." : "请选择智能体")
-                : (rooms_loading ? "正在加载 Room..." : "请选择 Room"),
+              label: executionKind === "script" || targetType === "agent"
+                ? (agentsLoading ? "正在加载智能体..." : "请选择智能体")
+                : (roomsLoading ? "正在加载 Room..." : "请选择 Room"),
             },
-            ...(execution_kind === "script" || target_type === "agent" ? agent_options : room_options).map((option) => ({
+            ...(executionKind === "script" || targetType === "agent" ? agentOptions : roomOptions).map((option) => ({
               value: option.value ?? "",
               label: option.label,
             })),
           ]}
           surface="dialog"
-          value={execution_kind === "script" || target_type === "agent" ? selected_agent_id : selected_room_id}
+          value={executionKind === "script" || targetType === "agent" ? selectedAgentId : selectedRoomId}
         />
       </UiField>
 
-      {execution_kind === "agent" ? (
+      {executionKind === "agent" ? (
         <div className="dialog-field">
           <span className="dialog-label">执行会话</span>
           <div className="flex flex-wrap gap-2">
-            {execution_mode_options.map((opt) => (
+            {executionModeOptions.map((opt) => (
               <UiChoiceButton
-                active={execution_mode === opt.key}
+                active={executionMode === opt.key}
                 key={opt.key}
                 onClick={() => {
-                  set_execution_mode(opt.key);
-                  on_reset_context_error();
+                  setExecutionMode(opt.key);
+                  onResetContextError();
                 }}
               >
                 {opt.label}
@@ -235,62 +235,62 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
             ))}
           </div>
           <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-            {get_execution_mode_help_text(execution_mode)}
+            {getExecutionModeHelpText(executionMode)}
           </p>
         </div>
       ) : null}
 
-      {execution_kind === "agent" && execution_mode === "dedicated" ? (
+      {executionKind === "agent" && executionMode === "dedicated" ? (
         <UiField html_for="task-dedicated-session-key" label="专用长期会话名称">
           <UiInput
             id="task-dedicated-session-key"
-            onChange={(e) => set_dedicated_session_key(e.target.value)}
+            onChange={(e) => setDedicatedSessionKey(e.target.value)}
             placeholder="例如 daily-ops"
-            value={dedicated_session_key}
+            value={dedicatedSessionKey}
           />
         </UiField>
       ) : null}
 
-      {execution_kind === "agent" && require_session_selection ? (
+      {executionKind === "agent" && requireSessionSelection ? (
         <UiField
-          description={session_empty_message}
-          error={session_error}
+          description={sessionEmptyMessage}
+          error={sessionError}
           html_for="task-session-key"
-          label={target_type === "room" ? "执行成员" : "执行会话"}
+          label={targetType === "room" ? "执行成员" : "执行会话"}
         >
           <UiSelectMenu
-            aria_label={target_type === "room" ? "选择执行成员" : "选择执行会话"}
-            disabled={session_loading || session_options.length === 0}
+            aria_label={targetType === "room" ? "选择执行成员" : "选择执行会话"}
+            disabled={sessionLoading || sessionOptions.length === 0}
             id="task-session-key"
             on_change={(value) => {
-              set_selected_session_key(value);
-              on_reset_context_error();
+              setSelectedSessionKey(value);
+              onResetContextError();
             }}
             options={[
-              { value: "", label: session_loading ? "正在加载会话..." : target_type === "room" ? "请选择执行成员" : "请选择会话" },
-              ...session_options.map((option) => ({
+              { value: "", label: sessionLoading ? "正在加载会话..." : targetType === "room" ? "请选择执行成员" : "请选择会话" },
+              ...sessionOptions.map((option) => ({
                 value: option.value,
                 label: option.label,
               })),
             ]}
             surface="dialog"
-            value={selected_session_key}
+            value={selectedSessionKey}
           />
         </UiField>
       ) : null}
 
-      {execution_kind === "agent" ? (
+      {executionKind === "agent" ? (
         <div className="dialog-field">
           <span className="dialog-label">结果回传</span>
           <div className="flex flex-wrap gap-2">
-            {reply_mode_options.map((opt) => (
+            {replyModeOptions.map((opt) => (
               <UiChoiceButton
-                active={reply_mode === opt.key}
-                disabled={disabled_reply_modes.includes(opt.key)}
+                active={replyMode === opt.key}
+                disabled={disabledReplyModes.includes(opt.key)}
                 key={opt.key}
                 onClick={() => {
-                  set_reply_mode(opt.key);
-                  on_reset_context_error();
+                  setReplyMode(opt.key);
+                  onResetContextError();
                 }}
               >
                 {opt.label}
@@ -298,30 +298,30 @@ export function TaskBasicsPanel(props: TaskBasicsPanelProps) {
             ))}
           </div>
           <p className="mt-2 text-xs leading-5 text-(--text-muted)">
-            {get_reply_mode_help_text(reply_mode)}
+            {getReplyModeHelpText(replyMode)}
           </p>
         </div>
       ) : null}
 
-      {execution_kind === "agent" && reply_mode === "selected" ? (
+      {executionKind === "agent" && replyMode === "selected" ? (
         <UiField html_for="task-reply-session-key" label="回复会话">
           <UiSelectMenu
             aria_label="选择回复会话"
-            disabled={session_loading || session_options.length === 0}
+            disabled={sessionLoading || sessionOptions.length === 0}
             id="task-reply-session-key"
             on_change={(value) => {
-              set_selected_reply_session_key(value);
-              on_reset_context_error();
+              setSelectedReplySessionKey(value);
+              onResetContextError();
             }}
             options={[
-              { value: "", label: session_loading ? "正在加载会话..." : "请选择回复会话" },
-              ...session_options.map((option) => ({
+              { value: "", label: sessionLoading ? "正在加载会话..." : "请选择回复会话" },
+              ...sessionOptions.map((option) => ({
                 value: option.value,
                 label: option.label,
               })),
             ]}
             surface="dialog"
-            value={selected_reply_session_key}
+            value={selectedReplySessionKey}
           />
         </UiField>
       ) : null}

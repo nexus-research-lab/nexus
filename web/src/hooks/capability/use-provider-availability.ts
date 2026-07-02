@@ -15,28 +15,28 @@ interface ProviderAvailabilityState {
   refresh: () => Promise<void>;
 }
 
-const cached_has_provider_by_runtime = new Map<AgentRuntimeKind, boolean>();
+const cachedHasProviderByRuntime = new Map<AgentRuntimeKind, boolean>();
 const subscribers = new Set<(value: boolean) => void>();
-const in_flight_by_runtime = new Map<AgentRuntimeKind, Promise<void>>();
+const inFlightByRuntime = new Map<AgentRuntimeKind, Promise<void>>();
 
-async function fetch_availability(runtime_kind = get_default_agent_runtime_kind()): Promise<void> {
-  const current_in_flight = in_flight_by_runtime.get(runtime_kind);
-  if (current_in_flight) return current_in_flight;
+async function fetchAvailability(runtimeKind = get_default_agent_runtime_kind()): Promise<void> {
+  const currentInFlight = inFlightByRuntime.get(runtimeKind);
+  if (currentInFlight) return currentInFlight;
 
   const request = (async () => {
     try {
-      const response = await list_provider_options_api(runtime_kind);
-      const next_value = (response?.items ?? []).some((provider) => (provider.models?.length ?? 0) > 0);
-      cached_has_provider_by_runtime.set(runtime_kind, next_value);
-      subscribers.forEach((subscriber) => subscriber(next_value));
+      const response = await list_provider_options_api(runtimeKind);
+      const nextValue = (response?.items ?? []).some((provider) => (provider.models?.length ?? 0) > 0);
+      cachedHasProviderByRuntime.set(runtimeKind, nextValue);
+      subscribers.forEach((subscriber) => subscriber(nextValue));
     } catch (error) {
       console.warn("Failed to load provider availability:", error);
     } finally {
-      in_flight_by_runtime.delete(runtime_kind);
+      inFlightByRuntime.delete(runtimeKind);
     }
   })();
 
-  in_flight_by_runtime.set(runtime_kind, request);
+  inFlightByRuntime.set(runtimeKind, request);
   return request;
 }
 
@@ -44,9 +44,9 @@ async function fetch_availability(runtime_kind = get_default_agent_runtime_kind(
  * 让其它模块（如 Settings 面板的增删改）在变更后主动失效缓存。
  */
 export function invalidate_provider_availability(): void {
-  const runtime_kind = get_default_agent_runtime_kind();
-  cached_has_provider_by_runtime.delete(runtime_kind);
-  void fetch_availability(runtime_kind);
+  const runtimeKind = get_default_agent_runtime_kind();
+  cachedHasProviderByRuntime.delete(runtimeKind);
+  void fetchAvailability(runtimeKind);
 }
 
 /**
@@ -54,54 +54,54 @@ export function invalidate_provider_availability(): void {
  * 多个调用者共享同一份请求结果，避免重复打 API。
  */
 export function useProviderAvailability(): ProviderAvailabilityState {
-  const initial_runtime_kind = get_default_agent_runtime_kind();
-  const cached_has_provider = cached_has_provider_by_runtime.get(initial_runtime_kind);
-  const [has_available_provider, set_has_available_provider] = useState<boolean>(
-    cached_has_provider ?? true,
+  const initialRuntimeKind = get_default_agent_runtime_kind();
+  const cachedHasProvider = cachedHasProviderByRuntime.get(initialRuntimeKind);
+  const [hasAvailableProvider, setHasAvailableProvider] = useState<boolean>(
+    cachedHasProvider ?? true,
   );
-  const [is_ready, set_is_ready] = useState<boolean>(cached_has_provider !== undefined);
+  const [isReady, setIsReady] = useState<boolean>(cachedHasProvider !== undefined);
 
   useEffect(() => {
     const subscriber = (value: boolean) => {
-      set_has_available_provider(value);
-      set_is_ready(true);
+      setHasAvailableProvider(value);
+      setIsReady(true);
     };
     subscribers.add(subscriber);
 
-    const current_runtime_kind = get_default_agent_runtime_kind();
-    const cached_value = cached_has_provider_by_runtime.get(current_runtime_kind);
-    if (cached_value === undefined) {
-      void fetch_availability(current_runtime_kind);
+    const currentRuntimeKind = get_default_agent_runtime_kind();
+    const cachedValue = cachedHasProviderByRuntime.get(currentRuntimeKind);
+    if (cachedValue === undefined) {
+      void fetchAvailability(currentRuntimeKind);
     } else {
-      set_has_available_provider(cached_value);
-      set_is_ready(true);
+      setHasAvailableProvider(cachedValue);
+      setIsReady(true);
     }
 
-    const refresh_current_runtime = () => {
-      const runtime_kind = get_default_agent_runtime_kind();
-      cached_has_provider_by_runtime.delete(runtime_kind);
-      void fetch_availability(runtime_kind);
+    const refreshCurrentRuntime = () => {
+      const runtimeKind = get_default_agent_runtime_kind();
+      cachedHasProviderByRuntime.delete(runtimeKind);
+      void fetchAvailability(runtimeKind);
     };
-    const handle_visibility = () => {
-      if (document.visibilityState === "visible") refresh_current_runtime();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refreshCurrentRuntime();
     };
-    document.addEventListener("visibilitychange", handle_visibility);
-    window.addEventListener("focus", handle_visibility);
-    window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, refresh_current_runtime);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleVisibility);
+    window.addEventListener(USER_PREFERENCES_CHANGED_EVENT, refreshCurrentRuntime);
 
     return () => {
       subscribers.delete(subscriber);
-      document.removeEventListener("visibilitychange", handle_visibility);
-      window.removeEventListener("focus", handle_visibility);
-      window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, refresh_current_runtime);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+      window.removeEventListener(USER_PREFERENCES_CHANGED_EVENT, refreshCurrentRuntime);
     };
   }, []);
 
   const refresh = useCallback(async () => {
-    const runtime_kind = get_default_agent_runtime_kind();
-    cached_has_provider_by_runtime.delete(runtime_kind);
-    await fetch_availability(runtime_kind);
+    const runtimeKind = get_default_agent_runtime_kind();
+    cachedHasProviderByRuntime.delete(runtimeKind);
+    await fetchAvailability(runtimeKind);
   }, []);
 
-  return { has_available_provider, is_ready, refresh };
+  return { has_available_provider: hasAvailableProvider, is_ready: isReady, refresh };
 }

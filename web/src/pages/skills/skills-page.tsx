@@ -8,12 +8,12 @@ import { usePageOnboardingTour } from "@/shared/ui/onboarding/use-page-onboardin
 /** Skills 页面 — 列表目录 + 路由详情页 */
 export function SkillsPage() {
   const { t } = useI18n();
-  const skills_tour = useMemo(() => build_skills_tour(t), [t]);
+  const skillsTour = useMemo(() => build_skills_tour(t), [t]);
 
-  const { start_current_tour } = usePageOnboardingTour({
-    tour: skills_tour,
+  const { start_current_tour: startCurrentTour } = usePageOnboardingTour({
+    tour: skillsTour,
     auto_start_delay_ms: 260,
   });
 
-  return <SkillsDirectory on_replay_tour={start_current_tour} />;
+  return <SkillsDirectory on_replay_tour={startCurrentTour} />;
 }

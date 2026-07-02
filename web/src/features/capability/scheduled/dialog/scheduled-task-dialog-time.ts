@@ -15,7 +15,7 @@ import type { RoomContextAggregate, RoomSessionSelection } from "@/types/convers
 import { type Weekday, WEEKDAY_OPTIONS } from "../pickers/picker-types";
 import type { EveryUnit } from "./scheduled-task-dialog-types";
 
-function format_zoned_parts(date: Date, timezone: string): {
+function formatZonedParts(date: Date, timezone: string): {
   year: string;
   month: string;
   day: string;
@@ -33,22 +33,22 @@ function format_zoned_parts(date: Date, timezone: string): {
     second: "2-digit",
     hourCycle: "h23",
   });
-  const part_map = new Map(
+  const partMap = new Map(
     formatter.formatToParts(date)
       .filter((part) => part.type !== "literal")
       .map((part) => [part.type, part.value]),
   );
   return {
-    year: part_map.get("year") || "1970",
-    month: part_map.get("month") || "01",
-    day: part_map.get("day") || "01",
-    hour: part_map.get("hour") || "00",
-    minute: part_map.get("minute") || "00",
-    second: part_map.get("second") || "00",
+    year: partMap.get("year") || "1970",
+    month: partMap.get("month") || "01",
+    day: partMap.get("day") || "01",
+    hour: partMap.get("hour") || "00",
+    minute: partMap.get("minute") || "00",
+    second: partMap.get("second") || "00",
   };
 }
 
-function parse_datetime_local_input(value: string): {
+function parseDatetimeLocalInput(value: string): {
   year: number;
   month: number;
   day: number;
@@ -60,19 +60,19 @@ function parse_datetime_local_input(value: string): {
   if (!match) {
     return null;
   }
-  const [, year_text, month_text, day_text, hour_text, minute_text, second_text] = match;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;
   return {
-    year: Number(year_text),
-    month: Number(month_text),
-    day: Number(day_text),
-    hour: Number(hour_text),
-    minute: Number(minute_text),
-    second: Number(second_text || "00"),
+    year: Number(yearText),
+    month: Number(monthText),
+    day: Number(dayText),
+    hour: Number(hourText),
+    minute: Number(minuteText),
+    second: Number(secondText || "00"),
   };
 }
 
 export function zonedDateTimeToEpochMs(value: string, timezone: string): number | null {
-  const parsed = parse_datetime_local_input(value);
+  const parsed = parseDatetimeLocalInput(value);
   if (!parsed) {
     return null;
   }
@@ -85,9 +85,9 @@ export function zonedDateTimeToEpochMs(value: string, timezone: string): number 
     parsed.second,
   );
   for (let index = 0; index < 3; index += 1) {
-    const zoned = format_zoned_parts(new Date(candidate), timezone);
-    const desired_utc = Date.UTC(parsed.year, parsed.month - 1, parsed.day, parsed.hour, parsed.minute, parsed.second);
-    const current_utc = Date.UTC(
+    const zoned = formatZonedParts(new Date(candidate), timezone);
+    const desiredUtc = Date.UTC(parsed.year, parsed.month - 1, parsed.day, parsed.hour, parsed.minute, parsed.second);
+    const currentUtc = Date.UTC(
       Number(zoned.year),
       Number(zoned.month) - 1,
       Number(zoned.day),
@@ -95,13 +95,13 @@ export function zonedDateTimeToEpochMs(value: string, timezone: string): number 
       Number(zoned.minute),
       Number(zoned.second),
     );
-    const diff = current_utc - desired_utc;
+    const diff = currentUtc - desiredUtc;
     if (diff === 0) {
       break;
     }
     candidate -= diff;
   }
-  const verified = format_zoned_parts(new Date(candidate), timezone);
+  const verified = formatZonedParts(new Date(candidate), timezone);
   if (
     Number(verified.year) !== parsed.year
     || Number(verified.month) !== parsed.month
@@ -120,12 +120,12 @@ export function isoToZonedLocalInput(value: string, timezone: string): string | 
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  const parts = format_zoned_parts(date, timezone);
+  const parts = formatZonedParts(date, timezone);
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
-export function build_daily_cron_expression(time_value: string, weekdays: Weekday[]): string | null {
-  const normalized = time_value.trim();
+export function build_daily_cron_expression(timeValue: string, weekdays: Weekday[]): string | null {
+  const normalized = timeValue.trim();
   const match = normalized.match(/^(\d{2}):(\d{2})$/);
   if (!match) {
     return null;
@@ -141,93 +141,93 @@ export function build_daily_cron_expression(time_value: string, weekdays: Weekda
   if (weekdays.length === WEEKDAY_OPTIONS.length) {
     return `${minute} ${hour} * * *`;
   }
-  const weekday_expression = WEEKDAY_OPTIONS
+  const weekdayExpression = WEEKDAY_OPTIONS
     .filter((option) => weekdays.includes(option.key))
     .map((option) => String(option.cron_value))
     .join(",");
-  return `${minute} ${hour} * * ${weekday_expression}`;
+  return `${minute} ${hour} * * ${weekdayExpression}`;
 }
 
 export function parse_daily_cron_expression(
-  cron_expression: string,
+  cronExpression: string,
 ): { daily_time: string; selected_weekdays: Weekday[] } | null {
-  const parts = cron_expression.trim().split(/\s+/);
+  const parts = cronExpression.trim().split(/\s+/);
   if (parts.length !== 5) {
     return null;
   }
 
-  const [minute_text, hour_text, day_of_month, month, day_of_week] = parts;
-  if (day_of_month !== "*" || month !== "*") {
+  const [minuteText, hourText, dayOfMonth, month, dayOfWeek] = parts;
+  if (dayOfMonth !== "*" || month !== "*") {
     return null;
   }
 
-  const hour = Number(hour_text);
-  const minute = Number(minute_text);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
   if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
     return null;
   }
 
-  const cron_value_to_weekday = new Map(WEEKDAY_OPTIONS.map((option) => [String(option.cron_value), option.key]));
-  const selected_weekdays = day_of_week === "*"
+  const cronValueToWeekday = new Map(WEEKDAY_OPTIONS.map((option) => [String(option.cron_value), option.key]));
+  const selectedWeekdays = dayOfWeek === "*"
     ? WEEKDAY_OPTIONS.map((option) => option.key)
-    : day_of_week
+    : dayOfWeek
       .split(",")
-      .map((value) => cron_value_to_weekday.get(value.trim()))
+      .map((value) => cronValueToWeekday.get(value.trim()))
       .filter((value): value is Weekday => Boolean(value));
 
-  if (selected_weekdays.length === 0) {
+  if (selectedWeekdays.length === 0) {
     return null;
   }
 
   return {
     daily_time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-    selected_weekdays,
+    selected_weekdays: selectedWeekdays,
   };
 }
 
 export function to_interval_seconds(value: string, unit: EveryUnit): number | null {
-  const normalized_value = value.trim();
-  if (!/^\d+$/.test(normalized_value)) {
+  const normalizedValue = value.trim();
+  if (!/^\d+$/.test(normalizedValue)) {
     return null;
   }
-  const numeric_value = Number(normalized_value);
-  if (!Number.isInteger(numeric_value) || numeric_value <= 0) {
+  const numericValue = Number(normalizedValue);
+  if (!Number.isInteger(numericValue) || numericValue <= 0) {
     return null;
   }
   if (unit === "hours") {
-    return numeric_value * 3600;
+    return numericValue * 3600;
   }
   if (unit === "minutes") {
-    return numeric_value * 60;
+    return numericValue * 60;
   }
-  return numeric_value;
+  return numericValue;
 }
 
-export function format_session_label(title: string, agent_name: string): string {
-  return `${title} · ${agent_name}`;
+export function format_session_label(title: string, agentName: string): string {
+  return `${title} · ${agentName}`;
 }
 
 export function build_room_session_selections(
   contexts: RoomContextAggregate[],
-  agent_name_by_id: Map<string, string>,
+  agentNameById: Map<string, string>,
 ): RoomSessionSelection[] {
   return contexts.flatMap((context) => {
-    const room_title = context.conversation.title?.trim() || context.room.name?.trim() || "未命名会话";
-    const room_type = context.room.room_type;
+    const roomTitle = context.conversation.title?.trim() || context.room.name?.trim() || "未命名会话";
+    const roomType = context.room.room_type;
     return context.sessions.map((session) => {
-      const agent_name = agent_name_by_id.get(session.agent_id) || session.agent_id;
-      const label = room_type === "group"
-        ? `${room_title} · ${agent_name}`
-        : `${agent_name} · ${room_title}`;
-      const shared_session_key = build_room_shared_session_key(context.conversation.id);
+      const agentName = agentNameById.get(session.agent_id) || session.agent_id;
+      const label = roomType === "group"
+        ? `${roomTitle} · ${agentName}`
+        : `${agentName} · ${roomTitle}`;
+      const sharedSessionKey = build_room_shared_session_key(context.conversation.id);
       return {
-        value: build_room_executor_selection_key(shared_session_key, session.agent_id),
-        session_key: shared_session_key,
+        value: build_room_executor_selection_key(sharedSessionKey, session.agent_id),
+        session_key: sharedSessionKey,
         agent_id: session.agent_id,
         room_id: context.room.id,
         conversation_id: context.conversation.id,
-        room_type,
-        title: room_title,
+        room_type: roomType,
+        title: roomTitle,
         session,
         label,
       };
@@ -235,6 +235,6 @@ export function build_room_session_selections(
   });
 }
 
-export function build_room_executor_selection_key(shared_session_key: string, agent_id: string): string {
-  return `${shared_session_key.trim()}::executor:${agent_id.trim()}`;
+export function build_room_executor_selection_key(sharedSessionKey: string, agentId: string): string {
+  return `${sharedSessionKey.trim()}::executor:${agentId.trim()}`;
 }

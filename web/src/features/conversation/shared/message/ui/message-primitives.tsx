@@ -39,11 +39,11 @@ const ACTION_TONE_CLASS_MAP: Record<MessageActionTone, string> = {
   danger: "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] hover:text-(--destructive)",
 };
 
-function get_first_visible_spinner_frame_index(name: BrailleSpinnerName): number {
-  const first_visible_frame_index = spinners[name].frames.findIndex(
+function getFirstVisibleSpinnerFrameIndex(name: BrailleSpinnerName): number {
+  const firstVisibleFrameIndex = spinners[name].frames.findIndex(
     (frame) => frame.replace(/⠀/g, "").length > 0,
   );
-  return first_visible_frame_index >= 0 ? first_visible_frame_index : 0;
+  return firstVisibleFrameIndex >= 0 ? firstVisibleFrameIndex : 0;
 }
 
 const ACTIVITY_LABEL_MAP: Record<MessageActivityState, string> = {
@@ -77,12 +77,12 @@ const ACTIVITY_SPINNER_MAP: Record<MessageActivityState, BrailleSpinnerName> = {
 };
 
 export function MessageAvatar({
-  aria_label,
-  avatar_url,
+  aria_label: ariaLabel,
+  avatar_url: avatarUrl,
   children,
   size = "full",
-  class_name,
-  on_click,
+  class_name: className,
+  on_click: onClick,
   title,
 }: {
   aria_label?: string;
@@ -93,19 +93,19 @@ export function MessageAvatar({
   on_click?: (event: MouseEvent<HTMLButtonElement>) => void;
   title?: string;
 }) {
-  const resolved_avatar_url = get_icon_avatar_src(avatar_url);
-  const avatar_shell_class_name = cn(
+  const resolvedAvatarUrl = get_icon_avatar_src(avatarUrl);
+  const avatarShellClassName = cn(
     "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
     "transition-[transform,box-shadow,border-color] duration-(--motion-duration-fast) ease-out",
     "motion-safe:hover:-translate-y-[1px] motion-safe:hover:scale-[1.06]",
     "motion-safe:hover:border-(--surface-interactive-active-border)",
     "motion-safe:hover:shadow-[0_10px_22px_rgba(15,23,42,0.14)]",
     AVATAR_SIZE_CLASS_MAP[size],
-    class_name,
+    className,
   );
-  const avatar_content = resolved_avatar_url ? (
+  const avatarContent = resolvedAvatarUrl ? (
     <img
-      src={resolved_avatar_url}
+      src={resolvedAvatarUrl}
       alt=""
       className="h-full w-full object-cover transition-transform duration-(--motion-duration-fast) ease-out motion-safe:hover:scale-[1.04]"
     />
@@ -115,19 +115,19 @@ export function MessageAvatar({
     </span>
   );
 
-  if (on_click) {
+  if (onClick) {
     return (
       <button
-        aria-label={aria_label ?? "查看头像详情"}
+        aria-label={ariaLabel ?? "查看头像详情"}
         className={cn(
-          avatar_shell_class_name,
+          avatarShellClassName,
           "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
         )}
-        onClick={on_click}
+        onClick={onClick}
         title={title}
         type="button"
       >
-        {avatar_content}
+        {avatarContent}
       </button>
     );
   }
@@ -135,19 +135,19 @@ export function MessageAvatar({
   return (
     <div
       className={cn(
-        avatar_shell_class_name,
-        !resolved_avatar_url && "flex items-center justify-center text-(--surface-avatar-foreground)",
+        avatarShellClassName,
+        !resolvedAvatarUrl && "flex items-center justify-center text-(--surface-avatar-foreground)",
       )}
       title={title}
     >
-      {avatar_content}
+      {avatarContent}
     </div>
   );
 }
 
 export function MessageActionButton({
   children,
-  class_name,
+  class_name: className,
   tone = "default",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -160,7 +160,7 @@ export function MessageActionButton({
       className={cn(
         "rounded-lg p-1 text-(--icon-default) transition-colors duration-(--motion-duration-fast) focus-visible:ring-2 focus-visible:ring-primary/50",
         ACTION_TONE_CLASS_MAP[tone],
-        class_name,
+        className,
       )}
       type="button"
       {...props}
@@ -172,7 +172,7 @@ export function MessageActionButton({
 
 function MessageLoadingDots({
   size: _size = "md",
-  class_name,
+  class_name: className,
   name = "braille",
 }: {
   size?: MessageLoadingDotsSize;
@@ -180,27 +180,27 @@ function MessageLoadingDots({
   name?: BrailleSpinnerName;
 }) {
   const spinner = spinners[name];
-  const first_visible_frame_index = get_first_visible_spinner_frame_index(name);
+  const firstVisibleFrameIndex = getFirstVisibleSpinnerFrameIndex(name);
 
-  const spinner_width = Math.max(
+  const spinnerWidth = Math.max(
     ...spinner.frames.map((frame) => Array.from(frame).length),
   );
-  const current_frame = spinner.frames[first_visible_frame_index] ?? spinner.frames[0];
+  const currentFrame = spinner.frames[firstVisibleFrameIndex] ?? spinner.frames[0];
 
   return (
     <span
       aria-hidden="true"
       className={cn(
         "inline-grid h-[1em] select-none place-items-center whitespace-pre leading-[1em] text-current align-middle text-[1.4em]",
-        class_name,
+        className,
       )}
-      style={{ width: `${spinner_width}ch` }}
+      style={{ width: `${spinnerWidth}ch` }}
     >
       <span
         className="block font-mono leading-none"
         style={{ transform: "translateY(0.02em)" }}
       >
-        {current_frame}
+        {currentFrame}
       </span>
     </span>
   );
@@ -226,12 +226,12 @@ function MessageActivityIcon({ state }: { state: MessageActivityState }) {
 }
 
 function MessageActivityLabel({ state }: { state: MessageActivityState }) {
-  const prefers_reduced_motion = usePrefersReducedMotion();
-  const shimmer_ref = useRef<HTMLSpanElement | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const shimmerRef = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
-    const element = shimmer_ref.current;
-    if (!element || prefers_reduced_motion || typeof element.animate !== "function") {
+    const element = shimmerRef.current;
+    if (!element || prefersReducedMotion || typeof element.animate !== "function") {
       return;
     }
 
@@ -251,9 +251,9 @@ function MessageActivityLabel({ state }: { state: MessageActivityState }) {
     return () => {
       animation.cancel();
     };
-  }, [prefers_reduced_motion, state]);
+  }, [prefersReducedMotion, state]);
 
-  if (prefers_reduced_motion) {
+  if (prefersReducedMotion) {
     return <span className="truncate">{ACTIVITY_LABEL_MAP[state]}</span>;
   }
 
@@ -263,7 +263,7 @@ function MessageActivityLabel({ state }: { state: MessageActivityState }) {
     >
       <span className="truncate">{ACTIVITY_LABEL_MAP[state]}</span>
       <span
-        ref={shimmer_ref}
+        ref={shimmerRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 truncate bg-clip-text text-transparent opacity-65 [-webkit-text-fill-color:transparent]"
         style={{
@@ -280,13 +280,13 @@ function MessageActivityLabel({ state }: { state: MessageActivityState }) {
 
 export function MessageActivityStatus({
   state,
-  class_name,
+  class_name: className,
 }: {
   state: MessageActivityState;
   class_name?: string;
 }) {
   return (
-    <div className={cn("flex min-w-0 items-center", class_name)}>
+    <div className={cn("flex min-w-0 items-center", className)}>
       <div className={cn("inline-flex min-w-0 items-center gap-2 py-1 text-xs font-medium transition-colors", ACTIVITY_TONE_CLASS_MAP[state])}>
         <span className="shrink-0 opacity-75">
           <MessageActivityIcon state={state} />
@@ -305,7 +305,7 @@ export function MessageActivityStatus({
 export function MessageShell({
   children,
   separated = false,
-  class_name,
+  class_name: className,
 }: {
   children: ReactNode;
   separated?: boolean;
@@ -316,7 +316,7 @@ export function MessageShell({
       className={cn(
         "w-full min-w-0",
         separated && "border-b border-(--divider-subtle-color)",
-        class_name,
+        className,
       )}
     >
       {children}

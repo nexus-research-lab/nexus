@@ -8,21 +8,21 @@ export interface WorkspaceFileExternalActionCopy {
 }
 
 export const get_workspace_file_external_action_copy = (
-  file_name?: string,
+  fileName?: string,
 ): WorkspaceFileExternalActionCopy => {
-  const normalized_file_name = file_name?.trim() || "文件";
+  const normalizedFileName = fileName?.trim() || "文件";
   if (is_desktop_runtime()) {
     return {
-      aria_label: `在文件夹中显示 ${normalized_file_name}`,
+      aria_label: `在文件夹中显示 ${normalizedFileName}`,
       label: "打开",
       mode: "reveal",
-      title: `在文件夹中显示 ${normalized_file_name}`,
+      title: `在文件夹中显示 ${normalizedFileName}`,
     };
   }
   return {
-    aria_label: `下载 ${normalized_file_name}`,
+    aria_label: `下载 ${normalizedFileName}`,
     label: "下载",
     mode: "download",
-    title: `下载 ${normalized_file_name}`,
+    title: `下载 ${normalizedFileName}`,
   };
 };

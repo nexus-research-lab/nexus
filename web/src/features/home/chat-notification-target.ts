@@ -17,27 +17,27 @@ export interface ChatNotificationTargetMatcher {
 }
 
 export function build_chat_notification_target_key({
-  conversation_id,
-  room_id,
-  session_key,
+  conversation_id: conversationId,
+  room_id: roomId,
+  session_key: sessionKey,
 }: ChatNotificationTargetInput): string | null {
-  const normalized_room_id = room_id?.trim() ?? "";
-  const normalized_conversation_id = conversation_id?.trim() ?? "";
-  const normalized_session_key = session_key?.trim() ?? "";
+  const normalizedRoomId = roomId?.trim() ?? "";
+  const normalizedConversationId = conversationId?.trim() ?? "";
+  const normalizedSessionKey = sessionKey?.trim() ?? "";
 
-  if (normalized_room_id && normalized_conversation_id) {
-    return `room:${normalized_room_id}:conversation:${normalized_conversation_id}`;
+  if (normalizedRoomId && normalizedConversationId) {
+    return `room:${normalizedRoomId}:conversation:${normalizedConversationId}`;
   }
-  if (normalized_room_id) {
-    return `room:${normalized_room_id}`;
+  if (normalizedRoomId) {
+    return `room:${normalizedRoomId}`;
   }
-  if (normalized_session_key) {
-    return `session:${normalized_session_key}`;
+  if (normalizedSessionKey) {
+    return `session:${normalizedSessionKey}`;
   }
   return null;
 }
 
-function decode_route_segment(value: string | undefined): string {
+function decodeRouteSegment(value: string | undefined): string {
   if (!value) {
     return "";
   }
@@ -56,46 +56,46 @@ export function get_active_chat_target_from_path(
     return null;
   }
 
-  const room_id = decode_route_segment(parts[1]);
+  const roomId = decodeRouteSegment(parts[1]);
   if (parts[2] === "sessions") {
-    const session_key = decode_route_segment(parts[3]);
-    const key = build_chat_notification_target_key({ session_key });
+    const sessionKey = decodeRouteSegment(parts[3]);
+    const key = build_chat_notification_target_key({ session_key: sessionKey });
     return key
       ? {
           key,
-          room_id,
-          session_key,
+          room_id: roomId,
+          session_key: sessionKey,
         }
       : null;
   }
 
-  const conversation_id = parts[2] === "conversations"
-    ? decode_route_segment(parts[3])
+  const conversationId = parts[2] === "conversations"
+    ? decodeRouteSegment(parts[3])
     : "";
-  const key = build_chat_notification_target_key({ conversation_id, room_id });
+  const key = build_chat_notification_target_key({ conversation_id: conversationId, room_id: roomId });
   return key
     ? {
-        conversation_id,
+        conversation_id: conversationId,
         key,
-        room_id,
+        room_id: roomId,
       }
     : null;
 }
 
 export function is_chat_notification_target_active(
-  active_target: ActiveChatNotificationTarget | null,
+  activeTarget: ActiveChatNotificationTarget | null,
   target: ChatNotificationTargetMatcher,
 ): boolean {
-  if (!active_target) {
+  if (!activeTarget) {
     return false;
   }
-  if (target.key && target.key === active_target.key) {
+  if (target.key && target.key === activeTarget.key) {
     return true;
   }
-  if (active_target.session_key) {
+  if (activeTarget.session_key) {
     return false;
   }
-  if (active_target.room_id && target.room_id === active_target.room_id) {
+  if (activeTarget.room_id && target.room_id === activeTarget.room_id) {
     return true;
   }
   return false;

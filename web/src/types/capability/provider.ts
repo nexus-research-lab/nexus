@@ -173,18 +173,18 @@ export interface ProviderTestResult {
   tested_at?: string | null;
 }
 
-export function format_provider_label(provider?: string | null, display_name?: string | null): string {
-  const normalized_display_name = display_name?.trim();
-  if (normalized_display_name) {
-    return normalized_display_name;
+export function format_provider_label(provider?: string | null, displayName?: string | null): string {
+  const normalizedDisplayName = displayName?.trim();
+  if (normalizedDisplayName) {
+    return normalizedDisplayName;
   }
 
-  const normalized_provider = provider?.trim();
-  if (!normalized_provider) {
+  const normalizedProvider = provider?.trim();
+  if (!normalizedProvider) {
     return "Provider";
   }
 
-  return normalized_provider
+  return normalizedProvider
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))

@@ -31,39 +31,39 @@ export function GoalDraftForm({
   budget,
   disabled,
   error,
-  is_loading,
-  loading_label = null,
+  is_loading: isLoading,
+  loading_label: loadingLabel = null,
   objective,
-  on_budget_change,
-  on_cancel,
-  on_objective_change,
-  on_submit,
+  on_budget_change: onBudgetChange,
+  on_cancel: onCancel,
+  on_objective_change: onObjectiveChange,
+  on_submit: onSubmit,
 }: GoalDraftFormProps) {
-  const objective_ref = useRef<HTMLTextAreaElement | null>(null);
-  const can_close = !disabled && !is_loading;
-  const submit_label = is_loading
-    ? (loading_label ?? "保存中")
+  const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
+  const canClose = !disabled && !isLoading;
+  const submitLabel = isLoading
+    ? (loadingLabel ?? "保存中")
     : "保存";
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         class_name="z-[9998]"
-        initial_focus_ref={objective_ref}
+        initial_focus_ref={objectiveRef}
         labelled_by="goal-edit-dialog-title"
-        on_close={can_close ? on_cancel : undefined}
+        on_close={canClose ? onCancel : undefined}
       >
         <UiDialogFormShell
           class_name="pointer-events-auto"
           size="md"
-          onSubmit={on_submit}
+          onSubmit={onSubmit}
         >
           <UiDialogHeader
             icon={<Target className="h-4 w-4" />}
             icon_class_name="text-(--primary)"
             title="编辑 Goal"
             title_id="goal-edit-dialog-title"
-            on_close={can_close ? on_cancel : undefined}
+            on_close={canClose ? onCancel : undefined}
           />
 
           <UiDialogBody class_name="flex flex-col gap-4">
@@ -73,15 +73,15 @@ export function GoalDraftForm({
               label="目标"
             >
               <UiTextarea
-                ref={objective_ref}
+                ref={objectiveRef}
                 class_name="min-h-[128px]"
                 data-autofocus="true"
-                disabled={disabled || is_loading}
+                disabled={disabled || isLoading}
                 id="goal-objective-input"
                 placeholder="输入长期目标"
                 value={objective}
                 variant="dialog"
-                onChange={(event) => on_objective_change(event.target.value)}
+                onChange={(event) => onObjectiveChange(event.target.value)}
               />
             </UiField>
 
@@ -91,13 +91,13 @@ export function GoalDraftForm({
             >
               <UiInput
                 class_name="max-w-[180px]"
-                disabled={disabled || is_loading}
+                disabled={disabled || isLoading}
                 id="goal-budget-input"
                 inputMode="numeric"
                 placeholder="不限制"
                 value={budget}
                 variant="dialog"
-                onChange={(event) => on_budget_change(event.target.value)}
+                onChange={(event) => onBudgetChange(event.target.value)}
               />
             </UiField>
           </UiDialogBody>
@@ -105,24 +105,24 @@ export function GoalDraftForm({
           <UiDialogFooter class_name="justify-end gap-3">
             <button
               className={get_dialog_action_class_name("default")}
-              disabled={disabled || is_loading}
+              disabled={disabled || isLoading}
               type="button"
-              onClick={on_cancel}
+              onClick={onCancel}
             >
               取消
             </button>
             <button
               className={get_dialog_action_class_name(objective.trim() ? "primary" : "default")}
-              disabled={disabled || is_loading || !objective.trim()}
+              disabled={disabled || isLoading || !objective.trim()}
               type="submit"
             >
-              {is_loading ? (
+              {isLoading ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {submit_label}
+                  {submitLabel}
                 </span>
               ) : (
-                submit_label
+                submitLabel
               )}
             </button>
           </UiDialogFooter>

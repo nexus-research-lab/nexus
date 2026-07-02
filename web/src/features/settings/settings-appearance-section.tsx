@@ -21,8 +21,8 @@ import {
 } from "./settings-panel-ui";
 
 export function SettingsAppearanceSection() {
-  const { locale, set_locale, t } = useI18n();
-  const { set_theme, theme } = useTheme();
+  const { locale, set_locale: setLocale, t } = useI18n();
+  const { set_theme: setTheme, theme } = useTheme();
 
   return (
     <section className="space-y-2.5">
@@ -47,7 +47,7 @@ export function SettingsAppearanceSection() {
           <div className="min-w-0">
             <SettingsSegmentedControl
               aria_label={t("theme.switch_title")}
-              on_change={set_theme}
+              on_change={setTheme}
               options={THEME_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.label_key),
@@ -76,7 +76,7 @@ export function SettingsAppearanceSection() {
           <div className="min-w-0">
             <SettingsSegmentedControl
               aria_label={t("language.switch_title")}
-              on_change={set_locale}
+              on_change={setLocale}
               options={LOCALE_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.label_key),

@@ -30,14 +30,14 @@ const CHUNK_ERROR_PATTERNS = [
   /Unable to preload CSS/i,
 ];
 
-const root_container = document.getElementById("root");
-if (!root_container) {
+const rootContainer = document.getElementById("root");
+if (!rootContainer) {
   throw new Error("Root container #root not found.");
 }
-const container: HTMLElement = root_container;
+const container: HTMLElement = rootContainer;
 const root = createRoot(container);
-let did_install_global_error_handlers = false;
-let did_start_app_render_watchdog = false;
+let didInstallGlobalErrorHandlers = false;
+let didStartAppRenderWatchdog = false;
 
 interface RootErrorBoundaryProps {
   children: ReactNode;
@@ -56,12 +56,12 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
     return { has_error: true };
   }
 
-  public componentDidCatch(error: Error, error_info: ErrorInfo): void {
-    console.error("[RootErrorBoundary] 应用渲染失败", error, error_info);
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    console.error("[RootErrorBoundary] 应用渲染失败", error, errorInfo);
     notify_desktop_web_fatal("react.render", error, {
-      component_stack: error_info.componentStack ?? undefined,
+      component_stack: errorInfo.componentStack ?? undefined,
     });
-    recover_from_chunk_load_error("react.render", error);
+    recoverFromChunkLoadError("react.render", error);
   }
 
   public render(): ReactNode {
@@ -98,7 +98,7 @@ export function bootstrap_react_app(render: () => ReactNode) {
   void bootstrap(render);
 }
 
-function with_optional_strict_mode(children: ReactNode) {
+function withOptionalStrictMode(children: ReactNode) {
   if (!is_strict_mode_enabled()) {
     return children;
   }
@@ -109,21 +109,21 @@ function with_optional_strict_mode(children: ReactNode) {
   );
 }
 
-function render_application(render: () => ReactNode) {
+function renderApplication(render: () => ReactNode) {
   mark_desktop_performance("react.render_begin");
-  root.render(with_optional_strict_mode(
+  root.render(withOptionalStrictMode(
     <RootErrorBoundary>
       {render()}
     </RootErrorBoundary>,
   ));
   mark_desktop_performance("react.render_scheduled");
-  notify_ready_after_paint();
-  start_app_render_watchdog();
+  notifyReadyAfterPaint();
+  startAppRenderWatchdog();
 }
 
-function render_bootstrap_error(message: string) {
+function renderBootstrapError(message: string) {
   mark_desktop_performance("react.error_render_begin");
-  root.render(with_optional_strict_mode(
+  root.render(withOptionalStrictMode(
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
       <section className="surface-panel surface-radius-xl w-full max-w-[480px] border px-8 py-9 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
@@ -144,16 +144,16 @@ function render_bootstrap_error(message: string) {
     </main>,
   ));
   mark_desktop_performance("react.error_render_scheduled");
-  notify_ready_after_paint();
+  notifyReadyAfterPaint();
 }
 
-function notify_ready_after_paint() {
-  let did_notify = false;
-  const notify_once = (source: string) => {
-    if (did_notify) {
+function notifyReadyAfterPaint() {
+  let didNotify = false;
+  const notifyOnce = (source: string) => {
+    if (didNotify) {
       return;
     }
-    did_notify = true;
+    didNotify = true;
     mark_desktop_performance(`react.ready.${source}`);
     notify_desktop_web_ready(source);
     notify_desktop_render_health(source, "ready");
@@ -161,18 +161,18 @@ function notify_ready_after_paint() {
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      notify_once("after_paint");
+      notifyOnce("after_paint");
     });
   });
   window.setTimeout(() => {
-    notify_once("timer_fallback");
+    notifyOnce("timer_fallback");
   }, 250);
 }
 
-function render_recovery_screen(reason: string) {
-  reconnect_root_container();
+function renderRecoveryScreen(reason: string) {
+  reconnectRootContainer();
   mark_desktop_performance("react.recovery_render_begin");
-  root.render(with_optional_strict_mode(
+  root.render(withOptionalStrictMode(
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
       <section className="surface-panel surface-radius-xl w-full max-w-[520px] border px-8 py-9 text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-bold">
@@ -198,7 +198,7 @@ function render_recovery_screen(reason: string) {
   notify_desktop_render_health("recovery_screen", "ready");
 }
 
-function reconnect_root_container() {
+function reconnectRootContainer() {
   if (container.isConnected) {
     return;
   }
@@ -206,69 +206,69 @@ function reconnect_root_container() {
   document.body.appendChild(container);
 }
 
-function install_global_error_handlers() {
-  if (did_install_global_error_handlers) {
+function installGlobalErrorHandlers() {
+  if (didInstallGlobalErrorHandlers) {
     return;
   }
 
-  did_install_global_error_handlers = true;
+  didInstallGlobalErrorHandlers = true;
   window.addEventListener("error", (event) => {
     const error = event.error ?? event.message;
     notify_desktop_web_fatal("window.error", error);
-    recover_from_chunk_load_error("window.error", error);
+    recoverFromChunkLoadError("window.error", error);
   });
   window.addEventListener("unhandledrejection", (event) => {
     notify_desktop_web_fatal("window.unhandledrejection", event.reason);
-    recover_from_chunk_load_error("window.unhandledrejection", event.reason);
+    recoverFromChunkLoadError("window.unhandledrejection", event.reason);
   });
 }
 
-function start_app_render_watchdog() {
-  if (did_start_app_render_watchdog) {
+function startAppRenderWatchdog() {
+  if (didStartAppRenderWatchdog) {
     return;
   }
 
-  did_start_app_render_watchdog = true;
-  let consecutive_unhealthy_count = 0;
-  const check_render_health = (source: string) => {
+  didStartAppRenderWatchdog = true;
+  let consecutiveUnhealthyCount = 0;
+  const checkRenderHealth = (source: string) => {
     const snapshot = get_desktop_render_snapshot();
-    const unhealthy_status = get_render_unhealthy_status(snapshot);
-    if (!unhealthy_status) {
-      if (consecutive_unhealthy_count > 0) {
+    const unhealthyStatus = getRenderUnhealthyStatus(snapshot);
+    if (!unhealthyStatus) {
+      if (consecutiveUnhealthyCount > 0) {
         notify_desktop_render_health(source, "ready");
       }
-      consecutive_unhealthy_count = 0;
+      consecutiveUnhealthyCount = 0;
       return;
     }
 
-    consecutive_unhealthy_count += 1;
-    notify_desktop_render_health(source, unhealthy_status);
-    if (consecutive_unhealthy_count < APP_RENDER_WATCHDOG_UNHEALTHY_THRESHOLD) {
+    consecutiveUnhealthyCount += 1;
+    notify_desktop_render_health(source, unhealthyStatus);
+    if (consecutiveUnhealthyCount < APP_RENDER_WATCHDOG_UNHEALTHY_THRESHOLD) {
       return;
     }
-    if (should_reload_once(APP_BLANK_RENDER_RELOAD_KEY_PREFIX, unhealthy_status)) {
-      mark_desktop_performance(`web.health.${unhealthy_status}_reload`);
+    if (shouldReloadOnce(APP_BLANK_RENDER_RELOAD_KEY_PREFIX, unhealthyStatus)) {
+      mark_desktop_performance(`web.health.${unhealthyStatus}_reload`);
       window.location.reload();
       return;
     }
 
-    render_recovery_screen(unhealthy_status === "empty_root" ? "根节点为空" : "根节点没有可见内容");
+    renderRecoveryScreen(unhealthyStatus === "empty_root" ? "根节点为空" : "根节点没有可见内容");
   };
 
   window.setInterval(() => {
-    check_render_health("watchdog");
+    checkRenderHealth("watchdog");
   }, APP_RENDER_WATCHDOG_INTERVAL_MS);
   window.addEventListener("focus", () => {
-    window.setTimeout(() => check_render_health("focus"), 300);
+    window.setTimeout(() => checkRenderHealth("focus"), 300);
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      window.setTimeout(() => check_render_health("visibility"), 300);
+      window.setTimeout(() => checkRenderHealth("visibility"), 300);
     }
   });
 }
 
-function get_render_unhealthy_status(snapshot: DesktopRenderSnapshot): DesktopRenderHealthStatus | null {
+function getRenderUnhealthyStatus(snapshot: DesktopRenderSnapshot): DesktopRenderHealthStatus | null {
   if (snapshot.ready_state === "loading") {
     return null;
   }
@@ -281,7 +281,7 @@ function get_render_unhealthy_status(snapshot: DesktopRenderSnapshot): DesktopRe
   return null;
 }
 
-function should_recover_after_desktop_runtime_auth_error(error: unknown): boolean {
+function shouldRecoverAfterDesktopRuntimeAuthError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
   }
@@ -289,14 +289,14 @@ function should_recover_after_desktop_runtime_auth_error(error: unknown): boolea
   return recover_desktop_session_token_error(error.message, `${get_agent_api_base_url()}/runtime/options`);
 }
 
-function should_reload_once(prefix: string, reason: string): boolean {
-  const runtime_key = get_desktop_session_token() || window.location.origin || "web";
-  const reload_key = `${prefix}${runtime_key}:${reason}:${window.location.pathname}`;
+function shouldReloadOnce(prefix: string, reason: string): boolean {
+  const runtimeKey = get_desktop_session_token() || window.location.origin || "web";
+  const reloadKey = `${prefix}${runtimeKey}:${reason}:${window.location.pathname}`;
   try {
-    if (window.sessionStorage.getItem(reload_key) === "1") {
+    if (window.sessionStorage.getItem(reloadKey) === "1") {
       return false;
     }
-    window.sessionStorage.setItem(reload_key, "1");
+    window.sessionStorage.setItem(reloadKey, "1");
     return true;
   } catch {
     // 没有可靠的重载哨兵时直接显示错误页，避免陷入刷新循环。
@@ -304,13 +304,13 @@ function should_reload_once(prefix: string, reason: string): boolean {
   }
 }
 
-function recover_from_chunk_load_error(source: string, error: unknown): boolean {
-  if (!is_chunk_load_error(error)) {
+function recoverFromChunkLoadError(source: string, error: unknown): boolean {
+  if (!isChunkLoadError(error)) {
     return false;
   }
 
   notify_desktop_web_fatal(`${source}.chunk_load`, error);
-  if (!should_reload_once(APP_CHUNK_ERROR_RELOAD_KEY_PREFIX, source)) {
+  if (!shouldReloadOnce(APP_CHUNK_ERROR_RELOAD_KEY_PREFIX, source)) {
     return false;
   }
 
@@ -321,12 +321,12 @@ function recover_from_chunk_load_error(source: string, error: unknown): boolean 
   return true;
 }
 
-function is_chunk_load_error(error: unknown): boolean {
-  const diagnostic = diagnostic_text(error);
+function isChunkLoadError(error: unknown): boolean {
+  const diagnostic = diagnosticText(error);
   return CHUNK_ERROR_PATTERNS.some((pattern) => pattern.test(diagnostic));
 }
 
-function diagnostic_text(error: unknown): string {
+function diagnosticText(error: unknown): string {
   if (error instanceof Error) {
     return `${error.name}\n${error.message}\n${error.stack ?? ""}`;
   }
@@ -342,16 +342,16 @@ function diagnostic_text(error: unknown): string {
 
 async function bootstrap(render: () => ReactNode) {
   mark_desktop_performance("bootstrap.start");
-  install_global_error_handlers();
+  installGlobalErrorHandlers();
   apply_theme(detect_initial_theme());
   try {
     mark_desktop_performance("runtime_options.hydrate_begin");
     await hydrate_runtime_options();
     mark_desktop_performance("runtime_options.hydrate_end");
-    render_application(render);
+    renderApplication(render);
   } catch (error) {
     notify_desktop_web_fatal("bootstrap", error);
-    if (should_recover_after_desktop_runtime_auth_error(error)) {
+    if (shouldRecoverAfterDesktopRuntimeAuthError(error)) {
       mark_desktop_performance("runtime_options.auth_reload");
       return;
     }
@@ -359,6 +359,6 @@ async function bootstrap(render: () => ReactNode) {
     const message = error instanceof Error ? error.message : "加载运行时配置失败";
     console.error("Bootstrap failed:", error);
     mark_desktop_performance("bootstrap.error");
-    render_bootstrap_error(message);
+    renderBootstrapError(message);
   }
 }

@@ -13,7 +13,7 @@ interface SkillMarkdownProps {
   class_name?: string;
 }
 
-function normalize_plain_text(value: string): string {
+function normalizePlainText(value: string): string {
   return value
     .replace(/\r\n/g, "\n")
     .replace(/[`*_>#~\-]/g, " ")
@@ -23,50 +23,50 @@ function normalize_plain_text(value: string): string {
     .toLocaleLowerCase();
 }
 
-function strip_leading_duplicate_content(markdown: string, title?: string, description?: string): string {
-  const normalized_markdown = markdown.replace(/^\uFEFF/, "").trim();
-  if (!normalized_markdown) {
+function stripLeadingDuplicateContent(markdown: string, title?: string, description?: string): string {
+  const normalizedMarkdown = markdown.replace(/^\uFEFF/, "").trim();
+  if (!normalizedMarkdown) {
     return "";
   }
 
-  let next_markdown = normalized_markdown;
-  const normalized_title = title ? normalize_plain_text(title) : "";
-  const normalized_description = description ? normalize_plain_text(description) : "";
+  let nextMarkdown = normalizedMarkdown;
+  const normalizedTitle = title ? normalizePlainText(title) : "";
+  const normalizedDescription = description ? normalizePlainText(description) : "";
 
-  const frontmatter_match = next_markdown.match(/^---\s*\n[\s\S]*?\n---\s*(?:\n+|$)/);
-  if (frontmatter_match) {
-    next_markdown = next_markdown.slice(frontmatter_match[0].length).trimStart();
+  const frontmatterMatch = nextMarkdown.match(/^---\s*\n[\s\S]*?\n---\s*(?:\n+|$)/);
+  if (frontmatterMatch) {
+    nextMarkdown = nextMarkdown.slice(frontmatterMatch[0].length).trimStart();
   }
 
-  const heading_match = next_markdown.match(/^#\s+(.+?)\n+/);
-  if (heading_match && normalized_title && normalize_plain_text(heading_match[1]) === normalized_title) {
-    next_markdown = next_markdown.slice(heading_match[0].length).trimStart();
+  const headingMatch = nextMarkdown.match(/^#\s+(.+?)\n+/);
+  if (headingMatch && normalizedTitle && normalizePlainText(headingMatch[1]) === normalizedTitle) {
+    nextMarkdown = nextMarkdown.slice(headingMatch[0].length).trimStart();
   }
 
   // 很多 Skill README 的首段会把 description 原样再写一遍，
   // 这里在详情弹窗里裁掉这段重复导语，保留正文结构不变。
-  if (normalized_description) {
-    const first_block_match = next_markdown.match(/^([\s\S]*?)(?:\n\s*\n|$)/);
-    const first_block = first_block_match?.[1]?.trim() ?? "";
+  if (normalizedDescription) {
+    const firstBlockMatch = nextMarkdown.match(/^([\s\S]*?)(?:\n\s*\n|$)/);
+    const firstBlock = firstBlockMatch?.[1]?.trim() ?? "";
     if (
-      first_block
-      && !/^(#|>|-|[*]|\d+\.)/.test(first_block)
-      && normalize_plain_text(first_block) === normalized_description
+      firstBlock
+      && !/^(#|>|-|[*]|\d+\.)/.test(firstBlock)
+      && normalizePlainText(firstBlock) === normalizedDescription
     ) {
-      next_markdown = next_markdown.slice(first_block_match![0].length).trimStart();
+      nextMarkdown = nextMarkdown.slice(firstBlockMatch![0].length).trimStart();
     }
   }
 
-  return next_markdown;
+  return nextMarkdown;
 }
 
-export function SkillMarkdown({ markdown, title, description, class_name }: SkillMarkdownProps) {
-  const normalized_markdown = strip_leading_duplicate_content(markdown, title, description);
+export function SkillMarkdown({ markdown, title, description, class_name: className }: SkillMarkdownProps) {
+  const normalizedMarkdown = stripLeadingDuplicateContent(markdown, title, description);
 
   return (
     <MarkdownRendererContent
-      class_name={cn(SKILL_MARKDOWN_CLASS_NAME, class_name)}
-      content={normalized_markdown || markdown}
+      class_name={cn(SKILL_MARKDOWN_CLASS_NAME, className)}
+      content={normalizedMarkdown || markdown}
     />
   );
 }

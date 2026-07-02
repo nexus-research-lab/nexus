@@ -14,44 +14,44 @@ export function read_markdown_fence_marker(line: string): MarkdownFenceMarker | 
     return null;
   }
 
-  const marker_text = match[1];
+  const markerText = match[1];
   return {
     language: match.groups?.info.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "",
-    length: marker_text.length,
-    marker: marker_text[0] as "`" | "~",
+    length: markerText.length,
+    marker: markerText[0] as "`" | "~",
   };
 }
 
-function find_open_markdown_fence(content: string): MarkdownOpenFence | null {
-  let open_fence: MarkdownOpenFence | null = null;
-  let cursor_offset = 0;
+function findOpenMarkdownFence(content: string): MarkdownOpenFence | null {
+  let openFence: MarkdownOpenFence | null = null;
+  let cursorOffset = 0;
 
   for (const line of content.match(/[^\n]*(?:\n|$)/g)?.filter((item) => item.length > 0) ?? []) {
     const marker = read_markdown_fence_marker(line);
     if (!marker) {
-      cursor_offset += line.length;
+      cursorOffset += line.length;
       continue;
     }
 
     if (
-      open_fence &&
-      marker.marker === open_fence.marker &&
-      marker.length >= open_fence.length
+      openFence &&
+      marker.marker === openFence.marker &&
+      marker.length >= openFence.length
     ) {
-      open_fence = null;
-    } else if (!open_fence) {
-      open_fence = {
+      openFence = null;
+    } else if (!openFence) {
+      openFence = {
         ...marker,
-        start_offset: cursor_offset,
+        start_offset: cursorOffset,
       };
     }
 
-    cursor_offset += line.length;
+    cursorOffset += line.length;
   }
 
-  return open_fence;
+  return openFence;
 }
 
 export function find_open_markdown_fence_language(content: string): string | null {
-  return find_open_markdown_fence(content)?.language ?? null;
+  return findOpenMarkdownFence(content)?.language ?? null;
 }

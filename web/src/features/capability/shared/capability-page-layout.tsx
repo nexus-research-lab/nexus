@@ -54,12 +54,12 @@ interface CapabilityFilterSelectProps {
 /** 中文注释：能力区目录页共用版心和介绍区，保持技能、连接器和其它入口节奏一致。 */
 export function CapabilityPageLayout({
   children,
-  class_name,
+  class_name: className,
   description,
   title,
 }: CapabilityPageLayoutProps) {
   return (
-    <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, class_name)}>
+    <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, className)}>
       <div className="mb-5">
         <h1 className="text-[24px] font-semibold tracking-[-0.03em] text-(--text-strong)">
           {title}
@@ -75,10 +75,10 @@ export function CapabilityPageLayout({
 
 export function CapabilityFilterSearchInput({
   action,
-  on_change,
-  on_composition_end,
-  on_composition_start,
-  on_key_down,
+  on_change: onChange,
+  on_composition_end: onCompositionEnd,
+  on_composition_start: onCompositionStart,
+  on_key_down: onKeyDown,
   placeholder,
   value,
 }: CapabilityFilterSearchInputProps) {
@@ -87,10 +87,10 @@ export function CapabilityFilterSearchInput({
       class_name="h-10 min-w-0 flex-1 rounded-[13px] border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,white)] px-3.5"
       input_class_name="text-[14px]"
       action={action}
-      on_change={on_change}
-      onCompositionEnd={on_composition_end}
-      onCompositionStart={on_composition_start}
-      onKeyDown={on_key_down}
+      on_change={onChange}
+      onCompositionEnd={onCompositionEnd}
+      onCompositionStart={onCompositionStart}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
       value={value}
     />
@@ -98,28 +98,28 @@ export function CapabilityFilterSearchInput({
 }
 
 export function CapabilityFilterSelect({
-  aria_label,
-  class_name,
+  aria_label: ariaLabel,
+  class_name: className,
   disabled,
   label,
   leading,
-  on_change,
+  on_change: onChange,
   options,
   placeholder,
-  tour_anchor,
+  tour_anchor: tourAnchor,
   value,
 }: CapabilityFilterSelectProps) {
   return (
     <div
-      className={cn("shrink-0 sm:w-[184px]", class_name)}
-      data-tour-anchor={tour_anchor}
+      className={cn("shrink-0 sm:w-[184px]", className)}
+      data-tour-anchor={tourAnchor}
     >
       <UiSelectMenu
-        aria_label={aria_label}
+        aria_label={ariaLabel}
         disabled={disabled}
         label={label}
         leading={leading}
-        on_change={on_change}
+        on_change={onChange}
         options={options}
         placeholder={placeholder}
         value={value}
@@ -130,10 +130,10 @@ export function CapabilityFilterSelect({
 
 export function CapabilityFilterBar({
   children,
-  class_name,
+  class_name: className,
 }: CapabilityFilterBarProps) {
   return (
-    <div className={cn("mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center", class_name)}>
+    <div className={cn("mb-5 flex w-full flex-col gap-2.5 sm:flex-row sm:items-center", className)}>
       {children}
     </div>
   );

@@ -52,32 +52,32 @@ const EMPTY_DIRECTORY: ChatNotificationDirectory = {
 };
 const CHAT_NOTIFICATION_TEXT_LIMIT = 120;
 
-let chat_notification_directory_cache: ChatNotificationDirectory | null = null;
+let chatNotificationDirectoryCache: ChatNotificationDirectory | null = null;
 
-function is_window_active(): boolean {
+function isWindowActive(): boolean {
   if (typeof document === "undefined") {
     return true;
   }
   return document.visibilityState === "visible" && document.hasFocus();
 }
 
-function supports_browser_notification(): boolean {
+function supportsBrowserNotification(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
-function request_notification_permission(): void {
-  if (!supports_browser_notification() || Notification.permission !== "default") {
+function requestNotificationPermission(): void {
+  if (!supportsBrowserNotification() || Notification.permission !== "default") {
     return;
   }
 
   void Notification.requestPermission().catch(() => {});
 }
 
-function show_browser_notification(title: string, body: string, tag: string): void {
-  if (!supports_browser_notification() || Notification.permission !== "granted") {
+function showBrowserNotification(title: string, body: string, tag: string): void {
+  if (!supportsBrowserNotification() || Notification.permission !== "granted") {
     return;
   }
-  if (is_window_active()) {
+  if (isWindowActive()) {
     return;
   }
 
@@ -91,7 +91,7 @@ function show_browser_notification(title: string, body: string, tag: string): vo
   };
 }
 
-function is_completed_assistant_message(message: Message): message is AssistantMessage {
+function isCompletedAssistantMessage(message: Message): message is AssistantMessage {
   if (message.role !== "assistant") {
     return false;
   }
@@ -107,7 +107,7 @@ function is_completed_assistant_message(message: Message): message is AssistantM
   );
 }
 
-function extract_text_from_content(content?: ContentBlock[] | null): string {
+function extractTextFromContent(content?: ContentBlock[] | null): string {
   if (!content || content.length === 0) {
     return "";
   }
@@ -119,7 +119,7 @@ function extract_text_from_content(content?: ContentBlock[] | null): string {
     .join("\n\n");
 }
 
-function compact_notification_text(value: string): string {
+function compactNotificationText(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= CHAT_NOTIFICATION_TEXT_LIMIT) {
     return normalized;
@@ -127,93 +127,93 @@ function compact_notification_text(value: string): string {
   return `${normalized.slice(0, CHAT_NOTIFICATION_TEXT_LIMIT - 1)}…`;
 }
 
-function get_message_notification_body(message: AssistantMessage): string {
-  const summary_result = message.result_summary?.result?.trim();
-  if (summary_result) {
-    return compact_notification_text(summary_result);
+function getMessageNotificationBody(message: AssistantMessage): string {
+  const summaryResult = message.result_summary?.result?.trim();
+  if (summaryResult) {
+    return compactNotificationText(summaryResult);
   }
   if (message.result_summary?.subtype === "error" || message.result_summary?.is_error) {
     return "执行失败";
   }
 
-  const text = extract_text_from_content(message.content);
+  const text = extractTextFromContent(message.content);
   if (text) {
-    return compact_notification_text(text);
+    return compactNotificationText(text);
   }
   return "处理完成";
 }
 
-function build_directory_maps(directory: ChatNotificationDirectory) {
-  const conversations_with_id = directory.conversations.filter((conversation) => conversation.conversation_id);
-  const conversations_with_session_key = directory.conversations.filter((conversation) => conversation.session_key);
+function buildDirectoryMaps(directory: ChatNotificationDirectory) {
+  const conversationsWithId = directory.conversations.filter((conversation) => conversation.conversation_id);
+  const conversationsWithSessionKey = directory.conversations.filter((conversation) => conversation.session_key);
   return {
     agent_by_id: new Map(directory.agents.map((agent) => [agent.id, agent])),
     conversation_by_id: new Map(
-      conversations_with_id.map((conversation) => [conversation.conversation_id as string, conversation]),
+      conversationsWithId.map((conversation) => [conversation.conversation_id as string, conversation]),
     ),
     conversation_by_session_key: new Map(
-      conversations_with_session_key.map((conversation) => [conversation.session_key, conversation]),
+      conversationsWithSessionKey.map((conversation) => [conversation.session_key, conversation]),
     ),
     room_by_id: new Map(directory.rooms.map((room) => [room.id, room])),
   };
 }
 
-function build_notification_title_and_body(
+function buildNotificationTitleAndBody(
   target: ChatNotificationTarget,
   message: AssistantMessage,
   directory: ChatNotificationDirectory,
 ): { body: string; title: string } {
-  const { agent_by_id, conversation_by_id, room_by_id } = build_directory_maps(directory);
-  const room = target.room_id ? room_by_id.get(target.room_id) : undefined;
+  const { agent_by_id: agentById, conversation_by_id: conversationById, room_by_id: roomById } = buildDirectoryMaps(directory);
+  const room = target.room_id ? roomById.get(target.room_id) : undefined;
   const conversation = target.conversation_id
-    ? conversation_by_id.get(target.conversation_id)
+    ? conversationById.get(target.conversation_id)
     : undefined;
-  const agent = message.agent_id ? agent_by_id.get(message.agent_id) : undefined;
+  const agent = message.agent_id ? agentById.get(message.agent_id) : undefined;
 
   const title = room?.room_type === "dm"
     ? agent?.name ?? conversation?.title ?? room?.name ?? "Nexus"
     : room?.name?.trim() || conversation?.title?.trim() || "群聊";
-  const body = get_message_notification_body(message);
+  const body = getMessageNotificationBody(message);
   if (room?.room_type === "room" && agent?.name) {
     return {
       title,
-      body: compact_notification_text(`${agent.name}: ${body}`),
+      body: compactNotificationText(`${agent.name}: ${body}`),
     };
   }
   return { title, body };
 }
 
-function build_message_target(
+function buildMessageTarget(
   event: EventMessage,
   message: Message,
   directory: ChatNotificationDirectory,
 ): ChatNotificationTarget | null {
-  const { conversation_by_id, conversation_by_session_key } = build_directory_maps(directory);
-  const event_conversation_id = event.conversation_id ?? message.conversation_id ?? null;
-  const session_key = event.session_key ?? message.session_key ?? null;
-  const directory_conversation = event_conversation_id
-    ? conversation_by_id.get(event_conversation_id)
-    : session_key ? conversation_by_session_key.get(session_key) : undefined;
-  const conversation_id = event_conversation_id ?? directory_conversation?.conversation_id ?? null;
-  const room_id = event.room_id ?? message.room_id ?? directory_conversation?.room_id ?? null;
+  const { conversation_by_id: conversationById, conversation_by_session_key: conversationBySessionKey } = buildDirectoryMaps(directory);
+  const eventConversationId = event.conversation_id ?? message.conversation_id ?? null;
+  const sessionKey = event.session_key ?? message.session_key ?? null;
+  const directoryConversation = eventConversationId
+    ? conversationById.get(eventConversationId)
+    : sessionKey ? conversationBySessionKey.get(sessionKey) : undefined;
+  const conversationId = eventConversationId ?? directoryConversation?.conversation_id ?? null;
+  const roomId = event.room_id ?? message.room_id ?? directoryConversation?.room_id ?? null;
   const key = build_chat_notification_target_key({
-    conversation_id,
-    room_id,
-    session_key,
+    conversation_id: conversationId,
+    room_id: roomId,
+    session_key: sessionKey,
   });
   if (!key) {
     return null;
   }
   return {
     agent_id: event.agent_id ?? message.agent_id ?? null,
-    conversation_id,
+    conversation_id: conversationId,
     key,
-    room_id,
-    session_key,
+    room_id: roomId,
+    session_key: sessionKey,
   };
 }
 
-function to_chat_notification_target_state(
+function toChatNotificationTargetState(
   target: ChatNotificationTarget,
 ): ChatNotificationTargetState {
   return {
@@ -224,152 +224,152 @@ function to_chat_notification_target_state(
   };
 }
 
-function get_notification_message_id(
+function getNotificationMessageId(
   event: EventMessage,
   message: AssistantMessage,
-  target_key: string,
+  targetKey: string,
 ): string {
   return (
     message.message_id ||
     event.message_id ||
     message.result_summary?.message_id ||
-    `${target_key}:${message.round_id}:${event.timestamp}`
+    `${targetKey}:${message.round_id}:${event.timestamp}`
   );
 }
 
 export function useChatCompletionNotifications(): void {
   const location = useLocation();
-  const ws_url = get_agent_ws_url();
-  const record_chat_notification = useSidebarStore((s) => s.record_chat_notification);
-  const clear_chat_notifications_for_target = useSidebarStore(
+  const wsUrl = get_agent_ws_url();
+  const recordChatNotification = useSidebarStore((s) => s.record_chat_notification);
+  const clearChatNotificationsForTarget = useSidebarStore(
     (s) => s.clear_chat_notifications_for_target,
   );
-  const clear_chat_notifications_for_room = useSidebarStore(
+  const clearChatNotificationsForRoom = useSidebarStore(
     (s) => s.clear_chat_notifications_for_room,
   );
-  const [directory, set_directory] = useState<ChatNotificationDirectory>(
-    () => chat_notification_directory_cache ?? EMPTY_DIRECTORY,
+  const [directory, setDirectory] = useState<ChatNotificationDirectory>(
+    () => chatNotificationDirectoryCache ?? EMPTY_DIRECTORY,
   );
-  const active_target_ref = useRef<ActiveChatNotificationTarget | null>(
+  const activeTargetRef = useRef<ActiveChatNotificationTarget | null>(
     get_active_chat_target_from_path(location.pathname),
   );
-  const directory_ref = useRef(directory);
-  const room_seq_cursor_ref = useRef<Record<string, number>>({});
+  const directoryRef = useRef(directory);
+  const roomSeqCursorRef = useRef<Record<string, number>>({});
 
-  const clear_room_notifications = useCallback((room_id: string | null | undefined) => {
-    if (!room_id) {
+  const clearRoomNotifications = useCallback((roomId: string | null | undefined) => {
+    if (!roomId) {
       return;
     }
-    clear_chat_notifications_for_room(room_id);
-    const session_target_keys = new Set(
-      directory_ref.current.conversations
-        .filter((conversation) => conversation.room_id === room_id)
+    clearChatNotificationsForRoom(roomId);
+    const sessionTargetKeys = new Set(
+      directoryRef.current.conversations
+        .filter((conversation) => conversation.room_id === roomId)
         .map((conversation) => build_chat_notification_target_key({
           session_key: conversation.session_key,
         }))
         .filter((key): key is string => Boolean(key)),
     );
-    for (const session_target_key of session_target_keys) {
-      clear_chat_notifications_for_target(session_target_key);
+    for (const sessionTargetKey of sessionTargetKeys) {
+      clearChatNotificationsForTarget(sessionTargetKey);
     }
-  }, [clear_chat_notifications_for_room, clear_chat_notifications_for_target]);
+  }, [clearChatNotificationsForRoom, clearChatNotificationsForTarget]);
 
-  const clear_active_target_notifications = useCallback(() => {
-    if (!is_window_active()) {
+  const clearActiveTargetNotifications = useCallback(() => {
+    if (!isWindowActive()) {
       return;
     }
-    const active_target = active_target_ref.current;
-    if (active_target?.room_id) {
-      clear_room_notifications(active_target.room_id);
+    const activeTarget = activeTargetRef.current;
+    if (activeTarget?.room_id) {
+      clearRoomNotifications(activeTarget.room_id);
       return;
     }
-    clear_chat_notifications_for_target(active_target?.key);
-  }, [clear_chat_notifications_for_target, clear_room_notifications]);
+    clearChatNotificationsForTarget(activeTarget?.key);
+  }, [clearChatNotificationsForTarget, clearRoomNotifications]);
 
   useEffect(() => {
-    active_target_ref.current = get_active_chat_target_from_path(location.pathname);
-    clear_active_target_notifications();
-  }, [clear_active_target_notifications, location.pathname]);
+    activeTargetRef.current = get_active_chat_target_from_path(location.pathname);
+    clearActiveTargetNotifications();
+  }, [clearActiveTargetNotifications, location.pathname]);
 
   useEffect(() => {
-    directory_ref.current = directory;
-    clear_active_target_notifications();
-  }, [clear_active_target_notifications, directory]);
+    directoryRef.current = directory;
+    clearActiveTargetNotifications();
+  }, [clearActiveTargetNotifications, directory]);
 
   useEffect(() => {
-    if (!supports_browser_notification() || Notification.permission !== "default") {
+    if (!supportsBrowserNotification() || Notification.permission !== "default") {
       return;
     }
 
-    window.addEventListener("pointerdown", request_notification_permission, {
+    window.addEventListener("pointerdown", requestNotificationPermission, {
       capture: true,
       once: true,
     });
-    window.addEventListener("keydown", request_notification_permission, {
+    window.addEventListener("keydown", requestNotificationPermission, {
       capture: true,
       once: true,
     });
     return () => {
-      window.removeEventListener("pointerdown", request_notification_permission, {
+      window.removeEventListener("pointerdown", requestNotificationPermission, {
         capture: true,
       });
-      window.removeEventListener("keydown", request_notification_permission, {
+      window.removeEventListener("keydown", requestNotificationPermission, {
         capture: true,
       });
     };
   }, []);
 
-  const refresh_directory = useCallback(() => {
+  const refreshDirectory = useCallback(() => {
     void get_launcher_bootstrap_api().then((payload) => {
-      const next_directory = {
+      const nextDirectory = {
         agents: payload.agents,
         conversations: payload.conversations,
         rooms: payload.rooms,
       };
-      chat_notification_directory_cache = next_directory;
-      set_directory(next_directory);
+      chatNotificationDirectoryCache = nextDirectory;
+      setDirectory(nextDirectory);
     }).catch((error) => {
       console.error("[ChatCompletionNotifications] 加载聊天通知目录失败:", error);
     });
   }, []);
 
   useEffect(() => {
-    refresh_directory();
-    return subscribe_room_directory_updates(refresh_directory);
-  }, [refresh_directory]);
+    refreshDirectory();
+    return subscribe_room_directory_updates(refreshDirectory);
+  }, [refreshDirectory]);
 
   useEffect(() => {
-    window.addEventListener("focus", clear_active_target_notifications);
-    document.addEventListener("visibilitychange", clear_active_target_notifications);
+    window.addEventListener("focus", clearActiveTargetNotifications);
+    document.addEventListener("visibilitychange", clearActiveTargetNotifications);
     return () => {
-      window.removeEventListener("focus", clear_active_target_notifications);
-      document.removeEventListener("visibilitychange", clear_active_target_notifications);
+      window.removeEventListener("focus", clearActiveTargetNotifications);
+      document.removeEventListener("visibilitychange", clearActiveTargetNotifications);
     };
-  }, [clear_active_target_notifications]);
+  }, [clearActiveTargetNotifications]);
 
-  const room_ids = useMemo(
+  const roomIds = useMemo(
     () => directory.rooms.map((room) => room.id).filter(Boolean).sort(),
     [directory.rooms],
   );
-  const room_ids_key = room_ids.join("\n");
+  const roomIdsKey = roomIds.join("\n");
 
-  const handle_websocket_message = useCallback((raw_message: unknown) => {
-    const event = raw_message as EventMessage;
+  const handleWebsocketMessage = useCallback((rawMessage: unknown) => {
+    const event = rawMessage as EventMessage;
     if (event.event_type === "directory_changed") {
       notify_room_directory_updated();
       return;
     }
     if (event.room_id && typeof event.room_seq === "number") {
-      room_seq_cursor_ref.current[event.room_id] = Math.max(
-        room_seq_cursor_ref.current[event.room_id] ?? 0,
+      roomSeqCursorRef.current[event.room_id] = Math.max(
+        roomSeqCursorRef.current[event.room_id] ?? 0,
         event.room_seq,
       );
     }
 
     if (event.event_type === "room_resync_required") {
       if (event.room_id && typeof event.data?.latest_room_seq === "number") {
-        room_seq_cursor_ref.current[event.room_id] = Math.max(
-          room_seq_cursor_ref.current[event.room_id] ?? 0,
+        roomSeqCursorRef.current[event.room_id] = Math.max(
+          roomSeqCursorRef.current[event.room_id] ?? 0,
           event.data.latest_room_seq,
         );
       }
@@ -382,74 +382,74 @@ export function useChatCompletionNotifications(): void {
     }
 
     const message = event.data as Message;
-    if (!is_completed_assistant_message(message)) {
+    if (!isCompletedAssistantMessage(message)) {
       return;
     }
 
-    const target = build_message_target(event, message, directory_ref.current);
+    const target = buildMessageTarget(event, message, directoryRef.current);
     if (!target) {
       return;
     }
 
     notify_room_directory_updated();
-    const active_target = active_target_ref.current;
-    const target_is_active = is_chat_notification_target_active(active_target, target);
-    if (target_is_active && is_window_active()) {
+    const activeTarget = activeTargetRef.current;
+    const targetIsActive = is_chat_notification_target_active(activeTarget, target);
+    if (targetIsActive && isWindowActive()) {
       if (target.room_id) {
-        clear_room_notifications(target.room_id);
+        clearRoomNotifications(target.room_id);
       } else {
-        clear_chat_notifications_for_target(target.key);
+        clearChatNotificationsForTarget(target.key);
       }
       return;
     }
 
-    const message_id = get_notification_message_id(event, message, target.key);
-    const did_record = record_chat_notification(to_chat_notification_target_state(target), message_id);
-    if (!did_record) {
+    const messageId = getNotificationMessageId(event, message, target.key);
+    const didRecord = recordChatNotification(toChatNotificationTargetState(target), messageId);
+    if (!didRecord) {
       return;
     }
 
-    const { body, title } = build_notification_title_and_body(
+    const { body, title } = buildNotificationTitleAndBody(
       target,
       message,
-      directory_ref.current,
+      directoryRef.current,
     );
-    show_browser_notification(title, body, message_id);
-  }, [clear_chat_notifications_for_target, clear_room_notifications, record_chat_notification]);
+    showBrowserNotification(title, body, messageId);
+  }, [clearChatNotificationsForTarget, clearRoomNotifications, recordChatNotification]);
 
-  const { send: ws_send, state: ws_state } = useWebSocket({
-    url: ws_url,
+  const { send: wsSend, state: wsState } = useWebSocket({
+    url: wsUrl,
     protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,
-    on_message: handle_websocket_message,
+    on_message: handleWebsocketMessage,
   });
 
-  useAppEventSubscription(ws_send, ws_state);
+  useAppEventSubscription(wsSend, wsState);
 
   useEffect(() => {
-    if (ws_state !== "connected" || room_ids.length === 0) {
+    if (wsState !== "connected" || roomIds.length === 0) {
       return;
     }
 
-    for (const room_id of room_ids) {
-      const last_seen_room_seq = room_seq_cursor_ref.current[room_id] ?? 0;
-      ws_send({
+    for (const roomId of roomIds) {
+      const lastSeenRoomSeq = roomSeqCursorRef.current[roomId] ?? 0;
+      wsSend({
         type: "subscribe_room",
-        room_id,
-        ...(last_seen_room_seq > 0 ? { last_seen_room_seq } : {}),
+        room_id: roomId,
+        ...(lastSeenRoomSeq > 0 ? { last_seen_room_seq: lastSeenRoomSeq } : {}),
       });
     }
 
     return () => {
-      for (const room_id of room_ids) {
-        ws_send({
+      for (const roomId of roomIds) {
+        wsSend({
           type: "unsubscribe_room",
-          room_id,
+          room_id: roomId,
         });
       }
     };
     // room_ids_key 是稳定依赖，避免数组引用导致反复重订阅。
-  }, [room_ids, room_ids_key, ws_send, ws_state]);
+  }, [roomIds, roomIdsKey, wsSend, wsState]);
 }

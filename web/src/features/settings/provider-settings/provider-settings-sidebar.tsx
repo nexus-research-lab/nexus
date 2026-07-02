@@ -25,7 +25,7 @@ interface ProviderSettingsSidebarProps {
   is_creating: boolean;
   is_editing: boolean;
   loading: boolean;
-  on_create_from_preset: (preset_key: string) => void;
+  on_create_from_preset: (presetKey: string) => void;
   on_request_delete_provider: (item: ProviderConfigRecord) => void;
   on_select_provider: (provider: string) => void;
   pending_action: string | null;
@@ -35,18 +35,18 @@ interface ProviderSettingsSidebarProps {
 }
 
 export function ProviderSettingsSidebar({
-  configured_by_preset,
-  custom_providers,
-  draft_preset_key,
-  is_creating,
-  is_editing,
+  configured_by_preset: configuredByPreset,
+  custom_providers: customProviders,
+  draft_preset_key: draftPresetKey,
+  is_creating: isCreating,
+  is_editing: isEditing,
   loading,
-  on_create_from_preset,
-  on_request_delete_provider,
-  on_select_provider,
-  pending_action,
-  preset_sidebar_items,
-  selected_provider,
+  on_create_from_preset: onCreateFromPreset,
+  on_request_delete_provider: onRequestDeleteProvider,
+  on_select_provider: onSelectProvider,
+  pending_action: pendingAction,
+  preset_sidebar_items: presetSidebarItems,
+  selected_provider: selectedProvider,
   submitting,
 }: ProviderSettingsSidebarProps) {
   const { t } = useI18n();
@@ -66,11 +66,11 @@ export function ProviderSettingsSidebar({
             <button
               className={cn(
                 "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] font-semibold transition-[background,color] duration-(--motion-duration-fast)",
-                is_creating && draft_preset_key === "custom"
+                isCreating && draftPresetKey === "custom"
                   ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
                   : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
               )}
-              onClick={() => on_create_from_preset("custom")}
+              onClick={() => onCreateFromPreset("custom")}
               type="button"
             >
               <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-(--surface-interactive-active-border) text-primary">
@@ -79,43 +79,43 @@ export function ProviderSettingsSidebar({
               <span className="min-w-0 flex-1 truncate">{t("settings.providers.custom_provider")}</span>
             </button>
 
-            {preset_sidebar_items.map((preset) => {
-              const item = configured_by_preset.get(preset.preset_key);
-              const is_active = item
-                ? item.provider === selected_provider && is_editing
-                : is_creating && draft_preset_key === preset.preset_key;
-              const is_unsupported_preset = !preset_is_configurable(preset);
+            {presetSidebarItems.map((preset) => {
+              const item = configuredByPreset.get(preset.preset_key);
+              const isActive = item
+                ? item.provider === selectedProvider && isEditing
+                : isCreating && draftPresetKey === preset.preset_key;
+              const isUnsupportedPreset = !preset_is_configurable(preset);
               return (
                 <button
                   className={cn(
                     "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] font-semibold transition-[background,color] duration-(--motion-duration-fast)",
-                    is_unsupported_preset
+                    isUnsupportedPreset
                       ? "cursor-not-allowed text-(--text-soft) opacity-50"
-                      : is_active
+                      : isActive
                       ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
                       : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                   )}
-                  disabled={is_unsupported_preset}
+                  disabled={isUnsupportedPreset}
                   key={preset.preset_key}
                   onClick={() => {
-                    if (is_unsupported_preset) {
+                    if (isUnsupportedPreset) {
                       return;
                     }
                     if (item) {
-                      on_select_provider(item.provider);
+                      onSelectProvider(item.provider);
                     } else {
-                      on_create_from_preset(preset.preset_key);
+                      onCreateFromPreset(preset.preset_key);
                     }
                   }}
                   type="button"
                 >
                   <ProviderIcon
-                    active={!is_unsupported_preset && provider_has_active_config(item)}
+                    active={!isUnsupportedPreset && provider_has_active_config(item)}
                     name={preset.display_name}
                     preset_key={preset.preset_key}
                   />
                   <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
-                  {is_unsupported_preset ? (
+                  {isUnsupportedPreset ? (
                     <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
                       {t("settings.providers.unsupported_badge")}
                     </span>
@@ -124,14 +124,14 @@ export function ProviderSettingsSidebar({
               );
             })}
 
-            {custom_providers.map((item) => {
-              const is_active = item.provider === selected_provider && is_editing;
-              const can_show_delete = is_custom_provider_record(item) && item.can_manage;
+            {customProviders.map((item) => {
+              const isActive = item.provider === selectedProvider && isEditing;
+              const canShowDelete = is_custom_provider_record(item) && item.can_manage;
               return (
                 <div
                   className={cn(
                     "group flex min-h-10 w-full items-center rounded-[10px] transition-[background,color] duration-(--motion-duration-fast)",
-                    is_active
+                    isActive
                       ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
                       : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                   )}
@@ -139,7 +139,7 @@ export function ProviderSettingsSidebar({
                 >
                   <button
                     className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-[13px] font-semibold"
-                    onClick={() => on_select_provider(item.provider)}
+                    onClick={() => onSelectProvider(item.provider)}
                     type="button"
                   >
                     <ProviderIcon
@@ -149,15 +149,15 @@ export function ProviderSettingsSidebar({
                     />
                     <span className="min-w-0 flex-1 truncate">{get_provider_title(item)}</span>
                   </button>
-                  {can_show_delete ? (
+                  {canShowDelete ? (
                     <UiIconButton
                       aria-label={t("settings.providers.delete_aria", { name: get_provider_title(item) })}
                       class_name={cn(
                         "mr-1 h-7 w-7 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-                        is_active ? "opacity-100" : "opacity-0",
+                        isActive ? "opacity-100" : "opacity-0",
                       )}
-                      disabled={submitting || pending_action !== null}
-                      onClick={() => on_request_delete_provider(item)}
+                      disabled={submitting || pendingAction !== null}
+                      onClick={() => onRequestDeleteProvider(item)}
                       size="xs"
                       title={item.usage_count > 0
                         ? t("settings.providers.delete_in_use_title", { count: item.usage_count })

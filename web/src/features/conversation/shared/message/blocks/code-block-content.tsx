@@ -20,9 +20,9 @@ const MESSAGE_CODE_FONT_FAMILY = "\"KingHwa_OldSong\", var(--font-mono), monospa
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();
   const { copied, copy } = useCopyToClipboard();
-  const is_dark_theme = theme === "dark" || theme === "rain";
+  const isDarkTheme = theme === "dark" || theme === "rain";
 
-  const handle_copy = () => {
+  const handleCopy = () => {
     void copy(value);
   };
 
@@ -39,7 +39,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           style={copied ? undefined : {
             color: "var(--text-muted)",
           }}
-          onClick={handle_copy}
+          onClick={handleCopy}
           title={copied ? "已复制" : `复制 ${language || "text"} 代码`}
           type="button"
         >
@@ -55,7 +55,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       <div className="relative min-w-0">
         <SyntaxHighlighter
           language={language || "text"}
-          style={is_dark_theme ? vscDarkPlus : oneLight}
+          style={isDarkTheme ? vscDarkPlus : oneLight}
           codeTagProps={{
             className: "message-cjk-code-font",
             style: {

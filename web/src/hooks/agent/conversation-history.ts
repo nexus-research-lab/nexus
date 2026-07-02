@@ -17,94 +17,94 @@ export interface LoadOlderAgentConversationMessagesParams {
   history_cursor_ref: MutableRefObject<AgentConversationHistoryCursor>;
   has_more_history_ref: RefObject<boolean>;
   is_history_loading_ref: RefObject<boolean>;
-  set_history_loading: (next_value: boolean) => void;
-  set_has_more_history: (next_value: boolean) => void;
+  set_history_loading: (nextValue: boolean) => void;
+  set_has_more_history: (nextValue: boolean) => void;
   set_history_prepend_token: Dispatch<SetStateAction<number>>;
   set_messages: Dispatch<SetStateAction<Message[]>>;
   set_error: Dispatch<SetStateAction<string | null>>;
 }
 
 export async function load_older_agent_conversation_messages({
-  active_session_key_ref,
+  active_session_key_ref: activeSessionKeyRef,
   identity,
-  history_cursor_ref,
-  has_more_history_ref,
-  is_history_loading_ref,
-  set_history_loading,
-  set_has_more_history,
-  set_history_prepend_token,
-  set_messages,
-  set_error,
+  history_cursor_ref: historyCursorRef,
+  has_more_history_ref: hasMoreHistoryRef,
+  is_history_loading_ref: isHistoryLoadingRef,
+  set_history_loading: setHistoryLoading,
+  set_has_more_history: setHasMoreHistory,
+  set_history_prepend_token: setHistoryPrependToken,
+  set_messages: setMessages,
+  set_error: setError,
 }: LoadOlderAgentConversationMessagesParams): Promise<boolean> {
-  const active_session_key = active_session_key_ref.current;
-  const current_room_id = identity?.room_id?.trim() ?? "";
-  const current_conversation_id = identity?.conversation_id?.trim() ?? "";
-  const before_round_id = history_cursor_ref.current.before_round_id;
-  const before_round_timestamp =
-    history_cursor_ref.current.before_round_timestamp;
+  const activeSessionKey = activeSessionKeyRef.current;
+  const currentRoomId = identity?.room_id?.trim() ?? "";
+  const currentConversationId = identity?.conversation_id?.trim() ?? "";
+  const beforeRoundId = historyCursorRef.current.before_round_id;
+  const beforeRoundTimestamp =
+    historyCursorRef.current.before_round_timestamp;
 
   if (
-    !active_session_key ||
-    !has_more_history_ref.current ||
-    is_history_loading_ref.current ||
-    !before_round_timestamp
+    !activeSessionKey ||
+    !hasMoreHistoryRef.current ||
+    isHistoryLoadingRef.current ||
+    !beforeRoundTimestamp
   ) {
     return false;
   }
 
-  set_history_loading(true);
+  setHistoryLoading(true);
   try {
-    const page = current_room_id && current_conversation_id
+    const page = currentRoomId && currentConversationId
       ? await get_room_conversation_messages(
-          current_room_id,
-          current_conversation_id,
+          currentRoomId,
+          currentConversationId,
           {
             limit: get_message_history_round_page_size(),
-            before_round_id,
-            before_round_timestamp,
+            before_round_id: beforeRoundId,
+            before_round_timestamp: beforeRoundTimestamp,
           },
         )
-      : await get_session_messages_api(active_session_key, {
+      : await get_session_messages_api(activeSessionKey, {
           limit: get_message_history_round_page_size(),
-          before_round_id,
-          before_round_timestamp,
+          before_round_id: beforeRoundId,
+          before_round_timestamp: beforeRoundTimestamp,
         });
-    if (active_session_key_ref.current !== active_session_key) {
+    if (activeSessionKeyRef.current !== activeSessionKey) {
       return false;
     }
 
-    const sorted_messages = sort_messages(page.items ?? []);
-    if (sorted_messages.length === 0) {
-      history_cursor_ref.current = {
+    const sortedMessages = sort_messages(page.items ?? []);
+    if (sortedMessages.length === 0) {
+      historyCursorRef.current = {
         before_round_id: null,
         before_round_timestamp: null,
       };
-      set_has_more_history(false);
+      setHasMoreHistory(false);
       return false;
     }
 
-    set_messages((current_messages) =>
-      merge_loaded_messages(sorted_messages, current_messages),
+    setMessages((currentMessages) =>
+      merge_loaded_messages(sortedMessages, currentMessages),
     );
-    history_cursor_ref.current = {
+    historyCursorRef.current = {
       before_round_id: page.next_before_round_id ?? null,
       before_round_timestamp: page.next_before_round_timestamp ?? null,
     };
-    set_has_more_history(page.has_more ?? false);
-    set_history_prepend_token((current_token) => current_token + 1);
+    setHasMoreHistory(page.has_more ?? false);
+    setHistoryPrependToken((currentToken) => currentToken + 1);
     return true;
   } catch (err) {
-    if (active_session_key_ref.current !== active_session_key) {
+    if (activeSessionKeyRef.current !== activeSessionKey) {
       return false;
     }
     console.error("[useAgentConversation] 加载更早消息失败:", err);
-    set_error(
+    setError(
       err instanceof Error ? err.message : "Failed to load older messages",
     );
     return false;
   } finally {
-    if (active_session_key_ref.current === active_session_key) {
-      set_history_loading(false);
+    if (activeSessionKeyRef.current === activeSessionKey) {
+      setHistoryLoading(false);
     }
   }
 }

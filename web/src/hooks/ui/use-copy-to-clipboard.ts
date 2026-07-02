@@ -18,29 +18,29 @@ export interface UseCopyToClipboardResult {
 export function useCopyToClipboard(
   options: UseCopyToClipboardOptions = {},
 ): UseCopyToClipboardResult {
-  const timeout_ms = options.feedback_timeout_ms ?? COPY_FEEDBACK_TIMEOUT_MS;
-  const [copied, set_copied] = useState(false);
-  const reset_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timeoutMs = options.feedback_timeout_ms ?? COPY_FEEDBACK_TIMEOUT_MS;
+  const [copied, setCopied] = useState(false);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const copy = useCallback(
     async (text: string): Promise<boolean> => {
       if (!text) return false;
       const succeeded = await write_text_to_clipboard(text);
       if (succeeded) {
-        set_copied(true);
-        if (reset_timer_ref.current) {
-          clearTimeout(reset_timer_ref.current);
+        setCopied(true);
+        if (resetTimerRef.current) {
+          clearTimeout(resetTimerRef.current);
         }
-        reset_timer_ref.current = setTimeout(() => {
-          set_copied(false);
-          reset_timer_ref.current = null;
-        }, timeout_ms);
+        resetTimerRef.current = setTimeout(() => {
+          setCopied(false);
+          resetTimerRef.current = null;
+        }, timeoutMs);
         return true;
       }
       console.error("[useCopyToClipboard] copy failed");
       return false;
     },
-    [timeout_ms],
+    [timeoutMs],
   );
 
   return { copied, copy };

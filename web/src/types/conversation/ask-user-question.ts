@@ -51,10 +51,10 @@ export interface UserQuestionAnswer {
 const ASK_USER_QUESTION_TIMEOUT_ERROR_CODE = 'permission_request_timeout';
 
 export function is_ask_user_question_timed_out_result(
-  tool_result?: Pick<ToolResultContent, 'is_error' | 'error_code'> | null,
+  toolResult?: Pick<ToolResultContent, 'is_error' | 'error_code'> | null,
 ): boolean {
   return Boolean(
-    tool_result?.is_error
-    && tool_result.error_code === ASK_USER_QUESTION_TIMEOUT_ERROR_CODE,
+    toolResult?.is_error
+    && toolResult.error_code === ASK_USER_QUESTION_TIMEOUT_ERROR_CODE,
   );
 }

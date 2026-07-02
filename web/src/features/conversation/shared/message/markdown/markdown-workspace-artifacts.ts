@@ -27,13 +27,13 @@ const SAVED_FILE_LINE_PATTERN = /^(?<prefix>.*?(?:已保存到|保存到|写入�
 const WORKSPACE_ARTIFACT_EXTENSION_PATTERN = /\.(?:adoc|avif|bmp|csv|gif|html?|ico|jpe?g|jsonl?|log|markdown|md|mermaid|mmd|pdf|png|rst|svg|toml|txt|webp|xml|ya?ml)$/i;
 const WORKSPACE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
 
-function normalize_workspace_reference(value: string): string {
+function normalizeWorkspaceReference(value: string): string {
   return value
     .replace(/%60/gi, "`")
     .replace(/^[("'`【]+|[)"'`】,，。；：:!?]+$/g, "");
 }
 
-function looks_like_workspace_file_reference(value: string): boolean {
+function looksLikeWorkspaceFileReference(value: string): boolean {
   if (!value.includes(".") || /^https?:\/\//i.test(value) || value.startsWith("/")) {
     return false;
   }
@@ -41,24 +41,24 @@ function looks_like_workspace_file_reference(value: string): boolean {
   return /[A-Za-z0-9]/.test(value);
 }
 
-function resolve_workspace_file_reference(value: string, files: WorkspaceFileEntry[]): string | null {
-  const normalized = normalize_workspace_reference(value);
-  if (!looks_like_workspace_file_reference(normalized)) {
+function resolveWorkspaceFileReference(value: string, files: WorkspaceFileEntry[]): string | null {
+  const normalized = normalizeWorkspaceReference(value);
+  if (!looksLikeWorkspaceFileReference(normalized)) {
     return null;
   }
 
-  const candidate_files = files.filter((entry) => !entry.is_dir);
-  const exact_match = candidate_files.find((entry) => entry.path === normalized);
-  if (exact_match) {
-    return exact_match.path;
+  const candidateFiles = files.filter((entry) => !entry.is_dir);
+  const exactMatch = candidateFiles.find((entry) => entry.path === normalized);
+  if (exactMatch) {
+    return exactMatch.path;
   }
 
-  const basename_matches = candidate_files.filter((entry) => entry.name === normalized);
-  return basename_matches.length === 1 ? basename_matches[0].path : null;
+  const basenameMatches = candidateFiles.filter((entry) => entry.name === normalized);
+  return basenameMatches.length === 1 ? basenameMatches[0].path : null;
 }
 
-function display_workspace_artifact_path(path: string): string {
-  const normalized = normalize_workspace_reference(path).replace(/\\/g, "/");
+function displayWorkspaceArtifactPath(path: string): string {
+  const normalized = normalizeWorkspaceReference(path).replace(/\\/g, "/");
   const match = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(normalized);
   if (!match?.groups?.agent || !match.groups.relative) {
     return normalized.replace(/^\.\//, "");
@@ -66,8 +66,8 @@ function display_workspace_artifact_path(path: string): string {
   return `${match.groups.agent}/${match.groups.relative}`;
 }
 
-function clickable_workspace_artifact_path(path: string): string {
-  const normalized = normalize_workspace_reference(path).replace(/\\/g, "/");
+function clickableWorkspaceArtifactPath(path: string): string {
+  const normalized = normalizeWorkspaceReference(path).replace(/\\/g, "/");
   const match = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(normalized);
   if (!match?.groups?.relative) {
     return normalized.replace(/^\.\//, "");
@@ -77,38 +77,38 @@ function clickable_workspace_artifact_path(path: string): string {
 
 export function resolve_workspace_artifact_path(
   path: string,
-  resolve_file_path: ResolveWorkspaceFilePath,
+  resolveFilePath: ResolveWorkspaceFilePath,
 ): string | null {
-  const normalized = normalize_workspace_reference(path).replace(/\\/g, "/");
+  const normalized = normalizeWorkspaceReference(path).replace(/\\/g, "/");
   if (WORKSPACE_ABSOLUTE_FILE_PATTERN.test(normalized)) {
-    return clickable_workspace_artifact_path(normalized);
+    return clickableWorkspaceArtifactPath(normalized);
   }
-  const resolved_path = resolve_file_path(normalized);
-  if (resolved_path) {
-    return resolved_path;
+  const resolvedPath = resolveFilePath(normalized);
+  if (resolvedPath) {
+    return resolvedPath;
   }
-  if (is_workspace_relative_artifact_path(normalized)) {
+  if (isWorkspaceRelativeArtifactPath(normalized)) {
     return normalized.replace(/^\.\//, "");
   }
-  if (is_workspace_image_path(normalized) && looks_like_workspace_file_reference(normalized)) {
+  if (isWorkspaceImagePath(normalized) && looksLikeWorkspaceFileReference(normalized)) {
     return normalized.replace(/^\.\//, "");
   }
   return null;
 }
 
-function normalize_artifact_label(prefix: string): string {
+function normalizeArtifactLabel(prefix: string): string {
   const label = prefix.trim().replace(/[：:，,]$/, "").trim();
   return label || "已保存到";
 }
 
-function is_workspace_image_path(path: string): boolean {
+function isWorkspaceImagePath(path: string): boolean {
   return WORKSPACE_IMAGE_EXTENSION_PATTERN.test(path.trim());
 }
 
-function is_workspace_relative_artifact_path(path: string): boolean {
+function isWorkspaceRelativeArtifactPath(path: string): boolean {
   const normalized = path.trim();
   return (
-    looks_like_workspace_file_reference(normalized) &&
+    looksLikeWorkspaceFileReference(normalized) &&
     normalized.includes("/") &&
     WORKSPACE_ARTIFACT_EXTENSION_PATTERN.test(normalized)
   );
@@ -116,68 +116,68 @@ function is_workspace_relative_artifact_path(path: string): boolean {
 
 export function split_markdown_file_artifacts(
   content: string,
-  resolve_file_path: ResolveWorkspaceFilePath,
+  resolveFilePath: ResolveWorkspaceFilePath,
 ): MarkdownContentSegment[] {
   const segments: MarkdownContentSegment[] = [];
-  const pending_text: string[] = [];
+  const pendingText: string[] = [];
 
-  const flush_text = () => {
-    if (pending_text.length === 0) {
+  const flushText = () => {
+    if (pendingText.length === 0) {
       return;
     }
-    segments.push({ type: "text", text: pending_text.join("\n") });
-    pending_text.length = 0;
+    segments.push({ type: "text", text: pendingText.join("\n") });
+    pendingText.length = 0;
   };
 
   for (const line of content.split("\n")) {
     const match = SAVED_FILE_LINE_PATTERN.exec(line.trim());
-    const absolute_match = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(line.trim());
-    const path = match?.groups?.path ?? absolute_match?.groups?.path;
+    const absoluteMatch = WORKSPACE_ABSOLUTE_FILE_PATTERN.exec(line.trim());
+    const path = match?.groups?.path ?? absoluteMatch?.groups?.path;
     if (!path) {
-      pending_text.push(line);
+      pendingText.push(line);
       continue;
     }
 
-    const resolved_path = resolve_workspace_artifact_path(path, resolve_file_path);
-    if (!resolved_path) {
-      pending_text.push(line);
+    const resolvedPath = resolve_workspace_artifact_path(path, resolveFilePath);
+    if (!resolvedPath) {
+      pendingText.push(line);
       continue;
     }
 
-    flush_text();
+    flushText();
     segments.push({
       type: "file_artifact",
-      label: match?.groups?.prefix ? normalize_artifact_label(match.groups.prefix) : "文件",
-      path: resolved_path,
-      display_path: display_workspace_artifact_path(path),
+      label: match?.groups?.prefix ? normalizeArtifactLabel(match.groups.prefix) : "文件",
+      path: resolvedPath,
+      display_path: displayWorkspaceArtifactPath(path),
     });
 
     const suffix = match?.groups?.suffix?.trim() ?? "";
     if (suffix && /[\p{L}\p{N}]/u.test(suffix)) {
-      pending_text.push(suffix);
+      pendingText.push(suffix);
     }
   }
 
-  flush_text();
+  flushText();
   return segments.length > 0 ? segments : [{ type: "text", text: content }];
 }
 
-export function useMarkdownFileResolver(workspace_agent_id?: string | null): ResolveWorkspaceFilePath {
-  const current_agent_id = useAgentStore((state) => state.current_agent_id);
-  const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
-  const resolved_agent_id = workspace_agent_id?.trim() || current_agent_id || "";
-  const agent_files = useMemo(
-    () => files_by_agent[resolved_agent_id] ?? [],
-    [files_by_agent, resolved_agent_id],
+export function useMarkdownFileResolver(workspaceAgentId?: string | null): ResolveWorkspaceFilePath {
+  const currentAgentId = useAgentStore((state) => state.current_agent_id);
+  const filesByAgent = useWorkspaceFilesStore((state) => state.files_by_agent);
+  const resolvedAgentId = workspaceAgentId?.trim() || currentAgentId || "";
+  const agentFiles = useMemo(
+    () => filesByAgent[resolvedAgentId] ?? [],
+    [filesByAgent, resolvedAgentId],
   );
 
   return useCallback(
-    (value: string) => resolve_workspace_file_reference(value, agent_files),
-    [agent_files],
+    (value: string) => resolveWorkspaceFileReference(value, agentFiles),
+    [agentFiles],
   );
 }
 
-export function useMarkdownCurrentAgentID(workspace_agent_id?: string | null): string | null {
-  const current_agent_id = useAgentStore((state) => state.current_agent_id);
-  return workspace_agent_id?.trim() || current_agent_id;
+export function useMarkdownCurrentAgentID(workspaceAgentId?: string | null): string | null {
+  const currentAgentId = useAgentStore((state) => state.current_agent_id);
+  return workspaceAgentId?.trim() || currentAgentId;
 }

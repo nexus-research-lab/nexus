@@ -23,7 +23,7 @@ const TOKEN_SWATCHES = [
   { fill: "#E8945A", text: "#FFFFFF", ring: "#F0B186" },
 ];
 
-function get_initials(name: string) {
+function getInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) {
     return "AG";
@@ -36,52 +36,52 @@ function get_initials(name: string) {
 
 export function truncate_launcher_chip_label(
   label: string,
-  max_chars: number = 10,
+  maxChars: number = 10,
 ): string {
   const chars = Array.from(label.trim());
-  if (chars.length <= max_chars) {
+  if (chars.length <= maxChars) {
     return label.trim();
   }
 
   // Hero 推荐项空间很窄，超长名称改为中间省略。
-  const head_count = Math.max(2, Math.ceil((max_chars - 1) / 2));
-  const tail_count = Math.max(2, max_chars - 1 - head_count);
-  return `${chars.slice(0, head_count).join("")}…${chars.slice(-tail_count).join("")}`;
+  const headCount = Math.max(2, Math.ceil((maxChars - 1) / 2));
+  const tailCount = Math.max(2, maxChars - 1 - headCount);
+  return `${chars.slice(0, headCount).join("")}…${chars.slice(-tailCount).join("")}`;
 }
 
 export function is_launcher_chip_truncated(
   label: string,
-  max_chars: number = 6,
+  maxChars: number = 6,
 ): boolean {
-  return Array.from(label.trim()).length > max_chars;
+  return Array.from(label.trim()).length > maxChars;
 }
 
 export function build_decorative_tokens(
   agents: LauncherAgentSummary[],
   rooms: LauncherRoomSummary[],
 ): SpotlightToken[] {
-  const agent_tokens: SpotlightToken[] = agents.map((agent, index) => ({
+  const agentTokens: SpotlightToken[] = agents.map((agent, index) => ({
     key: `agent-${agent.id}`,
-    label: get_initials(agent.name),
+    label: getInitials(agent.name),
     agent_id: agent.id,
     kind: "agent" as const,
     swatch: TOKEN_SWATCHES[index % TOKEN_SWATCHES.length],
   }));
 
-  const room_tokens: SpotlightToken[] = rooms
+  const roomTokens: SpotlightToken[] = rooms
     .filter((room) => room.room_type === "room")
     .sort(
       (left, right) =>
-        get_launcher_room_timestamp(right) - get_launcher_room_timestamp(left),
+        getLauncherRoomTimestamp(right) - getLauncherRoomTimestamp(left),
     )
     .slice(0, 8)
     .map((room, index) => ({
       key: `room-${room.id}`,
-      label: get_initials(room.name?.trim() || "Room"),
+      label: getInitials(room.name?.trim() || "Room"),
       agent_id: null,
       kind: "room" as const,
       swatch:
-        TOKEN_SWATCHES[(agent_tokens.length + index) % TOKEN_SWATCHES.length],
+        TOKEN_SWATCHES[(agentTokens.length + index) % TOKEN_SWATCHES.length],
     }));
 
   const fallback = [
@@ -101,7 +101,7 @@ export function build_decorative_tokens(
     { label: "AT", kind: "agent" as const },
   ];
 
-  const source: SpotlightToken[] = [...agent_tokens, ...room_tokens];
+  const source: SpotlightToken[] = [...agentTokens, ...roomTokens];
   fallback.forEach((item, index) => {
     if (source.length < 18) {
       source.push({
@@ -111,7 +111,7 @@ export function build_decorative_tokens(
         kind: item.kind,
         swatch:
           TOKEN_SWATCHES[
-            (agent_tokens.length + room_tokens.length + index) %
+            (agentTokens.length + roomTokens.length + index) %
               TOKEN_SWATCHES.length
           ],
       });
@@ -125,7 +125,7 @@ export function build_launcher_mention_targets(
   agents: LauncherAgentSummary[],
   rooms: LauncherRoomSummary[],
 ): MentionTargetItem[] {
-  const agent_targets = agents
+  const agentTargets = agents
     .slice()
     .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"))
     .map((agent) => ({
@@ -135,11 +135,11 @@ export function build_launcher_mention_targets(
       kind: "agent" as const,
     }));
 
-  const room_targets = rooms
+  const roomTargets = rooms
     .filter((room) => room.room_type === "room")
     .sort(
       (left, right) =>
-        get_launcher_room_timestamp(right) - get_launcher_room_timestamp(left),
+        getLauncherRoomTimestamp(right) - getLauncherRoomTimestamp(left),
     )
     .map((room) => ({
       id: `room-${room.id}`,
@@ -148,25 +148,25 @@ export function build_launcher_mention_targets(
       kind: "room" as const,
     }));
 
-  return [...agent_targets, ...room_targets];
+  return [...agentTargets, ...roomTargets];
 }
 
 export function find_launcher_mention_match(
   value: string,
-  cursor_pos: number,
+  cursorPos: number,
 ): LauncherMentionMatch | null {
-  const before_cursor = value.slice(0, cursor_pos);
-  const match = before_cursor.match(/(?:^|\s)([@#])([^\s@#]*)$/);
+  const beforeCursor = value.slice(0, cursorPos);
+  const match = beforeCursor.match(/(?:^|\s)([@#])([^\s@#]*)$/);
   if (!match) {
     return null;
   }
   const trigger = match[1] as "@" | "#";
   const filter = match[2] ?? "";
-  const start_pos = before_cursor.length - filter.length - 1;
+  const startPos = beforeCursor.length - filter.length - 1;
   return {
     trigger,
     filter,
-    start_pos,
+    start_pos: startPos,
   };
 }
 
@@ -177,8 +177,8 @@ export function build_recent_launcher_entries(
     .slice()
     .sort(
       (left, right) =>
-        get_launcher_conversation_timestamp(right) -
-        get_launcher_conversation_timestamp(left),
+        getLauncherConversationTimestamp(right) -
+        getLauncherConversationTimestamp(left),
     )
     .map((conversation) => ({
       key: conversation.session_key,
@@ -186,7 +186,7 @@ export function build_recent_launcher_entries(
       label:
         conversation.title.trim() ||
         (conversation.room_type === "dm" ? "未命名会话" : "未命名话题"),
-      last_activity_at: get_launcher_conversation_timestamp(conversation),
+      last_activity_at: getLauncherConversationTimestamp(conversation),
       agent_id: conversation.agent_id,
       room_id: conversation.room_id,
       conversation_id: conversation.conversation_id,
@@ -197,11 +197,11 @@ export function build_recent_launcher_entries(
     .slice(0, 3);
 }
 
-function get_launcher_room_timestamp(room: LauncherRoomSummary): number {
+function getLauncherRoomTimestamp(room: LauncherRoomSummary): number {
   return new Date(room.updated_at ?? room.created_at ?? 0).getTime();
 }
 
-function get_launcher_conversation_timestamp(
+function getLauncherConversationTimestamp(
   conversation: LauncherConversationSummary,
 ): number {
   return new Date(conversation.last_activity ?? 0).getTime();

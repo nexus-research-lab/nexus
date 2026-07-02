@@ -24,54 +24,54 @@ interface ProviderAddModelDialogProps {
   pending_action: string | null;
   selected_can_manage: boolean;
   set_manual_model_enabled: (enabled: boolean) => void;
-  set_manual_model_id: (model_id: string) => void;
+  set_manual_model_id: (modelId: string) => void;
 }
 
 export function ProviderAddModelDialog({
-  is_open,
-  manual_model_enabled,
-  manual_model_id,
-  manual_model_placeholder,
-  on_add,
-  on_close,
-  pending_action,
-  selected_can_manage,
-  set_manual_model_enabled,
-  set_manual_model_id,
+  is_open: isOpen,
+  manual_model_enabled: manualModelEnabled,
+  manual_model_id: manualModelId,
+  manual_model_placeholder: manualModelPlaceholder,
+  on_add: onAdd,
+  on_close: onClose,
+  pending_action: pendingAction,
+  selected_can_manage: selectedCanManage,
+  set_manual_model_enabled: setManualModelEnabled,
+  set_manual_model_id: setManualModelId,
 }: ProviderAddModelDialogProps) {
   const { t } = useI18n();
-  const model_input_ref = useRef<HTMLInputElement>(null);
+  const modelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (is_open) {
-      model_input_ref.current?.focus();
+    if (isOpen) {
+      modelInputRef.current?.focus();
     }
-  }, [is_open]);
+  }, [isOpen]);
 
-  if (!is_open) {
+  if (!isOpen) {
     return null;
   }
 
-  const is_adding = pending_action?.startsWith("add-model:") ?? false;
+  const isAdding = pendingAction?.startsWith("add-model:") ?? false;
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         class_name="z-[9999]"
         labelled_by="provider-add-model-title"
-        on_close={on_close}
+        on_close={onClose}
       >
         <UiDialogFormShell
           class_name="max-w-[520px]"
           onSubmit={(event) => {
             event.preventDefault();
-            on_add();
+            onAdd();
           }}
           size="md"
         >
           <UiDialogHeader
             icon={<ListPlus className="h-4.5 w-4.5" />}
-            on_close={on_close}
+            on_close={onClose}
             subtitle={t("settings.providers.add_model_subtitle")}
             title={t("settings.providers.add_model_title")}
             title_id="provider-add-model-title"
@@ -87,18 +87,18 @@ export function ProviderAddModelDialog({
                 autoCorrect="off"
                 control_size="lg"
                 class_name="font-mono"
-                ref={model_input_ref}
-                onChange={(event) => set_manual_model_id(event.target.value)}
+                ref={modelInputRef}
+                onChange={(event) => setManualModelId(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    on_add();
+                    onAdd();
                   }
                 }}
-                placeholder={manual_model_placeholder}
+                placeholder={manualModelPlaceholder}
                 spellCheck={false}
                 type="text"
-                value={manual_model_id}
+                value={manualModelId}
               />
             </UiField>
             <div className="flex items-center justify-between gap-3 rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_76%,transparent)] px-3.5 py-3">
@@ -111,29 +111,29 @@ export function ProviderAddModelDialog({
                 </div>
               </div>
               <GlassSwitch
-                checked={manual_model_enabled}
+                checked={manualModelEnabled}
                 size="xs"
-                on_change={set_manual_model_enabled}
+                on_change={setManualModelEnabled}
               />
             </div>
           </UiDialogBody>
           <UiDialogFooter>
             <UiButton
-              onClick={on_close}
+              onClick={onClose}
               type="button"
               variant="surface"
             >
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={!manual_model_id.trim() || is_adding || !selected_can_manage}
-              onClick={on_add}
+              disabled={!manualModelId.trim() || isAdding || !selectedCanManage}
+              onClick={onAdd}
               tone="primary"
               type="button"
               variant="solid"
             >
-              {is_adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}
-              {manual_model_enabled
+              {isAdding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ListPlus className="h-3.5 w-3.5" />}
+              {manualModelEnabled
                 ? t("settings.providers.add_and_enable")
                 : t("settings.providers.add")}
             </UiButton>

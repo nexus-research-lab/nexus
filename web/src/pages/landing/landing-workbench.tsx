@@ -54,9 +54,9 @@ import {
 type LandingSidebarTab = "chat" | "contacts" | "capabilities";
 
 function LandingWorkbenchSidebar() {
-  const [active_tab, set_active_tab] = useState<LandingSidebarTab>("chat");
-  const [query, set_query] = useState("");
-  const sidebar_items = useMemo(() => [
+  const [activeTab, setActiveTab] = useState<LandingSidebarTab>("chat");
+  const [query, setQuery] = useState("");
+  const sidebarItems = useMemo(() => [
     {
       id: "amy",
       title: "Amy",
@@ -95,7 +95,7 @@ function LandingWorkbenchSidebar() {
       status: <UiCounterBadge count={2} />,
     },
   ], []);
-  const visible_items = sidebar_items.filter((item) => (
+  const visibleItems = sidebarItems.filter((item) => (
     item.title.toLowerCase().includes(query.trim().toLowerCase()) ||
     item.description.toLowerCase().includes(query.trim().toLowerCase())
   ));
@@ -116,13 +116,13 @@ function LandingWorkbenchSidebar() {
 
       <div className="landing-real-sidebar-tabs" role="tablist" aria-label="Landing workbench sidebar tabs">
         {tabs.map(({ key, label, Icon }) => {
-          const is_active = active_tab === key;
+          const isActive = activeTab === key;
           return (
             <button
-              aria-selected={is_active}
-              className={cn("landing-real-sidebar-tab", is_active && "is-active")}
+              aria-selected={isActive}
+              className={cn("landing-real-sidebar-tab", isActive && "is-active")}
               key={key}
-              onClick={() => set_active_tab(key)}
+              onClick={() => setActiveTab(key)}
               role="tab"
               type="button"
             >
@@ -137,7 +137,7 @@ function LandingWorkbenchSidebar() {
         <UiSearchInput
           class_name="flex-1"
           input_class_name="text-[13px]"
-          on_change={set_query}
+          on_change={setQuery}
           placeholder="搜索聊天"
           value={query}
         />
@@ -147,7 +147,7 @@ function LandingWorkbenchSidebar() {
       </div>
 
       <div className="landing-real-sidebar-list">
-        {visible_items.map((item) => (
+        {visibleItems.map((item) => (
           <UiListRow
             active={item.active}
             description={item.description}
@@ -220,7 +220,7 @@ function LandingWorkbenchChat() {
 }
 
 function LandingWorkbenchMain() {
-  const [active_tab, set_active_tab] = useState<RoomSurfaceTabKey>("workspace");
+  const [activeTab, setActiveTab] = useState<RoomSurfaceTabKey>("workspace");
 
   return (
     <section className="landing-real-main">
@@ -228,11 +228,11 @@ function LandingWorkbenchMain() {
         body_class_name="relative"
         header={(
           <WorkspaceSurfaceHeader
-            active_tab={active_tab}
+            active_tab={activeTab}
             badge="DM"
             density="compact"
             leading={<UiAgentAvatar avatar="/icon/agent/8.png" class_name="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
-            on_change_tab={set_active_tab}
+            on_change_tab={setActiveTab}
             tabs={[
               { key: "history", label: "历史", icon: History },
               { key: "workspace", label: "工作区", icon: FolderTree },
@@ -273,8 +273,8 @@ function LandingWorkbenchMain() {
 }
 
 function LandingWorkbenchFiles() {
-  const noop_file = () => undefined;
-  const noop_menu = (event: MouseEvent) => {
+  const noopFile = () => undefined;
+  const noopMenu = (event: MouseEvent) => {
     event.preventDefault();
   };
 
@@ -349,11 +349,11 @@ function LandingWorkbenchFiles() {
                 active_path="web/src/pages/landing/landing-page.tsx"
                 entries={demo_workspace_entries}
                 focused_directory_path="web/src/pages/landing"
-                on_click_directory={noop_file}
-                on_click_file={noop_file}
-                on_context_menu={noop_menu}
-                on_delete_entry={noop_file}
-                on_rename_entry={noop_file}
+                on_click_directory={noopFile}
+                on_click_file={noopFile}
+                on_context_menu={noopMenu}
+                on_delete_entry={noopFile}
+                on_rename_entry={noopFile}
               />
             </div>
           </div>

@@ -41,11 +41,11 @@ interface PendingPermissionListProps {
 
 function PendingPermissionList({
   permissions,
-  is_room_thread_mode,
-  can_respond_to_permissions,
-  permission_read_only_reason,
-  on_permission_response,
-  workspace_agent_id,
+  is_room_thread_mode: isRoomThreadMode,
+  can_respond_to_permissions: canRespondToPermissions,
+  permission_read_only_reason: permissionReadOnlyReason,
+  on_permission_response: onPermissionResponse,
+  workspace_agent_id: workspaceAgentId,
 }: PendingPermissionListProps) {
   if (permissions.length === 0) {
     return null;
@@ -55,7 +55,7 @@ function PendingPermissionList({
     <div
       className={cn(
         "mt-3 flex flex-col gap-3",
-        is_room_thread_mode
+        isRoomThreadMode
           ? "border-t border-(--divider-subtle-color) pt-3"
           : "rounded-2xl bg-transparent p-3",
       )}
@@ -78,22 +78,22 @@ function PendingPermissionList({
             summary: permission.summary,
             suggestions: permission.suggestions,
             expires_at: permission.expires_at,
-            on_allow: (updated_permissions) =>
-              on_permission_response?.({
+            on_allow: (updatedPermissions) =>
+              onPermissionResponse?.({
                 request_id: permission.request_id,
                 decision: "allow",
-                updated_permissions,
+                updated_permissions: updatedPermissions,
               }),
-            on_deny: (updated_permissions) =>
-              on_permission_response?.({
+            on_deny: (updatedPermissions) =>
+              onPermissionResponse?.({
                 request_id: permission.request_id,
                 decision: "deny",
-                updated_permissions,
+                updated_permissions: updatedPermissions,
               }),
           }}
-          interaction_disabled={!can_respond_to_permissions}
-          interaction_disabled_reason={permission_read_only_reason}
-          workspace_agent_id={workspace_agent_id}
+          interaction_disabled={!canRespondToPermissions}
+          interaction_disabled_reason={permissionReadOnlyReason}
+          workspace_agent_id={workspaceAgentId}
         />
       ))}
     </div>
@@ -107,7 +107,7 @@ interface MessageAssistantSectionProps {
   can_respond_to_permissions: boolean;
   permission_read_only_reason?: string;
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
-  on_open_agent_contact?: (agent_id: string) => void;
+  on_open_agent_contact?: (agentId: string) => void;
   on_open_workspace_file?: (path: string) => void;
   workspace_agent_id?: string | null;
   hidden_tool_names?: string[];
@@ -122,46 +122,46 @@ interface MessageAssistantSectionProps {
 
 export function MessageAssistantSection({
   compact,
-  current_agent_name,
-  current_agent_avatar,
-  can_respond_to_permissions,
-  permission_read_only_reason,
-  on_permission_response,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  workspace_agent_id,
-  hidden_tool_names = ["TodoWrite"],
-  assistant_header_action,
-  assistant_content_mode,
+  current_agent_name: currentAgentName,
+  current_agent_avatar: currentAgentAvatar,
+  can_respond_to_permissions: canRespondToPermissions,
+  permission_read_only_reason: permissionReadOnlyReason,
+  on_permission_response: onPermissionResponse,
+  on_open_agent_contact: onOpenAgentContact,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  workspace_agent_id: workspaceAgentId,
+  hidden_tool_names: hiddenToolNames = ["TodoWrite"],
+  assistant_header_action: assistantHeaderAction,
+  assistant_content_mode: assistantContentMode,
   state,
 }: MessageAssistantSectionProps) {
-  const is_room_thread_mode = assistant_content_mode === "room_thread";
-  const content_workspace_agent_id = state.assistant_agent_id ?? workspace_agent_id;
-  const avatar_agent_id = state.assistant_agent_id ?? workspace_agent_id ?? null;
-  const collapsed_process_file_artifacts = useWorkspaceFileArtifactsFromContent(
+  const isRoomThreadMode = assistantContentMode === "room_thread";
+  const contentWorkspaceAgentId = state.assistant_agent_id ?? workspaceAgentId;
+  const avatarAgentId = state.assistant_agent_id ?? workspaceAgentId ?? null;
+  const collapsedProcessFileArtifacts = useWorkspaceFileArtifactsFromContent(
     state.should_render_process_callchain && !state.is_process_expanded
       ? state.process_projection.content
       : EMPTY_CONTENT_BLOCKS,
   );
-  const handle_open_agent_contact = useCallback(() => {
-    if (!avatar_agent_id) {
+  const handleOpenAgentContact = useCallback(() => {
+    if (!avatarAgentId) {
       return;
     }
-    on_open_agent_contact?.(avatar_agent_id);
-  }, [avatar_agent_id, on_open_agent_contact]);
+    onOpenAgentContact?.(avatarAgentId);
+  }, [avatarAgentId, onOpenAgentContact]);
 
   if (state.should_hide_assistant_content) {
     return null;
   }
 
-  const pending_permission_block = (
+  const pendingPermissionBlock = (
     <PendingPermissionList
       permissions={state.unmatched_pending_permissions}
-      is_room_thread_mode={is_room_thread_mode}
-      can_respond_to_permissions={can_respond_to_permissions}
-      permission_read_only_reason={permission_read_only_reason}
-      on_permission_response={on_permission_response}
-      workspace_agent_id={content_workspace_agent_id}
+      is_room_thread_mode={isRoomThreadMode}
+      can_respond_to_permissions={canRespondToPermissions}
+      permission_read_only_reason={permissionReadOnlyReason}
+      on_permission_response={onPermissionResponse}
+      workspace_agent_id={contentWorkspaceAgentId}
     />
   );
 
@@ -178,17 +178,17 @@ export function MessageAssistantSection({
         >
           {!compact ? (
             <MessageAvatar
-              aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
+              aria_label={`打开 ${currentAgentName || "协作成员"} 的联络`}
               class_name="nexus-chat-avatar"
-              avatar_url={current_agent_avatar}
+              avatar_url={currentAgentAvatar}
               on_click={
-                avatar_agent_id && on_open_agent_contact
-                  ? handle_open_agent_contact
+                avatarAgentId && onOpenAgentContact
+                  ? handleOpenAgentContact
                   : undefined
               }
-              title={`打开 ${current_agent_name || "协作成员"} 的联络`}
+              title={`打开 ${currentAgentName || "协作成员"} 的联络`}
             >
-              {!current_agent_avatar && <Bot className="h-4 w-4" />}
+              {!currentAgentAvatar && <Bot className="h-4 w-4" />}
             </MessageAvatar>
           ) : null}
 
@@ -201,22 +201,22 @@ export function MessageAssistantSection({
             >
               {compact ? (
                 <MessageAvatar
-                  aria_label={`打开 ${current_agent_name || "协作成员"} 的联络`}
+                  aria_label={`打开 ${currentAgentName || "协作成员"} 的联络`}
                   class_name="nexus-chat-avatar shrink-0"
                   size="compact"
-                  avatar_url={current_agent_avatar}
+                  avatar_url={currentAgentAvatar}
                   on_click={
-                    avatar_agent_id && on_open_agent_contact
-                      ? handle_open_agent_contact
+                    avatarAgentId && onOpenAgentContact
+                      ? handleOpenAgentContact
                       : undefined
                   }
-                  title={`打开 ${current_agent_name || "协作成员"} 的联络`}
+                  title={`打开 ${currentAgentName || "协作成员"} 的联络`}
                 >
-                  {!current_agent_avatar && <Bot className="h-3 w-3" />}
+                  {!currentAgentAvatar && <Bot className="h-3 w-3" />}
                 </MessageAvatar>
               ) : null}
               <span className="nexus-chat-author shrink-0 text-sm font-bold text-(--text-strong)">
-                {current_agent_name || "协作成员"}
+                {currentAgentName || "协作成员"}
               </span>
 
               {state.timestamp ? (
@@ -233,8 +233,8 @@ export function MessageAssistantSection({
 
               <div className="flex-1" />
 
-              {assistant_header_action ? (
-                <div className="shrink-0">{assistant_header_action}</div>
+              {assistantHeaderAction ? (
+                <div className="shrink-0">{assistantHeaderAction}</div>
               ) : null}
 
               {state.can_stop_message ? (
@@ -290,15 +290,15 @@ export function MessageAssistantSection({
                     pending_permissions_by_tool_use_id={
                       state.matched_pending_permissions_by_tool_use_id
                     }
-                    on_permission_response={on_permission_response}
-                    can_respond_to_permissions={can_respond_to_permissions}
-                    permission_read_only_reason={permission_read_only_reason}
-                    on_open_workspace_file={on_open_workspace_file}
-                    workspace_agent_id={content_workspace_agent_id}
-                    hidden_tool_names={hidden_tool_names}
+                    on_permission_response={onPermissionResponse}
+                    can_respond_to_permissions={canRespondToPermissions}
+                    permission_read_only_reason={permissionReadOnlyReason}
+                    on_open_workspace_file={onOpenWorkspaceFile}
+                    workspace_agent_id={contentWorkspaceAgentId}
+                    hidden_tool_names={hiddenToolNames}
                     show_timeline_dots
                   />
-                  {pending_permission_block}
+                  {pendingPermissionBlock}
                 </div>
               ) : null}
 
@@ -328,10 +328,10 @@ export function MessageAssistantSection({
 
                   {!state.is_process_expanded ? (
                     <WorkspaceFileArtifactList
-                      artifacts={collapsed_process_file_artifacts}
+                      artifacts={collapsedProcessFileArtifacts}
                       class_name="ml-5 pb-1"
                       label="生成文件"
-                      on_open_workspace_file={on_open_workspace_file}
+                      on_open_workspace_file={onOpenWorkspaceFile}
                     />
                   ) : null}
 
@@ -347,19 +347,19 @@ export function MessageAssistantSection({
                         pending_permissions_by_tool_use_id={
                           state.matched_pending_permissions_by_tool_use_id
                         }
-                        on_permission_response={on_permission_response}
-                        can_respond_to_permissions={can_respond_to_permissions}
+                        on_permission_response={onPermissionResponse}
+                        can_respond_to_permissions={canRespondToPermissions}
                         permission_read_only_reason={
-                          permission_read_only_reason
+                          permissionReadOnlyReason
                         }
-                        on_open_workspace_file={on_open_workspace_file}
-                        workspace_agent_id={content_workspace_agent_id}
-                        hidden_tool_names={hidden_tool_names}
+                        on_open_workspace_file={onOpenWorkspaceFile}
+                        workspace_agent_id={contentWorkspaceAgentId}
+                        hidden_tool_names={hiddenToolNames}
                         class_name="ml-1"
                         show_timeline_dots
                       />
 
-                      {pending_permission_block}
+                      {pendingPermissionBlock}
                     </div>
                   ) : null}
                 </div>
@@ -374,15 +374,15 @@ export function MessageAssistantSection({
                       state.final_assistant_streaming_indexes
                     }
                     fallback_activity_state={state.live_activity_state}
-                    on_open_workspace_file={on_open_workspace_file}
-                    workspace_agent_id={content_workspace_agent_id}
+                    on_open_workspace_file={onOpenWorkspaceFile}
+                    workspace_agent_id={contentWorkspaceAgentId}
                   />
                 </div>
               ) : null}
 
               {!state.should_render_direct_assistant_content &&
               !state.should_render_process_callchain ? (
-                <div className="pt-2">{pending_permission_block}</div>
+                <div className="pt-2">{pendingPermissionBlock}</div>
               ) : null}
             </div>
 

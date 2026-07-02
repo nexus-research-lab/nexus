@@ -14,37 +14,37 @@ import { WorkspaceFileEntry } from '@/types/agent/agent';
 
 interface WorkspaceFilesStoreState {
   files_by_agent: Record<string, WorkspaceFileEntry[]>;
-  set_files: (agent_id: string, files: WorkspaceFileEntry[]) => void;
-  clear_agent: (agent_id: string) => void;
-  refresh_files: (agent_id: string) => Promise<WorkspaceFileEntry[]>;
+  set_files: (agentId: string, files: WorkspaceFileEntry[]) => void;
+  clear_agent: (agentId: string) => void;
+  refresh_files: (agentId: string) => Promise<WorkspaceFileEntry[]>;
 }
 
 export const useWorkspaceFilesStore = create<WorkspaceFilesStoreState>()((set) => ({
   files_by_agent: {},
 
-  set_files: (agent_id, files) => {
+  set_files: (agentId, files) => {
     set((state) => ({
       files_by_agent: {
         ...state.files_by_agent,
-        [agent_id]: files,
+        [agentId]: files,
       },
     }));
   },
 
-  clear_agent: (agent_id) => {
+  clear_agent: (agentId) => {
     set((state) => {
       const next = { ...state.files_by_agent };
-      delete next[agent_id];
+      delete next[agentId];
       return { files_by_agent: next };
     });
   },
 
-  refresh_files: async (agent_id) => {
-    const files = await get_workspace_files_api(agent_id);
+  refresh_files: async (agentId) => {
+    const files = await get_workspace_files_api(agentId);
     set((state) => ({
       files_by_agent: {
         ...state.files_by_agent,
-        [agent_id]: files,
+        [agentId]: files,
       },
     }));
     return files;

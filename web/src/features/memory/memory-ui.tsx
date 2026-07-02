@@ -36,7 +36,7 @@ export function MemoryMetaRow({
 
 export function MemoryMetaChip({
   children,
-  class_name,
+  class_name: className,
 }: {
   children?: ReactNode;
   class_name?: string;
@@ -48,7 +48,7 @@ export function MemoryMetaChip({
     <span
       className={cn(
         "inline-flex min-w-0 max-w-full items-center gap-1 rounded-[9px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium leading-none text-(--text-soft)",
-        class_name,
+        className,
       )}
     >
       {children}

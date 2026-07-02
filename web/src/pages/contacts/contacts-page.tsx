@@ -20,69 +20,69 @@ import { build_agent_options_save_payload } from "@/features/agents/options/agen
 
 export function ContactsPage() {
   const navigate = useNavigate();
-  const [search_params] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const agents = useAgentStore((state) => state.agents);
-  const create_agent = useAgentStore((state) => state.create_agent);
-  const update_agent = useAgentStore((state) => state.update_agent);
-  const delete_agent = useAgentStore((state) => state.delete_agent);
-  const load_agents_from_server = useAgentStore(
+  const createAgent = useAgentStore((state) => state.create_agent);
+  const updateAgent = useAgentStore((state) => state.update_agent);
+  const deleteAgent = useAgentStore((state) => state.delete_agent);
+  const loadAgentsFromServer = useAgentStore(
     (state) => state.load_agents_from_server,
   );
   const loading = useAgentStore((state) => state.loading);
-  const [is_dialog_open, set_is_dialog_open] = useState(false);
-  const [dialog_mode, set_dialog_mode] = useState<"create" | "edit">("create");
-  const [editing_agent_id, set_editing_agent_id] = useState<string | null>(
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(
     null,
   );
-  const [pending_delete_agent, set_pending_delete_agent] = useState<{
+  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<{
     id: string;
     name: string;
   } | null>(null);
-  const regular_agents = useMemo(
+  const regularAgents = useMemo(
     () => agents.filter((agent) => !is_main_agent(agent.agent_id)),
     [agents],
   );
-  const selected_agent_id = search_params.get("agent");
+  const selectedAgentId = searchParams.get("agent");
 
-  const editing_agent = useMemo(
+  const editingAgent = useMemo(
     () =>
-      regular_agents.find((agent) => agent.agent_id === editing_agent_id) ??
+      regularAgents.find((agent) => agent.agent_id === editingAgentId) ??
       null,
-    [editing_agent_id, regular_agents],
+    [editingAgentId, regularAgents],
   );
-  const selected_agent = useMemo(
+  const selectedAgent = useMemo(
     () =>
-      selected_agent_id
-        ? regular_agents.find((agent) => agent.agent_id === selected_agent_id) ?? null
+      selectedAgentId
+        ? regularAgents.find((agent) => agent.agent_id === selectedAgentId) ?? null
         : null,
-    [regular_agents, selected_agent_id],
+    [regularAgents, selectedAgentId],
   );
-  const dialog_initial_title = useMemo(
-    () => (dialog_mode === "edit" ? editing_agent?.name : undefined),
-    [dialog_mode, editing_agent?.name],
+  const dialogInitialTitle = useMemo(
+    () => (dialogMode === "edit" ? editingAgent?.name : undefined),
+    [dialogMode, editingAgent?.name],
   );
-  const dialog_initial_options = useMemo(() => {
-    if (dialog_mode !== "edit" || !editing_agent) {
+  const dialogInitialOptions = useMemo(() => {
+    if (dialogMode !== "edit" || !editingAgent) {
       return get_initial_agent_options();
     }
 
     return {
-      provider: editing_agent.options.provider,
-      model: editing_agent.options.model,
-      permission_mode: editing_agent.options.permission_mode,
-      allowed_tools: editing_agent.options.allowed_tools,
-      disallowed_tools: editing_agent.options.disallowed_tools,
-      max_turns: editing_agent.options.max_turns,
-      max_thinking_tokens: editing_agent.options.max_thinking_tokens,
-      mcp_servers: editing_agent.options.mcp_servers,
-      setting_sources: editing_agent.options.setting_sources,
+      provider: editingAgent.options.provider,
+      model: editingAgent.options.model,
+      permission_mode: editingAgent.options.permission_mode,
+      allowed_tools: editingAgent.options.allowed_tools,
+      disallowed_tools: editingAgent.options.disallowed_tools,
+      max_turns: editingAgent.options.max_turns,
+      max_thinking_tokens: editingAgent.options.max_thinking_tokens,
+      mcp_servers: editingAgent.options.mcp_servers,
+      setting_sources: editingAgent.options.setting_sources,
     };
-  }, [dialog_mode, editing_agent]);
+  }, [dialogMode, editingAgent]);
 
   // 💬 Chat → ensureDirectRoom 发起 DM
-  const handle_open_direct_room = useCallback(
-    (agent_id: string) => {
-      void ensure_direct_room(agent_id).then((context) => {
+  const handleOpenDirectRoom = useCallback(
+    (agentId: string) => {
+      void ensure_direct_room(agentId).then((context) => {
         navigate(
           AppRouteBuilders.room_conversation(
             context.room.id,
@@ -95,9 +95,9 @@ export function ContactsPage() {
   );
 
   // 👥 Create Team → 用该 Agent 创建单人成员 Room
-  const handle_create_team = useCallback(
-    (agent_id: string) => {
-      void create_room({ agent_ids: [agent_id] }).then((context) => {
+  const handleCreateTeam = useCallback(
+    (agentId: string) => {
+      void create_room({ agent_ids: [agentId] }).then((context) => {
         navigate(
           AppRouteBuilders.room_conversation(
             context.room.id,
@@ -110,40 +110,40 @@ export function ContactsPage() {
   );
 
   // 新建 Agent → 打开 AgentOptions 对话框（create 模式）
-  const handle_open_create_agent = useCallback(() => {
-    set_dialog_mode("create");
-    set_editing_agent_id(null);
-    set_is_dialog_open(true);
+  const handleOpenCreateAgent = useCallback(() => {
+    setDialogMode("create");
+    setEditingAgentId(null);
+    setIsDialogOpen(true);
   }, []);
 
   // 点击卡片 → 打开 AgentOptions 对话框（edit 模式）
-  const handle_open_edit_agent = useCallback((agent_id: string) => {
-    set_dialog_mode("edit");
-    set_editing_agent_id(agent_id);
-    set_is_dialog_open(true);
+  const handleOpenEditAgent = useCallback((agentId: string) => {
+    setDialogMode("edit");
+    setEditingAgentId(agentId);
+    setIsDialogOpen(true);
   }, []);
 
-  const handle_validate_agent_name = useCallback(
+  const handleValidateAgentName = useCallback(
     async (name: string) => {
-      const exclude_agent_id =
-        dialog_mode === "edit" ? (editing_agent_id ?? undefined) : undefined;
-      return validate_agent_name_api(name, exclude_agent_id);
+      const excludeAgentId =
+        dialogMode === "edit" ? (editingAgentId ?? undefined) : undefined;
+      return validate_agent_name_api(name, excludeAgentId);
     },
-    [dialog_mode, editing_agent_id],
+    [dialogMode, editingAgentId],
   );
 
-  const handle_save_agent = useCallback(
+  const handleSaveAgent = useCallback(
     async (
       title: string,
       options: AgentConfigOptions,
       identity: AgentIdentityDraft,
     ) => {
-      const next_options = build_agent_options_save_payload(options);
+      const nextOptions = build_agent_options_save_payload(options);
 
-      if (dialog_mode === "create") {
-        await create_agent({
+      if (dialogMode === "create") {
+        await createAgent({
           name: title,
-          options: next_options,
+          options: nextOptions,
           avatar: identity.avatar,
           description: identity.description,
           vibe_tags: identity.vibe_tags,
@@ -151,27 +151,27 @@ export function ContactsPage() {
         return;
       }
 
-      if (dialog_mode === "edit" && editing_agent_id) {
-        await update_agent(editing_agent_id, {
+      if (dialogMode === "edit" && editingAgentId) {
+        await updateAgent(editingAgentId, {
           name: title,
-          options: next_options,
+          options: nextOptions,
           avatar: identity.avatar,
           description: identity.description,
           vibe_tags: identity.vibe_tags,
         });
       }
     },
-    [create_agent, dialog_mode, editing_agent_id, update_agent],
+    [createAgent, dialogMode, editingAgentId, updateAgent],
   );
 
-  const handle_save_agent_options = useCallback(
+  const handleSaveAgentOptions = useCallback(
     async (
-      agent_id: string,
+      agentId: string,
       title: string,
       options: AgentConfigOptions,
       identity: AgentIdentityDraft,
     ) => {
-      await update_agent(agent_id, {
+      await updateAgent(agentId, {
         name: title,
         options: build_agent_options_save_payload(options),
         avatar: identity.avatar,
@@ -179,59 +179,59 @@ export function ContactsPage() {
         vibe_tags: identity.vibe_tags,
       });
     },
-    [update_agent],
+    [updateAgent],
   );
 
-  const handle_validate_agent_detail_name = useCallback(
-    async (name: string, agent_id?: string) => {
-      return validate_agent_name_api(name, agent_id);
+  const handleValidateAgentDetailName = useCallback(
+    async (name: string, agentId?: string) => {
+      return validate_agent_name_api(name, agentId);
     },
     [],
   );
 
-  const handle_confirm_delete_agent = useCallback(async () => {
-    if (!pending_delete_agent) {
+  const handleConfirmDeleteAgent = useCallback(async () => {
+    if (!pendingDeleteAgent) {
       return;
     }
 
-    const deleted_agent_id = pending_delete_agent.id;
-    await delete_agent(deleted_agent_id);
-    set_pending_delete_agent(null);
-    if (selected_agent_id === deleted_agent_id) {
+    const deletedAgentId = pendingDeleteAgent.id;
+    await deleteAgent(deletedAgentId);
+    setPendingDeleteAgent(null);
+    if (selectedAgentId === deletedAgentId) {
       navigate(AppRouteBuilders.contacts(), { replace: true });
     }
-  }, [delete_agent, navigate, pending_delete_agent, selected_agent_id]);
+  }, [deleteAgent, navigate, pendingDeleteAgent, selectedAgentId]);
 
-  const handle_request_delete_agent = useCallback(
-    (agent_id: string) => {
-      const target_agent = agents.find((agent) => agent.agent_id === agent_id);
-      if (!target_agent || is_main_agent(target_agent.agent_id)) {
+  const handleRequestDeleteAgent = useCallback(
+    (agentId: string) => {
+      const targetAgent = agents.find((agent) => agent.agent_id === agentId);
+      if (!targetAgent || is_main_agent(targetAgent.agent_id)) {
         return;
       }
-      set_is_dialog_open(false);
-      set_pending_delete_agent({
-        id: agent_id,
-        name: target_agent?.name ?? "该 Agent",
+      setIsDialogOpen(false);
+      setPendingDeleteAgent({
+        id: agentId,
+        name: targetAgent?.name ?? "该 Agent",
       });
     },
     [agents],
   );
 
   useEffect(() => {
-    void load_agents_from_server();
-  }, [load_agents_from_server]);
+    void loadAgentsFromServer();
+  }, [loadAgentsFromServer]);
 
   useEffect(() => {
-    if (!selected_agent_id || loading) {
+    if (!selectedAgentId || loading) {
       return;
     }
-    if (!regular_agents.some((agent) => agent.agent_id === selected_agent_id)) {
+    if (!regularAgents.some((agent) => agent.agent_id === selectedAgentId)) {
       navigate(AppRouteBuilders.contacts(), { replace: true });
     }
-  }, [loading, navigate, regular_agents, selected_agent_id]);
+  }, [loading, navigate, regularAgents, selectedAgentId]);
 
   // 加载中 — 内联 loading，外层布局由路由层提供
-  if (loading && !regular_agents.length) {
+  if (loading && !regularAgents.length) {
     return (
       <WorkspacePageFrame content_padding_class_name="p-0">
         <WorkspaceLoadingState label="加载成员..." />
@@ -242,49 +242,49 @@ export function ContactsPage() {
   return (
     <>
       <WorkspacePageFrame content_padding_class_name="p-0">
-        {selected_agent ? (
+        {selectedAgent ? (
           <ContactsAgentDetail
-            agent={selected_agent}
+            agent={selectedAgent}
             on_back={() => navigate(AppRouteBuilders.contacts())}
-            on_create_team={handle_create_team}
-            on_delete_agent={handle_request_delete_agent}
-            on_open_direct_room={handle_open_direct_room}
-            on_save_agent_options={handle_save_agent_options}
-            on_validate_agent_name={handle_validate_agent_detail_name}
+            on_create_team={handleCreateTeam}
+            on_delete_agent={handleRequestDeleteAgent}
+            on_open_direct_room={handleOpenDirectRoom}
+            on_save_agent_options={handleSaveAgentOptions}
+            on_validate_agent_name={handleValidateAgentDetailName}
           />
         ) : (
           <ContactsDirectory
-            agents={regular_agents}
-            on_create_agent={handle_open_create_agent}
-            on_create_team={handle_create_team}
-            on_edit_agent={handle_open_edit_agent}
-            on_open_direct_room={handle_open_direct_room}
+            agents={regularAgents}
+            on_create_agent={handleOpenCreateAgent}
+            on_create_team={handleCreateTeam}
+            on_edit_agent={handleOpenEditAgent}
+            on_open_direct_room={handleOpenDirectRoom}
           />
         )}
       </WorkspacePageFrame>
 
       <AgentOptions
-        agent_id={editing_agent_id ?? undefined}
-        initial_options={dialog_initial_options}
-        initial_avatar={editing_agent?.avatar ?? ""}
-        initial_description={editing_agent?.description ?? ""}
-        initial_title={dialog_initial_title}
-        initial_vibe_tags={editing_agent?.vibe_tags ?? []}
-        is_open={is_dialog_open}
-        mode={dialog_mode}
-        on_close={() => set_is_dialog_open(false)}
-        on_delete={handle_request_delete_agent}
-        on_save={handle_save_agent}
-        on_validate_name={handle_validate_agent_name}
+        agent_id={editingAgentId ?? undefined}
+        initial_options={dialogInitialOptions}
+        initial_avatar={editingAgent?.avatar ?? ""}
+        initial_description={editingAgent?.description ?? ""}
+        initial_title={dialogInitialTitle}
+        initial_vibe_tags={editingAgent?.vibe_tags ?? []}
+        is_open={isDialogOpen}
+        mode={dialogMode}
+        on_close={() => setIsDialogOpen(false)}
+        on_delete={handleRequestDeleteAgent}
+        on_save={handleSaveAgent}
+        on_validate_name={handleValidateAgentName}
       />
 
       <ConfirmDialog
         confirm_text="删除成员"
-        is_open={Boolean(pending_delete_agent)}
-        message={`删除「${pending_delete_agent?.name ?? "该 Agent"}」后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。`}
-        on_cancel={() => set_pending_delete_agent(null)}
+        is_open={Boolean(pendingDeleteAgent)}
+        message={`删除「${pendingDeleteAgent?.name ?? "该 Agent"}」后，该成员将不再出现在 Contacts 中。已有历史协作不会自动删除。`}
+        on_cancel={() => setPendingDeleteAgent(null)}
         on_confirm={() => {
-          void handle_confirm_delete_agent();
+          void handleConfirmDeleteAgent();
         }}
         title="删除成员"
         variant="danger"

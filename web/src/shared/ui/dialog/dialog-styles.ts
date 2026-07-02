@@ -32,18 +32,18 @@ const DIALOG_TAG_CLASS_NAME =
 
 export function get_dialog_action_class_name(
   tone: "default" | "primary" | "danger",
-  size_or_class_name?: "default" | "compact" | string,
-  class_name?: string,
+  sizeOrClassName?: "default" | "compact" | string,
+  className?: string,
 ): string {
-  const size = size_or_class_name === "compact" || size_or_class_name === "default"
-    ? size_or_class_name
+  const size = sizeOrClassName === "compact" || sizeOrClassName === "default"
+    ? sizeOrClassName
     : "default";
-  const resolved_class_name =
-    typeof size_or_class_name === "string" &&
-      size_or_class_name !== "compact" &&
-      size_or_class_name !== "default"
-      ? size_or_class_name
-      : class_name;
+  const resolvedClassName =
+    typeof sizeOrClassName === "string" &&
+      sizeOrClassName !== "compact" &&
+      sizeOrClassName !== "default"
+      ? sizeOrClassName
+      : className;
 
   return get_ui_button_class_name(
     {
@@ -51,17 +51,17 @@ export function get_dialog_action_class_name(
       tone,
       variant: "surface",
     },
-    resolved_class_name,
+    resolvedClassName,
   );
 }
 
-export function get_dialog_note_class_name(tone: "default" | "danger", class_name?: string): string {
+export function get_dialog_note_class_name(tone: "default" | "danger", className?: string): string {
   return cn(
     "rounded-[14px] px-4 py-[0.95rem] text-[13px] leading-[1.65]",
     tone === "default"
       ? "border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-transparent text-(--text-default)"
       : "border text-(--text-default)",
-    class_name,
+    className,
   );
 }
 

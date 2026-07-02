@@ -10,12 +10,12 @@ import type { MessageActivityState } from "../ui/message-primitives";
 
 export function resolve_activity_state({
   content,
-  streaming_block_indexes,
-  tool_use_map,
-  rendered_indices,
-  fallback_activity_state,
-  pending_permissions_by_tool_use_id,
-  hidden_tool_names,
+  streaming_block_indexes: streamingBlockIndexes,
+  tool_use_map: toolUseMap,
+  rendered_indices: renderedIndices,
+  fallback_activity_state: fallbackActivityState,
+  pending_permissions_by_tool_use_id: pendingPermissionsByToolUseId,
+  hidden_tool_names: hiddenToolNames,
 }: {
   content: ContentBlock[];
   streaming_block_indexes?: ReadonlySet<number>;
@@ -29,84 +29,84 @@ export function resolve_activity_state({
   pending_permissions_by_tool_use_id?: ReadonlyMap<string, PendingPermission>;
   hidden_tool_names: string[];
 }): MessageActivityState {
-  const latest_pending_tool = find_latest_pending_tool_use(
+  const latestPendingTool = findLatestPendingToolUse(
     content,
-    tool_use_map,
-    hidden_tool_names,
+    toolUseMap,
+    hiddenToolNames,
   );
-  if (latest_pending_tool) {
-    const pending_permission = pending_permissions_by_tool_use_id?.get(latest_pending_tool.id);
-    if (pending_permission) {
-      if (latest_pending_tool.name === "AskUserQuestion") {
+  if (latestPendingTool) {
+    const pendingPermission = pendingPermissionsByToolUseId?.get(latestPendingTool.id);
+    if (pendingPermission) {
+      if (latestPendingTool.name === "AskUserQuestion") {
         return "waiting_input";
       }
       return "waiting_permission";
     }
 
-    if (latest_pending_tool.name === "AskUserQuestion") {
-      return fallback_activity_state ?? "thinking";
+    if (latestPendingTool.name === "AskUserQuestion") {
+      return fallbackActivityState ?? "thinking";
     }
 
-    return map_tool_name_to_activity_state(latest_pending_tool.name);
+    return mapToolNameToActivityState(latestPendingTool.name);
   }
 
-  const latest_visible_block = find_latest_visible_block(
+  const latestVisibleBlock = findLatestVisibleBlock(
     content,
-    rendered_indices,
-    hidden_tool_names,
+    renderedIndices,
+    hiddenToolNames,
   );
-  if (!latest_visible_block) {
-    return fallback_activity_state ?? "thinking";
+  if (!latestVisibleBlock) {
+    return fallbackActivityState ?? "thinking";
   }
 
-  if (latest_visible_block.type === "task_progress") {
-    return map_progress_to_activity_state(latest_visible_block);
+  if (latestVisibleBlock.type === "task_progress") {
+    return mapProgressToActivityState(latestVisibleBlock);
   }
 
-  if (latest_visible_block.type === "tool_use") {
-    if (latest_visible_block.name === "AskUserQuestion") {
-      return pending_permissions_by_tool_use_id?.has(latest_visible_block.id)
+  if (latestVisibleBlock.type === "tool_use") {
+    if (latestVisibleBlock.name === "AskUserQuestion") {
+      return pendingPermissionsByToolUseId?.has(latestVisibleBlock.id)
         ? "waiting_input"
-        : (fallback_activity_state ?? "thinking");
+        : (fallbackActivityState ?? "thinking");
     }
-    return map_tool_name_to_activity_state(latest_visible_block.name);
+    return mapToolNameToActivityState(latestVisibleBlock.name);
   }
 
-  if (latest_visible_block.type === "thinking") {
+  if (latestVisibleBlock.type === "thinking") {
     return "thinking";
   }
 
-  if (latest_visible_block.type === "text") {
-    return has_streaming_text_block(content, streaming_block_indexes) ? "replying" : (fallback_activity_state ?? "replying");
+  if (latestVisibleBlock.type === "text") {
+    return hasStreamingTextBlock(content, streamingBlockIndexes) ? "replying" : (fallbackActivityState ?? "replying");
   }
 
-  if (latest_visible_block.type === "workspace_file_artifact") {
-    return fallback_activity_state ?? "executing";
+  if (latestVisibleBlock.type === "workspace_file_artifact") {
+    return fallbackActivityState ?? "executing";
   }
 
-  return fallback_activity_state ?? "thinking";
+  return fallbackActivityState ?? "thinking";
 }
 
-function find_latest_pending_tool_use(
+function findLatestPendingToolUse(
   content: ContentBlock[],
-  tool_use_map: ReadonlyMap<string, {
+  toolUseMap: ReadonlyMap<string, {
     use: ToolUseContent;
     result?: ToolResultContent;
     index: number;
   }>,
-  hidden_tool_names: string[],
+  hiddenToolNames: string[],
 ): ToolUseContent | null {
   for (let index = content.length - 1; index >= 0; index -= 1) {
     const block = content[index];
     if (block?.type !== "tool_use") {
       continue;
     }
-    if (hidden_tool_names.includes(block.name)) {
+    if (hiddenToolNames.includes(block.name)) {
       continue;
     }
 
-    const tool_data = tool_use_map.get(block.id);
-    if (!tool_data?.result) {
+    const toolData = toolUseMap.get(block.id);
+    if (!toolData?.result) {
       return block;
     }
   }
@@ -114,20 +114,20 @@ function find_latest_pending_tool_use(
   return null;
 }
 
-function find_latest_visible_block(
+function findLatestVisibleBlock(
   content: ContentBlock[],
-  rendered_indices: ReadonlySet<number>,
-  hidden_tool_names: string[],
+  renderedIndices: ReadonlySet<number>,
+  hiddenToolNames: string[],
 ): ContentBlock | null {
   for (let index = content.length - 1; index >= 0; index -= 1) {
     const block = content[index];
     if (!block) {
       continue;
     }
-    if (rendered_indices.has(index)) {
+    if (renderedIndices.has(index)) {
       continue;
     }
-    if (block.type === "tool_use" && hidden_tool_names.includes(block.name)) {
+    if (block.type === "tool_use" && hiddenToolNames.includes(block.name)) {
       continue;
     }
     if (block.type === "text" && !block.text.trim()) {
@@ -142,16 +142,16 @@ function find_latest_visible_block(
   return null;
 }
 
-function map_progress_to_activity_state(block: TaskProgressContent): MessageActivityState {
-  return map_tool_name_to_activity_state(block.last_tool_name ?? null);
+function mapProgressToActivityState(block: TaskProgressContent): MessageActivityState {
+  return mapToolNameToActivityState(block.last_tool_name ?? null);
 }
 
-function map_tool_name_to_activity_state(tool_name?: string | null): MessageActivityState {
-  if (!tool_name) {
+function mapToolNameToActivityState(toolName?: string | null): MessageActivityState {
+  if (!toolName) {
     return "executing";
   }
 
-  const browsing_tools = new Set([
+  const browsingTools = new Set([
     "Read",
     "Glob",
     "LS",
@@ -160,22 +160,22 @@ function map_tool_name_to_activity_state(tool_name?: string | null): MessageActi
     "WebFetch",
   ]);
 
-  if (browsing_tools.has(tool_name)) {
+  if (browsingTools.has(toolName)) {
     return "browsing";
   }
 
   return "executing";
 }
 
-function has_streaming_text_block(
+function hasStreamingTextBlock(
   content: ContentBlock[],
-  streaming_block_indexes?: ReadonlySet<number>,
+  streamingBlockIndexes?: ReadonlySet<number>,
 ): boolean {
-  if (!streaming_block_indexes?.size) {
+  if (!streamingBlockIndexes?.size) {
     return false;
   }
 
-  for (const index of streaming_block_indexes) {
+  for (const index of streamingBlockIndexes) {
     const block = content[index];
     if (block?.type === "text" && block.text.trim()) {
       return true;

@@ -15,7 +15,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button";
 import { UiInput } from "@/shared/ui/form-control";
 
-const login_signal_items = [
+const loginSignalItems = [
   {
     title: "Launcher",
     copy: "Route work to the right room, DM, or app surface.",
@@ -33,14 +33,14 @@ const login_signal_items = [
   },
 ] as const;
 
-function resolve_redirect_path(raw_redirect: string | null): string {
-  if (!raw_redirect || !raw_redirect.startsWith("/")) {
+function resolveRedirectPath(rawRedirect: string | null): string {
+  if (!rawRedirect || !rawRedirect.startsWith("/")) {
     return APP_ROUTE_PATHS.launcher;
   }
-  if (raw_redirect === APP_ROUTE_PATHS.login || raw_redirect === APP_ROUTE_PATHS.landing) {
+  if (rawRedirect === APP_ROUTE_PATHS.login || rawRedirect === APP_ROUTE_PATHS.landing) {
     return APP_ROUTE_PATHS.launcher;
   }
-  return raw_redirect;
+  return rawRedirect;
 }
 
 function LoginBackground() {
@@ -55,23 +55,23 @@ function LoginBackground() {
 export function LoginPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [search_params] = useSearchParams();
-  const redirect_path = useMemo(
-    () => resolve_redirect_path(search_params.get("redirect")),
-    [search_params],
+  const [searchParams] = useSearchParams();
+  const redirectPath = useMemo(
+    () => resolveRedirectPath(searchParams.get("redirect")),
+    [searchParams],
   );
-  const { status, loading, is_bootstrapped, error, login, refresh_status } = useAuth();
-  const handle_refresh = () => {
-    void refresh_status().catch((err: unknown) =>
+  const { status, loading, is_bootstrapped: isBootstrapped, error, login, refresh_status: refreshStatus } = useAuth();
+  const handleRefresh = () => {
+    void refreshStatus().catch((err: unknown) =>
       console.warn("[LoginPage] Auth refresh failed:", err),
     );
   };
-  const [username, set_username] = useState("");
-  const [password, set_password] = useState("");
-  const [submit_error, set_submit_error] = useState<string | null>(null);
-  const [is_submitting, set_is_submitting] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!is_bootstrapped) {
+  if (!isBootstrapped) {
     return (
       <main className="relative min-h-screen overflow-hidden bg-[#ededec] text-foreground">
         <LoginBackground />
@@ -80,25 +80,25 @@ export function LoginPage() {
   }
 
   if (!loading && status && (!status.auth_required || status.authenticated)) {
-    return <Navigate replace to={redirect_path} />;
+    return <Navigate replace to={redirectPath} />;
   }
 
-  const handle_submit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    set_is_submitting(true);
-    set_submit_error(null);
+    setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       await login(username, password);
-      navigate(redirect_path, { replace: true });
+      navigate(redirectPath, { replace: true });
     } catch (err) {
-      set_submit_error(err instanceof Error ? err.message : t("login.unknown_error"));
+      setSubmitError(err instanceof Error ? err.message : t("login.unknown_error"));
     } finally {
-      set_is_submitting(false);
+      setIsSubmitting(false);
     }
   };
 
-  const show_disabled_state = !!status && status.auth_required && !status.password_login_enabled;
+  const showDisabledState = !!status && status.auth_required && !status.password_login_enabled;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#ededec] px-5 py-8 text-foreground sm:px-8 lg:px-10">
@@ -143,7 +143,7 @@ export function LoginPage() {
           </div>
 
           <div className="mt-10 hidden max-w-[680px] gap-3 sm:grid sm:grid-cols-3">
-            {login_signal_items.map(({ title, copy, Icon }) => (
+            {loginSignalItems.map(({ title, copy, Icon }) => (
               <div
                 className="min-w-0 border-t border-[rgba(117,131,149,0.18)] bg-white/20 px-1 py-4"
                 key={title}
@@ -185,7 +185,7 @@ export function LoginPage() {
             </div>
           ) : null}
 
-          {show_disabled_state ? (
+          {showDisabledState ? (
             <div className="mt-7 space-y-4">
               <div className="rounded-[10px] border border-(--divider-subtle-color) bg-white/40 px-4 py-4">
                 <h3 className="text-base font-semibold text-(--text-strong)">
@@ -198,7 +198,7 @@ export function LoginPage() {
 
               <UiButton
                 class_name="min-h-11 w-full rounded-[10px] px-5 text-sm"
-                onClick={handle_refresh}
+                onClick={handleRefresh}
                 size="lg"
                 variant="solid"
               >
@@ -206,7 +206,7 @@ export function LoginPage() {
               </UiButton>
             </div>
           ) : (
-            <form className="mt-7 space-y-4" onSubmit={handle_submit}>
+            <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
               <label className="block" htmlFor="nexus-login-username">
                 <span className="mb-2 block text-sm font-semibold text-(--text-default)">
                   {t("login.username")}
@@ -216,7 +216,7 @@ export function LoginPage() {
                   class_name="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
                   control_size="lg"
                   id="nexus-login-username"
-                  onChange={(event) => set_username(event.target.value)}
+                  onChange={(event) => setUsername(event.target.value)}
                   placeholder={t("login.username_placeholder")}
                   type="text"
                   variant="surface"
@@ -233,7 +233,7 @@ export function LoginPage() {
                   class_name="min-h-12 rounded-[10px] border-[rgba(117,131,149,0.2)] bg-white/60 px-4 text-base shadow-none"
                   control_size="lg"
                   id="nexus-login-password"
-                  onChange={(event) => set_password(event.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder={t("login.password_placeholder")}
                   type="password"
                   variant="surface"
@@ -241,21 +241,21 @@ export function LoginPage() {
                 />
               </label>
 
-              {submit_error ? (
+              {submitError ? (
                 <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3 text-sm text-(--destructive)">
-                  {submit_error}
+                  {submitError}
                 </div>
               ) : null}
 
               <UiButton
                 class_name="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_rgba(23,33,44,0.14)]"
-                disabled={is_submitting}
+                disabled={isSubmitting}
                 size="lg"
                 tone="primary"
                 type="submit"
                 variant="solid"
               >
-                <span>{is_submitting ? t("login.submitting") : t("login.submit")}</span>
+                <span>{isSubmitting ? t("login.submitting") : t("login.submit")}</span>
                 <ArrowRight className="h-4 w-4" />
               </UiButton>
             </form>

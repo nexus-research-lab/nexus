@@ -23,7 +23,7 @@ export interface ThemeContextValue {
 }
 
 /** 中文注释：晴天主题视觉上直接复用亮色，避免维护两套几乎相同的设计令牌。 */
-function resolve_visual_theme(theme: Theme): VisualTheme {
+function resolveVisualTheme(theme: Theme): VisualTheme {
   return theme === "sunny" ? "light" : theme;
 }
 
@@ -32,14 +32,14 @@ export function detect_initial_theme(): Theme {
     return "light";
   }
 
-  const saved_theme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
   if (
-    saved_theme === "light" ||
-    saved_theme === "dark" ||
-    saved_theme === "sunny" ||
-    saved_theme === "rain"
+    savedTheme === "light" ||
+    savedTheme === "dark" ||
+    savedTheme === "sunny" ||
+    savedTheme === "rain"
   ) {
-    return saved_theme;
+    return savedTheme;
   }
 
   if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
@@ -54,12 +54,12 @@ export function apply_theme(theme: Theme) {
     return;
   }
 
-  const visual_theme = resolve_visual_theme(theme);
+  const visualTheme = resolveVisualTheme(theme);
 
-  document.documentElement.dataset.theme = visual_theme;
+  document.documentElement.dataset.theme = visualTheme;
   apply_theme_background_pattern(theme, document.documentElement);
   document.documentElement.style.colorScheme =
-    visual_theme === "dark" || visual_theme === "rain" ? "dark" : "light";
+    visualTheme === "dark" || visualTheme === "rain" ? "dark" : "light";
 }
 
 export const THEME_CONTEXT = createContext<ThemeContextValue | null>(null);

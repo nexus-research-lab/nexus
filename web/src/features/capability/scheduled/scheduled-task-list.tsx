@@ -63,20 +63,20 @@ interface ScheduledTaskListProps {
 
 export function ScheduledTaskList({
   items,
-  is_loading,
-  error_message,
-  run_pending_job_id = null,
-  toggle_pending_job_id = null,
-  delete_pending_job_id = null,
-  on_create,
-  on_refresh,
-  on_run_now,
-  on_toggle_enabled,
-  on_delete,
-  on_edit,
-  on_open_history,
+  is_loading: isLoading,
+  error_message: errorMessage,
+  run_pending_job_id: runPendingJobId = null,
+  toggle_pending_job_id: togglePendingJobId = null,
+  delete_pending_job_id: deletePendingJobId = null,
+  on_create: onCreate,
+  on_refresh: onRefresh,
+  on_run_now: onRunNow,
+  on_toggle_enabled: onToggleEnabled,
+  on_delete: onDelete,
+  on_edit: onEdit,
+  on_open_history: onOpenHistory,
 }: ScheduledTaskListProps) {
-  const sorted_items = sort_tasks(items);
+  const sortedItems = sort_tasks(items);
 
   return (
     <section className="min-h-[320px]">
@@ -95,16 +95,16 @@ export function ScheduledTaskList({
       </div>
 
       <div className="soft-scrollbar min-h-0">
-        {is_loading ? (
+        {isLoading ? (
           <ScheduledTaskLoadingRows />
-        ) : error_message ? (
+        ) : errorMessage ? (
           <UiStateBlock
             actions={(
-              <WorkspaceCatalogTextAction onClick={() => void on_refresh?.()} tone="primary">
+              <WorkspaceCatalogTextAction onClick={() => void onRefresh?.()} tone="primary">
                 重试
               </WorkspaceCatalogTextAction>
             )}
-            description={error_message}
+            description={errorMessage}
             title="任务列表加载失败"
             tone="danger"
             variant="plain"
@@ -112,7 +112,7 @@ export function ScheduledTaskList({
         ) : items.length === 0 ? (
           <UiStateBlock
             actions={(
-              <WorkspaceCatalogTextAction onClick={on_create} tone="primary">
+              <WorkspaceCatalogTextAction onClick={onCreate} tone="primary">
                 新建任务
               </WorkspaceCatalogTextAction>
             )}
@@ -123,12 +123,12 @@ export function ScheduledTaskList({
           />
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
-            {sorted_items.map((task) => {
+            {sortedItems.map((task) => {
               const status = get_primary_status(task);
-              const toggle_action = get_toggle_action(task);
-              const run_pending = run_pending_job_id === task.job_id;
-              const toggle_pending = toggle_pending_job_id === task.job_id;
-              const delete_pending = delete_pending_job_id === task.job_id;
+              const toggleAction = get_toggle_action(task);
+              const runPending = runPendingJobId === task.job_id;
+              const togglePending = togglePendingJobId === task.job_id;
+              const deletePending = deletePendingJobId === task.job_id;
               return (
                 <article
                   key={task.job_id}
@@ -178,17 +178,17 @@ export function ScheduledTaskList({
                       <div className="flex items-center justify-end gap-2">
                         <UiButton
                           class_name="min-w-[92px]"
-                          disabled={toggle_pending}
-                          onClick={() => void on_toggle_enabled?.(task)}
+                          disabled={togglePending}
+                          onClick={() => void onToggleEnabled?.(task)}
                           title={task.enabled ? "暂停后不会再按计划自动触发" : "恢复后会重新参与调度"}
-                          tone={toggle_action.tone}
+                          tone={toggleAction.tone}
                         >
-                          {toggle_pending ? toggle_action.pending_label : toggle_action.label}
+                          {togglePending ? toggleAction.pending_label : toggleAction.label}
                         </UiButton>
                         <WorkspaceCatalogAction
                           aria-label="立即运行"
-                          disabled={run_pending || task.running}
-                          onClick={() => void on_run_now?.(task)}
+                          disabled={runPending || task.running}
+                          onClick={() => void onRunNow?.(task)}
                           size="md"
                           title={task.running ? "任务当前已经在运行中" : "立即触发一次执行"}
                         >
@@ -197,7 +197,7 @@ export function ScheduledTaskList({
                         <WorkspaceCatalogAction
                           aria-label="运行历史"
                           disabled={task.session_target.kind === "main"}
-                          onClick={() => on_open_history?.(task)}
+                          onClick={() => onOpenHistory?.(task)}
                           size="md"
                           title={task.session_target.kind === "main" ? "主会话任务暂不提供独立运行历史" : "查看最近几次执行记录"}
                         >
@@ -205,7 +205,7 @@ export function ScheduledTaskList({
                         </WorkspaceCatalogAction>
                         <WorkspaceCatalogAction
                           aria-label="编辑任务"
-                          onClick={() => on_edit?.(task)}
+                          onClick={() => onEdit?.(task)}
                           size="md"
                           title="编辑任务"
                         >
@@ -213,8 +213,8 @@ export function ScheduledTaskList({
                         </WorkspaceCatalogAction>
                         <WorkspaceCatalogAction
                           aria-label="删除任务"
-                          disabled={delete_pending}
-                          onClick={() => void on_delete?.(task)}
+                          disabled={deletePending}
+                          onClick={() => void onDelete?.(task)}
                           size="md"
                           title="删除后任务会从列表里移除"
                           tone="danger"

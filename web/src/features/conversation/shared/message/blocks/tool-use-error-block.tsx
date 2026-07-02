@@ -14,7 +14,7 @@ interface ToolUseErrorBlockProps {
   content: string;
 }
 
-function parse_tool_use_error(content: string): ParsedToolUseError {
+function parseToolUseError(content: string): ParsedToolUseError {
   const normalized = content.trim();
   const match = TOOL_USE_ERROR_PATTERN.exec(normalized);
   if (!match?.groups) {
@@ -38,7 +38,7 @@ function parse_tool_use_error(content: string): ParsedToolUseError {
 }
 
 export function ToolUseErrorBlock({ content }: ToolUseErrorBlockProps) {
-  const parsed = parse_tool_use_error(content);
+  const parsed = parseToolUseError(content);
 
   return (
     <div className="my-2 min-w-0 border-l-2 border-(--destructive) pl-4">

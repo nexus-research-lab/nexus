@@ -32,32 +32,32 @@ interface ScheduledTaskRunHistoryItemProps {
   on_recover: (run: ScheduledTaskRunItem) => void | Promise<void>;
 }
 
-function download_run_artifact(agent_id: string, artifact_path: string) {
+function downloadRunArtifact(agentId: string, artifactPath: string) {
   void download_workspace_file_api(
-    agent_id,
-    artifact_path,
-    artifact_file_name(artifact_path),
+    agentId,
+    artifactPath,
+    artifact_file_name(artifactPath),
   ).catch((error) => {
     console.error("[ScheduledTaskRunHistoryDialog] 处理任务产物失败:", error);
   });
 }
 
 function ScheduledRunArtifactButton({
-  agent_id,
-  artifact_path,
+  agent_id: agentId,
+  artifact_path: artifactPath,
 }: {
   agent_id: string;
   artifact_path: string;
 }) {
-  const action_copy = get_workspace_file_external_action_copy(artifact_file_name(artifact_path));
-  const Icon = action_copy.mode === "reveal" ? FolderOpen : Download;
-  const label = action_copy.mode === "reveal" ? "打开产物" : "下载产物";
+  const actionCopy = get_workspace_file_external_action_copy(artifact_file_name(artifactPath));
+  const Icon = actionCopy.mode === "reveal" ? FolderOpen : Download;
+  const label = actionCopy.mode === "reveal" ? "打开产物" : "下载产物";
   return (
     <button
-      aria-label={action_copy.aria_label}
+      aria-label={actionCopy.aria_label}
       className="mt-2 inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover)"
-      onClick={() => download_run_artifact(agent_id, artifact_path)}
-      title={action_copy.title}
+      onClick={() => downloadRunArtifact(agentId, artifactPath)}
+      title={actionCopy.title}
       type="button"
     >
       <Icon className="h-3.5 w-3.5" />
@@ -69,20 +69,20 @@ function ScheduledRunArtifactButton({
 export function ScheduledTaskRunHistoryItem({
   task,
   run,
-  copied_run_id,
-  retrying_run_id,
-  retrying_delivery_run_id,
-  recovering_run_id,
-  can_retry_task,
-  can_retry_delivery,
-  can_recover_task_run,
-  on_copy_diagnostic,
-  on_retry,
-  on_retry_delivery,
-  on_recover,
+  copied_run_id: copiedRunId,
+  retrying_run_id: retryingRunId,
+  retrying_delivery_run_id: retryingDeliveryRunId,
+  recovering_run_id: recoveringRunId,
+  can_retry_task: canRetryTask,
+  can_retry_delivery: canRetryDelivery,
+  can_recover_task_run: canRecoverTaskRun,
+  on_copy_diagnostic: onCopyDiagnostic,
+  on_retry: onRetry,
+  on_retry_delivery: onRetryDelivery,
+  on_recover: onRecover,
 }: ScheduledTaskRunHistoryItemProps) {
   const status = get_status_meta(run.status);
-  const delivery_status = get_delivery_status_meta(run.delivery_status);
+  const deliveryStatus = get_delivery_status_meta(run.delivery_status);
 
   return (
     <article className="py-4 first:pt-0 last:pb-0">
@@ -90,8 +90,8 @@ export function ScheduledTaskRunHistoryItem({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <WorkspaceStatusBadge label={status.label} size="compact" tone={status.tone} />
-            {delivery_status ? (
-              <WorkspaceStatusBadge label={delivery_status.label} size="compact" tone={delivery_status.tone} />
+            {deliveryStatus ? (
+              <WorkspaceStatusBadge label={deliveryStatus.label} size="compact" tone={deliveryStatus.tone} />
             ) : null}
             <span className="text-xs font-medium text-(--text-default)">
               Run ID {run.run_id}
@@ -156,46 +156,46 @@ export function ScheduledTaskRunHistoryItem({
           <div className="mt-2 flex flex-col items-end gap-1.5">
             <button
               className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--text-default) transition duration-(--motion-duration-fast) hover:text-(--text-strong)"
-              onClick={() => void on_copy_diagnostic(run)}
+              onClick={() => void onCopyDiagnostic(run)}
               type="button"
             >
               <Copy className="h-3.5 w-3.5" />
-              {copied_run_id === run.run_id ? "已复制" : "复制诊断"}
+              {copiedRunId === run.run_id ? "已复制" : "复制诊断"}
             </button>
-            {is_retryable_status(run.status) && can_retry_task ? (
+            {is_retryable_status(run.status) && canRetryTask ? (
               <button
                 className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60"
-                disabled={retrying_run_id === run.run_id || task.running}
-                onClick={() => void on_retry(run)}
+                disabled={retryingRunId === run.run_id || task.running}
+                onClick={() => void onRetry(run)}
                 title={task.running ? "任务当前正在运行" : "用当前任务配置重新运行一次"}
                 type="button"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                {retrying_run_id === run.run_id ? "触发中" : "重新运行"}
+                {retryingRunId === run.run_id ? "触发中" : "重新运行"}
               </button>
             ) : null}
-            {run.delivery_status === "failed" && can_retry_delivery ? (
+            {run.delivery_status === "failed" && canRetryDelivery ? (
               <button
                 className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--primary) transition duration-(--motion-duration-fast) hover:text-(--primary-hover) disabled:opacity-60"
-                disabled={retrying_delivery_run_id === run.run_id}
-                onClick={() => void on_retry_delivery(run)}
+                disabled={retryingDeliveryRunId === run.run_id}
+                onClick={() => void onRetryDelivery(run)}
                 title="只重试这次运行的结果投递，不重新执行任务"
                 type="button"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                {retrying_delivery_run_id === run.run_id ? "投递中" : "重试投递"}
+                {retryingDeliveryRunId === run.run_id ? "投递中" : "重试投递"}
               </button>
             ) : null}
-            {run.status === "running" && task.running && can_recover_task_run ? (
+            {run.status === "running" && task.running && canRecoverTaskRun ? (
               <button
                 className="inline-flex items-center justify-end gap-1.5 text-xs font-semibold text-(--destructive) transition duration-(--motion-duration-fast) hover:text-(--destructive) disabled:opacity-60"
-                disabled={recovering_run_id === run.run_id}
-                onClick={() => void on_recover(run)}
+                disabled={recoveringRunId === run.run_id}
+                onClick={() => void onRecover(run)}
                 title="把该运行标记为取消，并释放任务占用"
                 type="button"
               >
                 <X className="h-3.5 w-3.5" />
-                {recovering_run_id === run.run_id ? "释放中" : "释放占用"}
+                {recoveringRunId === run.run_id ? "释放中" : "释放占用"}
               </button>
             ) : null}
           </div>

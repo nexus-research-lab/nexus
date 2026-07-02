@@ -36,12 +36,12 @@ export async function list_provider_configs_api(): Promise<
 }
 
 export async function list_provider_options_api(
-  runtime_kind?: AgentRuntimeKind | string,
+  runtimeKind?: AgentRuntimeKind | string,
 ): Promise<ProviderOptionsResponse> {
   const params = new URLSearchParams();
-  const normalized_runtime_kind = runtime_kind?.trim();
-  if (normalized_runtime_kind) {
-    params.set("agent_runtime_kind", normalized_runtime_kind);
+  const normalizedRuntimeKind = runtimeKind?.trim();
+  if (normalizedRuntimeKind) {
+    params.set("agent_runtime_kind", normalizedRuntimeKind);
   }
   const query = params.toString();
   return request_api<ProviderOptionsResponse>(
@@ -93,11 +93,11 @@ export async function fetch_provider_models_api(
 
 export async function update_provider_model_api(
   provider: string,
-  model_id: string,
+  modelId: string,
   payload: UpdateProviderModelPayload,
 ): Promise<ProviderModelRecord> {
   return request_api<ProviderModelRecord>(
-    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(model_id)}`,
+    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}`,
     {
       method: "PUT",
       body: JSON.stringify(payload),
@@ -118,10 +118,10 @@ export async function test_provider_config_api(
 
 export async function test_provider_model_api(
   provider: string,
-  model_id: string,
+  modelId: string,
 ): Promise<ProviderTestResult> {
   return request_api<ProviderTestResult>(
-    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(model_id)}/test`,
+    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
     {
       method: "POST",
     },
@@ -137,11 +137,11 @@ export async function delete_provider_config_api(
   replacement_model?: string;
   reassigned_runtime_count?: number;
 }> {
-  const search_params = new URLSearchParams();
+  const searchParams = new URLSearchParams();
   if (options.force) {
-    search_params.set("force", "1");
+    searchParams.set("force", "1");
   }
-  const query = search_params.toString();
+  const query = searchParams.toString();
   return request_api<{
     provider: string;
     replacement_provider?: string;

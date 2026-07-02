@@ -68,22 +68,22 @@ interface RoomSurfaceLayoutProps {
   on_replay_tour?: () => void;
   on_change_surface_tab: (tab: RoomSurfaceTabKey) => void;
   on_create_conversation: (title?: string) => Promise<string | null>;
-  on_select_conversation: (conversation_id: string) => void;
-  on_close_conversation: (conversation_id: string) => Promise<void>;
-  on_delete_conversation: (conversation_id: string) => Promise<string | null>;
-  on_add_room_member: (agent_id: string) => Promise<void>;
-  on_remove_room_member: (agent_id: string) => Promise<void>;
+  on_select_conversation: (conversationId: string) => void;
+  on_close_conversation: (conversationId: string) => Promise<void>;
+  on_delete_conversation: (conversationId: string) => Promise<string | null>;
+  on_add_room_member: (agentId: string) => Promise<void>;
+  on_remove_room_member: (agentId: string) => Promise<void>;
   on_open_member_manager: () => Promise<void>;
-  on_save_agent_options: (agent_id: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
-  on_validate_agent_name: (name: string, agent_id?: string) => Promise<AgentNameValidationResult>;
-  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
-  on_update_conversation_title: (conversation_id: string, title: string) => Promise<void>;
+  on_save_agent_options: (agentId: string, title: string, options: AgentOptions, identity: AgentIdentityDraft) => Promise<void>;
+  on_validate_agent_name: (name: string, agentId?: string) => Promise<AgentNameValidationResult>;
+  on_update_room: (roomId: string, params: UpdateRoomParams) => Promise<void>;
+  on_update_conversation_title: (conversationId: string, title: string) => Promise<void>;
   on_open_workspace_file: (path: string | null) => void;
   on_start_editor_resize: () => void;
-  on_loading_change: (is_loading: boolean) => void;
+  on_loading_change: (isLoading: boolean) => void;
   on_todos_change: (todos: TodoItem[]) => void;
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
-  on_room_event?: (event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
+  on_room_event?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
 }
 
 /**
@@ -109,18 +109,18 @@ function RoomSurfaceLayoutWithThreadState(props: RoomSurfaceLayoutProps) {
   // 该对象每次产出新引用，而本组件是 GroupChatPanel（数据生产者）的祖先，
   // 一旦订阅就会形成「bump → 祖先重渲染 → 生产者重跑 → 再 bump」的死循环。
   // 真正需要数据的 GroupThreadDetailPanel 是生产者的兄弟叶子，自行订阅即可。
-  const { active_thread, close_thread } = useGroupThread();
+  const { active_thread: activeThread, close_thread: closeThread } = useGroupThread();
 
   useEffect(() => {
-    if (props.active_surface_tab !== "chat" && active_thread) {
-      close_thread();
+    if (props.active_surface_tab !== "chat" && activeThread) {
+      closeThread();
     }
-  }, [active_thread, close_thread, props.active_surface_tab]);
+  }, [activeThread, closeThread, props.active_surface_tab]);
 
   return (
     <RoomSurfaceLayoutInner
       {...props}
-      is_thread_panel_open={Boolean(active_thread)}
+      is_thread_panel_open={Boolean(activeThread)}
     />
   );
 }
@@ -130,58 +130,58 @@ type RoomSurfaceLayoutInnerProps = RoomSurfaceLayoutProps & {
 };
 
 function RoomSurfaceLayoutInner({
-  current_agent,
-  current_room_type,
-  room_id,
-  room_avatar,
-  room_members,
-  available_room_agents,
-  current_room_title,
-  room_skill_names,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  room_private_messages_enabled,
-  current_agent_session_identity,
-  conversation_id,
-  current_room_conversations,
-  active_workspace_path,
-  active_surface_tab,
-  initial_draft = null,
-  on_initial_draft_consumed,
-  is_editor_open,
-  editor_width_percent,
-  is_resizing_editor,
-  current_todos,
-  workspace_split_ref,
-  on_replay_tour,
-  on_change_surface_tab,
-  on_create_conversation,
-  on_select_conversation,
-  on_close_conversation,
-  on_delete_conversation,
-  on_add_room_member,
-  on_remove_room_member,
-  on_open_member_manager,
-  on_save_agent_options,
-  on_validate_agent_name,
-  on_update_room,
-  on_update_conversation_title,
-  on_open_workspace_file,
-  on_start_editor_resize,
-  on_loading_change,
-  on_todos_change,
-  on_conversation_snapshot_change,
-  on_room_event,
-  is_thread_panel_open,
+  current_agent: currentAgent,
+  current_room_type: currentRoomType,
+  room_id: roomId,
+  room_avatar: roomAvatar,
+  room_members: roomMembers,
+  available_room_agents: availableRoomAgents,
+  current_room_title: currentRoomTitle,
+  room_skill_names: roomSkillNames,
+  room_host_agent_id: roomHostAgentId,
+  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
+  room_private_messages_enabled: roomPrivateMessagesEnabled,
+  current_agent_session_identity: currentAgentSessionIdentity,
+  conversation_id: conversationId,
+  current_room_conversations: currentRoomConversations,
+  active_workspace_path: activeWorkspacePath,
+  active_surface_tab: activeSurfaceTab,
+  initial_draft: initialDraft = null,
+  on_initial_draft_consumed: onInitialDraftConsumed,
+  is_editor_open: isEditorOpen,
+  editor_width_percent: editorWidthPercent,
+  is_resizing_editor: isResizingEditor,
+  current_todos: currentTodos,
+  workspace_split_ref: workspaceSplitRef,
+  on_replay_tour: onReplayTour,
+  on_change_surface_tab: onChangeSurfaceTab,
+  on_create_conversation: onCreateConversation,
+  on_select_conversation: onSelectConversation,
+  on_close_conversation: onCloseConversation,
+  on_delete_conversation: onDeleteConversation,
+  on_add_room_member: onAddRoomMember,
+  on_remove_room_member: onRemoveRoomMember,
+  on_open_member_manager: onOpenMemberManager,
+  on_save_agent_options: onSaveAgentOptions,
+  on_validate_agent_name: onValidateAgentName,
+  on_update_room: onUpdateRoom,
+  on_update_conversation_title: onUpdateConversationTitle,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  on_start_editor_resize: onStartEditorResize,
+  on_loading_change: onLoadingChange,
+  on_todos_change: onTodosChange,
+  on_conversation_snapshot_change: onConversationSnapshotChange,
+  on_room_event: onRoomEvent,
+  is_thread_panel_open: isThreadPanelOpen,
 }: RoomSurfaceLayoutInnerProps) {
-  const is_dm = current_room_type === "dm";
-  const is_auxiliary_panel_open = active_surface_tab !== "chat";
-  const is_right_panel_open = is_auxiliary_panel_open || is_thread_panel_open;
-  const is_wide_auxiliary_panel =
-    active_surface_tab === "history" ||
-    active_surface_tab === "workspace" ||
-    active_surface_tab === "about";
-  const [about_request, set_about_request] = useState<{
+  const isDm = currentRoomType === "dm";
+  const isAuxiliaryPanelOpen = activeSurfaceTab !== "chat";
+  const isRightPanelOpen = isAuxiliaryPanelOpen || isThreadPanelOpen;
+  const isWideAuxiliaryPanel =
+    activeSurfaceTab === "history" ||
+    activeSurfaceTab === "workspace" ||
+    activeSurfaceTab === "about";
+  const [aboutRequest, setAboutRequest] = useState<{
     agent_id: string | null;
     tab: RoomAgentAboutRequestedTab;
     key: number;
@@ -191,38 +191,38 @@ function RoomSurfaceLayoutInner({
     key: 0,
   });
 
-  useWidePanelAutoCollapseForRightPanel(is_right_panel_open);
+  useWidePanelAutoCollapseForRightPanel(isRightPanelOpen);
 
-  const handle_open_workspace_file = useCallback((path: string | null) => {
-    on_open_workspace_file(path);
-  }, [on_open_workspace_file]);
+  const handleOpenWorkspaceFile = useCallback((path: string | null) => {
+    onOpenWorkspaceFile(path);
+  }, [onOpenWorkspaceFile]);
 
-  const handle_change_surface_tab = useCallback((tab: RoomSurfaceTabKey) => {
+  const handleChangeSurfaceTab = useCallback((tab: RoomSurfaceTabKey) => {
     if (tab === "about") {
-      set_about_request((current) => ({
-        agent_id: current_agent.agent_id,
+      setAboutRequest((current) => ({
+        agent_id: currentAgent.agent_id,
         tab: "private_domain",
         key: current.key + 1,
       }));
     }
-    on_change_surface_tab(tab);
-  }, [current_agent.agent_id, on_change_surface_tab]);
+    onChangeSurfaceTab(tab);
+  }, [currentAgent.agent_id, onChangeSurfaceTab]);
 
-  const handle_open_agent_contact = useCallback((agent_id: string) => {
-    set_about_request((current) => ({
-      agent_id,
+  const handleOpenAgentContact = useCallback((agentId: string) => {
+    setAboutRequest((current) => ({
+      agent_id: agentId,
       tab: "private_domain",
       key: current.key + 1,
     }));
-    on_change_surface_tab("about");
-  }, [on_change_surface_tab]);
+    onChangeSurfaceTab("about");
+  }, [onChangeSurfaceTab]);
 
-  const handle_close_auxiliary_panel = useCallback(() => {
-    on_change_surface_tab("chat");
-  }, [on_change_surface_tab]);
+  const handleCloseAuxiliaryPanel = useCallback(() => {
+    onChangeSurfaceTab("chat");
+  }, [onChangeSurfaceTab]);
 
-  const auxiliary_close_action = (
-    <WorkspaceSurfaceToolbarAction onClick={handle_close_auxiliary_panel}>
+  const auxiliaryCloseAction = (
+    <WorkspaceSurfaceToolbarAction onClick={handleCloseAuxiliaryPanel}>
       <X className="h-3.5 w-3.5" />
       关闭
     </WorkspaceSurfaceToolbarAction>
@@ -230,10 +230,10 @@ function RoomSurfaceLayoutInner({
 
   return (
     <section
-      ref={workspace_split_ref}
+      ref={workspaceSplitRef}
       className={cn(
         "flex min-h-0 min-w-0 flex-1",
-        is_resizing_editor && "cursor-col-resize select-none",
+        isResizingEditor && "cursor-col-resize select-none",
       )}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -241,44 +241,44 @@ function RoomSurfaceLayoutInner({
           body_class_name="relative"
           header={(
             <div data-tour-anchor={CONVERSATION_TOUR_ANCHORS.header}>
-              {is_dm ? (
+              {isDm ? (
                 <DmConversationHeader
-                  active_tab={active_surface_tab}
-                  conversation_id={conversation_id}
-                  conversations={current_room_conversations}
-                  current_agent_name={current_agent.name}
-                  current_agent_avatar={current_agent.avatar ?? null}
-                  on_change_tab={handle_change_surface_tab}
-                  on_close_conversation={on_close_conversation}
-                  on_create_conversation={on_create_conversation}
-                  on_replay_tour={on_replay_tour}
-                  on_select_conversation={on_select_conversation}
-                  todos={current_todos}
+                  active_tab={activeSurfaceTab}
+                  conversation_id={conversationId}
+                  conversations={currentRoomConversations}
+                  current_agent_name={currentAgent.name}
+                  current_agent_avatar={currentAgent.avatar ?? null}
+                  on_change_tab={handleChangeSurfaceTab}
+                  on_close_conversation={onCloseConversation}
+                  on_create_conversation={onCreateConversation}
+                  on_replay_tour={onReplayTour}
+                  on_select_conversation={onSelectConversation}
+                  todos={currentTodos}
                 />
               ) : (
                 <GroupConversationHeader
-                  active_tab={active_surface_tab}
-                  available_room_agents={available_room_agents}
-                  conversation_id={conversation_id}
-                  conversations={current_room_conversations}
-                  current_room_title={current_room_title}
-                  on_add_room_member={on_add_room_member}
-                  on_open_member_manager={on_open_member_manager}
-                  on_change_tab={handle_change_surface_tab}
-                  on_close_conversation={on_close_conversation}
-                  on_create_conversation={on_create_conversation}
-                  on_replay_tour={on_replay_tour}
-                  on_remove_room_member={on_remove_room_member}
-                  on_select_conversation={on_select_conversation}
-                  on_update_room={on_update_room}
-                  room_avatar={room_avatar}
-                  room_host_agent_id={room_host_agent_id}
-                  room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-                  room_private_messages_enabled={room_private_messages_enabled}
-                  room_id={room_id}
-                  room_members={room_members}
-                  room_skill_names={room_skill_names}
-                  todos={current_todos}
+                  active_tab={activeSurfaceTab}
+                  available_room_agents={availableRoomAgents}
+                  conversation_id={conversationId}
+                  conversations={currentRoomConversations}
+                  current_room_title={currentRoomTitle}
+                  on_add_room_member={onAddRoomMember}
+                  on_open_member_manager={onOpenMemberManager}
+                  on_change_tab={handleChangeSurfaceTab}
+                  on_close_conversation={onCloseConversation}
+                  on_create_conversation={onCreateConversation}
+                  on_replay_tour={onReplayTour}
+                  on_remove_room_member={onRemoveRoomMember}
+                  on_select_conversation={onSelectConversation}
+                  on_update_room={onUpdateRoom}
+                  room_avatar={roomAvatar}
+                  room_host_agent_id={roomHostAgentId}
+                  room_host_auto_reply_enabled={roomHostAutoReplyEnabled}
+                  room_private_messages_enabled={roomPrivateMessagesEnabled}
+                  room_id={roomId}
+                  room_members={roomMembers}
+                  room_skill_names={roomSkillNames}
+                  todos={currentTodos}
                 />
               )}
             </div>
@@ -289,91 +289,91 @@ function RoomSurfaceLayoutInner({
               {/* 中文注释：聊天面板必须常驻挂载，避免切换 surface tab 时卸载组件，
                     进而触发 useWebSocket 清理并关闭连接。 */}
               <RoomChatSurface
-                conversation_id={conversation_id}
-                current_agent={current_agent}
-                current_agent_session_identity={current_agent_session_identity}
-                current_room_type={current_room_type}
-                initial_draft={initial_draft}
-                on_conversation_snapshot_change={on_conversation_snapshot_change}
-                on_create_conversation={on_create_conversation}
-                on_initial_draft_consumed={on_initial_draft_consumed}
-                on_loading_change={on_loading_change}
-                on_open_agent_contact={handle_open_agent_contact}
-                on_open_workspace_file={handle_open_workspace_file}
-                on_room_event={on_room_event}
-                on_todos_change={on_todos_change}
-                room_host_agent_id={room_host_agent_id}
-                room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-                room_id={room_id}
-                room_members={room_members}
+                conversation_id={conversationId}
+                current_agent={currentAgent}
+                current_agent_session_identity={currentAgentSessionIdentity}
+                current_room_type={currentRoomType}
+                initial_draft={initialDraft}
+                on_conversation_snapshot_change={onConversationSnapshotChange}
+                on_create_conversation={onCreateConversation}
+                on_initial_draft_consumed={onInitialDraftConsumed}
+                on_loading_change={onLoadingChange}
+                on_open_agent_contact={handleOpenAgentContact}
+                on_open_workspace_file={handleOpenWorkspaceFile}
+                on_room_event={onRoomEvent}
+                on_todos_change={onTodosChange}
+                room_host_agent_id={roomHostAgentId}
+                room_host_auto_reply_enabled={roomHostAutoReplyEnabled}
+                room_id={roomId}
+                room_members={roomMembers}
               />
             </div>
 
-            {is_auxiliary_panel_open ? (
+            {isAuxiliaryPanelOpen ? (
               <section
                 className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
                 style={{
-                  width: `${editor_width_percent}%`,
-                  ...(is_wide_auxiliary_panel
+                  width: `${editorWidthPercent}%`,
+                  ...(isWideAuxiliaryPanel
                     ? WIDE_AUXILIARY_PANEL_WIDTH_LIMITS
                     : AUXILIARY_PANEL_WIDTH_LIMITS),
                 }}
               >
                 <ConversationResizeHandle
                   aria_label="调整右侧面板宽度"
-                  on_mouse_down={on_start_editor_resize}
+                  on_mouse_down={onStartEditorResize}
                 />
 
                 <div
-                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "history" && "hidden")}>
+                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", activeSurfaceTab !== "history" && "hidden")}>
                   <RoomHistorySurface
-                    conversations={current_room_conversations}
-                    conversation_id={conversation_id}
-                    current_room_type={current_room_type}
-                    header_action={auxiliary_close_action}
-                    on_create_conversation={on_create_conversation}
-                    on_delete_conversation={on_delete_conversation}
-                    on_select_conversation={on_select_conversation}
-                    on_update_conversation_title={on_update_conversation_title}
+                    conversations={currentRoomConversations}
+                    conversation_id={conversationId}
+                    current_room_type={currentRoomType}
+                    header_action={auxiliaryCloseAction}
+                    on_create_conversation={onCreateConversation}
+                    on_delete_conversation={onDeleteConversation}
+                    on_select_conversation={onSelectConversation}
+                    on_update_conversation_title={onUpdateConversationTitle}
                   />
                 </div>
 
                 <div
-                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "workspace" && "hidden")}>
+                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", activeSurfaceTab !== "workspace" && "hidden")}>
                   <RoomWorkspaceView
-                    active_workspace_path={active_workspace_path}
-                    agent_id={current_agent.agent_id}
-                    header_action={auxiliary_close_action}
-                    is_dm={is_dm}
-                    is_editor_open={is_editor_open}
-                    room_members={room_members}
-                    on_open_workspace_file={on_open_workspace_file}
+                    active_workspace_path={activeWorkspacePath}
+                    agent_id={currentAgent.agent_id}
+                    header_action={auxiliaryCloseAction}
+                    is_dm={isDm}
+                    is_editor_open={isEditorOpen}
+                    room_members={roomMembers}
+                    on_open_workspace_file={handleOpenWorkspaceFile}
                   />
                 </div>
 
                 <div
-                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", active_surface_tab !== "about" && "hidden")}>
+                  className={cn("flex h-full min-h-0 min-w-0 flex-1 flex-col", activeSurfaceTab !== "about" && "hidden")}>
                   <RoomAgentAboutSurface
-                    agent={current_agent}
-                    conversation_id={conversation_id}
-                    room_id={room_id}
-                    room_members={room_members}
-                    header_action={auxiliary_close_action}
-                    is_visible={active_surface_tab === "about"}
-                    requested_agent_id={about_request.agent_id}
-                    requested_tab={about_request.tab}
-                    request_key={about_request.key}
-                    on_save_agent_options={on_save_agent_options}
-                    on_validate_agent_name={on_validate_agent_name}
+                    agent={currentAgent}
+                    conversation_id={conversationId}
+                    room_id={roomId}
+                    room_members={roomMembers}
+                    header_action={auxiliaryCloseAction}
+                    is_visible={activeSurfaceTab === "about"}
+                    requested_agent_id={aboutRequest.agent_id}
+                    requested_tab={aboutRequest.tab}
+                    request_key={aboutRequest.key}
+                    on_save_agent_options={onSaveAgentOptions}
+                    on_validate_agent_name={onValidateAgentName}
                   />
                 </div>
               </section>
-            ) : !is_dm ? (
+            ) : !isDm ? (
               <GroupThreadInlinePanel
-                active_surface_tab={active_surface_tab}
+                active_surface_tab={activeSurfaceTab}
                 class_name="hidden lg:flex"
-                editor_width_percent={editor_width_percent}
-                on_start_editor_resize={on_start_editor_resize}
+                editor_width_percent={editorWidthPercent}
+                on_start_editor_resize={onStartEditorResize}
               />
             ) : null}
           </div>
@@ -383,46 +383,46 @@ function RoomSurfaceLayoutInner({
   );
 }
 
-function useWidePanelAutoCollapseForRightPanel(is_panel_open: boolean) {
-  const should_auto_collapse_sidebar = useMediaQuery(RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY);
-  const collapse_wide_panel_for_right_panel = useSidebarStore((s) => s.collapse_wide_panel_for_right_panel);
-  const expand_wide_panel_after_right_panel = useSidebarStore((s) => s.expand_wide_panel_after_right_panel);
+function useWidePanelAutoCollapseForRightPanel(isPanelOpen: boolean) {
+  const shouldAutoCollapseSidebar = useMediaQuery(RIGHT_PANEL_AUTO_COLLAPSE_SIDEBAR_QUERY);
+  const collapseWidePanelForRightPanel = useSidebarStore((s) => s.collapse_wide_panel_for_right_panel);
+  const expandWidePanelAfterRightPanel = useSidebarStore((s) => s.expand_wide_panel_after_right_panel);
 
   useEffect(() => {
-    if (is_panel_open && should_auto_collapse_sidebar) {
-      collapse_wide_panel_for_right_panel();
+    if (isPanelOpen && shouldAutoCollapseSidebar) {
+      collapseWidePanelForRightPanel();
       return;
     }
-    expand_wide_panel_after_right_panel();
+    expandWidePanelAfterRightPanel();
   }, [
-    collapse_wide_panel_for_right_panel,
-    expand_wide_panel_after_right_panel,
-    is_panel_open,
-    should_auto_collapse_sidebar,
+    collapseWidePanelForRightPanel,
+    expandWidePanelAfterRightPanel,
+    isPanelOpen,
+    shouldAutoCollapseSidebar,
   ]);
 
   useEffect(() => {
     return () => {
-      expand_wide_panel_after_right_panel();
+      expandWidePanelAfterRightPanel();
     };
-  }, [expand_wide_panel_after_right_panel]);
+  }, [expandWidePanelAfterRightPanel]);
 }
 
 function GroupThreadInlinePanel({
-  active_surface_tab,
-  editor_width_percent,
-  class_name,
-  on_start_editor_resize,
+  active_surface_tab: activeSurfaceTab,
+  editor_width_percent: editorWidthPercent,
+  class_name: className,
+  on_start_editor_resize: onStartEditorResize,
 }: {
   active_surface_tab: RoomSurfaceTabKey;
   editor_width_percent: number;
   class_name?: string;
   on_start_editor_resize: () => void;
 }) {
-  const { active_thread, close_thread } = useGroupThread();
-  const thread_panel_data = useRoomThreadPanel();
+  const { active_thread: activeThread, close_thread: closeThread } = useGroupThread();
+  const threadPanelData = useRoomThreadPanel();
 
-  if (active_surface_tab !== "chat" || !active_thread || !thread_panel_data) {
+  if (activeSurfaceTab !== "chat" || !activeThread || !threadPanelData) {
     return null;
   }
 
@@ -430,34 +430,34 @@ function GroupThreadInlinePanel({
     <section
       className={cn(
         "relative ml-2 min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none",
-        class_name,
+        className,
       )}
       style={{
-        width: `${editor_width_percent}%`,
+        width: `${editorWidthPercent}%`,
         minWidth: "360px",
         maxWidth: "560px",
       }}
     >
       <ConversationResizeHandle
         aria_label="调整 Thread 面板宽度"
-        on_mouse_down={on_start_editor_resize}
+        on_mouse_down={onStartEditorResize}
       />
 
       <GroupThreadDetailPanel
-        round_id={active_thread.round_id}
-        agent_id={active_thread.agent_id}
-        agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
-        agent_avatar={thread_panel_data.agent_avatar}
-        user_avatar={thread_panel_data.user_avatar}
-        messages={thread_panel_data.messages}
-        pending_permissions={thread_panel_data.pending_permissions}
-        on_permission_response={thread_panel_data.on_permission_response}
-        can_respond_to_permissions={thread_panel_data.can_respond_to_permissions}
-        permission_read_only_reason={thread_panel_data.permission_read_only_reason}
-        on_close={close_thread}
-        on_stop_message={thread_panel_data.on_stop_message}
-        on_open_workspace_file={thread_panel_data.on_open_workspace_file}
-        is_loading={thread_panel_data.is_loading}
+        round_id={activeThread.round_id}
+        agent_id={activeThread.agent_id}
+        agent_name={threadPanelData.agent_name ?? activeThread.agent_id}
+        agent_avatar={threadPanelData.agent_avatar}
+        user_avatar={threadPanelData.user_avatar}
+        messages={threadPanelData.messages}
+        pending_permissions={threadPanelData.pending_permissions}
+        on_permission_response={threadPanelData.on_permission_response}
+        can_respond_to_permissions={threadPanelData.can_respond_to_permissions}
+        permission_read_only_reason={threadPanelData.permission_read_only_reason}
+        on_close={closeThread}
+        on_stop_message={threadPanelData.on_stop_message}
+        on_open_workspace_file={threadPanelData.on_open_workspace_file}
+        is_loading={threadPanelData.is_loading}
         layout="desktop"
       />
     </section>

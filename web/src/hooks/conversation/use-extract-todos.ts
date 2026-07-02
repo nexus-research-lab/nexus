@@ -3,11 +3,11 @@ import { are_equivalent_session_keys } from "@/lib/conversation/session-key";
 import { AssistantMessage, Message, SystemMessage, TaskProgressContent } from "@/types/conversation/message";
 import { TodoItem } from "@/types/conversation/todo";
 
-function is_same_session_message(message: Message, external_session_key: string): boolean {
-  return !message.session_key || are_equivalent_session_keys(message.session_key, external_session_key);
+function isSameSessionMessage(message: Message, externalSessionKey: string): boolean {
+  return !message.session_key || are_equivalent_session_keys(message.session_key, externalSessionKey);
 }
 
-function is_same_todo(left: TodoItem, right: TodoItem): boolean {
+function isSameTodo(left: TodoItem, right: TodoItem): boolean {
   return (
     left.content === right.content &&
     left.status === right.status &&
@@ -15,7 +15,7 @@ function is_same_todo(left: TodoItem, right: TodoItem): boolean {
   );
 }
 
-function are_todos_equal(left: TodoItem[], right: TodoItem[]): boolean {
+function areTodosEqual(left: TodoItem[], right: TodoItem[]): boolean {
   if (left === right) {
     return true;
   }
@@ -23,19 +23,19 @@ function are_todos_equal(left: TodoItem[], right: TodoItem[]): boolean {
     return false;
   }
   return left.every((item, index) => {
-    const right_item = right[index];
-    return Boolean(right_item && is_same_todo(item, right_item));
+    const rightItem = right[index];
+    return Boolean(rightItem && isSameTodo(item, rightItem));
   });
 }
 
 export const useExtractTodos = (
   messages: Message[],
-  external_session_key: string | null
+  externalSessionKey: string | null
 ) => {
-  const stable_todos_ref = useRef<TodoItem[]>([]);
+  const stableTodosRef = useRef<TodoItem[]>([]);
 
-  const computed_todos = useMemo(() => {
-    if (!external_session_key || messages.length === 0) {
+  const computedTodos = useMemo(() => {
+    if (!externalSessionKey || messages.length === 0) {
       return [];
     }
 
@@ -46,7 +46,7 @@ export const useExtractTodos = (
 
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (!is_same_session_message(msg, external_session_key)) {
+      if (!isSameSessionMessage(msg, externalSessionKey)) {
         continue;
       }
 
@@ -65,26 +65,26 @@ export const useExtractTodos = (
           }
         }
         if (!found) {
-          const runtime_task_todos = extract_runtime_task_todos_for_round(messages, msg.round_id, external_session_key);
-          if (runtime_task_todos.length > 0) {
-            return complete_orphan_tasks_when_round_done(
-              runtime_task_todos,
-              is_round_completed(messages, msg.round_id, external_session_key),
+          const runtimeTaskTodos = extractRuntimeTaskTodosForRound(messages, msg.round_id, externalSessionKey);
+          if (runtimeTaskTodos.length > 0) {
+            return completeOrphanTasksWhenRoundDone(
+              runtimeTaskTodos,
+              isRoundCompleted(messages, msg.round_id, externalSessionKey),
             );
           }
         }
       }
 
       if (msg.role === "system" && !found) {
-        const runtime_task_todos = extract_runtime_task_todos_for_round(messages, msg.round_id, external_session_key);
-        const round_todos = extract_latest_todos_for_round(messages, msg.round_id, external_session_key);
-        if (round_todos && round_todos.length > 0) {
-          return merge_todos_with_runtime_tasks(round_todos, runtime_task_todos);
+        const runtimeTaskTodos = extractRuntimeTaskTodosForRound(messages, msg.round_id, externalSessionKey);
+        const roundTodos = extractLatestTodosForRound(messages, msg.round_id, externalSessionKey);
+        if (roundTodos && roundTodos.length > 0) {
+          return mergeTodosWithRuntimeTasks(roundTodos, runtimeTaskTodos);
         }
-        if (runtime_task_todos.length > 0) {
-          return complete_orphan_tasks_when_round_done(
-            runtime_task_todos,
-            is_round_completed(messages, msg.round_id, external_session_key),
+        if (runtimeTaskTodos.length > 0) {
+          return completeOrphanTasksWhenRoundDone(
+            runtimeTaskTodos,
+            isRoundCompleted(messages, msg.round_id, externalSessionKey),
           );
         }
       }
@@ -103,7 +103,7 @@ export const useExtractTodos = (
       .find((msg): msg is AssistantMessage =>
         msg.role === "assistant"
         && msg.round_id === latestTodoRoundId
-        && is_same_session_message(msg, external_session_key)
+        && isSameSessionMessage(msg, externalSessionKey)
         && Boolean(msg.result_summary)
       );
 
@@ -112,7 +112,7 @@ export const useExtractTodos = (
     }
 
     const hasLaterRoundMessage = messages.slice(latestTodoIndex + 1).some((msg) =>
-      is_same_session_message(msg, external_session_key)
+      isSameSessionMessage(msg, externalSessionKey)
       && msg.round_id
       && msg.round_id !== latestTodoRoundId
       && msg.role !== "system"
@@ -122,37 +122,37 @@ export const useExtractTodos = (
       return [];
     }
 
-    const runtime_task_todos = extract_runtime_task_todos_for_round(
+    const runtimeTaskTodos = extractRuntimeTaskTodosForRound(
       messages,
       latestTodoRoundId,
-      external_session_key,
+      externalSessionKey,
     );
-    return merge_todos_with_runtime_tasks(latestTodos, runtime_task_todos);
-  }, [external_session_key, messages]);
+    return mergeTodosWithRuntimeTasks(latestTodos, runtimeTaskTodos);
+  }, [externalSessionKey, messages]);
 
-  if (!are_todos_equal(stable_todos_ref.current, computed_todos)) {
-    stable_todos_ref.current = computed_todos;
+  if (!areTodosEqual(stableTodosRef.current, computedTodos)) {
+    stableTodosRef.current = computedTodos;
   }
 
-  return stable_todos_ref.current;
+  return stableTodosRef.current;
 };
 
-function merge_todos_with_runtime_tasks(
+function mergeTodosWithRuntimeTasks(
   todos: TodoItem[],
-  runtime_task_todos: TodoItem[],
+  runtimeTaskTodos: TodoItem[],
 ): TodoItem[] {
-  if (runtime_task_todos.length === 0) {
+  if (runtimeTaskTodos.length === 0) {
     return todos;
   }
-  const progress_by_content = new Map<string, TodoItem>();
-  for (const item of runtime_task_todos) {
-    progress_by_content.set(normalize_todo_content(item.content), item);
+  const progressByContent = new Map<string, TodoItem>();
+  for (const item of runtimeTaskTodos) {
+    progressByContent.set(normalizeTodoContent(item.content), item);
   }
-  const seen_contents = new Set<string>();
+  const seenContents = new Set<string>();
   const merged = todos.map((todo) => {
-    const normalized_content = normalize_todo_content(todo.content);
-    seen_contents.add(normalized_content);
-    const progress = progress_by_content.get(normalized_content);
+    const normalizedContent = normalizeTodoContent(todo.content);
+    seenContents.add(normalizedContent);
+    const progress = progressByContent.get(normalizedContent);
     if (!progress) {
       return todo;
     }
@@ -162,29 +162,29 @@ function merge_todos_with_runtime_tasks(
       status: progress.status,
     };
   });
-  for (const progress of runtime_task_todos) {
-    const normalized_content = normalize_todo_content(progress.content);
-    if (!seen_contents.has(normalized_content)) {
+  for (const progress of runtimeTaskTodos) {
+    const normalizedContent = normalizeTodoContent(progress.content);
+    if (!seenContents.has(normalizedContent)) {
       merged.push(progress);
     }
   }
   return merged;
 }
 
-function extract_latest_todos_for_round(
+function extractLatestTodosForRound(
   messages: Message[],
-  round_id: string | undefined,
-  external_session_key: string,
+  roundId: string | undefined,
+  externalSessionKey: string,
 ): TodoItem[] | null {
-  if (!round_id) {
+  if (!roundId) {
     return null;
   }
-  let latest_todos: TodoItem[] | null = null;
+  let latestTodos: TodoItem[] | null = null;
   for (const msg of messages) {
     if (
       msg.role !== "assistant" ||
-      msg.round_id !== round_id ||
-      !is_same_session_message(msg, external_session_key) ||
+      msg.round_id !== roundId ||
+      !isSameSessionMessage(msg, externalSessionKey) ||
       !Array.isArray(msg.content)
     ) {
       continue;
@@ -192,29 +192,29 @@ function extract_latest_todos_for_round(
     for (const block of msg.content) {
       if (block?.type === "tool_use" && block.name === "TodoWrite") {
         if (block.input && Array.isArray(block.input.todos)) {
-          latest_todos = block.input.todos;
+          latestTodos = block.input.todos;
         }
       }
     }
   }
-  return latest_todos;
+  return latestTodos;
 }
 
-function extract_runtime_task_todos_for_round(
+function extractRuntimeTaskTodosForRound(
   messages: Message[],
-  round_id: string | undefined,
-  external_session_key: string,
+  roundId: string | undefined,
+  externalSessionKey: string,
 ): TodoItem[] {
-  if (!round_id) {
+  if (!roundId) {
     return [];
   }
-  const tasks_by_id = new Map<string, TodoItem>();
+  const tasksById = new Map<string, TodoItem>();
   for (const msg of messages) {
-    if (msg.round_id !== round_id || !is_same_session_message(msg, external_session_key)) {
+    if (msg.round_id !== roundId || !isSameSessionMessage(msg, externalSessionKey)) {
       continue;
     }
     if (msg.role === "system") {
-      upsert_system_task_todo(tasks_by_id, msg);
+      upsertSystemTaskTodo(tasksById, msg);
       continue;
     }
     if (msg.role !== "assistant" || !Array.isArray(msg.content)) {
@@ -224,36 +224,36 @@ function extract_runtime_task_todos_for_round(
       if (!block || block.type !== "task_progress") {
         continue;
       }
-      upsert_task_progress_todo(tasks_by_id, block);
+      upsertTaskProgressTodo(tasksById, block);
     }
   }
-  return [...tasks_by_id.values()];
+  return [...tasksById.values()];
 }
 
 // 该轮已产出最终回复（非错误）即视为结束——其下子 Agent 必然已跑完。
-function is_round_completed(
+function isRoundCompleted(
   messages: Message[],
-  round_id: string | undefined,
-  external_session_key: string,
+  roundId: string | undefined,
+  externalSessionKey: string,
 ): boolean {
-  if (!round_id) {
+  if (!roundId) {
     return false;
   }
   return messages.some((msg) =>
     msg.role === "assistant" &&
-    msg.round_id === round_id &&
-    is_same_session_message(msg, external_session_key) &&
+    msg.round_id === roundId &&
+    isSameSessionMessage(msg, externalSessionKey) &&
     Boolean(msg.result_summary && !msg.result_summary.is_error),
   );
 }
 
 // 轮次结束后，把独立展示的子 Agent 任务里残留的「运行中/待执行」归为完成，
 // 避免任务条永久转圈。仅用于无 TodoWrite 治理的 orphan 场景，不动真实计划项。
-function complete_orphan_tasks_when_round_done(
+function completeOrphanTasksWhenRoundDone(
   tasks: TodoItem[],
-  round_completed: boolean,
+  roundCompleted: boolean,
 ): TodoItem[] {
-  if (!round_completed) {
+  if (!roundCompleted) {
     return tasks;
   }
   return tasks.map((task) =>
@@ -261,8 +261,8 @@ function complete_orphan_tasks_when_round_done(
   );
 }
 
-function upsert_system_task_todo(
-  tasks_by_id: Map<string, TodoItem>,
+function upsertSystemTaskTodo(
+  tasksById: Map<string, TodoItem>,
   message: SystemMessage,
 ) {
   const metadata = message.metadata;
@@ -277,110 +277,110 @@ function upsert_system_task_todo(
   ) {
     return;
   }
-  const patch = record_from_task_metadata(metadata.patch);
-  const task_id =
-    string_from_task_metadata(metadata.task_id) ??
-    string_from_task_metadata(metadata.tool_use_id) ??
+  const patch = recordFromTaskMetadata(metadata.patch);
+  const taskId =
+    stringFromTaskMetadata(metadata.task_id) ??
+    stringFromTaskMetadata(metadata.tool_use_id) ??
     message.message_id;
-  const existing = tasks_by_id.get(task_id);
+  const existing = tasksById.get(taskId);
   const description =
-    normalize_task_progress_content(string_from_task_metadata(patch?.description) ?? undefined) ||
-    normalize_task_progress_content(string_from_task_metadata(metadata.description) ?? undefined) ||
-    normalize_task_progress_content(message.content) ||
+    normalizeTaskProgressContent(stringFromTaskMetadata(patch?.description) ?? undefined) ||
+    normalizeTaskProgressContent(stringFromTaskMetadata(metadata.description) ?? undefined) ||
+    normalizeTaskProgressContent(message.content) ||
     existing?.content;
 
   if (!description) {
     return;
   }
 
-  tasks_by_id.set(task_id, {
+  tasksById.set(taskId, {
     content: description,
-    status: infer_system_task_status(
+    status: inferSystemTaskStatus(
       subtype,
-      string_from_task_metadata(metadata.status) ?? string_from_task_metadata(patch?.status),
+      stringFromTaskMetadata(metadata.status) ?? stringFromTaskMetadata(patch?.status),
       existing?.status,
     ),
     active_form: existing?.active_form,
   });
 }
 
-function upsert_task_progress_todo(
-  tasks_by_id: Map<string, TodoItem>,
+function upsertTaskProgressTodo(
+  tasksById: Map<string, TodoItem>,
   block: TaskProgressContent,
 ) {
-  const task_id = block.task_id?.trim();
-  if (!task_id) {
+  const taskId = block.task_id?.trim();
+  if (!taskId) {
     return;
   }
-  const existing = tasks_by_id.get(task_id);
-  const content = normalize_task_progress_content(block.description) || existing?.content;
+  const existing = tasksById.get(taskId);
+  const content = normalizeTaskProgressContent(block.description) || existing?.content;
   if (!content) {
     return;
   }
-  tasks_by_id.set(task_id, {
+  tasksById.set(taskId, {
     content,
-    status: infer_task_progress_status(block, existing?.status),
+    status: inferTaskProgressStatus(block, existing?.status),
     active_form: existing?.active_form,
   });
 }
 
-function normalize_task_progress_content(description: string | undefined): string {
+function normalizeTaskProgressContent(description: string | undefined): string {
   const value = description?.trim() ?? "";
   if (!value) {
     return "";
   }
-  const colon_index = value.indexOf(":");
-  if (colon_index >= 0 && colon_index < value.length - 1) {
-    return value.slice(colon_index + 1).trim();
+  const colonIndex = value.indexOf(":");
+  if (colonIndex >= 0 && colonIndex < value.length - 1) {
+    return value.slice(colonIndex + 1).trim();
   }
   return value;
 }
 
-function normalize_todo_content(content: string): string {
+function normalizeTodoContent(content: string): string {
   return content.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
-function record_from_task_metadata(value: unknown): Record<string, unknown> {
+function recordFromTaskMetadata(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
 }
 
-function string_from_task_metadata(value: unknown): string | null {
+function stringFromTaskMetadata(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function infer_system_task_status(
+function inferSystemTaskStatus(
   subtype: string,
   status: string | null,
   fallback: TodoItem["status"] | undefined,
 ): TodoItem["status"] {
-  const normalized_status = status?.toLowerCase().trim() ?? "";
+  const normalizedStatus = status?.toLowerCase().trim() ?? "";
   if (
-    normalized_status === "completed" ||
-    normalized_status === "complete" ||
-    normalized_status === "success" ||
-    normalized_status === "done" ||
-    normalized_status === "stopped" ||
-    normalized_status === "cancelled" ||
-    normalized_status === "canceled" ||
-    normalized_status === "killed" ||
-    normalized_status === "interrupted" ||
-    normalized_status === "failed" ||
-    normalized_status === "error"
+    normalizedStatus === "completed" ||
+    normalizedStatus === "complete" ||
+    normalizedStatus === "success" ||
+    normalizedStatus === "done" ||
+    normalizedStatus === "stopped" ||
+    normalizedStatus === "cancelled" ||
+    normalizedStatus === "canceled" ||
+    normalizedStatus === "killed" ||
+    normalizedStatus === "interrupted" ||
+    normalizedStatus === "failed" ||
+    normalizedStatus === "error"
   ) {
     return "completed";
   }
   if (
-    normalized_status === "pending" ||
-    normalized_status === "queued" ||
-    normalized_status === "created"
+    normalizedStatus === "pending" ||
+    normalizedStatus === "queued" ||
+    normalizedStatus === "created"
   ) {
     return "pending";
   }
   if (
-    normalized_status === "running" ||
-    normalized_status === "in_progress" ||
-    normalized_status === "in progress" ||
-    normalized_status === "started"
+    normalizedStatus === "running" ||
+    normalizedStatus === "in_progress" ||
+    normalizedStatus === "in progress" ||
+    normalizedStatus === "started"
   ) {
     return "in_progress";
   }
@@ -394,7 +394,7 @@ function infer_system_task_status(
   return "in_progress";
 }
 
-function infer_task_progress_status(
+function inferTaskProgressStatus(
   block: TaskProgressContent,
   fallback: TodoItem["status"] | undefined,
 ): TodoItem["status"] {

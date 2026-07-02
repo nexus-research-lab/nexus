@@ -16,7 +16,7 @@ export function are_runtime_snapshots_equal(
     return false;
   }
 
-  const are_string_arrays_equal = (lhs: string[], rhs: string[]): boolean => {
+  const areStringArraysEqual = (lhs: string[], rhs: string[]): boolean => {
     if (lhs.length !== rhs.length) {
       return false;
     }
@@ -30,30 +30,30 @@ export function are_runtime_snapshots_equal(
   };
 
   if (
-    !are_string_arrays_equal(left.sending_round_ids, right.sending_round_ids) ||
-    !are_string_arrays_equal(left.running_round_ids, right.running_round_ids) ||
-    !are_string_arrays_equal(
+    !areStringArraysEqual(left.sending_round_ids, right.sending_round_ids) ||
+    !areStringArraysEqual(left.running_round_ids, right.running_round_ids) ||
+    !areStringArraysEqual(
       left.terminal_round_ids,
       right.terminal_round_ids,
     ) ||
-    !are_string_arrays_equal(left.live_round_ids, right.live_round_ids)
+    !areStringArraysEqual(left.live_round_ids, right.live_round_ids)
   ) {
     return false;
   }
 
-  const left_message_ids = Object.keys(left.active_messages);
-  const right_message_ids = Object.keys(right.active_messages);
-  if (!are_string_arrays_equal(left_message_ids, right_message_ids)) {
+  const leftMessageIds = Object.keys(left.active_messages);
+  const rightMessageIds = Object.keys(right.active_messages);
+  if (!areStringArraysEqual(leftMessageIds, rightMessageIds)) {
     return false;
   }
 
-  for (const message_id of left_message_ids) {
-    const left_tracker = left.active_messages[message_id];
-    const right_tracker = right.active_messages[message_id];
+  for (const messageId of leftMessageIds) {
+    const leftTracker = left.active_messages[messageId];
+    const rightTracker = right.active_messages[messageId];
     if (
-      !right_tracker ||
-      left_tracker.round_id !== right_tracker.round_id ||
-      left_tracker.status !== right_tracker.status
+      !rightTracker ||
+      leftTracker.round_id !== rightTracker.round_id ||
+      leftTracker.status !== rightTracker.status
     ) {
       return false;
     }
@@ -63,11 +63,11 @@ export function are_runtime_snapshots_equal(
 }
 
 export function matches_round_lifecycle(
-  round_id: string,
-  target_round_id: string,
+  roundId: string,
+  targetRoundId: string,
 ): boolean {
   return (
-    round_id === target_round_id || round_id.startsWith(`${target_round_id}:`)
+    roundId === targetRoundId || roundId.startsWith(`${targetRoundId}:`)
   );
 }
 

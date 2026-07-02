@@ -29,18 +29,18 @@ export function get_select_menu_size_config(size: UiSelectMenuSize) {
   };
 }
 
-export function estimate_select_menu_height(option_count: number, option_height: number, extra_height = 8): number {
+export function estimate_select_menu_height(optionCount: number, optionHeight: number, extraHeight = 8): number {
   return Math.min(
     SELECT_MENU_MAX_HEIGHT,
-    Math.max(option_height + 8, option_count * option_height + extra_height),
+    Math.max(optionHeight + 8, optionCount * optionHeight + extraHeight),
   );
 }
 
 export function resolve_select_menu_position({
   button,
-  estimated_height,
-  estimated_option_height,
-  menu_min_width,
+  estimated_height: estimatedHeight,
+  estimated_option_height: estimatedOptionHeight,
+  menu_min_width: menuMinWidth,
   placement,
 }: {
   button: HTMLButtonElement;
@@ -50,43 +50,43 @@ export function resolve_select_menu_position({
   menu_min_width?: number;
 }): UiSelectMenuPosition {
   const rect = button.getBoundingClientRect();
-  const viewport_width = window.innerWidth;
-  const viewport_height = window.innerHeight;
-  const available_above = Math.max(0, rect.top - SELECT_MENU_VIEWPORT_MARGIN);
-  const available_below = Math.max(0, viewport_height - rect.bottom - SELECT_MENU_VIEWPORT_MARGIN);
-  const should_place_top = placement === "top"
-    || (placement === "auto" && available_below < estimated_height && available_above > available_below);
-  const available_space = should_place_top ? available_above : available_below;
-  const max_height = Math.min(
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const availableAbove = Math.max(0, rect.top - SELECT_MENU_VIEWPORT_MARGIN);
+  const availableBelow = Math.max(0, viewportHeight - rect.bottom - SELECT_MENU_VIEWPORT_MARGIN);
+  const shouldPlaceTop = placement === "top"
+    || (placement === "auto" && availableBelow < estimatedHeight && availableAbove > availableBelow);
+  const availableSpace = shouldPlaceTop ? availableAbove : availableBelow;
+  const maxHeight = Math.min(
     SELECT_MENU_MAX_HEIGHT,
-    estimated_height,
-    Math.max(estimated_option_height + 8, available_space - SELECT_MENU_GAP),
+    estimatedHeight,
+    Math.max(estimatedOptionHeight + 8, availableSpace - SELECT_MENU_GAP),
   );
   const width = Math.min(
-    Math.max(rect.width, menu_min_width ?? 0),
-    viewport_width - SELECT_MENU_VIEWPORT_MARGIN * 2,
+    Math.max(rect.width, menuMinWidth ?? 0),
+    viewportWidth - SELECT_MENU_VIEWPORT_MARGIN * 2,
   );
   const left = Math.min(
     Math.max(SELECT_MENU_VIEWPORT_MARGIN, rect.left),
-    Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewport_width - width - SELECT_MENU_VIEWPORT_MARGIN),
+    Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewportWidth - width - SELECT_MENU_VIEWPORT_MARGIN),
   );
 
   return {
     left,
     width,
-    max_height,
-    placement: should_place_top ? "top" : "bottom",
-    ...(should_place_top
-      ? { bottom: Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewport_height - rect.top + SELECT_MENU_GAP) }
-      : { top: Math.min(rect.bottom + SELECT_MENU_GAP, viewport_height - SELECT_MENU_VIEWPORT_MARGIN - max_height) }),
+    max_height: maxHeight,
+    placement: shouldPlaceTop ? "top" : "bottom",
+    ...(shouldPlaceTop
+      ? { bottom: Math.max(SELECT_MENU_VIEWPORT_MARGIN, viewportHeight - rect.top + SELECT_MENU_GAP) }
+      : { top: Math.min(rect.bottom + SELECT_MENU_GAP, viewportHeight - SELECT_MENU_VIEWPORT_MARGIN - maxHeight) }),
   };
 }
 
 export function get_select_menu_button_class_name({
-  rounded_class_name,
+  rounded_class_name: roundedClassName,
   surface,
-  text_class_name,
-  class_name,
+  text_class_name: textClassName,
+  class_name: className,
 }: {
   rounded_class_name: string;
   surface: UiSelectMenuSurface;
@@ -98,9 +98,9 @@ export function get_select_menu_button_class_name({
     surface === "dialog"
       ? "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]"
       : "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
-    rounded_class_name,
-    text_class_name,
-    class_name,
+    roundedClassName,
+    textClassName,
+    className,
   );
 }
 
@@ -110,8 +110,8 @@ export function get_select_menu_panel_surface_class_name(surface: UiSelectMenuSu
     : "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur";
 }
 
-export function get_select_menu_option_state_class_name(surface: UiSelectMenuSurface, is_active: boolean): string {
-  if (is_active) {
+export function get_select_menu_option_state_class_name(surface: UiSelectMenuSurface, isActive: boolean): string {
+  if (isActive) {
     return surface === "dialog"
       ? "bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]"
       : "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";

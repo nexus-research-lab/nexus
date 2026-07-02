@@ -28,9 +28,9 @@ interface ContactsAgentCardProps {
 /** Agent 卡片 — 居中布局，底部动作收为轻量文本按钮，避免主区继续堆胶囊层。 */
 export function ContactsAgentCard({
   agent,
-  on_open_profile,
-  on_open_room,
-  on_create_team,
+  on_open_profile: onOpenProfile,
+  on_open_room: onOpenRoom,
+  on_create_team: onCreateTeam,
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
 
@@ -45,7 +45,7 @@ export function ContactsAgentCard({
       align="center"
       class_name="relative h-full overflow-hidden"
       interactive
-      onClick={on_open_profile}
+      onClick={onOpenProfile}
       size="comfort"
     >
       <UiAgentAvatar
@@ -87,11 +87,11 @@ export function ContactsAgentCard({
       </WorkspaceCatalogBody>
 
       <WorkspaceCatalogFooter class_name="mt-2 w-full gap-4" justify="center" onClick={(e) => e.stopPropagation()}>
-        <WorkspaceCatalogTextAction onClick={on_open_room} tone="primary">
+        <WorkspaceCatalogTextAction onClick={onOpenRoom} tone="primary">
           <MessageSquareText className="h-3 w-3" />
           {t("contacts.chat")}
         </WorkspaceCatalogTextAction>
-        <WorkspaceCatalogTextAction onClick={on_create_team}>
+        <WorkspaceCatalogTextAction onClick={onCreateTeam}>
           <Users className="h-3 w-3" />
           {t("contacts.create_team")}
         </WorkspaceCatalogTextAction>

@@ -52,17 +52,17 @@ interface UiSelectMenuProps {
 
 /** 共享自定义下拉菜单，避免业务侧重复实现原生 select 无法控制的弹层定位。 */
 export function UiSelectMenu({
-  aria_label,
-  allow_label_wrap = false,
-  button_class_name,
-  class_name,
+  aria_label: ariaLabel,
+  allow_label_wrap: allowLabelWrap = false,
+  button_class_name: buttonClassName,
+  class_name: className,
   disabled = false,
   id,
   label,
   leading,
-  menu_class_name,
-  menu_min_width,
-  on_change,
+  menu_class_name: menuClassName,
+  menu_min_width: menuMinWidth,
+  on_change: onChange,
   options,
   placement = "auto",
   placeholder = "请选择",
@@ -70,83 +70,83 @@ export function UiSelectMenu({
   surface = "surface",
   value,
 }: UiSelectMenuProps) {
-  const enabled_options = useMemo(
+  const enabledOptions = useMemo(
     () => options.filter((option) => !option.disabled),
     [options],
   );
-  const active_option = options.find((option) => option.value === value);
+  const activeOption = options.find((option) => option.value === value);
   const {
-    estimated_option_height,
-    height_class_name,
-    option_height_class_name,
-    rounded_class_name,
-    text_class_name,
+    estimated_option_height: estimatedOptionHeight,
+    height_class_name: heightClassName,
+    option_height_class_name: optionHeightClassName,
+    rounded_class_name: roundedClassName,
+    text_class_name: textClassName,
   } = get_select_menu_size_config(size);
 
-  const estimate_position = useCallback((button: HTMLButtonElement) => {
-    const resolved_option_height = allow_label_wrap
-      ? Math.max(estimated_option_height, 46)
-      : estimated_option_height;
+  const estimatePosition = useCallback((button: HTMLButtonElement) => {
+    const resolvedOptionHeight = allowLabelWrap
+      ? Math.max(estimatedOptionHeight, 46)
+      : estimatedOptionHeight;
     return resolve_select_menu_position({
       button,
-      estimated_height: estimate_select_menu_height(options.length, resolved_option_height),
-      estimated_option_height: resolved_option_height,
-      menu_min_width,
+      estimated_height: estimate_select_menu_height(options.length, resolvedOptionHeight),
+      estimated_option_height: resolvedOptionHeight,
+      menu_min_width: menuMinWidth,
       placement,
     });
-  }, [allow_label_wrap, estimated_option_height, menu_min_width, options.length, placement]);
+  }, [allowLabelWrap, estimatedOptionHeight, menuMinWidth, options.length, placement]);
 
   const {
-    button_ref,
-    is_open,
-    menu_id,
-    menu_position,
-    menu_ref,
-    menu_style,
-    portal_container,
-    root_ref,
-    set_is_open,
-    update_menu_position,
-  } = useSelectMenuLayer({ disabled, estimate_position });
+    button_ref: buttonRef,
+    is_open: isOpen,
+    menu_id: menuId,
+    menu_position: menuPosition,
+    menu_ref: menuRef,
+    menu_style: menuStyle,
+    portal_container: portalContainer,
+    root_ref: rootRef,
+    set_is_open: setIsOpen,
+    update_menu_position: updateMenuPosition,
+  } = useSelectMenuLayer({ disabled, estimate_position: estimatePosition });
 
-  const change_value = (next_value: string) => {
+  const changeValue = (nextValue: string) => {
     if (disabled) {
       return;
     }
-    on_change(next_value);
-    set_is_open(false);
-    button_ref.current?.focus();
+    onChange(nextValue);
+    setIsOpen(false);
+    buttonRef.current?.focus();
   };
 
-  const move_selection = (direction: 1 | -1) => {
-    if (disabled || enabled_options.length === 0) {
+  const moveSelection = (direction: 1 | -1) => {
+    if (disabled || enabledOptions.length === 0) {
       return;
     }
-    const current_index = Math.max(
+    const currentIndex = Math.max(
       0,
-      enabled_options.findIndex((option) => option.value === value),
+      enabledOptions.findIndex((option) => option.value === value),
     );
-    const next_index = (current_index + direction + enabled_options.length) % enabled_options.length;
-    on_change(enabled_options[next_index].value);
-    update_menu_position();
-    set_is_open(true);
+    const nextIndex = (currentIndex + direction + enabledOptions.length) % enabledOptions.length;
+    onChange(enabledOptions[nextIndex].value);
+    updateMenuPosition();
+    setIsOpen(true);
   };
 
-  const handle_key_down = (event: KeyboardEvent<HTMLButtonElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) {
       return;
     }
 
     if (event.key === "Escape") {
-      set_is_open(false);
+      setIsOpen(false);
       return;
     }
 
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      set_is_open((open) => {
+      setIsOpen((open) => {
         if (!open) {
-          update_menu_position();
+          updateMenuPosition();
         }
         return !open;
       });
@@ -155,54 +155,54 @@ export function UiSelectMenu({
 
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      move_selection(event.key === "ArrowDown" ? 1 : -1);
+      moveSelection(event.key === "ArrowDown" ? 1 : -1);
     }
   };
 
-  const menu = is_open ? (
+  const menu = isOpen ? (
     <div
-      ref={menu_ref}
-      aria-label={aria_label}
+      ref={menuRef}
+      aria-label={ariaLabel}
       className={cn(
         "fixed z-[120] overflow-y-auto rounded-[14px] border p-1 animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
         get_select_menu_panel_surface_class_name(surface),
-        menu_class_name,
+        menuClassName,
       )}
-      data-placement={menu_position?.placement ?? "bottom"}
+      data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
       data-surface={surface}
       data-ui-select-menu-open="true"
-      id={menu_id}
+      id={menuId}
       role="listbox"
-      style={menu_style}
+      style={menuStyle}
     >
       {options.map((option) => {
-        const is_active = option.value === value;
+        const isActive = option.value === value;
         return (
           <button
             key={option.value}
-            aria-selected={is_active}
+            aria-selected={isActive}
             className={cn(
               "flex w-full justify-between gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-              allow_label_wrap ? "items-start py-2" : "items-center",
-              option_height_class_name,
-              get_select_menu_option_state_class_name(surface, is_active),
+              allowLabelWrap ? "items-start py-2" : "items-center",
+              optionHeightClassName,
+              get_select_menu_option_state_class_name(surface, isActive),
             )}
-            data-active={is_active ? "true" : undefined}
+            data-active={isActive ? "true" : undefined}
             disabled={option.disabled}
-            onClick={() => change_value(option.value)}
+            onClick={() => changeValue(option.value)}
             role="option"
             type="button"
           >
             <span
               className={cn(
                 "min-w-0 flex-1",
-                allow_label_wrap ? "whitespace-normal break-words leading-snug" : "truncate",
+                allowLabelWrap ? "whitespace-normal break-words leading-snug" : "truncate",
               )}
             >
               {option.label}
             </span>
-            {is_active ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--primary)" /> : null}
+            {isActive ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--primary)" /> : null}
           </button>
         );
       })}
@@ -211,34 +211,34 @@ export function UiSelectMenu({
 
   return (
     <div
-      ref={root_ref}
-      className={cn("relative w-full", height_class_name, class_name)}
-      data-ui-select-menu-open={is_open ? "true" : undefined}
+      ref={rootRef}
+      className={cn("relative w-full", heightClassName, className)}
+      data-ui-select-menu-open={isOpen ? "true" : undefined}
     >
       <button
-        ref={button_ref}
-        aria-controls={is_open ? menu_id : undefined}
+        ref={buttonRef}
+        aria-controls={isOpen ? menuId : undefined}
         aria-disabled={disabled}
-        aria-expanded={is_open}
+        aria-expanded={isOpen}
         aria-haspopup="listbox"
-        aria-label={aria_label}
+        aria-label={ariaLabel}
         className={get_select_menu_button_class_name({
-          rounded_class_name,
+          rounded_class_name: roundedClassName,
           surface,
-          text_class_name,
-          class_name: button_class_name,
+          text_class_name: textClassName,
+          class_name: buttonClassName,
         })}
         disabled={disabled}
         id={id}
         onClick={() => {
-          set_is_open((open) => {
+          setIsOpen((open) => {
             if (!open) {
-              update_menu_position();
+              updateMenuPosition();
             }
             return !open;
           });
         }}
-        onKeyDown={handle_key_down}
+        onKeyDown={handleKeyDown}
         type="button"
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -254,21 +254,21 @@ export function UiSelectMenu({
           <span
             className={cn(
               "min-w-0 font-semibold text-(--text-strong)",
-              allow_label_wrap ? "whitespace-normal break-words text-left leading-snug" : "truncate",
+              allowLabelWrap ? "whitespace-normal break-words text-left leading-snug" : "truncate",
             )}
           >
-            {active_option?.label ?? placeholder}
+            {activeOption?.label ?? placeholder}
           </span>
         </span>
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 text-(--icon-muted) transition-transform",
-            is_open && "rotate-180",
+            isOpen && "rotate-180",
           )}
         />
       </button>
 
-      {menu && portal_container ? createPortal(menu, portal_container) : null}
+      {menu && portalContainer ? createPortal(menu, portalContainer) : null}
     </div>
   );
 }

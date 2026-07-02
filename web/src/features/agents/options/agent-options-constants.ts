@@ -63,8 +63,8 @@ export const AVAILABLE_AGENT_TOOLS: ReadonlyArray<{
 export const DEFAULT_AGENT_ALLOWED_TOOLS: string[] = [];
 
 export function normalize_agent_option_provider(provider?: string | null): string {
-  const normalized_provider = provider?.trim();
-  return normalized_provider || DEFAULT_AGENT_OPTION_PROVIDER;
+  const normalizedProvider = provider?.trim();
+  return normalizedProvider || DEFAULT_AGENT_OPTION_PROVIDER;
 }
 
 export function build_agent_options_save_payload(options: AgentOptions): AgentOptions {

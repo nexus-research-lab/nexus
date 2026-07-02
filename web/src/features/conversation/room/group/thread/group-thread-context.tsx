@@ -15,33 +15,33 @@ import {
 
 export function GroupThreadContextProvider({
   children,
-  on_open_thread,
+  on_open_thread: onOpenThread,
 }: {
   children: ReactNode;
   on_open_thread?: () => void;
 }) {
-  const [active_thread, set_active_thread] = useState<ThreadTarget | null>(null);
+  const [activeThread, setActiveThread] = useState<ThreadTarget | null>(null);
 
-  const open_thread = useCallback((round_id: string, agent_id: string) => {
-    on_open_thread?.();
-    set_active_thread((current) => (
-      current?.round_id === round_id && current.agent_id === agent_id
+  const openThread = useCallback((roundId: string, agentId: string) => {
+    onOpenThread?.();
+    setActiveThread((current) => (
+      current?.round_id === roundId && current.agent_id === agentId
         ? current
-        : { round_id, agent_id }
+        : { round_id: roundId, agent_id: agentId }
     ));
-  }, [on_open_thread]);
+  }, [onOpenThread]);
 
-  const close_thread = useCallback(() => {
-    set_active_thread((current) => current ? null : current);
+  const closeThread = useCallback(() => {
+    setActiveThread((current) => current ? null : current);
   }, []);
 
-  const control_value = useMemo<ThreadControlState>(
-    () => ({ active_thread, open_thread, close_thread }),
-    [active_thread, open_thread, close_thread],
+  const controlValue = useMemo<ThreadControlState>(
+    () => ({ active_thread: activeThread, open_thread: openThread, close_thread: closeThread }),
+    [activeThread, openThread, closeThread],
   );
 
   return (
-    <ThreadControlContext.Provider value={control_value}>
+    <ThreadControlContext.Provider value={controlValue}>
       {children}
     </ThreadControlContext.Provider>
   );

@@ -11,9 +11,9 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-const dialog_stack: symbol[] = [];
-let scroll_lock_count = 0;
-let body_overflow_before_lock = "";
+const dialogStack: symbol[] = [];
+let scrollLockCount = 0;
+let bodyOverflowBeforeLock = "";
 
 interface DialogModalBehaviorOptions<T extends HTMLElement> {
   enabled?: boolean;
@@ -22,32 +22,32 @@ interface DialogModalBehaviorOptions<T extends HTMLElement> {
   root_ref: RefObject<T | null>;
 }
 
-function lock_body_scroll() {
+function lockBodyScroll() {
   if (typeof document === "undefined") {
     return;
   }
 
-  if (scroll_lock_count === 0) {
-    body_overflow_before_lock = document.body.style.overflow;
+  if (scrollLockCount === 0) {
+    bodyOverflowBeforeLock = document.body.style.overflow;
     document.body.style.overflow = "hidden";
   }
 
-  scroll_lock_count += 1;
+  scrollLockCount += 1;
 }
 
-function unlock_body_scroll() {
+function unlockBodyScroll() {
   if (typeof document === "undefined") {
     return;
   }
 
-  scroll_lock_count = Math.max(0, scroll_lock_count - 1);
-  if (scroll_lock_count === 0) {
-    document.body.style.overflow = body_overflow_before_lock;
-    body_overflow_before_lock = "";
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = bodyOverflowBeforeLock;
+    bodyOverflowBeforeLock = "";
   }
 }
 
-function is_visible_focus_target(element: HTMLElement): boolean {
+function isVisibleFocusTarget(element: HTMLElement): boolean {
   if (element.hasAttribute("disabled") || element.getAttribute("aria-hidden") === "true") {
     return false;
   }
@@ -60,43 +60,43 @@ function is_visible_focus_target(element: HTMLElement): boolean {
   return element.getClientRects().length > 0;
 }
 
-function get_focusable_elements(root: HTMLElement): HTMLElement[] {
+function getFocusableElements(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    is_visible_focus_target,
+    isVisibleFocusTarget,
   );
 }
 
-function focus_element(element: HTMLElement | null | undefined) {
+function focusElement(element: HTMLElement | null | undefined) {
   element?.focus({ preventScroll: true });
 }
 
-function is_top_dialog(token: symbol): boolean {
-  return dialog_stack[dialog_stack.length - 1] === token;
+function isTopDialog(token: symbol): boolean {
+  return dialogStack[dialogStack.length - 1] === token;
 }
 
-function has_open_overlay_control(): boolean {
+function hasOpenOverlayControl(): boolean {
   return Boolean(document.querySelector("[data-ui-select-menu-open='true']"));
 }
 
-function remove_dialog_token(token: symbol) {
-  const index = dialog_stack.lastIndexOf(token);
+function removeDialogToken(token: symbol) {
+  const index = dialogStack.lastIndexOf(token);
   if (index >= 0) {
-    dialog_stack.splice(index, 1);
+    dialogStack.splice(index, 1);
   }
 }
 
 /** 中文注释：集中提供接近 Radix Dialog 的键盘与焦点行为，业务弹窗只关心内容。 */
 export function useDialogModalBehavior<T extends HTMLElement>({
   enabled = true,
-  initial_focus_ref,
-  on_close,
-  root_ref,
+  initial_focus_ref: initialFocusRef,
+  on_close: onClose,
+  root_ref: rootRef,
 }: DialogModalBehaviorOptions<T>) {
-  const on_close_ref = useRef(on_close);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
-    on_close_ref.current = on_close;
-  }, [on_close]);
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!enabled || typeof document === "undefined") {
@@ -104,42 +104,42 @@ export function useDialogModalBehavior<T extends HTMLElement>({
     }
 
     const token = Symbol("ui-dialog");
-    const previous_focus = document.activeElement instanceof HTMLElement
+    const previousFocus = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    dialog_stack.push(token);
-    lock_body_scroll();
+    dialogStack.push(token);
+    lockBodyScroll();
 
-    const focus_timer = window.setTimeout(() => {
-      const root = root_ref.current;
-      if (!root || !is_top_dialog(token)) {
+    const focusTimer = window.setTimeout(() => {
+      const root = rootRef.current;
+      if (!root || !isTopDialog(token)) {
         return;
       }
 
-      const auto_focus_target =
-        initial_focus_ref?.current ??
+      const autoFocusTarget =
+        initialFocusRef?.current ??
         root.querySelector<HTMLElement>("[data-autofocus='true'], [autofocus]") ??
-        get_focusable_elements(root)[0] ??
+        getFocusableElements(root)[0] ??
         root;
-      focus_element(auto_focus_target);
+      focusElement(autoFocusTarget);
     }, 0);
 
-    const handle_key_down = (event: KeyboardEvent) => {
-      if (!is_top_dialog(token) || event.defaultPrevented) {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isTopDialog(token) || event.defaultPrevented) {
         return;
       }
 
-      const root = root_ref.current;
+      const root = rootRef.current;
       if (!root) {
         return;
       }
 
       if (event.key === "Escape") {
-        if (has_open_overlay_control()) {
+        if (hasOpenOverlayControl()) {
           return;
         }
         event.preventDefault();
-        on_close_ref.current?.();
+        onCloseRef.current?.();
         return;
       }
 
@@ -147,44 +147,44 @@ export function useDialogModalBehavior<T extends HTMLElement>({
         return;
       }
 
-      const focusable = get_focusable_elements(root);
+      const focusable = getFocusableElements(root);
       if (focusable.length === 0) {
         event.preventDefault();
-        focus_element(root);
+        focusElement(root);
         return;
       }
 
-      const active_element = document.activeElement instanceof HTMLElement
+      const activeElement = document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-      const active_index = active_element ? focusable.indexOf(active_element) : -1;
+      const activeIndex = activeElement ? focusable.indexOf(activeElement) : -1;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      const is_focus_outside = !active_element || !root.contains(active_element);
+      const isFocusOutside = !activeElement || !root.contains(activeElement);
 
-      if (event.shiftKey && (is_focus_outside || active_index <= 0)) {
+      if (event.shiftKey && (isFocusOutside || activeIndex <= 0)) {
         event.preventDefault();
-        focus_element(last);
+        focusElement(last);
         return;
       }
 
-      if (!event.shiftKey && (is_focus_outside || active_index === focusable.length - 1)) {
+      if (!event.shiftKey && (isFocusOutside || activeIndex === focusable.length - 1)) {
         event.preventDefault();
-        focus_element(first);
+        focusElement(first);
       }
     };
 
-    document.addEventListener("keydown", handle_key_down);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.clearTimeout(focus_timer);
-      document.removeEventListener("keydown", handle_key_down);
-      remove_dialog_token(token);
-      unlock_body_scroll();
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+      removeDialogToken(token);
+      unlockBodyScroll();
 
-      if (previous_focus?.isConnected) {
-        focus_element(previous_focus);
+      if (previousFocus?.isConnected) {
+        focusElement(previousFocus);
       }
     };
-  }, [enabled, initial_focus_ref, root_ref]);
+  }, [enabled, initialFocusRef, rootRef]);
 }

@@ -40,7 +40,7 @@ const MODE_LABELS: Record<SkillImportDialogMode, string> = {
 
 const ROOM_COLLABORATION_MECHANISM_FILE_NAME = "room-collaboration-mechanism.md";
 
-function download_room_collaboration_mechanism() {
+function downloadRoomCollaborationMechanism() {
   const blob = new Blob([room_collaboration_mechanism_markdown], {
     type: "text/markdown;charset=utf-8",
   });
@@ -57,38 +57,38 @@ function download_room_collaboration_mechanism() {
 
 export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   const mode = ctrl.import_dialog_mode;
-  const set_import_dialog_mode = ctrl.set_import_dialog_mode;
-  const import_reset_key = mode ? "open" : "closed";
-  const [git_url, set_git_url] = useResettableState("", import_reset_key);
-  const [git_branch, set_git_branch] = useResettableState("", import_reset_key);
-  const [git_path, set_git_path] = useResettableState("", import_reset_key);
-  const git_url_input_ref = useRef<HTMLInputElement>(null);
+  const setImportDialogMode = ctrl.set_import_dialog_mode;
+  const importResetKey = mode ? "open" : "closed";
+  const [gitUrl, setGitUrl] = useResettableState("", importResetKey);
+  const [gitBranch, setGitBranch] = useResettableState("", importResetKey);
+  const [gitPath, setGitPath] = useResettableState("", importResetKey);
+  const gitUrlInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (mode === "git") {
-      git_url_input_ref.current?.focus();
+      gitUrlInputRef.current?.focus();
     }
   }, [mode]);
 
-  const handle_close = useCallback(() => {
-    set_import_dialog_mode(null);
-  }, [set_import_dialog_mode]);
+  const handleClose = useCallback(() => {
+    setImportDialogMode(null);
+  }, [setImportDialogMode]);
 
   if (!mode) return null;
 
-  const handle_submit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (mode !== "git") return;
-    void ctrl.handle_git_import(git_url, git_branch, git_path);
+    void ctrl.handle_git_import(gitUrl, gitBranch, gitPath);
   };
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={handle_close}>
-        <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handle_submit} size="xl">
+      <UiDialogBackdrop class_name="z-[9999]" on_close={handleClose}>
+        <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handleSubmit} size="xl">
           <UiDialogHeader
             icon={mode === "git" ? <GitBranch className="h-4 w-4" /> : <PackageCheck className="h-4 w-4" />}
-            on_close={handle_close}
+            on_close={handleClose}
             subtitle="导入前请确认目录内包含合法的 SKILL.md，Room 技能需要显式声明 scope: room。"
             title="导入 Skill"
           />
@@ -122,12 +122,12 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   >
                     <UiInput
                       aria-label="Git 仓库 URL"
-                      onChange={(event) => set_git_url(event.target.value)}
+                      onChange={(event) => setGitUrl(event.target.value)}
                       placeholder="https://github.com/owner/repo.git"
-                      ref={git_url_input_ref}
+                      ref={gitUrlInputRef}
                       required
                       type="url"
-                      value={git_url}
+                      value={gitUrl}
                     />
                   </UiField>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -136,9 +136,9 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       label="Branch"
                     >
                       <UiInput
-                        onChange={(event) => set_git_branch(event.target.value)}
+                        onChange={(event) => setGitBranch(event.target.value)}
                         placeholder="main"
-                        value={git_branch}
+                        value={gitBranch}
                       />
                     </UiField>
                     <UiField
@@ -146,9 +146,9 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       label="子目录 Path"
                     >
                       <UiInput
-                        onChange={(event) => set_git_path(event.target.value)}
+                        onChange={(event) => setGitPath(event.target.value)}
                         placeholder="skills/room-playbook"
-                        value={git_path}
+                        value={gitPath}
                       />
                     </UiField>
                   </div>
@@ -190,7 +190,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   <UiButton
                     aria-label="下载 Room 协作机制 Markdown 文档"
                     class_name="shrink-0"
-                    onClick={download_room_collaboration_mechanism}
+                    onClick={downloadRoomCollaborationMechanism}
                     size="xs"
                     tone="primary"
                     variant="surface"
@@ -215,7 +215,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
           </UiDialogBody>
 
           <UiDialogFooter class_name="gap-2">
-            <UiButton onClick={handle_close} size="sm" variant="surface">
+            <UiButton onClick={handleClose} size="sm" variant="surface">
               取消
             </UiButton>
             {mode === "git" ? (

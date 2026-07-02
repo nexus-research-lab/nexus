@@ -9,7 +9,7 @@ import {
 } from "./presentation-preview-model";
 
 export function PresentationSlideCanvas({
-  class_name,
+  class_name: className,
   slide,
   thumbnail = false,
 }: {
@@ -23,7 +23,7 @@ export function PresentationSlideCanvas({
       className={cn(
         "block w-full bg-(--surface-paper-background) shadow-(--surface-paper-shadow)",
         thumbnail ? "rounded-[2px] shadow-sm" : "rounded-[2px]",
-        class_name,
+        className,
       )}
       role="img"
       style={{ aspectRatio: `${slide.width} / ${slide.height}` }}
@@ -60,10 +60,10 @@ function PresentationShape({
 }) {
   const stroke = shape.stroke || "none";
   const fill = shape.geometry === "line" ? "none" : shape.fill || "transparent";
-  const text_padding = thumbnail
+  const textPadding = thumbnail
     ? Math.max(Math.min(shape.width, shape.height) * 0.03, 4)
     : Math.max(Math.min(shape.width, shape.height) * 0.045, 6);
-  const justify_content = shape.text_anchor === "center"
+  const justifyContent = shape.text_anchor === "center"
     ? "center"
     : shape.text_anchor === "bottom"
       ? "flex-end"
@@ -71,7 +71,7 @@ function PresentationShape({
 
   return (
     <g>
-      {render_shape_geometry(shape, fill, stroke)}
+      {renderShapeGeometry(shape, fill, stroke)}
       {shape.paragraphs.length > 0 ? (
         <foreignObject height={shape.height} width={shape.width} x={shape.x} y={shape.y}>
           <div
@@ -80,15 +80,15 @@ function PresentationShape({
               display: "flex",
               flexDirection: "column",
               height: "100%",
-              justifyContent: justify_content,
+              justifyContent,
               overflow: "hidden",
-              padding: text_padding,
+              padding: textPadding,
               width: "100%",
             }}
           >
             {shape.paragraphs.map((paragraph) => (
               <p
-                key={get_paragraph_key(shape.id, paragraph)}
+                key={getParagraphKey(shape.id, paragraph)}
                 style={{
                   columnGap: paragraph.bullet ? paragraph.font_size * 0.45 : undefined,
                   display: paragraph.bullet ? "grid" : "block",
@@ -117,7 +117,7 @@ function PresentationShape({
                 <span style={{ minWidth: 0, overflowWrap: paragraph.align === "center" ? "normal" : "break-word" }}>
                   {paragraph.runs.map((run) => (
                     <span
-                      key={get_text_run_key(shape.id, paragraph, run)}
+                      key={getTextRunKey(shape.id, paragraph, run)}
                       style={{
                         color: run.color || "#111827",
                         fontFamily: run.font_face || "Arial, sans-serif",
@@ -139,9 +139,9 @@ function PresentationShape({
   );
 }
 
-function get_paragraph_key(shape_id: string, paragraph: PresentationParagraph): string {
+function getParagraphKey(shapeId: string, paragraph: PresentationParagraph): string {
   return [
-    shape_id,
+    shapeId,
     "paragraph",
     paragraph.text,
     paragraph.bullet ?? "",
@@ -151,13 +151,13 @@ function get_paragraph_key(shape_id: string, paragraph: PresentationParagraph): 
   ].join(":");
 }
 
-function get_text_run_key(
-  shape_id: string,
+function getTextRunKey(
+  shapeId: string,
   paragraph: PresentationParagraph,
   run: PresentationTextRun,
 ): string {
   return [
-    get_paragraph_key(shape_id, paragraph),
+    getParagraphKey(shapeId, paragraph),
     "run",
     run.text,
     run.font_face ?? "",
@@ -168,12 +168,12 @@ function get_text_run_key(
   ].join(":");
 }
 
-function render_shape_geometry(shape: PresentationShapeElement, fill: string, stroke: string) {
+function renderShapeGeometry(shape: PresentationShapeElement, fill: string, stroke: string) {
   if (shape.geometry === "unsupported") {
     return null;
   }
 
-  const common_props = {
+  const commonProps = {
     fill,
     stroke,
     strokeWidth: shape.stroke === undefined ? 0 : shape.stroke_width,
@@ -189,7 +189,7 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
             `${shape.x + shape.width / 2},${shape.y + shape.height}`,
             `${shape.x},${shape.y + shape.height / 2}`,
           ].join(" ")}
-          {...common_props}
+          {...commonProps}
         />
       );
     case "ellipse":
@@ -199,7 +199,7 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
           cy={shape.y + shape.height / 2}
           rx={Math.abs(shape.width / 2)}
           ry={Math.abs(shape.height / 2)}
-          {...common_props}
+          {...commonProps}
         />
       );
     case "line":
@@ -226,7 +226,7 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
           width={shape.width}
           x={shape.x}
           y={shape.y}
-          {...common_props}
+          {...commonProps}
         />
       );
     }
@@ -238,7 +238,7 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
             `${shape.x + shape.width},${shape.y + shape.height}`,
             `${shape.x},${shape.y + shape.height}`,
           ].join(" ")}
-          {...common_props}
+          {...commonProps}
         />
       );
     case "rect":
@@ -248,7 +248,7 @@ function render_shape_geometry(shape: PresentationShapeElement, fill: string, st
           width={shape.width}
           x={shape.x}
           y={shape.y}
-          {...common_props}
+          {...commonProps}
         />
       );
   }

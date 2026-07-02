@@ -40,10 +40,10 @@ export interface MessageItemProps {
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
   hidden_tool_names?: string[];
-  on_edit_user_message?: (message_id: string, new_content: string) => void;
-  on_open_agent_contact?: (agent_id: string) => void;
+  on_edit_user_message?: (messageId: string, newContent: string) => void;
+  on_open_agent_contact?: (agentId: string) => void;
   on_open_workspace_file?: (path: string) => void;
-  on_stop_message?: (msg_id: string) => void;
+  on_stop_message?: (msgId: string) => void;
   default_process_expanded?: boolean;
   assistant_header_action?: ReactNode;
   assistant_content_mode?: "dm_live" | "dm_archived" | "room_thread" | "room_result";

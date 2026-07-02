@@ -39,69 +39,69 @@ interface UseProviderModelActionsOptions {
   set_feedback: Dispatch<SetStateAction<FeedbackState | null>>;
   set_pending_action: Dispatch<SetStateAction<string | null>>;
   save_provider: SaveProviderConfig;
-  refresh_all: (preferred_provider?: string | null) => Promise<void>;
+  refresh_all: (preferredProvider?: string | null) => Promise<void>;
   t: I18nContextValue["t"];
 }
 
 export function useProviderModelActions({
-  api_format,
-  pending_action,
-  selected_can_manage,
-  selected_record,
-  set_feedback,
-  set_pending_action,
-  save_provider,
-  refresh_all,
+  api_format: apiFormat,
+  pending_action: pendingAction,
+  selected_can_manage: selectedCanManage,
+  selected_record: selectedRecord,
+  set_feedback: setFeedback,
+  set_pending_action: setPendingAction,
+  save_provider: saveProvider,
+  refresh_all: refreshAll,
   t,
 }: UseProviderModelActionsOptions) {
-  const [model_query, set_model_query] = useState("");
-  const [model_options, set_model_options] =
+  const [modelQuery, setModelQuery] = useState("");
+  const [modelOptions, setModelOptions] =
     useState<ModelOptionsState | null>(null);
-  const [add_model_open, set_add_model_open] = useState(false);
-  const [manual_model_id, set_manual_model_id] = useState("");
-  const [manual_model_enabled, set_manual_model_enabled] = useState(true);
+  const [addModelOpen, setAddModelOpen] = useState(false);
+  const [manualModelId, setManualModelId] = useState("");
+  const [manualModelEnabled, setManualModelEnabled] = useState(true);
 
-  const filtered_models = useMemo(() => {
-    return filter_provider_models(selected_record?.models ?? [], model_query);
-  }, [model_query, selected_record]);
-  const displayed_models = useMemo(
-    () => sort_models_enabled_first(filtered_models),
-    [filtered_models],
+  const filteredModels = useMemo(() => {
+    return filter_provider_models(selectedRecord?.models ?? [], modelQuery);
+  }, [modelQuery, selectedRecord]);
+  const displayedModels = useMemo(
+    () => sort_models_enabled_first(filteredModels),
+    [filteredModels],
   );
-  const test_model_options = useMemo(() => {
+  const testModelOptions = useMemo(() => {
     return build_test_model_options(
-      selected_record?.models ?? [],
+      selectedRecord?.models ?? [],
       t("settings.providers.auto_select_model"),
     );
-  }, [selected_record, t]);
-  const manual_model_placeholder =
-    selected_record?.models[0]?.model_id ||
-    (api_format === "anthropic_messages" ? "opus-4.7" : "model-id");
+  }, [selectedRecord, t]);
+  const manualModelPlaceholder =
+    selectedRecord?.models[0]?.model_id ||
+    (apiFormat === "anthropic_messages" ? "opus-4.7" : "model-id");
 
-  const reset_model_controls = useCallback(() => {
-    set_model_query("");
-    set_add_model_open(false);
-    set_model_options(null);
-    set_manual_model_id("");
-    set_manual_model_enabled(true);
+  const resetModelControls = useCallback(() => {
+    setModelQuery("");
+    setAddModelOpen(false);
+    setModelOptions(null);
+    setManualModelId("");
+    setManualModelEnabled(true);
   }, []);
 
-  const handle_fetch_models = useCallback(async () => {
-    if (!selected_record || pending_action || !selected_can_manage) {
+  const handleFetchModels = useCallback(async () => {
+    if (!selectedRecord || pendingAction || !selectedCanManage) {
       return;
     }
     try {
-      set_pending_action("fetch");
-      const provider_record = await save_provider({
+      setPendingAction("fetch");
+      const providerRecord = await saveProvider({
         show_error: true,
         show_success: false,
       });
-      if (!provider_record) {
+      if (!providerRecord) {
         return;
       }
-      const result = await fetch_provider_models_api(provider_record.provider);
-      await refresh_all(provider_record.provider);
-      set_feedback({
+      const result = await fetch_provider_models_api(providerRecord.provider);
+      await refreshAll(providerRecord.provider);
+      setFeedback({
         tone: "success",
         title: t("settings.providers.models_synced_title"),
         message: t("settings.providers.models_synced_message", {
@@ -109,7 +109,7 @@ export function useProviderModelActions({
         }),
       });
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.providers.models_sync_failed_title"),
         message:
@@ -118,35 +118,35 @@ export function useProviderModelActions({
             : t("settings.providers.models_sync_failed_message"),
       });
     } finally {
-      set_pending_action(null);
+      setPendingAction(null);
     }
   }, [
-    pending_action,
-    refresh_all,
-    save_provider,
-    selected_can_manage,
-    selected_record,
-    set_feedback,
-    set_pending_action,
+    pendingAction,
+    refreshAll,
+    saveProvider,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    setPendingAction,
     t,
   ]);
 
-  const handle_open_add_model = useCallback(() => {
-    if (!selected_can_manage) {
+  const handleOpenAddModel = useCallback(() => {
+    if (!selectedCanManage) {
       return;
     }
-    set_manual_model_id("");
-    set_manual_model_enabled(true);
-    set_add_model_open(true);
-  }, [selected_can_manage]);
+    setManualModelId("");
+    setManualModelEnabled(true);
+    setAddModelOpen(true);
+  }, [selectedCanManage]);
 
-  const handle_add_model = useCallback(async () => {
-    if (!selected_record || pending_action || !selected_can_manage) {
+  const handleAddModel = useCallback(async () => {
+    if (!selectedRecord || pendingAction || !selectedCanManage) {
       return;
     }
-    const model_id = manual_model_id.trim();
-    if (!model_id) {
-      set_feedback({
+    const modelId = manualModelId.trim();
+    if (!modelId) {
+      setFeedback({
         tone: "error",
         title: t("settings.providers.model_id_required_title"),
         message: t("settings.providers.model_id_required_message"),
@@ -154,27 +154,27 @@ export function useProviderModelActions({
       return;
     }
     try {
-      set_pending_action(`add-model:${model_id}`);
-      await update_provider_model_api(selected_record.provider, model_id, {
-        enabled: manual_model_enabled,
+      setPendingAction(`add-model:${modelId}`);
+      await update_provider_model_api(selectedRecord.provider, modelId, {
+        enabled: manualModelEnabled,
         is_default: false,
         capabilities_override: {},
         context_window: null,
         max_output_tokens: null,
         provider_options: {},
       });
-      set_add_model_open(false);
-      set_manual_model_id("");
-      await refresh_all(selected_record.provider);
-      set_feedback({
+      setAddModelOpen(false);
+      setManualModelId("");
+      await refreshAll(selectedRecord.provider);
+      setFeedback({
         tone: "success",
         title: t("settings.providers.model_added_title"),
         message: t("settings.providers.model_added_message", {
-          model: model_id,
+          model: modelId,
         }),
       });
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.providers.model_add_failed_title"),
         message:
@@ -183,36 +183,36 @@ export function useProviderModelActions({
             : t("settings.providers.model_add_failed_message"),
       });
     } finally {
-      set_pending_action(null);
+      setPendingAction(null);
     }
   }, [
-    manual_model_enabled,
-    manual_model_id,
-    pending_action,
-    refresh_all,
-    selected_can_manage,
-    selected_record,
-    set_feedback,
-    set_pending_action,
+    manualModelEnabled,
+    manualModelId,
+    pendingAction,
+    refreshAll,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    setPendingAction,
     t,
   ]);
 
-  const handle_test_provider = useCallback(async () => {
-    if (!selected_record || pending_action || !selected_can_manage) {
+  const handleTestProvider = useCallback(async () => {
+    if (!selectedRecord || pendingAction || !selectedCanManage) {
       return;
     }
     try {
-      set_pending_action("test");
-      const provider_record = await save_provider({
+      setPendingAction("test");
+      const providerRecord = await saveProvider({
         show_error: true,
         show_success: false,
       });
-      if (!provider_record) {
+      if (!providerRecord) {
         return;
       }
-      const result = await test_provider_config_api(provider_record.provider);
-      await refresh_all(provider_record.provider);
-      set_feedback({
+      const result = await test_provider_config_api(providerRecord.provider);
+      await refreshAll(providerRecord.provider);
+      setFeedback({
         tone: result.success ? "success" : "error",
         title: result.success
           ? t("settings.providers.provider_test_passed_title")
@@ -224,7 +224,7 @@ export function useProviderModelActions({
           : result.error || t("settings.providers.connectivity_failed"),
       });
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.providers.provider_test_failed_title"),
         message:
@@ -233,55 +233,55 @@ export function useProviderModelActions({
             : t("settings.providers.check_network_auth"),
       });
     } finally {
-      set_pending_action(null);
+      setPendingAction(null);
     }
   }, [
-    pending_action,
-    refresh_all,
-    save_provider,
-    selected_can_manage,
-    selected_record,
-    set_feedback,
-    set_pending_action,
+    pendingAction,
+    refreshAll,
+    saveProvider,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    setPendingAction,
     t,
   ]);
 
-  const handle_test_model = useCallback(
-    async (model_id: string) => {
-      if (!selected_record || pending_action || !selected_can_manage) {
+  const handleTestModel = useCallback(
+    async (modelId: string) => {
+      if (!selectedRecord || pendingAction || !selectedCanManage) {
         return;
       }
-      const normalized_model_id = model_id.trim();
-      if (!normalized_model_id) {
+      const normalizedModelId = modelId.trim();
+      if (!normalizedModelId) {
         return;
       }
       try {
-        set_pending_action(`test:${normalized_model_id}`);
-        const provider_record = await save_provider({
+        setPendingAction(`test:${normalizedModelId}`);
+        const providerRecord = await saveProvider({
           show_error: true,
           show_success: false,
         });
-        if (!provider_record) {
+        if (!providerRecord) {
           return;
         }
         const result = await test_provider_model_api(
-          provider_record.provider,
-          normalized_model_id,
+          providerRecord.provider,
+          normalizedModelId,
         );
-        await refresh_all(provider_record.provider);
-        set_feedback({
+        await refreshAll(providerRecord.provider);
+        setFeedback({
           tone: result.success ? "success" : "error",
           title: result.success
             ? t("settings.providers.model_test_passed_title")
             : t("settings.providers.model_test_failed_title"),
           message: result.success
             ? t("settings.providers.test_model_message", {
-                model: result.model || normalized_model_id,
+                model: result.model || normalizedModelId,
               })
             : result.error || t("settings.providers.connectivity_failed"),
         });
       } catch (error) {
-        set_feedback({
+        setFeedback({
           tone: "error",
           title: t("settings.providers.model_test_failed_title"),
           message:
@@ -290,39 +290,39 @@ export function useProviderModelActions({
               : t("settings.providers.check_network_auth_model"),
         });
       } finally {
-        set_pending_action(null);
+        setPendingAction(null);
       }
     },
     [
-      pending_action,
-      refresh_all,
-      save_provider,
-      selected_can_manage,
-      selected_record,
-      set_feedback,
-      set_pending_action,
+      pendingAction,
+      refreshAll,
+      saveProvider,
+      selectedCanManage,
+      selectedRecord,
+      setFeedback,
+      setPendingAction,
       t,
     ],
   );
 
-  const handle_test_selection = useCallback(
+  const handleTestSelection = useCallback(
     (value: string) => {
       if (value === AUTO_TEST_MODEL_VALUE) {
-        void handle_test_provider();
+        void handleTestProvider();
         return;
       }
-      void handle_test_model(value);
+      void handleTestModel(value);
     },
-    [handle_test_model, handle_test_provider],
+    [handleTestModel, handleTestProvider],
   );
 
-  const handle_toggle_model = useCallback(
+  const handleToggleModel = useCallback(
     async (model: ProviderModelRecord, enabled: boolean) => {
-      if (!selected_record || pending_action || !selected_can_manage) {
+      if (!selectedRecord || pendingAction || !selectedCanManage) {
         return;
       }
       if (model.is_default && !enabled) {
-        set_feedback({
+        setFeedback({
           tone: "error",
           title: t("settings.providers.default_model_disable_title"),
           message: t("settings.providers.default_model_disable_message", {
@@ -332,15 +332,15 @@ export function useProviderModelActions({
         return;
       }
       try {
-        set_pending_action(`model:${model.model_id}`);
+        setPendingAction(`model:${model.model_id}`);
         await update_provider_model_api(
-          selected_record.provider,
+          selectedRecord.provider,
           model.model_id,
           model_update_payload(model, { enabled }),
         );
-        await refresh_all(selected_record.provider);
+        await refreshAll(selectedRecord.provider);
       } catch (error) {
-        set_feedback({
+        setFeedback({
           tone: "error",
           title: t("settings.providers.model_status_failed_title"),
           message:
@@ -349,48 +349,48 @@ export function useProviderModelActions({
               : t("settings.providers.retry_later"),
         });
       } finally {
-        set_pending_action(null);
+        setPendingAction(null);
       }
     },
     [
-      pending_action,
-      refresh_all,
-      selected_can_manage,
-      selected_record,
-      set_feedback,
-      set_pending_action,
+      pendingAction,
+      refreshAll,
+      selectedCanManage,
+      selectedRecord,
+      setFeedback,
+      setPendingAction,
       t,
     ],
   );
 
-  const handle_save_model_options = useCallback(async () => {
-    if (!selected_record || !model_options || pending_action || !selected_can_manage) {
+  const handleSaveModelOptions = useCallback(async () => {
+    if (!selectedRecord || !modelOptions || pendingAction || !selectedCanManage) {
       return;
     }
     try {
-      set_pending_action(`options:${model_options.model.model_id}`);
-      const provider_options = parse_provider_options(
-        model_options.provider_options_text,
+      setPendingAction(`options:${modelOptions.model.model_id}`);
+      const providerOptions = parse_provider_options(
+        modelOptions.provider_options_text,
         t("settings.providers.provider_options_json_object"),
       );
       await update_provider_model_api(
-        selected_record.provider,
-        model_options.model.model_id,
-        model_update_payload(model_options.model, {
-          capabilities_override: model_options.capabilities,
-          context_window: model_options.context_window.trim()
-            ? Number(model_options.context_window)
+        selectedRecord.provider,
+        modelOptions.model.model_id,
+        model_update_payload(modelOptions.model, {
+          capabilities_override: modelOptions.capabilities,
+          context_window: modelOptions.context_window.trim()
+            ? Number(modelOptions.context_window)
             : null,
-          max_output_tokens: model_options.max_output_tokens.trim()
-            ? Number(model_options.max_output_tokens)
+          max_output_tokens: modelOptions.max_output_tokens.trim()
+            ? Number(modelOptions.max_output_tokens)
             : null,
-          provider_options,
+          provider_options: providerOptions,
         }),
       );
-      set_model_options(null);
-      await refresh_all(selected_record.provider);
+      setModelOptions(null);
+      await refreshAll(selectedRecord.provider);
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: t("settings.providers.model_options_save_failed_title"),
         message:
@@ -399,41 +399,41 @@ export function useProviderModelActions({
             : t("settings.providers.check_json_format"),
       });
     } finally {
-      set_pending_action(null);
+      setPendingAction(null);
     }
   }, [
-    model_options,
-    pending_action,
-    refresh_all,
-    selected_can_manage,
-    selected_record,
-    set_feedback,
-    set_pending_action,
+    modelOptions,
+    pendingAction,
+    refreshAll,
+    selectedCanManage,
+    selectedRecord,
+    setFeedback,
+    setPendingAction,
     t,
   ]);
 
   return {
-    add_model_open,
-    displayed_models,
-    handle_add_model,
-    handle_fetch_models,
-    handle_open_add_model,
-    handle_save_model_options,
-    handle_test_selection,
-    handle_toggle_model,
-    manual_model_enabled,
-    manual_model_id,
-    manual_model_placeholder,
-    model_options,
-    model_query,
-    reset_model_controls,
-    set_add_model_open,
-    set_manual_model_enabled,
-    set_manual_model_id,
-    set_model_options,
+    add_model_open: addModelOpen,
+    displayed_models: displayedModels,
+    handle_add_model: handleAddModel,
+    handle_fetch_models: handleFetchModels,
+    handle_open_add_model: handleOpenAddModel,
+    handle_save_model_options: handleSaveModelOptions,
+    handle_test_selection: handleTestSelection,
+    handle_toggle_model: handleToggleModel,
+    manual_model_enabled: manualModelEnabled,
+    manual_model_id: manualModelId,
+    manual_model_placeholder: manualModelPlaceholder,
+    model_options: modelOptions,
+    model_query: modelQuery,
+    reset_model_controls: resetModelControls,
+    set_add_model_open: setAddModelOpen,
+    set_manual_model_enabled: setManualModelEnabled,
+    set_manual_model_id: setManualModelId,
+    set_model_options: setModelOptions,
     set_model_options_from_record: (model: ProviderModelRecord) =>
-      set_model_options(model_options_from_record(model)),
-    set_model_query,
-    test_model_options,
+      setModelOptions(model_options_from_record(model)),
+    set_model_query: setModelQuery,
+    test_model_options: testModelOptions,
   };
 }

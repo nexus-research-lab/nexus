@@ -16,24 +16,24 @@ type ConversationStoreSetter = (
     | ((state: ConversationStoreState) => Partial<ConversationStoreState>)
 ) => void;
 
-function dedupe_conversations_by_session_key(
+function dedupeConversationsBySessionKey(
   conversations: Conversation[],
 ): Conversation[] {
-  const unique_conversations = new Map<string, Conversation>();
+  const uniqueConversations = new Map<string, Conversation>();
   for (const conversation of conversations) {
-    const existing_conversation = unique_conversations.get(conversation.session_key);
-    if (!existing_conversation) {
-      unique_conversations.set(conversation.session_key, conversation);
+    const existingConversation = uniqueConversations.get(conversation.session_key);
+    if (!existingConversation) {
+      uniqueConversations.set(conversation.session_key, conversation);
       continue;
     }
 
     // 同一 session_key 必须只保留一条。
     // 冲突时优先使用最近活跃的记录，避免首页和 Launcher 出现重复 key。
-    if (conversation.last_activity_at >= existing_conversation.last_activity_at) {
-      unique_conversations.set(conversation.session_key, conversation);
+    if (conversation.last_activity_at >= existingConversation.last_activity_at) {
+      uniqueConversations.set(conversation.session_key, conversation);
     }
   }
-  return Array.from(unique_conversations.values());
+  return Array.from(uniqueConversations.values());
 }
 
 export const sync_conversation_snapshot_action = (
@@ -47,14 +47,14 @@ export const sync_conversation_snapshot_action = (
     if (idx === -1) return { error: null };
 
     const current = state.conversations[idx];
-    const next_last_activity_at = patch.last_activity_at ?? current.last_activity_at;
-    const next_session_id = patch.session_id ?? current.session_id;
-    const has_changed =
-      current.last_activity_at !== next_last_activity_at ||
-      current.session_id !== next_session_id;
+    const nextLastActivityAt = patch.last_activity_at ?? current.last_activity_at;
+    const nextSessionId = patch.session_id ?? current.session_id;
+    const hasChanged =
+      current.last_activity_at !== nextLastActivityAt ||
+      current.session_id !== nextSessionId;
 
     // 流式过程中会高频同步快照，同值更新必须直接短路，避免触发无意义重渲染。
-    if (!has_changed) {
+    if (!hasChanged) {
       return { error: null };
     }
 
@@ -62,22 +62,22 @@ export const sync_conversation_snapshot_action = (
       ...current,
       ...patch,
     };
-    const activity_changed =
+    const activityChanged =
       patch.last_activity_at !== undefined &&
       patch.last_activity_at !== current.last_activity_at;
 
-    let updated_conversations: Conversation[];
-    if (activity_changed) {
-      updated_conversations = [
+    let updatedConversations: Conversation[];
+    if (activityChanged) {
+      updatedConversations = [
         patched,
         ...state.conversations.slice(0, idx),
         ...state.conversations.slice(idx + 1),
       ];
     } else {
-      updated_conversations = state.conversations.map((c, i) => (i === idx ? patched : c));
+      updatedConversations = state.conversations.map((c, i) => (i === idx ? patched : c));
     }
 
-    return { conversations: updated_conversations, error: null };
+    return { conversations: updatedConversations, error: null };
   });
 };
 
@@ -90,10 +90,10 @@ export const load_conversations_from_server_action = (
     const conversations = await get_conversations();
 
     if (conversations && Array.isArray(conversations)) {
-      const sorted_conversations = dedupe_conversations_by_session_key(conversations)
+      const sortedConversations = dedupeConversationsBySessionKey(conversations)
         .sort((a, b) => b.last_activity_at - a.last_activity_at);
-      console.debug(`[ConversationStore] Loaded ${sorted_conversations.length} conversations`);
-      set({ conversations: sorted_conversations, loading: false, error: null });
+      console.debug(`[ConversationStore] Loaded ${sortedConversations.length} conversations`);
+      set({ conversations: sortedConversations, loading: false, error: null });
     } else {
       set({ loading: false, error: 'Invalid response format' });
     }

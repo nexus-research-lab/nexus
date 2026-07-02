@@ -18,8 +18,8 @@ interface AgentOptionsSkillsTabProps {
 }
 
 export function AgentOptionsSkillsTab({
-  agent_id,
-  is_visible,
+  agent_id: agentId,
+  is_visible: isVisible,
 }: AgentOptionsSkillsTabProps) {
   const { t } = useI18n();
   const [skills, setSkills] = useState<AgentSkillEntry[]>([]);
@@ -31,7 +31,7 @@ export function AgentOptionsSkillsTab({
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const loadSkills = useCallback(async (silent = false) => {
-    if (!agent_id) {
+    if (!agentId) {
       setSkills([]);
       setErrorMessage(null);
       return;
@@ -42,7 +42,7 @@ export function AgentOptionsSkillsTab({
         setLoading(true);
       }
       setErrorMessage(null);
-      const data = await get_agent_skills_api(agent_id);
+      const data = await get_agent_skills_api(agentId);
       setSkills(data);
     } catch (error) {
       setErrorMessage(
@@ -53,35 +53,35 @@ export function AgentOptionsSkillsTab({
         setLoading(false);
       }
     }
-  }, [agent_id, t]);
+  }, [agentId, t]);
 
   useEffect(() => {
-    if (!is_visible) {
+    if (!isVisible) {
       return;
     }
     void loadSkills(false);
 
-    const refresh_silently = () => {
+    const refreshSilently = () => {
       if (document.hidden) {
         return;
       }
       void loadSkills(true);
     };
-    const handle_visibility_change = () => {
+    const handleVisibilityChange = () => {
       if (!document.hidden) {
-        refresh_silently();
+        refreshSilently();
       }
     };
-    const interval_id = window.setInterval(refresh_silently, 5000);
+    const intervalId = window.setInterval(refreshSilently, 5000);
 
-    window.addEventListener("focus", refresh_silently);
-    document.addEventListener("visibilitychange", handle_visibility_change);
+    window.addEventListener("focus", refreshSilently);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      window.clearInterval(interval_id);
-      window.removeEventListener("focus", refresh_silently);
-      document.removeEventListener("visibilitychange", handle_visibility_change);
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshSilently);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [is_visible, loadSkills]);
+  }, [isVisible, loadSkills]);
 
   const handleRefresh = useCallback(() => {
     void loadSkills(false);
@@ -89,7 +89,7 @@ export function AgentOptionsSkillsTab({
 
   const runSkillToggle = useCallback(
     async (skill: AgentSkillEntry) => {
-      if (!agent_id || skill.locked || toggling) {
+      if (!agentId || skill.locked || toggling) {
         return;
       }
 
@@ -97,9 +97,9 @@ export function AgentOptionsSkillsTab({
         setToggling(skill.name);
         setErrorMessage(null);
         if (skill.installed) {
-          await uninstall_skill_api(agent_id, skill.name);
+          await uninstall_skill_api(agentId, skill.name);
         } else {
-          await install_skill_api(agent_id, skill.name);
+          await install_skill_api(agentId, skill.name);
         }
         await loadSkills();
       } catch (error) {
@@ -110,7 +110,7 @@ export function AgentOptionsSkillsTab({
         setToggling(null);
       }
     },
-    [agent_id, loadSkills, toggling, t]
+    [agentId, loadSkills, toggling, t]
   );
 
   const handleSkillAction = useCallback(
@@ -162,7 +162,7 @@ export function AgentOptionsSkillsTab({
     });
   }, [addableSkills, deferredSearchQuery]);
 
-  const render_skill_card = (
+  const renderSkillCard = (
     skill: AgentSkillEntry,
     actionLabel: string,
     tone: "installed" | "add"
@@ -234,7 +234,7 @@ export function AgentOptionsSkillsTab({
           <span className="text-[12px] text-(--text-soft)">{t("agent_options.skills.total", { count: skills.length })}</span>
           <UiIconButton
             aria-label={t("capability.refresh")}
-            disabled={!agent_id || loading}
+            disabled={!agentId || loading}
             onClick={handleRefresh}
             size="sm"
             title={t("capability.refresh")}
@@ -259,7 +259,7 @@ export function AgentOptionsSkillsTab({
         />
       ) : null}
 
-      {!agent_id ? (
+      {!agentId ? (
         <UiStateBlock
           description={t("agent_options.skills.create_first")}
           size="sm"
@@ -267,7 +267,7 @@ export function AgentOptionsSkillsTab({
         />
       ) : null}
 
-      {agent_id && !loading ? (
+      {agentId && !loading ? (
         <>
           <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-4">
@@ -283,7 +283,7 @@ export function AgentOptionsSkillsTab({
               />
             ) : (
               <div className="grid grid-cols-1 gap-1.5">
-                {installedSkills.map((skill) => render_skill_card(skill, t("agent_options.skills.remove"), "installed"))}
+                {installedSkills.map((skill) => renderSkillCard(skill, t("agent_options.skills.remove"), "installed"))}
               </div>
             )}
           </div>
@@ -326,7 +326,7 @@ export function AgentOptionsSkillsTab({
 
             {filteredAddableSkills.length > 0 ? (
               <div className="grid grid-cols-1 gap-1.5">
-                {filteredAddableSkills.map((skill) => render_skill_card(skill, t("agent_options.skills.add_button"), "add"))}
+                {filteredAddableSkills.map((skill) => renderSkillCard(skill, t("agent_options.skills.add_button"), "add"))}
               </div>
             ) : null}
           </div>

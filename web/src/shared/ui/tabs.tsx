@@ -29,35 +29,35 @@ interface UiUnderlineTabsProps<TValue extends string> {
 }
 
 export function UiUnderlineTabs<TValue extends string>({
-  active_value,
-  aria_label,
-  class_name,
+  active_value: activeValue,
+  aria_label: ariaLabel,
+  class_name: className,
   density,
-  item_class_name,
-  nav_anchor,
-  on_change,
+  item_class_name: itemClassName,
+  nav_anchor: navAnchor,
+  on_change: onChange,
   options,
 }: UiUnderlineTabsProps<TValue>) {
   return (
     <nav
-      aria-label={aria_label}
-      className={get_ui_underline_tabs_nav_class_name(class_name)}
-      data-tour-anchor={nav_anchor}
+      aria-label={ariaLabel}
+      className={get_ui_underline_tabs_nav_class_name(className)}
+      data-tour-anchor={navAnchor}
     >
       {options.map((option) => {
         const Icon = option.icon;
-        const is_active = active_value === option.value;
+        const isActive = activeValue === option.value;
         return (
           <button
-            aria-current={is_active ? "page" : undefined}
-            aria-pressed={is_active}
+            aria-current={isActive ? "page" : undefined}
+            aria-pressed={isActive}
             className={get_ui_underline_tab_class_name(
-              { active: is_active, density },
-              item_class_name,
+              { active: isActive, density },
+              itemClassName,
             )}
             data-tour-anchor={option.anchor}
             key={option.value}
-            onClick={() => on_change?.(option.value)}
+            onClick={() => onChange?.(option.value)}
             title={option.title}
             type="button"
           >

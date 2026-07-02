@@ -30,54 +30,54 @@ interface GroupAgentStatusCardProps {
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
-  on_open_agent_contact?: (agent_id: string) => void;
+  on_open_agent_contact?: (agentId: string) => void;
   on_stop_message?: () => void;
 }
 
 /** 紧凑型 Agent 状态卡片 — 每个 Agent 在 Round 中的摘要 */
 function GroupAgentStatusCardInner({
-  agent_id,
-  agent_name,
-  agent_avatar,
+  agent_id: agentId,
+  agent_name: agentName,
+  agent_avatar: agentAvatar,
   messages,
-  result_summary,
-  pending_slot,
+  result_summary: resultSummary,
+  pending_slot: pendingSlot,
   status,
-  pending_permissions = [],
-  is_thread_active,
-  on_click_thread,
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  on_open_agent_contact,
-  on_stop_message,
+  pending_permissions: pendingPermissions = [],
+  is_thread_active: isThreadActive,
+  on_click_thread: onClickThread,
+  on_permission_response: onPermissionResponse,
+  can_respond_to_permissions: canRespondToPermissions = true,
+  permission_read_only_reason: permissionReadOnlyReason,
+  on_open_agent_contact: onOpenAgentContact,
+  on_stop_message: onStopMessage,
 }: GroupAgentStatusCardProps) {
   const preview = useMemo(() => extract_agent_preview_text(messages), [messages]);
-  const primary_pending_permission = pending_permissions[0];
-  const is_question_pending = Boolean(
-    primary_pending_permission
+  const primaryPendingPermission = pendingPermissions[0];
+  const isQuestionPending = Boolean(
+    primaryPendingPermission
     && (
-      primary_pending_permission.interaction_mode === "question"
-      || primary_pending_permission.tool_name === "AskUserQuestion"
+      primaryPendingPermission.interaction_mode === "question"
+      || primaryPendingPermission.tool_name === "AskUserQuestion"
     ),
   );
-  const is_waiting_permission = pending_permissions.length > 0 && (status === "pending" || status === "streaming");
-  const last_msg = messages[messages.length - 1];
-  const can_stop = on_stop_message && (status === "pending" || status === "streaming");
-  const timestamp = last_msg?.timestamp ?? result_summary?.timestamp ?? pending_slot?.timestamp ?? 0;
-  const model = last_msg?.model ?? null;
-  const summary_text = useMemo(() => {
-    const result_text = result_summary?.result?.trim();
-    if (is_waiting_permission) {
-      return can_respond_to_permissions
-        ? (primary_pending_permission?.summary || "等待权限确认")
-        : (permission_read_only_reason || "当前暂不可确认权限");
+  const isWaitingPermission = pendingPermissions.length > 0 && (status === "pending" || status === "streaming");
+  const lastMsg = messages[messages.length - 1];
+  const canStop = onStopMessage && (status === "pending" || status === "streaming");
+  const timestamp = lastMsg?.timestamp ?? resultSummary?.timestamp ?? pendingSlot?.timestamp ?? 0;
+  const model = lastMsg?.model ?? null;
+  const summaryText = useMemo(() => {
+    const resultText = resultSummary?.result?.trim();
+    if (isWaitingPermission) {
+      return canRespondToPermissions
+        ? (primaryPendingPermission?.summary || "等待权限确认")
+        : (permissionReadOnlyReason || "当前暂不可确认权限");
     }
     if (status === "cancelled") {
-      return result_text || "已停止";
+      return resultText || "已停止";
     }
     if (status === "error") {
-      return result_text || "执行失败";
+      return resultText || "执行失败";
     }
     if (preview) {
       return preview;
@@ -89,117 +89,117 @@ function GroupAgentStatusCardInner({
       return "正在回复...";
     }
     return "";
-  }, [can_respond_to_permissions, is_waiting_permission, permission_read_only_reason, preview, primary_pending_permission?.summary, result_summary?.result, status]);
-  const should_render_markdown_summary = Boolean(
+  }, [canRespondToPermissions, isWaitingPermission, permissionReadOnlyReason, preview, primaryPendingPermission?.summary, resultSummary?.result, status]);
+  const shouldRenderMarkdownSummary = Boolean(
     preview
-    && !is_waiting_permission
+    && !isWaitingPermission
     && status !== "cancelled"
     && status !== "error",
   );
 
-  const handle_stop = useCallback(
+  const handleStop = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (on_stop_message) {
-        on_stop_message();
+      if (onStopMessage) {
+        onStopMessage();
       }
     },
-    [on_stop_message],
+    [onStopMessage],
   );
-  const handle_allow = useCallback((e: React.MouseEvent) => {
+  const handleAllow = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (is_question_pending) {
-      on_click_thread();
+    if (isQuestionPending) {
+      onClickThread();
       return;
     }
-    if (!primary_pending_permission || !on_permission_response) {
-      on_click_thread();
+    if (!primaryPendingPermission || !onPermissionResponse) {
+      onClickThread();
       return;
     }
-    on_permission_response({
-      request_id: primary_pending_permission.request_id,
+    onPermissionResponse({
+      request_id: primaryPendingPermission.request_id,
       decision: "allow",
     });
-  }, [is_question_pending, on_click_thread, on_permission_response, primary_pending_permission]);
-  const handle_deny = useCallback((e: React.MouseEvent) => {
+  }, [isQuestionPending, onClickThread, onPermissionResponse, primaryPendingPermission]);
+  const handleDeny = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!primary_pending_permission || !on_permission_response) {
-      on_click_thread();
+    if (!primaryPendingPermission || !onPermissionResponse) {
+      onClickThread();
       return;
     }
-    on_permission_response({
-      request_id: primary_pending_permission.request_id,
+    onPermissionResponse({
+      request_id: primaryPendingPermission.request_id,
       decision: "deny",
     });
-  }, [on_click_thread, on_permission_response, primary_pending_permission]);
-  const handle_toggle_thread = useCallback((e: React.MouseEvent) => {
+  }, [onClickThread, onPermissionResponse, primaryPendingPermission]);
+  const handleToggleThread = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    on_click_thread();
-  }, [on_click_thread]);
-  const handle_open_agent_contact = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    onClickThread();
+  }, [onClickThread]);
+  const handleOpenAgentContact = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    on_open_agent_contact?.(agent_id);
-  }, [agent_id, on_open_agent_contact]);
+    onOpenAgentContact?.(agentId);
+  }, [agentId, onOpenAgentContact]);
 
   return (
     <div
       className={cn(
         "group/card grid min-w-0 grid-cols-[40px_minmax(0,1fr)] gap-3 px-2 py-3 transition-colors duration-(--motion-duration-normal) cursor-pointer",
-        is_thread_active
+        isThreadActive
           ? "bg-primary/5"
           : "hover:bg-(--interaction-hover-background)",
       )}
-      onClick={on_click_thread}
+      onClick={onClickThread}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") on_click_thread(); }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClickThread(); }}
     >
       <MessageAvatar
-        aria_label={`打开 ${agent_name} 的联络`}
-        avatar_url={agent_avatar}
+        aria_label={`打开 ${agentName} 的联络`}
+        avatar_url={agentAvatar}
         class_name="shrink-0"
-        on_click={on_open_agent_contact ? handle_open_agent_contact : undefined}
+        on_click={onOpenAgentContact ? handleOpenAgentContact : undefined}
         size="full"
-        title={`打开 ${agent_name} 的联络`}
+        title={`打开 ${agentName} 的联络`}
       >
-        {!agent_avatar && <Bot className="h-4 w-4" />}
+        {!agentAvatar && <Bot className="h-4 w-4" />}
       </MessageAvatar>
 
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-sm font-bold text-(--text-strong)">{agent_name}</span>
-          {(status === "pending" || status === "streaming") && !is_waiting_permission ? (
+          <span className="shrink-0 text-sm font-bold text-(--text-strong)">{agentName}</span>
+          {(status === "pending" || status === "streaming") && !isWaitingPermission ? (
             <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
           ) : null}
           <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
-            {timestamp ? format_time(timestamp) : "--:--"}
+            {timestamp ? formatTime(timestamp) : "--:--"}
           </span>
           {model ? <span className="min-w-0 truncate text-xs text-(--text-soft)">{model}</span> : null}
           <div className="min-w-0 flex-1" />
 
           <button
             type="button"
-            onClick={handle_toggle_thread}
+            onClick={handleToggleThread}
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
-              is_thread_active
+              isThreadActive
                 ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
                 : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
           >
-            {is_thread_active ? "关闭 Thread" : "查看 Thread"}
+            {isThreadActive ? "关闭 Thread" : "查看 Thread"}
           </button>
 
-          {is_waiting_permission ? (
+          {isWaitingPermission ? (
             <>
               <button
                 type="button"
-                onClick={handle_deny}
-                disabled={!can_respond_to_permissions}
-                title={!can_respond_to_permissions ? permission_read_only_reason : undefined}
+                onClick={handleDeny}
+                disabled={!canRespondToPermissions}
+                title={!canRespondToPermissions ? permissionReadOnlyReason : undefined}
                 className={cn(
                   "rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-[11px] font-medium text-(--text-default) transition-colors",
-                  can_respond_to_permissions
+                  canRespondToPermissions
                     ? "hover:bg-(--interaction-hover-background)"
                     : "cursor-not-allowed opacity-(--disabled-opacity)",
                 )}
@@ -208,25 +208,25 @@ function GroupAgentStatusCardInner({
               </button>
               <button
                 type="button"
-                onClick={handle_allow}
-                disabled={!can_respond_to_permissions}
-                title={!can_respond_to_permissions ? permission_read_only_reason : undefined}
+                onClick={handleAllow}
+                disabled={!canRespondToPermissions}
+                title={!canRespondToPermissions ? permissionReadOnlyReason : undefined}
                 className={cn(
                   "rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors",
-                  can_respond_to_permissions
+                  canRespondToPermissions
                     ? "bg-primary hover:bg-primary/88"
                     : "cursor-not-allowed bg-(--muted)",
                 )}
               >
-                {is_question_pending ? "去回答" : "允许"}
+                {isQuestionPending ? "去回答" : "允许"}
               </button>
             </>
           ) : null}
 
-          {can_stop ? (
+          {canStop ? (
             <button
               type="button"
-              onClick={handle_stop}
+              onClick={handleStop}
               className="flex h-6 items-center gap-1 rounded px-1.5 text-xs text-(--icon-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--icon-default)"
             >
               <Square className="h-3 w-3 fill-current" />
@@ -235,12 +235,12 @@ function GroupAgentStatusCardInner({
         </div>
 
         <div className="min-w-0 pt-1">
-          {should_render_markdown_summary ? (
+          {shouldRenderMarkdownSummary ? (
             <MarkdownRendererContent
               content={preview}
               variant="summary"
               class_name="line-clamp-1 text-(--text-strong)"
-              workspace_agent_id={agent_id}
+              workspace_agent_id={agentId}
             />
           ) : (
             <p
@@ -250,12 +250,12 @@ function GroupAgentStatusCardInner({
                   ? "text-(--destructive)"
                   : status === "cancelled"
                     ? "text-(--text-soft) italic"
-                    : is_waiting_permission
+                    : isWaitingPermission
                       ? "text-(--text-default)"
                       : "text-(--text-strong)",
               )}
             >
-              {summary_text}
+              {summaryText}
             </p>
           )}
         </div>
@@ -266,7 +266,7 @@ function GroupAgentStatusCardInner({
 
 export const GroupAgentStatusCard = memo(GroupAgentStatusCardInner);
 
-function format_time(timestamp: number): string {
+function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",

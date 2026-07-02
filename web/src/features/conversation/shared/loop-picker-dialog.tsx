@@ -32,7 +32,7 @@ interface LoopPickerState {
   loops: LoopCatalogItem[];
 }
 
-function matches_loop(loop: LoopCatalogItem, query: string): boolean {
+function matchesLoop(loop: LoopCatalogItem, query: string): boolean {
   if (!query) {
     return true;
   }
@@ -47,41 +47,41 @@ function matches_loop(loop: LoopCatalogItem, query: string): boolean {
 }
 
 export function LoopPickerDialog({
-  is_open,
-  on_close,
-  on_select,
+  is_open: isOpen,
+  on_close: onClose,
+  on_select: onSelect,
 }: LoopPickerDialogProps) {
   const { locale, t } = useI18n();
-  const [loop_state, set_loop_state] = useResettableState<LoopPickerState>(
-    { error: null, loading: is_open, loops: [] },
-    `${is_open ? "open" : "closed"}\x1f${locale}`,
+  const [loopState, setLoopState] = useResettableState<LoopPickerState>(
+    { error: null, loading: isOpen, loops: [] },
+    `${isOpen ? "open" : "closed"}\x1f${locale}`,
   );
-  const { error, loading, loops } = loop_state;
-  const [query, set_query] = useState("");
-  const [category, set_category] = useState(ALL_CATEGORIES);
-  const [busy_slug, set_busy_slug] = useState<string | null>(null);
-  const search_input_ref = useRef<HTMLInputElement>(null);
+  const { error, loading, loops } = loopState;
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState(ALL_CATEGORIES);
+  const [busySlug, setBusySlug] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (is_open) {
-      search_input_ref.current?.focus();
+    if (isOpen) {
+      searchInputRef.current?.focus();
     }
-  }, [is_open]);
+  }, [isOpen]);
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
     let cancelled = false;
     list_loops_api(locale)
       .then((items) => {
         if (!cancelled) {
-          set_loop_state({ error: null, loading: false, loops: items });
+          setLoopState({ error: null, loading: false, loops: items });
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          set_loop_state({
+          setLoopState({
             error: err instanceof Error ? err.message : t("composer.loop_picker_failed"),
             loading: false,
             loops: [],
@@ -91,9 +91,9 @@ export function LoopPickerDialog({
     return () => {
       cancelled = true;
     };
-  }, [is_open, locale, set_loop_state, t]);
+  }, [isOpen, locale, setLoopState, t]);
 
-  const category_options = useMemo(() => {
+  const categoryOptions = useMemo(() => {
     const categories = Array.from(new Set(loops.map((loop) => loop.category))).sort();
     return [
       { value: ALL_CATEGORIES, label: t("capability.category_all") },
@@ -101,44 +101,44 @@ export function LoopPickerDialog({
     ];
   }, [loops, t]);
 
-  const filtered_loops = useMemo(() => {
-    const normalized_query = query.trim().toLowerCase();
+  const filteredLoops = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
     return loops.filter((loop) =>
       (category === ALL_CATEGORIES || loop.category === category) &&
-      matches_loop(loop, normalized_query),
+      matchesLoop(loop, normalizedQuery),
     );
   }, [category, loops, query]);
 
-  const handle_select = useCallback(async (loop: LoopCatalogItem) => {
-    set_busy_slug(loop.slug);
-    set_loop_state((current) => ({ ...current, error: null }));
+  const handleSelect = useCallback(async (loop: LoopCatalogItem) => {
+    setBusySlug(loop.slug);
+    setLoopState((current) => ({ ...current, error: null }));
     try {
-      await on_select(loop);
-      on_close();
+      await onSelect(loop);
+      onClose();
     } catch (err) {
-      set_loop_state((current) => ({
+      setLoopState((current) => ({
         ...current,
         error: err instanceof Error ? err.message : t("composer.loop_picker_failed"),
       }));
     } finally {
-      set_busy_slug(null);
+      setBusySlug(null);
     }
-  }, [on_close, on_select, set_loop_state, t]);
+  }, [onClose, onSelect, setLoopState, t]);
 
-  if (!is_open) {
+  if (!isOpen) {
     return null;
   }
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop on_close={on_close}>
+      <UiDialogBackdrop on_close={onClose}>
         <UiDialogShell
           size="lg"
           style={{ maxHeight: "min(640px, calc(100vh - 96px))" }}
         >
           <UiDialogHeader
             icon={<Repeat2 className="h-4 w-4" />}
-            on_close={on_close}
+            on_close={onClose}
             subtitle={t("composer.loop_picker_subtitle")}
             title={t("composer.loop_picker_title")}
           />
@@ -148,16 +148,16 @@ export function LoopPickerDialog({
                 aria-label={t("composer.loop_search_placeholder")}
                 class_name="min-w-0 flex-1"
                 input_class_name="text-[13px]"
-                ref={search_input_ref}
-                on_change={set_query}
+                ref={searchInputRef}
+                on_change={setQuery}
                 placeholder={t("composer.loop_search_placeholder")}
                 value={query}
               />
               <UiSelectMenu
                 aria_label={t("capability.loops_filter_aria")}
                 class_name="sm:w-[180px]"
-                on_change={set_category}
-                options={category_options}
+                on_change={setCategory}
+                options={categoryOptions}
                 size="sm"
                 surface="dialog"
                 value={category}
@@ -172,23 +172,23 @@ export function LoopPickerDialog({
               <div className="py-10 text-center text-[13px] text-(--destructive)">
                 {error}
               </div>
-            ) : filtered_loops.length === 0 ? (
+            ) : filteredLoops.length === 0 ? (
               <div className="py-10 text-center text-[13px] text-(--text-muted)">
                 {t("composer.loop_picker_empty")}
               </div>
             ) : (
               <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
                 <div className="grid grid-cols-1 gap-2">
-                {filtered_loops.map((loop) => (
+                {filteredLoops.map((loop) => (
                   <div
                     className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-raised-background) p-3 transition-colors hover:bg-(--surface-interactive-hover-background)"
                     key={loop.slug}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button
-                        disabled={busy_slug !== null}
+                        disabled={busySlug !== null}
                         className="min-w-0 flex-1 text-left"
-                        onClick={() => void handle_select(loop)}
+                        onClick={() => void handleSelect(loop)}
                         type="button"
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -208,13 +208,13 @@ export function LoopPickerDialog({
                       </button>
                       <div className="mt-1 flex shrink-0 flex-col gap-1.5">
                         <UiButton
-                          disabled={busy_slug !== null}
-                          onClick={() => void handle_select(loop)}
+                          disabled={busySlug !== null}
+                          onClick={() => void handleSelect(loop)}
                           size="xs"
                           tone="primary"
                           variant="solid"
                         >
-                          {busy_slug === loop.slug ? t("composer.loop_starting") : t("composer.use_loop")}
+                          {busySlug === loop.slug ? t("composer.loop_starting") : t("composer.use_loop")}
                         </UiButton>
                       </div>
                     </div>

@@ -29,17 +29,17 @@ export type TokenBrandStyle = {
 export function create_token_config(tokens: SpotlightToken[], width: number): TokenPhysicsConfig[] {
   const horizontalPadding = 108;
   return tokens.map((token, index) => {
-    const seed = hash_string(token.key);
+    const seed = hashString(token.key);
     const baseSize = token.kind === "agent" ? 40 : 44;
-    const size = baseSize + Math.round(seeded_unit(seed, 1) * 12);
+    const size = baseSize + Math.round(seededUnit(seed, 1) * 12);
     return {
       key: token.key,
       size,
       radius: token.kind === "agent" ? size / 2 : Math.max(12, Math.round(size * 0.28)),
       spawn_x:
-        horizontalPadding + seeded_unit(seed, 2) * Math.max(width - horizontalPadding * 2, 72),
-      spawn_y: -180 - seeded_unit(seed, 3) * 240 - index * 14,
-      angle: ((seeded_unit(seed, 4) * 36 - 18) * Math.PI) / 180,
+        horizontalPadding + seededUnit(seed, 2) * Math.max(width - horizontalPadding * 2, 72),
+      spawn_y: -180 - seededUnit(seed, 3) * 240 - index * 14,
+      angle: ((seededUnit(seed, 4) * 36 - 18) * Math.PI) / 180,
       delay: 40 + index * 55,
     };
   });
@@ -61,7 +61,7 @@ export function hex_to_rgba(hex: string, alpha: number) {
 }
 
 export function get_token_brand_style(token: SpotlightToken): TokenBrandStyle {
-  const hash = hash_string(token.key);
+  const hash = hashString(token.key);
   const variant = hash % 5;
 
   if (variant === 0) {
@@ -120,7 +120,7 @@ export function get_token_brand_style(token: SpotlightToken): TokenBrandStyle {
 
   if (variant === 3) {
     return {
-      label_class_name: get_label_size(token.label),
+      label_class_name: getLabelSize(token.label),
       label_transform: "capitalize",
       tag: token.kind === "agent" ? "ai" : "hub",
       tag_class_name: "text-[6px] tracking-[0.28em]",
@@ -153,19 +153,19 @@ export function get_token_brand_style(token: SpotlightToken): TokenBrandStyle {
   };
 }
 
-function seeded_unit(seed: number, salt: number) {
+function seededUnit(seed: number, salt: number) {
   const value = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
   return value - Math.floor(value);
 }
 
-function get_label_size(label: string) {
+function getLabelSize(label: string) {
   if (label.length >= 3) {
     return "text-2xs";
   }
   return "text-sm";
 }
 
-function hash_string(value: string) {
+function hashString(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
     hash = (hash * 31 + value.charCodeAt(index)) >>> 0;

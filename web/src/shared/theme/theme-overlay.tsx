@@ -30,7 +30,7 @@ const RAIN_LAYERS = [
   { count: 120, len: [4, 9] as [number, number], speed: 9, w: 0.4, c: [170, 180, 200] as const, a: [0.06, 0.15] as [number, number], sc: 0.02 },
 ];
 
-function make_drops(W: number, H: number): RainDrop[] {
+function makeDrops(W: number, H: number): RainDrop[] {
   return RAIN_LAYERS.flatMap(l =>
     Array.from({ length: l.count }, () => ({
       x: Math.random() * (W + 60) - 30,
@@ -47,7 +47,7 @@ function make_drops(W: number, H: number): RainDrop[] {
 }
 
 /** 雨滴 + 水花渲染（纯函数，无副作用） */
-function draw_rain(
+function drawRain(
   ctx: CanvasRenderingContext2D,
   W: number, H: number,
   drops: RainDrop[],
@@ -123,7 +123,7 @@ function RainCanvas({ active }: { active: boolean }) {
       canvas.style.width = s.W + "px";
       canvas.style.height = s.H + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      s.drops = make_drops(s.W, s.H);
+      s.drops = makeDrops(s.W, s.H);
       s.splashes.length = 0;
     };
 
@@ -152,7 +152,7 @@ function RainCanvas({ active }: { active: boolean }) {
     let running = true;
     const tick = () => {
       if (!running) return;
-      draw_rain(ctx, s.W, s.H, s.drops, s.splashes);
+      drawRain(ctx, s.W, s.H, s.drops, s.splashes);
       s.raf = requestAnimationFrame(tick);
     };
     s.raf = requestAnimationFrame(tick);
@@ -167,10 +167,10 @@ function RainCanvas({ active }: { active: boolean }) {
 }
 
 function SunnyLeavesVideo({ active }: { active: boolean }) {
-  const video_ref = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const video = video_ref.current;
+    const video = videoRef.current;
     if (!video) {
       return;
     }
@@ -181,16 +181,16 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
       return;
     }
 
-    const play_result = video.play();
-    if (play_result && typeof play_result.catch === "function") {
-      play_result.catch((err: unknown) => console.debug("[theme-overlay] Video autoplay blocked:", err));
+    const playResult = video.play();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch((err: unknown) => console.debug("[theme-overlay] Video autoplay blocked:", err));
     }
   }, [active]);
 
   return (
     <video
       aria-label="主题动态背景"
-      ref={video_ref}
+      ref={videoRef}
       src="/sunny/leaves.mp4"
       muted
       loop
@@ -214,13 +214,13 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
 export function ThemeOverlay() {
   const { theme } = useTheme();
   const T = "opacity 700ms var(--motion-ease-standard)";
-  const is_sunny = theme === "sunny";
-  const is_rain = theme === "rain";
+  const isSunny = theme === "sunny";
+  const isRain = theme === "rain";
 
   return (
     <>
       {/* ── Sunny leaves overlay：亮色底盘复用 light，只叠加轻量树荫视频层 ── */}
-      {is_sunny ? (
+      {isSunny ? (
         <div
           aria-hidden
           style={{
@@ -230,12 +230,12 @@ export function ThemeOverlay() {
             maskImage: "linear-gradient(180deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.9) 18%, rgba(0,0,0,0.66) 42%, rgba(0,0,0,0.28) 68%, rgba(0,0,0,0.08) 82%, transparent 92%)",
           }}
         >
-          <SunnyLeavesVideo active={is_sunny} />
+          <SunnyLeavesVideo active={isSunny} />
         </div>
       ) : null}
 
       {/* ── Rain fog layer ── */}
-      {is_rain ? (
+      {isRain ? (
         <div
           aria-hidden
           style={{
@@ -248,7 +248,7 @@ export function ThemeOverlay() {
       ) : null}
 
       {/* ── Rain canvas ── */}
-      {is_rain ? (
+      {isRain ? (
         <div
           aria-hidden
           style={{
@@ -256,7 +256,7 @@ export function ThemeOverlay() {
             opacity: 1, transition: T,
           }}
         >
-          <RainCanvas active={is_rain} />
+          <RainCanvas active={isRain} />
         </div>
       ) : null}
     </>

@@ -65,37 +65,37 @@ const STATUS_OPTIONS = [
 
 export function MemoryPanel() {
   const { t } = useI18n();
-  const [items, set_items] = useState<MemoryItem[]>([]);
-  const [stats, set_stats] = useState<MemoryStats | null>(null);
-  const [status, set_status] = useState("");
-  const [query, set_query] = useState("");
-  const [new_title, set_new_title] = useState("");
-  const [new_content, set_new_content] = useState("");
-  const [editing_id, set_editing_id] = useState("");
-  const [editing_content, set_editing_content] = useState("");
-  const [loading, set_loading] = useState(false);
-  const [cleaning, set_cleaning] = useState(false);
-  const [mutating_id, set_mutating_id] = useState("");
-  const [feedback, set_feedback] = useState<FeedbackState | null>(null);
+  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [stats, setStats] = useState<MemoryStats | null>(null);
+  const [status, setStatus] = useState("");
+  const [query, setQuery] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [editingContent, setEditingContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [mutatingId, setMutatingId] = useState("");
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
   const refresh = useCallback(async () => {
-    set_loading(true);
+    setLoading(true);
     try {
-      const [next_items, next_stats] = await Promise.all([
+      const [nextItems, nextStats] = await Promise.all([
         query.trim()
           ? search_user_memory_items_api(query.trim(), 100)
           : list_user_memory_items_api({ limit: 200, status }),
         get_user_memory_stats_api(),
       ]);
-      set_items(next_items);
-      set_stats(next_stats);
+      setItems(nextItems);
+      setStats(nextStats);
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         message: error instanceof Error ? error.message : "刷新记忆失败",
       });
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
   }, [query, status]);
 
@@ -103,95 +103,95 @@ export function MemoryPanel() {
     void refresh();
   }, [refresh]);
 
-  const handle_add = async () => {
-    if (!new_content.trim()) {
+  const handleAdd = async () => {
+    if (!newContent.trim()) {
       return;
     }
-    set_loading(true);
+    setLoading(true);
     try {
       await add_user_memory_item_api({
-        title: new_title.trim(),
-        content: new_content.trim(),
+        title: newTitle.trim(),
+        content: newContent.trim(),
         kind: "LRN",
         category: "preference",
         status: "candidate",
         priority: "medium",
         source: "manual",
       });
-      set_new_title("");
-      set_new_content("");
-      set_feedback({ tone: "success", message: "记忆已加入候选区" });
+      setNewTitle("");
+      setNewContent("");
+      setFeedback({ tone: "success", message: "记忆已加入候选区" });
       await refresh();
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         message: error instanceof Error ? error.message : "新增记忆失败",
       });
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
   };
 
-  const mutate_item = async (
+  const mutateItem = async (
     item: MemoryItem,
     action: "promote" | "ignore" | "delete" | "save",
   ) => {
     if (action === "delete" && !window.confirm("确定删除这条记忆？删除后不会参与召回。")) {
       return;
     }
-    set_mutating_id(item.entry_id);
+    setMutatingId(item.entry_id);
     try {
       if (action === "promote") {
         await promote_user_memory_item_api(item.entry_id, "memory");
-        set_feedback({ tone: "success", message: "记忆已提升到 MEMORY.md" });
+        setFeedback({ tone: "success", message: "记忆已提升到 MEMORY.md" });
       } else if (action === "ignore") {
         await ignore_user_memory_item_api(item.entry_id);
-        set_feedback({ tone: "success", message: "候选记忆已忽略" });
+        setFeedback({ tone: "success", message: "候选记忆已忽略" });
       } else if (action === "delete") {
         await delete_user_memory_item_api(item.entry_id);
-        set_feedback({ tone: "success", message: "记忆已删除" });
+        setFeedback({ tone: "success", message: "记忆已删除" });
       } else {
         await update_user_memory_item_api(item.entry_id, {
-          content: editing_content,
+          content: editingContent,
         });
-        set_editing_id("");
-        set_editing_content("");
-        set_feedback({ tone: "success", message: "记忆已保存" });
+        setEditingId("");
+        setEditingContent("");
+        setFeedback({ tone: "success", message: "记忆已保存" });
       }
       await refresh();
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         message: error instanceof Error ? error.message : "操作失败",
       });
     } finally {
-      set_mutating_id("");
+      setMutatingId("");
     }
   };
 
-  const handle_cleanup = async () => {
+  const handleCleanup = async () => {
     if (!window.confirm("清理无有效条目关联的会话摘要和检查点？")) {
       return;
     }
-    set_cleaning(true);
+    setCleaning(true);
     try {
       const result = await cleanup_user_memory_api();
-      set_feedback({
+      setFeedback({
         tone: "success",
         message: `已清理 ${result.removed_session_files + result.removed_checkpoints + result.removed_empty_diaries} 项脏数据`,
       });
       await refresh();
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         message: error instanceof Error ? error.message : "清理记忆失败",
       });
     } finally {
-      set_cleaning(false);
+      setCleaning(false);
     }
   };
 
-  const stat_items: Array<[string, number]> = [
+  const statItems: Array<[string, number]> = [
     ["总数", stats?.total ?? 0],
     ["候选", stats?.candidate ?? 0],
     ["已访问", stats?.accessed ?? 0],
@@ -214,7 +214,7 @@ export function MemoryPanel() {
                 <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
                 {t("capability.refresh")}
               </WorkspaceSurfaceToolbarAction>
-              <WorkspaceSurfaceToolbarAction disabled={cleaning} onClick={handle_cleanup}>
+              <WorkspaceSurfaceToolbarAction disabled={cleaning} onClick={handleCleanup}>
                 <Eraser className={cn("h-3.5 w-3.5", cleaning && "animate-pulse")} />
                 清理
               </WorkspaceSurfaceToolbarAction>
@@ -230,13 +230,13 @@ export function MemoryPanel() {
       >
         <CapabilityFilterBar>
           <CapabilityFilterSearchInput
-            on_change={set_query}
+            on_change={setQuery}
             placeholder={t("capability.memory_search_placeholder")}
             value={query}
           />
           <CapabilityFilterSelect
             aria_label={t("capability.memory_filter_status_aria")}
-            on_change={set_status}
+            on_change={setStatus}
             options={STATUS_OPTIONS}
             value={status}
           />
@@ -244,7 +244,7 @@ export function MemoryPanel() {
 
         <CapabilitySectionHeader title={t("capability.memory_overview_title")} />
         <section className="mb-5 grid gap-3 sm:grid-cols-4">
-          {stat_items.map(([label, value]) => (
+          {statItems.map(([label, value]) => (
             <div
               className="min-w-0 rounded-[12px] border border-(--divider-subtle-color) px-3 py-2.5"
               key={label}
@@ -266,20 +266,20 @@ export function MemoryPanel() {
           </div>
           <div className="grid gap-2 md:grid-cols-[220px_1fr_auto]">
             <UiInput
-              onChange={(event) => set_new_title(event.target.value)}
+              onChange={(event) => setNewTitle(event.target.value)}
               placeholder="标题"
-              value={new_title}
+              value={newTitle}
               variant="surface"
             />
             <UiInput
-              onChange={(event) => set_new_content(event.target.value)}
+              onChange={(event) => setNewContent(event.target.value)}
               placeholder="新增候选记忆"
-              value={new_content}
+              value={newContent}
               variant="surface"
             />
             <UiButton
-              disabled={!new_content.trim() || loading}
-              onClick={handle_add}
+              disabled={!newContent.trim() || loading}
+              onClick={handleAdd}
               type="button"
             >
               <Check className="h-3.5 w-3.5" />
@@ -298,8 +298,8 @@ export function MemoryPanel() {
           ) : (
             <div className="divide-y divide-(--divider-subtle-color)">
               {items.map((item) => {
-                const is_editing = editing_id === item.entry_id;
-                const is_mutating = mutating_id === item.entry_id;
+                const isEditing = editingId === item.entry_id;
+                const isMutating = mutatingId === item.entry_id;
                 return (
                   <article className="grid min-h-[132px] gap-3 px-4 py-3 md:grid-cols-[1fr_auto]" key={item.entry_id}>
                     <div className="min-w-0">
@@ -321,12 +321,12 @@ export function MemoryPanel() {
                         <MemoryMetaChip>access {item.access_count}</MemoryMetaChip>
                         {item.score !== undefined ? <MemoryMetaChip>{format_memory_score(item.score)}</MemoryMetaChip> : null}
                       </div>
-                      {is_editing ? (
+                      {isEditing ? (
                         <UiTextarea
                           class_name="mt-2"
                           control_size="md"
-                          onChange={(event) => set_editing_content(event.target.value)}
-                          value={editing_content}
+                          onChange={(event) => setEditingContent(event.target.value)}
+                          value={editingContent}
                           variant="surface"
                         />
                       ) : (
@@ -336,11 +336,11 @@ export function MemoryPanel() {
                       )}
                     </div>
                     <div className="flex items-start gap-1 md:pt-0.5">
-                      {is_editing ? (
+                      {isEditing ? (
                         <>
                           <UiIconButton
-                            disabled={is_mutating}
-                            onClick={() => void mutate_item(item, "save")}
+                            disabled={isMutating}
+                            onClick={() => void mutateItem(item, "save")}
                             size="md"
                             title="保存"
                             type="button"
@@ -348,7 +348,7 @@ export function MemoryPanel() {
                             <Check className="h-3.5 w-3.5" />
                           </UiIconButton>
                           <UiIconButton
-                            onClick={() => set_editing_id("")}
+                            onClick={() => setEditingId("")}
                             size="md"
                             title="取消"
                             type="button"
@@ -359,10 +359,10 @@ export function MemoryPanel() {
                       ) : (
                         <>
                           <UiIconButton
-                            disabled={is_mutating}
+                            disabled={isMutating}
                             onClick={() => {
-                              set_editing_id(item.entry_id);
-                              set_editing_content(item.content);
+                              setEditingId(item.entry_id);
+                              setEditingContent(item.content);
                             }}
                             size="md"
                             title="编辑"
@@ -371,8 +371,8 @@ export function MemoryPanel() {
                             <Database className="h-3.5 w-3.5" />
                           </UiIconButton>
                           <UiIconButton
-                            disabled={is_mutating}
-                            onClick={() => void mutate_item(item, "promote")}
+                            disabled={isMutating}
+                            onClick={() => void mutateItem(item, "promote")}
                             size="md"
                             title="提升"
                             type="button"
@@ -380,8 +380,8 @@ export function MemoryPanel() {
                             <ShieldCheck className="h-3.5 w-3.5" />
                           </UiIconButton>
                           <UiIconButton
-                            disabled={is_mutating}
-                            onClick={() => void mutate_item(item, "ignore")}
+                            disabled={isMutating}
+                            onClick={() => void mutateItem(item, "ignore")}
                             size="md"
                             title="忽略"
                             type="button"
@@ -389,8 +389,8 @@ export function MemoryPanel() {
                             <X className="h-3.5 w-3.5" />
                           </UiIconButton>
                           <UiIconButton
-                            disabled={is_mutating}
-                            onClick={() => void mutate_item(item, "delete")}
+                            disabled={isMutating}
+                            onClick={() => void mutateItem(item, "delete")}
                             size="md"
                             title="删除"
                             tone="danger"
@@ -413,7 +413,7 @@ export function MemoryPanel() {
           {
             key: "memory-feedback",
             message: feedback.message,
-            on_dismiss: () => set_feedback(null),
+            on_dismiss: () => setFeedback(null),
             title: feedback.tone === "error" ? "操作失败" : feedback.tone === "warning" ? "需要注意" : "操作完成",
             tone: feedback.tone,
           },

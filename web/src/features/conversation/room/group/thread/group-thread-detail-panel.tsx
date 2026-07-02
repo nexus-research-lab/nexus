@@ -26,7 +26,7 @@ interface GroupThreadDetailPanelProps {
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
   on_close: () => void;
-  on_stop_message?: (msg_id: string) => void;
+  on_stop_message?: (msgId: string) => void;
   on_open_workspace_file?: (path: string) => void;
   is_loading?: boolean;
   /** mobile 模式下使用全屏样式 */
@@ -38,51 +38,51 @@ interface GroupThreadDetailPanelProps {
  * 上游已经完成消息过滤，这里只负责展示。
  */
 export function GroupThreadDetailPanel({
-  round_id,
-  agent_id,
-  agent_name,
-  agent_avatar,
-  user_avatar,
+  round_id: roundId,
+  agent_id: agentId,
+  agent_name: agentName,
+  agent_avatar: agentAvatar,
+  user_avatar: userAvatar,
   messages,
-  pending_permissions = [],
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  on_close,
-  on_stop_message,
-  on_open_workspace_file,
-  is_loading = false,
+  pending_permissions: pendingPermissions = [],
+  on_permission_response: onPermissionResponse,
+  can_respond_to_permissions: canRespondToPermissions = true,
+  permission_read_only_reason: permissionReadOnlyReason,
+  on_close: onClose,
+  on_stop_message: onStopMessage,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  is_loading: isLoading = false,
   layout = "desktop",
 }: GroupThreadDetailPanelProps) {
-  const is_mobile = layout === "mobile";
-  const thread_session_key = useMemo(
-    () => `${round_id}:${agent_id}`,
-    [agent_id, round_id],
+  const isMobile = layout === "mobile";
+  const threadSessionKey = useMemo(
+    () => `${roundId}:${agentId}`,
+    [agentId, roundId],
   );
   const {
-    scroll_ref,
-    feed_ref,
-    bottom_anchor_ref,
-    on_scroll,
-    on_touch_end,
-    on_touch_move,
-    on_touch_start,
-    on_wheel,
-    show_scroll_to_bottom,
-    scroll_to_bottom,
+    scroll_ref: scrollRef,
+    feed_ref: feedRef,
+    bottom_anchor_ref: bottomAnchorRef,
+    on_scroll: onScroll,
+    on_touch_end: onTouchEnd,
+    on_touch_move: onTouchMove,
+    on_touch_start: onTouchStart,
+    on_wheel: onWheel,
+    show_scroll_to_bottom: showScrollToBottom,
+    scroll_to_bottom: scrollToBottom,
   } = useFollowScroll({
     // Thread 和 DM 实时态一样，需要在过程消息、权限确认和 loading 变化时持续跟随到底部。
     message_count: messages.length,
-    auxiliary_block_count: pending_permissions.length,
-    is_loading,
-    session_key: thread_session_key,
+    auxiliary_block_count: pendingPermissions.length,
+    is_loading: isLoading,
+    session_key: threadSessionKey,
   });
 
   return (
     <div
       className={cn(
         "relative flex h-full min-w-0 w-full flex-1 flex-col overflow-hidden",
-        is_mobile ? "bg-(--surface-panel-background)" : "bg-transparent",
+        isMobile ? "bg-(--surface-panel-background)" : "bg-transparent",
       )}
     >
       {/* ── 头部 ────────────────────────────────────────────── */}
@@ -90,10 +90,10 @@ export function GroupThreadDetailPanel({
         className="flex shrink-0 items-center gap-2 border-b px-3 py-3"
         style={{ borderColor: "var(--divider-subtle-color)" }}
       >
-        {is_mobile ? (
+        {isMobile ? (
           <button
             type="button"
-            onClick={on_close}
+            onClick={onClose}
             aria-label="关闭 Thread"
             title="关闭 Thread"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
@@ -103,23 +103,23 @@ export function GroupThreadDetailPanel({
         ) : null}
 
         <MessageAvatar
-          avatar_url={agent_avatar}
+          avatar_url={agentAvatar}
           class_name="h-8 w-8 shrink-0 rounded-xl"
           size="full"
         >
-          {!agent_avatar && <Bot className="h-3.5 w-3.5" />}
+          {!agentAvatar && <Bot className="h-3.5 w-3.5" />}
         </MessageAvatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-(--text-strong)">
-            {agent_name}
+            {agentName}
           </p>
           <p className="text-xs text-(--text-soft)">Thread</p>
         </div>
 
-        {!is_mobile ? (
+        {!isMobile ? (
           <button
             type="button"
-            onClick={on_close}
+            onClick={onClose}
             aria-label="关闭 Thread"
             title="关闭 Thread"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
@@ -131,45 +131,45 @@ export function GroupThreadDetailPanel({
 
       {/* ── 内容区 ────────────────────────────────────────────── */}
       <div
-        ref={scroll_ref}
+        ref={scrollRef}
         className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-3"
-        onScroll={on_scroll}
-        onTouchEnd={on_touch_end}
-        onTouchMove={on_touch_move}
-        onTouchStart={on_touch_start}
-        onWheel={on_wheel}
+        onScroll={onScroll}
+        onTouchEnd={onTouchEnd}
+        onTouchMove={onTouchMove}
+        onTouchStart={onTouchStart}
+        onWheel={onWheel}
       >
-        <div ref={feed_ref}>
+        <div ref={feedRef}>
           <MessageItem
             compact
-            current_agent_name={agent_name}
-            current_agent_avatar={agent_avatar ?? null}
-            workspace_agent_id={agent_id}
-            current_user_avatar={user_avatar ?? null}
-            round_id={round_id}
+            current_agent_name={agentName}
+            current_agent_avatar={agentAvatar ?? null}
+            workspace_agent_id={agentId}
+            current_user_avatar={userAvatar ?? null}
+            round_id={roundId}
             messages={messages}
-            pending_permissions={pending_permissions}
-            on_permission_response={on_permission_response}
-            can_respond_to_permissions={can_respond_to_permissions}
-            permission_read_only_reason={permission_read_only_reason}
+            pending_permissions={pendingPermissions}
+            on_permission_response={onPermissionResponse}
+            can_respond_to_permissions={canRespondToPermissions}
+            permission_read_only_reason={permissionReadOnlyReason}
             assistant_content_mode="room_thread"
             is_last_round
-            is_loading={is_loading}
+            is_loading={isLoading}
             default_process_expanded
-            on_open_workspace_file={on_open_workspace_file}
-            on_stop_message={on_stop_message}
+            on_open_workspace_file={onOpenWorkspaceFile}
+            on_stop_message={onStopMessage}
             class_name="max-w-full overflow-x-hidden"
           />
-          <div ref={bottom_anchor_ref} className="h-px w-full" />
+          <div ref={bottomAnchorRef} className="h-px w-full" />
         </div>
       </div>
 
-      {show_scroll_to_bottom ? (
+      {showScrollToBottom ? (
         <ScrollToLatestButton
-          is_loading={is_loading}
-          is_mobile_layout={is_mobile}
+          is_loading={isLoading}
+          is_mobile_layout={isMobile}
           placement="panel"
-          on_click={() => scroll_to_bottom("smooth")}
+          on_click={() => scrollToBottom("smooth")}
         />
       ) : null}
     </div>

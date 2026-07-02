@@ -26,8 +26,8 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
   {
     active = false,
     children,
-    choice_size,
-    class_name,
+    choice_size: choiceSize,
+    class_name: legacyClassName,
     className,
     disabled,
     muted,
@@ -44,8 +44,8 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
       ref={ref}
       aria-pressed={active}
       className={get_ui_choice_class_name(
-        { active, disabled, muted, shape, size: choice_size, tone, variant },
-        cn(className, class_name),
+        { active, disabled, muted, shape, size: choiceSize, tone, variant },
+        cn(className, legacyClassName),
       )}
       data-active={active}
       disabled={disabled}

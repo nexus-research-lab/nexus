@@ -162,26 +162,26 @@ export const COMPOSER_ATTACHMENT_ACCEPT =
     ".adoc",
   ].join(",");
 
-function get_file_extension(file_name: string): string {
-  const normalized_name = file_name.trim().toLowerCase();
-  const dot_index = normalized_name.lastIndexOf(".");
-  if (dot_index < 0 || dot_index === normalized_name.length - 1) {
+function getFileExtension(fileName: string): string {
+  const normalizedName = fileName.trim().toLowerCase();
+  const dotIndex = normalizedName.lastIndexOf(".");
+  if (dotIndex < 0 || dotIndex === normalizedName.length - 1) {
     return "";
   }
-  return normalized_name.slice(dot_index + 1);
+  return normalizedName.slice(dotIndex + 1);
 }
 
-function sanitize_attachment_name(file_name: string): string {
-  const trimmed_name = file_name.trim() || "attachment.txt";
-  const sanitized_name = trimmed_name
+function sanitizeAttachmentName(fileName: string): string {
+  const trimmedName = fileName.trim() || "attachment.txt";
+  const sanitizedName = trimmedName
     .replace(/[^\w.\-\u4e00-\u9fa5]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
-  return sanitized_name || "attachment.txt";
+  return sanitizedName || "attachment.txt";
 }
 
-function is_supported_image_attachment(file: File): boolean {
-  const extension = get_file_extension(file.name);
+function isSupportedImageAttachment(file: File): boolean {
+  const extension = getFileExtension(file.name);
   if (SUPPORTED_IMAGE_ATTACHMENT_EXTENSIONS.has(extension)) {
     return true;
   }
@@ -189,8 +189,8 @@ function is_supported_image_attachment(file: File): boolean {
   return SUPPORTED_IMAGE_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
 }
 
-function is_supported_text_attachment(file: File): boolean {
-  const extension = get_file_extension(file.name);
+function isSupportedTextAttachment(file: File): boolean {
+  const extension = getFileExtension(file.name);
   if (SUPPORTED_TEXT_ATTACHMENT_EXTENSIONS.has(extension)) {
     return true;
   }
@@ -202,8 +202,8 @@ function is_supported_text_attachment(file: File): boolean {
   return SUPPORTED_TEXT_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
 }
 
-function is_supported_work_file_attachment(file: File): boolean {
-  const extension = get_file_extension(file.name);
+function isSupportedWorkFileAttachment(file: File): boolean {
+  const extension = getFileExtension(file.name);
   if (SUPPORTED_WORK_FILE_EXTENSIONS.has(extension)) {
     return true;
   }
@@ -212,13 +212,13 @@ function is_supported_work_file_attachment(file: File): boolean {
 }
 
 export function get_composer_attachment_kind(file: File): ComposerAttachmentKind | null {
-  if (is_supported_image_attachment(file)) {
+  if (isSupportedImageAttachment(file)) {
     return "image";
   }
-  if (is_supported_text_attachment(file)) {
+  if (isSupportedTextAttachment(file)) {
     return "text";
   }
-  if (is_supported_work_file_attachment(file)) {
+  if (isSupportedWorkFileAttachment(file)) {
     return "file";
   }
   return null;
@@ -236,37 +236,37 @@ export function get_attachment_rejection_reason(file: File): string | null {
   return null;
 }
 
-function build_attachment_directory(batch_id: string, index: number): string {
-  return `${ATTACHMENT_DIRECTORY}/${batch_id}-${index + 1}/`;
+function buildAttachmentDirectory(batchId: string, index: number): string {
+  return `${ATTACHMENT_DIRECTORY}/${batchId}-${index + 1}/`;
 }
 
-function build_room_attachment_directory(batch_id: string, index: number): string {
-  return `attachments/${batch_id}-${index + 1}/`;
+function buildRoomAttachmentDirectory(batchId: string, index: number): string {
+  return `attachments/${batchId}-${index + 1}/`;
 }
 
-function build_upload_file(file: File): File {
-  const safe_name = sanitize_attachment_name(file.name);
-  if (safe_name === file.name) {
+function buildUploadFile(file: File): File {
+  const safeName = sanitizeAttachmentName(file.name);
+  if (safeName === file.name) {
     return file;
   }
 
-  return new File([file], safe_name, {
+  return new File([file], safeName, {
     lastModified: file.lastModified,
     type: file.type,
   });
 }
 
 export async function prepare_workspace_attachments(
-  agent_id: string,
+  agentId: string,
   files: File[],
 ): Promise<PreparedComposerAttachment[]> {
-  const next_attachments: PreparedComposerAttachment[] = [];
-  const batch_id = new Date().toISOString().replace(/[:.]/g, "-");
+  const nextAttachments: PreparedComposerAttachment[] = [];
+  const batchId = new Date().toISOString().replace(/[:.]/g, "-");
 
   for (const [index, file] of files.entries()) {
-    const rejection_reason = get_attachment_rejection_reason(file);
-    if (rejection_reason) {
-      throw new Error(rejection_reason);
+    const rejectionReason = get_attachment_rejection_reason(file);
+    if (rejectionReason) {
+      throw new Error(rejectionReason);
     }
 
     const kind = get_composer_attachment_kind(file);
@@ -274,40 +274,40 @@ export async function prepare_workspace_attachments(
       throw new Error(`暂不支持该附件格式：${file.name}`);
     }
 
-    const upload_file = build_upload_file(file);
-    const uploaded_file = await upload_workspace_file_api(
-      agent_id,
-      upload_file,
-      build_attachment_directory(batch_id, index),
+    const uploadFile = buildUploadFile(file);
+    const uploadedFile = await upload_workspace_file_api(
+      agentId,
+      uploadFile,
+      buildAttachmentDirectory(batchId, index),
     );
-    const prepared_attachment: PreparedComposerAttachment = {
-      file_name: file.name || uploaded_file.name,
-      workspace_path: uploaded_file.path,
-      workspace_agent_id: agent_id,
+    const preparedAttachment: PreparedComposerAttachment = {
+      file_name: file.name || uploadedFile.name,
+      workspace_path: uploadedFile.path,
+      workspace_agent_id: agentId,
       scope: "agent_workspace",
       kind,
       mime_type: file.type || null,
-      size: uploaded_file.size,
+      size: uploadedFile.size,
     };
 
-    next_attachments.push(prepared_attachment);
+    nextAttachments.push(preparedAttachment);
   }
 
-  return next_attachments;
+  return nextAttachments;
 }
 
 export async function prepare_room_conversation_attachments(
-  room_id: string,
-  conversation_id: string,
+  roomId: string,
+  conversationId: string,
   files: File[],
 ): Promise<PreparedComposerAttachment[]> {
-  const next_attachments: PreparedComposerAttachment[] = [];
-  const batch_id = new Date().toISOString().replace(/[:.]/g, "-");
+  const nextAttachments: PreparedComposerAttachment[] = [];
+  const batchId = new Date().toISOString().replace(/[:.]/g, "-");
 
   for (const [index, file] of files.entries()) {
-    const rejection_reason = get_attachment_rejection_reason(file);
-    if (rejection_reason) {
-      throw new Error(rejection_reason);
+    const rejectionReason = get_attachment_rejection_reason(file);
+    if (rejectionReason) {
+      throw new Error(rejectionReason);
     }
 
     const kind = get_composer_attachment_kind(file);
@@ -315,26 +315,26 @@ export async function prepare_room_conversation_attachments(
       throw new Error(`暂不支持该附件格式：${file.name}`);
     }
 
-    const upload_file = build_upload_file(file);
-    const uploaded_file = await upload_room_conversation_attachment_api(
-      room_id,
-      conversation_id,
-      upload_file,
-      build_room_attachment_directory(batch_id, index),
+    const uploadFile = buildUploadFile(file);
+    const uploadedFile = await upload_room_conversation_attachment_api(
+      roomId,
+      conversationId,
+      uploadFile,
+      buildRoomAttachmentDirectory(batchId, index),
     );
-    const prepared_attachment: PreparedComposerAttachment = {
-      file_name: file.name || uploaded_file.name,
-      workspace_path: uploaded_file.path,
-      room_id,
-      conversation_id,
+    const preparedAttachment: PreparedComposerAttachment = {
+      file_name: file.name || uploadedFile.name,
+      workspace_path: uploadedFile.path,
+      room_id: roomId,
+      conversation_id: conversationId,
       scope: "room_conversation",
       kind,
       mime_type: file.type || null,
-      size: uploaded_file.size,
+      size: uploadedFile.size,
     };
 
-    next_attachments.push(prepared_attachment);
+    nextAttachments.push(preparedAttachment);
   }
 
-  return next_attachments;
+  return nextAttachments;
 }

@@ -12,8 +12,8 @@ interface ChannelGuideStep {
   id: string;
 }
 
-function guide_steps(channel_type: ImChannelType): ChannelGuideStep[] {
-  switch (channel_type) {
+function guideSteps(channelType: ImChannelType): ChannelGuideStep[] {
+  switch (channelType) {
   case "dingtalk":
     return [
       { id: "dingtalk-create-app", content: <>前往 <a href="https://open.dingtalk.com/" target="_blank" rel="noreferrer">钉钉开放平台</a> 创建企业内部应用，并添加 <b>机器人能力</b></> },
@@ -70,7 +70,7 @@ export function ChannelGuide({
 }: {
   item: ChannelConfigView;
 }) {
-  const steps = guide_steps(item.channel_type);
+  const steps = guideSteps(item.channel_type);
 
   if (steps.length === 0) {
     return null;

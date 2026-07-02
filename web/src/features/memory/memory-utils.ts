@@ -15,7 +15,7 @@ export function memory_layer_key(scope?: string): MemoryLayerFilter {
   return "agent";
 }
 
-function memory_layer_label(scope?: string): string {
+function memoryLayerLabel(scope?: string): string {
   const key = memory_layer_key(scope);
   switch (key) {
   case "dm_session":
@@ -34,7 +34,7 @@ export function memory_scope_label(scope?: string): string {
   if (scope.startsWith("user:")) {
     return "User";
   }
-  return memory_layer_label(scope);
+  return memoryLayerLabel(scope);
 }
 
 export function format_memory_score(score: number): string {

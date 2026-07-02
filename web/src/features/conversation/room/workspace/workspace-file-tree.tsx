@@ -34,8 +34,8 @@ interface WorkspaceFileTreeProps {
   on_context_menu: (event: React.MouseEvent, entry: WorkspaceFileEntry) => void;
 }
 
-function build_tree(entries: WorkspaceFileEntry[]): TreeNode[] {
-  const sorted_entries = [...entries].sort((left, right) => {
+function buildTree(entries: WorkspaceFileEntry[]): TreeNode[] {
+  const sortedEntries = [...entries].sort((left, right) => {
     if (left.is_dir !== right.is_dir) {
       return left.is_dir ? -1 : 1;
     }
@@ -43,14 +43,14 @@ function build_tree(entries: WorkspaceFileEntry[]): TreeNode[] {
   });
 
   const roots: TreeNode[] = [];
-  const node_map = new Map<string, TreeNode>();
+  const nodeMap = new Map<string, TreeNode>();
 
-  for (const entry of sorted_entries) {
+  for (const entry of sortedEntries) {
     const node: TreeNode = { entry, children: [] };
-    node_map.set(entry.path, node);
+    nodeMap.set(entry.path, node);
 
-    const parent_path = entry.path.substring(0, entry.path.lastIndexOf("/"));
-    const parent = node_map.get(parent_path);
+    const parentPath = entry.path.substring(0, entry.path.lastIndexOf("/"));
+    const parent = nodeMap.get(parentPath);
     if (parent) {
       parent.children.push(node);
     } else {
@@ -75,37 +75,37 @@ interface WorkspaceFileTreeRowProps {
 
 const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   node,
-  active_path,
-  focused_directory_path,
+  active_path: activePath,
+  focused_directory_path: focusedDirectoryPath,
   depth,
-  on_click_file,
-  on_click_directory,
-  on_rename_entry,
-  on_delete_entry,
-  on_context_menu,
+  on_click_file: onClickFile,
+  on_click_directory: onClickDirectory,
+  on_rename_entry: onRenameEntry,
+  on_delete_entry: onDeleteEntry,
+  on_context_menu: onContextMenu,
 }: WorkspaceFileTreeRowProps) {
   const { t } = useI18n();
   const { entry, children } = node;
-  const is_active = entry.path === active_path;
-  const is_directory_target = entry.is_dir && entry.path === focused_directory_path;
-  const is_selected = is_active || is_directory_target;
-  const { Icon: FileIcon, icon_class_name } = get_workspace_file_visual(entry.name);
-  const [is_open, set_is_open] = useState(depth === 0);
+  const isActive = entry.path === activePath;
+  const isDirectoryTarget = entry.is_dir && entry.path === focusedDirectoryPath;
+  const isSelected = isActive || isDirectoryTarget;
+  const { Icon: FileIcon, icon_class_name: iconClassName } = get_workspace_file_visual(entry.name);
+  const [isOpen, setIsOpen] = useState(depth === 0);
 
-  const handle_click = useCallback(() => {
+  const handleClick = useCallback(() => {
     if (entry.is_dir) {
-      set_is_open((value) => !value);
-      on_click_directory(entry.path);
+      setIsOpen((value) => !value);
+      onClickDirectory(entry.path);
       return;
     }
-    on_click_file(entry.path);
-  }, [entry, on_click_directory, on_click_file]);
+    onClickFile(entry.path);
+  }, [entry, onClickDirectory, onClickFile]);
 
-  const handle_context_menu = useCallback((event: React.MouseEvent) => {
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    on_context_menu(event, entry);
-  }, [entry, on_context_menu]);
+    onContextMenu(event, entry);
+  }, [entry, onContextMenu]);
 
   return (
     <div>
@@ -113,23 +113,23 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         className={cn(
           "group relative flex min-w-full w-max items-center gap-1.25 rounded-xl px-2 py-1.25 text-left transition-colors",
           "hover:bg-(--surface-interactive-hover-background)",
-          is_selected
+          isSelected
             ? "bg-[color:color-mix(in_srgb,var(--foreground)_4%,transparent)] text-(--text-strong)"
             : "text-(--text-default)",
         )}
         style={{ paddingLeft: `${8 + depth * 12}px` }}
-        onClick={handle_click}
-        onContextMenu={handle_context_menu}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            handle_click();
+            handleClick();
           }
         }}
         role="button"
         tabIndex={0}
       >
-        {is_selected ? (
+        {isSelected ? (
           <span
             aria-hidden="true"
             className="absolute left-1 top-2 bottom-2 w-px rounded-full bg-[color:color-mix(in_srgb,var(--primary)_72%,white_28%)]"
@@ -140,8 +140,8 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
           <ChevronRight
             className={cn(
               "h-3 w-3 shrink-0 transition-transform",
-              is_selected ? "text-(--icon-default)" : "text-(--icon-muted)",
-              is_open && "rotate-90",
+              isSelected ? "text-(--icon-default)" : "text-(--icon-muted)",
+              isOpen && "rotate-90",
             )}
           />
         ) : (
@@ -149,29 +149,29 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         )}
 
         {entry.is_dir ? (
-          is_open ? (
+          isOpen ? (
             <FolderOpen
               className={cn(
                 "h-3.5 w-3.5 shrink-0",
-                is_directory_target ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]" : "text-[var(--accent)]",
+                isDirectoryTarget ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]" : "text-[var(--accent)]",
               )}
             />
           ) : (
             <Folder
               className={cn(
                 "h-3.5 w-3.5 shrink-0",
-                is_directory_target ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]" : "text-[var(--accent)]",
+                isDirectoryTarget ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]" : "text-[var(--accent)]",
               )}
             />
           )
         ) : (
-          <FileIcon className={cn("h-3.5 w-3.5 shrink-0", icon_class_name)} />
+          <FileIcon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />
         )}
 
         <span
           className={cn(
             "shrink-0 whitespace-nowrap text-[13px] leading-[1.3rem]",
-            entry.is_dir || is_selected ? "font-medium" : "font-normal",
+            entry.is_dir || isSelected ? "font-medium" : "font-normal",
           )}
         >
           {entry.name}
@@ -180,7 +180,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         <div
           className={cn(
             "ml-auto flex shrink-0 items-center gap-0.5 pl-2 transition-opacity",
-            is_selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}
         >
           <button
@@ -188,7 +188,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
             className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-(--icon-muted) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
             onClick={(event) => {
               event.stopPropagation();
-              on_rename_entry(entry);
+              onRenameEntry(entry);
             }}
             title={t("home.rename")}
           >
@@ -200,7 +200,7 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
             className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-(--icon-muted) transition hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] hover:text-(--destructive)"
             onClick={(event) => {
               event.stopPropagation();
-              on_delete_entry(entry);
+              onDeleteEntry(entry);
             }}
             title={t("common.delete")}
           >
@@ -209,20 +209,20 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
         </div>
       </div>
 
-      {entry.is_dir && is_open && children.length > 0 ? (
+      {entry.is_dir && isOpen && children.length > 0 ? (
         <div>
           {children.map((child) => (
             <WorkspaceFileTreeRow
               key={child.entry.path}
               node={child}
-              active_path={active_path}
-              focused_directory_path={focused_directory_path}
+              active_path={activePath}
+              focused_directory_path={focusedDirectoryPath}
               depth={depth + 1}
-              on_click_file={on_click_file}
-              on_click_directory={on_click_directory}
-              on_rename_entry={on_rename_entry}
-              on_delete_entry={on_delete_entry}
-              on_context_menu={on_context_menu}
+              on_click_file={onClickFile}
+              on_click_directory={onClickDirectory}
+              on_rename_entry={onRenameEntry}
+              on_delete_entry={onDeleteEntry}
+              on_context_menu={onContextMenu}
             />
           ))}
         </div>
@@ -233,15 +233,15 @@ const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
 
 export function WorkspaceFileTree({
   entries,
-  active_path,
-  focused_directory_path,
-  on_click_file,
-  on_click_directory,
-  on_rename_entry,
-  on_delete_entry,
-  on_context_menu,
+  active_path: activePath,
+  focused_directory_path: focusedDirectoryPath,
+  on_click_file: onClickFile,
+  on_click_directory: onClickDirectory,
+  on_rename_entry: onRenameEntry,
+  on_delete_entry: onDeleteEntry,
+  on_context_menu: onContextMenu,
 }: WorkspaceFileTreeProps) {
-  const tree = useMemo(() => build_tree(entries), [entries]);
+  const tree = useMemo(() => buildTree(entries), [entries]);
 
   return (
     <>
@@ -249,14 +249,14 @@ export function WorkspaceFileTree({
         <WorkspaceFileTreeRow
           key={node.entry.path}
           node={node}
-          active_path={active_path}
-          focused_directory_path={focused_directory_path}
+          active_path={activePath}
+          focused_directory_path={focusedDirectoryPath}
           depth={0}
-          on_click_file={on_click_file}
-          on_click_directory={on_click_directory}
-          on_rename_entry={on_rename_entry}
-          on_delete_entry={on_delete_entry}
-          on_context_menu={on_context_menu}
+          on_click_file={onClickFile}
+          on_click_directory={onClickDirectory}
+          on_rename_entry={onRenameEntry}
+          on_delete_entry={onDeleteEntry}
+          on_context_menu={onContextMenu}
         />
       ))}
     </>

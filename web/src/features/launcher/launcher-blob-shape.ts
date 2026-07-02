@@ -29,14 +29,14 @@ export function create_closed_spline_path(points: BlobPoint[]): string {
   }
 
   const size = points.length;
-  const get_point = (index: number) => points[(index + size) % size];
+  const getPoint = (index: number) => points[(index + size) % size];
   let path = `M ${points[0].x} ${points[0].y}`;
 
   for (let index = 0; index < size; index += 1) {
-    const previous = get_point(index - 1);
-    const current = get_point(index);
-    const next = get_point(index + 1);
-    const afterNext = get_point(index + 2);
+    const previous = getPoint(index - 1);
+    const current = getPoint(index);
+    const next = getPoint(index + 1);
+    const afterNext = getPoint(index + 2);
 
     const controlPoint1 = {
       x: current.x + (next.x - previous.x) / 6,

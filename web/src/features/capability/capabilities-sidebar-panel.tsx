@@ -43,14 +43,14 @@ interface CapabilitySidebarItem {
 export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const active_panel_item_id = useSidebarStore((s) => s.active_panel_item_id);
-  const set_active_panel_item = useSidebarStore((s) => s.set_active_panel_item);
-  const summary_mounted_ref = useRef(false);
-  const summary_refresh_in_flight_ref = useRef(false);
-  const summary_pending_force_refresh_ref = useRef(false);
-  const summary_last_refreshed_at_ref = useRef(0);
-  const [query, set_query] = useState("");
-  const [summary, set_summary] = useState<CapabilitySummary>({
+  const activePanelItemId = useSidebarStore((s) => s.active_panel_item_id);
+  const setActivePanelItem = useSidebarStore((s) => s.set_active_panel_item);
+  const summaryMountedRef = useRef(false);
+  const summaryRefreshInFlightRef = useRef(false);
+  const summaryPendingForceRefreshRef = useRef(false);
+  const summaryLastRefreshedAtRef = useRef(0);
+  const [query, setQuery] = useState("");
+  const [summary, setSummary] = useState<CapabilitySummary>({
     skills_count: 0,
     connected_connectors_count: 0,
     enabled_scheduled_tasks_count: 0,
@@ -60,34 +60,34 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
     loops_count: 0,
   });
 
-  const refresh_capability_summary = useCallback(async (options?: { force?: boolean; reset_on_error?: boolean }) => {
-    if (summary_refresh_in_flight_ref.current) {
+  const refreshCapabilitySummary = useCallback(async (options?: { force?: boolean; reset_on_error?: boolean }) => {
+    if (summaryRefreshInFlightRef.current) {
       if (options?.force) {
-        summary_pending_force_refresh_ref.current = true;
+        summaryPendingForceRefreshRef.current = true;
       }
       return;
     }
 
-    let next_refresh_options = options;
+    let nextRefreshOptions = options;
     do {
       // focus/visibility 在桌面壳里可能连续触发，摘要计数不需要每次都打后端。
       if (
-        !next_refresh_options?.force &&
-        Date.now() - summary_last_refreshed_at_ref.current < CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS
+        !nextRefreshOptions?.force &&
+        Date.now() - summaryLastRefreshedAtRef.current < CAPABILITY_SUMMARY_REVALIDATE_INTERVAL_MS
       ) {
         return;
       }
-      summary_refresh_in_flight_ref.current = true;
-      summary_pending_force_refresh_ref.current = false;
-      summary_last_refreshed_at_ref.current = Date.now();
+      summaryRefreshInFlightRef.current = true;
+      summaryPendingForceRefreshRef.current = false;
+      summaryLastRefreshedAtRef.current = Date.now();
       try {
-        const next_summary = await get_capability_summary_api();
-        if (summary_mounted_ref.current) {
-          set_summary(next_summary);
+        const nextSummary = await get_capability_summary_api();
+        if (summaryMountedRef.current) {
+          setSummary(nextSummary);
         }
       } catch {
-        if (next_refresh_options?.reset_on_error && summary_mounted_ref.current) {
-          set_summary({
+        if (nextRefreshOptions?.reset_on_error && summaryMountedRef.current) {
+          setSummary({
             skills_count: 0,
             connected_connectors_count: 0,
             enabled_scheduled_tasks_count: 0,
@@ -98,58 +98,58 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
           });
         }
       } finally {
-        summary_refresh_in_flight_ref.current = false;
+        summaryRefreshInFlightRef.current = false;
       }
 
-      const should_run_pending_force_refresh = summary_pending_force_refresh_ref.current;
-      summary_pending_force_refresh_ref.current = false;
-      next_refresh_options = should_run_pending_force_refresh && summary_mounted_ref.current
+      const shouldRunPendingForceRefresh = summaryPendingForceRefreshRef.current;
+      summaryPendingForceRefreshRef.current = false;
+      nextRefreshOptions = shouldRunPendingForceRefresh && summaryMountedRef.current
         ? { force: true }
         : undefined;
-    } while (next_refresh_options);
+    } while (nextRefreshOptions);
   }, []);
 
   useEffect(() => {
-    summary_mounted_ref.current = true;
-    void refresh_capability_summary({ force: true, reset_on_error: true });
+    summaryMountedRef.current = true;
+    void refreshCapabilitySummary({ force: true, reset_on_error: true });
 
-    const handle_scheduled_tasks_mutated = () => {
-      void refresh_capability_summary({ force: true });
+    const handleScheduledTasksMutated = () => {
+      void refreshCapabilitySummary({ force: true });
     };
-    const handle_capability_summary_mutated = () => {
-      void refresh_capability_summary({ force: true });
+    const handleCapabilitySummaryMutated = () => {
+      void refreshCapabilitySummary({ force: true });
     };
-    window.addEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handle_scheduled_tasks_mutated);
-    window.addEventListener(CAPABILITY_SUMMARY_MUTATED_EVENT, handle_capability_summary_mutated);
+    window.addEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handleScheduledTasksMutated);
+    window.addEventListener(CAPABILITY_SUMMARY_MUTATED_EVENT, handleCapabilitySummaryMutated);
 
     return () => {
-      summary_mounted_ref.current = false;
-      window.removeEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handle_scheduled_tasks_mutated);
-      window.removeEventListener(CAPABILITY_SUMMARY_MUTATED_EVENT, handle_capability_summary_mutated);
+      summaryMountedRef.current = false;
+      window.removeEventListener(SCHEDULED_TASKS_MUTATED_EVENT, handleScheduledTasksMutated);
+      window.removeEventListener(CAPABILITY_SUMMARY_MUTATED_EVENT, handleCapabilitySummaryMutated);
     };
-  }, [refresh_capability_summary]);
+  }, [refreshCapabilitySummary]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
-    const handle_revalidate = () => {
+    const handleRevalidate = () => {
       if (document.visibilityState !== "visible") {
         return;
       }
-      void refresh_capability_summary();
+      void refreshCapabilitySummary();
     };
-    window.addEventListener("focus", handle_revalidate);
-    document.addEventListener("visibilitychange", handle_revalidate);
+    window.addEventListener("focus", handleRevalidate);
+    document.addEventListener("visibilitychange", handleRevalidate);
     return () => {
-      window.removeEventListener("focus", handle_revalidate);
-      document.removeEventListener("visibilitychange", handle_revalidate);
+      window.removeEventListener("focus", handleRevalidate);
+      document.removeEventListener("visibilitychange", handleRevalidate);
     };
-  }, [refresh_capability_summary]);
+  }, [refreshCapabilitySummary]);
 
-  const channel_count = summary.connected_channels_count ?? 0;
-  const pairing_count = summary.active_pairings_count ?? 0;
-  const capability_items = useMemo<CapabilitySidebarItem[]>(() => [
+  const channelCount = summary.connected_channels_count ?? 0;
+  const pairingCount = summary.active_pairings_count ?? 0;
+  const capabilityItems = useMemo<CapabilitySidebarItem[]>(() => [
     {
       id: SIDEBAR_CAPABILITY_ITEM_IDS.skills,
       icon: Puzzle,
@@ -182,14 +182,14 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       id: SIDEBAR_CAPABILITY_ITEM_IDS.channels,
       icon: Radio,
       label: t("capability.channels"),
-      meta: String(channel_count),
+      meta: String(channelCount),
       path: AppRouteBuilders.channels(),
     },
     {
       id: SIDEBAR_CAPABILITY_ITEM_IDS.pairings,
       icon: Users2,
       label: t("capability.pairings"),
-      meta: String(pairing_count),
+      meta: String(pairingCount),
       path: AppRouteBuilders.pairings(),
     },
     {
@@ -200,21 +200,21 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
       path: AppRouteBuilders.memory(),
     },
   ], [
-    channel_count,
-    pairing_count,
+    channelCount,
+    pairingCount,
     summary,
     t,
   ]);
 
-  const filtered_capability_items = useMemo(() => {
-    const normalized_query = query.trim().toLowerCase();
-    if (!normalized_query) {
-      return capability_items;
+  const filteredCapabilityItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return capabilityItems;
     }
-    return capability_items.filter((item) =>
-      `${item.label} ${item.meta}`.toLowerCase().includes(normalized_query),
+    return capabilityItems.filter((item) =>
+      `${item.label} ${item.meta}`.toLowerCase().includes(normalizedQuery),
     );
-  }, [capability_items, query]);
+  }, [capabilityItems, query]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -222,25 +222,25 @@ export const CapabilitiesPanelContent = memo(function CapabilitiesPanelContent()
         <UiSearchInput
           class_name="w-full"
           input_class_name="text-[13px]"
-          on_change={set_query}
+          on_change={setQuery}
           placeholder={t("sidebar.search_capabilities")}
           value={query}
         />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1">
-        {filtered_capability_items.length > 0 ? (
-          filtered_capability_items.map((item) => {
+        {filteredCapabilityItems.length > 0 ? (
+          filteredCapabilityItems.map((item) => {
             const Icon = item.icon;
             return (
               <SidebarListItem
                 icon={<Icon className="h-4 w-4" />}
-                is_active={active_panel_item_id === item.id}
+                is_active={activePanelItemId === item.id}
                 key={item.id}
                 label={item.label}
                 meta={item.meta}
                 on_click={() => {
-                  set_active_panel_item(item.id);
+                  setActivePanelItem(item.id);
                   navigate(item.path);
                 }}
               />

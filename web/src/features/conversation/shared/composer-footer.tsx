@@ -37,31 +37,31 @@ interface ComposerFooterProps {
 }
 
 export function ComposerFooter({
-  action_button_ref,
-  active_error,
-  can_create_goal,
-  can_use_loop,
-  can_stop_generation,
-  char_count,
-  goal_mode_extra,
-  goal_scope_label,
-  history_index,
-  input_history_length,
-  is_action_menu_open,
-  is_dispatching,
-  is_goal_creating,
-  is_goal_mode,
-  is_input_locked,
-  is_near_limit,
-  is_over_limit,
-  is_preparing_attachments,
-  max_length,
-  on_action_menu_close,
-  on_action_menu_toggle,
-  on_attachment_select,
-  on_cancel_goal,
-  on_goal_toggle,
-  on_loop_select,
+  action_button_ref: actionButtonRef,
+  active_error: activeError,
+  can_create_goal: canCreateGoal,
+  can_use_loop: canUseLoop,
+  can_stop_generation: canStopGeneration,
+  char_count: charCount,
+  goal_mode_extra: goalModeExtra,
+  goal_scope_label: goalScopeLabel,
+  history_index: historyIndex,
+  input_history_length: inputHistoryLength,
+  is_action_menu_open: isActionMenuOpen,
+  is_dispatching: isDispatching,
+  is_goal_creating: isGoalCreating,
+  is_goal_mode: isGoalMode,
+  is_input_locked: isInputLocked,
+  is_near_limit: isNearLimit,
+  is_over_limit: isOverLimit,
+  is_preparing_attachments: isPreparingAttachments,
+  max_length: maxLength,
+  on_action_menu_close: onActionMenuClose,
+  on_action_menu_toggle: onActionMenuToggle,
+  on_attachment_select: onAttachmentSelect,
+  on_cancel_goal: onCancelGoal,
+  on_goal_toggle: onGoalToggle,
+  on_loop_select: onLoopSelect,
 }: ComposerFooterProps) {
   const { t } = useI18n();
 
@@ -70,34 +70,34 @@ export function ComposerFooter({
       <div className="flex min-w-0 items-center gap-2 text-[10px] text-(--text-soft)">
         <div className="shrink-0">
           <button
-            ref={action_button_ref}
-            aria-expanded={is_action_menu_open}
+            ref={actionButtonRef}
+            aria-expanded={isActionMenuOpen}
             aria-haspopup="menu"
             aria-label={t("composer.open_actions")}
             className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-            disabled={is_input_locked}
-            onClick={on_action_menu_toggle}
+            disabled={isInputLocked}
+            onClick={onActionMenuToggle}
             type="button"
           >
             <Plus className="h-4 w-4" />
           </button>
           <UiActionMenu
-            anchor_ref={action_button_ref}
+            anchor_ref={actionButtonRef}
             aria_label={t("composer.open_actions")}
-            is_open={is_action_menu_open}
+            is_open={isActionMenuOpen}
             items={[
               {
                 value: "attachment",
                 label: t("composer.add_attachment"),
                 icon: <Paperclip className="h-4 w-4 text-(--icon-muted)" />,
-                disabled: is_input_locked || is_preparing_attachments || is_goal_mode,
+                disabled: isInputLocked || isPreparingAttachments || isGoalMode,
               },
-              ...(can_use_loop
+              ...(canUseLoop
                 ? [{
                     value: "loop",
                     label: t("composer.insert_loop"),
                     icon: <Repeat2 className="h-4 w-4 text-(--icon-muted)" />,
-                    disabled: is_input_locked,
+                    disabled: isInputLocked,
                   }]
                 : []),
               {
@@ -111,47 +111,47 @@ export function ComposerFooter({
                     role="presentation"
                   >
                     <GlassSwitch
-                      checked={is_goal_mode}
-                      disabled={!can_create_goal || is_input_locked || is_goal_creating}
-                      on_change={on_goal_toggle}
+                      checked={isGoalMode}
+                      disabled={!canCreateGoal || isInputLocked || isGoalCreating}
+                      on_change={onGoalToggle}
                       size="xs"
                     />
                   </span>
                 ),
-                active: is_goal_mode,
-                disabled: !can_create_goal || is_input_locked || is_goal_creating,
+                active: isGoalMode,
+                disabled: !canCreateGoal || isInputLocked || isGoalCreating,
                 tone: "primary",
               },
             ]}
             placement="top"
-            on_close={on_action_menu_close}
+            on_close={onActionMenuClose}
             on_select={(value) => {
               if (value === "attachment") {
-                on_attachment_select();
+                onAttachmentSelect();
                 return;
               }
               if (value === "loop") {
-                on_loop_select();
+                onLoopSelect();
                 return;
               }
               if (value === "goal") {
-                on_goal_toggle(!is_goal_mode);
+                onGoalToggle(!isGoalMode);
               }
             }}
           />
         </div>
 
-        {is_goal_mode ? (
+        {isGoalMode ? (
           <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-(--primary)">
             <Target className="h-3.5 w-3.5 shrink-0" />
             <span>{t("composer.goal_mode")}</span>
-            <span className="truncate font-medium text-(--text-muted)">{goal_scope_label}</span>
-            {goal_mode_extra}
+            <span className="truncate font-medium text-(--text-muted)">{goalScopeLabel}</span>
+            {goalModeExtra}
             <button
               aria-label={t("composer.cancel_goal_mode")}
               className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-              disabled={is_goal_creating}
-              onClick={on_cancel_goal}
+              disabled={isGoalCreating}
+              onClick={onCancelGoal}
               type="button"
             >
               <X className="h-3 w-3" />
@@ -159,52 +159,52 @@ export function ComposerFooter({
           </span>
         ) : null}
 
-        {is_dispatching ? (
+        {isDispatching ? (
           <span className="flex items-center gap-2 text-(--success)">
             <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
             <span className="animate-pulse">{t("status.sending")}</span>
           </span>
-        ) : can_stop_generation ? (
+        ) : canStopGeneration ? (
           <span className="flex items-center gap-2 text-(--success)">
             <LoadingOrb frames={["✽", "✻", "✶", "✢", "·"]} />
             <span className="animate-pulse">{t("status.replying")}…</span>
             <span className="text-(--text-soft)">[{t("composer.esc_stop")}]</span>
           </span>
-        ) : is_preparing_attachments ? (
+        ) : isPreparingAttachments ? (
           <span className="flex items-center gap-2 text-(--text-default)">
             <LoadingOrb frames={["·", "◦", "•", "◦"]} />
             <span>{t("composer.preparing_attachments")}</span>
           </span>
-        ) : is_goal_creating ? (
+        ) : isGoalCreating ? (
           <span className="flex items-center gap-2 text-(--primary)">
             <LoadingOrb frames={["·", "◦", "•", "◦"]} />
             <span className="animate-pulse">{t("composer.goal_normalizing")}</span>
           </span>
-        ) : active_error ? (
-          <span className="text-(--destructive)">{active_error}</span>
+        ) : activeError ? (
+          <span className="text-(--destructive)">{activeError}</span>
         ) : null}
       </div>
 
       <div className="flex items-center gap-3 text-[10px] tabular-nums">
-        {char_count > 0 ? (
+        {charCount > 0 ? (
           <div>
             <span
               className={cn(
-                is_over_limit && "text-destructive",
-                is_near_limit && !is_over_limit && "text-warning",
-                !is_near_limit && "text-(--text-soft)",
+                isOverLimit && "text-destructive",
+                isNearLimit && !isOverLimit && "text-warning",
+                !isNearLimit && "text-(--text-soft)",
               )}
             >
-              {char_count}
+              {charCount}
             </span>
-            <span className="text-(--text-soft)">/{max_length}</span>
+            <span className="text-(--text-soft)">/{maxLength}</span>
           </div>
         ) : null}
-        {history_index >= 0 ? (
+        {historyIndex >= 0 ? (
           <div className="text-[10px] text-(--text-default)">
             {t("composer.history_position", {
-              current: history_index + 1,
-              total: input_history_length,
+              current: historyIndex + 1,
+              total: inputHistoryLength,
             })}
           </div>
         ) : null}

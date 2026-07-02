@@ -24,8 +24,8 @@ export class GroupChatErrorBoundary extends Component<
     return { has_error: true };
   }
 
-  public componentDidCatch(error: Error, error_info: ErrorInfo): void {
-    console.error("[GroupChatErrorBoundary] 聊天面板渲染失败", error, error_info);
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    console.error("[GroupChatErrorBoundary] 聊天面板渲染失败", error, errorInfo);
   }
 
   public render(): ReactNode {

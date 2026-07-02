@@ -34,24 +34,24 @@ interface OnboardingGuideCenterProps {
 }
 
 export function OnboardingGuideCenter({
-  is_open,
+  is_open: isOpen,
   title,
   description,
   items,
-  reset_label,
-  close_label,
-  reviewed_label,
-  on_close,
-  on_reset,
+  reset_label: resetLabel,
+  close_label: closeLabel,
+  reviewed_label: reviewedLabel,
+  on_close: onClose,
+  on_reset: onReset,
 }: OnboardingGuideCenterProps) {
-  if (!is_open || typeof document === "undefined") {
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
-  const handle_close_click = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleCloseClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    on_close();
+    onClose();
   };
 
   const dialog = (
@@ -62,10 +62,10 @@ export function OnboardingGuideCenter({
       aria-modal="true"
       className={`${DIALOG_BACKDROP_CLASS_NAME} z-[11050]`}
       data-modal-root="true"
-      onClick={on_close}
+      onClick={onClose}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
-          on_close();
+          onClose();
         }
       }}
       role="dialog"
@@ -108,9 +108,9 @@ export function OnboardingGuideCenter({
             </div>
 
             <button
-              aria-label={close_label}
+              aria-label={closeLabel}
               className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, "relative z-30 shrink-0")}
-              onClick={handle_close_click}
+              onClick={handleCloseClick}
               onPointerDown={(event) => event.stopPropagation()}
               type="button"
             >
@@ -138,7 +138,7 @@ export function OnboardingGuideCenter({
                         </h4>
                         {item.completed ? (
                           <span className="rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_14%,transparent)] bg-transparent px-1.5 py-0 text-[10px] font-medium text-(--primary)">
-                            {reviewed_label}
+                            {reviewedLabel}
                           </span>
                         ) : null}
                       </div>
@@ -163,21 +163,21 @@ export function OnboardingGuideCenter({
           <div className="dialog-footer !px-4 !py-2.5 border-t border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--modal-card-background)_84%,transparent)]">
             <button
               className={get_dialog_action_class_name("default", "compact")}
-              onClick={handle_close_click}
+              onClick={handleCloseClick}
               type="button"
             >
-              {close_label}
+              {closeLabel}
             </button>
             <button
               className={get_dialog_action_class_name(
                 "default",
                 "inline-flex items-center gap-1.5 text-[11px]",
               )}
-              onClick={on_reset}
+              onClick={onReset}
               type="button"
             >
               <RotateCcw className="h-3 w-3" />
-              {reset_label}
+              {resetLabel}
             </button>
           </div>
         </section>

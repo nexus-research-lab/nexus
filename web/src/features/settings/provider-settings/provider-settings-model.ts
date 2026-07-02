@@ -95,35 +95,35 @@ const PRESET_PROVIDER_KEYS: Record<string, string> = {
   azure: "azure",
 };
 
-function get_preset_provider_key(preset: ProviderPreset): string {
+function getPresetProviderKey(preset: ProviderPreset): string {
   return PRESET_PROVIDER_KEYS[preset.preset_key] ?? "";
 }
 
-export function get_preset_format(preset: ProviderPreset | null, api_format?: ProviderApiFormat): ProviderPresetFormat | null {
+export function get_preset_format(preset: ProviderPreset | null, apiFormat?: ProviderApiFormat): ProviderPresetFormat | null {
   if (!preset) {
     return null;
   }
-  const target_format = api_format ?? preset.default_api_format;
-  return preset.formats.find((item) => item.api_format === target_format) ?? preset.formats[0] ?? null;
+  const targetFormat = apiFormat ?? preset.default_api_format;
+  return preset.formats.find((item) => item.api_format === targetFormat) ?? preset.formats[0] ?? null;
 }
 
-export function format_supports_provider_kind(format: ProviderPresetFormat, provider_kind: ProviderKind): boolean {
+export function format_supports_provider_kind(format: ProviderPresetFormat, providerKind: ProviderKind): boolean {
   if (format.provider_kind) {
-    return format.provider_kind === provider_kind;
+    return format.provider_kind === providerKind;
   }
-  return api_format_supported_for_kind(provider_kind, format.api_format);
+  return apiFormatSupportedForKind(providerKind, format.api_format);
 }
 
-export function get_supported_preset_format(preset: ProviderPreset | null, provider_kind?: ProviderKind): ProviderPresetFormat | null {
+export function get_supported_preset_format(preset: ProviderPreset | null, providerKind?: ProviderKind): ProviderPresetFormat | null {
   if (!preset) {
     return null;
   }
-  const target_kind = provider_kind ?? preset.provider_kind;
-  const explicit_format = preset.formats.find((item) => item.provider_kind === target_kind);
-  if (explicit_format) {
-    return explicit_format;
+  const targetKind = providerKind ?? preset.provider_kind;
+  const explicitFormat = preset.formats.find((item) => item.provider_kind === targetKind);
+  if (explicitFormat) {
+    return explicitFormat;
   }
-  return preset.formats.find((item) => format_supports_provider_kind(item, target_kind)) ?? null;
+  return preset.formats.find((item) => format_supports_provider_kind(item, targetKind)) ?? null;
 }
 
 export function preset_provider_kinds(preset: ProviderPreset | null): ProviderKind[] {
@@ -147,7 +147,7 @@ export function preset_provider_kinds(preset: ProviderPreset | null): ProviderKi
   return Array.from(values);
 }
 
-function preset_supports_current_runtime(preset: ProviderPreset): boolean {
+function presetSupportsCurrentRuntime(preset: ProviderPreset): boolean {
   return !!get_supported_preset_format(preset);
 }
 
@@ -161,33 +161,33 @@ export function preset_uses_builtin_endpoint(preset: ProviderPreset | null): boo
 
 export function preset_is_configurable(preset: ProviderPreset): boolean {
   return preset_provider_kinds(preset).includes("image_generation")
-    || preset_supports_current_runtime(preset)
+    || presetSupportsCurrentRuntime(preset)
     || preset_allows_non_runtime_config(preset);
 }
 
-function api_format_supported_for_kind(provider_kind: ProviderKind, api_format: ProviderApiFormat): boolean {
-  if (provider_kind === "image_generation") {
-    return SUPPORTED_IMAGE_API_FORMATS.has(api_format);
+function apiFormatSupportedForKind(providerKind: ProviderKind, apiFormat: ProviderApiFormat): boolean {
+  if (providerKind === "image_generation") {
+    return SUPPORTED_IMAGE_API_FORMATS.has(apiFormat);
   }
-  return SUPPORTED_AGENT_API_FORMATS.has(api_format);
+  return SUPPORTED_AGENT_API_FORMATS.has(apiFormat);
 }
 
 export function build_provider_draft(
   presets: ProviderPreset[],
-  preset_key = "anthropic",
+  presetKey = "anthropic",
 ): ProviderDraft {
-  const preset = presets.find((item) => item.preset_key === preset_key) ?? presets[0] ?? null;
-  const provider_kind = preset?.provider_kind ?? "llm";
-  const supported_format = get_supported_preset_format(preset, provider_kind);
-  const format = supported_format ?? get_preset_format(preset);
-  const provider_key = preset ? get_preset_provider_key(preset) : "";
-  const is_custom = preset?.preset_key === "custom";
+  const preset = presets.find((item) => item.preset_key === presetKey) ?? presets[0] ?? null;
+  const providerKind = preset?.provider_kind ?? "llm";
+  const supportedFormat = get_supported_preset_format(preset, providerKind);
+  const format = supportedFormat ?? get_preset_format(preset);
+  const providerKey = preset ? getPresetProviderKey(preset) : "";
+  const isCustom = preset?.preset_key === "custom";
   return {
-    provider_kind,
-    provider: is_custom ? "" : provider_key,
+    provider_kind: providerKind,
+    provider: isCustom ? "" : providerKey,
     preset_key: preset?.preset_key ?? "custom",
     api_format: (format?.api_format ?? preset?.default_api_format ?? DEFAULT_AGENT_API_FORMAT) as ProviderApiFormat,
-    display_name: is_custom ? "" : (preset?.display_name ?? ""),
+    display_name: isCustom ? "" : (preset?.display_name ?? ""),
     auth_token: "",
     base_url: format?.base_url ?? "",
     models_path: format?.models_path ?? "",
@@ -209,7 +209,7 @@ export function to_provider_draft(item: ProviderConfigRecord): ProviderDraft {
   };
 }
 
-function stringify_json(value: unknown): string {
+function stringifyJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
@@ -227,19 +227,19 @@ export function get_usage_agent_title(agent: ProviderConfigRecord["used_by_agent
 
 type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
-export function parse_provider_options(raw: string, invalid_object_message: string): Record<string, unknown> {
+export function parse_provider_options(raw: string, invalidObjectMessage: string): Record<string, unknown> {
   const trimmed = raw.trim();
   if (!trimmed) {
     return {};
   }
   const parsed = JSON.parse(trimmed);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(invalid_object_message);
+    throw new Error(invalidObjectMessage);
   }
   return parsed as Record<string, unknown>;
 }
 
-function get_effective_endpoint_format(
+function getEffectiveEndpointFormat(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
 ): ProviderPresetFormat | null {
@@ -249,12 +249,12 @@ function get_effective_endpoint_format(
   return get_preset_format(preset, draft.api_format);
 }
 
-function get_effective_base_url(draft: ProviderDraft, preset: ProviderPreset | null): string {
-  return get_effective_endpoint_format(draft, preset)?.base_url ?? draft.base_url;
+function getEffectiveBaseUrl(draft: ProviderDraft, preset: ProviderPreset | null): string {
+  return getEffectiveEndpointFormat(draft, preset)?.base_url ?? draft.base_url;
 }
 
 export function get_effective_models_path(draft: ProviderDraft, preset: ProviderPreset | null): string {
-  return get_effective_endpoint_format(draft, preset)?.models_path ?? draft.models_path;
+  return getEffectiveEndpointFormat(draft, preset)?.models_path ?? draft.models_path;
 }
 
 export function build_provider_payload_from_draft(
@@ -266,7 +266,7 @@ export function build_provider_payload_from_draft(
     preset_key: draft.preset_key,
     api_format: draft.api_format,
     display_name: draft.display_name.trim() || draft.provider.trim(),
-    base_url: get_effective_base_url(draft, preset).trim(),
+    base_url: getEffectiveBaseUrl(draft, preset).trim(),
     models_path: get_effective_models_path(draft, preset).trim(),
     enabled: draft.enabled,
   };
@@ -275,7 +275,7 @@ export function build_provider_payload_from_draft(
 export function get_provider_draft_error(
   draft: ProviderDraft,
   preset: ProviderPreset | null,
-  is_creating: boolean,
+  isCreating: boolean,
   translate: TranslateFn,
 ): string | null {
   if (!draft.provider.trim() && draft.preset_key === "custom") {
@@ -284,13 +284,13 @@ export function get_provider_draft_error(
   if (!draft.provider.trim()) {
     return translate("settings.providers.validation_provider_required");
   }
-  if (!get_effective_base_url(draft, preset).trim()) {
+  if (!getEffectiveBaseUrl(draft, preset).trim()) {
     return translate("settings.providers.validation_base_url_required");
   }
   if (!draft.api_format.trim()) {
     return translate("settings.providers.validation_api_format_required");
   }
-  if (is_creating && !draft.auth_token.trim()) {
+  if (isCreating && !draft.auth_token.trim()) {
     return translate("settings.providers.validation_auth_token_required");
   }
   return null;
@@ -310,17 +310,17 @@ export function provider_draft_has_changes(
   return draft.preset_key !== (record.preset_key || "custom")
     || draft.api_format !== record.api_format
     || (draft.display_name.trim() || draft.provider.trim()) !== (record.display_name || record.provider)
-    || get_effective_base_url(draft, preset).trim() !== record.base_url
+    || getEffectiveBaseUrl(draft, preset).trim() !== record.base_url
     || get_effective_models_path(draft, preset).trim() !== (record.models_path || "")
     || draft.enabled !== record.enabled;
 }
 
-export function format_token_preview(masked_token: string | null | undefined, empty_label: string): string {
-  const normalized_masked_token = masked_token?.trim();
-  if (!normalized_masked_token) {
-    return empty_label;
+export function format_token_preview(maskedToken: string | null | undefined, emptyLabel: string): string {
+  const normalizedMaskedToken = maskedToken?.trim();
+  if (!normalizedMaskedToken) {
+    return emptyLabel;
   }
-  return normalized_masked_token;
+  return normalizedMaskedToken;
 }
 
 export function provider_has_active_config(item: ProviderConfigRecord | null | undefined): boolean {
@@ -361,8 +361,8 @@ export function sort_models_enabled_first(models: ProviderModelRecord[]): Provid
   });
 }
 
-export function filter_provider_models(models: ProviderModelRecord[], raw_query: string): ProviderModelRecord[] {
-  const query = raw_query.trim().toLowerCase();
+export function filter_provider_models(models: ProviderModelRecord[], rawQuery: string): ProviderModelRecord[] {
+  const query = rawQuery.trim().toLowerCase();
   if (!query) {
     return models;
   }
@@ -375,15 +375,15 @@ export function filter_provider_models(models: ProviderModelRecord[], raw_query:
 
 export function build_test_model_options(
   models: ProviderModelRecord[],
-  auto_label: string,
+  autoLabel: string,
 ): { value: string; label: string }[] {
   return [
-    { value: AUTO_TEST_MODEL_VALUE, label: auto_label },
+    { value: AUTO_TEST_MODEL_VALUE, label: autoLabel },
     ...sort_models_enabled_first(models).map((model) => {
-      const display_name = model.display_name || model.model_id;
+      const displayName = model.display_name || model.model_id;
       return {
         value: model.model_id,
-        label: display_name === model.model_id ? model.model_id : `${display_name} · ${model.model_id}`,
+        label: displayName === model.model_id ? model.model_id : `${displayName} · ${model.model_id}`,
       };
     }),
   ];
@@ -391,19 +391,19 @@ export function build_test_model_options(
 
 export function order_provider_records(
   items: ProviderConfigRecord[],
-  previous_items: ProviderConfigRecord[],
+  previousItems: ProviderConfigRecord[],
 ): ProviderConfigRecord[] {
-  const previous_index_map = new Map(previous_items.map((item, index) => [item.provider, index]));
+  const previousIndexMap = new Map(previousItems.map((item, index) => [item.provider, index]));
   return [...items].sort((left, right) => {
-    const left_index = previous_index_map.get(left.provider);
-    const right_index = previous_index_map.get(right.provider);
-    if (left_index !== undefined && right_index !== undefined) {
-      return left_index - right_index;
+    const leftIndex = previousIndexMap.get(left.provider);
+    const rightIndex = previousIndexMap.get(right.provider);
+    if (leftIndex !== undefined && rightIndex !== undefined) {
+      return leftIndex - rightIndex;
     }
-    if (left_index !== undefined) {
+    if (leftIndex !== undefined) {
       return -1;
     }
-    if (right_index !== undefined) {
+    if (rightIndex !== undefined) {
       return 1;
     }
     return get_provider_title(left).localeCompare(get_provider_title(right), "zh-Hans-CN");
@@ -416,9 +416,9 @@ export function first_builtin_preset_key(presets: ProviderPreset[]): string | nu
 
 export function provider_for_preset(
   items: ProviderConfigRecord[],
-  preset_key: string,
+  presetKey: string,
 ): ProviderConfigRecord | null {
-  return items.find((item) => item.preset_key === preset_key) ?? null;
+  return items.find((item) => item.preset_key === presetKey) ?? null;
 }
 
 export function model_options_from_record(model: ProviderModelRecord): ModelOptionsState {
@@ -427,7 +427,7 @@ export function model_options_from_record(model: ProviderModelRecord): ModelOpti
     capabilities: { ...model.capabilities_override },
     context_window: model.context_window ? String(model.context_window) : "",
     max_output_tokens: model.max_output_tokens ? String(model.max_output_tokens) : "",
-    provider_options_text: stringify_json(model.provider_options ?? {}),
+    provider_options_text: stringifyJson(model.provider_options ?? {}),
   };
 }
 

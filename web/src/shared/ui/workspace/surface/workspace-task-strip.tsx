@@ -21,42 +21,42 @@ export function WorkspaceTaskStrip({
   density = "compact",
 }: WorkspaceTaskStripProps) {
   const { t } = useI18n();
-  const total_count = todos.length;
-  const completed_count = todos.filter((todo) => todo.status === "completed").length;
-  const active_count = todos.filter((todo) => todo.status !== "completed").length;
-  const has_running_task = todos.some((todo) => todo.status === "in_progress");
-  const progress = total_count === 0 ? 0 : Math.round((completed_count / total_count) * 100);
-  const [is_open, set_is_open] = useState(false);
-  const [expanded_task_index, set_expanded_task_index] = useState<number | null>(null);
-  const root_ref = useRef<HTMLDivElement>(null);
+  const totalCount = todos.length;
+  const completedCount = todos.filter((todo) => todo.status === "completed").length;
+  const activeCount = todos.filter((todo) => todo.status !== "completed").length;
+  const hasRunningTask = todos.some((todo) => todo.status === "in_progress");
+  const progress = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+  const [isOpen, setIsOpen] = useState(false);
+  const [expandedTaskIndex, setExpandedTaskIndex] = useState<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  if (expanded_task_index !== null && (todos.length === 0 || expanded_task_index >= todos.length)) {
-    set_expanded_task_index(null);
+  if (expandedTaskIndex !== null && (todos.length === 0 || expandedTaskIndex >= todos.length)) {
+    setExpandedTaskIndex(null);
   }
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
 
-    const handle_pointer_down = (event: PointerEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && root_ref.current?.contains(target)) {
+      if (target instanceof Node && rootRef.current?.contains(target)) {
         return;
       }
-      set_expanded_task_index(null);
-      set_is_open(false);
+      setExpandedTaskIndex(null);
+      setIsOpen(false);
     };
 
-    document.addEventListener("pointerdown", handle_pointer_down, true);
-    return () => document.removeEventListener("pointerdown", handle_pointer_down, true);
-  }, [is_open]);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [isOpen]);
 
-  const handle_toggle_panel = () => {
-    set_expanded_task_index(null);
-    set_is_open((prev) => !prev);
+  const handleTogglePanel = () => {
+    setExpandedTaskIndex(null);
+    setIsOpen((prev) => !prev);
   };
-  const trigger_style = is_open
+  const triggerStyle = isOpen
     ? {
       background: "color-mix(in srgb, var(--background) 94%, white)",
       border: "1px solid color-mix(in srgb, var(--divider-subtle-color) 84%, transparent)",
@@ -66,7 +66,7 @@ export function WorkspaceTaskStrip({
       border: "1px solid var(--chip-default-border)",
     };
 
-  const render_status_marker = (status: TodoItem["status"]) => {
+  const renderStatusMarker = (status: TodoItem["status"]) => {
     if (status === "completed") {
       return <Check className="h-3.5 w-3.5 text-(--success)" />;
     }
@@ -78,7 +78,7 @@ export function WorkspaceTaskStrip({
     return <Circle className="h-2.5 w-2.5 text-(--icon-muted)" />;
   };
 
-  const get_status_label = (status: TodoItem["status"]) => {
+  const getStatusLabel = (status: TodoItem["status"]) => {
     if (status === "completed") {
       return t("tasks.done");
     }
@@ -89,15 +89,15 @@ export function WorkspaceTaskStrip({
   };
 
   return (
-    <div ref={root_ref} className="relative">
+    <div ref={rootRef} className="relative">
       <div className="relative z-40">
         <button
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full text-left transition duration-(--motion-duration-fast) ease-out",
             density === "compact" ? "h-7 px-2" : "h-8 px-3",
           )}
-          style={trigger_style}
-          onClick={handle_toggle_panel}
+          style={triggerStyle}
+          onClick={handleTogglePanel}
           type="button"
         >
           <ListChecks className="h-3.5 w-3.5 text-(--icon-default)" />
@@ -105,7 +105,7 @@ export function WorkspaceTaskStrip({
             {t("tasks.label")}
           </span>
           <span className={cn("font-normal tabular-nums text-(--text-soft)", density === "compact" ? "text-[9.5px]" : "text-[10px]")}>
-            {completed_count}/{total_count}
+            {completedCount}/{totalCount}
           </span>
           <div className="hidden w-14 overflow-hidden rounded-full bg-(--surface-progress-track) sm:block">
             <div
@@ -118,22 +118,22 @@ export function WorkspaceTaskStrip({
               "inline-flex items-center justify-center gap-1 tabular-nums text-(--text-soft)",
               density === "compact" ? "text-[9.5px] font-normal" : "text-[10px] font-normal",
             )}>
-            {has_running_task ? (
+            {hasRunningTask ? (
               <LoadingOrb />
-            ) : active_count > 0 ? (
+            ) : activeCount > 0 ? (
               <span className="h-2 w-2 rounded-full bg-(--icon-muted)" />
             ) : null}
-            {active_count}
+            {activeCount}
           </span>
           <ChevronDown
             className={cn(
               "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-300",
-              is_open && "rotate-180 text-(--icon-default)",
+              isOpen && "rotate-180 text-(--icon-default)",
             )}
           />
         </button>
 
-        {is_open ? (
+        {isOpen ? (
           <div
             className={cn(
               "absolute right-0 top-[calc(100%+8px)] z-40 w-[min(520px,calc(100vw-44px))] overflow-hidden rounded-[16px]",
@@ -150,8 +150,8 @@ export function WorkspaceTaskStrip({
                   aria-label={t("tasks.close_panel")}
                   className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-(--icon-muted) transition-[background,color] hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] hover:text-(--icon-default)"
                   onClick={() => {
-                    set_expanded_task_index(null);
-                    set_is_open(false);
+                    setExpandedTaskIndex(null);
+                    setIsOpen(false);
                   }}
                   type="button"
                 >
@@ -162,11 +162,11 @@ export function WorkspaceTaskStrip({
               {todos.length ? (
                 <div className="mt-1.5 space-y-1.5">
                   {todos.map((todo, index) => {
-                    const is_completed = todo.status === "completed";
-                    const is_running = todo.status === "in_progress";
-                    const detail_text = todo.active_form?.trim() || "";
-                    const has_detail = detail_text.length > 0 && detail_text !== todo.content.trim();
-                    const is_expanded = expanded_task_index === index;
+                    const isCompleted = todo.status === "completed";
+                    const isRunning = todo.status === "in_progress";
+                    const detailText = todo.active_form?.trim() || "";
+                    const hasDetail = detailText.length > 0 && detailText !== todo.content.trim();
+                    const isExpanded = expandedTaskIndex === index;
                     return (
                       <div
                         key={`${todo.content}-${index}`}
@@ -175,15 +175,15 @@ export function WorkspaceTaskStrip({
                         <button
                           className={cn(
                             "grid w-full grid-cols-[36px_88px_minmax(0,1fr)_20px] gap-3 rounded-[12px] border px-2 py-1.5 text-left transition-[background,border-color]",
-                            is_expanded && has_detail
+                            isExpanded && hasDetail
                               ? "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)]"
                               : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_16%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
                           )}
                           onClick={() => {
-                            if (!has_detail) {
+                            if (!hasDetail) {
                               return;
                             }
-                            set_expanded_task_index((prev) => prev === index ? null : index);
+                            setExpandedTaskIndex((prev) => prev === index ? null : index);
                           }}
                           type="button"
                         >
@@ -194,13 +194,13 @@ export function WorkspaceTaskStrip({
                           <span
                             className={cn(
                             "inline-flex items-center justify-center gap-1.5 pt-0.25 text-[10.5px] font-medium",
-                              is_completed && "text-(--success)",
-                              is_running && "text-primary",
+                              isCompleted && "text-(--success)",
+                              isRunning && "text-primary",
                               todo.status === "pending" && "text-(--text-muted)",
                             )}
                           >
-                            {render_status_marker(todo.status)}
-                            {get_status_label(todo.status)}
+                            {renderStatusMarker(todo.status)}
+                            {getStatusLabel(todo.status)}
                           </span>
 
                           <div className="min-w-0">
@@ -210,11 +210,11 @@ export function WorkspaceTaskStrip({
                           </div>
 
                           <span className="flex items-center justify-end">
-                            {has_detail ? (
+                            {hasDetail ? (
                               <ChevronDown
                                 className={cn(
                                   "h-3.5 w-3.5 text-(--icon-muted) transition-transform duration-300",
-                                  is_expanded && "rotate-180 text-(--icon-default)",
+                                  isExpanded && "rotate-180 text-(--icon-default)",
                                 )}
                               />
                             ) : null}
@@ -224,7 +224,7 @@ export function WorkspaceTaskStrip({
                         <div
                           className={cn(
                             "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
-                            is_expanded && has_detail ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                            isExpanded && hasDetail ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
                           )}
                         >
                           <div className="min-h-0 overflow-hidden">
@@ -235,7 +235,7 @@ export function WorkspaceTaskStrip({
                                   background: "transparent",
                                 }}
                               >
-                                {detail_text}
+                                {detailText}
                               </div>
                             </div>
                           </div>

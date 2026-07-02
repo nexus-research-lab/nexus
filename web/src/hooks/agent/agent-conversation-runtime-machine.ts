@@ -36,17 +36,17 @@ export interface AgentConversationRuntimeSnapshot {
   is_loading: boolean;
 }
 
-function is_terminal_assistant_status(status?: AssistantMessageStatus): boolean {
+function isTerminalAssistantStatus(status?: AssistantMessageStatus): boolean {
   return status === 'done' || status === 'cancelled' || status === 'error';
 }
 
-function has_terminal_assistant_projection(message: AssistantMessage): boolean {
+function hasTerminalAssistantProjection(message: AssistantMessage): boolean {
   return Boolean(message.result_summary)
     || Boolean(message.stop_reason)
-    || is_terminal_assistant_status(message.stream_status);
+    || isTerminalAssistantStatus(message.stream_status);
 }
 
-function build_active_message_record(
+function buildActiveMessageRecord(
   trackers: Map<string, ActiveMessageTracker>,
 ): Record<string, ActiveMessageTracker> {
   return Object.fromEntries(trackers.entries());
@@ -69,8 +69,8 @@ export class AgentConversationRuntimeMachine {
 
   private snapshot_cache: AgentConversationRuntimeSnapshot | null = null;
 
-  public constructor(chat_type: AgentConversationChatType) {
-    this.chat_type = chat_type;
+  public constructor(chatType: AgentConversationChatType) {
+    this.chat_type = chatType;
   }
 
   // useSyncExternalStore subscription. Returns an unsubscribe fn.
@@ -96,8 +96,8 @@ export class AgentConversationRuntimeMachine {
     }
   }
 
-  public set_chat_type(chat_type: AgentConversationChatType): void {
-    this.chat_type = chat_type;
+  public set_chat_type(chatType: AgentConversationChatType): void {
+    this.chat_type = chatType;
   }
 
   public reset(): void {
@@ -108,86 +108,86 @@ export class AgentConversationRuntimeMachine {
     this.pending_permission_count = 0;
   }
 
-  public track_outbound_round(round_id: string): void {
-    this.terminal_round_ids.delete(round_id);
-    this.sending_round_ids.add(round_id);
+  public track_outbound_round(roundId: string): void {
+    this.terminal_round_ids.delete(roundId);
+    this.sending_round_ids.add(roundId);
   }
 
   public clear_round(
-    round_id?: string | null,
-    include_related_rounds: boolean = false,
+    roundId?: string | null,
+    includeRelatedRounds: boolean = false,
   ): void {
-    if (!round_id) {
+    if (!roundId) {
       return;
     }
 
-    const should_clear_round = (tracked_round_id: string) => (
-      tracked_round_id === round_id ||
-      (include_related_rounds && tracked_round_id.startsWith(`${round_id}:`))
+    const shouldClearRound = (trackedRoundId: string) => (
+      trackedRoundId === roundId ||
+      (includeRelatedRounds && trackedRoundId.startsWith(`${roundId}:`))
     );
 
-    for (const tracked_round_id of [...this.sending_round_ids]) {
-      if (should_clear_round(tracked_round_id)) {
-        this.sending_round_ids.delete(tracked_round_id);
+    for (const trackedRoundId of [...this.sending_round_ids]) {
+      if (shouldClearRound(trackedRoundId)) {
+        this.sending_round_ids.delete(trackedRoundId);
       }
     }
 
-    for (const tracked_round_id of [...this.running_round_ids]) {
-      if (should_clear_round(tracked_round_id)) {
-        this.running_round_ids.delete(tracked_round_id);
+    for (const trackedRoundId of [...this.running_round_ids]) {
+      if (shouldClearRound(trackedRoundId)) {
+        this.running_round_ids.delete(trackedRoundId);
       }
     }
 
-    for (const tracked_round_id of [...this.terminal_round_ids]) {
-      if (should_clear_round(tracked_round_id)) {
-        this.terminal_round_ids.delete(tracked_round_id);
+    for (const trackedRoundId of [...this.terminal_round_ids]) {
+      if (shouldClearRound(trackedRoundId)) {
+        this.terminal_round_ids.delete(trackedRoundId);
       }
     }
 
-    for (const [message_id, tracker] of this.active_message_trackers.entries()) {
-      if (should_clear_round(tracker.round_id)) {
-        this.active_message_trackers.delete(message_id);
+    for (const [messageId, tracker] of this.active_message_trackers.entries()) {
+      if (shouldClearRound(tracker.round_id)) {
+        this.active_message_trackers.delete(messageId);
       }
     }
   }
 
   public update_message_status(
-    message_id: string,
+    messageId: string,
     status: AssistantMessageStatus,
-    round_id?: string | null,
+    roundId?: string | null,
   ): void {
-    const current_tracker = this.active_message_trackers.get(message_id);
-    const resolved_round_id = round_id ?? current_tracker?.round_id ?? '';
-    if (resolved_round_id && this.is_round_terminal(resolved_round_id)) {
-      this.active_message_trackers.delete(message_id);
+    const currentTracker = this.active_message_trackers.get(messageId);
+    const resolvedRoundId = roundId ?? currentTracker?.round_id ?? '';
+    if (resolvedRoundId && this.is_round_terminal(resolvedRoundId)) {
+      this.active_message_trackers.delete(messageId);
       return;
     }
 
-    if (is_terminal_assistant_status(status)) {
-      this.active_message_trackers.delete(message_id);
+    if (isTerminalAssistantStatus(status)) {
+      this.active_message_trackers.delete(messageId);
       return;
     }
 
-    this.active_message_trackers.set(message_id, {
-      round_id: resolved_round_id,
+    this.active_message_trackers.set(messageId, {
+      round_id: resolvedRoundId,
       status,
     });
   }
 
   public track_chat_ack(ack: ChatAckData): void {
     this.sending_round_ids.delete(ack.round_id);
-    const pending_count = ack.pending?.length ?? 0;
+    const pendingCount = ack.pending?.length ?? 0;
 
     for (const slot of ack.pending ?? []) {
-      const agent_round_id = (
+      const agentRoundId = (
         slot.round_id ||
-        (pending_count > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id)
+        (pendingCount > 1 ? `${ack.round_id}:${slot.agent_id}` : ack.round_id)
       );
-      if (this.is_round_terminal(agent_round_id)) {
+      if (this.is_round_terminal(agentRoundId)) {
         continue;
       }
       this.active_message_trackers.set(slot.msg_id, {
-        round_id: agent_round_id,
+        round_id: agentRoundId,
         status: slot.status ?? 'pending',
       });
     }
@@ -199,7 +199,7 @@ export class AgentConversationRuntimeMachine {
       return;
     }
 
-    if (has_terminal_assistant_projection(message)) {
+    if (hasTerminalAssistantProjection(message)) {
       this.active_message_trackers.delete(message.message_id);
       return;
     }
@@ -211,31 +211,31 @@ export class AgentConversationRuntimeMachine {
   }
 
   public track_round_status(
-    round_id: string,
+    roundId: string,
     status: RoundLifecycleStatus,
   ): void {
     if (status === 'running') {
-      this.sending_round_ids.delete(round_id);
-      this.terminal_round_ids.delete(round_id);
-      this.running_round_ids.add(round_id);
+      this.sending_round_ids.delete(roundId);
+      this.terminal_round_ids.delete(roundId);
+      this.running_round_ids.add(roundId);
       return;
     }
 
-    this.terminal_round_ids.add(round_id);
-    this.clear_round(round_id, this.chat_type === 'group');
+    this.terminal_round_ids.add(roundId);
+    this.clear_round(roundId, this.chat_type === 'group');
   }
 
-  public sync_running_rounds(round_ids: string[]): void {
-    const next_running_round_ids = new Set(
-      round_ids
-        .map((round_id) => round_id.trim())
+  public sync_running_rounds(roundIds: string[]): void {
+    const nextRunningRoundIds = new Set(
+      roundIds
+        .map((roundId) => roundId.trim())
         .filter(Boolean),
     );
 
-    this.running_round_ids = next_running_round_ids;
-    for (const round_id of next_running_round_ids) {
-      this.sending_round_ids.delete(round_id);
-      this.terminal_round_ids.delete(round_id);
+    this.running_round_ids = nextRunningRoundIds;
+    for (const roundId of nextRunningRoundIds) {
+      this.sending_round_ids.delete(roundId);
+      this.terminal_round_ids.delete(roundId);
     }
   }
 
@@ -244,24 +244,24 @@ export class AgentConversationRuntimeMachine {
   }
 
   public reconcile_from_snapshot(messages: Message[]): void {
-    const terminal_message_ids = new Set<string>();
+    const terminalMessageIds = new Set<string>();
 
     for (const message of messages) {
       if (message.role !== 'assistant') {
         continue;
       }
 
-      if (has_terminal_assistant_projection(message)) {
-        terminal_message_ids.add(message.message_id);
+      if (hasTerminalAssistantProjection(message)) {
+        terminalMessageIds.add(message.message_id);
       }
     }
 
-    const next_trackers = new Map<string, ActiveMessageTracker>();
-    for (const [message_id, tracker] of this.active_message_trackers.entries()) {
-      if (terminal_message_ids.has(message_id) || this.is_round_terminal(tracker.round_id)) {
+    const nextTrackers = new Map<string, ActiveMessageTracker>();
+    for (const [messageId, tracker] of this.active_message_trackers.entries()) {
+      if (terminalMessageIds.has(messageId) || this.is_round_terminal(tracker.round_id)) {
         continue;
       }
-      next_trackers.set(message_id, tracker);
+      nextTrackers.set(messageId, tracker);
     }
 
     if (this.chat_type !== 'group') {
@@ -270,19 +270,19 @@ export class AgentConversationRuntimeMachine {
           continue;
         }
         if (
-          has_terminal_assistant_projection(message) ||
+          hasTerminalAssistantProjection(message) ||
           this.is_round_terminal(message.round_id)
         ) {
           continue;
         }
-        next_trackers.set(message.message_id, {
+        nextTrackers.set(message.message_id, {
           round_id: message.round_id,
           status: message.stream_status ?? 'streaming',
         });
       }
     }
 
-    this.active_message_trackers = next_trackers;
+    this.active_message_trackers = nextTrackers;
   }
 
   // getSnapshot for useSyncExternalStore: stable ref between emits.
@@ -292,13 +292,13 @@ export class AgentConversationRuntimeMachine {
 
   private compute_snapshot(): AgentConversationRuntimeSnapshot {
     const phase = this.resolve_phase();
-    const live_round_ids = new Set<string>([
+    const liveRoundIds = new Set<string>([
       ...this.sending_round_ids,
       ...this.running_round_ids,
     ]);
     for (const tracker of this.active_message_trackers.values()) {
       if (tracker.round_id) {
-        live_round_ids.add(tracker.round_id);
+        liveRoundIds.add(tracker.round_id);
       }
     }
     return {
@@ -306,25 +306,25 @@ export class AgentConversationRuntimeMachine {
       sending_round_ids: [...this.sending_round_ids],
       running_round_ids: [...this.running_round_ids],
       terminal_round_ids: [...this.terminal_round_ids],
-      live_round_ids: [...live_round_ids],
-      active_messages: build_active_message_record(this.active_message_trackers),
+      live_round_ids: [...liveRoundIds],
+      active_messages: buildActiveMessageRecord(this.active_message_trackers),
       pending_permission_count: this.pending_permission_count,
       is_loading: phase !== 'idle',
     };
   }
 
-  public is_round_terminal(round_id: string): boolean {
-    if (!round_id) {
+  public is_round_terminal(roundId: string): boolean {
+    if (!roundId) {
       return false;
     }
-    if (this.terminal_round_ids.has(round_id)) {
+    if (this.terminal_round_ids.has(roundId)) {
       return true;
     }
     if (this.chat_type !== 'group') {
       return false;
     }
-    for (const terminal_round_id of this.terminal_round_ids) {
-      if (round_id.startsWith(`${terminal_round_id}:`)) {
+    for (const terminalRoundId of this.terminal_round_ids) {
+      if (roundId.startsWith(`${terminalRoundId}:`)) {
         return true;
       }
     }

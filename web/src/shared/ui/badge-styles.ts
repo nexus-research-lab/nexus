@@ -49,7 +49,7 @@ const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
 
 export function get_ui_badge_class_name(
   options: UiBadgeStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     size = "sm",
@@ -60,6 +60,6 @@ export function get_ui_badge_class_name(
     BADGE_BASE_CLASS_NAME,
     BADGE_SIZE_CLASS_MAP[size],
     BADGE_TONE_CLASS_MAP[tone],
-    class_name,
+    className,
   );
 }

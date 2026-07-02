@@ -19,16 +19,16 @@ export function WorkspaceSearchInput({
   value,
   placeholder = "搜索",
   action,
-  class_name,
-  input_class_name,
-  on_change,
+  class_name: className,
+  input_class_name: inputClassName,
+  on_change: onChange,
 }: WorkspaceSearchInputProps) {
   return (
     <UiSearchInput
       action={action}
-      class_name={class_name}
-      input_class_name={input_class_name}
-      on_change={on_change}
+      class_name={className}
+      input_class_name={inputClassName}
+      on_change={onChange}
       placeholder={placeholder}
       value={value}
     />

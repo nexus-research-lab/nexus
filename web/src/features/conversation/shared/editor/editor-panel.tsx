@@ -70,10 +70,10 @@ interface EditorPanelProps {
 
 function TextFilePreview({
   content,
-  file_name,
-  file_type,
-  is_loading,
-  is_streaming = false,
+  file_name: fileName,
+  file_type: fileType,
+  is_loading: isLoading,
+  is_streaming: isStreaming = false,
 }: {
   content: string;
   file_name: string;
@@ -81,11 +81,11 @@ function TextFilePreview({
   is_loading: boolean;
   is_streaming?: boolean;
 }) {
-  if (is_loading) {
+  if (isLoading) {
     return <div className="font-mono text-sm leading-6 text-(--text-muted)">加载中...</div>;
   }
 
-  if (file_type === "markdown") {
+  if (fileType === "markdown") {
     return (
       <MarkdownRendererContent
         class_name="min-h-full"
@@ -95,7 +95,7 @@ function TextFilePreview({
     );
   }
 
-  if (file_type === "mermaid") {
+  if (fileType === "mermaid") {
     return (
       <LazyMermaidView
         chart={content}
@@ -106,8 +106,8 @@ function TextFilePreview({
     );
   }
 
-  if (file_type === "html") {
-    return <HtmlFilePreview content={content} is_streaming={is_streaming} title={file_name} />;
+  if (fileType === "html") {
+    return <HtmlFilePreview content={content} is_streaming={isStreaming} title={fileName} />;
   }
 
   return (
@@ -118,47 +118,47 @@ function TextFilePreview({
 }
 
 export function EditorPanel({
-  agent_id,
+  agent_id: agentId,
   path,
-  is_open,
-  width_percent,
+  is_open: isOpen,
+  width_percent: widthPercent,
   embedded = false,
-  class_name,
-  is_preview_focused = false,
-  on_resize_start,
-  on_toggle_preview_focus,
+  class_name: className,
+  is_preview_focused: isPreviewFocused = false,
+  on_resize_start: onResizeStart,
+  on_toggle_preview_focus: onTogglePreviewFocus,
 }: EditorPanelProps) {
-  const [draft_content, setDraftContent] = useState("");
-  const [saved_content, setSavedContent] = useState("");
-  const [is_loading, setIsLoading] = useState(false);
-  const [is_saving, setIsSaving] = useState(false);
-  const [is_editing, setIsEditing] = useResettableState(false, path ?? "");
+  const [draftContent, setDraftContent] = useState("");
+  const [savedContent, setSavedContent] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useResettableState(false, path ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [editor_width, setEditorWidth] = useState(0);
-  const editor_area_ref = useRef<HTMLDivElement>(null);
-  const textarea_ref = useRef<HTMLTextAreaElement>(null);
-  const file_states = useWorkspaceLiveStore((state) => state.file_states);
+  const [editorWidth, setEditorWidth] = useState(0);
+  const editorAreaRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileStates = useWorkspaceLiveStore((state) => state.file_states);
 
-  const file_type = path ? get_workspace_file_preview_kind(path) : "unknown";
-  const is_pdf = file_type === "pdf";
-  const is_image = file_type === "image";
-  const is_spreadsheet = file_type === "spreadsheet";
-  const is_document = file_type === "document";
-  const is_presentation = file_type === "presentation";
-  const is_text = is_workspace_text_preview_kind(file_type);
-  const is_binary = !is_text && !is_pdf && !is_image && !is_spreadsheet && !is_document && !is_presentation && file_type !== "unknown";
-  const file_name = path ? path.split("/").at(-1) || "" : "";
+  const fileType = path ? get_workspace_file_preview_kind(path) : "unknown";
+  const isPdf = fileType === "pdf";
+  const isImage = fileType === "image";
+  const isSpreadsheet = fileType === "spreadsheet";
+  const isDocument = fileType === "document";
+  const isPresentation = fileType === "presentation";
+  const isText = is_workspace_text_preview_kind(fileType);
+  const isBinary = !isText && !isPdf && !isImage && !isSpreadsheet && !isDocument && !isPresentation && fileType !== "unknown";
+  const fileName = path ? path.split("/").at(-1) || "" : "";
 
-  const live_state = path ? file_states[`${agent_id}:${path}`] : undefined;
-  const is_external_writing = !!live_state && live_state.source !== "api" && live_state.status === "writing";
-  const has_live_content = typeof live_state?.live_content === "string";
-  const is_dirty = draft_content !== saved_content;
+  const liveState = path ? fileStates[`${agentId}:${path}`] : undefined;
+  const isExternalWriting = !!liveState && liveState.source !== "api" && liveState.status === "writing";
+  const hasLiveContent = typeof liveState?.live_content === "string";
+  const isDirty = draftContent !== savedContent;
 
-  const load_content_ref = useRef(false);
+  const loadContentRef = useRef(false);
 
   // Track editor container width for pretext line measurement
   useEffect(() => {
-    const el = editor_area_ref.current;
+    const el = editorAreaRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -168,95 +168,95 @@ export function EditorPanel({
     return () => observer.disconnect();
   }, []);
 
-  const load_content = useCallback(async () => {
-    if (!is_open || !path || !is_text) {
+  const loadContent = useCallback(async () => {
+    if (!isOpen || !path || !isText) {
       return;
     }
 
-    load_content_ref.current = false;
+    loadContentRef.current = false;
     setIsLoading(true);
     setError(null);
     try {
-      const response = await get_workspace_file_content_api(agent_id, path);
-      if (load_content_ref.current) return;
+      const response = await get_workspace_file_content_api(agentId, path);
+      if (loadContentRef.current) return;
       setDraftContent(response.content);
       setSavedContent(response.content);
-    } catch (load_error) {
-      if (load_content_ref.current) return;
-      setError(load_error instanceof Error ? load_error.message : "读取文件失败");
+    } catch (loadError) {
+      if (loadContentRef.current) return;
+      setError(loadError instanceof Error ? loadError.message : "读取文件失败");
     } finally {
-      if (!load_content_ref.current) {
+      if (!loadContentRef.current) {
         setIsLoading(false);
       }
     }
-  }, [agent_id, is_open, path, is_text]);
+  }, [agentId, isOpen, path, isText]);
 
   // 首次打开 / 切换文件时加载内容
   useEffect(() => {
-    load_content();
-    return () => { load_content_ref.current = true; };
-  }, [load_content]);
+    loadContent();
+    return () => { loadContentRef.current = true; };
+  }, [loadContent]);
 
   useEffect(() => {
-    if (!is_editing) {
+    if (!isEditing) {
       return;
     }
-    textarea_ref.current?.focus();
-  }, [is_editing]);
+    textareaRef.current?.focus();
+  }, [isEditing]);
 
   useEffect(() => {
-    if (!is_open || !path || !live_state || !has_live_content || !is_text) {
+    if (!isOpen || !path || !liveState || !hasLiveContent || !isText) {
       return;
     }
 
-    if (live_state.source === "api" && is_saving) {
+    if (liveState.source === "api" && isSaving) {
       return;
     }
 
-    setDraftContent(live_state.live_content || "");
-    if (live_state.status === "updated") {
-      setSavedContent(live_state.live_content || "");
+    setDraftContent(liveState.live_content || "");
+    if (liveState.status === "updated") {
+      setSavedContent(liveState.live_content || "");
     }
-  }, [has_live_content, is_open, is_saving, live_state, path, is_text]);
+  }, [hasLiveContent, isOpen, isSaving, liveState, path, isText]);
 
   useEffect(() => {
-    if (!is_open || !path || !live_state || !is_text) {
+    if (!isOpen || !path || !liveState || !isText) {
       return;
     }
 
-    if (live_state.status !== "updated" || typeof live_state.live_content === "string") {
+    if (liveState.status !== "updated" || typeof liveState.live_content === "string") {
       return;
     }
 
-    void load_content();
-  }, [is_open, live_state, load_content, path, is_text]);
+    void loadContent();
+  }, [isOpen, liveState, loadContent, path, isText]);
 
-  const enable_editing = useCallback(() => {
-    if (is_external_writing) {
+  const enableEditing = useCallback(() => {
+    if (isExternalWriting) {
       return;
     }
     setIsEditing(true);
-  }, [is_external_writing]);
+  }, [isExternalWriting]);
 
-  const handle_save = async () => {
-    if (!path || !is_dirty || is_saving || !is_text) {
+  const handleSave = async () => {
+    if (!path || !isDirty || isSaving || !isText) {
       return;
     }
 
     setIsSaving(true);
     setError(null);
     try {
-      const response = await update_workspace_file_content_api(agent_id, path, draft_content);
+      const response = await update_workspace_file_content_api(agentId, path, draftContent);
       setDraftContent(response.content);
       setSavedContent(response.content);
-    } catch (save_error) {
-      setError(save_error instanceof Error ? save_error.message : "保存文件失败");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存文件失败");
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (!embedded && !is_open) {
+  if (!embedded && !isOpen) {
     return null;
   }
 
@@ -265,16 +265,16 @@ export function EditorPanel({
       className={cn(
         "relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden transition-[width,opacity,transform,border-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
         embedded ? "border-0 bg-transparent shadow-none" : "border-l divider-subtle bg-transparent shadow-none",
-        is_open ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-3 opacity-0",
-        class_name,
+        isOpen ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-3 opacity-0",
+        className,
       )}
       style={
         embedded
           ? { width: "100%" }
-          : { width: is_open ? `${width_percent}%` : "0px" }
+          : { width: isOpen ? `${widthPercent}%` : "0px" }
       }
     >
-      {embedded && (!is_open || !path) ? (
+      {embedded && (!isOpen || !path) ? (
         <div className="flex h-full flex-1 items-center justify-center px-8 text-center">
           <div className="max-w-sm">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -285,107 +285,107 @@ export function EditorPanel({
             </p>
           </div>
         </div>
-      ) : is_open && path ? (
+      ) : isOpen && path ? (
         <>
-          {is_pdf ? (
+          {isPdf ? (
             <PdfPreview
-              agent_id={agent_id}
+              agent_id={agentId}
               path={path}
-              file_name={file_name}
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-              on_resize_start={on_resize_start}
+              file_name={fileName}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
+              on_resize_start={onResizeStart}
               embedded={embedded}
             />
-          ) : is_image ? (
+          ) : isImage ? (
             <ImagePreview
-              agent_id={agent_id}
+              agent_id={agentId}
               path={path}
-              file_name={file_name}
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
-              on_resize_start={on_resize_start}
+              file_name={fileName}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
+              on_resize_start={onResizeStart}
               embedded={embedded}
             />
-          ) : is_spreadsheet ? (
+          ) : isSpreadsheet ? (
             <Suspense
               fallback={(
                 <SpreadsheetPreviewFallback
-                  agent_id={agent_id}
+                  agent_id={agentId}
                   path={path}
-                  file_name={file_name}
-                  is_preview_focused={is_preview_focused}
-                  on_toggle_preview_focus={on_toggle_preview_focus}
-                  on_resize_start={on_resize_start}
+                  file_name={fileName}
+                  is_preview_focused={isPreviewFocused}
+                  on_toggle_preview_focus={onTogglePreviewFocus}
+                  on_resize_start={onResizeStart}
                   embedded={embedded}
                 />
               )}
             >
               <SpreadsheetFilePreview
-                agent_id={agent_id}
+                agent_id={agentId}
                 path={path}
-                file_name={file_name}
-                is_preview_focused={is_preview_focused}
-                on_toggle_preview_focus={on_toggle_preview_focus}
-                on_resize_start={on_resize_start}
+                file_name={fileName}
+                is_preview_focused={isPreviewFocused}
+                on_toggle_preview_focus={onTogglePreviewFocus}
+                on_resize_start={onResizeStart}
                 embedded={embedded}
               />
             </Suspense>
-          ) : is_document ? (
+          ) : isDocument ? (
             <Suspense
               fallback={(
                 <DocumentPreviewFallback
-                  agent_id={agent_id}
+                  agent_id={agentId}
                   path={path}
-                  file_name={file_name}
-                  is_preview_focused={is_preview_focused}
-                  on_toggle_preview_focus={on_toggle_preview_focus}
-                  on_resize_start={on_resize_start}
+                  file_name={fileName}
+                  is_preview_focused={isPreviewFocused}
+                  on_toggle_preview_focus={onTogglePreviewFocus}
+                  on_resize_start={onResizeStart}
                   embedded={embedded}
                 />
               )}
             >
               <DocumentFilePreview
-                agent_id={agent_id}
+                agent_id={agentId}
                 path={path}
-                file_name={file_name}
-                is_preview_focused={is_preview_focused}
-                on_toggle_preview_focus={on_toggle_preview_focus}
-                on_resize_start={on_resize_start}
+                file_name={fileName}
+                is_preview_focused={isPreviewFocused}
+                on_toggle_preview_focus={onTogglePreviewFocus}
+                on_resize_start={onResizeStart}
                 embedded={embedded}
               />
             </Suspense>
-          ) : is_presentation ? (
+          ) : isPresentation ? (
             <Suspense
               fallback={(
                 <PresentationPreviewFallback
-                  agent_id={agent_id}
+                  agent_id={agentId}
                   path={path}
-                  file_name={file_name}
-                  is_preview_focused={is_preview_focused}
-                  on_toggle_preview_focus={on_toggle_preview_focus}
-                  on_resize_start={on_resize_start}
+                  file_name={fileName}
+                  is_preview_focused={isPreviewFocused}
+                  on_toggle_preview_focus={onTogglePreviewFocus}
+                  on_resize_start={onResizeStart}
                   embedded={embedded}
                 />
               )}
             >
               <PresentationFilePreview
-                agent_id={agent_id}
+                agent_id={agentId}
                 path={path}
-                file_name={file_name}
-                is_preview_focused={is_preview_focused}
-                on_toggle_preview_focus={on_toggle_preview_focus}
-                on_resize_start={on_resize_start}
+                file_name={fileName}
+                is_preview_focused={isPreviewFocused}
+                on_toggle_preview_focus={onTogglePreviewFocus}
+                on_resize_start={onResizeStart}
                 embedded={embedded}
               />
             </Suspense>
-          ) : is_binary ? (
+          ) : isBinary ? (
             <BinaryFilePlaceholder
-              agent_id={agent_id}
+              agent_id={agentId}
               path={path}
-              file_name={file_name}
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              file_name={fileName}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
               embedded={embedded}
             />
           ) : (
@@ -395,38 +395,38 @@ export function EditorPanel({
                 <ConversationResizeHandle
                   aria_label="调整编辑器宽度"
                   class_name="flex"
-                  on_mouse_down={on_resize_start}
+                  on_mouse_down={onResizeStart}
                 />
               ) : null}
 
               <WorkspaceFilePreviewHeader
                 actions={(
                   <>
-                    <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+                    <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
                     <WorkspaceFilePreviewFocusButton
-                      is_preview_focused={is_preview_focused}
-                      on_toggle_preview_focus={on_toggle_preview_focus}
+                      is_preview_focused={isPreviewFocused}
+                      on_toggle_preview_focus={onTogglePreviewFocus}
                     />
                     <WorkspaceFileToolbarButton
                       on_click={() => {
-                        if (is_editing) {
+                        if (isEditing) {
                           setIsEditing(false);
                           return;
                         }
-                        enable_editing();
+                        enableEditing();
                       }}
-                      title={is_editing ? "预览" : "编辑"}
+                      title={isEditing ? "预览" : "编辑"}
                     >
-                      {is_editing ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                      <span className="max-xl:hidden">{is_editing ? "预览" : "编辑"}</span>
+                      {isEditing ? <Eye className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                      <span className="max-xl:hidden">{isEditing ? "预览" : "编辑"}</span>
                     </WorkspaceFileToolbarButton>
                     <WorkspaceFileToolbarButton
-                      disabled={!is_dirty || is_saving || is_external_writing}
-                      on_click={() => void handle_save()}
-                      title={is_saving ? "保存中" : "保存"}
+                      disabled={!isDirty || isSaving || isExternalWriting}
+                      on_click={() => void handleSave()}
+                      title={isSaving ? "保存中" : "保存"}
                     >
                       <Save className="h-4 w-4" />
-                      <span className="max-xl:hidden">{is_saving ? "保存中" : "保存"}</span>
+                      <span className="max-xl:hidden">{isSaving ? "保存中" : "保存"}</span>
                     </WorkspaceFileToolbarButton>
                   </>
                 )}
@@ -435,10 +435,10 @@ export function EditorPanel({
                   <>
                     <span className="flex items-center gap-1">
                       <FileText className="h-3 w-3" />
-                      {workspace_file_kind_label(file_type)}
+                      {workspace_file_kind_label(fileType)}
                     </span>
-                    {live_state && live_state.source !== "api" ? (
-                      is_external_writing ? (
+                    {liveState && liveState.source !== "api" ? (
+                      isExternalWriting ? (
                         <>
                           <LoaderCircle className="h-3 w-3 shrink-0 animate-spin text-primary" />
                           <span className="truncate">模型正在实时写入该文件</span>
@@ -448,8 +448,8 @@ export function EditorPanel({
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-(--success)" />
                           <span className="truncate">
                             已同步最新内容
-                            {live_state.diff_stats
-                              ? ` · +${live_state.diff_stats.additions} -${live_state.diff_stats.deletions}`
+                            {liveState.diff_stats
+                              ? ` · +${liveState.diff_stats.additions} -${liveState.diff_stats.deletions}`
                               : ""}
                           </span>
                         </>
@@ -457,7 +457,7 @@ export function EditorPanel({
                     ) : null}
                   </>
                 )}
-                title={file_name}
+                title={fileName}
               />
 
               {error ? (
@@ -465,44 +465,44 @@ export function EditorPanel({
               ) : null}
 
               <div
-                ref={editor_area_ref}
+                ref={editorAreaRef}
                 className={cn(
                   "min-h-0 flex-1 overflow-hidden",
-                  file_type === "html" && !is_editing ? "p-0" : "px-4 py-4",
+                  fileType === "html" && !isEditing ? "p-0" : "px-4 py-4",
                 )}
               >
-                {is_external_writing && file_type !== "html" ? (
+                {isExternalWriting && fileType !== "html" ? (
                   <TypewriterFileView
-                    content={draft_content}
-                    container_width={editor_width > 0 ? editor_width - 40 : undefined}
+                    content={draftContent}
+                    container_width={editorWidth > 0 ? editorWidth - 40 : undefined}
                     class_name="h-full"
                   />
-                ) : !is_editing && file_type === "html" ? (
+                ) : !isEditing && fileType === "html" ? (
                   <TextFilePreview
-                    content={draft_content}
-                    file_name={file_name}
-                    file_type={file_type}
-                    is_loading={is_loading}
-                    is_streaming={is_external_writing}
+                    content={draftContent}
+                    file_name={fileName}
+                    file_type={fileType}
+                    is_loading={isLoading}
+                    is_streaming={isExternalWriting}
                   />
-                ) : !is_editing ? (
+                ) : !isEditing ? (
                   <div className="soft-scrollbar h-full overflow-auto">
                     <TextFilePreview
-                      content={draft_content}
-                      file_name={file_name}
-                      file_type={file_type}
-                      is_loading={is_loading}
+                      content={draftContent}
+                      file_name={fileName}
+                      file_type={fileType}
+                      is_loading={isLoading}
                     />
                   </div>
                 ) : (
                   <textarea
                     aria-label="编辑文件内容"
-                    ref={textarea_ref}
+                    ref={textareaRef}
                     className="soft-scrollbar h-full w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) outline-none disabled:opacity-70"
-                    disabled={is_loading}
+                    disabled={isLoading}
                     onBlur={() => setIsEditing(false)}
                     onChange={(event) => setDraftContent(event.target.value)}
-                    value={is_loading ? "加载中..." : draft_content}
+                    value={isLoading ? "加载中..." : draftContent}
                   />
                 )}
               </div>

@@ -50,39 +50,39 @@ export function is_desktop_bridge_available(): boolean {
 }
 
 export async function get_desktop_app_version(): Promise<DesktopAppVersion> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
+  return invokeDesktopBridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
 }
 
 export async function export_desktop_logs(): Promise<DesktopExportLogsResult> {
-  return invoke_desktop_bridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
+  return invokeDesktopBridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
 }
 
 export async function open_desktop_route(route: string): Promise<void> {
-  await invoke_desktop_bridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
+  await invokeDesktopBridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
 }
 
 export async function get_desktop_persistent_state(key: string): Promise<DesktopPersistentStateResult> {
-  return invoke_desktop_bridge<{ key: string }, DesktopPersistentStateResult>(
+  return invokeDesktopBridge<{ key: string }, DesktopPersistentStateResult>(
     "app.get_persistent_state",
     { key },
   );
 }
 
 export async function set_desktop_persistent_state(key: string, value: string): Promise<void> {
-  await invoke_desktop_bridge<{ key: string; value: string }, { saved: boolean }>(
+  await invokeDesktopBridge<{ key: string; value: string }, { saved: boolean }>(
     "app.set_persistent_state",
     { key, value },
   );
 }
 
 export async function remove_desktop_persistent_state(key: string): Promise<void> {
-  await invoke_desktop_bridge<{ key: string }, { removed: boolean }>(
+  await invokeDesktopBridge<{ key: string }, { removed: boolean }>(
     "app.remove_persistent_state",
     { key },
   );
 }
 
-async function invoke_desktop_bridge<TPayload, TResult>(
+async function invokeDesktopBridge<TPayload, TResult>(
   kind: DesktopBridgeKind,
   payload: TPayload,
 ): Promise<TResult> {

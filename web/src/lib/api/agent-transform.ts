@@ -4,20 +4,20 @@
 
 import type { Agent, ApiAgent } from "@/types/agent/agent";
 
-export function transform_api_agent(api_agent: ApiAgent): Agent {
+export function transform_api_agent(apiAgent: ApiAgent): Agent {
   return {
-    agent_id: api_agent.agent_id,
-    name: api_agent.name,
-    workspace_path: api_agent.workspace_path,
-    display_name: api_agent.display_name ?? null,
-    headline: api_agent.headline ?? null,
-    profile_markdown: api_agent.profile_markdown ?? null,
-    options: api_agent.options || {},
-    created_at: new Date(api_agent.created_at).getTime(),
-    status: api_agent.status,
-    avatar: api_agent.avatar ?? null,
-    description: api_agent.description ?? null,
-    vibe_tags: api_agent.vibe_tags ?? [],
-    skills_count: api_agent.skills_count ?? null,
+    agent_id: apiAgent.agent_id,
+    name: apiAgent.name,
+    workspace_path: apiAgent.workspace_path,
+    display_name: apiAgent.display_name ?? null,
+    headline: apiAgent.headline ?? null,
+    profile_markdown: apiAgent.profile_markdown ?? null,
+    options: apiAgent.options || {},
+    created_at: new Date(apiAgent.created_at).getTime(),
+    status: apiAgent.status,
+    avatar: apiAgent.avatar ?? null,
+    description: apiAgent.description ?? null,
+    vibe_tags: apiAgent.vibe_tags ?? [],
+    skills_count: apiAgent.skills_count ?? null,
   };
 }

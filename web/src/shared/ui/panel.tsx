@@ -47,7 +47,7 @@ const PANEL_VARIANT_CLASS_MAP: Record<UiPanelVariant, string> = {
 
 export function UiPanel({
   children,
-  class_name,
+  class_name: legacyClassName,
   className,
   padding = "md",
   radius = "md",
@@ -61,7 +61,7 @@ export function UiPanel({
         PANEL_RADIUS_CLASS_MAP[radius],
         PANEL_PADDING_CLASS_MAP[padding],
         className,
-        class_name,
+        legacyClassName,
       )}
       {...props}
     >
@@ -73,7 +73,7 @@ export function UiPanel({
 function UiSectionHeader({
   action,
   children,
-  class_name,
+  class_name: legacyClassName,
   className,
   description,
   icon,
@@ -81,7 +81,7 @@ function UiSectionHeader({
   ...props
 }: UiSectionHeaderProps) {
   return (
-    <div className={cn("flex items-start justify-between gap-3", className, class_name)} {...props}>
+    <div className={cn("flex items-start justify-between gap-3", className, legacyClassName)} {...props}>
       {children ?? (
         <div className="min-w-0">
           <div className="flex items-center gap-2">

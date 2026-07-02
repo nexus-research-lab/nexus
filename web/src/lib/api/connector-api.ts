@@ -35,16 +35,16 @@ export const get_connectors_api = async (params?: {
 
 /** 获取连接器详情 */
 export const get_connector_detail_api = async (
-  connector_id: string,
+  connectorId: string,
 ): Promise<ConnectorDetail> => {
-  return request_api<ConnectorDetail>(`${BASE}/connectors/${connector_id}`, {
+  return request_api<ConnectorDetail>(`${BASE}/connectors/${connectorId}`, {
     method: "GET",
   });
 };
 
 /** 授权连接 */
 export const connect_connector_api = async (
-  connector_id: string,
+  connectorId: string,
   body?: {
     auth_code?: string;
     api_key?: string;
@@ -53,7 +53,7 @@ export const connect_connector_api = async (
   },
 ): Promise<ConnectorInfo> => {
   return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/connect`,
+    `${BASE}/connectors/${connectorId}/connect`,
     {
       method: "POST",
       body: JSON.stringify(body),
@@ -63,10 +63,10 @@ export const connect_connector_api = async (
 
 /** 断开连接 */
 export const disconnect_connector_api = async (
-  connector_id: string,
+  connectorId: string,
 ): Promise<ConnectorInfo> => {
   return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/disconnect`,
+    `${BASE}/connectors/${connectorId}/disconnect`,
     {
       method: "POST",
     },
@@ -75,14 +75,14 @@ export const disconnect_connector_api = async (
 
 /** 保存用户自有 OAuth Client 配置 */
 export const save_connector_oauth_client_api = async (
-  connector_id: string,
+  connectorId: string,
   body: {
     client_id: string;
     client_secret: string;
   },
 ): Promise<ConnectorInfo> => {
   return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
+    `${BASE}/connectors/${connectorId}/oauth-client`,
     {
       method: "PUT",
       body: JSON.stringify(body),
@@ -92,10 +92,10 @@ export const save_connector_oauth_client_api = async (
 
 /** 删除用户自有 OAuth Client 配置 */
 export const delete_connector_oauth_client_api = async (
-  connector_id: string,
+  connectorId: string,
 ): Promise<ConnectorInfo> => {
   return request_api<ConnectorInfo>(
-    `${BASE}/connectors/${connector_id}/oauth-client`,
+    `${BASE}/connectors/${connectorId}/oauth-client`,
     {
       method: "DELETE",
     },
@@ -104,15 +104,15 @@ export const delete_connector_oauth_client_api = async (
 
 /** 获取 OAuth 授权 URL */
 export const get_connector_auth_url_api = async (
-  connector_id: string,
-  redirect_uri?: string,
+  connectorId: string,
+  redirectUri?: string,
   shop?: string,
 ): Promise<{ auth_url: string }> => {
   const sp = new URLSearchParams();
-  if (redirect_uri) sp.set("redirect_uri", redirect_uri);
+  if (redirectUri) sp.set("redirect_uri", redirectUri);
   if (shop) sp.set("shop", shop);
   const qs = sp.toString();
-  const url = `${BASE}/connectors/${connector_id}/auth-url${qs ? `?${qs}` : ""}`;
+  const url = `${BASE}/connectors/${connectorId}/auth-url${qs ? `?${qs}` : ""}`;
   return request_api<{ auth_url: string }>(url, {
     method: "GET",
   });
@@ -122,9 +122,9 @@ export const get_connector_auth_url_api = async (
 export const complete_connector_o_auth_api = async (
   code: string,
   state: string,
-  redirect_uri?: string,
+  redirectUri?: string,
 ): Promise<ConnectorInfo> => {
-  const body = { code, state, redirect_uri };
+  const body = { code, state, redirect_uri: redirectUri };
   return request_api<ConnectorInfo>(`${BASE}/connectors/oauth/callback`, {
     method: "POST",
     body: JSON.stringify(body),
@@ -133,10 +133,10 @@ export const complete_connector_o_auth_api = async (
 
 /** 启动 OAuth Device Flow */
 export const start_connector_device_auth_api = async (
-  connector_id: string,
+  connectorId: string,
 ): Promise<ConnectorDeviceAuthStart> => {
   return request_api<ConnectorDeviceAuthStart>(
-    `${BASE}/connectors/${connector_id}/device/start`,
+    `${BASE}/connectors/${connectorId}/device/start`,
     {
       method: "POST",
     },
@@ -145,14 +145,14 @@ export const start_connector_device_auth_api = async (
 
 /** 轮询 OAuth Device Flow */
 export const poll_connector_device_auth_api = async (
-  connector_id: string,
-  device_code: string,
+  connectorId: string,
+  deviceCode: string,
 ): Promise<ConnectorDeviceAuthPollResult> => {
   return request_api<ConnectorDeviceAuthPollResult>(
-    `${BASE}/connectors/${connector_id}/device/poll`,
+    `${BASE}/connectors/${connectorId}/device/poll`,
     {
       method: "POST",
-      body: JSON.stringify({ device_code }),
+      body: JSON.stringify({ device_code: deviceCode }),
     },
   );
 };

@@ -41,47 +41,47 @@ export interface AgentStoreState {
 
   // Agent 操作
   create_agent: (params: CreateAgentParams) => Promise<string>;
-  delete_agent: (agent_id: string) => Promise<void>;
-  update_agent: (agent_id: string, params: UpdateAgentParams) => Promise<void>;
-  set_current_agent: (agent_id: string | null) => void;
+  delete_agent: (agentId: string) => Promise<void>;
+  update_agent: (agentId: string, params: UpdateAgentParams) => Promise<void>;
+  set_current_agent: (agentId: string | null) => void;
 
   // 查询
-  get_agent: (agent_id: string) => Agent | undefined;
+  get_agent: (agentId: string) => Agent | undefined;
 
   // 服务器同步
   load_agents_from_server: () => Promise<void>;
   apply_agent_runtime_status: (status: AgentRuntimeStatus) => void;
 }
 
-function build_idle_runtime_status(agent_id: string): AgentRuntimeStatus {
+function buildIdleRuntimeStatus(agentId: string): AgentRuntimeStatus {
   return {
-    agent_id,
+    agent_id: agentId,
     running_task_count: 0,
     status: "idle",
   };
 }
 
-let load_agents_inflight: Promise<Agent[]> | null = null;
+let loadAgentsInflight: Promise<Agent[]> | null = null;
 
-function run_agent_list_request(): Promise<Agent[]> {
-  if (load_agents_inflight) {
-    return load_agents_inflight;
+function runAgentListRequest(): Promise<Agent[]> {
+  if (loadAgentsInflight) {
+    return loadAgentsInflight;
   }
 
-  load_agents_inflight = get_agents().finally(() => {
-    load_agents_inflight = null;
+  loadAgentsInflight = get_agents().finally(() => {
+    loadAgentsInflight = null;
   });
-  return load_agents_inflight;
+  return loadAgentsInflight;
 }
 
-function dispatch_agent_list_updated() {
+function dispatchAgentListUpdated() {
   if (typeof window === "undefined") {
     return;
   }
   window.dispatchEvent(new CustomEvent(AGENT_LIST_UPDATED_EVENT_NAME));
 }
 
-function are_agent_runtime_statuses_equal(
+function areAgentRuntimeStatusesEqual(
   left: AgentRuntimeStatus | undefined,
   right: AgentRuntimeStatus,
 ): boolean {
@@ -117,11 +117,11 @@ export const useAgentStore = create<AgentStoreState>()(
             agents: [agent, ...state.agents],
             agent_runtime_statuses: {
               ...state.agent_runtime_statuses,
-              [agent.agent_id]: build_idle_runtime_status(agent.agent_id),
+              [agent.agent_id]: buildIdleRuntimeStatus(agent.agent_id),
             },
             error: null,
           }));
-          dispatch_agent_list_updated();
+          dispatchAgentListUpdated();
           return agent.agent_id;
         } catch (error) {
           console.error("[AgentStore] Failed to create agent:", error);
@@ -130,29 +130,29 @@ export const useAgentStore = create<AgentStoreState>()(
         }
       },
 
-      delete_agent: async (agent_id: string): Promise<void> => {
+      delete_agent: async (agentId: string): Promise<void> => {
         try {
-          await delete_agent_api(agent_id);
+          await delete_agent_api(agentId);
           set((state) => {
-            const new_agents = state.agents.filter(
-              (a) => a.agent_id !== agent_id,
+            const newAgents = state.agents.filter(
+              (a) => a.agent_id !== agentId,
             );
-            const new_current =
-              state.current_agent_id === agent_id
-                ? new_agents[0]?.agent_id || null
+            const newCurrent =
+              state.current_agent_id === agentId
+                ? newAgents[0]?.agent_id || null
                 : state.current_agent_id;
             return {
-              agents: new_agents,
+              agents: newAgents,
               agent_runtime_statuses: Object.fromEntries(
                 Object.entries(state.agent_runtime_statuses).filter(
-                  ([runtime_agent_id]) => runtime_agent_id !== agent_id,
+                  ([runtimeAgentId]) => runtimeAgentId !== agentId,
                 ),
               ),
-              current_agent_id: new_current,
+              current_agent_id: newCurrent,
               error: null,
             };
           });
-          dispatch_agent_list_updated();
+          dispatchAgentListUpdated();
         } catch (error) {
           console.error("[AgentStore] Failed to delete agent:", error);
           set({ error: "Failed to delete agent" });
@@ -160,38 +160,38 @@ export const useAgentStore = create<AgentStoreState>()(
       },
 
       update_agent: async (
-        agent_id: string,
+        agentId: string,
         params: UpdateAgentParams,
       ): Promise<void> => {
         try {
-          const updated = await update_agent_api(agent_id, params);
+          const updated = await update_agent_api(agentId, params);
           set((state) => ({
             agents: state.agents.map((a) =>
-              a.agent_id === agent_id ? updated : a,
+              a.agent_id === agentId ? updated : a,
             ),
             agent_runtime_statuses: {
               ...state.agent_runtime_statuses,
-              [agent_id]:
-                state.agent_runtime_statuses[agent_id] ??
-                build_idle_runtime_status(agent_id),
+              [agentId]:
+                state.agent_runtime_statuses[agentId] ??
+                buildIdleRuntimeStatus(agentId),
             },
             error: null,
           }));
-          dispatch_agent_list_updated();
+          dispatchAgentListUpdated();
         } catch (error) {
           console.error("[AgentStore] Failed to update agent:", error);
           set({ error: "Failed to update agent" });
         }
       },
 
-      set_current_agent: (agent_id: string | null) => {
-        set({ current_agent_id: agent_id, error: null });
+      set_current_agent: (agentId: string | null) => {
+        set({ current_agent_id: agentId, error: null });
       },
 
       // ==================== 查询 ====================
 
-      get_agent: (agent_id: string): Agent | undefined => {
-        return get().agents.find((a) => a.agent_id === agent_id);
+      get_agent: (agentId: string): Agent | undefined => {
+        return get().agents.find((a) => a.agent_id === agentId);
       },
 
       // ==================== 服务器同步 ====================
@@ -199,14 +199,14 @@ export const useAgentStore = create<AgentStoreState>()(
       load_agents_from_server: async (): Promise<void> => {
         try {
           set({ loading: true, error: null });
-          const agents = await run_agent_list_request();
+          const agents = await runAgentListRequest();
           set((state) => ({
             agents,
             agent_runtime_statuses: Object.fromEntries(
               agents.map((agent) => [
                 agent.agent_id,
                 state.agent_runtime_statuses[agent.agent_id] ??
-                  build_idle_runtime_status(agent.agent_id),
+                  buildIdleRuntimeStatus(agent.agent_id),
               ]),
             ),
             loading: false,
@@ -223,8 +223,8 @@ export const useAgentStore = create<AgentStoreState>()(
 
       apply_agent_runtime_status: (status: AgentRuntimeStatus): void => {
         set((state) => {
-          const current_status = state.agent_runtime_statuses[status.agent_id];
-          if (are_agent_runtime_statuses_equal(current_status, status)) {
+          const currentStatus = state.agent_runtime_statuses[status.agent_id];
+          if (areAgentRuntimeStatusesEqual(currentStatus, status)) {
             return state;
           }
 

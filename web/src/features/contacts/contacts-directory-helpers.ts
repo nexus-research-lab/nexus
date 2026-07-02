@@ -8,8 +8,8 @@ export function matches_contacts_search(agent: Agent, query: string): boolean {
     return true;
   }
 
-  const normalized_query = query.trim().toLowerCase();
-  const searchable_text = [
+  const normalizedQuery = query.trim().toLowerCase();
+  const searchableText = [
     agent.name,
     agent.display_name,
     agent.headline,
@@ -24,5 +24,5 @@ export function matches_contacts_search(agent: Agent, query: string): boolean {
     .join(" ")
     .toLowerCase();
 
-  return searchable_text.includes(normalized_query);
+  return searchableText.includes(normalizedQuery);
 }

@@ -24,23 +24,23 @@ interface TypewriterFileViewProps {
  */
 export function TypewriterFileView({
   content,
-  container_width,
-  class_name,
+  container_width: containerWidth,
+  class_name: className,
 }: TypewriterFileViewProps) {
   const [lineCount, setLineCount] = useState(1);
   const preRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-    if (!container_width || container_width <= 0) return;
+    if (!containerWidth || containerWidth <= 0) return;
     try {
       const prepared = prepare(content, MONO_FONT);
-      const result = layout(prepared, container_width, LINE_HEIGHT);
+      const result = layout(prepared, containerWidth, LINE_HEIGHT);
       setLineCount(Math.max(1, Math.round(result.height / LINE_HEIGHT)));
     } catch {
       // Fallback: count raw newlines
       setLineCount(content.split("\n").length);
     }
-  }, [content, container_width]);
+  }, [content, containerWidth]);
 
   // Scroll to bottom as content grows
   useEffect(() => {
@@ -49,7 +49,7 @@ export function TypewriterFileView({
   }, [content]);
 
   return (
-    <div className={`relative flex h-full min-h-0 flex-col overflow-hidden font-mono text-sm leading-6 ${class_name ?? ""}`}>
+    <div className={`relative flex h-full min-h-0 flex-col overflow-hidden font-mono text-sm leading-6 ${className ?? ""}`}>
       {/* Line count badge */}
       <div className="absolute right-4 top-3 z-10 flex items-center gap-1.5 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_14%,transparent)] bg-transparent px-2 py-0.5 text-[10px] font-semibold text-primary/80">
         <span
@@ -74,7 +74,7 @@ export function TypewriterFileView({
 // A block-level write cursor: thicker than the streaming cursor,
 // using a bright amber/green accent to signal "agent writing"
 let writeCursorStyleInjected = false;
-function ensure_write_cursor_style() {
+function ensureWriteCursorStyle() {
   if (writeCursorStyleInjected || typeof document === "undefined") return;
   writeCursorStyleInjected = true;
   const style = document.createElement("style");
@@ -102,6 +102,6 @@ function ensure_write_cursor_style() {
 }
 
 function WriteCursor() {
-  useEffect(() => { ensure_write_cursor_style(); }, []);
+  useEffect(() => { ensureWriteCursorStyle(); }, []);
   return <span className="nexus-write-cursor" aria-hidden />;
 }

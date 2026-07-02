@@ -27,7 +27,7 @@ const MID_Y = +(TILE_H / 2).toFixed(2);
 /*       /\/\/\/\/\/\                                                  */
 /* ------------------------------------------------------------------ */
 
-function build_grid_svg(stroke_color: string, stroke_width: number): string {
+function buildGridSvg(strokeColor: string, strokeWidth: number): string {
   const d = [
     // 水平线
     `M0,0L${TILE_W},0`,
@@ -42,24 +42,24 @@ function build_grid_svg(stroke_color: string, stroke_width: number): string {
 
   return [
     `<svg xmlns='http://www.w3.org/2000/svg' width='${TILE_W}' height='${TILE_H}' viewBox='0 0 ${TILE_W} ${TILE_H}'>`,
-    `<path d='${d}' fill='none' stroke='${stroke_color}' stroke-width='${stroke_width}'/>`,
+    `<path d='${d}' fill='none' stroke='${strokeColor}' stroke-width='${strokeWidth}'/>`,
     `</svg>`,
   ].join("");
 }
 
 /* Light — 白色 embossed 描边，在 #ededec 上形成 ≈2% 亮度差 */
-function build_light_svg(): string {
-  return build_grid_svg("rgba(255,255,255,0.38)", 0.6);
+function buildLightSvg(): string {
+  return buildGridSvg("rgba(255,255,255,0.38)", 0.6);
 }
 
 /* Dark — 深色 engraved 描边，在 #131316 上形成微弱阴刻质感 */
-function build_dark_svg(): string {
-  return build_grid_svg("rgba(0,0,0,0.24)", 0.6);
+function buildDarkSvg(): string {
+  return buildGridSvg("rgba(0,0,0,0.24)", 0.6);
 }
 
 /* Rain — 极轻蚀刻，避免与雨滴 canvas overlay 冲突 */
-function build_rain_svg(): string {
-  return build_grid_svg("rgba(0,0,0,0.12)", 0.6);
+function buildRainSvg(): string {
+  return buildGridSvg("rgba(0,0,0,0.12)", 0.6);
 }
 
 /* ------------------------------------------------------------------ */
@@ -76,7 +76,7 @@ const TILE_SIZES: Record<PatternVariant, { w: number; h: number }> = {
 /*  Public API                                                        */
 /* ------------------------------------------------------------------ */
 
-function resolve_variant(theme: BackgroundTheme): PatternVariant {
+function resolveVariant(theme: BackgroundTheme): PatternVariant {
   if (theme === "dark") return "dark";
   if (theme === "rain") return "rain";
   return "light";
@@ -89,15 +89,15 @@ const BACKGROUNDS: Record<PatternVariant, string> = {
 };
 
 const BUILDERS: Record<PatternVariant, () => string> = {
-  light: build_light_svg,
-  dark: build_dark_svg,
-  rain: build_rain_svg,
+  light: buildLightSvg,
+  dark: buildDarkSvg,
+  rain: buildRainSvg,
 };
 
 // memoize encoded SVGs — they never change at runtime
 const cache = new Map<PatternVariant, string>();
 
-function build_pattern_url(variant: PatternVariant): string {
+function buildPatternUrl(variant: PatternVariant): string {
   let url = cache.get(variant);
   if (!url) {
     const svg = BUILDERS[variant]();
@@ -107,28 +107,28 @@ function build_pattern_url(variant: PatternVariant): string {
   return url;
 }
 
-function apply_for_theme(root: HTMLElement, theme: BackgroundTheme) {
-  const variant = resolve_variant(theme);
+function applyForTheme(root: HTMLElement, theme: BackgroundTheme) {
+  const variant = resolveVariant(theme);
   const size = TILE_SIZES[variant];
-  const pattern_size = `${size.w}px ${size.h}px`;
+  const patternSize = `${size.w}px ${size.h}px`;
 
-  root.style.setProperty("--nexus-page-pattern-size", pattern_size);
-  root.style.setProperty("--ambient-page-pattern-size", pattern_size);
+  root.style.setProperty("--nexus-page-pattern-size", patternSize);
+  root.style.setProperty("--ambient-page-pattern-size", patternSize);
 
   root.style.setProperty("--nexus-page-background-light", BACKGROUNDS.light);
   root.style.setProperty("--nexus-page-background-dark", BACKGROUNDS.dark);
   root.style.setProperty("--nexus-page-background-rain", BACKGROUNDS.rain);
 
-  root.style.setProperty("--nexus-page-pattern-light", build_pattern_url("light"));
-  root.style.setProperty("--nexus-page-pattern-dark", build_pattern_url("dark"));
-  root.style.setProperty("--nexus-page-pattern-rain", build_pattern_url("rain"));
+  root.style.setProperty("--nexus-page-pattern-light", buildPatternUrl("light"));
+  root.style.setProperty("--nexus-page-pattern-dark", buildPatternUrl("dark"));
+  root.style.setProperty("--nexus-page-pattern-rain", buildPatternUrl("rain"));
 
-  root.style.setProperty("--ambient-page-pattern", build_pattern_url(variant));
+  root.style.setProperty("--ambient-page-pattern", buildPatternUrl(variant));
 }
 
 export function apply_theme_background_pattern(
   theme: BackgroundTheme,
   root: HTMLElement = document.documentElement,
 ) {
-  apply_for_theme(root, theme);
+  applyForTheme(root, theme);
 }

@@ -16,35 +16,35 @@ import { is_ephemeral_message } from "./conversation-volatile-snapshot";
 
 export function filter_round_pending_agent_slots(
   slots: RoomPendingAgentSlotState[],
-  round_id: string,
+  roundId: string,
 ): RoomPendingAgentSlotState[] {
   return slots.filter(
-    (slot) => !matches_round_lifecycle(slot.round_id, round_id),
+    (slot) => !matches_round_lifecycle(slot.round_id, roundId),
   );
 }
 
 export function filter_round_pending_permissions(
   permissions: PendingPermission[],
-  round_id: string,
+  roundId: string,
 ): PendingPermission[] {
   return permissions.filter((permission) => {
     if (!permission.caused_by) {
       return true;
     }
-    return !matches_round_lifecycle(permission.caused_by, round_id);
+    return !matches_round_lifecycle(permission.caused_by, roundId);
   });
 }
 
 export function remove_failed_outbound_user_message(
   messages: Message[],
-  round_id: string,
+  roundId: string,
 ): Message[] {
   return messages.filter(
     (message) =>
       !(
         message.role === "user" &&
-        message.message_id === round_id &&
-        message.round_id === round_id
+        message.message_id === roundId &&
+        message.round_id === roundId
       ),
   );
 }
@@ -64,38 +64,38 @@ export function cancel_running_agent_slots(
 
 export function reconcile_stopped_session_messages(
   messages: Message[],
-  terminal_round_ids: string[],
-  chat_type: AgentConversationChatType,
+  terminalRoundIds: string[],
+  chatType: AgentConversationChatType,
 ): Message[] {
-  const terminal_round_set = new Set(terminal_round_ids);
-  const is_terminal_round = (round_id: string) => {
-    if (terminal_round_set.has(round_id)) {
+  const terminalRoundSet = new Set(terminalRoundIds);
+  const isTerminalRound = (roundId: string) => {
+    if (terminalRoundSet.has(roundId)) {
       return true;
     }
-    if (chat_type !== "group") {
+    if (chatType !== "group") {
       return false;
     }
-    for (const terminal_round_id of terminal_round_set) {
-      if (round_id.startsWith(`${terminal_round_id}:`)) {
+    for (const terminalRoundId of terminalRoundSet) {
+      if (roundId.startsWith(`${terminalRoundId}:`)) {
         return true;
       }
     }
     return false;
   };
 
-  let has_changes = false;
-  const next_messages: Message[] = [];
+  let hasChanges = false;
+  const nextMessages: Message[] = [];
   for (const message of messages) {
     if (is_ephemeral_message(message)) {
-      has_changes = true;
+      hasChanges = true;
       continue;
     }
     if (message.role !== "assistant") {
-      next_messages.push(message);
+      nextMessages.push(message);
       continue;
     }
-    if (is_terminal_round(message.round_id)) {
-      next_messages.push(message);
+    if (isTerminalRound(message.round_id)) {
+      nextMessages.push(message);
       continue;
     }
     if (
@@ -104,25 +104,25 @@ export function reconcile_stopped_session_messages(
       message.stream_status === "cancelled" ||
       message.stream_status === "error"
     ) {
-      next_messages.push(message);
+      nextMessages.push(message);
       continue;
     }
-    has_changes = true;
-    next_messages.push({
+    hasChanges = true;
+    nextMessages.push({
       ...message,
       stream_status: "cancelled" as const,
     });
   }
-  return has_changes ? next_messages : messages;
+  return hasChanges ? nextMessages : messages;
 }
 
 export function update_assistant_message_status(
   messages: Message[],
-  msg_id: string,
+  msgId: string,
   status: AssistantMessageStatus,
 ): Message[] {
   return messages.map((message) =>
-    message.message_id === msg_id && message.role === "assistant"
+    message.message_id === msgId && message.role === "assistant"
       ? { ...(message as AssistantMessage), stream_status: status }
       : message,
   );
@@ -130,15 +130,15 @@ export function update_assistant_message_status(
 
 export function update_pending_agent_slot_status(
   slots: RoomPendingAgentSlotState[],
-  msg_id: string,
+  msgId: string,
   status: AssistantMessageStatus,
-  round_id?: string | null,
+  roundId?: string | null,
 ): RoomPendingAgentSlotState[] {
   return slots.map((slot) =>
-    slot.msg_id === msg_id
+    slot.msg_id === msgId
       ? {
           ...slot,
-          round_id: round_id ?? slot.round_id,
+          round_id: roundId ?? slot.round_id,
           status,
         }
       : slot,
@@ -149,64 +149,64 @@ export function merge_chat_ack_pending_slots(
   slots: RoomPendingAgentSlotState[],
   ack: ChatAckData,
 ): RoomPendingAgentSlotState[] {
-  const pending_count = ack.pending?.length ?? 0;
-  const preserved_slots = slots.filter((slot) => {
-    const base_round_id = slot.round_id.split(":", 1)[0];
-    return base_round_id !== ack.round_id;
+  const pendingCount = ack.pending?.length ?? 0;
+  const preservedSlots = slots.filter((slot) => {
+    const baseRoundId = slot.round_id.split(":", 1)[0];
+    return baseRoundId !== ack.round_id;
   });
-  const next_slots = (ack.pending ?? []).map((slot) => ({
+  const nextSlots = (ack.pending ?? []).map((slot) => ({
     agent_id: slot.agent_id,
     msg_id: slot.msg_id,
     round_id:
       slot.round_id ||
-      (pending_count > 1
+      (pendingCount > 1
         ? `${ack.round_id}:${slot.agent_id}`
         : ack.round_id),
     status: (slot.status ?? "pending") as AssistantMessageStatus,
     timestamp: slot.timestamp ?? Date.now(),
   }));
-  return [...preserved_slots, ...next_slots];
+  return [...preservedSlots, ...nextSlots];
 }
 
 export function apply_terminal_round_message_status(
   messages: Message[],
-  round_id: string,
+  roundId: string,
   status: RoundLifecycleStatus,
 ): Message[] {
-  const terminal_status = get_terminal_message_status(status);
-  let has_changes = false;
-  const next_messages: Message[] = [];
+  const terminalStatus = get_terminal_message_status(status);
+  let hasChanges = false;
+  const nextMessages: Message[] = [];
 
   for (const message of messages) {
     if (
-      matches_round_lifecycle(message.round_id, round_id) &&
+      matches_round_lifecycle(message.round_id, roundId) &&
       is_ephemeral_message(message)
     ) {
-      has_changes = true;
+      hasChanges = true;
       continue;
     }
     if (message.role !== "assistant") {
-      next_messages.push(message);
+      nextMessages.push(message);
       continue;
     }
-    if (!matches_round_lifecycle(message.round_id, round_id)) {
-      next_messages.push(message);
+    if (!matches_round_lifecycle(message.round_id, roundId)) {
+      nextMessages.push(message);
       continue;
     }
     if (
-      message.stream_status === terminal_status ||
+      message.stream_status === terminalStatus ||
       message.stream_status === "cancelled" ||
       message.stream_status === "error" ||
       message.stream_status === "done"
     ) {
-      next_messages.push(message);
+      nextMessages.push(message);
       continue;
     }
-    has_changes = true;
-    next_messages.push({
+    hasChanges = true;
+    nextMessages.push({
       ...message,
-      stream_status: terminal_status,
+      stream_status: terminalStatus,
     });
   }
-  return has_changes ? next_messages : messages;
+  return hasChanges ? nextMessages : messages;
 }

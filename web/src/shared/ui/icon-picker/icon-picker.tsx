@@ -15,7 +15,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 
 interface IconPickerProps {
     value?: string; // e.g. "13"
-    on_select: (icon_id: string) => void;
+    on_select: (iconId: string) => void;
     max_icons?: number; // 默认 24
     start_icon_id?: number; // 默认 1
     columns?: number; // 默认 4
@@ -35,25 +35,25 @@ const ICON_SIZE_MAP = {
 
 export function IconPicker({
     value,
-    on_select,
-    max_icons = 24,
-    start_icon_id = 1,
+    on_select: onSelect,
+    max_icons: maxIcons = 24,
+    start_icon_id: startIconId = 1,
     columns = 6,
     layout = "grid",
-    icon_size = "md",
-    icon_family = "agent",
-    show_clear = true,
+    icon_size: iconSize = "md",
+    icon_family: iconFamily = "agent",
+    show_clear: showClear = true,
     disabled = false,
-    class_name,
+    class_name: className,
 }: IconPickerProps) {
     const { t } = useI18n();
 
     // 生成 icon IDs 列表
-    const icon_ids = useMemo(() => {
-        return Array.from({ length: max_icons }, (_, i) => String(start_icon_id + i));
-    }, [max_icons, start_icon_id]);
+    const iconIds = useMemo(() => {
+        return Array.from({ length: maxIcons }, (_, i) => String(startIconId + i));
+    }, [maxIcons, startIconId]);
 
-    const grid_cols = cn(
+    const gridCols = cn(
         "gap-2",
         columns === 4 && "grid-cols-4",
         columns === 6 && "grid-cols-6",
@@ -61,12 +61,12 @@ export function IconPicker({
     );
 
     return (
-        <div className={cn("flex flex-col gap-3", class_name)}>
+        <div className={cn("flex flex-col gap-3", className)}>
             {/* 清除按钮 */}
-            {show_clear && value ? (
+            {showClear && value ? (
                 <button
                     className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-(--text-muted) hover:text-(--text-default) transition"
-                    onClick={() => on_select("")}
+                    onClick={() => onSelect("")}
                     type="button"
                     disabled={disabled}
                 >
@@ -80,35 +80,35 @@ export function IconPicker({
                 className={cn(
                     layout === "row"
                         ? "soft-scrollbar flex gap-2 overflow-x-auto overflow-y-hidden pb-1"
-                        : cn("grid", grid_cols),
+                        : cn("grid", gridCols),
                 )}
             >
-                {icon_ids.map((icon_id) => {
-                    const is_selected = value === icon_id;
-                    const icon_path = `/icon/${icon_family}/${icon_id}.png`;
+                {iconIds.map((iconId) => {
+                    const isSelected = value === iconId;
+                    const iconPath = `/icon/${iconFamily}/${iconId}.png`;
 
                     return (
                         <button
-                            key={icon_id}
+                            key={iconId}
                             className={cn(
                                 "relative inline-flex items-center justify-center overflow-hidden rounded-[12px] transition-[background,transform,border-color,box-shadow] duration-(--motion-duration-fast) cursor-pointer",
-                                ICON_SIZE_MAP[icon_size],
+                                ICON_SIZE_MAP[iconSize],
                                 layout === "row" && "shrink-0",
-                                is_selected
+                                isSelected
                                     ? "bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] border border-(--primary) shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_16%,transparent)]"
                                     : "border border-(--surface-inset-border) bg-transparent hover:bg-(--surface-interactive-hover-background) hover:-translate-y-[1px]",
                                 disabled && "cursor-not-allowed opacity-50",
                             )}
-                            onClick={() => !disabled && on_select(icon_id)}
+                            onClick={() => !disabled && onSelect(iconId)}
                             type="button"
                             disabled={disabled}
-                            title={`icon-${icon_id}`}
+                            title={`icon-${iconId}`}
                         >
                             <img
-                                alt={`icon-${icon_id}`}
+                                alt={`icon-${iconId}`}
                                 className="h-full w-full rounded-[inherit] object-cover"
                                 crossOrigin="anonymous"
-                                src={icon_path}
+                                src={iconPath}
                             />
                         </button>
                     );

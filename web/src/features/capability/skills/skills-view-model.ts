@@ -56,7 +56,7 @@ export interface SkillMarketplaceController {
   set_error_message: (value: string | null) => void;
   refresh_marketplace: () => Promise<void>;
   submit_external_search: () => void;
-  handle_update_single: (skill_name: string) => Promise<void>;
+  handle_update_single: (skillName: string) => Promise<void>;
   handle_delete_skill: (skill: SkillInfo) => Promise<void>;
   handle_update_installed: () => Promise<void>;
   handle_local_import: (file: File) => Promise<void>;

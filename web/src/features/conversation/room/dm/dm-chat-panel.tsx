@@ -47,304 +47,304 @@ export interface DmChatPanelProps {
   layout?: "desktop" | "mobile";
   initial_draft?: string | null;
   on_initial_draft_consumed?: () => void;
-  on_open_agent_contact?: (agent_id: string) => void;
+  on_open_agent_contact?: (agentId: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_todos_change?: (todos: TodoItem[]) => void;
-  on_loading_change?: (is_loading: boolean) => void;
+  on_loading_change?: (isLoading: boolean) => void;
   on_conversation_snapshot_change?: (snapshot: SessionSnapshotPayload) => void;
   on_room_event?: (
-    event_type: string,
+    eventType: string,
     data: import("@/types/agent/agent-conversation").RoomEventPayload,
   ) => void;
 }
 
 export function DmChatPanel({
-  current_agent_name,
-  current_agent_avatar,
-  current_agent_permission_mode,
-  session_identity,
+  current_agent_name: currentAgentName,
+  current_agent_avatar: currentAgentAvatar,
+  current_agent_permission_mode: currentAgentPermissionMode,
+  session_identity: sessionIdentity,
   layout = "desktop",
-  initial_draft = null,
-  on_initial_draft_consumed,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_todos_change,
-  on_loading_change,
-  on_conversation_snapshot_change,
-  on_room_event,
+  initial_draft: initialDraft = null,
+  on_initial_draft_consumed: onInitialDraftConsumed,
+  on_open_agent_contact: onOpenAgentContact,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  on_todos_change: onTodosChange,
+  on_loading_change: onLoadingChange,
+  on_conversation_snapshot_change: onConversationSnapshotChange,
+  on_room_event: onRoomEvent,
 }: DmChatPanelProps) {
-  const is_mobile_layout = layout === "mobile";
-  const session_key = session_identity?.session_key ?? null;
-  const default_delivery_policy = useDefaultChatDeliveryPolicy();
-  const { status: auth_status } = useAuth();
-  const current_user_avatar = auth_status?.avatar ?? null;
-  const [goal_refresh_seq, set_goal_refresh_seq] = useState(0);
-  const refresh_goal_panel = useCallback(() => {
-    set_goal_refresh_seq((value) => value + 1);
+  const isMobileLayout = layout === "mobile";
+  const sessionKey = sessionIdentity?.session_key ?? null;
+  const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const { status: authStatus } = useAuth();
+  const currentUserAvatar = authStatus?.avatar ?? null;
+  const [goalRefreshSeq, setGoalRefreshSeq] = useState(0);
+  const refreshGoalPanel = useCallback(() => {
+    setGoalRefreshSeq((value) => value + 1);
   }, []);
-  const goal_continuation_hold = useMemo(
+  const goalContinuationHold = useMemo(
     () =>
       goal_continuation_hold_for_permission(
-        current_agent_name,
-        current_agent_permission_mode,
+        currentAgentName,
+        currentAgentPermissionMode,
       ),
-    [current_agent_name, current_agent_permission_mode],
+    [currentAgentName, currentAgentPermissionMode],
   );
-  const can_control_session = true;
-  const handle_conversation_event = useCallback(
+  const canControlSession = true;
+  const handleConversationEvent = useCallback(
     (
-      event_type: string,
+      eventType: string,
       data: import("@/types/agent/agent-conversation").RoomEventPayload,
     ) => {
-      if (event_type.startsWith("goal_")) {
-        refresh_goal_panel();
+      if (eventType.startsWith("goal_")) {
+        refreshGoalPanel();
       }
-      on_room_event?.(event_type, data);
+      onRoomEvent?.(eventType, data);
     },
-    [on_room_event, refresh_goal_panel],
+    [onRoomEvent, refreshGoalPanel],
   );
 
   const {
     error,
     messages,
-    is_loading,
-    is_history_loading,
-    has_more_history,
-    history_prepend_token,
-    pending_permissions,
-    send_message,
-    stop_generation,
-    load_session,
-    load_older_messages,
-    send_permission_response,
-    runtime_phase,
-    live_round_ids,
-    input_queue_items,
-    enqueue_input_queue_message,
-    delete_input_queue_message,
-    guide_input_queue_message,
-    reorder_input_queue_messages,
+    is_loading: isLoading,
+    is_history_loading: isHistoryLoading,
+    has_more_history: hasMoreHistory,
+    history_prepend_token: historyPrependToken,
+    pending_permissions: pendingPermissions,
+    send_message: sendMessage,
+    stop_generation: stopGeneration,
+    load_session: loadSession,
+    load_older_messages: loadOlderMessages,
+    send_permission_response: sendPermissionResponse,
+    runtime_phase: runtimePhase,
+    live_round_ids: liveRoundIds,
+    input_queue_items: inputQueueItems,
+    enqueue_input_queue_message: enqueueInputQueueMessage,
+    delete_input_queue_message: deleteInputQueueMessage,
+    guide_input_queue_message: guideInputQueueMessage,
+    reorder_input_queue_messages: reorderInputQueueMessages,
   } = useAgentConversation({
-    identity: session_identity,
+    identity: sessionIdentity,
     on_error: (err) => {
       console.error("DM conversation error:", err);
     },
-    on_room_event: handle_conversation_event,
+    on_room_event: handleConversationEvent,
   });
 
-  const todos = useExtractTodos(messages, session_key);
-  const { has_available_provider, is_ready: provider_ready } = useProviderAvailability();
-  const show_provider_warning = provider_ready && !has_available_provider;
-  const system_error = error && !is_provider_error(error) ? error : null;
+  const todos = useExtractTodos(messages, sessionKey);
+  const { has_available_provider: hasAvailableProvider, is_ready: providerReady } = useProviderAvailability();
+  const showProviderWarning = providerReady && !hasAvailableProvider;
+  const systemError = error && !is_provider_error(error) ? error : null;
   const {
-    scroll_ref,
-    feed_ref,
-    bottom_anchor_ref,
-    show_scroll_to_bottom,
-    scroll_to_bottom,
-    prepare_history_prepend_restore,
-    cancel_history_prepend_restore,
-    on_scroll,
-    on_wheel,
-    on_touch_start,
-    on_touch_move,
-    on_touch_end,
+    scroll_ref: scrollRef,
+    feed_ref: feedRef,
+    bottom_anchor_ref: bottomAnchorRef,
+    show_scroll_to_bottom: showScrollToBottom,
+    scroll_to_bottom: scrollToBottom,
+    prepare_history_prepend_restore: prepareHistoryPrependRestore,
+    cancel_history_prepend_restore: cancelHistoryPrependRestore,
+    on_scroll: onScroll,
+    on_wheel: onWheel,
+    on_touch_start: onTouchStart,
+    on_touch_move: onTouchMove,
+    on_touch_end: onTouchEnd,
   } = useFollowScroll({
     message_count: messages.length,
-    auxiliary_block_count: pending_permissions.length,
-    auxiliary_block_key: system_error,
-    is_loading,
-    session_key,
-    history_prepend_token,
+    auxiliary_block_count: pendingPermissions.length,
+    auxiliary_block_key: systemError,
+    is_loading: isLoading,
+    session_key: sessionKey,
+    history_prepend_token: historyPrependToken,
   });
-  const prepare_dm_attachments = useCallback(async (files: File[]) => {
-    const target_agent_id = session_identity?.agent_id;
-    if (!target_agent_id) {
+  const prepareDmAttachments = useCallback(async (files: File[]) => {
+    const targetAgentId = sessionIdentity?.agent_id;
+    if (!targetAgentId) {
       throw new Error("当前会话尚未准备好，暂时无法附加文件。");
     }
-    return prepare_workspace_attachments(target_agent_id, files);
-  }, [session_identity?.agent_id]);
-  const { handle_prepare_attachments, handle_send_message } =
+    return prepare_workspace_attachments(targetAgentId, files);
+  }, [sessionIdentity?.agent_id]);
+  const { handle_prepare_attachments: handlePrepareAttachments, handle_send_message: handleSendMessage } =
     useConversationComposerHandlers({
-      initial_draft,
+      initial_draft: initialDraft,
       initial_draft_log_label: "DM",
-      is_loading,
-      on_initial_draft_consumed,
-      prepare_attachments: prepare_dm_attachments,
-      scroll_to_bottom,
-      send_message,
-      session_key,
+      is_loading: isLoading,
+      on_initial_draft_consumed: onInitialDraftConsumed,
+      prepare_attachments: prepareDmAttachments,
+      scroll_to_bottom: scrollToBottom,
+      send_message: sendMessage,
+      session_key: sessionKey,
     });
 
-  const build_dm_snapshot = useCallback(
+  const buildDmSnapshot = useCallback(
     (input: ConversationSnapshotBuildInput): SessionSnapshotPayload => {
       const {
-        scope_key,
-        last_message,
-        latest_reply_timestamp,
-        should_report_last_activity,
+        scope_key: scopeKey,
+        last_message: lastMessage,
+        latest_reply_timestamp: latestReplyTimestamp,
+        should_report_last_activity: shouldReportLastActivity,
       } = input;
 
       return {
-        session_key: scope_key,
-        agent_id: session_identity?.agent_id ?? null,
-        room_id: session_identity?.room_id ?? null,
-        conversation_id: session_identity?.conversation_id ?? null,
-        room_session_id: session_identity?.room_session_id ?? null,
-        ...(should_report_last_activity && latest_reply_timestamp !== null
-          ? { last_activity_at: latest_reply_timestamp }
+        session_key: scopeKey,
+        agent_id: sessionIdentity?.agent_id ?? null,
+        room_id: sessionIdentity?.room_id ?? null,
+        conversation_id: sessionIdentity?.conversation_id ?? null,
+        room_session_id: sessionIdentity?.room_session_id ?? null,
+        ...(shouldReportLastActivity && latestReplyTimestamp !== null
+          ? { last_activity_at: latestReplyTimestamp }
           : {}),
-        session_id: last_message.session_id ?? null,
+        session_id: lastMessage.session_id ?? null,
       };
     },
-    [session_identity],
+    [sessionIdentity],
   );
 
   useEffect(() => {
-    on_todos_change?.(todos);
-  }, [on_todos_change, todos]);
+    onTodosChange?.(todos);
+  }, [onTodosChange, todos]);
   useEffect(() => {
-    on_loading_change?.(is_loading);
-  }, [is_loading, on_loading_change]);
+    onLoadingChange?.(isLoading);
+  }, [isLoading, onLoadingChange]);
 
   useConversationSnapshotReporter({
-    scope_key: session_key,
+    scope_key: sessionKey,
     messages,
-    build_snapshot: build_dm_snapshot,
-    on_snapshot_change: on_conversation_snapshot_change,
+    build_snapshot: buildDmSnapshot,
+    on_snapshot_change: onConversationSnapshotChange,
   });
 
   useSessionLoader({
-    session_key,
-    load_session,
+    session_key: sessionKey,
+    load_session: loadSession,
     debug_name: "DmChatPanel",
   });
 
-  const message_groups = useMemo(
+  const messageGroups = useMemo(
     () => group_messages_by_round(messages),
     [messages],
   );
-  const round_ids = useMemo(
-    () => build_timeline_round_ids(message_groups, live_round_ids),
-    [live_round_ids, message_groups],
+  const roundIds = useMemo(
+    () => build_timeline_round_ids(messageGroups, liveRoundIds),
+    [liveRoundIds, messageGroups],
   );
 
-  const { handle_scroll } = useConversationHistoryLoader({
-    scroll_ref,
+  const { handle_scroll: handleScroll } = useConversationHistoryLoader({
+    scroll_ref: scrollRef,
     message_count: messages.length,
-    has_more_history,
-    is_history_loading,
-    is_loading,
-    load_older_messages,
-    prepare_history_prepend_restore,
-    cancel_history_prepend_restore,
-    on_scroll,
+    has_more_history: hasMoreHistory,
+    is_history_loading: isHistoryLoading,
+    is_loading: isLoading,
+    load_older_messages: loadOlderMessages,
+    prepare_history_prepend_restore: prepareHistoryPrependRestore,
+    cancel_history_prepend_restore: cancelHistoryPrependRestore,
+    on_scroll: onScroll,
   });
 
-  const handle_stop = () => stop_generation();
+  const handleStop = () => stopGeneration();
 
-  const handle_create_goal = useCallback(async (objective: string) => {
-    if (!session_key) {
+  const handleCreateGoal = useCallback(async (objective: string) => {
+    if (!sessionKey) {
       throw new Error("当前会话尚未准备好，暂时无法启动 Goal。");
     }
     await create_goal_api({
-      session_key,
+      session_key: sessionKey,
       objective,
       token_budget: null,
     });
-    refresh_goal_panel();
-  }, [refresh_goal_panel, session_key]);
+    refreshGoalPanel();
+  }, [refreshGoalPanel, sessionKey]);
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
 
       <div
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.feed}
-        ref={scroll_ref}
+        ref={scrollRef}
         className={
-          is_mobile_layout
+          isMobileLayout
             ? "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2"
             : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-7"
         }
         style={{ overflowAnchor: "none" }}
-        onScroll={handle_scroll}
-        onTouchEnd={on_touch_end}
-        onTouchMove={on_touch_move}
-        onTouchStart={on_touch_start}
-        onWheel={on_wheel}
+        onScroll={handleScroll}
+        onTouchEnd={onTouchEnd}
+        onTouchMove={onTouchMove}
+        onTouchStart={onTouchStart}
+        onWheel={onWheel}
       >
-        {is_history_loading ? (
+        {isHistoryLoading ? (
           <div className="mx-auto mb-3 flex w-full max-w-[980px] items-center justify-center text-xs text-muted-foreground">
             正在加载更早消息...
           </div>
         ) : null}
         <ConversationFeed
-          bottom_anchor_ref={bottom_anchor_ref}
-          feed_ref={feed_ref}
-          scroll_ref={scroll_ref}
-          current_agent_name={current_agent_name ?? null}
-          current_agent_avatar={current_agent_avatar ?? null}
-          workspace_agent_id={session_identity?.agent_id ?? null}
-          current_user_avatar={current_user_avatar}
-          is_last_round_pending_permissions={pending_permissions}
-          is_loading={is_loading}
-          runtime_phase={runtime_phase}
-          live_round_ids={live_round_ids}
-          is_mobile_layout={is_mobile_layout}
-          message_groups={message_groups}
-          on_open_agent_contact={on_open_agent_contact}
-          on_open_workspace_file={on_open_workspace_file}
-          on_permission_response={send_permission_response}
-          round_ids={round_ids}
+          bottom_anchor_ref={bottomAnchorRef}
+          feed_ref={feedRef}
+          scroll_ref={scrollRef}
+          current_agent_name={currentAgentName ?? null}
+          current_agent_avatar={currentAgentAvatar ?? null}
+          workspace_agent_id={sessionIdentity?.agent_id ?? null}
+          current_user_avatar={currentUserAvatar}
+          is_last_round_pending_permissions={pendingPermissions}
+          is_loading={isLoading}
+          runtime_phase={runtimePhase}
+          live_round_ids={liveRoundIds}
+          is_mobile_layout={isMobileLayout}
+          message_groups={messageGroups}
+          on_open_agent_contact={onOpenAgentContact}
+          on_open_workspace_file={onOpenWorkspaceFile}
+          on_permission_response={sendPermissionResponse}
+          round_ids={roundIds}
         />
-        {system_error ? (
-          <div className={is_mobile_layout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
+        {systemError ? (
+          <div className={isMobileLayout ? "mt-4" : "mx-auto mt-2 w-full max-w-[980px]"}>
             <ConversationErrorBubble
-              error={system_error}
-              compact={is_mobile_layout}
+              error={systemError}
+              compact={isMobileLayout}
             />
           </div>
         ) : null}
       </div>
 
-      {show_scroll_to_bottom ? (
+      {showScrollToBottom ? (
         <ScrollToLatestButton
-          is_loading={is_loading}
-          is_mobile_layout={is_mobile_layout}
-          on_click={() => scroll_to_bottom("smooth")}
+          is_loading={isLoading}
+          is_mobile_layout={isMobileLayout}
+          on_click={() => scrollToBottom("smooth")}
         />
       ) : null}
 
-      {show_provider_warning ? (
-        <ProviderUnavailableBanner compact={is_mobile_layout} />
+      {showProviderWarning ? (
+        <ProviderUnavailableBanner compact={isMobileLayout} />
       ) : null}
 
       <GoalPanel
-        activity_key={`${messages.length}:${is_loading ? "loading" : "idle"}:${goal_refresh_seq}`}
-        compact={is_mobile_layout}
-        continuation_hold={goal_continuation_hold}
-        disabled={!can_control_session}
-        is_generating={is_loading}
-        session_key={session_key}
+        activity_key={`${messages.length}:${isLoading ? "loading" : "idle"}:${goalRefreshSeq}`}
+        compact={isMobileLayout}
+        continuation_hold={goalContinuationHold}
+        disabled={!canControlSession}
+        is_generating={isLoading}
+        session_key={sessionKey}
         scope_label="会话 Goal"
       />
 
       <ComposerPanel
         allow_send_while_loading
-        compact={is_mobile_layout}
-        default_delivery_policy={default_delivery_policy}
-        input_queue_items={input_queue_items}
-        is_loading={is_loading}
+        compact={isMobileLayout}
+        default_delivery_policy={defaultDeliveryPolicy}
+        input_queue_items={inputQueueItems}
+        is_loading={isLoading}
         goal_scope_label="会话 Goal"
-        runtime_phase={runtime_phase}
-        on_delete_queued_message={delete_input_queue_message}
-        on_enqueue_message={enqueue_input_queue_message}
-        on_create_goal={session_key && can_control_session ? handle_create_goal : undefined}
-        on_guide_queued_message={guide_input_queue_message}
-        on_prepare_attachments={handle_prepare_attachments}
-        on_reorder_queue_messages={reorder_input_queue_messages}
-        on_send_message={handle_send_message}
-        on_stop={handle_stop}
+        runtime_phase={runtimePhase}
+        on_delete_queued_message={deleteInputQueueMessage}
+        on_enqueue_message={enqueueInputQueueMessage}
+        on_create_goal={sessionKey && canControlSession ? handleCreateGoal : undefined}
+        on_guide_queued_message={guideInputQueueMessage}
+        on_prepare_attachments={handlePrepareAttachments}
+        on_reorder_queue_messages={reorderInputQueueMessages}
+        on_send_message={handleSendMessage}
+        on_stop={handleStop}
         tour_anchor={CONVERSATION_TOUR_ANCHORS.composer}
       />
     </div>

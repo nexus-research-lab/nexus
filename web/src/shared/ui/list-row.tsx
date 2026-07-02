@@ -22,14 +22,14 @@ export function UiListRow({
   actions,
   active = false,
   children,
-  class_name,
+  class_name: legacyClassName,
   className,
   description,
   leading,
   meta,
-  on_click,
+  on_click: onClick,
   right,
-  subtitle_trailing,
+  subtitle_trailing: subtitleTrailing,
   title,
   ...props
 }: UiListRowProps) {
@@ -37,27 +37,27 @@ export function UiListRow({
     <div
       className={cn(
         "group/item relative flex min-h-[68px] w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-[background,color,transform] duration-(--motion-duration-fast)",
-        on_click && "cursor-pointer",
+        onClick && "cursor-pointer",
         active
           ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-elevated-background))] text-(--text-strong) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_12%,transparent)]"
           : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         className,
-        class_name,
+        legacyClassName,
       )}
       {...props}
-      onClick={on_click}
+      onClick={onClick}
       onKeyDown={(event) => {
         props.onKeyDown?.(event);
-        if (!on_click || event.defaultPrevented) {
+        if (!onClick || event.defaultPrevented) {
           return;
         }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          on_click();
+          onClick();
         }
       }}
-      role={on_click ? "button" : undefined}
-      tabIndex={on_click ? 0 : undefined}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
       {active ? (
         <span className="absolute left-0 top-1/2 h-9 w-[3px] -translate-y-1/2 rounded-full bg-(--primary)" />
@@ -71,7 +71,7 @@ export function UiListRow({
             <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{title}</span>
             {meta}
           </div>
-          {(description || subtitle_trailing) ? (
+          {(description || subtitleTrailing) ? (
             <div className="mt-1 flex min-w-0 items-center gap-2">
               {description ? (
                 <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
@@ -80,7 +80,7 @@ export function UiListRow({
               ) : (
                 <span className="min-w-0 flex-1" />
               )}
-              {subtitle_trailing}
+              {subtitleTrailing}
             </div>
           ) : null}
         </div>

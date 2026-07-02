@@ -57,11 +57,11 @@ export const create_agent_api = async (
 
 /** 更新 Agent */
 export const update_agent_api = async (
-  agent_id: string,
+  agentId: string,
   params: UpdateAgentParams,
 ): Promise<Agent> => {
   const result = await request_api<ApiAgent>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}`,
     {
       method: "PATCH",
       body: JSON.stringify({
@@ -78,10 +78,10 @@ export const update_agent_api = async (
 
 /** 删除 Agent */
 export const delete_agent_api = async (
-  agent_id: string,
+  agentId: string,
 ): Promise<{ success: boolean }> => {
   return request_api<{ success: boolean }>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}`,
     {
       method: "DELETE",
     },
@@ -91,11 +91,11 @@ export const delete_agent_api = async (
 /** 校验 Agent 名称 */
 export const validate_agent_name_api = async (
   name: string,
-  exclude_agent_id?: string,
+  excludeAgentId?: string,
 ): Promise<AgentNameValidationResult> => {
   const query = new URLSearchParams({ name });
-  if (exclude_agent_id) {
-    query.set("exclude_agent_id", exclude_agent_id);
+  if (excludeAgentId) {
+    query.set("exclude_agent_id", excludeAgentId);
   }
 
   return request_api<AgentNameValidationResult>(
@@ -107,10 +107,10 @@ export const validate_agent_name_api = async (
 };
 
 export const get_workspace_files_api = async (
-  agent_id: string,
+  agentId: string,
 ): Promise<WorkspaceFileEntry[]> => {
   return request_api<WorkspaceFileEntry[]>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/files`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/files`,
     {
       method: "GET",
     },
@@ -118,12 +118,12 @@ export const get_workspace_files_api = async (
 };
 
 export const get_workspace_file_content_api = async (
-  agent_id: string,
+  agentId: string,
   path: string,
 ): Promise<WorkspaceFileContent> => {
   const query = new URLSearchParams({ path });
   return request_api<WorkspaceFileContent>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file?${query.toString()}`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/file?${query.toString()}`,
     {
       method: "GET",
     },
@@ -131,12 +131,12 @@ export const get_workspace_file_content_api = async (
 };
 
 export const update_workspace_file_content_api = async (
-  agent_id: string,
+  agentId: string,
   path: string,
   content: string,
 ): Promise<WorkspaceFileContent> => {
   return request_api<WorkspaceFileContent>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/file`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/file`,
     {
       method: "PUT",
       body: JSON.stringify({ path, content }),
@@ -145,41 +145,41 @@ export const update_workspace_file_content_api = async (
 };
 
 export const create_workspace_entry_api = async (
-  agent_id: string,
+  agentId: string,
   path: string,
-  entry_type: "file" | "directory",
+  entryType: "file" | "directory",
   content: string = "",
 ): Promise<WorkspaceEntryMutationResponse> => {
   return request_api<WorkspaceEntryMutationResponse>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/entry`,
     {
       method: "POST",
-      body: JSON.stringify({ path, entry_type, content }),
+      body: JSON.stringify({ path, entry_type: entryType, content }),
     },
   );
 };
 
 export const rename_workspace_entry_api = async (
-  agent_id: string,
+  agentId: string,
   path: string,
-  new_path: string,
+  newPath: string,
 ): Promise<WorkspaceEntryRenameResponse> => {
   return request_api<WorkspaceEntryRenameResponse>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/entry`,
     {
       method: "PATCH",
-      body: JSON.stringify({ path, new_path }),
+      body: JSON.stringify({ path, new_path: newPath }),
     },
   );
 };
 
 export const delete_workspace_entry_api = async (
-  agent_id: string,
+  agentId: string,
   path: string,
 ): Promise<WorkspaceEntryMutationResponse> => {
   const query = new URLSearchParams({ path });
   return request_api<WorkspaceEntryMutationResponse>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/entry?${query.toString()}`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/entry?${query.toString()}`,
     {
       method: "DELETE",
     },
@@ -188,7 +188,7 @@ export const delete_workspace_entry_api = async (
 
 /** 上传文件到 workspace */
 export const upload_workspace_file_api = async (
-  agent_id: string,
+  agentId: string,
   file: File,
   path?: string,
 ): Promise<{ path: string; name: string; size: number }> => {
@@ -202,7 +202,7 @@ export const upload_workspace_file_api = async (
     path: string;
     name: string;
     size: number;
-  }>(`${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/upload`, {
+  }>(`${AGENT_API_BASE_URL}/agents/${agentId}/workspace/upload`, {
     method: "POST",
     body: formData,
   });
@@ -210,37 +210,37 @@ export const upload_workspace_file_api = async (
 };
 
 /** 获取 workspace 文件下载 URL */
-function build_workspace_file_transfer_url(
-  agent_id: string,
+function buildWorkspaceFileTransferUrl(
+  agentId: string,
   path: string,
   disposition: "attachment" | "inline",
 ): string {
   const params = new URLSearchParams({ path, disposition });
-  return `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/download?${params.toString()}`;
+  return `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/download?${params.toString()}`;
 }
 
 /** 获取 workspace 文件下载 URL */
-const get_workspace_file_download_url = (
-  agent_id: string,
+const getWorkspaceFileDownloadUrl = (
+  agentId: string,
   path: string,
 ): string => {
-  return build_workspace_file_transfer_url(agent_id, path, "attachment");
+  return buildWorkspaceFileTransferUrl(agentId, path, "attachment");
 };
 
 /** 获取 workspace 文件预览 URL */
 export const get_workspace_file_preview_url = (
-  agent_id: string,
+  agentId: string,
   path: string,
 ): string => {
-  return build_workspace_file_transfer_url(agent_id, path, "inline");
+  return buildWorkspaceFileTransferUrl(agentId, path, "inline");
 };
 
-const reveal_workspace_file_in_folder_api = async (
-  agent_id: string,
+const revealWorkspaceFileInFolderApi = async (
+  agentId: string,
   path: string,
 ): Promise<{ path: string }> => {
   return request_api<{ path: string }>(
-    `${AGENT_API_BASE_URL}/agents/${agent_id}/workspace/reveal`,
+    `${AGENT_API_BASE_URL}/agents/${agentId}/workspace/reveal`,
     {
       method: "POST",
       body: { path },
@@ -248,28 +248,28 @@ const reveal_workspace_file_in_folder_api = async (
   );
 };
 
-function normalize_download_file_name(path: string, file_name?: string): string {
-  const normalized_name = file_name?.trim();
-  if (normalized_name) {
-    return normalized_name;
+function normalizeDownloadFileName(path: string, fileName?: string): string {
+  const normalizedName = fileName?.trim();
+  if (normalizedName) {
+    return normalizedName;
   }
-  const normalized_path = path.trim().replace(/\\/g, "/");
-  return normalized_path.split("/").filter(Boolean).at(-1) || "download";
+  const normalizedPath = path.trim().replace(/\\/g, "/");
+  return normalizedPath.split("/").filter(Boolean).at(-1) || "download";
 }
 
 /** 桌面端在文件夹中定位，浏览器端下载文件，避免 HTML 触发桌面壳顶层导航。 */
 export async function download_workspace_file_api(
-  agent_id: string,
+  agentId: string,
   path: string,
-  file_name?: string,
+  fileName?: string,
 ): Promise<void> {
   if (is_desktop_runtime()) {
-    await reveal_workspace_file_in_folder_api(agent_id, path);
+    await revealWorkspaceFileInFolderApi(agentId, path);
     return;
   }
 
-  const url = get_workspace_file_download_url(agent_id, path);
-  const resolved_file_name = normalize_download_file_name(path, file_name);
+  const url = getWorkspaceFileDownloadUrl(agentId, path);
+  const resolvedFileName = normalizeDownloadFileName(path, fileName);
   const headers = new Headers();
   apply_desktop_request_headers(url, headers);
   const response = await fetch(url, {
@@ -282,13 +282,13 @@ export async function download_workspace_file_api(
   }
 
   const blob = await response.blob();
-  const object_url = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = object_url;
-  anchor.download = resolved_file_name;
+  anchor.href = objectUrl;
+  anchor.download = resolvedFileName;
   anchor.style.display = "none";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(object_url), 0);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }

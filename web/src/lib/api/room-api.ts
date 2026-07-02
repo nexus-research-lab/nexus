@@ -34,42 +34,42 @@ export function subscribe_room_directory_updates(
     return () => {};
   }
 
-  const handle_update = () => {
+  const handleUpdate = () => {
     listener();
   };
 
-  window.addEventListener(ROOM_DIRECTORY_UPDATED_EVENT_NAME, handle_update);
+  window.addEventListener(ROOM_DIRECTORY_UPDATED_EVENT_NAME, handleUpdate);
   return () => {
     window.removeEventListener(
       ROOM_DIRECTORY_UPDATED_EVENT_NAME,
-      handle_update,
+      handleUpdate,
     );
   };
 }
 
-function normalize_conversation_title(value: unknown): string | undefined {
+function normalizeConversationTitle(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
-  const normalized_title = value.trim();
-  return normalized_title ? normalized_title : undefined;
+  const normalizedTitle = value.trim();
+  return normalizedTitle ? normalizedTitle : undefined;
 }
 
-function transform_room_context(
-  api_context: ApiRoomContextAggregate,
+function transformRoomContext(
+  apiContext: ApiRoomContextAggregate,
 ): RoomContextAggregate {
   return {
     room: {
-      ...api_context.room,
-      skill_names: api_context.room.skill_names ?? [],
-      host_agent_id: api_context.room.host_agent_id ?? null,
-      host_auto_reply_enabled: api_context.room.host_auto_reply_enabled ?? false,
-      private_messages_enabled: api_context.room.private_messages_enabled ?? false,
+      ...apiContext.room,
+      skill_names: apiContext.room.skill_names ?? [],
+      host_agent_id: apiContext.room.host_agent_id ?? null,
+      host_auto_reply_enabled: apiContext.room.host_auto_reply_enabled ?? false,
+      private_messages_enabled: apiContext.room.private_messages_enabled ?? false,
     },
-    members: api_context.members,
-    member_agents: (api_context.member_agents ?? []).map(transform_api_agent),
-    conversation: api_context.conversation,
-    sessions: api_context.sessions,
+    members: apiContext.members,
+    member_agents: (apiContext.member_agents ?? []).map(transform_api_agent),
+    conversation: apiContext.conversation,
+    sessions: apiContext.sessions,
   };
 }
 
@@ -83,20 +83,20 @@ export async function list_rooms(limit = 50): Promise<RoomAggregate[]> {
 }
 
 export async function get_room_contexts(
-  room_id: string,
+  roomId: string,
 ): Promise<RoomContextAggregate[]> {
   const result = await request_api<ApiRoomContextAggregate[]>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/contexts`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/contexts`,
     {
       method: "GET",
     },
   );
-  return result.map(transform_room_context);
+  return result.map(transformRoomContext);
 }
 
 export async function get_room_conversation_messages(
-  room_id: string,
-  conversation_id: string,
+  roomId: string,
+  conversationId: string,
   options: {
     limit?: number;
     before_round_id?: string | null;
@@ -118,7 +118,7 @@ export async function get_room_conversation_messages(
   }
   const query = params.toString();
   const result = await request_api<ApiRoomConversationMessagePage>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/messages${query ? `?${query}` : ""}`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ""}`,
     {
       method: "GET",
     },
@@ -132,8 +132,8 @@ export async function get_room_conversation_messages(
 }
 
 export async function upload_room_conversation_attachment_api(
-  room_id: string,
-  conversation_id: string,
+  roomId: string,
+  conversationId: string,
   file: File,
   path?: string,
 ): Promise<{ path: string; name: string; size: number }> {
@@ -144,7 +144,7 @@ export async function upload_room_conversation_attachment_api(
   }
 
   return request_api<{ path: string; name: string; size: number }>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/attachments/upload`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/attachments/upload`,
     {
       method: "POST",
       body: formData,
@@ -182,11 +182,11 @@ export async function create_room(
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function update_room(
-  room_id: string,
+  roomId: string,
   params: UpdateRoomParams,
 ): Promise<RoomContextAggregate> {
   const body: Record<string, unknown> = {
@@ -208,41 +208,41 @@ export async function update_room(
     body.private_messages_enabled = params.private_messages_enabled;
   }
   const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`,
     {
       method: "PATCH",
       body: JSON.stringify(body),
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function create_room_conversation(
-  room_id: string,
+  roomId: string,
   params: CreateRoomConversationParams = {},
 ): Promise<RoomContextAggregate> {
-  const normalized_title = normalize_conversation_title(params.title);
+  const normalizedTitle = normalizeConversationTitle(params.title);
   const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations`,
     {
       method: "POST",
       body: JSON.stringify({
-        title: normalized_title,
+        title: normalizedTitle,
       }),
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function update_room_conversation(
-  room_id: string,
-  conversation_id: string,
+  roomId: string,
+  conversationId: string,
   params: UpdateRoomConversationParams,
 ): Promise<RoomContextAggregate> {
   const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
     {
       method: "PATCH",
       body: JSON.stringify({
@@ -251,29 +251,29 @@ export async function update_room_conversation(
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function delete_room_conversation(
-  room_id: string,
-  conversation_id: string,
+  roomId: string,
+  conversationId: string,
 ): Promise<RoomContextAggregate> {
   const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
     {
       method: "DELETE",
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function close_room_conversation_runtime(
-  room_id: string,
-  conversation_id: string,
+  roomId: string,
+  conversationId: string,
 ): Promise<void> {
   await request_api<{ closed: boolean }>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/close`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}/close`,
     {
       method: "POST",
     },
@@ -281,41 +281,41 @@ export async function close_room_conversation_runtime(
 }
 
 export async function add_room_member(
-  room_id: string,
-  agent_id: string,
+  roomId: string,
+  agentId: string,
 ): Promise<RoomContextAggregate> {
   const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/members`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/members`,
     {
       method: "POST",
       body: JSON.stringify({
-        agent_id,
+        agent_id: agentId,
       }),
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function remove_room_member(
-  room_id: string,
-  agent_id: string,
+  roomId: string,
+  agentId: string,
 ): Promise<RoomContextAggregate> {
   const context = await request_api<ApiRoomContextAggregate>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/members/${encodeURIComponent(agent_id)}`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(agentId)}`,
     {
       method: "DELETE",
     },
   );
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }
 
 export async function delete_room(
-  room_id: string,
+  roomId: string,
 ): Promise<{ success: boolean }> {
   const result = await request_api<{ success: boolean }>(
-    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}`,
+    `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`,
     {
       method: "DELETE",
     },
@@ -325,12 +325,12 @@ export async function delete_room(
 }
 
 export async function ensure_direct_room(
-  agent_id: string,
+  agentId: string,
 ): Promise<RoomContextAggregate> {
   let context: ApiRoomContextAggregate;
   try {
     context = await request_api<ApiRoomContextAggregate>(
-      `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agent_id)}`,
+      `${AGENT_API_BASE_URL}/rooms/dm/${encodeURIComponent(agentId)}`,
       {
         method: "GET",
       },
@@ -338,7 +338,7 @@ export async function ensure_direct_room(
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 404) {
       const store = useAgentStore.getState();
-      if (store.current_agent_id === agent_id) {
+      if (store.current_agent_id === agentId) {
         store.set_current_agent(null);
       }
       void store.load_agents_from_server();
@@ -346,5 +346,5 @@ export async function ensure_direct_room(
     throw error;
   }
   notify_room_directory_updated();
-  return transform_room_context(context);
+  return transformRoomContext(context);
 }

@@ -35,67 +35,67 @@ const DEFAULT_UNAUTHORIZED_STATUS: AuthStatus = {
   auth_method: null,
 };
 
-let auth_status_bootstrap_inflight: Promise<AuthStatus> | null = null;
+let authStatusBootstrapInflight: Promise<AuthStatus> | null = null;
 
-function run_auth_status_bootstrap(loader: () => Promise<AuthStatus>): Promise<AuthStatus> {
-  if (auth_status_bootstrap_inflight) {
-    return auth_status_bootstrap_inflight;
+function runAuthStatusBootstrap(loader: () => Promise<AuthStatus>): Promise<AuthStatus> {
+  if (authStatusBootstrapInflight) {
+    return authStatusBootstrapInflight;
   }
 
-  auth_status_bootstrap_inflight = loader().finally(() => {
-    auth_status_bootstrap_inflight = null;
+  authStatusBootstrapInflight = loader().finally(() => {
+    authStatusBootstrapInflight = null;
   });
-  return auth_status_bootstrap_inflight;
+  return authStatusBootstrapInflight;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, set_status] = useState<AuthStatus | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [is_bootstrapped, set_is_bootstrapped] = useState(false);
-  const [error, set_error] = useState<string | null>(null);
+  const [status, setStatus] = useState<AuthStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isBootstrapped, setIsBootstrapped] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const refresh_status = useCallback(async (): Promise<AuthStatus> => {
-    set_loading(true);
+  const refreshStatus = useCallback(async (): Promise<AuthStatus> => {
+    setLoading(true);
     try {
-      const next_status = await get_auth_status();
+      const nextStatus = await get_auth_status();
       startTransition(() => {
-        set_status(next_status);
-        set_error(null);
-        set_is_bootstrapped(true);
+        setStatus(nextStatus);
+        setError(null);
+        setIsBootstrapped(true);
       });
-      return next_status;
+      return nextStatus;
     } catch (err) {
       const message = err instanceof Error ? err.message : "加载登录状态失败";
       startTransition(() => {
-        set_error(message);
-        set_is_bootstrapped(true);
+        setError(message);
+        setIsBootstrapped(true);
       });
       throw err;
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void run_auth_status_bootstrap(refresh_status).catch((err) => {
+    void runAuthStatusBootstrap(refreshStatus).catch((err) => {
       console.warn("[AuthProvider] Auth bootstrap failed:", err instanceof Error ? err.message : err);
     });
-  }, [refresh_status]);
+  }, [refreshStatus]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
     }
 
-    const handle_auth_required = () => {
+    const handleAuthRequired = () => {
       startTransition(() => {
-        set_is_bootstrapped(true);
-        set_status((current_status) => {
-          if (!current_status) {
+        setIsBootstrapped(true);
+        setStatus((currentStatus) => {
+          if (!currentStatus) {
             return DEFAULT_UNAUTHORIZED_STATUS;
           }
           return {
-            ...current_status,
+            ...currentStatus,
             authenticated: false,
             username: null,
             user_id: null,
@@ -108,49 +108,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    window.addEventListener(AUTH_REQUIRED_EVENT, handle_auth_required);
+    window.addEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
     return () => {
-      window.removeEventListener(AUTH_REQUIRED_EVENT, handle_auth_required);
+      window.removeEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
     };
   }, []);
 
   const login = useCallback(async (username: string, password: string): Promise<AuthStatus> => {
-    const next_status = await login_api({ username, password });
+    const nextStatus = await login_api({ username, password });
     // 登录切换了用户作用域，运行时配置必须重新拉取，不能继续复用匿名或上个用户的默认 agent。
     await hydrate_runtime_options();
     startTransition(() => {
-      set_status(next_status);
-      set_error(null);
-      set_is_bootstrapped(true);
+      setStatus(nextStatus);
+      setError(null);
+      setIsBootstrapped(true);
     });
-    return next_status;
+    return nextStatus;
   }, []);
 
   const logout = useCallback(async (): Promise<AuthStatus> => {
-    const next_status = await logout_api();
+    const nextStatus = await logout_api();
     // 登出后同样需要重置运行时配置，避免下一个用户继续看到上个用户的主智能体配置。
     await hydrate_runtime_options();
     startTransition(() => {
-      set_status(next_status);
-      set_error(null);
-      set_is_bootstrapped(true);
+      setStatus(nextStatus);
+      setError(null);
+      setIsBootstrapped(true);
     });
-    return next_status;
+    return nextStatus;
   }, []);
 
-  const context_value = useMemo(() => ({
+  const contextValue = useMemo(() => ({
     status,
     loading,
-    is_bootstrapped,
+    is_bootstrapped: isBootstrapped,
     error,
-    refresh_status,
+    refresh_status: refreshStatus,
     login,
     logout,
-  }), [error, is_bootstrapped, loading, login, logout, refresh_status, status]);
+  }), [error, isBootstrapped, loading, login, logout, refreshStatus, status]);
 
   return (
     <AUTH_CONTEXT.Provider
-      value={context_value}
+      value={contextValue}
     >
       {children}
     </AUTH_CONTEXT.Provider>

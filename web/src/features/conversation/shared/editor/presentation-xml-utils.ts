@@ -8,18 +8,18 @@ import {
 
 export async function read_relationships(
   zip: JSZip,
-  part_path: string,
+  partPath: string,
 ): Promise<Record<string, PresentationRelationship>> {
-  const rels_path = relationship_part_path(part_path);
-  const rels_file = zip.file(rels_path);
-  if (!rels_file) {
+  const relsPath = relationshipPartPath(partPath);
+  const relsFile = zip.file(relsPath);
+  if (!relsFile) {
     return {};
   }
 
-  const rels_doc = parse_xml(await rels_file.async("text"));
+  const relsDoc = parse_xml(await relsFile.async("text"));
   const relationships: Record<string, PresentationRelationship> = {};
 
-  descendants_by_local_name(rels_doc, "Relationship").forEach((relationship) => {
+  descendants_by_local_name(relsDoc, "Relationship").forEach((relationship) => {
     const id = relationship.getAttribute("Id");
     const target = relationship.getAttribute("Target");
     if (!id || !target) {
@@ -36,49 +36,49 @@ export async function read_relationships(
   return relationships;
 }
 
-export async function read_zip_text(zip: JSZip, file_path: string): Promise<string> {
-  const file = zip.file(file_path);
+export async function read_zip_text(zip: JSZip, filePath: string): Promise<string> {
+  const file = zip.file(filePath);
   if (!file) {
-    throw new Error(`pptx 缺少 ${file_path}`);
+    throw new Error(`pptx 缺少 ${filePath}`);
   }
   return file.async("text");
 }
 
 export function parse_xml(xml: string): Document {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
-  const parse_error = first_descendant_by_local_name(doc, "parsererror");
-  if (parse_error) {
+  const parseError = first_descendant_by_local_name(doc, "parsererror");
+  if (parseError) {
     throw new Error("pptx XML 解析失败");
   }
   return doc;
 }
 
-export function relationship_attribute(element: Element, local_name: string): string | undefined {
+export function relationship_attribute(element: Element, localName: string): string | undefined {
   return Array.from(element.attributes)
-    .find((attribute) => attribute.localName === local_name && attribute.namespaceURI === RELATIONSHIP_NAMESPACE)
+    .find((attribute) => attribute.localName === localName && attribute.namespaceURI === RELATIONSHIP_NAMESPACE)
     ?.value;
 }
 
-function relationship_part_path(part_path: string): string {
-  const normalized_path = normalize_zip_path(part_path);
-  const parts = normalized_path.split("/");
-  const file_name = parts.pop();
-  return normalize_zip_path(`${parts.join("/")}/_rels/${file_name}.rels`);
+function relationshipPartPath(partPath: string): string {
+  const normalizedPath = normalizeZipPath(partPath);
+  const parts = normalizedPath.split("/");
+  const fileName = parts.pop();
+  return normalizeZipPath(`${parts.join("/")}/_rels/${fileName}.rels`);
 }
 
-export function resolve_relationship_target(source_path: string, target: string): string {
+export function resolve_relationship_target(sourcePath: string, target: string): string {
   if (target.startsWith("/")) {
-    return normalize_zip_path(target);
+    return normalizeZipPath(target);
   }
 
-  const source_parts = normalize_zip_path(source_path).split("/");
-  source_parts.pop();
-  return normalize_zip_path(`${source_parts.join("/")}/${target}`);
+  const sourceParts = normalizeZipPath(sourcePath).split("/");
+  sourceParts.pop();
+  return normalizeZipPath(`${sourceParts.join("/")}/${target}`);
 }
 
-function normalize_zip_path(file_path: string): string {
+function normalizeZipPath(filePath: string): string {
   const segments: string[] = [];
-  file_path.replace(/\\/g, "/").split("/").forEach((segment) => {
+  filePath.replace(/\\/g, "/").split("/").forEach((segment) => {
     if (!segment || segment === ".") {
       return;
     }
@@ -95,26 +95,26 @@ export function emu_to_pixel(value: number): number {
   return value / EMU_PER_PIXEL;
 }
 
-export function children_by_local_name(element: Element | null, local_name: string): Element[] {
+export function children_by_local_name(element: Element | null, localName: string): Element[] {
   if (!element) {
     return [];
   }
-  return Array.from(element.children).filter((child) => child.localName === local_name);
+  return Array.from(element.children).filter((child) => child.localName === localName);
 }
 
-export function first_child_by_local_name(element: Element | null, local_name: string): Element | null {
-  return children_by_local_name(element, local_name)[0] || null;
+export function first_child_by_local_name(element: Element | null, localName: string): Element | null {
+  return children_by_local_name(element, localName)[0] || null;
 }
 
-export function descendants_by_local_name(root: Document | Element, local_name: string): Element[] {
-  return Array.from(root.getElementsByTagName("*")).filter((element) => element.localName === local_name);
+export function descendants_by_local_name(root: Document | Element, localName: string): Element[] {
+  return Array.from(root.getElementsByTagName("*")).filter((element) => element.localName === localName);
 }
 
-export function first_descendant_by_local_name(root: Document | Element | null, local_name: string): Element | null {
+export function first_descendant_by_local_name(root: Document | Element | null, localName: string): Element | null {
   if (!root) {
     return null;
   }
-  return descendants_by_local_name(root, local_name)[0] || null;
+  return descendants_by_local_name(root, localName)[0] || null;
 }
 
 export function revoke_object_urls(urls: string[]) {

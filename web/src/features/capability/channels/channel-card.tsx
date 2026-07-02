@@ -44,7 +44,7 @@ function ChannelStatPill({
 
 export function ChannelCard({
   item,
-  on_configure,
+  on_configure: onConfigure,
 }: {
   item: ChannelConfigView;
   on_configure: (item: ChannelConfigView) => void;
@@ -57,7 +57,7 @@ export function ChannelCard({
         : item.configured
           ? "消息会进入绑定的处理智能体。"
           : "选择一个智能体并填写机器人凭证后，即可开始处理来自该渠道的消息。";
-  const handler_label = item.configured ? item.agent_name || "已绑定" : "未绑定";
+  const handlerLabel = item.configured ? item.agent_name || "已绑定" : "未绑定";
 
   return (
     <UiListRow
@@ -66,7 +66,7 @@ export function ChannelCard({
         planned && "cursor-default opacity-70",
       )}
       leading={<ChannelIcon type={item.channel_type} />}
-      on_click={planned ? undefined : () => on_configure(item)}
+      on_click={planned ? undefined : () => onConfigure(item)}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
           {!planned && item.docs_url ? (
@@ -82,7 +82,7 @@ export function ChannelCard({
           {!planned ? (
             <UiListActionButton
               class_name="text-(--primary)"
-              onClick={() => on_configure(item)}
+              onClick={() => onConfigure(item)}
               size="sm"
               stop_propagation
               title="设置机器人"
@@ -112,7 +112,7 @@ export function ChannelCard({
         </div>
         <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-4 text-(--text-soft)">
           <span className="min-w-0 truncate">机器人：{item.bot_label}</span>
-          <span className="min-w-0 truncate">处理：{handler_label}</span>
+          <span className="min-w-0 truncate">处理：{handlerLabel}</span>
           {!item.supports_group ? <span className="shrink-0">仅私聊</span> : null}
         </div>
         <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">

@@ -22,7 +22,7 @@ interface ConnectorCredentialDialogProps {
   detail: ConnectorDetail | null;
   busy: boolean;
   on_close: () => void;
-  on_save: (connector_id: string, credential: string) => void;
+  on_save: (connectorId: string, credential: string) => void;
 }
 
 type CredentialCopy = {
@@ -57,7 +57,7 @@ const CONNECTOR_CREDENTIAL_COPY: Record<string, Partial<CredentialCopy>> = {
   },
 };
 
-function get_credential_copy(detail: ConnectorDetail): CredentialCopy {
+function getCredentialCopy(detail: ConnectorDetail): CredentialCopy {
   const label = get_direct_credential_label(detail.auth_type);
   return {
     description: `填写此连接器的 ${label} 后保存，Agent 运行时会按需挂载对应 MCP Server。`,
@@ -72,32 +72,32 @@ function get_credential_copy(detail: ConnectorDetail): CredentialCopy {
 export function ConnectorCredentialDialog({
   detail,
   busy,
-  on_close,
-  on_save,
+  on_close: onClose,
+  on_save: onSave,
 }: ConnectorCredentialDialogProps) {
-  const [credential, set_credential] = useResettableState("", detail?.connector_id ?? null);
+  const [credential, setCredential] = useResettableState("", detail?.connector_id ?? null);
 
-  const handle_submit = useCallback(
+  const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!detail) return;
-      on_save(detail.connector_id, credential);
+      onSave(detail.connector_id, credential);
     },
-    [credential, detail, on_save],
+    [credential, detail, onSave],
   );
 
   if (!detail) return null;
 
-  const copy = get_credential_copy(detail);
-  const can_save = credential.trim() !== "";
+  const copy = getCredentialCopy(detail);
+  const canSave = credential.trim() !== "";
 
   return (
-    <UiDialogBackdrop on_close={on_close}>
-      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handle_submit} size="sm">
+    <UiDialogBackdrop on_close={onClose}>
+      <UiDialogFormShell class_name="max-h-[84vh]" onSubmit={handleSubmit} size="sm">
         <UiDialogHeader
           icon={<KeyRound className="h-4 w-4" />}
           icon_class_name="h-9 w-9 rounded-[14px]"
-          on_close={on_close}
+          on_close={onClose}
           subtitle={detail.title}
           title={copy.title}
         />
@@ -131,7 +131,7 @@ export function ConnectorCredentialDialog({
               data-form-type="other"
               data-lpignore="true"
               name={`${detail.connector_id}-credential`}
-              onChange={(event) => set_credential(event.target.value)}
+              onChange={(event) => setCredential(event.target.value)}
               placeholder={copy.placeholder}
               spellCheck={false}
               type="password"
@@ -142,7 +142,7 @@ export function ConnectorCredentialDialog({
 
         <UiDialogFooter>
           <UiButton
-            disabled={busy || !can_save}
+            disabled={busy || !canSave}
             size="sm"
             tone="primary"
             type="submit"

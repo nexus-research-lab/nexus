@@ -7,7 +7,7 @@ const DEFAULT_FRAMES = ["✽", "✻", "✶", "✢", "·"];
 const FRAME_DURATION_MS = 120;
 
 let injected = false;
-function ensure_style(count: number, duration: number) {
+function ensureStyle(count: number, duration: number) {
   if (injected || typeof document === "undefined") return;
   injected = true;
   // step(1, end) keyframe: visible 1/count of the total cycle, then hidden.
@@ -30,15 +30,15 @@ interface KeyedFrame {
   position: number;
 }
 
-function get_keyed_frames(frames: string[]): KeyedFrame[] {
-  const seen_counts = new Map<string, number>();
-  const keyed_frames: KeyedFrame[] = [];
+function getKeyedFrames(frames: string[]): KeyedFrame[] {
+  const seenCounts = new Map<string, number>();
+  const keyedFrames: KeyedFrame[] = [];
   let position = 0;
 
   for (const char of frames) {
-    const occurrence = seen_counts.get(char) ?? 0;
-    seen_counts.set(char, occurrence + 1);
-    keyed_frames.push({
+    const occurrence = seenCounts.get(char) ?? 0;
+    seenCounts.set(char, occurrence + 1);
+    keyedFrames.push({
       char,
       key: `${char}-${occurrence}`,
       position,
@@ -46,17 +46,17 @@ function get_keyed_frames(frames: string[]): KeyedFrame[] {
     position += 1;
   }
 
-  return keyed_frames;
+  return keyedFrames;
 }
 
 export function LoadingOrb({ frames = DEFAULT_FRAMES }: { frames?: string[] }) {
-  ensure_style(frames.length, FRAME_DURATION_MS);
+  ensureStyle(frames.length, FRAME_DURATION_MS);
   const total = frames.length * FRAME_DURATION_MS;
-  const keyed_frames = get_keyed_frames(frames);
+  const keyedFrames = getKeyedFrames(frames);
 
   return (
     <span className="relative inline-block w-3 select-none text-center leading-none text-primary" aria-hidden>
-      {keyed_frames.map(({ char, key, position }) => (
+      {keyedFrames.map(({ char, key, position }) => (
         <span
           key={key}
           className={position === 0 ? "nexus-orb-frame" : "nexus-orb-frame absolute inset-0"}

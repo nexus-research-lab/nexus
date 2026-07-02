@@ -35,307 +35,307 @@ interface UseRoomWorkspaceControllerOptions {
   file_input_ref: RefObject<HTMLInputElement | null>;
 }
 
-function get_parent_directory_path(path: string): string | null {
-  const last_slash_index = path.lastIndexOf("/");
-  if (last_slash_index === -1) {
+function getParentDirectoryPath(path: string): string | null {
+  const lastSlashIndex = path.lastIndexOf("/");
+  if (lastSlashIndex === -1) {
     return null;
   }
-  return path.slice(0, last_slash_index);
+  return path.slice(0, lastSlashIndex);
 }
 
-function get_workspace_focus_directory_path(path?: string | null): string | null {
+function getWorkspaceFocusDirectoryPath(path?: string | null): string | null {
   if (!path) {
     return null;
   }
-  return get_parent_directory_path(path);
+  return getParentDirectoryPath(path);
 }
 
-function join_workspace_path(parent_path: string | null, name: string): string {
-  return parent_path ? `${parent_path}/${name}` : name;
+function joinWorkspacePath(parentPath: string | null, name: string): string {
+  return parentPath ? `${parentPath}/${name}` : name;
 }
 
-function get_renamed_active_path(
-  active_path: string | null,
-  old_path: string,
-  new_path: string,
+function getRenamedActivePath(
+  activePath: string | null,
+  oldPath: string,
+  newPath: string,
 ): string | null {
-  if (!active_path) {
+  if (!activePath) {
     return null;
   }
-  if (active_path === old_path) {
-    return new_path;
+  if (activePath === oldPath) {
+    return newPath;
   }
-  if (active_path.startsWith(`${old_path}/`)) {
-    return `${new_path}${active_path.slice(old_path.length)}`;
+  if (activePath.startsWith(`${oldPath}/`)) {
+    return `${newPath}${activePath.slice(oldPath.length)}`;
   }
   return null;
 }
 
-function is_workspace_path_affected(
-  active_path: string | null,
-  target_path: string,
+function isWorkspacePathAffected(
+  activePath: string | null,
+  targetPath: string,
 ): boolean {
-  if (!active_path) {
+  if (!activePath) {
     return false;
   }
-  return active_path === target_path || active_path.startsWith(`${target_path}/`);
+  return activePath === targetPath || activePath.startsWith(`${targetPath}/`);
 }
 
-function resolve_workspace_menu_position(
+function resolveWorkspaceMenuPosition(
   event: MouseEvent,
-  menu_height: number,
+  menuHeight: number,
 ): { x: number; y: number } {
-  const menu_width = 180;
+  const menuWidth = 180;
   return {
-    x: Math.min(event.clientX, window.innerWidth - menu_width),
-    y: Math.min(event.clientY, window.innerHeight - menu_height),
+    x: Math.min(event.clientX, window.innerWidth - menuWidth),
+    y: Math.min(event.clientY, window.innerHeight - menuHeight),
   };
 }
 
 export function useRoomWorkspaceController(
   {
-    active_workspace_path,
-    agent_id,
-    is_dm,
-    on_open_workspace_file,
-  file_input_ref,
+    active_workspace_path: activeWorkspacePath,
+    agent_id: agentId,
+    is_dm: isDm,
+    on_open_workspace_file: onOpenWorkspaceFile,
+  file_input_ref: fileInputRef,
 }: UseRoomWorkspaceControllerOptions) {
-  const [selected_agent_id, set_selected_agent_id] = useResettableState(agent_id, agent_id);
-  const [is_uploading, set_is_uploading] = useState(false);
-  const [is_loading_files, set_is_loading_files] = useState(false);
-  const [error_message, set_error_message] = useState<string | null>(null);
-  const [context_menu, set_context_menu] = useState<WorkspaceContextMenuState>({
+  const [selectedAgentId, setSelectedAgentId] = useResettableState(agentId, agentId);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<WorkspaceContextMenuState>({
     position: null,
     entry: null,
   });
-  const [prompt_state, set_prompt_state] = useState<WorkspacePromptState>(null);
-  const [delete_target, set_delete_target] = useState<WorkspaceFileEntry | null>(null);
-  const [upload_target_directory, set_upload_target_directory] = useState<string | null>(null);
+  const [promptState, setPromptState] = useState<WorkspacePromptState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceFileEntry | null>(null);
+  const [uploadTargetDirectory, setUploadTargetDirectory] = useState<string | null>(null);
 
-  const files_by_agent = useWorkspaceFilesStore((state) => state.files_by_agent);
-  const refresh_files = useWorkspaceFilesStore((state) => state.refresh_files);
-  const clear_workspace_agent = useWorkspaceFilesStore((state) => state.clear_agent);
+  const filesByAgent = useWorkspaceFilesStore((state) => state.files_by_agent);
+  const refreshFiles = useWorkspaceFilesStore((state) => state.refresh_files);
+  const clearWorkspaceAgent = useWorkspaceFilesStore((state) => state.clear_agent);
 
-  const previous_view_agent_id_ref = useRef<string>(is_dm ? agent_id : selected_agent_id);
-  const view_agent_id = is_dm ? agent_id : selected_agent_id;
-  const [focused_directory_path, set_focused_directory_path] = useResettableState<string | null>(null, view_agent_id);
-  const files = useMemo(() => files_by_agent[view_agent_id] || [], [files_by_agent, view_agent_id]);
+  const previousViewAgentIdRef = useRef<string>(isDm ? agentId : selectedAgentId);
+  const viewAgentId = isDm ? agentId : selectedAgentId;
+  const [focusedDirectoryPath, setFocusedDirectoryPath] = useResettableState<string | null>(null, viewAgentId);
+  const files = useMemo(() => filesByAgent[viewAgentId] || [], [filesByAgent, viewAgentId]);
 
   useEffect(() => {
-    const previous_view_agent_id = previous_view_agent_id_ref.current;
-    previous_view_agent_id_ref.current = view_agent_id;
+    const previousViewAgentId = previousViewAgentIdRef.current;
+    previousViewAgentIdRef.current = viewAgentId;
 
-    if (previous_view_agent_id !== view_agent_id) {
-      on_open_workspace_file(null);
+    if (previousViewAgentId !== viewAgentId) {
+      onOpenWorkspaceFile(null);
     }
 
     let ignore = false;
 
-    const load_workspace_files = async () => {
-      set_is_loading_files(true);
-      set_error_message(null);
+    const loadWorkspaceFiles = async () => {
+      setIsLoadingFiles(true);
+      setErrorMessage(null);
       try {
-        await refresh_files(view_agent_id);
+        await refreshFiles(viewAgentId);
       } catch (error) {
         if (ignore) {
           return;
         }
-        clear_workspace_agent(view_agent_id);
-        set_error_message(error instanceof Error ? error.message : "加载文件列表失败");
+        clearWorkspaceAgent(viewAgentId);
+        setErrorMessage(error instanceof Error ? error.message : "加载文件列表失败");
       } finally {
         if (!ignore) {
-          set_is_loading_files(false);
+          setIsLoadingFiles(false);
         }
       }
     };
 
-    void load_workspace_files();
+    void loadWorkspaceFiles();
 
     return () => {
       ignore = true;
     };
-  }, [clear_workspace_agent, on_open_workspace_file, refresh_files, view_agent_id]);
+  }, [clearWorkspaceAgent, onOpenWorkspaceFile, refreshFiles, viewAgentId]);
 
   useEffect(() => {
-    set_focused_directory_path(get_workspace_focus_directory_path(active_workspace_path));
-  }, [active_workspace_path, view_agent_id]);
+    setFocusedDirectoryPath(getWorkspaceFocusDirectoryPath(activeWorkspacePath));
+  }, [activeWorkspacePath, viewAgentId]);
 
-  const handle_click_file = useCallback((path: string) => {
-    set_focused_directory_path(get_parent_directory_path(path));
-    on_open_workspace_file(path);
-  }, [on_open_workspace_file]);
+  const handleClickFile = useCallback((path: string) => {
+    setFocusedDirectoryPath(getParentDirectoryPath(path));
+    onOpenWorkspaceFile(path);
+  }, [onOpenWorkspaceFile]);
 
-  const handle_click_directory = useCallback((path: string) => {
-    set_focused_directory_path(path);
+  const handleClickDirectory = useCallback((path: string) => {
+    setFocusedDirectoryPath(path);
   }, []);
 
-  const handle_upload_click = useCallback((directory_path?: string | null) => {
-    set_upload_target_directory(directory_path ?? focused_directory_path);
-    file_input_ref.current?.click();
-  }, [file_input_ref, focused_directory_path]);
+  const handleUploadClick = useCallback((directoryPath?: string | null) => {
+    setUploadTargetDirectory(directoryPath ?? focusedDirectoryPath);
+    fileInputRef.current?.click();
+  }, [fileInputRef, focusedDirectoryPath]);
 
-  const handle_file_select = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const selected_files = event.target.files;
-    if (!selected_files || selected_files.length === 0) {
+  const handleFileSelect = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) {
       return;
     }
 
-    set_is_uploading(true);
-    set_error_message(null);
+    setIsUploading(true);
+    setErrorMessage(null);
     try {
-      for (const file of Array.from(selected_files)) {
-        const target_directory = upload_target_directory ? `${upload_target_directory}/` : undefined;
-        await upload_workspace_file_api(view_agent_id, file, target_directory);
+      for (const file of Array.from(selectedFiles)) {
+        const targetDirectory = uploadTargetDirectory ? `${uploadTargetDirectory}/` : undefined;
+        await upload_workspace_file_api(viewAgentId, file, targetDirectory);
       }
-      await refresh_files(view_agent_id);
+      await refreshFiles(viewAgentId);
     } catch (error) {
-      set_error_message(error instanceof Error ? error.message : "上传文件失败");
+      setErrorMessage(error instanceof Error ? error.message : "上传文件失败");
     } finally {
-      set_is_uploading(false);
-      set_upload_target_directory(null);
-      if (file_input_ref.current) {
-        file_input_ref.current.value = "";
+      setIsUploading(false);
+      setUploadTargetDirectory(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
       }
     }
-  }, [file_input_ref, refresh_files, upload_target_directory, view_agent_id]);
+  }, [fileInputRef, refreshFiles, uploadTargetDirectory, viewAgentId]);
 
-  const open_create_prompt = useCallback((entry_type: "file" | "directory", parent_path?: string | null) => {
-    set_prompt_state(
-      entry_type === "file"
-        ? {mode: "create-file", default_value: "untitled.txt", parent_path: parent_path ?? focused_directory_path}
-        : {mode: "create-directory", default_value: "new-folder", parent_path: parent_path ?? focused_directory_path},
+  const openCreatePrompt = useCallback((entryType: "file" | "directory", parentPath?: string | null) => {
+    setPromptState(
+      entryType === "file"
+        ? {mode: "create-file", default_value: "untitled.txt", parent_path: parentPath ?? focusedDirectoryPath}
+        : {mode: "create-directory", default_value: "new-folder", parent_path: parentPath ?? focusedDirectoryPath},
     );
-  }, [focused_directory_path]);
+  }, [focusedDirectoryPath]);
 
-  const open_rename_prompt = useCallback((entry: WorkspaceFileEntry) => {
-    set_prompt_state({
+  const openRenamePrompt = useCallback((entry: WorkspaceFileEntry) => {
+    setPromptState({
       mode: "rename",
       entry,
       default_value: entry.name,
     });
   }, []);
 
-  const handle_prompt_confirm = useCallback(async (value: string) => {
-    const normalized_name = value.trim();
-    if (!prompt_state || !normalized_name) {
+  const handlePromptConfirm = useCallback(async (value: string) => {
+    const normalizedName = value.trim();
+    if (!promptState || !normalizedName) {
       return;
     }
 
-    set_error_message(null);
+    setErrorMessage(null);
     try {
-      if (prompt_state.mode === "rename") {
-        if (normalized_name === prompt_state.entry.name) {
-          set_prompt_state(null);
+      if (promptState.mode === "rename") {
+        if (normalizedName === promptState.entry.name) {
+          setPromptState(null);
           return;
         }
 
-        const renamed_entry = await rename_workspace_entry_api(
-          view_agent_id,
-          prompt_state.entry.path,
-          join_workspace_path(get_parent_directory_path(prompt_state.entry.path), normalized_name),
+        const renamedEntry = await rename_workspace_entry_api(
+          viewAgentId,
+          promptState.entry.path,
+          joinWorkspacePath(getParentDirectoryPath(promptState.entry.path), normalizedName),
         );
-        await refresh_files(view_agent_id);
+        await refreshFiles(viewAgentId);
 
-        const next_active_path = get_renamed_active_path(
-          active_workspace_path,
-          prompt_state.entry.path,
-          renamed_entry.new_path,
+        const nextActivePath = getRenamedActivePath(
+          activeWorkspacePath,
+          promptState.entry.path,
+          renamedEntry.new_path,
         );
-        if (next_active_path) {
-          on_open_workspace_file(next_active_path);
+        if (nextActivePath) {
+          onOpenWorkspaceFile(nextActivePath);
         }
-        if (is_workspace_path_affected(focused_directory_path, prompt_state.entry.path)) {
-          set_focused_directory_path(
-            get_renamed_active_path(focused_directory_path, prompt_state.entry.path, renamed_entry.new_path),
+        if (isWorkspacePathAffected(focusedDirectoryPath, promptState.entry.path)) {
+          setFocusedDirectoryPath(
+            getRenamedActivePath(focusedDirectoryPath, promptState.entry.path, renamedEntry.new_path),
           );
         }
       } else {
-        const created_entry = await create_workspace_entry_api(
-          view_agent_id,
-          join_workspace_path(prompt_state.parent_path, normalized_name),
-          prompt_state.mode === "create-file" ? "file" : "directory",
+        const createdEntry = await create_workspace_entry_api(
+          viewAgentId,
+          joinWorkspacePath(promptState.parent_path, normalizedName),
+          promptState.mode === "create-file" ? "file" : "directory",
         );
-        await refresh_files(view_agent_id);
+        await refreshFiles(viewAgentId);
 
-        if (prompt_state.mode === "create-file") {
-          on_open_workspace_file(created_entry.path);
-          set_focused_directory_path(get_parent_directory_path(created_entry.path));
+        if (promptState.mode === "create-file") {
+          onOpenWorkspaceFile(createdEntry.path);
+          setFocusedDirectoryPath(getParentDirectoryPath(createdEntry.path));
         } else {
-          set_focused_directory_path(created_entry.path);
+          setFocusedDirectoryPath(createdEntry.path);
         }
       }
-      set_prompt_state(null);
+      setPromptState(null);
     } catch (error) {
-      set_error_message(error instanceof Error ? error.message : "工作区操作失败");
+      setErrorMessage(error instanceof Error ? error.message : "工作区操作失败");
     }
-  }, [active_workspace_path, focused_directory_path, on_open_workspace_file, prompt_state, refresh_files, view_agent_id]);
+  }, [activeWorkspacePath, focusedDirectoryPath, onOpenWorkspaceFile, promptState, refreshFiles, viewAgentId]);
 
-  const handle_confirm_delete = useCallback(async () => {
-    if (!delete_target) {
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) {
       return;
     }
 
-    set_error_message(null);
+    setErrorMessage(null);
     try {
-      await delete_workspace_entry_api(view_agent_id, delete_target.path);
-      await refresh_files(view_agent_id);
-      if (is_workspace_path_affected(active_workspace_path, delete_target.path)) {
-        on_open_workspace_file(null);
+      await delete_workspace_entry_api(viewAgentId, deleteTarget.path);
+      await refreshFiles(viewAgentId);
+      if (isWorkspacePathAffected(activeWorkspacePath, deleteTarget.path)) {
+        onOpenWorkspaceFile(null);
       }
-      if (is_workspace_path_affected(focused_directory_path, delete_target.path)) {
-        set_focused_directory_path(get_parent_directory_path(delete_target.path));
+      if (isWorkspacePathAffected(focusedDirectoryPath, deleteTarget.path)) {
+        setFocusedDirectoryPath(getParentDirectoryPath(deleteTarget.path));
       }
-      set_delete_target(null);
+      setDeleteTarget(null);
     } catch (error) {
-      set_error_message(error instanceof Error ? error.message : "删除失败");
+      setErrorMessage(error instanceof Error ? error.message : "删除失败");
     }
-  }, [active_workspace_path, delete_target, focused_directory_path, on_open_workspace_file, refresh_files, view_agent_id]);
+  }, [activeWorkspacePath, deleteTarget, focusedDirectoryPath, onOpenWorkspaceFile, refreshFiles, viewAgentId]);
 
-  const handle_context_menu = useCallback((event: MouseEvent, entry: WorkspaceFileEntry) => {
-    set_context_menu({
-      position: resolve_workspace_menu_position(event, entry.is_dir ? 178 : 102),
+  const handleContextMenu = useCallback((event: MouseEvent, entry: WorkspaceFileEntry) => {
+    setContextMenu({
+      position: resolveWorkspaceMenuPosition(event, entry.is_dir ? 178 : 102),
       entry,
     });
   }, []);
 
-  const handle_root_context_menu = useCallback((event: MouseEvent) => {
+  const handleRootContextMenu = useCallback((event: MouseEvent) => {
     event.preventDefault();
-    set_context_menu({
-      position: resolve_workspace_menu_position(event, 106),
+    setContextMenu({
+      position: resolveWorkspaceMenuPosition(event, 106),
       entry: null,
     });
   }, []);
 
-  const close_context_menu = useCallback(() => {
-    set_context_menu({position: null, entry: null});
+  const closeContextMenu = useCallback(() => {
+    setContextMenu({position: null, entry: null});
   }, []);
 
   return {
-    view_agent_id,
+    view_agent_id: viewAgentId,
     files,
-    selected_agent_id,
-    set_selected_agent_id,
-    is_uploading,
-    is_loading_files,
-    error_message,
-    clear_error_message: () => set_error_message(null),
-    context_menu,
-    prompt_state,
-    delete_target,
-    focused_directory_path,
-    current_directory_label: focused_directory_path ?? "/",
-    handle_click_file,
-    handle_click_directory,
-    handle_upload_click,
-    handle_file_select,
-    open_create_prompt,
-    open_rename_prompt,
-    handle_prompt_confirm,
-    handle_confirm_delete,
-    handle_context_menu,
-    handle_root_context_menu,
-    close_context_menu,
-    set_delete_target,
-    set_prompt_state,
+    selected_agent_id: selectedAgentId,
+    set_selected_agent_id: setSelectedAgentId,
+    is_uploading: isUploading,
+    is_loading_files: isLoadingFiles,
+    error_message: errorMessage,
+    clear_error_message: () => setErrorMessage(null),
+    context_menu: contextMenu,
+    prompt_state: promptState,
+    delete_target: deleteTarget,
+    focused_directory_path: focusedDirectoryPath,
+    current_directory_label: focusedDirectoryPath ?? "/",
+    handle_click_file: handleClickFile,
+    handle_click_directory: handleClickDirectory,
+    handle_upload_click: handleUploadClick,
+    handle_file_select: handleFileSelect,
+    open_create_prompt: openCreatePrompt,
+    open_rename_prompt: openRenamePrompt,
+    handle_prompt_confirm: handlePromptConfirm,
+    handle_confirm_delete: handleConfirmDelete,
+    handle_context_menu: handleContextMenu,
+    handle_root_context_menu: handleRootContextMenu,
+    close_context_menu: closeContextMenu,
+    set_delete_target: setDeleteTarget,
+    set_prompt_state: setPromptState,
   };
 }

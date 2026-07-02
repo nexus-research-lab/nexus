@@ -9,7 +9,7 @@ export interface AgentOptionsEditorProps {
   agent_id?: string;
   mode: "create" | "edit";
   is_active: boolean;
-  on_delete?: (agent_id: string) => void;
+  on_delete?: (agentId: string) => void;
   on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
   on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   initial_title?: string;

@@ -7,7 +7,7 @@
  * 此处提供兼容降级，避免创建会话和消息时直接抛错。
  */
 
-function fallback_uuid_from_random_values(): string {
+function fallbackUuidFromRandomValues(): string {
   const cryptoObject = globalThis.crypto;
   if (!cryptoObject?.getRandomValues) {
     return `fallback-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
@@ -35,5 +35,5 @@ export function generate_uuid(): string {
     return cryptoObject.randomUUID();
   }
 
-  return fallback_uuid_from_random_values();
+  return fallbackUuidFromRandomValues();
 }

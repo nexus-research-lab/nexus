@@ -53,76 +53,76 @@ const DOCX_RENDER_OPTIONS: Partial<DocxPreviewOptions> = {
 };
 
 export function DocumentFilePreview({
-  agent_id,
+  agent_id: agentId,
   embedded,
-  file_name,
-  is_preview_focused,
-  on_resize_start,
-  on_toggle_preview_focus,
+  file_name: fileName,
+  is_preview_focused: isPreviewFocused,
+  on_resize_start: onResizeStart,
+  on_toggle_preview_focus: onTogglePreviewFocus,
   path,
 }: DocumentFilePreviewProps) {
-  const viewport_ref = useRef<HTMLDivElement>(null);
-  const container_ref = useRef<HTMLDivElement>(null);
-  const style_container_ref = useRef<HTMLDivElement>(null);
-  const preview_key = `${agent_id}\x1f${path}`;
-  const [preview_scale, set_preview_scale] = useResettableState(1, preview_key);
-  const [status, set_status] = useResettableState<DocumentPreviewStatus>({
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const styleContainerRef = useRef<HTMLDivElement>(null);
+  const previewKey = `${agentId}\x1f${path}`;
+  const [previewScale, setPreviewScale] = useResettableState(1, previewKey);
+  const [status, setStatus] = useResettableState<DocumentPreviewStatus>({
     state: "loading",
     message: "加载文档预览中",
-  }, preview_key);
+  }, previewKey);
 
-  const update_preview_scale = useCallback(() => {
-    const viewport = viewport_ref.current;
-    const container = container_ref.current;
+  const updatePreviewScale = useCallback(() => {
+    const viewport = viewportRef.current;
+    const container = containerRef.current;
     if (!viewport || !container) {
       return;
     }
 
-    const page_width = get_docx_page_width(container);
-    if (page_width <= 0) {
-      set_preview_scale(1);
+    const pageWidth = getDocxPageWidth(container);
+    if (pageWidth <= 0) {
+      setPreviewScale(1);
       return;
     }
 
-    const available_width = Math.max(viewport.clientWidth - 40, 1);
-    const next_scale = Math.max(Math.min(available_width / page_width, 1), 0.1);
-    const rounded_scale = Math.round(next_scale * 1000) / 1000;
-    set_preview_scale((current) => (
-      Math.abs(current - rounded_scale) > 0.005 ? rounded_scale : current
+    const availableWidth = Math.max(viewport.clientWidth - 40, 1);
+    const nextScale = Math.max(Math.min(availableWidth / pageWidth, 1), 0.1);
+    const roundedScale = Math.round(nextScale * 1000) / 1000;
+    setPreviewScale((current) => (
+      Math.abs(current - roundedScale) > 0.005 ? roundedScale : current
     ));
   }, []);
 
   useEffect(() => {
-    const container = container_ref.current;
-    const style_container = style_container_ref.current;
-    const abort_controller = new AbortController();
+    const container = containerRef.current;
+    const styleContainer = styleContainerRef.current;
+    const abortController = new AbortController();
     let cancelled = false;
 
     if (container) {
       container.innerHTML = "";
     }
-    if (style_container) {
-      style_container.innerHTML = "";
+    if (styleContainer) {
+      styleContainer.innerHTML = "";
     }
 
-    async function load_preview() {
-      if (!container || !style_container) {
+    async function loadPreview() {
+      if (!container || !styleContainer) {
         return;
       }
 
       try {
-        const preview_url = get_workspace_file_preview_url(agent_id, path);
-        const response = await fetch(preview_url, {
+        const previewUrl = get_workspace_file_preview_url(agentId, path);
+        const response = await fetch(previewUrl, {
           credentials: "include",
-          signal: abort_controller.signal,
+          signal: abortController.signal,
         });
 
         if (!response.ok) {
           throw new Error(`读取失败: ${response.status}`);
         }
 
-        const content_length = response.headers.get("content-length");
-        if (content_length && Number(content_length) > MAX_DOCX_PREVIEW_BYTES) {
+        const contentLength = response.headers.get("content-length");
+        if (contentLength && Number(contentLength) > MAX_DOCX_PREVIEW_BYTES) {
           throw new Error("docx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
@@ -134,83 +134,83 @@ export function DocumentFilePreview({
           throw new Error("docx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
-        set_status({ state: "loading", message: "解析 docx 文件中" });
+        setStatus({ state: "loading", message: "解析 docx 文件中" });
         const { renderAsync } = await import("docx-preview");
         if (cancelled) {
           return;
         }
 
-        await renderAsync(buffer, container, style_container, DOCX_RENDER_OPTIONS);
+        await renderAsync(buffer, container, styleContainer, DOCX_RENDER_OPTIONS);
         if (cancelled) {
           return;
         }
 
-        normalize_docx_media(container);
-        update_preview_scale();
+        normalizeDocxMedia(container);
+        updatePreviewScale();
         requestAnimationFrame(() => {
-          normalize_docx_media(container);
-          update_preview_scale();
+          normalizeDocxMedia(container);
+          updatePreviewScale();
         });
-        set_status({ state: "loaded" });
-      } catch (preview_error) {
-        if (cancelled || abort_controller.signal.aborted) {
+        setStatus({ state: "loaded" });
+      } catch (previewError) {
+        if (cancelled || abortController.signal.aborted) {
           return;
         }
-        const message = preview_error instanceof Error ? preview_error.message : "docx 预览失败";
+        const message = previewError instanceof Error ? previewError.message : "docx 预览失败";
         if (container) {
           container.innerHTML = "";
         }
-        if (style_container) {
-          style_container.innerHTML = "";
+        if (styleContainer) {
+          styleContainer.innerHTML = "";
         }
-        set_preview_scale(1);
-        set_status({ state: "error", message });
+        setPreviewScale(1);
+        setStatus({ state: "error", message });
       }
     }
 
-    void load_preview();
+    void loadPreview();
 
     return () => {
       cancelled = true;
-      abort_controller.abort();
+      abortController.abort();
       if (container) {
         container.innerHTML = "";
       }
-      if (style_container) {
-        style_container.innerHTML = "";
+      if (styleContainer) {
+        styleContainer.innerHTML = "";
       }
-      set_preview_scale(1);
+      setPreviewScale(1);
     };
-  }, [agent_id, path, update_preview_scale]);
+  }, [agentId, path, updatePreviewScale]);
 
   useEffect(() => {
     if (status.state !== "loaded") {
       return;
     }
 
-    const viewport = viewport_ref.current;
-    const container = container_ref.current;
+    const viewport = viewportRef.current;
+    const container = containerRef.current;
     if (!viewport || !container) {
       return;
     }
 
-    const observer = new ResizeObserver(update_preview_scale);
+    const observer = new ResizeObserver(updatePreviewScale);
     observer.observe(viewport);
     observer.observe(container);
-    window.addEventListener("resize", update_preview_scale);
-    update_preview_scale();
+    window.addEventListener("resize", updatePreviewScale);
+    updatePreviewScale();
 
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", update_preview_scale);
+      window.removeEventListener("resize", updatePreviewScale);
     };
-  }, [status.state, update_preview_scale]);
+  }, [status.state, updatePreviewScale]);
 
-  const is_loading = status.state === "loading";
-  const is_loaded = status.state === "loaded";
-  const has_error = status.state === "error";
-  const host_style = {
-    "--docx-preview-scale": String(preview_scale),
+  const isLoading = status.state === "loading";
+  const isLoaded = status.state === "loaded";
+  const hasError = status.state === "error";
+  const hostStyle = {
+    "--docx-preview-scale": String(previewScale),
   } as CSSProperties;
 
   return (
@@ -219,17 +219,17 @@ export function DocumentFilePreview({
         <ConversationResizeHandle
           aria_label="调整编辑器宽度"
           class_name="flex"
-          on_mouse_down={on_resize_start}
+          on_mouse_down={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -240,12 +240,12 @@ export function DocumentFilePreview({
               <FileText className="h-3 w-3" />
               docx 预览
             </span>
-            {has_error ? (
+            {hasError ? (
               <span className="flex items-center gap-1 text-destructive">
                 <FileWarning className="h-3 w-3" />
                 加载失败
               </span>
-            ) : is_loaded ? (
+            ) : isLoaded ? (
               <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载
@@ -253,16 +253,16 @@ export function DocumentFilePreview({
             ) : (
               <span className="flex items-center gap-1">
                 <LoaderCircle className="h-3 w-3 animate-spin" />
-                {is_loading ? status.message : "加载中"}
+                {isLoading ? status.message : "加载中"}
               </span>
             )}
           </>
         )}
-        title={file_name}
+        title={fileName}
       />
 
       <div
-        ref={viewport_ref}
+        ref={viewportRef}
         className="soft-scrollbar relative min-h-0 flex-1 overflow-auto bg-[var(--surface-panel-subtle-background)] p-5"
       >
         <style>
@@ -300,8 +300,8 @@ export function DocumentFilePreview({
             }
           `}
         </style>
-        <div ref={style_container_ref} aria-hidden="true" className="contents" />
-        {has_error ? (
+        <div ref={styleContainerRef} aria-hidden="true" className="contents" />
+        {hasError ? (
           <div className="flex h-full min-h-[240px] items-center justify-center text-center">
             <div className="max-w-sm">
               <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
@@ -311,15 +311,15 @@ export function DocumentFilePreview({
           </div>
         ) : (
           <div
-            ref={container_ref}
+            ref={containerRef}
             className={cn(
               "nexus-docx-preview-host mx-auto flex min-h-full w-full min-w-0 justify-center",
-              is_loaded ? "opacity-100" : "opacity-0",
+              isLoaded ? "opacity-100" : "opacity-0",
             )}
-            style={host_style}
+            style={hostStyle}
           />
         )}
-        {is_loading ? (
+        {isLoading ? (
           <div className="absolute inset-x-0 top-24 flex justify-center pointer-events-none">
             <div className="inline-flex items-center gap-2 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-1.5 text-xs text-(--text-muted) shadow-sm">
               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -332,38 +332,38 @@ export function DocumentFilePreview({
   );
 }
 
-function get_docx_page_width(container: HTMLElement): number {
+function getDocxPageWidth(container: HTMLElement): number {
   const pages = Array.from(container.querySelectorAll<HTMLElement>("section.nexus-docx-preview"));
-  return pages.reduce((max_width, page) => {
-    const css_width = parse_css_length_to_px(page.style.width);
-    const layout_width = page.offsetWidth || page.clientWidth || page.getBoundingClientRect().width;
-    return Math.max(max_width, css_width, layout_width, page.scrollWidth);
+  return pages.reduce((maxWidth, page) => {
+    const cssWidth = parseCssLengthToPx(page.style.width);
+    const layoutWidth = page.offsetWidth || page.clientWidth || page.getBoundingClientRect().width;
+    return Math.max(maxWidth, cssWidth, layoutWidth, page.scrollWidth);
   }, 0);
 }
 
-function normalize_docx_media(container: HTMLElement) {
-  const media_elements = Array.from(container.querySelectorAll<HTMLElement>("section.nexus-docx-preview img, section.nexus-docx-preview svg"));
-  media_elements.forEach((media) => {
+function normalizeDocxMedia(container: HTMLElement) {
+  const mediaElements = Array.from(container.querySelectorAll<HTMLElement>("section.nexus-docx-preview img, section.nexus-docx-preview svg"));
+  mediaElements.forEach((media) => {
     const page = media.closest<HTMLElement>("section.nexus-docx-preview");
     if (!page) {
       return;
     }
 
-    const media_width = get_unscaled_element_width(media);
-    const width_limit = get_docx_media_width_limit(media, page, media_width);
-    if (media_width <= 0 || width_limit <= 0 || media_width <= width_limit + 1) {
+    const mediaWidth = getUnscaledElementWidth(media);
+    const widthLimit = getDocxMediaWidthLimit(media, page, mediaWidth);
+    if (mediaWidth <= 0 || widthLimit <= 0 || mediaWidth <= widthLimit + 1) {
       return;
     }
 
-    const next_width = `${Math.floor(width_limit)}px`;
-    media.style.width = next_width;
+    const nextWidth = `${Math.floor(widthLimit)}px`;
+    media.style.width = nextWidth;
     media.style.maxWidth = "100%";
     media.style.height = "auto";
     media.style.objectFit = "contain";
 
     const parent = media.parentElement;
     if (parent && parent !== page) {
-      parent.style.width = next_width;
+      parent.style.width = nextWidth;
       parent.style.maxWidth = "100%";
       parent.style.height = "auto";
       parent.style.overflow = "hidden";
@@ -371,17 +371,17 @@ function normalize_docx_media(container: HTMLElement) {
   });
 }
 
-function get_docx_media_width_limit(media: HTMLElement, page: HTMLElement, media_width: number): number {
-  const page_style = window.getComputedStyle(page);
-  const page_content_width = page.clientWidth
-    - parse_css_length_to_px(page_style.paddingLeft)
-    - parse_css_length_to_px(page_style.paddingRight);
-  const candidates = [page_content_width].filter((width) => width > 0);
+function getDocxMediaWidthLimit(media: HTMLElement, page: HTMLElement, mediaWidth: number): number {
+  const pageStyle = window.getComputedStyle(page);
+  const pageContentWidth = page.clientWidth
+    - parseCssLengthToPx(pageStyle.paddingLeft)
+    - parseCssLengthToPx(pageStyle.paddingRight);
+  const candidates = [pageContentWidth].filter((width) => width > 0);
   let current = media.parentElement;
 
   while (current && current !== page) {
     const style = window.getComputedStyle(current);
-    if (style.display !== "inline" && current.clientWidth > 0 && current.clientWidth < media_width) {
+    if (style.display !== "inline" && current.clientWidth > 0 && current.clientWidth < mediaWidth) {
       candidates.push(current.clientWidth);
     }
     current = current.parentElement;
@@ -390,15 +390,15 @@ function get_docx_media_width_limit(media: HTMLElement, page: HTMLElement, media
   return Math.max(Math.min(...candidates), 120);
 }
 
-function get_unscaled_element_width(element: HTMLElement): number {
-  return parse_css_length_to_px(element.style.width)
+function getUnscaledElementWidth(element: HTMLElement): number {
+  return parseCssLengthToPx(element.style.width)
     || Number(element.getAttribute("width") || 0)
     || element.scrollWidth
     || element.offsetWidth
     || element.getBoundingClientRect().width;
 }
 
-function parse_css_length_to_px(value: string): number {
+function parseCssLengthToPx(value: string): number {
   const match = value.trim().match(/^(-?\d+(?:\.\d+)?)(px|pt|in|cm|mm)?$/i);
   if (!match) {
     return 0;

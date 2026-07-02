@@ -10,175 +10,175 @@ const STREAM_ACTIVE_CPS = 92;
 const STREAM_FLUSH_CPS = 260;
 const STREAM_LARGE_APPEND_CHARS = 220;
 
-function get_now(): number {
+function getNow(): number {
   return typeof performance === "undefined" ? Date.now() : performance.now();
 }
 
-function count_chars(value: string): number {
+function countChars(value: string): number {
   return [...value].length;
 }
 
-function should_bypass_stream_buffer(content: string): boolean {
+function shouldBypassStreamBuffer(content: string): boolean {
   return find_open_markdown_fence_language(content) !== null;
 }
 
 export function useSmoothStreamingMarkdownContent(content: string, enabled: boolean): string {
-  const [displayed_content, set_displayed_content] = useState(content);
+  const [displayedContent, setDisplayedContent] = useState(content);
 
-  const displayed_content_ref = useRef(content);
-  const displayed_count_ref = useRef(count_chars(content));
-  const target_content_ref = useRef(content);
-  const target_chars_ref = useRef([...content]);
-  const target_count_ref = useRef(target_chars_ref.current.length);
-  const last_input_ts_ref = useRef(get_now());
-  const last_frame_ts_ref = useRef<number | null>(null);
-  const raf_ref = useRef<number | null>(null);
-  const wake_timer_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayedContentRef = useRef(content);
+  const displayedCountRef = useRef(countChars(content));
+  const targetContentRef = useRef(content);
+  const targetCharsRef = useRef([...content]);
+  const targetCountRef = useRef(targetCharsRef.current.length);
+  const lastInputTsRef = useRef(getNow());
+  const lastFrameTsRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const wakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clear_wake_timer = useCallback(() => {
-    if (wake_timer_ref.current !== null) {
-      clearTimeout(wake_timer_ref.current);
-      wake_timer_ref.current = null;
+  const clearWakeTimer = useCallback(() => {
+    if (wakeTimerRef.current !== null) {
+      clearTimeout(wakeTimerRef.current);
+      wakeTimerRef.current = null;
     }
   }, []);
 
-  const stop_frame_loop = useCallback(() => {
-    if (raf_ref.current !== null) {
-      cancelAnimationFrame(raf_ref.current);
-      raf_ref.current = null;
+  const stopFrameLoop = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
-    last_frame_ts_ref.current = null;
+    lastFrameTsRef.current = null;
   }, []);
 
-  const stop_scheduling = useCallback(() => {
-    stop_frame_loop();
-    clear_wake_timer();
-  }, [clear_wake_timer, stop_frame_loop]);
+  const stopScheduling = useCallback(() => {
+    stopFrameLoop();
+    clearWakeTimer();
+  }, [clearWakeTimer, stopFrameLoop]);
 
-  const start_frame_loop_ref = useRef<() => void>(() => {});
+  const startFrameLoopRef = useRef<() => void>(() => {});
 
-  const schedule_wake = useCallback(
-    (delay_ms: number) => {
-      clear_wake_timer();
-      wake_timer_ref.current = setTimeout(() => {
-        wake_timer_ref.current = null;
-        start_frame_loop_ref.current();
-      }, Math.max(1, Math.ceil(delay_ms)));
+  const scheduleWake = useCallback(
+    (delayMs: number) => {
+      clearWakeTimer();
+      wakeTimerRef.current = setTimeout(() => {
+        wakeTimerRef.current = null;
+        startFrameLoopRef.current();
+      }, Math.max(1, Math.ceil(delayMs)));
     },
-    [clear_wake_timer],
+    [clearWakeTimer],
   );
 
-  const sync_immediate = useCallback(
-    (next_content: string) => {
-      stop_scheduling();
+  const syncImmediate = useCallback(
+    (nextContent: string) => {
+      stopScheduling();
 
-      const chars = [...next_content];
-      target_content_ref.current = next_content;
-      target_chars_ref.current = chars;
-      target_count_ref.current = chars.length;
-      displayed_content_ref.current = next_content;
-      displayed_count_ref.current = chars.length;
-      last_input_ts_ref.current = get_now();
-      set_displayed_content(next_content);
+      const chars = [...nextContent];
+      targetContentRef.current = nextContent;
+      targetCharsRef.current = chars;
+      targetCountRef.current = chars.length;
+      displayedContentRef.current = nextContent;
+      displayedCountRef.current = chars.length;
+      lastInputTsRef.current = getNow();
+      setDisplayedContent(nextContent);
     },
-    [stop_scheduling],
+    [stopScheduling],
   );
 
-  const start_frame_loop = useCallback(() => {
-    clear_wake_timer();
-    if (raf_ref.current !== null) {
+  const startFrameLoop = useCallback(() => {
+    clearWakeTimer();
+    if (rafRef.current !== null) {
       return;
     }
 
     const tick = (timestamp: number) => {
-      const previous_frame_ts = last_frame_ts_ref.current;
-      const frame_interval_ms = previous_frame_ts === null
+      const previousFrameTs = lastFrameTsRef.current;
+      const frameIntervalMs = previousFrameTs === null
         ? 16
-        : Math.max(1, Math.min(timestamp - previous_frame_ts, 50));
-      last_frame_ts_ref.current = timestamp;
+        : Math.max(1, Math.min(timestamp - previousFrameTs, 50));
+      lastFrameTsRef.current = timestamp;
 
-      const target_count = target_count_ref.current;
-      const displayed_count = displayed_count_ref.current;
-      const backlog = target_count - displayed_count;
+      const targetCount = targetCountRef.current;
+      const displayedCount = displayedCountRef.current;
+      const backlog = targetCount - displayedCount;
       if (backlog <= 0) {
-        stop_frame_loop();
+        stopFrameLoop();
         return;
       }
 
-      const idle_ms = get_now() - last_input_ts_ref.current;
-      const input_active = idle_ms <= STREAM_ACTIVE_INPUT_WINDOW_MS;
-      const target_lag_chars = input_active ? STREAM_TARGET_LAG_CHARS : 0;
-      const revealable_backlog = Math.max(0, backlog - target_lag_chars);
-      if (revealable_backlog <= 0) {
-        stop_frame_loop();
-        schedule_wake(STREAM_ACTIVE_INPUT_WINDOW_MS - idle_ms + 8);
+      const idleMs = getNow() - lastInputTsRef.current;
+      const inputActive = idleMs <= STREAM_ACTIVE_INPUT_WINDOW_MS;
+      const targetLagChars = inputActive ? STREAM_TARGET_LAG_CHARS : 0;
+      const revealableBacklog = Math.max(0, backlog - targetLagChars);
+      if (revealableBacklog <= 0) {
+        stopFrameLoop();
+        scheduleWake(STREAM_ACTIVE_INPUT_WINDOW_MS - idleMs + 8);
         return;
       }
 
-      const cps = input_active ? STREAM_ACTIVE_CPS : STREAM_FLUSH_CPS;
-      const timed_reveal = Math.max(
-        input_active ? 1 : 2,
-        Math.round((cps * frame_interval_ms) / 1000),
+      const cps = inputActive ? STREAM_ACTIVE_CPS : STREAM_FLUSH_CPS;
+      const timedReveal = Math.max(
+        inputActive ? 1 : 2,
+        Math.round((cps * frameIntervalMs) / 1000),
       );
-      const pressure_reveal = backlog > 40 ? Math.ceil(backlog * 0.18) : 0;
-      const reveal_count = Math.min(
-        revealable_backlog,
-        Math.max(timed_reveal, pressure_reveal),
+      const pressureReveal = backlog > 40 ? Math.ceil(backlog * 0.18) : 0;
+      const revealCount = Math.min(
+        revealableBacklog,
+        Math.max(timedReveal, pressureReveal),
       );
-      const next_count = displayed_count + reveal_count;
-      const segment = target_chars_ref.current.slice(displayed_count, next_count).join("");
-      const next_displayed = displayed_content_ref.current + segment;
+      const nextCount = displayedCount + revealCount;
+      const segment = targetCharsRef.current.slice(displayedCount, nextCount).join("");
+      const nextDisplayed = displayedContentRef.current + segment;
 
-      displayed_content_ref.current = next_displayed;
-      displayed_count_ref.current = next_count;
-      set_displayed_content(next_displayed);
+      displayedContentRef.current = nextDisplayed;
+      displayedCountRef.current = nextCount;
+      setDisplayedContent(nextDisplayed);
 
-      raf_ref.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(tick);
     };
 
-    raf_ref.current = requestAnimationFrame(tick);
-  }, [clear_wake_timer, schedule_wake, stop_frame_loop]);
+    rafRef.current = requestAnimationFrame(tick);
+  }, [clearWakeTimer, scheduleWake, stopFrameLoop]);
 
-  start_frame_loop_ref.current = start_frame_loop;
+  startFrameLoopRef.current = startFrameLoop;
 
   useEffect(() => {
     if (!enabled) {
-      sync_immediate(content);
+      syncImmediate(content);
       return;
     }
 
-    const previous_target = target_content_ref.current;
-    if (content === previous_target) {
+    const previousTarget = targetContentRef.current;
+    if (content === previousTarget) {
       return;
     }
 
-    const appended = content.startsWith(previous_target)
-      ? content.slice(previous_target.length)
+    const appended = content.startsWith(previousTarget)
+      ? content.slice(previousTarget.length)
       : "";
-    const appended_count = count_chars(appended);
+    const appendedCount = countChars(appended);
 
     // 中文注释：非追加更新通常来自历史回放、重载或运行时修正，必须立即对齐真实内容。
     if (
       !appended ||
-      appended_count > STREAM_LARGE_APPEND_CHARS ||
-      should_bypass_stream_buffer(content)
+      appendedCount > STREAM_LARGE_APPEND_CHARS ||
+      shouldBypassStreamBuffer(content)
     ) {
-      sync_immediate(content);
+      syncImmediate(content);
       return;
     }
 
-    target_content_ref.current = content;
-    target_chars_ref.current = [...target_chars_ref.current, ...appended];
-    target_count_ref.current += appended_count;
-    last_input_ts_ref.current = get_now();
-    start_frame_loop();
-  }, [content, enabled, start_frame_loop, sync_immediate]);
+    targetContentRef.current = content;
+    targetCharsRef.current = [...targetCharsRef.current, ...appended];
+    targetCountRef.current += appendedCount;
+    lastInputTsRef.current = getNow();
+    startFrameLoop();
+  }, [content, enabled, startFrameLoop, syncImmediate]);
 
   useEffect(() => {
     return () => {
-      stop_scheduling();
+      stopScheduling();
     };
-  }, [stop_scheduling]);
+  }, [stopScheduling]);
 
-  return enabled ? displayed_content : content;
+  return enabled ? displayedContent : content;
 }

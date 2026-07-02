@@ -23,7 +23,7 @@ import { LoopDetailView } from "./loop-detail-view";
 
 const ALL_CATEGORIES = "__all__";
 
-function matches_loop(loop: LoopCatalogItem, query: string): boolean {
+function matchesLoop(loop: LoopCatalogItem, query: string): boolean {
   if (!query) {
     return true;
   }
@@ -42,31 +42,31 @@ export function LoopsDirectory() {
   const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { slug } = useParams<{ slug?: string }>();
-  const [loops, set_loops] = useState<LoopCatalogItem[]>([]);
-  const [query, set_query] = useState("");
-  const [category, set_category] = useState(ALL_CATEGORIES);
-  const [loading, set_loading] = useState(true);
-  const [error, set_error] = useState<string | null>(null);
-  const [copied_slug, set_copied_slug] = useState<string | null>(null);
+  const [loops, setLoops] = useState<LoopCatalogItem[]>([]);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState(ALL_CATEGORIES);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    set_loading(true);
-    set_error(null);
+    setLoading(true);
+    setError(null);
     list_loops_api(locale)
       .then((items) => {
         if (!cancelled) {
-          set_loops(items);
+          setLoops(items);
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          set_error(err instanceof Error ? err.message : t("capability.loops_loading_failed"));
+          setError(err instanceof Error ? err.message : t("capability.loops_loading_failed"));
         }
       })
       .finally(() => {
         if (!cancelled) {
-          set_loading(false);
+          setLoading(false);
         }
       });
     return () => {
@@ -74,7 +74,7 @@ export function LoopsDirectory() {
     };
   }, [locale, t]);
 
-  const category_options = useMemo(() => {
+  const categoryOptions = useMemo(() => {
     const categories = Array.from(new Set(loops.map((loop) => loop.category))).sort();
     return [
       { value: ALL_CATEGORIES, label: t("capability.category_all") },
@@ -82,18 +82,18 @@ export function LoopsDirectory() {
     ];
   }, [loops, t]);
 
-  const filtered_loops = useMemo(() => {
-    const normalized_query = query.trim().toLowerCase();
+  const filteredLoops = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
     return loops.filter((loop) =>
       (category === ALL_CATEGORIES || loop.category === category) &&
-      matches_loop(loop, normalized_query),
+      matchesLoop(loop, normalizedQuery),
     );
   }, [category, loops, query]);
 
-  const copy_prompt = async (loop: LoopCatalogItem) => {
+  const copyPrompt = async (loop: LoopCatalogItem) => {
     await write_text_to_clipboard(loop.kickoff_prompt);
-    set_copied_slug(loop.slug);
-    window.setTimeout(() => set_copied_slug((current) => current === loop.slug ? null : current), 1800);
+    setCopiedSlug(loop.slug);
+    window.setTimeout(() => setCopiedSlug((current) => current === loop.slug ? null : current), 1800);
   };
 
   if (slug) {
@@ -113,20 +113,20 @@ export function LoopsDirectory() {
       >
         <CapabilityFilterBar>
           <CapabilityFilterSearchInput
-            on_change={set_query}
+            on_change={setQuery}
             placeholder={t("capability.loops_search_placeholder")}
             value={query}
           />
           <CapabilityFilterSelect
             aria_label={t("capability.loops_filter_aria")}
-            on_change={set_category}
-            options={category_options}
+            on_change={setCategory}
+            options={categoryOptions}
             value={category}
           />
         </CapabilityFilterBar>
 
         <CapabilitySectionHeader
-          count={t("capability.loops_badge", { count: filtered_loops.length })}
+          count={t("capability.loops_badge", { count: filteredLoops.length })}
           title={t("capability.loops")}
         />
 
@@ -134,11 +134,11 @@ export function LoopsDirectory() {
           <div className="py-10 text-[13px] text-(--text-muted)">{t("capability.connectors_loading")}</div>
         ) : error ? (
           <div className="py-10 text-[13px] text-(--destructive)">{error}</div>
-        ) : filtered_loops.length === 0 ? (
+        ) : filteredLoops.length === 0 ? (
           <div className="py-10 text-[13px] text-(--text-muted)">{t("capability.loops_empty")}</div>
         ) : (
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {filtered_loops.map((loop) => (
+            {filteredLoops.map((loop) => (
               <div
                 className="cursor-pointer rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-raised-background) p-4 transition-colors hover:bg-(--surface-interactive-hover-background)"
                 key={loop.slug}
@@ -172,12 +172,12 @@ export function LoopsDirectory() {
                     class_name="shrink-0"
                     onClick={(event) => {
                       event.stopPropagation();
-                      void copy_prompt(loop);
+                      void copyPrompt(loop);
                     }}
                     size="md"
                     variant="ghost"
                   >
-                    {copied_slug === loop.slug ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedSlug === loop.slug ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </UiIconButton>
                 </div>
 

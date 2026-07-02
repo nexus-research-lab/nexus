@@ -54,18 +54,18 @@ interface ComposerPanelProps {
   runtime_phase?: AgentConversationRuntimePhase | null;
   on_send_message: (
     content: string,
-    delivery_policy: AgentConversationDeliveryPolicy,
+    deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: PreparedComposerAttachment[],
   ) => void | Promise<void>;
   input_queue_items?: InputQueueItem[];
   on_enqueue_message?: (
     content: string,
-    delivery_policy: AgentConversationDeliveryPolicy,
+    deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: PreparedComposerAttachment[],
   ) => void | Promise<void>;
-  on_delete_queued_message?: (item_id: string) => void | Promise<void>;
-  on_guide_queued_message?: (item_id: string) => void | Promise<void>;
-  on_reorder_queue_messages?: (ordered_ids: string[]) => void | Promise<void>;
+  on_delete_queued_message?: (itemId: string) => void | Promise<void>;
+  on_guide_queued_message?: (itemId: string) => void | Promise<void>;
+  on_reorder_queue_messages?: (orderedIds: string[]) => void | Promise<void>;
   on_stop?: () => void;
   default_delivery_policy?: AgentConversationDefaultDeliveryPolicy;
   initial_draft?: string | null;
@@ -94,485 +94,485 @@ type ComposerNativeKeyboardEvent = globalThis.KeyboardEvent & {
 const IME_COMPOSITION_KEY_CODE = 229;
 const COMPOSITION_END_ENTER_GUARD_MS = 80;
 type ComposerInputMode = "message" | "goal";
-function is_caret_on_first_line(target: HTMLTextAreaElement) {
-  const selection_start = target.selectionStart ?? 0;
-  const selection_end = target.selectionEnd ?? 0;
-  if (selection_start !== selection_end) {
+function isCaretOnFirstLine(target: HTMLTextAreaElement) {
+  const selectionStart = target.selectionStart ?? 0;
+  const selectionEnd = target.selectionEnd ?? 0;
+  if (selectionStart !== selectionEnd) {
     return false;
   }
-  return !target.value.slice(0, selection_start).includes("\n");
+  return !target.value.slice(0, selectionStart).includes("\n");
 }
 
-function is_caret_on_last_line(target: HTMLTextAreaElement) {
-  const selection_start = target.selectionStart ?? 0;
-  const selection_end = target.selectionEnd ?? 0;
-  if (selection_start !== selection_end) {
+function isCaretOnLastLine(target: HTMLTextAreaElement) {
+  const selectionStart = target.selectionStart ?? 0;
+  const selectionEnd = target.selectionEnd ?? 0;
+  if (selectionStart !== selectionEnd) {
     return false;
   }
-  return !target.value.slice(selection_end).includes("\n");
+  return !target.value.slice(selectionEnd).includes("\n");
 }
 
 const ComposerPanelView = memo(({
   compact,
-  is_loading = false,
-  runtime_phase = null,
-  on_send_message,
-  input_queue_items = [],
-  on_enqueue_message,
-  on_delete_queued_message,
-  on_guide_queued_message,
-  on_reorder_queue_messages,
-  on_stop,
-  default_delivery_policy = "queue",
-  initial_draft = null,
+  is_loading: isLoading = false,
+  runtime_phase: runtimePhase = null,
+  on_send_message: onSendMessage,
+  input_queue_items: inputQueueItems = [],
+  on_enqueue_message: onEnqueueMessage,
+  on_delete_queued_message: onDeleteQueuedMessage,
+  on_guide_queued_message: onGuideQueuedMessage,
+  on_reorder_queue_messages: onReorderQueueMessages,
+  on_stop: onStop,
+  default_delivery_policy: defaultDeliveryPolicy = "queue",
+  initial_draft: initialDraft = null,
   disabled = false,
-  allow_send_while_loading = false,
-  queue_when_session_busy = true,
+  allow_send_while_loading: allowSendWhileLoading = false,
+  queue_when_session_busy: queueWhenSessionBusy = true,
   placeholder,
-  max_length = 10000,
-  room_members = [],
-  mention_unavailable_agent_ids = [],
-  on_prepare_attachments,
-  on_create_goal,
-  enable_loops = false,
-  on_create_loop_goal,
-  goal_create_disabled_reason = null,
-  goal_mode_extra = null,
-  goal_scope_label = "会话 Goal",
-  tour_anchor,
+  max_length: maxLength = 10000,
+  room_members: roomMembers = [],
+  mention_unavailable_agent_ids: mentionUnavailableAgentIds = [],
+  on_prepare_attachments: onPrepareAttachments,
+  on_create_goal: onCreateGoal,
+  enable_loops: enableLoops = false,
+  on_create_loop_goal: onCreateLoopGoal,
+  goal_create_disabled_reason: goalCreateDisabledReason = null,
+  goal_mode_extra: goalModeExtra = null,
+  goal_scope_label: goalScopeLabel = "会话 Goal",
+  tour_anchor: tourAnchor,
 }: ComposerPanelProps) => {
   const { t } = useI18n();
-  const [input_mode, set_input_mode] = useState<ComposerInputMode>("message");
-  const is_goal_mode = input_mode === "goal";
-  const resolved_placeholder = is_goal_mode
+  const [inputMode, setInputMode] = useState<ComposerInputMode>("message");
+  const isGoalMode = inputMode === "goal";
+  const resolvedPlaceholder = isGoalMode
     ? t("composer.goal_placeholder")
     : placeholder ?? t("composer.default_placeholder");
   const [input, setInput] = useState("");
-  const [input_history, setInputHistory] = useState<string[]>([]);
-  const [history_index, setHistoryIndex] = useState(-1);
-  const [history_draft, setHistoryDraft] = useState("");
-  const [is_action_menu_open, set_is_action_menu_open] = useState(false);
-  const [is_loop_picker_open, set_is_loop_picker_open] = useState(false);
-  const [is_goal_creating, set_is_goal_creating] = useState(false);
-  const [goal_error, set_goal_error] = useState<string | null>(null);
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [historyDraft, setHistoryDraft] = useState("");
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isLoopPickerOpen, setIsLoopPickerOpen] = useState(false);
+  const [isGoalCreating, setIsGoalCreating] = useState(false);
+  const [goalError, setGoalError] = useState<string | null>(null);
   const {
-    attachment_error,
+    attachment_error: attachmentError,
     attachments,
-    clear_attachment_error,
-    clear_attachments,
-    handle_file_select,
-    handle_paste,
-    is_preparing_attachments,
-    prepare_attachments,
-    remove_attachment,
+    clear_attachment_error: clearAttachmentError,
+    clear_attachments: clearAttachments,
+    handle_file_select: handleFileSelect,
+    handle_paste: handlePaste,
+    is_preparing_attachments: isPreparingAttachments,
+    prepare_attachments: prepareAttachments,
+    remove_attachment: removeAttachment,
   } = useComposerAttachments({
-    is_goal_mode,
-    on_goal_attachment_rejected: set_goal_error,
-    on_prepare_attachments,
+    is_goal_mode: isGoalMode,
+    on_goal_attachment_rejected: setGoalError,
+    on_prepare_attachments: onPrepareAttachments,
   });
 
-  const is_composing_ref = useRef(false);
-  const ignore_next_enter_after_composition_ref = useRef(false);
-  const last_composition_end_at_ref = useRef(0);
-  const textarea_ref = useRef<HTMLTextAreaElement>(null);
-  const file_input_ref = useRef<HTMLInputElement>(null);
-  const action_button_ref = useRef<HTMLButtonElement>(null);
+  const isComposingRef = useRef(false);
+  const ignoreNextEnterAfterCompositionRef = useRef(false);
+  const lastCompositionEndAtRef = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const actionButtonRef = useRef<HTMLButtonElement>(null);
   const {
-    close_mention,
-    mention_active,
-    mention_filter,
-    mention_target_items,
-    select_mention_item,
-    update_mention_for_input,
+    close_mention: closeMention,
+    mention_active: mentionActive,
+    mention_filter: mentionFilter,
+    mention_target_items: mentionTargetItems,
+    select_mention_item: selectMentionItem,
+    update_mention_for_input: updateMentionForInput,
   } = useComposerMention({
     input,
-    is_goal_mode,
-    mention_unavailable_agent_ids,
-    room_members,
+    is_goal_mode: isGoalMode,
+    mention_unavailable_agent_ids: mentionUnavailableAgentIds,
+    room_members: roomMembers,
     set_input: setInput,
-    textarea_ref,
+    textarea_ref: textareaRef,
   });
-  const is_dispatching = is_loading && runtime_phase === "sending";
-  const is_input_locked = disabled || (!allow_send_while_loading && is_loading);
-  const is_textarea_locked = is_input_locked || (is_goal_mode && is_goal_creating);
-  const can_stop_generation = is_loading && !is_dispatching && Boolean(on_stop);
-  const can_create_goal = Boolean(on_create_goal);
-  const can_use_loop = enable_loops && (Boolean(on_create_loop_goal) || can_create_goal);
-  const goal_create_blocked_reason =
-    goal_create_disabled_reason?.trim() || null;
+  const isDispatching = isLoading && runtimePhase === "sending";
+  const isInputLocked = disabled || (!allowSendWhileLoading && isLoading);
+  const isTextareaLocked = isInputLocked || (isGoalMode && isGoalCreating);
+  const canStopGeneration = isLoading && !isDispatching && Boolean(onStop);
+  const canCreateGoal = Boolean(onCreateGoal);
+  const canUseLoop = enableLoops && (Boolean(onCreateLoopGoal) || canCreateGoal);
+  const goalCreateBlockedReason =
+    goalCreateDisabledReason?.trim() || null;
 
-  useTextareaHeight(textarea_ref, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
+  useTextareaHeight(textareaRef, input, { min_height: 24, max_height: 200, line_height: 24, padding_y: 0 });
 
-  const handle_input_change = useCallback((value: string) => {
+  const handleInputChange = useCallback((value: string) => {
     setInput(value);
-    if (attachment_error) {
-      clear_attachment_error();
+    if (attachmentError) {
+      clearAttachmentError();
     }
-    if (goal_error) {
-      set_goal_error(null);
+    if (goalError) {
+      setGoalError(null);
     }
 
-    update_mention_for_input(value);
+    updateMentionForInput(value);
   }, [
-    attachment_error,
-    clear_attachment_error,
-    goal_error,
-    update_mention_for_input,
+    attachmentError,
+    clearAttachmentError,
+    goalError,
+    updateMentionForInput,
   ]);
 
   useEffect(() => {
-    if (textarea_ref.current && !is_input_locked) {
-      textarea_ref.current.focus();
+    if (textareaRef.current && !isInputLocked) {
+      textareaRef.current.focus();
     }
-  }, [is_input_locked]);
+  }, [isInputLocked]);
 
   useEffect(() => {
-    const normalized_draft = initial_draft?.trim() ?? "";
-    if (!normalized_draft) {
+    const normalizedDraft = initialDraft?.trim() ?? "";
+    if (!normalizedDraft) {
       return;
     }
-    setInput((current_value) => current_value || normalized_draft);
-  }, [initial_draft]);
+    setInput((currentValue) => currentValue || normalizedDraft);
+  }, [initialDraft]);
 
-  const dispatch_message = useCallback(async (
+  const dispatchMessage = useCallback(async (
     content: string,
     policy: AgentConversationDeliveryPolicy,
-    prepared_attachments: PreparedComposerAttachment[],
+    preparedAttachments: PreparedComposerAttachment[],
   ) => {
-    await on_send_message(content, policy, prepared_attachments);
-  }, [on_send_message]);
+    await onSendMessage(content, policy, preparedAttachments);
+  }, [onSendMessage]);
 
-  const handle_send = useCallback(async () => {
-    const trimmed_input = input.trim();
-    if (is_goal_mode) {
+  const handleSend = useCallback(async () => {
+    const trimmedInput = input.trim();
+    if (isGoalMode) {
       if (
-        !trimmed_input ||
-        is_input_locked ||
-        is_goal_creating ||
-        !on_create_goal ||
-        goal_create_blocked_reason
+        !trimmedInput ||
+        isInputLocked ||
+        isGoalCreating ||
+        !onCreateGoal ||
+        goalCreateBlockedReason
       ) {
         return;
       }
-      set_is_goal_creating(true);
-      set_goal_error(null);
+      setIsGoalCreating(true);
+      setGoalError(null);
       try {
-        await on_create_goal(trimmed_input);
+        await onCreateGoal(trimmedInput);
         setInput("");
-        set_input_mode("message");
+        setInputMode("message");
       } catch (error) {
-        set_goal_error(error instanceof Error ? error.message : t("composer.goal_create_failed"));
+        setGoalError(error instanceof Error ? error.message : t("composer.goal_create_failed"));
       } finally {
-        set_is_goal_creating(false);
+        setIsGoalCreating(false);
       }
       return;
     }
 
     if (
-      (!trimmed_input && attachments.length === 0) ||
-      is_input_locked ||
-      is_preparing_attachments
+      (!trimmedInput && attachments.length === 0) ||
+      isInputLocked ||
+      isPreparingAttachments
     ) {
       return;
     }
 
-    const prepared_attachments = await prepare_attachments();
-    if (!prepared_attachments) {
+    const preparedAttachments = await prepareAttachments();
+    if (!preparedAttachments) {
       return;
     }
 
-    if (trimmed_input) {
-      setInputHistory((prev) => [trimmed_input, ...prev.slice(0, 49)]);
+    if (trimmedInput) {
+      setInputHistory((prev) => [trimmedInput, ...prev.slice(0, 49)]);
     }
     setHistoryIndex(-1);
     setHistoryDraft("");
 
     try {
-      const should_enqueue_message = queue_when_session_busy && (is_loading || input_queue_items.length > 0);
-      if (should_enqueue_message) {
-        if (!on_enqueue_message) {
+      const shouldEnqueueMessage = queueWhenSessionBusy && (isLoading || inputQueueItems.length > 0);
+      if (shouldEnqueueMessage) {
+        if (!onEnqueueMessage) {
           return;
         }
-        await on_enqueue_message(trimmed_input, default_delivery_policy, prepared_attachments);
+        await onEnqueueMessage(trimmedInput, defaultDeliveryPolicy, preparedAttachments);
       } else {
-        const delivery_policy = is_loading || input_queue_items.length > 0
-          ? default_delivery_policy
+        const deliveryPolicy = isLoading || inputQueueItems.length > 0
+          ? defaultDeliveryPolicy
           : "queue";
-        await dispatch_message(trimmed_input, delivery_policy, prepared_attachments);
+        await dispatchMessage(trimmedInput, deliveryPolicy, preparedAttachments);
       }
       setInput("");
-      clear_attachments();
-      clear_attachment_error();
+      clearAttachments();
+      clearAttachmentError();
     } catch (error) {
       console.error("发送消息失败:", error);
       return;
     }
 
-    if (textarea_ref.current) {
-      textarea_ref.current.style.height = "auto";
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
     }
   }, [
     attachments.length,
-    clear_attachment_error,
-    clear_attachments,
-    default_delivery_policy,
-    dispatch_message,
-    goal_create_blocked_reason,
-    input_queue_items.length,
+    clearAttachmentError,
+    clearAttachments,
+    defaultDeliveryPolicy,
+    dispatchMessage,
+    goalCreateBlockedReason,
+    inputQueueItems.length,
     input,
-    is_goal_creating,
-    is_goal_mode,
-    is_input_locked,
-    is_loading,
-    is_preparing_attachments,
-    on_enqueue_message,
-    on_create_goal,
-    prepare_attachments,
-    queue_when_session_busy,
+    isGoalCreating,
+    isGoalMode,
+    isInputLocked,
+    isLoading,
+    isPreparingAttachments,
+    onEnqueueMessage,
+    onCreateGoal,
+    prepareAttachments,
+    queueWhenSessionBusy,
     t,
   ]);
 
-  const open_attachment_picker = useCallback(() => {
-    set_is_action_menu_open(false);
-    file_input_ref.current?.click();
+  const openAttachmentPicker = useCallback(() => {
+    setIsActionMenuOpen(false);
+    fileInputRef.current?.click();
   }, []);
 
-  const start_goal_input = useCallback(() => {
-    if (!can_create_goal) {
+  const startGoalInput = useCallback(() => {
+    if (!canCreateGoal) {
       return;
     }
-    set_is_action_menu_open(false);
-    set_input_mode("goal");
-    set_goal_error(null);
-    close_mention();
-    requestAnimationFrame(() => textarea_ref.current?.focus());
-  }, [can_create_goal, close_mention]);
+    setIsActionMenuOpen(false);
+    setInputMode("goal");
+    setGoalError(null);
+    closeMention();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [canCreateGoal, closeMention]);
 
-  const cancel_goal_input = useCallback(() => {
-    set_input_mode("message");
-    set_goal_error(null);
-    requestAnimationFrame(() => textarea_ref.current?.focus());
+  const cancelGoalInput = useCallback(() => {
+    setInputMode("message");
+    setGoalError(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   }, []);
 
-  const toggle_goal_input = useCallback((checked: boolean) => {
+  const toggleGoalInput = useCallback((checked: boolean) => {
     if (checked) {
-      start_goal_input();
+      startGoalInput();
       return;
     }
-    set_is_action_menu_open(false);
-    cancel_goal_input();
-  }, [cancel_goal_input, start_goal_input]);
+    setIsActionMenuOpen(false);
+    cancelGoalInput();
+  }, [cancelGoalInput, startGoalInput]);
 
-  const open_loop_picker = useCallback(() => {
-    if (!can_use_loop) {
+  const openLoopPicker = useCallback(() => {
+    if (!canUseLoop) {
       return;
     }
-    set_is_action_menu_open(false);
-    set_is_loop_picker_open(true);
-  }, [can_use_loop]);
+    setIsActionMenuOpen(false);
+    setIsLoopPickerOpen(true);
+  }, [canUseLoop]);
 
-  const apply_loop_prompt = useCallback((loop: LoopCatalogItem) => {
-    set_input_mode("message");
-    set_goal_error(null);
+  const applyLoopPrompt = useCallback((loop: LoopCatalogItem) => {
+    setInputMode("message");
+    setGoalError(null);
     setInput(loop.kickoff_prompt);
-    close_mention();
-    requestAnimationFrame(() => textarea_ref.current?.focus());
-  }, [close_mention]);
+    closeMention();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [closeMention]);
 
-  const apply_loop_goal = useCallback((loop: LoopCatalogItem) => {
-    if (!can_create_goal) {
-      apply_loop_prompt(loop);
+  const applyLoopGoal = useCallback((loop: LoopCatalogItem) => {
+    if (!canCreateGoal) {
+      applyLoopPrompt(loop);
       return;
     }
-    set_input_mode("goal");
-    set_goal_error(null);
+    setInputMode("goal");
+    setGoalError(null);
     setInput(loop.kickoff_prompt);
-    close_mention();
-    requestAnimationFrame(() => textarea_ref.current?.focus());
-  }, [apply_loop_prompt, can_create_goal, close_mention]);
+    closeMention();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [applyLoopPrompt, canCreateGoal, closeMention]);
 
-  const handle_loop_select = useCallback(async (loop: LoopCatalogItem) => {
-    if (!on_create_loop_goal) {
-      apply_loop_goal(loop);
+  const handleLoopSelect = useCallback(async (loop: LoopCatalogItem) => {
+    if (!onCreateLoopGoal) {
+      applyLoopGoal(loop);
       return;
     }
-    set_goal_error(null);
-    close_mention();
-    await on_create_loop_goal(loop);
-    set_input_mode("message");
+    setGoalError(null);
+    closeMention();
+    await onCreateLoopGoal(loop);
+    setInputMode("message");
     setInput("");
-  }, [apply_loop_goal, close_mention, on_create_loop_goal]);
+  }, [applyLoopGoal, closeMention, onCreateLoopGoal]);
 
-  const recall_previous_history = useCallback(() => {
-    if (input_history.length === 0) {
+  const recallPreviousHistory = useCallback(() => {
+    if (inputHistory.length === 0) {
       return;
     }
-    if (history_index < 0) {
+    if (historyIndex < 0) {
       setHistoryDraft(input);
     }
-    const next_index = Math.min(history_index + 1, input_history.length - 1);
-    setHistoryIndex(next_index);
-    setInput(input_history[next_index] ?? "");
-    clear_attachment_error();
-  }, [clear_attachment_error, history_index, input, input_history]);
+    const nextIndex = Math.min(historyIndex + 1, inputHistory.length - 1);
+    setHistoryIndex(nextIndex);
+    setInput(inputHistory[nextIndex] ?? "");
+    clearAttachmentError();
+  }, [clearAttachmentError, historyIndex, input, inputHistory]);
 
-  const recall_next_history = useCallback(() => {
-    if (history_index > 0) {
-      const next_index = history_index - 1;
-      setHistoryIndex(next_index);
-      setInput(input_history[next_index] ?? "");
+  const recallNextHistory = useCallback(() => {
+    if (historyIndex > 0) {
+      const nextIndex = historyIndex - 1;
+      setHistoryIndex(nextIndex);
+      setInput(inputHistory[nextIndex] ?? "");
       return;
     }
 
-    if (history_index === 0) {
+    if (historyIndex === 0) {
       setHistoryIndex(-1);
-      setInput(history_draft);
+      setInput(historyDraft);
       setHistoryDraft("");
     }
-  }, [history_draft, history_index, input_history]);
+  }, [historyDraft, historyIndex, inputHistory]);
 
-  const handle_key_down = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    const native_event = event.nativeEvent as ComposerNativeKeyboardEvent;
-    const just_finished_composition =
-      last_composition_end_at_ref.current > 0 &&
-      event.timeStamp - last_composition_end_at_ref.current <= COMPOSITION_END_ENTER_GUARD_MS;
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = event.nativeEvent as ComposerNativeKeyboardEvent;
+    const justFinishedComposition =
+      lastCompositionEndAtRef.current > 0 &&
+      event.timeStamp - lastCompositionEndAtRef.current <= COMPOSITION_END_ENTER_GUARD_MS;
 
     // Safari 在中文输入法确认候选词后，可能补发一个不带 composing 标记的 Enter。
     // 这里同时拦截 IME 的 229/Process 信号，并且只吞掉紧跟 compositionend 的下一次 Enter，
     // 避免候选词确认被误判成发送消息。
     if (
-      is_composing_ref.current ||
-      native_event.isComposing ||
-      native_event.key === "Process" ||
-      native_event.keyCode === IME_COMPOSITION_KEY_CODE ||
-      native_event.which === IME_COMPOSITION_KEY_CODE
+      isComposingRef.current ||
+      nativeEvent.isComposing ||
+      nativeEvent.key === "Process" ||
+      nativeEvent.keyCode === IME_COMPOSITION_KEY_CODE ||
+      nativeEvent.which === IME_COMPOSITION_KEY_CODE
     ) {
       return;
     }
 
-    if (ignore_next_enter_after_composition_ref.current && event.key !== "Enter") {
-      ignore_next_enter_after_composition_ref.current = false;
+    if (ignoreNextEnterAfterCompositionRef.current && event.key !== "Enter") {
+      ignoreNextEnterAfterCompositionRef.current = false;
     }
 
-    if (mention_active && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
+    if (mentionActive && ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
       return;
     }
 
     if (event.key === "Enter" && !event.shiftKey) {
-      if (ignore_next_enter_after_composition_ref.current && just_finished_composition) {
-        ignore_next_enter_after_composition_ref.current = false;
+      if (ignoreNextEnterAfterCompositionRef.current && justFinishedComposition) {
+        ignoreNextEnterAfterCompositionRef.current = false;
         return;
       }
 
       event.preventDefault();
-      handle_send();
+      handleSend();
       return;
     }
 
-    const should_open_previous_history =
+    const shouldOpenPreviousHistory =
       event.key === "ArrowUp" &&
-      input_history.length > 0 &&
-      (event.ctrlKey || is_caret_on_first_line(event.currentTarget));
-    if (should_open_previous_history) {
+      inputHistory.length > 0 &&
+      (event.ctrlKey || isCaretOnFirstLine(event.currentTarget));
+    if (shouldOpenPreviousHistory) {
       event.preventDefault();
-      recall_previous_history();
+      recallPreviousHistory();
       return;
     }
 
-    const should_open_next_history =
+    const shouldOpenNextHistory =
       event.key === "ArrowDown" &&
-      history_index >= 0 &&
-      (event.ctrlKey || is_caret_on_last_line(event.currentTarget));
-    if (should_open_next_history) {
+      historyIndex >= 0 &&
+      (event.ctrlKey || isCaretOnLastLine(event.currentTarget));
+    if (shouldOpenNextHistory) {
       event.preventDefault();
-      recall_next_history();
+      recallNextHistory();
       return;
     }
 
-    if (event.key === "Escape" && is_loading && on_stop) {
+    if (event.key === "Escape" && isLoading && onStop) {
       event.preventDefault();
-      on_stop();
+      onStop();
     }
   };
 
-  const has_text_input = input.trim().length > 0;
-  const is_input_empty = !has_text_input && attachments.length === 0;
-  const char_count = input.length;
-  const is_near_limit = char_count > max_length * 0.8;
-  const is_over_limit = char_count > max_length;
-  const is_send_disabled = is_goal_mode
-    ? !has_text_input || is_input_locked || is_over_limit || is_goal_creating || !on_create_goal || Boolean(goal_create_blocked_reason)
-    : is_input_empty || is_input_locked || is_over_limit || is_preparing_attachments;
-  const should_show_stop_button =
-    !is_goal_mode && can_stop_generation && (!allow_send_while_loading || is_input_empty);
-  const has_pending_queue = input_queue_items.length > 0;
-  const active_error = is_goal_mode
-    ? goal_error ?? goal_create_blocked_reason
-    : attachment_error;
-  const send_button_label = is_goal_mode ? t("composer.goal_confirm") : t("composer.send_message");
-  const inline_enter_label = is_goal_mode
+  const hasTextInput = input.trim().length > 0;
+  const isInputEmpty = !hasTextInput && attachments.length === 0;
+  const charCount = input.length;
+  const isNearLimit = charCount > maxLength * 0.8;
+  const isOverLimit = charCount > maxLength;
+  const isSendDisabled = isGoalMode
+    ? !hasTextInput || isInputLocked || isOverLimit || isGoalCreating || !onCreateGoal || Boolean(goalCreateBlockedReason)
+    : isInputEmpty || isInputLocked || isOverLimit || isPreparingAttachments;
+  const shouldShowStopButton =
+    !isGoalMode && canStopGeneration && (!allowSendWhileLoading || isInputEmpty);
+  const hasPendingQueue = inputQueueItems.length > 0;
+  const activeError = isGoalMode
+    ? goalError ?? goalCreateBlockedReason
+    : attachmentError;
+  const sendButtonLabel = isGoalMode ? t("composer.goal_confirm") : t("composer.send_message");
+  const inlineEnterLabel = isGoalMode
     ? t("composer.goal_enter_start")
-    : queue_when_session_busy && (is_loading || input_queue_items.length > 0)
+    : queueWhenSessionBusy && (isLoading || inputQueueItems.length > 0)
       ? t("composer.enter_queue")
       : t("composer.enter_send");
-  const should_show_inline_shortcuts = !compact && input.length === 0;
-  let composer_input_row_padding_class = compact ? "px-2 py-2" : "px-3 py-3";
-  if (has_pending_queue) {
-    composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1" : "px-3 pb-3 pt-1.5";
+  const shouldShowInlineShortcuts = !compact && input.length === 0;
+  let composerInputRowPaddingClass = compact ? "px-2 py-2" : "px-3 py-3";
+  if (hasPendingQueue) {
+    composerInputRowPaddingClass = compact ? "px-2 pb-2 pt-1" : "px-3 pb-3 pt-1.5";
   }
-  if (is_goal_mode) {
-    composer_input_row_padding_class = compact ? "px-2 pb-2 pt-1.5" : "px-3 pb-3 pt-2";
+  if (isGoalMode) {
+    composerInputRowPaddingClass = compact ? "px-2 pb-2 pt-1.5" : "px-3 pb-3 pt-2";
   }
 
   return (
     <section
-      data-tour-anchor={tour_anchor}
+      data-tour-anchor={tourAnchor}
       className={cn(
         "mx-auto w-full max-w-[1020px] border-t border-(--surface-canvas-border) bg-transparent",
         compact ? "px-2 pb-2 pt-2" : "px-3 pb-3 pt-3 sm:px-5 xl:px-6",
       )}
     >
       <input
-        ref={file_input_ref}
+        ref={fileInputRef}
         accept={COMPOSER_ATTACHMENT_ACCEPT}
         aria-label={t("composer.choose_attachment_file")}
         className="hidden"
         multiple
-        onChange={handle_file_select}
+        onChange={handleFileSelect}
         type="file"
       />
-      {can_use_loop ? (
+      {canUseLoop ? (
         <LoopPickerDialog
-          is_open={is_loop_picker_open}
-          on_close={() => set_is_loop_picker_open(false)}
-          on_select={handle_loop_select}
+          is_open={isLoopPickerOpen}
+          on_close={() => setIsLoopPickerOpen(false)}
+          on_select={handleLoopSelect}
         />
       ) : null}
 
-      <div className={get_composer_shell_class_name(is_input_locked)} style={get_composer_shell_style(compact)}>
+      <div className={get_composer_shell_class_name(isInputLocked)} style={get_composer_shell_style(compact)}>
         <ComposerPendingQueue
           compact={compact}
           disabled={disabled}
-          input_queue_items={input_queue_items}
-          on_delete_queued_message={on_delete_queued_message}
-          on_guide_queued_message={on_guide_queued_message}
-          on_reorder_queue_messages={on_reorder_queue_messages}
+          input_queue_items={inputQueueItems}
+          on_delete_queued_message={onDeleteQueuedMessage}
+          on_guide_queued_message={onGuideQueuedMessage}
+          on_reorder_queue_messages={onReorderQueueMessages}
         />
 
         <ComposerAttachmentList
           attachments={attachments}
-          on_remove={remove_attachment}
+          on_remove={removeAttachment}
           remove_label={t("composer.remove_attachment")}
         />
 
-        <div className={cn("flex items-end gap-2", composer_input_row_padding_class)}>
-          {mention_active && mention_target_items.length > 0 ? (
+        <div className={cn("flex items-end gap-2", composerInputRowPaddingClass)}>
+          {mentionActive && mentionTargetItems.length > 0 ? (
             <MentionTargetPopover
-              anchor_rect={textarea_ref.current?.getBoundingClientRect() ?? null}
-              filter={mention_filter}
-              items={mention_target_items}
-              on_close={close_mention}
-              on_select={select_mention_item}
+              anchor_rect={textareaRef.current?.getBoundingClientRect() ?? null}
+              filter={mentionFilter}
+              items={mentionTargetItems}
+              on_close={closeMention}
+              on_select={selectMentionItem}
               placement="above"
             />
           ) : null}
@@ -580,16 +580,16 @@ const ComposerPanelView = memo(({
           <div className="relative min-w-0 flex-1">
             <textarea
               aria-label={t("composer.default_placeholder")}
-              ref={textarea_ref}
+              ref={textareaRef}
               className={cn(
                 "multiline-cursor soft-scrollbar min-h-6 w-full min-w-0 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
                 "placeholder:text-(--text-soft)",
                 "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
                 "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
-                should_show_inline_shortcuts && "min-[760px]:pr-[210px]",
+                shouldShowInlineShortcuts && "min-[760px]:pr-[210px]",
               )}
-              disabled={is_textarea_locked}
-              onChange={(event) => handle_input_change(event.target.value)}
+              disabled={isTextareaLocked}
+              onChange={(event) => handleInputChange(event.target.value)}
               onWheel={(event) => {
                 const target = event.currentTarget;
                 if (target.scrollHeight > target.clientHeight) {
@@ -597,25 +597,25 @@ const ComposerPanelView = memo(({
                 }
               }}
               onCompositionEnd={(event) => {
-                is_composing_ref.current = false;
-                ignore_next_enter_after_composition_ref.current = true;
-                last_composition_end_at_ref.current = event.timeStamp;
+                isComposingRef.current = false;
+                ignoreNextEnterAfterCompositionRef.current = true;
+                lastCompositionEndAtRef.current = event.timeStamp;
               }}
               onCompositionStart={() => {
-                is_composing_ref.current = true;
-                ignore_next_enter_after_composition_ref.current = false;
+                isComposingRef.current = true;
+                ignoreNextEnterAfterCompositionRef.current = false;
               }}
-              onKeyDown={handle_key_down}
-              onPaste={handle_paste}
-              placeholder={resolved_placeholder}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={resolvedPlaceholder}
               rows={1}
               value={input}
             />
-            {should_show_inline_shortcuts ? (
+            {shouldShowInlineShortcuts ? (
               <div className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-2 text-[10px] text-(--text-soft) min-[760px]:flex">
                 <span className="flex items-center gap-1">
                   <kbd>Enter</kbd>
-                  <span>{inline_enter_label}</span>
+                  <span>{inlineEnterLabel}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <kbd>Shift</kbd>
@@ -627,28 +627,28 @@ const ComposerPanelView = memo(({
             ) : null}
           </div>
 
-          {should_show_stop_button ? (
+          {shouldShowStopButton ? (
             <button
               aria-label={t("composer.stop_generation")}
               className={COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME}
-              onClick={on_stop}
+              onClick={onStop}
               type="button"
             >
               <StopCircle size={16} />
             </button>
           ) : (
             <button
-              aria-label={send_button_label}
+              aria-label={sendButtonLabel}
               className={COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME}
-              disabled={is_send_disabled}
+              disabled={isSendDisabled}
               onClick={() => {
-                void handle_send();
+                void handleSend();
               }}
               type="button"
             >
-              {is_preparing_attachments || is_goal_creating ? (
+              {isPreparingAttachments || isGoalCreating ? (
                 <LoadingOrb frames={["·", "◦", "•", "◦"]} />
-              ) : is_goal_mode ? (
+              ) : isGoalMode ? (
                 <Target size={16} />
               ) : (
                 <Send size={16} />
@@ -658,31 +658,31 @@ const ComposerPanelView = memo(({
         </div>
 
         <ComposerFooter
-          action_button_ref={action_button_ref}
-          active_error={active_error}
-          can_create_goal={can_create_goal}
-          can_use_loop={can_use_loop}
-          can_stop_generation={can_stop_generation}
-          char_count={char_count}
-          goal_mode_extra={goal_mode_extra}
-          goal_scope_label={goal_scope_label}
-          history_index={history_index}
-          input_history_length={input_history.length}
-          is_action_menu_open={is_action_menu_open}
-          is_dispatching={is_dispatching}
-          is_goal_creating={is_goal_creating}
-          is_goal_mode={is_goal_mode}
-          is_input_locked={is_input_locked}
-          is_near_limit={is_near_limit}
-          is_over_limit={is_over_limit}
-          is_preparing_attachments={is_preparing_attachments}
-          max_length={max_length}
-          on_action_menu_close={() => set_is_action_menu_open(false)}
-          on_action_menu_toggle={() => set_is_action_menu_open((current) => !current)}
-          on_attachment_select={open_attachment_picker}
-          on_cancel_goal={cancel_goal_input}
-          on_goal_toggle={toggle_goal_input}
-          on_loop_select={open_loop_picker}
+          action_button_ref={actionButtonRef}
+          active_error={activeError}
+          can_create_goal={canCreateGoal}
+          can_use_loop={canUseLoop}
+          can_stop_generation={canStopGeneration}
+          char_count={charCount}
+          goal_mode_extra={goalModeExtra}
+          goal_scope_label={goalScopeLabel}
+          history_index={historyIndex}
+          input_history_length={inputHistory.length}
+          is_action_menu_open={isActionMenuOpen}
+          is_dispatching={isDispatching}
+          is_goal_creating={isGoalCreating}
+          is_goal_mode={isGoalMode}
+          is_input_locked={isInputLocked}
+          is_near_limit={isNearLimit}
+          is_over_limit={isOverLimit}
+          is_preparing_attachments={isPreparingAttachments}
+          max_length={maxLength}
+          on_action_menu_close={() => setIsActionMenuOpen(false)}
+          on_action_menu_toggle={() => setIsActionMenuOpen((current) => !current)}
+          on_attachment_select={openAttachmentPicker}
+          on_cancel_goal={cancelGoalInput}
+          on_goal_toggle={toggleGoalInput}
+          on_loop_select={openLoopPicker}
         />
       </div>
     </section>

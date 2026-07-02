@@ -6,7 +6,7 @@ export function CapabilitySwitch({
   checked,
   label,
   icon,
-  on_change,
+  on_change: onChange,
 }: {
   checked: boolean;
   label: string;
@@ -19,7 +19,7 @@ export function CapabilitySwitch({
         <span className="text-(--icon-default)">{icon}</span>
         <span className="truncate">{label}</span>
       </div>
-      <GlassSwitch checked={checked} size="xs" on_change={on_change} />
+      <GlassSwitch checked={checked} size="xs" on_change={onChange} />
     </div>
   );
 }

@@ -16,23 +16,23 @@ interface ErrorPresentation {
   detail: string;
 }
 
-function with_retry_detail(error: string): string {
-  const normalized_error = error.trim().replace(/[。.!！?？；;，,\s]+$/u, "");
-  const message = normalized_error.length > 0 ? normalized_error : "请求失败";
+function withRetryDetail(error: string): string {
+  const normalizedError = error.trim().replace(/[。.!！?？；;，,\s]+$/u, "");
+  const message = normalizedError.length > 0 ? normalizedError : "请求失败";
   return `${message}。请稍后重试；如果当前轮次没有继续响应，可以刷新页面后重新发送上一条消息。`;
 }
 
-function resolve_error_presentation(error: string): ErrorPresentation {
-  const normalized_error = error.toLowerCase();
+function resolveErrorPresentation(error: string): ErrorPresentation {
+  const normalizedError = error.toLowerCase();
 
   if (
-    normalized_error.includes("provider_error=server_overload") ||
-    normalized_error.includes("provider_error=rate_limit") ||
-    normalized_error.includes("overloaded_error") ||
-    normalized_error.includes("rate_limit_error") ||
-    normalized_error.includes("repeated 529") ||
-    normalized_error.includes(" 529 ") ||
-    normalized_error.includes(" 429 ") ||
+    normalizedError.includes("provider_error=server_overload") ||
+    normalizedError.includes("provider_error=rate_limit") ||
+    normalizedError.includes("overloaded_error") ||
+    normalizedError.includes("rate_limit_error") ||
+    normalizedError.includes("repeated 529") ||
+    normalizedError.includes(" 529 ") ||
+    normalizedError.includes(" 429 ") ||
     error.includes("模型请求暂时受限")
   ) {
     return {
@@ -42,7 +42,7 @@ function resolve_error_presentation(error: string): ErrorPresentation {
   }
 
   if (
-    normalized_error.includes("websocket") ||
+    normalizedError.includes("websocket") ||
     error.includes("WebSocket未连接") ||
     error.includes("连接")
   ) {
@@ -61,7 +61,7 @@ function resolve_error_presentation(error: string): ErrorPresentation {
 
   return {
     title: "系统消息",
-    detail: with_retry_detail(error),
+    detail: withRetryDetail(error),
   };
 }
 
@@ -69,7 +69,7 @@ export function ConversationErrorBubble({
   error,
   compact = false,
 }: ConversationErrorBubbleProps) {
-  const presentation = resolve_error_presentation(error);
+  const presentation = resolveErrorPresentation(error);
 
   return (
     <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>

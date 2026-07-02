@@ -50,36 +50,36 @@ export class ApiRequestError extends Error {
   }
 }
 
-function emit_auth_required() {
+function emitAuthRequired() {
   if (typeof window === "undefined") {
     return;
   }
   window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT));
 }
 
-async function parse_response_body<T>(
+async function parseResponseBody<T>(
   response: Response,
 ): Promise<ApiResponse<T> | ApiErrorPayload | null> {
-  const raw_text = await response.text();
-  if (!raw_text) {
+  const rawText = await response.text();
+  if (!rawText) {
     return null;
   }
 
   try {
-    return JSON.parse(raw_text) as ApiResponse<T> | ApiErrorPayload;
+    return JSON.parse(rawText) as ApiResponse<T> | ApiErrorPayload;
   } catch {
     return {
       message:
-        raw_text.trim() ||
+        rawText.trim() ||
         `请求失败: ${response.status} ${response.statusText}`,
     };
   }
 }
 
-function normalize_error_detail(value: unknown): string | null {
+function normalizeErrorDetail(value: unknown): string | null {
   if (typeof value === "string") {
-    const normalized_value = value.trim();
-    return normalized_value || null;
+    const normalizedValue = value.trim();
+    return normalizedValue || null;
   }
   if (value === null || value === undefined) {
     return null;
@@ -97,47 +97,47 @@ function normalize_error_detail(value: unknown): string | null {
   return String(value);
 }
 
-function to_record(value: unknown): Record<string, unknown> | null {
+function toRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object") {
     return null;
   }
   return value as Record<string, unknown>;
 }
 
-function read_nested_error_detail(
+function readNestedErrorDetail(
   payload: ApiResponse<unknown> | ApiErrorPayload | null,
 ): string | null {
   if (!payload || !("data" in payload)) {
     return null;
   }
-  const nested_payload = to_record(payload.data);
-  if (!nested_payload) {
+  const nestedPayload = toRecord(payload.data);
+  if (!nestedPayload) {
     return null;
   }
-  return normalize_error_detail(nested_payload.detail);
+  return normalizeErrorDetail(nestedPayload.detail);
 }
 
-function read_error_request_id(
+function readErrorRequestId(
   payload: ApiResponse<unknown> | ApiErrorPayload | null,
 ): string | null {
   if (!payload || !("data" in payload)) {
     return null;
   }
-  const nested_payload = to_record(payload.data);
-  if (!nested_payload) {
+  const nestedPayload = toRecord(payload.data);
+  if (!nestedPayload) {
     return null;
   }
-  return normalize_error_detail(nested_payload.request_id);
+  return normalizeErrorDetail(nestedPayload.request_id);
 }
 
-function append_request_id(message: string, request_id: string | null): string {
-  if (!request_id) {
+function appendRequestId(message: string, requestId: string | null): string {
+  if (!requestId) {
     return message;
   }
-  return `${message}（request_id: ${request_id}）`;
+  return `${message}（request_id: ${requestId}）`;
 }
 
-function is_json_request_body(value: unknown): value is JsonRequestBody {
+function isJsonRequestBody(value: unknown): value is JsonRequestBody {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -162,7 +162,7 @@ function is_json_request_body(value: unknown): value is JsonRequestBody {
   return true;
 }
 
-function should_set_json_content_type(
+function shouldSetJsonContentType(
   body: BodyInit | null | undefined,
 ): boolean {
   if (!body) {
@@ -183,14 +183,14 @@ function should_set_json_content_type(
   return typeof body === "string";
 }
 
-function normalize_request_payload(init?: RequestApiOptions): {
+function normalizeRequestPayload(init?: RequestApiOptions): {
   body: BodyInit | null | undefined;
   headers: Headers;
 } {
   const headers = new Headers(init?.headers);
   let body = init?.body;
 
-  if (is_json_request_body(body)) {
+  if (isJsonRequestBody(body)) {
     if (!headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }
@@ -198,22 +198,22 @@ function normalize_request_payload(init?: RequestApiOptions): {
     return { body, headers };
   }
 
-  if (!headers.has("Content-Type") && should_set_json_content_type(body)) {
+  if (!headers.has("Content-Type") && shouldSetJsonContentType(body)) {
     headers.set("Content-Type", "application/json");
   }
 
   return { body, headers };
 }
 
-function build_abort_signal(
-  external_signal: AbortSignal | null | undefined,
-  timeout_ms: number,
+function buildAbortSignal(
+  externalSignal: AbortSignal | null | undefined,
+  timeoutMs: number,
 ): {
   signal: AbortSignal | undefined;
   cleanup: () => void;
   did_timeout: () => boolean;
 } {
-  if (!external_signal && timeout_ms <= 0) {
+  if (!externalSignal && timeoutMs <= 0) {
     return {
       signal: undefined,
       cleanup: () => {},
@@ -222,43 +222,43 @@ function build_abort_signal(
   }
 
   const controller = new AbortController();
-  let timeout_id: ReturnType<typeof setTimeout> | null = null;
-  let did_timeout = false;
-  let abort_listener: (() => void) | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let didTimeout = false;
+  let abortListener: (() => void) | null = null;
 
-  if (timeout_ms > 0) {
-    timeout_id = setTimeout(() => {
-      did_timeout = true;
+  if (timeoutMs > 0) {
+    timeoutId = setTimeout(() => {
+      didTimeout = true;
       controller.abort();
-    }, timeout_ms);
+    }, timeoutMs);
   }
 
-  if (external_signal) {
-    if (external_signal.aborted) {
+  if (externalSignal) {
+    if (externalSignal.aborted) {
       controller.abort();
     } else {
-      abort_listener = () => {
+      abortListener = () => {
         controller.abort();
       };
-      external_signal.addEventListener("abort", abort_listener, { once: true });
+      externalSignal.addEventListener("abort", abortListener, { once: true });
     }
   }
 
   return {
     signal: controller.signal,
     cleanup: () => {
-      if (timeout_id) {
-        clearTimeout(timeout_id);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
-      if (external_signal && abort_listener) {
-        external_signal.removeEventListener("abort", abort_listener);
+      if (externalSignal && abortListener) {
+        externalSignal.removeEventListener("abort", abortListener);
       }
     },
-    did_timeout: () => did_timeout,
+    did_timeout: () => didTimeout,
   };
 }
 
-function build_error_message(
+function buildErrorMessage(
   response: Response,
   payload: ApiResponse<unknown> | ApiErrorPayload | null,
 ): string {
@@ -266,27 +266,27 @@ function build_error_message(
     return `请求失败: ${response.status} ${response.statusText}`;
   }
 
-  const request_id = read_error_request_id(payload);
+  const requestId = readErrorRequestId(payload);
 
-  const direct_detail =
-    "detail" in payload ? normalize_error_detail(payload.detail) : null;
-  if (direct_detail) {
-    return append_request_id(direct_detail, request_id);
+  const directDetail =
+    "detail" in payload ? normalizeErrorDetail(payload.detail) : null;
+  if (directDetail) {
+    return appendRequestId(directDetail, requestId);
   }
 
-  const nested_detail = read_nested_error_detail(payload);
-  if (nested_detail) {
-    return append_request_id(nested_detail, request_id);
+  const nestedDetail = readNestedErrorDetail(payload);
+  if (nestedDetail) {
+    return appendRequestId(nestedDetail, requestId);
   }
 
-  const direct_message =
-    "message" in payload ? normalize_error_detail(payload.message) : null;
-  if (direct_message) {
-    return append_request_id(direct_message, request_id);
+  const directMessage =
+    "message" in payload ? normalizeErrorDetail(payload.message) : null;
+  if (directMessage) {
+    return appendRequestId(directMessage, requestId);
   }
-  return append_request_id(
+  return appendRequestId(
     `请求失败: ${response.status} ${response.statusText}`,
-    request_id,
+    requestId,
   );
 }
 
@@ -295,47 +295,47 @@ export async function request_api<T>(
   init?: RequestApiOptions,
 ): Promise<T> {
   const {
-    notify_on_401,
-    timeout_ms,
+    notify_on_401: notifyOn401,
+    timeout_ms: timeoutMs,
     body: _unused_body,
     headers: _unused_headers,
-    ...request_init
+    ...requestInit
   } = init ?? {};
-  const { body, headers } = normalize_request_payload(init);
+  const { body, headers } = normalizeRequestPayload(init);
   apply_desktop_request_headers(input, headers);
-  const { signal, cleanup, did_timeout } = build_abort_signal(
+  const { signal, cleanup, did_timeout: didTimeout } = buildAbortSignal(
     init?.signal,
-    timeout_ms ?? DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
   );
 
   let response: Response;
   try {
     response = await fetch(input, {
       credentials: "include",
-      ...request_init,
+      ...requestInit,
       body,
       headers,
       signal,
     });
   } catch (error) {
     cleanup();
-    if (did_timeout()) {
+    if (didTimeout()) {
       throw new Error("请求超时，请稍后重试");
     }
     throw error;
   }
 
-  const payload = await parse_response_body<T>(response);
+  const payload = await parseResponseBody<T>(response);
   cleanup();
 
   if (!response.ok) {
-    const message = build_error_message(response, payload);
+    const message = buildErrorMessage(response, payload);
     if (response.status === 401) {
       if (recover_desktop_session_token_error(message, input)) {
         throw new UnauthorizedError(message);
       }
-      if (notify_on_401 !== false) {
-        emit_auth_required();
+      if (notifyOn401 !== false) {
+        emitAuthRequired();
       }
       throw new UnauthorizedError(message);
     }
@@ -350,5 +350,5 @@ export async function request_api<T>(
 }
 
 export function notify_auth_required() {
-  emit_auth_required();
+  emitAuthRequired();
 }

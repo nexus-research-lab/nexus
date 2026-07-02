@@ -16,7 +16,7 @@ interface UiSkeletonCardListProps {
 }
 
 export function UiSkeleton({
-  class_name,
+  class_name: legacyClassName,
   className,
   ...props
 }: UiSkeletonProps) {
@@ -25,7 +25,7 @@ export function UiSkeleton({
       className={cn(
         "block animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_62%,transparent)]",
         className,
-        class_name,
+        legacyClassName,
       )}
       {...props}
     />
@@ -33,14 +33,14 @@ export function UiSkeleton({
 }
 
 export function UiSkeletonCardList({
-  card_class_name,
-  class_name,
+  card_class_name: cardClassName,
+  class_name: className,
   count = 3,
 }: UiSkeletonCardListProps) {
   return (
-    <div className={cn("space-y-3", class_name)}>
+    <div className={cn("space-y-3", className)}>
       {Array.from({ length: count }, (_, index) => (
-        <UiPanel class_name={cn("min-h-[132px]", card_class_name)} key={index} padding="none" variant="dashed">
+        <UiPanel class_name={cn("min-h-[132px]", cardClassName)} key={index} padding="none" variant="dashed">
           <span className="sr-only">加载中</span>
         </UiPanel>
       ))}

@@ -45,7 +45,7 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
   );
 
   if (controller.variant === "inline") {
-    const save_feedback = controller.save_feedback ? (
+    const saveFeedback = controller.save_feedback ? (
       <span
         className={cn(
           "max-w-[280px] truncate text-[12px]",
@@ -56,9 +56,9 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
         {controller.save_feedback.message}
       </span>
     ) : null;
-    const save_button = (
+    const saveButton = (
       <>
-        {save_feedback}
+        {saveFeedback}
         <UiButton
           onClick={() => {
             void controller.handle_save();
@@ -81,7 +81,7 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
             active_tab={controller.active_tab}
             on_tab_change={controller.set_active_tab}
             variant="inline"
-            trailing={save_button}
+            trailing={saveButton}
           />
         ) : null}
 
@@ -119,7 +119,7 @@ export function AgentOptionsEditor(props: AgentOptionsEditorProps) {
                 {controller.cancel_label}
               </UiButton>
             ) : null}
-            {controller.hide_inline_nav ? save_button : null}
+            {controller.hide_inline_nav ? saveButton : null}
           </div>
         ) : null}
       </div>

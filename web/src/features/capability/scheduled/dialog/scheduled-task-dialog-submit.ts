@@ -60,7 +60,7 @@ export interface ScheduledTaskDialogSubmitState {
   schedule_kind: ScheduledTaskSchedule["kind"];
 }
 
-function build_session_target(state: ScheduledTaskDialogSubmitState): ScheduledTaskSessionTarget {
+function buildSessionTarget(state: ScheduledTaskDialogSubmitState): ScheduledTaskSessionTarget {
   if (state.target_type === "room") {
     if (!state.selected_session) {
       throw new Error("请选择执行成员");
@@ -90,7 +90,7 @@ function build_session_target(state: ScheduledTaskDialogSubmitState): ScheduledT
   };
 }
 
-function build_delivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDeliveryTarget {
+function buildDelivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDeliveryTarget {
   if (state.reply_mode === "none") {
     return { mode: "none" };
   }
@@ -112,7 +112,7 @@ function build_delivery(state: ScheduledTaskDialogSubmitState): ScheduledTaskDel
   return { mode: "explicit", channel: "websocket", to: state.selected_reply_session.session_key };
 }
 
-function resolve_agent_id_for_task(state: ScheduledTaskDialogSubmitState): string {
+function resolveAgentIdForTask(state: ScheduledTaskDialogSubmitState): string {
   if (state.execution_kind === "script") {
     return state.selected_agent_id.trim();
   }
@@ -125,50 +125,50 @@ function resolve_agent_id_for_task(state: ScheduledTaskDialogSubmitState): strin
   return state.selected_session.agent_id;
 }
 
-function build_schedule(state: ScheduledTaskDialogSubmitState): ScheduledTaskSchedule {
+function buildSchedule(state: ScheduledTaskDialogSubmitState): ScheduledTaskSchedule {
   const timezone = state.timezone.trim() || "Asia/Shanghai";
   if (state.schedule_kind === "every") {
-    const interval_seconds = to_interval_seconds(state.every_value, state.every_unit);
-    if (interval_seconds === null) {
+    const intervalSeconds = to_interval_seconds(state.every_value, state.every_unit);
+    if (intervalSeconds === null) {
       throw new Error("循环间隔必须是大于 0 的整数");
     }
-    return { kind: "every", interval_seconds, timezone };
+    return { kind: "every", interval_seconds: intervalSeconds, timezone };
   }
   if (state.schedule_kind === "cron") {
-    const cron_expression = build_daily_cron_expression(state.daily_time, state.selected_weekdays);
-    if (!cron_expression) {
+    const cronExpression = build_daily_cron_expression(state.daily_time, state.selected_weekdays);
+    if (!cronExpression) {
       throw new Error("请选择有效的固定执行时间");
     }
-    return { kind: "cron", cron_expression, timezone };
+    return { kind: "cron", cron_expression: cronExpression, timezone };
   }
   return { kind: "at", run_at: state.run_at.trim(), timezone };
 }
 
-function build_source_snapshot(
+function buildSourceSnapshot(
   state: ScheduledTaskDialogSubmitState,
-  original_source?: ScheduledTaskSource | null,
+  originalSource?: ScheduledTaskSource | null,
 ): ScheduledTaskSource {
-  const selected_agent = state.agent_options.find((option) => option.value === state.selected_agent_id);
-  const selected_room = state.room_options.find((option) => option.value === state.selected_room_id);
+  const selectedAgent = state.agent_options.find((option) => option.value === state.selected_agent_id);
+  const selectedRoom = state.room_options.find((option) => option.value === state.selected_room_id);
   if (state.execution_kind === "script") {
     return {
-      kind: (original_source?.kind || "user_page") as ScheduledTaskSourceKind,
-      creator_agent_id: original_source?.creator_agent_id ?? null,
+      kind: (originalSource?.kind || "user_page") as ScheduledTaskSourceKind,
+      creator_agent_id: originalSource?.creator_agent_id ?? null,
       context_type: "agent",
       context_id: state.selected_agent_id.trim(),
-      context_label: selected_agent?.label || state.selected_agent_id.trim(),
+      context_label: selectedAgent?.label || state.selected_agent_id.trim(),
       session_key: null,
       session_label: null,
     };
   }
   return {
-    kind: (original_source?.kind || "user_page") as ScheduledTaskSourceKind,
-    creator_agent_id: original_source?.creator_agent_id ?? null,
+    kind: (originalSource?.kind || "user_page") as ScheduledTaskSourceKind,
+    creator_agent_id: originalSource?.creator_agent_id ?? null,
     context_type: state.target_type,
     context_id: state.target_type === "agent" ? state.selected_agent_id.trim() : state.selected_room_id.trim(),
     context_label: state.target_type === "agent"
-      ? (selected_agent?.label || state.selected_agent_id.trim())
-      : (selected_room?.label || state.selected_room_id.trim()),
+      ? (selectedAgent?.label || state.selected_agent_id.trim())
+      : (selectedRoom?.label || state.selected_room_id.trim()),
     session_key: state.selected_session?.session_key ?? null,
     session_label: state.selected_session?.label ?? null,
   };
@@ -216,11 +216,11 @@ export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSu
     if (!state.run_at.trim()) {
       return "请选择有效的执行时间";
     }
-    const run_at_epoch = zonedDateTimeToEpochMs(state.run_at, state.timezone.trim() || "Asia/Shanghai");
-    if (run_at_epoch === null) {
+    const runAtEpoch = zonedDateTimeToEpochMs(state.run_at, state.timezone.trim() || "Asia/Shanghai");
+    if (runAtEpoch === null) {
       return "请选择有效的执行时间";
     }
-    if (run_at_epoch <= Date.now()) {
+    if (runAtEpoch <= Date.now()) {
       return "单次执行时间必须晚于当前时间";
     }
   }
@@ -232,31 +232,31 @@ export function get_scheduled_task_validation_error(state: ScheduledTaskDialogSu
 
 export function build_scheduled_task_payload(
   state: ScheduledTaskDialogSubmitState,
-  original_source?: ScheduledTaskSource | null,
+  originalSource?: ScheduledTaskSource | null,
 ): CreateScheduledTaskParams {
-  const resolved_agent_id = resolve_agent_id_for_task(state);
+  const resolvedAgentId = resolveAgentIdForTask(state);
   if (state.execution_kind === "script") {
     return {
       name: state.task_name.trim(),
-      schedule: build_schedule(state),
+      schedule: buildSchedule(state),
       instruction: state.instruction.trim(),
       execution_kind: "script",
       session_target: { kind: "isolated", wake_mode: "next-heartbeat" },
       delivery: { mode: "none" },
-      source: build_source_snapshot(state, original_source),
+      source: buildSourceSnapshot(state, originalSource),
       enabled: state.enabled,
-      agent_id: resolved_agent_id,
+      agent_id: resolvedAgentId,
     };
   }
   return {
     name: state.task_name.trim(),
-    schedule: build_schedule(state),
+    schedule: buildSchedule(state),
     instruction: state.instruction.trim(),
     execution_kind: "agent",
-    session_target: build_session_target(state),
-    delivery: build_delivery(state),
-    source: build_source_snapshot(state, original_source),
+    session_target: buildSessionTarget(state),
+    delivery: buildDelivery(state),
+    source: buildSourceSnapshot(state, originalSource),
     enabled: state.enabled,
-    agent_id: resolved_agent_id,
+    agent_id: resolvedAgentId,
   };
 }

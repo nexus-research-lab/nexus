@@ -44,7 +44,7 @@ const TOUR_STICKERS: TourStickerAsset[] = [
   { src: "/nexus/stickers/holding-card.png", placement: "hold" },
 ];
 
-function estimate_card_height(step?: OnboardingTourStep): number {
+function estimateCardHeight(step?: OnboardingTourStep): number {
   if (!step) return 180;
   let height = 104;
   if (step.image) height += 136;
@@ -53,25 +53,25 @@ function estimate_card_height(step?: OnboardingTourStep): number {
   return height;
 }
 
-function clamp_popover_top_with_clearance(
+function clampPopoverTopWithClearance(
   top: number,
-  card_height: number,
-  viewport_height: number,
-  top_clearance: number,
+  cardHeight: number,
+  viewportHeight: number,
+  topClearance: number,
 ): number {
-  const bottom_limit = viewport_height - card_height - 16;
-  if (bottom_limit < top_clearance) {
-    return Math.max(16, bottom_limit);
+  const bottomLimit = viewportHeight - cardHeight - 16;
+  if (bottomLimit < topClearance) {
+    return Math.max(16, bottomLimit);
   }
-  return Math.max(top_clearance, Math.min(top, bottom_limit));
+  return Math.max(topClearance, Math.min(top, bottomLimit));
 }
 
-function clamp_popover_left(left: number, card_width: number, viewport_width: number): number {
-  return Math.max(16, Math.min(left, viewport_width - card_width - 16));
+function clampPopoverLeft(left: number, cardWidth: number, viewportWidth: number): number {
+  return Math.max(16, Math.min(left, viewportWidth - cardWidth - 16));
 }
 
-function resolve_tour_sticker(
-  step_index: number,
+function resolveTourSticker(
+  stepIndex: number,
   placement: TourPlacement,
 ): TourStickerAsset {
   if (placement === "center") {
@@ -80,11 +80,11 @@ function resolve_tour_sticker(
   if (placement === "left") {
     return TOUR_STICKERS[2];
   }
-  return TOUR_STICKERS[(step_index + 1) % TOUR_STICKERS.length];
+  return TOUR_STICKERS[(stepIndex + 1) % TOUR_STICKERS.length];
 }
 
 function TourStepSticker({ sticker }: { sticker: TourStickerAsset }) {
-  const sticker_class_name: Record<TourStickerPlacement, string> = {
+  const stickerClassName: Record<TourStickerPlacement, string> = {
     hang: "-top-12 right-7 h-[72px] w-auto",
     perch: "-top-10 left-14 h-[74px] w-auto -translate-x-1/2",
     peek: "top-16 -left-10 h-[82px] w-auto",
@@ -98,14 +98,14 @@ function TourStepSticker({ sticker }: { sticker: TourStickerAsset }) {
       aria-hidden="true"
       className={cn(
         "pointer-events-none absolute z-20 select-none drop-shadow-[0_14px_20px_rgba(68,74,120,0.12)] max-[520px]:hidden",
-        sticker_class_name[sticker.placement],
+        stickerClassName[sticker.placement],
       )}
       src={sticker.src}
     />
   );
 }
 
-function get_sticker_top_clearance(sticker: TourStickerAsset): number {
+function getStickerTopClearance(sticker: TourStickerAsset): number {
   if (sticker.placement === "hang" || sticker.placement === "perch" || sticker.placement === "point") {
     return 72;
   }
@@ -115,7 +115,7 @@ function get_sticker_top_clearance(sticker: TourStickerAsset): number {
 function TourStepIllustration({
   src,
   title,
-  is_center_step,
+  is_center_step: isCenterStep,
 }: {
   src: string;
   title: string;
@@ -131,7 +131,7 @@ function TourStepIllustration({
           className={cn(
             "relative z-10 mx-auto w-full object-contain px-2 py-2.5 [image-rendering:auto]",
             "drop-shadow-[0_10px_18px_rgba(87,98,173,0.10)] mix-blend-multiply",
-            is_center_step ? "h-[132px]" : "h-[112px]",
+            isCenterStep ? "h-[132px]" : "h-[112px]",
           )}
           src={src}
         />
@@ -140,83 +140,83 @@ function TourStepIllustration({
   );
 }
 
-function get_popover_position(
+function getPopoverPosition(
   placement: TourPlacement,
-  target_rect: DOMRect | null,
-  viewport_width: number,
-  viewport_height: number,
-  popover_size: PopoverSize,
-  top_clearance: number,
+  targetRect: DOMRect | null,
+  viewportWidth: number,
+  viewportHeight: number,
+  popoverSize: PopoverSize,
+  topClearance: number,
 ): PopoverPosition {
-  const card_width = Math.min(popover_size.width, viewport_width - 32);
-  const card_height = Math.min(popover_size.height, viewport_height - 32);
+  const cardWidth = Math.min(popoverSize.width, viewportWidth - 32);
+  const cardHeight = Math.min(popoverSize.height, viewportHeight - 32);
   const gutter = 16;
 
-  if (!target_rect || placement === "center") {
+  if (!targetRect || placement === "center") {
     return {
-      top: clamp_popover_top_with_clearance(
-        viewport_height / 2 - card_height / 2,
-        card_height,
-        viewport_height,
-        top_clearance,
+      top: clampPopoverTopWithClearance(
+        viewportHeight / 2 - cardHeight / 2,
+        cardHeight,
+        viewportHeight,
+        topClearance,
       ),
-      left: clamp_popover_left(viewport_width / 2 - card_width / 2, card_width, viewport_width),
+      left: clampPopoverLeft(viewportWidth / 2 - cardWidth / 2, cardWidth, viewportWidth),
     };
   }
 
   switch (placement) {
     case "left":
       return {
-        top: clamp_popover_top_with_clearance(
-          target_rect.top + target_rect.height / 2 - card_height / 2,
-          card_height,
-          viewport_height,
-          top_clearance,
+        top: clampPopoverTopWithClearance(
+          targetRect.top + targetRect.height / 2 - cardHeight / 2,
+          cardHeight,
+          viewportHeight,
+          topClearance,
         ),
-        left: clamp_popover_left(target_rect.left - card_width - gutter, card_width, viewport_width),
+        left: clampPopoverLeft(targetRect.left - cardWidth - gutter, cardWidth, viewportWidth),
       };
     case "top":
       return {
-        top: clamp_popover_top_with_clearance(
-          target_rect.top - card_height - gutter,
-          card_height,
-          viewport_height,
-          top_clearance,
+        top: clampPopoverTopWithClearance(
+          targetRect.top - cardHeight - gutter,
+          cardHeight,
+          viewportHeight,
+          topClearance,
         ),
-        left: clamp_popover_left(
-          target_rect.left + target_rect.width / 2 - card_width / 2,
-          card_width,
-          viewport_width,
+        left: clampPopoverLeft(
+          targetRect.left + targetRect.width / 2 - cardWidth / 2,
+          cardWidth,
+          viewportWidth,
         ),
       };
     case "bottom":
       return {
-        top: clamp_popover_top_with_clearance(
-          target_rect.bottom + gutter,
-          card_height,
-          viewport_height,
-          top_clearance,
+        top: clampPopoverTopWithClearance(
+          targetRect.bottom + gutter,
+          cardHeight,
+          viewportHeight,
+          topClearance,
         ),
-        left: clamp_popover_left(
-          target_rect.left + target_rect.width / 2 - card_width / 2,
-          card_width,
-          viewport_width,
+        left: clampPopoverLeft(
+          targetRect.left + targetRect.width / 2 - cardWidth / 2,
+          cardWidth,
+          viewportWidth,
         ),
       };
     case "right":
     default: {
-      const raw_top = target_rect.top + target_rect.height / 2 - card_height / 2;
+      const rawTop = targetRect.top + targetRect.height / 2 - cardHeight / 2;
       return {
-        top: clamp_popover_top_with_clearance(
-          raw_top,
-          card_height,
-          viewport_height,
-          top_clearance,
+        top: clampPopoverTopWithClearance(
+          rawTop,
+          cardHeight,
+          viewportHeight,
+          topClearance,
         ),
-        left: clamp_popover_left(
-          target_rect.right + gutter,
-          card_width,
-          viewport_width,
+        left: clampPopoverLeft(
+          targetRect.right + gutter,
+          cardWidth,
+          viewportWidth,
         ),
       };
     }
@@ -225,10 +225,10 @@ function get_popover_position(
 
 export function OnboardingTourOverlay({
   tour,
-  step_index,
-  on_close,
-  on_next,
-  on_previous,
+  step_index: stepIndex,
+  on_close: onClose,
+  on_next: onNext,
+  on_previous: onPrevious,
 }: {
   tour: OnboardingTourDefinition;
   step_index: number;
@@ -237,12 +237,12 @@ export function OnboardingTourOverlay({
   on_previous: () => void;
 }) {
   const { t } = useI18n();
-  const step = tour.steps[step_index];
-  const [target_rect, set_target_rect] = useState<DOMRect | null>(null);
-  const card_ref = useRef<HTMLDivElement | null>(null);
-  const [popover_size, set_popover_size] = useState<PopoverSize>({
+  const step = tour.steps[stepIndex];
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [popoverSize, setPopoverSize] = useState<PopoverSize>({
     width: Math.min(344, typeof window === "undefined" ? 344 : window.innerWidth - 32),
-    height: estimate_card_height(step),
+    height: estimateCardHeight(step),
   });
 
   useEffect(() => {
@@ -250,34 +250,34 @@ export function OnboardingTourOverlay({
       return undefined;
     }
 
-    const update_target_rect = () => {
+    const updateTargetRect = () => {
       if (!step?.target) {
-        set_target_rect(null);
+        setTargetRect(null);
         return;
       }
 
-      const target_element = document.querySelector<HTMLElement>(
+      const targetElement = document.querySelector<HTMLElement>(
         `[data-tour-anchor="${step.target}"]`,
       );
-      if (!target_element) {
-        set_target_rect(null);
+      if (!targetElement) {
+        setTargetRect(null);
         return;
       }
 
-      target_element.scrollIntoView({
+      targetElement.scrollIntoView({
         block: "nearest",
         inline: "nearest",
       });
-      set_target_rect(target_element.getBoundingClientRect());
+      setTargetRect(targetElement.getBoundingClientRect());
     };
 
-    update_target_rect();
-    window.addEventListener("resize", update_target_rect);
-    window.addEventListener("scroll", update_target_rect, true);
+    updateTargetRect();
+    window.addEventListener("resize", updateTargetRect);
+    window.addEventListener("scroll", updateTargetRect, true);
 
     return () => {
-      window.removeEventListener("resize", update_target_rect);
-      window.removeEventListener("scroll", update_target_rect, true);
+      window.removeEventListener("resize", updateTargetRect);
+      window.removeEventListener("scroll", updateTargetRect, true);
     };
   }, [step?.target]);
 
@@ -286,22 +286,22 @@ export function OnboardingTourOverlay({
       return undefined;
     }
 
-    const element = card_ref.current;
+    const element = cardRef.current;
     if (!element) {
       return undefined;
     }
 
-    const update_size = () => {
+    const updateSize = () => {
       const rect = element.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) {
         return;
       }
-      set_popover_size((current_size) => {
+      setPopoverSize((currentSize) => {
         if (
-          Math.abs(current_size.width - rect.width) < 1
-          && Math.abs(current_size.height - rect.height) < 1
+          Math.abs(currentSize.width - rect.width) < 1
+          && Math.abs(currentSize.height - rect.height) < 1
         ) {
-          return current_size;
+          return currentSize;
         }
         return {
           width: rect.width,
@@ -310,17 +310,17 @@ export function OnboardingTourOverlay({
       });
     };
 
-    update_size();
+    updateSize();
 
-    const resize_observer = new ResizeObserver(() => {
-      update_size();
+    const resizeObserver = new ResizeObserver(() => {
+      updateSize();
     });
-    resize_observer.observe(element);
-    window.addEventListener("resize", update_size);
+    resizeObserver.observe(element);
+    window.addEventListener("resize", updateSize);
 
     return () => {
-      resize_observer.disconnect();
-      window.removeEventListener("resize", update_size);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateSize);
     };
   }, [step]);
 
@@ -329,38 +329,38 @@ export function OnboardingTourOverlay({
   }
 
   const placement = step.placement ?? (step.target ? "right" : "center");
-  const sticker = resolve_tour_sticker(step_index, placement);
-  const popover_position = get_popover_position(
+  const sticker = resolveTourSticker(stepIndex, placement);
+  const popoverPosition = getPopoverPosition(
     placement,
-    target_rect,
+    targetRect,
     window.innerWidth,
     window.innerHeight,
-    popover_size,
-    get_sticker_top_clearance(sticker),
+    popoverSize,
+    getStickerTopClearance(sticker),
   );
-  const is_last_step = step_index >= tour.steps.length - 1;
+  const isLastStep = stepIndex >= tour.steps.length - 1;
 
   const overlay = (
     <div className="fixed inset-0 z-[11000]">
       <div
         className="absolute inset-0 bg-[rgba(11,16,24,0.46)] backdrop-blur-[1px]"
-        onClick={() => on_close()}
+        onClick={() => onClose()}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
-            on_close();
+            onClose();
           }
         }}
         role="presentation"
       />
 
-      {target_rect ? (
+      {targetRect ? (
         <div
           className="pointer-events-none absolute rounded-[12px] border border-[color:color-mix(in_srgb,var(--primary)_34%,white)] shadow-[0_0_0_9999px_rgba(11,16,24,0.22),0_18px_42px_color-mix(in_srgb,var(--primary)_14%,transparent)] transition-[top,left,width,height] duration-(--motion-duration-fast)"
           style={{
-            top: target_rect.top - 6,
-            left: target_rect.left - 6,
-            width: target_rect.width + 12,
-            height: target_rect.height + 12,
+            top: targetRect.top - 6,
+            left: targetRect.left - 6,
+            width: targetRect.width + 12,
+            height: targetRect.height + 12,
           }}
         />
       ) : null}
@@ -368,14 +368,14 @@ export function OnboardingTourOverlay({
       <div
         className="absolute"
         style={{
-          top: popover_position.top,
-          left: popover_position.left,
+          top: popoverPosition.top,
+          left: popoverPosition.left,
         }}
       >
         <div className="relative">
           <TourStepSticker sticker={sticker} />
           <div
-            ref={card_ref}
+            ref={cardRef}
             className={cn(
               "surface-popover relative max-h-[calc(100vh-80px)] w-[min(344px,calc(100vw-32px))] overflow-y-auto rounded-[12px] border px-4 py-3.5 shadow-[0_14px_32px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]",
             )}
@@ -396,7 +396,7 @@ export function OnboardingTourOverlay({
               </div>
               <button
                 className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-                onClick={() => on_close({ completed: true })}
+                onClick={() => onClose({ completed: true })}
                 type="button"
               >
                 {t("common.skip")}
@@ -423,23 +423,23 @@ export function OnboardingTourOverlay({
 
             <div className="mt-3.5 flex items-center justify-between gap-3">
               <span className="text-[11px] font-medium tabular-nums text-(--text-muted)">
-                {step_index + 1} / {tour.steps.length}
+                {stepIndex + 1} / {tour.steps.length}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   className="rounded-full border border-(--divider-subtle-color) px-3 py-1.5 text-[11px] font-medium text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                  disabled={step_index === 0}
-                  onClick={on_previous}
+                  disabled={stepIndex === 0}
+                  onClick={onPrevious}
                   type="button"
                 >
                   {t("common.back")}
                 </button>
                 <button
                   className="rounded-full bg-(--primary) px-3 py-1.5 text-[11px] font-medium text-white transition-[transform,opacity] duration-(--motion-duration-fast) hover:-translate-y-[1px] hover:opacity-92"
-                  onClick={is_last_step ? () => on_close({ completed: true }) : on_next}
+                  onClick={isLastStep ? () => onClose({ completed: true }) : onNext}
                   type="button"
                 >
-                  {is_last_step ? t("common.finish") : t("common.next")}
+                  {isLastStep ? t("common.finish") : t("common.next")}
                 </button>
               </div>
             </div>
@@ -453,9 +453,9 @@ export function OnboardingTourOverlay({
 }
 
 function TourItemIcon({ name }: { name: OnboardingTourStepItem["icon"] }) {
-  const class_name = "h-3.5 w-3.5 shrink-0 text-(--icon-muted)";
-  if (name === "bot") return <Bot className={class_name} />;
-  if (name === "users") return <Users2 className={class_name} />;
-  if (name === "hash") return <Hash className={class_name} />;
-  return <Puzzle className={class_name} />;
+  const className = "h-3.5 w-3.5 shrink-0 text-(--icon-muted)";
+  if (name === "bot") return <Bot className={className} />;
+  if (name === "users") return <Users2 className={className} />;
+  if (name === "hash") return <Hash className={className} />;
+  return <Puzzle className={className} />;
 }

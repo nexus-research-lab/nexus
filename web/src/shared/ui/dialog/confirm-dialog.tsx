@@ -43,20 +43,20 @@ interface PromptDialogProps {
 }
 
 export function ConfirmDialog({
-  is_open,
+  is_open: isOpen,
   title,
   message,
-  confirm_text = "确认",
-  cancel_text = "取消",
-  on_confirm,
-  on_cancel,
+  confirm_text: confirmText = "确认",
+  cancel_text: cancelText = "取消",
+  on_confirm: onConfirm,
+  on_cancel: onCancel,
   variant = "default",
 }: ConfirmDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
-  if (!is_open) return null;
+  if (!isOpen) return null;
 
-  const is_danger = variant === "danger";
+  const isDanger = variant === "danger";
 
   return (
     <UiDialogPortal>
@@ -65,7 +65,7 @@ export function ConfirmDialog({
         described_by="confirm-dialog-message"
         initial_focus_ref={confirmButtonRef}
         labelled_by="confirm-dialog-title"
-        on_close={on_cancel}
+        on_close={onCancel}
       >
         <UiDialogShell size="sm">
           <UiDialogHeader class_name="items-center">
@@ -73,7 +73,7 @@ export function ConfirmDialog({
               <div
                 className={DIALOG_HEADER_ICON_CLASS_NAME}
                 style={
-                  is_danger
+                  isDanger
                     ? {
                         background:
                           "color-mix(in srgb, var(--destructive) 12%, var(--modal-dialog-body-background))",
@@ -92,22 +92,22 @@ export function ConfirmDialog({
                   {title}
                 </h3>
                 <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
-                  {is_danger
+                  {isDanger
                     ? "此操作会立即生效，且不可恢复。"
                     : "请确认是否继续执行该操作。"}
                 </p>
               </div>
             </div>
-            <UiDialogCloseButton on_close={on_cancel} />
+            <UiDialogCloseButton on_close={onCancel} />
           </UiDialogHeader>
 
           <UiDialogBody>
             <div
               className={get_dialog_note_class_name(
-                is_danger ? "danger" : "default",
+                isDanger ? "danger" : "default",
               )}
               id="confirm-dialog-message"
-              style={get_dialog_note_style(is_danger ? "danger" : "default")}
+              style={get_dialog_note_style(isDanger ? "danger" : "default")}
             >
               {message}
             </div>
@@ -116,21 +116,21 @@ export function ConfirmDialog({
           <UiDialogFooter>
             <button
               className={get_dialog_action_class_name("default")}
-              onClick={on_cancel}
+              onClick={onCancel}
               type="button"
             >
-              {cancel_text}
+              {cancelText}
             </button>
             <button
               className={get_dialog_action_class_name(
-                is_danger ? "danger" : "primary",
+                isDanger ? "danger" : "primary",
                 "min-w-[110px]",
               )}
               ref={confirmButtonRef}
-              onClick={on_confirm}
+              onClick={onConfirm}
               type="button"
             >
-              {confirm_text}
+              {confirmText}
             </button>
           </UiDialogFooter>
         </UiDialogShell>
@@ -140,49 +140,49 @@ export function ConfirmDialog({
 }
 
 export function PromptDialog({
-  is_open,
+  is_open: isOpen,
   title,
   message,
   placeholder = "",
-  default_value = "",
+  default_value: defaultValue = "",
   multiline = false,
   rows = 8,
-  on_confirm,
-  on_cancel,
+  on_confirm: onConfirm,
+  on_cancel: onCancel,
 }: PromptDialogProps) {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const [value, setValue] = useState(default_value);
-  const initial_focus_ref = inputRef as unknown as RefObject<HTMLElement | null>;
+  const [value, setValue] = useState(defaultValue);
+  const initialFocusRef = inputRef as unknown as RefObject<HTMLElement | null>;
 
   const cancel = () => {
-    setValue(default_value);
-    on_cancel();
+    setValue(defaultValue);
+    onCancel();
   };
 
-  const handle_input_key_down = (
+  const handleInputKeyDown = (
     event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     if (!multiline && event.key === "Enter") {
       event.preventDefault();
-      on_confirm(value);
+      onConfirm(value);
       return;
     }
 
     if (multiline && (event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      on_confirm(value);
+      onConfirm(value);
     }
   };
 
   // 当对话框打开时重置值
   useEffect(() => {
-    if (is_open) {
-      setValue(default_value);
+    if (isOpen) {
+      setValue(defaultValue);
     }
-  }, [is_open, default_value]);
+  }, [isOpen, defaultValue]);
 
   useEffect(() => {
-    if (is_open && inputRef.current) {
+    if (isOpen && inputRef.current) {
       inputRef.current.focus();
       if (!multiline) {
         inputRef.current.select();
@@ -193,15 +193,15 @@ export function PromptDialog({
         );
       }
     }
-  }, [is_open, multiline]);
+  }, [isOpen, multiline]);
 
-  if (!is_open) return null;
+  if (!isOpen) return null;
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         class_name="z-[9999]"
-        initial_focus_ref={initial_focus_ref}
+        initial_focus_ref={initialFocusRef}
         labelled_by="prompt-dialog-title"
         on_close={cancel}
       >
@@ -229,7 +229,7 @@ export function PromptDialog({
                   ref={inputRef as RefObject<HTMLTextAreaElement>}
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                  onKeyDown={handle_input_key_down}
+                  onKeyDown={handleInputKeyDown}
                   placeholder={placeholder}
                   rows={rows}
                   className="dialog-input surface-radius-sm min-h-[180px] w-full resize-y px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
@@ -245,7 +245,7 @@ export function PromptDialog({
                 type="text"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                onKeyDown={handle_input_key_down}
+                onKeyDown={handleInputKeyDown}
                 placeholder={placeholder}
                 className="dialog-input surface-radius-sm w-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:outline-none"
               />
@@ -262,7 +262,7 @@ export function PromptDialog({
             </button>
             <button
               className={get_dialog_action_class_name("primary")}
-              onClick={() => on_confirm(value)}
+              onClick={() => onConfirm(value)}
               type="button"
             >
               确认

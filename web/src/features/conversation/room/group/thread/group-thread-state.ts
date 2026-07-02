@@ -28,13 +28,13 @@ export interface ThreadPanelData {
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
-  on_stop_message?: (msg_id: string) => void;
+  on_stop_message?: (msgId: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
 
 interface ThreadControlState {
   active_thread: ThreadTarget | null;
-  open_thread: (round_id: string, agent_id: string) => void;
+  open_thread: (roundId: string, agentId: string) => void;
   close_thread: () => void;
 }
 

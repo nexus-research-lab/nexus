@@ -44,15 +44,15 @@ export function normalize_query(value: string): string {
 
 export function is_active_sidebar_chat_item(
   item: SidebarConversationItem,
-  active_target: ActiveChatNotificationTarget | null,
+  activeTarget: ActiveChatNotificationTarget | null,
 ): boolean {
-  return is_chat_notification_target_active(active_target, {
+  return is_chat_notification_target_active(activeTarget, {
     key: item.notification_key,
     room_id: item.room_id,
   });
 }
 
-function to_timestamp(value?: string | null): number {
+function toTimestamp(value?: string | null): number {
   if (!value) {
     return 0;
   }
@@ -60,24 +60,24 @@ function to_timestamp(value?: string | null): number {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function format_sidebar_time(timestamp: number): string {
+function formatSidebarTime(timestamp: number): string {
   if (!timestamp) {
     return "";
   }
 
   const date = new Date(timestamp);
   const now = new Date();
-  const today_start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const item_day_start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const day_delta = Math.floor((today_start - item_day_start) / 86400000);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const itemDayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayDelta = Math.floor((todayStart - itemDayStart) / 86400000);
 
-  if (day_delta <= 0) {
+  if (dayDelta <= 0) {
     return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
   }
-  if (day_delta === 1) {
+  if (dayDelta === 1) {
     return "昨天";
   }
-  if (day_delta < 7) {
+  if (dayDelta < 7) {
     return `周${"日一二三四五六"[date.getDay()]}`;
   }
   return `${date.getMonth() + 1}/${date.getDate()}`;
@@ -90,7 +90,7 @@ export function is_main_agent_dm_room(room: LauncherRoomSummary): boolean {
   return Boolean(room.dm_target_agent_id && is_main_agent(room.dm_target_agent_id));
 }
 
-function build_latest_conversation_by_room_id(
+function buildLatestConversationByRoomId(
   conversations: LauncherConversationSummary[],
 ): Map<string, LauncherConversationSummary> {
   const result = new Map<string, LauncherConversationSummary>();
@@ -102,14 +102,14 @@ function build_latest_conversation_by_room_id(
       continue;
     }
     const current = result.get(conversation.room_id);
-    if (!current || to_timestamp(conversation.last_activity) > to_timestamp(current.last_activity)) {
+    if (!current || toTimestamp(conversation.last_activity) > toTimestamp(current.last_activity)) {
       result.set(conversation.room_id, conversation);
     }
   }
   return result;
 }
 
-function is_launcher_conversation_active(
+function isLauncherConversationActive(
   conversation?: LauncherConversationSummary,
 ): boolean {
   if (!conversation) {
@@ -118,10 +118,10 @@ function is_launcher_conversation_active(
   return conversation.is_active === true || conversation.status === "active";
 }
 
-function running_task_count_for_sidebar_conversation({
-  agent_runtime_statuses,
-  dm_agent_id,
-  is_dm,
+function runningTaskCountForSidebarConversation({
+  agent_runtime_statuses: agentRuntimeStatuses,
+  dm_agent_id: dmAgentId,
+  is_dm: isDm,
   latest,
 }: {
   agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
@@ -129,20 +129,20 @@ function running_task_count_for_sidebar_conversation({
   is_dm: boolean;
   latest?: LauncherConversationSummary;
 }): number {
-  if (is_dm) {
-    return dm_agent_id ? (agent_runtime_statuses[dm_agent_id]?.running_task_count ?? 0) : 0;
+  if (isDm) {
+    return dmAgentId ? (agentRuntimeStatuses[dmAgentId]?.running_task_count ?? 0) : 0;
   }
 
-  return is_launcher_conversation_active(latest) ? 1 : 0;
+  return isLauncherConversationActive(latest) ? 1 : 0;
 }
 
 export function build_conversation_items({
   agents,
-  agent_runtime_statuses,
+  agent_runtime_statuses: agentRuntimeStatuses,
   conversations,
-  format_running_tasks_summary,
+  format_running_tasks_summary: formatRunningTasksSummary,
   rooms,
-  untitled_room_label,
+  untitled_room_label: untitledRoomLabel,
 }: {
   agents: LauncherAgentSummary[];
   agent_runtime_statuses: Record<string, AgentRuntimeStatus>;
@@ -151,52 +151,52 @@ export function build_conversation_items({
   rooms: LauncherRoomSummary[];
   untitled_room_label: string;
 }): SidebarConversationItem[] {
-  const agent_by_id = new Map(agents.map((agent) => [agent.id, agent]));
-  const latest_by_room_id = build_latest_conversation_by_room_id(conversations);
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]));
+  const latestByRoomId = buildLatestConversationByRoomId(conversations);
   const items: SidebarConversationItem[] = [];
 
   for (const room of rooms) {
     if (is_main_agent_dm_room(room)) {
       continue;
     }
-    const latest_room = latest_by_room_id.get(room.id);
-    if (!latest_room) {
+    const latestRoom = latestByRoomId.get(room.id);
+    if (!latestRoom) {
       continue;
     }
-    const last_activity_at = to_timestamp(latest_room.last_activity);
-    const is_dm = room.room_type === "dm";
-    const dm_agent = room.dm_target_agent_id ? agent_by_id.get(room.dm_target_agent_id) : undefined;
-    const members = is_dm
-      ? dm_agent ? [{ id: dm_agent.id, name: dm_agent.name, avatar: dm_agent.avatar }] : []
+    const lastActivityAt = toTimestamp(latestRoom.last_activity);
+    const isDm = room.room_type === "dm";
+    const dmAgent = room.dm_target_agent_id ? agentById.get(room.dm_target_agent_id) : undefined;
+    const members = isDm
+      ? dmAgent ? [{ id: dmAgent.id, name: dmAgent.name, avatar: dmAgent.avatar }] : []
       : room.members ?? [];
-    const running_task_count = running_task_count_for_sidebar_conversation({
-      agent_runtime_statuses,
+    const runningTaskCount = runningTaskCountForSidebarConversation({
+      agent_runtime_statuses: agentRuntimeStatuses,
       dm_agent_id: room.dm_target_agent_id,
-      is_dm,
-      latest: latest_room,
+      is_dm: isDm,
+      latest: latestRoom,
     });
-    const title = is_dm
-      ? dm_agent?.name ?? room.name?.trim() ?? "DM"
-      : room.name?.trim() || untitled_room_label;
+    const title = isDm
+      ? dmAgent?.name ?? room.name?.trim() ?? "DM"
+      : room.name?.trim() || untitledRoomLabel;
 
     items.push({
       id: room.id,
-      kind: is_dm ? "dm" : "room",
+      kind: isDm ? "dm" : "room",
       title,
-      summary: running_task_count > 0
-        ? format_running_tasks_summary(running_task_count)
-        : latest_room.title.trim(),
-      time_label: format_sidebar_time(last_activity_at),
+      summary: runningTaskCount > 0
+        ? formatRunningTasksSummary(runningTaskCount)
+        : latestRoom.title.trim(),
+      time_label: formatSidebarTime(lastActivityAt),
       members,
       avatar: room.avatar,
       room_id: room.id,
       route_room_id: room.id,
-      conversation_id: latest_room.conversation_id,
-      session_key: latest_room.session_key,
+      conversation_id: latestRoom.conversation_id,
+      session_key: latestRoom.session_key,
       agent_id: room.dm_target_agent_id,
-      last_activity_at,
-      message_count: latest_room.message_count ?? 0,
-      running_task_count,
+      last_activity_at: lastActivityAt,
+      message_count: latestRoom.message_count ?? 0,
+      running_task_count: runningTaskCount,
       can_delete: true,
     });
   }
@@ -210,12 +210,12 @@ export function build_conversation_items({
 }
 
 export function get_sidebar_item_unread_state({
-  chat_unread_counts,
-  chat_unread_targets,
-  chat_unread_timestamps,
-  notification_key,
-  room_id,
-  session_key,
+  chat_unread_counts: chatUnreadCounts,
+  chat_unread_targets: chatUnreadTargets,
+  chat_unread_timestamps: chatUnreadTimestamps,
+  notification_key: notificationKey,
+  room_id: roomId,
+  session_key: sessionKey,
 }: {
   chat_unread_counts: Record<string, number>;
   chat_unread_targets: Record<string, ChatNotificationTargetState>;
@@ -228,84 +228,84 @@ export function get_sidebar_item_unread_state({
   unread_count: number;
   unread_target_key: string | null;
 } {
-  const normalized_room_id = room_id?.trim();
-  let unread_count = 0;
-  let unread_target: ChatNotificationTargetState | null = null;
-  let unread_target_timestamp = -1;
-  const counted_keys = new Set<string>();
+  const normalizedRoomId = roomId?.trim();
+  let unreadCount = 0;
+  let unreadTarget: ChatNotificationTargetState | null = null;
+  let unreadTargetTimestamp = -1;
+  const countedKeys = new Set<string>();
 
-  if (normalized_room_id) {
-    for (const [key, target] of Object.entries(chat_unread_targets)) {
-      if (target.room_id !== normalized_room_id) {
+  if (normalizedRoomId) {
+    for (const [key, target] of Object.entries(chatUnreadTargets)) {
+      if (target.room_id !== normalizedRoomId) {
         continue;
       }
-      const count = chat_unread_counts[key] ?? 0;
+      const count = chatUnreadCounts[key] ?? 0;
       if (count <= 0) {
         continue;
       }
-      counted_keys.add(key);
-      unread_count += count;
-      const timestamp = chat_unread_timestamps[key] ?? 0;
-      if (timestamp >= unread_target_timestamp) {
-        unread_target = target;
-        unread_target_timestamp = timestamp;
+      countedKeys.add(key);
+      unreadCount += count;
+      const timestamp = chatUnreadTimestamps[key] ?? 0;
+      if (timestamp >= unreadTargetTimestamp) {
+        unreadTarget = target;
+        unreadTargetTimestamp = timestamp;
       }
     }
 
-    const room_key = `room:${normalized_room_id}`;
-    const room_conversation_key_prefix = `${room_key}:conversation:`;
-    for (const [key, count] of Object.entries(chat_unread_counts)) {
-      if (counted_keys.has(key) || count <= 0) {
+    const roomKey = `room:${normalizedRoomId}`;
+    const roomConversationKeyPrefix = `${roomKey}:conversation:`;
+    for (const [key, count] of Object.entries(chatUnreadCounts)) {
+      if (countedKeys.has(key) || count <= 0) {
         continue;
       }
-      if (key !== room_key && !key.startsWith(room_conversation_key_prefix)) {
+      if (key !== roomKey && !key.startsWith(roomConversationKeyPrefix)) {
         continue;
       }
-      unread_count += count;
-      const timestamp = chat_unread_timestamps[key] ?? 0;
-      if (timestamp >= unread_target_timestamp) {
-        unread_target = chat_unread_targets[key] ?? {
-          conversation_id: key.startsWith(room_conversation_key_prefix)
-            ? key.slice(room_conversation_key_prefix.length)
+      unreadCount += count;
+      const timestamp = chatUnreadTimestamps[key] ?? 0;
+      if (timestamp >= unreadTargetTimestamp) {
+        unreadTarget = chatUnreadTargets[key] ?? {
+          conversation_id: key.startsWith(roomConversationKeyPrefix)
+            ? key.slice(roomConversationKeyPrefix.length)
             : null,
           key,
-          room_id: normalized_room_id,
+          room_id: normalizedRoomId,
         };
-        unread_target_timestamp = timestamp;
+        unreadTargetTimestamp = timestamp;
       }
     }
-  } else if (notification_key) {
-    unread_count = chat_unread_counts[notification_key] ?? 0;
-    if (unread_count > 0) {
-      unread_target = chat_unread_targets[notification_key] ?? {
-        key: notification_key,
-        room_id,
+  } else if (notificationKey) {
+    unreadCount = chatUnreadCounts[notificationKey] ?? 0;
+    if (unreadCount > 0) {
+      unreadTarget = chatUnreadTargets[notificationKey] ?? {
+        key: notificationKey,
+        room_id: roomId,
       };
     }
   }
 
-  const session_notification_key = build_chat_notification_target_key({ session_key });
-  if (session_notification_key && !counted_keys.has(session_notification_key)) {
-    const session_unread_count = chat_unread_counts[session_notification_key] ?? 0;
-    if (session_unread_count > 0) {
-      unread_count += session_unread_count;
-      const timestamp = chat_unread_timestamps[session_notification_key] ?? 0;
-      if (timestamp >= unread_target_timestamp) {
-        unread_target = chat_unread_targets[session_notification_key] ?? {
+  const sessionNotificationKey = build_chat_notification_target_key({ session_key: sessionKey });
+  if (sessionNotificationKey && !countedKeys.has(sessionNotificationKey)) {
+    const sessionUnreadCount = chatUnreadCounts[sessionNotificationKey] ?? 0;
+    if (sessionUnreadCount > 0) {
+      unreadCount += sessionUnreadCount;
+      const timestamp = chatUnreadTimestamps[sessionNotificationKey] ?? 0;
+      if (timestamp >= unreadTargetTimestamp) {
+        unreadTarget = chatUnreadTargets[sessionNotificationKey] ?? {
           conversation_id: null,
-          key: session_notification_key,
-          room_id,
-          session_key,
+          key: sessionNotificationKey,
+          room_id: roomId,
+          session_key: sessionKey,
         };
-        unread_target_timestamp = timestamp;
+        unreadTargetTimestamp = timestamp;
       }
     }
   }
 
   return {
-    unread_conversation_id: unread_target?.conversation_id ?? null,
-    unread_count,
-    unread_target_key: unread_target?.key ?? null,
+    unread_conversation_id: unreadTarget?.conversation_id ?? null,
+    unread_count: unreadCount,
+    unread_target_key: unreadTarget?.key ?? null,
   };
 }
 

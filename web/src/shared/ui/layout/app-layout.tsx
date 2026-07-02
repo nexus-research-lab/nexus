@@ -13,10 +13,10 @@ import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/lib/utils";
 import { SidebarWidePanel } from "@/shared/ui/sidebar/sidebar-wide-panel";
 
-export function AppLayout({ show_sidebar = true }: { show_sidebar?: boolean }) {
+export function AppLayout({ show_sidebar: showSidebar = true }: { show_sidebar?: boolean }) {
   return (
     <main className="relative flex h-screen w-full overflow-hidden bg-transparent text-foreground">
-      {show_sidebar ? <SidebarWidePanel /> : null}
+      {showSidebar ? <SidebarWidePanel /> : null}
       <div className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", HOME_PAGE_PADDING_CLASS)}>
         <Outlet />
       </div>

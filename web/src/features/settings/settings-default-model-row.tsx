@@ -34,16 +34,16 @@ interface SettingsDefaultModelRowProps {
 }
 
 export function SettingsDefaultModelRow({
-  description_key,
-  empty_placeholder_key,
-  feedback_message,
+  description_key: descriptionKey,
+  empty_placeholder_key: emptyPlaceholderKey,
+  feedback_message: feedbackMessage,
   icon,
-  on_change,
+  on_change: onChange,
   options,
-  provider_options_loading,
-  model_category,
-  saving_role,
-  title_key,
+  provider_options_loading: providerOptionsLoading,
+  model_category: modelCategory,
+  saving_role: savingRole,
+  title_key: titleKey,
   value,
 }: SettingsDefaultModelRowProps) {
   const { t } = useI18n();
@@ -56,10 +56,10 @@ export function SettingsDefaultModelRow({
         </div>
         <div className="min-w-0">
           <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-            {t(title_key)}
+            {t(titleKey)}
           </h3>
           <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-            {t(description_key)}
+            {t(descriptionKey)}
           </p>
         </div>
       </div>
@@ -68,23 +68,23 @@ export function SettingsDefaultModelRow({
           {t("settings.general.default_model_label")}
         </span>
         <UiSelectMenu
-          aria_label={t(title_key)}
+          aria_label={t(titleKey)}
           button_class_name={SETTINGS_SELECT_BUTTON_CLASS_NAME}
           class_name={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
-          disabled={provider_options_loading || !!saving_role || options.length === 0}
-          leading={saving_role === model_category ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+          disabled={providerOptionsLoading || !!savingRole || options.length === 0}
+          leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
           menu_class_name="min-w-[260px]"
-          on_change={(next_value) => on_change(next_value, model_category)}
+          on_change={(nextValue) => onChange(nextValue, modelCategory)}
           options={options}
-          placeholder={provider_options_loading
+          placeholder={providerOptionsLoading
             ? t("settings.general.default_model_loading")
-            : t(empty_placeholder_key)}
+            : t(emptyPlaceholderKey)}
           size="xs"
           value={value}
         />
-        {feedback_message ? (
+        {feedbackMessage ? (
           <span className="truncate text-[11px] text-(--text-soft)">
-            {feedback_message}
+            {feedbackMessage}
           </span>
         ) : null}
       </div>

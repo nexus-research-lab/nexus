@@ -34,25 +34,25 @@ export interface WorkspaceFileVisual {
   icon_class_name: string;
 }
 
-function get_file_extension(name: string): string | null {
-  const lower_name = name.toLowerCase();
-  if (lower_name === "dockerfile") {
+function getFileExtension(name: string): string | null {
+  const lowerName = name.toLowerCase();
+  if (lowerName === "dockerfile") {
     return "docker";
   }
-  if (lower_name === "makefile") {
+  if (lowerName === "makefile") {
     return "make";
   }
 
-  const last_dot_index = lower_name.lastIndexOf(".");
-  if (last_dot_index <= 0 || last_dot_index === lower_name.length - 1) {
+  const lastDotIndex = lowerName.lastIndexOf(".");
+  if (lastDotIndex <= 0 || lastDotIndex === lowerName.length - 1) {
     return null;
   }
-  return lower_name.slice(last_dot_index + 1);
+  return lowerName.slice(lastDotIndex + 1);
 }
 
 /** 中文注释：文件图标映射独立成纯函数，避免视图文件继续承载规则表。 */
 export function get_workspace_file_visual(name: string): WorkspaceFileVisual {
-  const extension = get_file_extension(name);
+  const extension = getFileExtension(name);
 
   if (!extension) {
     return {

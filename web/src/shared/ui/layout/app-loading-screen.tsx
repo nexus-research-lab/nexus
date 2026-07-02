@@ -11,14 +11,14 @@ interface AppLoadingStateProps {
 }
 
 export function AppLoadingState({
-  class_name,
-  animation_class_name = "h-32 w-32 shrink-0",
+  class_name: className,
+  animation_class_name: animationClassName = "h-32 w-32 shrink-0",
   message = "正在加载...",
 }: AppLoadingStateProps) {
   return (
-    <div className={cn("flex flex-col items-center gap-3 px-12 py-10 text-center", class_name)}>
+    <div className={cn("flex flex-col items-center gap-3 px-12 py-10 text-center", className)}>
       <LottiePlayer
-        class_name={animation_class_name}
+        class_name={animationClassName}
         src={ANIMATIONS.CAT}
       />
       <p className="text-sm text-(--text-muted)">{message}</p>

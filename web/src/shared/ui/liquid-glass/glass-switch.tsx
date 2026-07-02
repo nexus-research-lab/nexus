@@ -43,47 +43,47 @@ const TARGET_TRACK_HEIGHT_BY_SIZE = {
 export function GlassSwitch({
   checked,
   disabled = false,
-  on_change,
-  class_name,
+  on_change: onChange,
+  class_name: className,
   size = "md",
 }: GlassSwitchProps) {
-  const raw_filter_id = useId();
-  const filter_id = `glass-switch-thumb-${raw_filter_id.replace(/:/g, "")}`;
-  const [can_use_true_glass, set_can_use_true_glass] = useState(false);
-  const [is_pressed, set_is_pressed] = useState(false);
-  const [is_transitioning, set_is_transitioning] = useState(false);
-  const previous_checked_ref = useRef(checked);
-  const target_track_height = TARGET_TRACK_HEIGHT_BY_SIZE[size];
-  const scale_ratio = target_track_height / SOURCE_TRACK_HEIGHT;
-  const track_width = Math.round(SOURCE_TRACK_WIDTH * scale_ratio);
-  const track_height = target_track_height;
-  const thumb_width = SOURCE_THUMB_WIDTH * scale_ratio;
-  const thumb_height = SOURCE_THUMB_HEIGHT * scale_ratio;
-  const thumb_radius = SOURCE_THUMB_RADIUS * scale_ratio;
-  const thumb_offset_x = SOURCE_THUMB_OFFSET_X * scale_ratio;
-  const static_thumb_travel_x = SOURCE_STATIC_THUMB_TRAVEL_X * scale_ratio;
-  const thumb_travel_x = SOURCE_THUMB_TRAVEL_X * scale_ratio;
+  const rawFilterId = useId();
+  const filterId = `glass-switch-thumb-${rawFilterId.replace(/:/g, "")}`;
+  const [canUseTrueGlass, setCanUseTrueGlass] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const previousCheckedRef = useRef(checked);
+  const targetTrackHeight = TARGET_TRACK_HEIGHT_BY_SIZE[size];
+  const scaleRatio = targetTrackHeight / SOURCE_TRACK_HEIGHT;
+  const trackWidth = Math.round(SOURCE_TRACK_WIDTH * scaleRatio);
+  const trackHeight = targetTrackHeight;
+  const thumbWidth = SOURCE_THUMB_WIDTH * scaleRatio;
+  const thumbHeight = SOURCE_THUMB_HEIGHT * scaleRatio;
+  const thumbRadius = SOURCE_THUMB_RADIUS * scaleRatio;
+  const thumbOffsetX = SOURCE_THUMB_OFFSET_X * scaleRatio;
+  const staticThumbTravelX = SOURCE_STATIC_THUMB_TRAVEL_X * scaleRatio;
+  const thumbTravelX = SOURCE_THUMB_TRAVEL_X * scaleRatio;
 
   useEffect(() => {
-    set_can_use_true_glass(supports_true_liquid_glass());
+    setCanUseTrueGlass(supports_true_liquid_glass());
   }, []);
 
   /**
    * 中文注释：首屏渲染时 previous_checked_ref 与当前值一致，
    * 不应把初始化当成一次开关动画，否则会错误显示 glass 覆盖层。
    */
-  if (previous_checked_ref.current !== checked) {
-    previous_checked_ref.current = checked;
-    set_is_transitioning(true);
+  if (previousCheckedRef.current !== checked) {
+    previousCheckedRef.current = checked;
+    setIsTransitioning(true);
   }
 
-  if (disabled && (is_pressed || is_transitioning)) {
-    set_is_pressed(false);
-    set_is_transitioning(false);
+  if (disabled && (isPressed || isTransitioning)) {
+    setIsPressed(false);
+    setIsTransitioning(false);
   }
 
-  const show_interaction_filter = can_use_true_glass
-    && (is_pressed || is_transitioning);
+  const showInteractionFilter = canUseTrueGlass
+    && (isPressed || isTransitioning);
 
   return (
     <button
@@ -91,15 +91,15 @@ export function GlassSwitch({
       className={cn(
         "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(88,196,94,0.32)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-        class_name,
+        className,
       )}
       onClick={() => {
         if (!disabled) {
-          on_change(!checked);
+          onChange(!checked);
         }
       }}
       onBlur={() => {
-        set_is_pressed(false);
+        setIsPressed(false);
       }}
       onKeyDown={(event) => {
         if (disabled) {
@@ -107,16 +107,16 @@ export function GlassSwitch({
         }
 
         if (event.key === " " || event.key === "Enter") {
-          set_is_pressed(true);
+          setIsPressed(true);
         }
       }}
       onKeyUp={(event) => {
         if (event.key === " " || event.key === "Enter") {
-          set_is_pressed(false);
+          setIsPressed(false);
         }
       }}
       onPointerCancel={() => {
-        set_is_pressed(false);
+        setIsPressed(false);
       }}
       onPointerDown={(event) => {
         if (disabled) {
@@ -124,23 +124,23 @@ export function GlassSwitch({
         }
 
         event.currentTarget.setPointerCapture(event.pointerId);
-        set_is_pressed(true);
+        setIsPressed(true);
       }}
       onPointerUp={(event) => {
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
-        set_is_pressed(false);
+        setIsPressed(false);
       }}
       role="switch"
       type="button"
       style={{
-        width: `${track_width}px`,
-        height: `${track_height}px`,
+        width: `${trackWidth}px`,
+        height: `${trackHeight}px`,
         backgroundColor: checked ? "rgba(59,191,78,0.93333)" : "rgba(198,201,210,0.82)",
       }}
     >
-      {can_use_true_glass ? (
+      {canUseTrueGlass ? (
         <svg
           aria-hidden="true"
           className="pointer-events-none absolute h-0 w-0 overflow-hidden"
@@ -148,7 +148,7 @@ export function GlassSwitch({
           focusable="false"
         >
           <defs>
-            <filter id={filter_id}>
+            <filter id={filterId}>
               <feGaussianBlur
                 in="SourceGraphic"
                 result="blurred_source"
@@ -159,8 +159,8 @@ export function GlassSwitch({
                 result="displacement_map"
                 x={0}
                 y={0}
-                width={thumb_width}
-                height={thumb_height}
+                width={thumbWidth}
+                height={thumbHeight}
               />
               <feDisplacementMap
                 in="blurred_source"
@@ -181,8 +181,8 @@ export function GlassSwitch({
                 result="specular_layer"
                 x={0}
                 y={0}
-                width={thumb_width}
-                height={thumb_height}
+                width={thumbWidth}
+                height={thumbHeight}
               />
               <feComposite
                 in="displaced_saturated"
@@ -215,15 +215,15 @@ export function GlassSwitch({
         aria-hidden="true"
         className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
         style={{
-          width: `${thumb_width}px`,
-          height: `${thumb_height}px`,
-          marginLeft: `${thumb_offset_x}px`,
-          top: `${track_height / 2}px`,
-          borderRadius: `${thumb_radius}px`,
+          width: `${thumbWidth}px`,
+          height: `${thumbHeight}px`,
+          marginLeft: `${thumbOffsetX}px`,
+          top: `${trackHeight / 2}px`,
+          borderRadius: `${thumbRadius}px`,
           backgroundColor: "rgb(255, 255, 255)",
           boxShadow: "0 4px 22px rgba(0, 0, 0, 0.1)",
-          opacity: show_interaction_filter ? 0 : 1,
-          transform: `translateX(${checked ? static_thumb_travel_x : 0}px) translateY(-50%) scale(${SOURCE_STATIC_THUMB_SCALE})`,
+          opacity: showInteractionFilter ? 0 : 1,
+          transform: `translateX(${checked ? staticThumbTravelX : 0}px) translateY(-50%) scale(${SOURCE_STATIC_THUMB_SCALE})`,
         }}
       />
       <div
@@ -231,22 +231,22 @@ export function GlassSwitch({
         className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
         onTransitionEnd={(event) => {
           if (event.propertyName === "transform") {
-            set_is_transitioning(false);
+            setIsTransitioning(false);
           }
         }}
         style={{
-          width: `${thumb_width}px`,
-          height: `${thumb_height}px`,
-          marginLeft: `${thumb_offset_x}px`,
-          top: `${track_height / 2}px`,
-          borderRadius: `${thumb_radius}px`,
+          width: `${thumbWidth}px`,
+          height: `${thumbHeight}px`,
+          marginLeft: `${thumbOffsetX}px`,
+          top: `${trackHeight / 2}px`,
+          borderRadius: `${thumbRadius}px`,
           backgroundColor: "rgba(255, 255, 255, 0.098)",
           boxShadow:
             "0 4px 22px rgba(0, 0, 0, 0.1), 2px 7px 24px rgba(0, 0, 0, 0.09) inset, -2px -7px 24px rgba(255, 255, 255, 0.09) inset",
-          backdropFilter: show_interaction_filter ? `url(#${filter_id})` : undefined,
-          WebkitBackdropFilter: show_interaction_filter ? `url(#${filter_id})` : undefined,
-          opacity: show_interaction_filter ? 1 : 0,
-          transform: `translateX(${checked ? thumb_travel_x : 0}px) translateY(-50%) scale(${SOURCE_THUMB_SCALE})`,
+          backdropFilter: showInteractionFilter ? `url(#${filterId})` : undefined,
+          WebkitBackdropFilter: showInteractionFilter ? `url(#${filterId})` : undefined,
+          opacity: showInteractionFilter ? 1 : 0,
+          transform: `translateX(${checked ? thumbTravelX : 0}px) translateY(-50%) scale(${SOURCE_THUMB_SCALE})`,
         }}
       />
     </button>

@@ -18,7 +18,7 @@ interface SettingsOnboardingRowProps {
   on_reset: () => void;
 }
 
-export function SettingsOnboardingRow({ on_reset }: SettingsOnboardingRowProps) {
+export function SettingsOnboardingRow({ on_reset: onReset }: SettingsOnboardingRowProps) {
   const { t } = useI18n();
 
   return (
@@ -38,7 +38,7 @@ export function SettingsOnboardingRow({ on_reset }: SettingsOnboardingRowProps) 
       </div>
       <button
         className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color,transform] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
-        onClick={on_reset}
+        onClick={onReset}
         type="button"
       >
         <RotateCcw className="h-3 w-3" />

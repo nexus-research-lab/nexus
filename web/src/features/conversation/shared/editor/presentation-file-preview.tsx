@@ -32,44 +32,44 @@ interface PresentationFilePreviewProps {
 }
 
 export function PresentationFilePreview({
-  agent_id,
+  agent_id: agentId,
   embedded,
-  file_name,
-  is_preview_focused,
-  on_resize_start,
-  on_toggle_preview_focus,
+  file_name: fileName,
+  is_preview_focused: isPreviewFocused,
+  on_resize_start: onResizeStart,
+  on_toggle_preview_focus: onTogglePreviewFocus,
   path,
 }: PresentationFilePreviewProps) {
-  const cleanup_urls_ref = useRef<() => void>(() => undefined);
-  const preview_key = `${agent_id}\x1f${path}`;
-  const [slides, set_slides] = useResettableState<PresentationSlide[]>([], preview_key);
-  const [active_slide_index, set_active_slide_index] = useResettableState(0, preview_key);
-  const [status, set_status] = useResettableState<PresentationPreviewStatus>({
+  const cleanupUrlsRef = useRef<() => void>(() => undefined);
+  const previewKey = `${agentId}\x1f${path}`;
+  const [slides, setSlides] = useResettableState<PresentationSlide[]>([], previewKey);
+  const [activeSlideIndex, setActiveSlideIndex] = useResettableState(0, previewKey);
+  const [status, setStatus] = useResettableState<PresentationPreviewStatus>({
     state: "loading",
     message: "加载演示文稿预览中",
-  }, preview_key);
+  }, previewKey);
 
   useEffect(() => {
-    const abort_controller = new AbortController();
+    const abortController = new AbortController();
     let cancelled = false;
 
-    cleanup_urls_ref.current();
-    cleanup_urls_ref.current = () => undefined;
+    cleanupUrlsRef.current();
+    cleanupUrlsRef.current = () => undefined;
 
-    async function load_preview() {
+    async function loadPreview() {
       try {
-        const preview_url = get_workspace_file_preview_url(agent_id, path);
-        const response = await fetch(preview_url, {
+        const previewUrl = get_workspace_file_preview_url(agentId, path);
+        const response = await fetch(previewUrl, {
           credentials: "include",
-          signal: abort_controller.signal,
+          signal: abortController.signal,
         });
 
         if (!response.ok) {
           throw new Error(`读取失败: ${response.status}`);
         }
 
-        const content_length = response.headers.get("content-length");
-        if (content_length && Number(content_length) > MAX_PPTX_PREVIEW_BYTES) {
+        const contentLength = response.headers.get("content-length");
+        if (contentLength && Number(contentLength) > MAX_PPTX_PREVIEW_BYTES) {
           throw new Error("pptx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
@@ -81,43 +81,43 @@ export function PresentationFilePreview({
           throw new Error("pptx 文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
-        set_status({ state: "loading", message: "解析 pptx 文件中" });
+        setStatus({ state: "loading", message: "解析 pptx 文件中" });
         const result = await parse_pptx(buffer);
         if (cancelled) {
           revoke_object_urls(result.object_urls);
           return;
         }
 
-        cleanup_urls_ref.current = () => revoke_object_urls(result.object_urls);
-        set_slides(result.slides);
-        set_active_slide_index(0);
-        set_status({ state: "loaded", slide_count: result.slides.length });
-      } catch (preview_error) {
-        if (cancelled || abort_controller.signal.aborted) {
+        cleanupUrlsRef.current = () => revoke_object_urls(result.object_urls);
+        setSlides(result.slides);
+        setActiveSlideIndex(0);
+        setStatus({ state: "loaded", slide_count: result.slides.length });
+      } catch (previewError) {
+        if (cancelled || abortController.signal.aborted) {
           return;
         }
-        const message = preview_error instanceof Error ? preview_error.message : "pptx 预览失败";
-        cleanup_urls_ref.current();
-        cleanup_urls_ref.current = () => undefined;
-        set_slides([]);
-        set_status({ state: "error", message });
+        const message = previewError instanceof Error ? previewError.message : "pptx 预览失败";
+        cleanupUrlsRef.current();
+        cleanupUrlsRef.current = () => undefined;
+        setSlides([]);
+        setStatus({ state: "error", message });
       }
     }
 
-    void load_preview();
+    void loadPreview();
 
     return () => {
       cancelled = true;
-      abort_controller.abort();
-      cleanup_urls_ref.current();
-      cleanup_urls_ref.current = () => undefined;
+      abortController.abort();
+      cleanupUrlsRef.current();
+      cleanupUrlsRef.current = () => undefined;
     };
-  }, [agent_id, path]);
+  }, [agentId, path]);
 
-  const is_loaded = status.state === "loaded";
-  const is_loading = status.state === "loading";
-  const has_error = status.state === "error";
-  const active_slide = slides[Math.min(active_slide_index, Math.max(slides.length - 1, 0))];
+  const isLoaded = status.state === "loaded";
+  const isLoading = status.state === "loading";
+  const hasError = status.state === "error";
+  const activeSlide = slides[Math.min(activeSlideIndex, Math.max(slides.length - 1, 0))];
 
   return (
     <>
@@ -125,17 +125,17 @@ export function PresentationFilePreview({
         <ConversationResizeHandle
           aria_label="调整编辑器宽度"
           class_name="flex"
-          on_mouse_down={on_resize_start}
+          on_mouse_down={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
             />
           </>
         )}
@@ -146,12 +146,12 @@ export function PresentationFilePreview({
               <FileText className="h-3 w-3" />
               pptx 预览
             </span>
-            {has_error ? (
+            {hasError ? (
               <span className="flex items-center gap-1 text-destructive">
                 <FileWarning className="h-3 w-3" />
                 加载失败
               </span>
-            ) : is_loaded ? (
+            ) : isLoaded ? (
               <span className="flex items-center gap-1 text-(--success)">
                 <Eye className="h-3 w-3" />
                 已加载 {status.slide_count} 页
@@ -159,16 +159,16 @@ export function PresentationFilePreview({
             ) : (
               <span className="flex items-center gap-1">
                 <LoaderCircle className="h-3 w-3 animate-spin" />
-                {is_loading ? status.message : "加载中"}
+                {isLoading ? status.message : "加载中"}
               </span>
             )}
           </>
         )}
-        title={file_name}
+        title={fileName}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
-        {has_error ? (
+        {hasError ? (
           <div className="flex h-full items-center justify-center p-8 text-center">
             <div className="max-w-sm">
               <FileWarning className="mx-auto h-12 w-12 text-(--icon-muted)" />
@@ -176,7 +176,7 @@ export function PresentationFilePreview({
               <p className="mt-2 text-xs leading-5 text-(--text-soft)">{status.message}</p>
             </div>
           </div>
-        ) : active_slide ? (
+        ) : activeSlide ? (
           <div className="flex h-full min-h-0">
             {slides.length > 1 ? (
               <aside className="soft-scrollbar hidden w-36 shrink-0 overflow-auto border-r divider-subtle bg-(--surface-panel-background) p-3 md:block">
@@ -185,12 +185,12 @@ export function PresentationFilePreview({
                     <button
                       className={cn(
                         "w-full rounded-[6px] border p-1 text-left transition-colors",
-                        index === active_slide_index
+                        index === activeSlideIndex
                           ? "border-primary/45 bg-primary/8"
                           : "border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) hover:border-primary/30",
                       )}
                       key={slide.id}
-                      onClick={() => set_active_slide_index(index)}
+                      onClick={() => setActiveSlideIndex(index)}
                       type="button"
                     >
                       <PresentationSlideCanvas class_name="rounded-[2px] shadow-none" slide={slide} thumbnail />
@@ -207,15 +207,15 @@ export function PresentationFilePreview({
               <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
                 <div className="flex items-center justify-between gap-3 text-xs text-(--text-muted)">
                   <span className="min-w-0 truncate">
-                    {active_slide_index + 1} / {slides.length} · {active_slide.title}
+                    {activeSlideIndex + 1} / {slides.length} · {activeSlide.title}
                   </span>
                   {slides.length > 1 ? (
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         aria-label="上一页幻灯片"
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-                        disabled={active_slide_index <= 0}
-                        onClick={() => set_active_slide_index((index) => Math.max(index - 1, 0))}
+                        disabled={activeSlideIndex <= 0}
+                        onClick={() => setActiveSlideIndex((index) => Math.max(index - 1, 0))}
                         type="button"
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -223,8 +223,8 @@ export function PresentationFilePreview({
                       <button
                         aria-label="下一页幻灯片"
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default) transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-                        disabled={active_slide_index >= slides.length - 1}
-                        onClick={() => set_active_slide_index((index) => Math.min(index + 1, slides.length - 1))}
+                        disabled={activeSlideIndex >= slides.length - 1}
+                        onClick={() => setActiveSlideIndex((index) => Math.min(index + 1, slides.length - 1))}
                         type="button"
                       >
                         <ChevronRight className="h-4 w-4" />
@@ -232,7 +232,7 @@ export function PresentationFilePreview({
                     </div>
                   ) : null}
                 </div>
-                <PresentationSlideCanvas slide={active_slide} />
+                <PresentationSlideCanvas slide={activeSlide} />
               </div>
             </div>
           </div>
@@ -241,7 +241,7 @@ export function PresentationFilePreview({
             <div className="max-w-xs">
               <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-primary" />
               <p className="mt-3 text-sm font-medium text-(--text-strong)">
-                {is_loading ? status.message : "正在加载 pptx 预览"}
+                {isLoading ? status.message : "正在加载 pptx 预览"}
               </p>
             </div>
           </div>

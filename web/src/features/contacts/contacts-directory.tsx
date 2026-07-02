@@ -18,41 +18,41 @@ import { matches_contacts_search } from "./contacts-directory-helpers";
 interface ContactsDirectoryProps {
   agents: Agent[];
   /** 💬 Chat → ensureDirectRoom 发起 DM */
-  on_open_direct_room: (agent_id: string) => void;
+  on_open_direct_room: (agentId: string) => void;
   /** 新建 Agent → 打开 AgentOptions 对话框（create 模式） */
   on_create_agent: () => void;
   /** 点击卡片 → 打开 AgentOptions 对话框（edit 模式） */
-  on_edit_agent: (agent_id: string) => void;
+  on_edit_agent: (agentId: string) => void;
   /** 👥 Create Team → 用该 Agent 创建 Room */
-  on_create_team: (agent_id: string) => void;
+  on_create_team: (agentId: string) => void;
 }
 
 /** Contacts 全宽卡片网格 — 风格 */
 export function ContactsDirectory({
   agents,
-  on_open_direct_room,
-  on_create_agent,
-  on_edit_agent,
-  on_create_team,
+  on_open_direct_room: onOpenDirectRoom,
+  on_create_agent: onCreateAgent,
+  on_edit_agent: onEditAgent,
+  on_create_team: onCreateTeam,
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
-  const [search_query, set_search_query] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Tab 过滤 + 搜索
-  const filtered_agents = useMemo(() => {
+  const filteredAgents = useMemo(() => {
     return agents.filter((agent) => {
-      return matches_contacts_search(agent, search_query);
+      return matches_contacts_search(agent, searchQuery);
     });
-  }, [agents, search_query]);
+  }, [agents, searchQuery]);
 
   // Header 右侧：搜索框
-  const header_trailing = (
+  const headerTrailing = (
     <WorkspaceSearchInput
       class_name="hidden sm:inline-flex"
       input_class_name="w-[200px]"
-      on_change={set_search_query}
+      on_change={setSearchQuery}
       placeholder={t("common.search_agents")}
-      value={search_query}
+      value={searchQuery}
     />
   );
 
@@ -63,7 +63,7 @@ export function ContactsDirectory({
         density="compact"
         leading={<Users className="h-4 w-4 text-(--icon-default)" />}
         title={t("contacts.title")}
-        trailing={header_trailing}
+        trailing={headerTrailing}
       />
 
       {/* 卡片网格区域 */}
@@ -72,7 +72,7 @@ export function ContactsDirectory({
           {/* 首张卡片 — New Agent */}
           <WorkspaceCatalogGhostCard
             class_name="py-8"
-            onClick={on_create_agent}
+            onClick={onCreateAgent}
             size="comfort"
           >
             <WorkspaceIconFrame class_name="h-16 w-16" shape="round" size="lg">
@@ -87,13 +87,13 @@ export function ContactsDirectory({
           </WorkspaceCatalogGhostCard>
 
           {/* Agent 卡片列表 */}
-          {filtered_agents.map((agent) => (
+          {filteredAgents.map((agent) => (
             <ContactsAgentCard
               key={agent.agent_id}
               agent={agent}
-              on_create_team={() => on_create_team(agent.agent_id)}
-              on_open_profile={() => on_edit_agent(agent.agent_id)}
-              on_open_room={() => on_open_direct_room(agent.agent_id)}
+              on_create_team={() => onCreateTeam(agent.agent_id)}
+              on_open_profile={() => onEditAgent(agent.agent_id)}
+              on_open_room={() => onOpenDirectRoom(agent.agent_id)}
             />
           ))}
         </div>

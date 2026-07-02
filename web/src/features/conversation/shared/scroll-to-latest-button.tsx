@@ -13,25 +13,25 @@ interface ScrollToLatestButtonProps {
 }
 
 export function ScrollToLatestButton({
-  is_loading,
-  is_mobile_layout,
-  on_click,
+  is_loading: isLoading,
+  is_mobile_layout: isMobileLayout,
+  on_click: onClick,
   placement = "composer",
 }: ScrollToLatestButtonProps) {
-  const placement_class_name =
+  const placementClassName =
     placement === "panel"
-      ? (is_mobile_layout ? "bottom-4 right-3" : "bottom-4 right-4")
-      : (is_mobile_layout ? "bottom-24 right-2" : "bottom-24 right-3 sm:bottom-30 sm:right-8");
+      ? (isMobileLayout ? "bottom-4 right-3" : "bottom-4 right-4")
+      : (isMobileLayout ? "bottom-24 right-2" : "bottom-24 right-3 sm:bottom-30 sm:right-8");
 
   return (
     <button
       type="button"
       aria-label="回到底部"
-      onClick={on_click}
-      className={cn(FLOATING_ACTION_CHIP_CLASS_NAME, placement_class_name)}
+      onClick={onClick}
+      className={cn(FLOATING_ACTION_CHIP_CLASS_NAME, placementClassName)}
       title="回到底部"
     >
-      <ArrowDown className={is_loading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
+      <ArrowDown className={isLoading ? "h-4 w-4 animate-bounce" : "h-4 w-4"} />
     </button>
   );
 }

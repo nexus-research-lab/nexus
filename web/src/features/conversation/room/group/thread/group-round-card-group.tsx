@@ -27,12 +27,12 @@ interface GroupRoundCardGroupProps {
   on_permission_response?: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
-  on_stop_message?: (msg_id: string) => void;
-  on_open_agent_contact?: (agent_id: string) => void;
+  on_stop_message?: (msgId: string) => void;
+  on_open_agent_contact?: (agentId: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
 
-function get_user_attachment_workspace_agent_id(message: Message | undefined) {
+function getUserAttachmentWorkspaceAgentId(message: Message | undefined) {
   if (!message || message.role !== "user") {
     return null;
   }
@@ -41,15 +41,15 @@ function get_user_attachment_workspace_agent_id(message: Message | undefined) {
 
 function GroupCompletedReply(
   {
-    round_id,
-    agent_id,
-    agent_name,
-    agent_avatar,
-    assistant_messages,
-    is_thread_active,
-    on_click_thread,
-    on_open_agent_contact,
-    on_open_workspace_file,
+    round_id: roundId,
+    agent_id: agentId,
+    agent_name: agentName,
+    agent_avatar: agentAvatar,
+    assistant_messages: assistantMessages,
+    is_thread_active: isThreadActive,
+    on_click_thread: onClickThread,
+    on_open_agent_contact: onOpenAgentContact,
+    on_open_workspace_file: onOpenWorkspaceFile,
   }: {
     round_id: string;
     agent_id: string;
@@ -58,39 +58,39 @@ function GroupCompletedReply(
     assistant_messages: AssistantMessage[];
     is_thread_active: boolean;
     on_click_thread: () => void;
-    on_open_agent_contact?: (agent_id: string) => void;
+    on_open_agent_contact?: (agentId: string) => void;
     on_open_workspace_file?: (path: string) => void;
   }) {
-  const messages_for_render = useMemo<Message[]>(
-    () => [...assistant_messages],
-    [assistant_messages],
+  const messagesForRender = useMemo<Message[]>(
+    () => [...assistantMessages],
+    [assistantMessages],
   );
 
   return (
     <div className="border-b border-(--divider-subtle-color)">
       <MessageItem
-        current_agent_name={agent_name}
-        current_agent_avatar={agent_avatar}
-        workspace_agent_id={agent_id}
-        round_id={`${round_id}:${agent_id}`}
-        messages={messages_for_render}
+        current_agent_name={agentName}
+        current_agent_avatar={agentAvatar}
+        workspace_agent_id={agentId}
+        round_id={`${roundId}:${agentId}`}
+        messages={messagesForRender}
         assistant_content_mode="room_result"
         is_last_round={false}
         is_loading={false}
-        on_open_agent_contact={on_open_agent_contact}
-        on_open_workspace_file={on_open_workspace_file}
+        on_open_agent_contact={onOpenAgentContact}
+        on_open_workspace_file={onOpenWorkspaceFile}
         assistant_header_action={(
           <button
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
-              is_thread_active
+              isThreadActive
                 ? "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)"
                 : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
             )}
-            onClick={on_click_thread}
+            onClick={onClickThread}
             type="button"
           >
-            {is_thread_active ? "关闭 Thread" : "查看 Thread"}
+            {isThreadActive ? "关闭 Thread" : "查看 Thread"}
           </button>
         )}
         class_name="border-b-0"
@@ -108,98 +108,98 @@ function GroupCompletedReply(
  */
 function GroupRoundCardGroupInner(
   {
-    round_id,
+    round_id: roundId,
     messages,
-    pending_permissions = [],
-    pending_slots = [],
-    agent_name_map,
-    agent_avatar_map,
-    current_user_avatar,
-    on_permission_response,
-    can_respond_to_permissions = true,
-    permission_read_only_reason,
-    on_stop_message,
-    on_open_agent_contact,
-    on_open_workspace_file,
+    pending_permissions: pendingPermissions = [],
+    pending_slots: pendingSlots = [],
+    agent_name_map: agentNameMap,
+    agent_avatar_map: agentAvatarMap,
+    current_user_avatar: currentUserAvatar,
+    on_permission_response: onPermissionResponse,
+    can_respond_to_permissions: canRespondToPermissions = true,
+    permission_read_only_reason: permissionReadOnlyReason,
+    on_stop_message: onStopMessage,
+    on_open_agent_contact: onOpenAgentContact,
+    on_open_workspace_file: onOpenWorkspaceFile,
   }: GroupRoundCardGroupProps) {
-  const {active_thread, close_thread, open_thread} = useGroupThread();
+  const {active_thread: activeThread, close_thread: closeThread, open_thread: openThread} = useGroupThread();
 
-  const user_message = useMemo(
+  const userMessage = useMemo(
     () => messages.find((message) => message.role === "user" && !is_automation_trigger_user_message(message)),
     [messages],
   );
 
-  const agent_entries = useMemo(() => {
-    return build_room_agent_round_entries(messages, pending_slots).map((entry) => ({
+  const agentEntries = useMemo(() => {
+    return build_room_agent_round_entries(messages, pendingSlots).map((entry) => ({
       ...entry,
-      agent_name: agent_name_map?.[entry.agent_id] ?? entry.agent_id,
-      agent_avatar: agent_avatar_map?.[entry.agent_id] ?? null,
+      agent_name: agentNameMap?.[entry.agent_id] ?? entry.agent_id,
+      agent_avatar: agentAvatarMap?.[entry.agent_id] ?? null,
     }));
-  }, [agent_avatar_map, agent_name_map, messages, pending_slots]);
+  }, [agentAvatarMap, agentNameMap, messages, pendingSlots]);
 
-  const completed_entries = useMemo(
-    () => agent_entries
+  const completedEntries = useMemo(
+    () => agentEntries
       .filter((entry) => entry.status === "done")
       .sort((left, right) => left.timestamp - right.timestamp),
-    [agent_entries],
+    [agentEntries],
   );
 
-  const pending_entries = useMemo(
-    () => agent_entries.filter((entry) => entry.status !== "done"),
-    [agent_entries],
+  const pendingEntries = useMemo(
+    () => agentEntries.filter((entry) => entry.status !== "done"),
+    [agentEntries],
   );
 
-  const toggle_thread = useCallback((agent_id: string) => {
-    if (active_thread?.round_id === round_id && active_thread.agent_id === agent_id) {
-      close_thread();
+  const toggleThread = useCallback((agentId: string) => {
+    if (activeThread?.round_id === roundId && activeThread.agent_id === agentId) {
+      closeThread();
       return;
     }
 
-    open_thread(round_id, agent_id);
-  }, [active_thread, close_thread, open_thread, round_id]);
+    openThread(roundId, agentId);
+  }, [activeThread, closeThread, openThread, roundId]);
 
   return (
     <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {user_message ? (
+      {userMessage ? (
         <div className="border-b border-(--divider-subtle-color)">
           {/* 仅复用用户消息样式，传入 is_loading 避免渲染空的助手区域。 */}
           <MessageItem
-            round_id={round_id}
-            messages={[user_message]}
-            workspace_agent_id={get_user_attachment_workspace_agent_id(user_message)}
-            current_user_avatar={current_user_avatar}
+            round_id={roundId}
+            messages={[userMessage]}
+            workspace_agent_id={getUserAttachmentWorkspaceAgentId(userMessage)}
+            current_user_avatar={currentUserAvatar}
             is_last_round={false}
             is_loading
-            on_open_workspace_file={on_open_workspace_file}
+            on_open_workspace_file={onOpenWorkspaceFile}
             class_name="border-b-0"
           />
         </div>
       ) : null}
 
-      {completed_entries.map((entry) => {
-        const is_thread_active = active_thread?.round_id === round_id && active_thread.agent_id === entry.agent_id;
+      {completedEntries.map((entry) => {
+        const isThreadActive = activeThread?.round_id === roundId && activeThread.agent_id === entry.agent_id;
 
         return (
           <GroupCompletedReply
             key={entry.agent_id}
-            round_id={round_id}
+            round_id={roundId}
             agent_id={entry.agent_id}
             agent_name={entry.agent_name}
             agent_avatar={entry.agent_avatar}
             assistant_messages={entry.assistant_messages}
-            is_thread_active={is_thread_active}
-            on_click_thread={() => toggle_thread(entry.agent_id)}
-            on_open_agent_contact={on_open_agent_contact}
-            on_open_workspace_file={on_open_workspace_file}
+            is_thread_active={isThreadActive}
+            on_click_thread={() => toggleThread(entry.agent_id)}
+            on_open_agent_contact={onOpenAgentContact}
+            on_open_workspace_file={onOpenWorkspaceFile}
           />
         );
       })}
 
-      {pending_entries.length > 0 ? (
+      {pendingEntries.length > 0 ? (
         <>
-          {pending_entries.map((entry) => {
-            const is_thread_active = active_thread?.round_id === round_id && active_thread.agent_id === entry.agent_id;
-            const entry_pending_permissions = pending_permissions.filter(
+          {pendingEntries.map((entry) => {
+            const isThreadActive = activeThread?.round_id === roundId && activeThread.agent_id === entry.agent_id;
+            const entryPendingPermissions = pendingPermissions.filter(
               (permission) => permission.agent_id === entry.agent_id,
             );
 
@@ -215,16 +215,16 @@ function GroupRoundCardGroupInner(
                       result_summary={entry.result_summary}
                       pending_slot={entry.pending_slot}
                       status={entry.status}
-                      pending_permissions={entry_pending_permissions}
-                      is_thread_active={is_thread_active}
-                      on_click_thread={() => toggle_thread(entry.agent_id)}
-                      on_permission_response={on_permission_response}
-                      can_respond_to_permissions={can_respond_to_permissions}
-                      permission_read_only_reason={permission_read_only_reason}
-                      on_open_agent_contact={on_open_agent_contact}
+                      pending_permissions={entryPendingPermissions}
+                      is_thread_active={isThreadActive}
+                      on_click_thread={() => toggleThread(entry.agent_id)}
+                      on_permission_response={onPermissionResponse}
+                      can_respond_to_permissions={canRespondToPermissions}
+                      permission_read_only_reason={permissionReadOnlyReason}
+                      on_open_agent_contact={onOpenAgentContact}
                       on_stop_message={
-                        entry.pending_slot && on_stop_message && is_agent_round_active(entry.status)
-                          ? () => on_stop_message(entry.pending_slot!.msg_id)
+                        entry.pending_slot && onStopMessage && is_agent_round_active(entry.status)
+                          ? () => onStopMessage(entry.pending_slot!.msg_id)
                           : undefined
                       }
                     />

@@ -97,7 +97,7 @@ export const ROOM_ICON_ID_END = 36;
 
 export function get_icon_avatar_src(
   avatar: string | null | undefined,
-  icon_family: AvatarIconFamily = "agent",
+  iconFamily: AvatarIconFamily = "agent",
 ): string | null {
   const normalizedAvatar = avatar?.trim();
   if (!normalizedAvatar) {
@@ -114,13 +114,13 @@ export function get_icon_avatar_src(
     return normalizedAvatar;
   }
 
-  return `/icon/${icon_family}/${normalizedAvatar}.png`;
+  return `/icon/${iconFamily}/${normalizedAvatar}.png`;
 }
 
 /**
  * 根据字符串稳定生成区间内的图标编号。
  */
-function get_stable_icon_id(
+function getStableIconId(
   seed: string | null | undefined,
   startInclusive: number,
   endInclusive: number,
@@ -144,5 +144,5 @@ export function get_room_avatar_icon_id(
   roomName: string | null | undefined,
   explicitAvatar?: string | null,
 ): string {
-  return explicitAvatar?.trim() || get_stable_icon_id(roomId || roomName, ROOM_ICON_ID_START, ROOM_ICON_ID_END);
+  return explicitAvatar?.trim() || getStableIconId(roomId || roomName, ROOM_ICON_ID_START, ROOM_ICON_ID_END);
 }

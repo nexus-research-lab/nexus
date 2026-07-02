@@ -7,16 +7,16 @@ interface UiUnderlineTabStyleOptions {
   density?: UiTabsDensity;
 }
 
-export function get_ui_underline_tabs_nav_class_name(class_name?: string): string {
+export function get_ui_underline_tabs_nav_class_name(className?: string): string {
   return cn(
     "soft-scrollbar scrollbar-hide flex min-w-0 items-center gap-4 overflow-x-auto",
-    class_name,
+    className,
   );
 }
 
 export function get_ui_underline_tab_class_name(
   options: UiUnderlineTabStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     active = false,
@@ -29,6 +29,6 @@ export function get_ui_underline_tab_class_name(
     active
       ? "border-(--surface-interactive-active-border) text-(--text-strong)"
       : "text-(--text-default) hover:text-(--text-strong)",
-    class_name,
+    className,
   );
 }

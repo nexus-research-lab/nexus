@@ -42,8 +42,8 @@ interface AgentOptionsNavProps {
 
 /** 左侧图标导航栏组件 */
 export function AgentOptionsNav({
-  active_tab,
-  on_tab_change,
+  active_tab: activeTab,
+  on_tab_change: onTabChange,
   variant = "sidebar",
   trailing,
 }: AgentOptionsNavProps) {
@@ -53,11 +53,11 @@ export function AgentOptionsNav({
     return (
       <div className="flex h-[41px] min-w-0 items-center justify-between gap-4 border-b dialog-divider px-6">
         <UiUnderlineTabs
-          active_value={active_tab}
+          active_value={activeTab}
           aria_label="Agent 配置切换"
           class_name="-mx-0.5 flex-1 px-0.5"
           item_class_name="h-full"
-          on_change={on_tab_change}
+          on_change={onTabChange}
           options={NAV_ITEMS.map((item) => {
             const label = t(item.label_key);
             return {
@@ -81,7 +81,7 @@ export function AgentOptionsNav({
     <div className="flex w-36 flex-col border-r dialog-divider bg-transparent px-2.5 py-3">
       {NAV_ITEMS.map((item) => {
         const Icon = item.icon;
-        const isActive = active_tab === item.key;
+        const isActive = activeTab === item.key;
         const label = t(item.label_key);
         return (
           <UiChoiceButton
@@ -89,7 +89,7 @@ export function AgentOptionsNav({
             class_name="relative w-full justify-start gap-2.5 rounded-[16px] px-2.5 py-2.5 text-left"
             choice_size="lg"
             key={item.key}
-            onClick={() => on_tab_change(item.key)}
+            onClick={() => onTabChange(item.key)}
             title={label}
           >
             {isActive && (

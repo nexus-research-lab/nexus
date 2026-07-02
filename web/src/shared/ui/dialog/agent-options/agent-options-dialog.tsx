@@ -32,7 +32,7 @@ export interface AgentOptionsProps {
   mode: "create" | "edit";
   is_open: boolean;
   on_close: () => void;
-  on_delete?: (agent_id: string) => void;
+  on_delete?: (agentId: string) => void;
   on_save: (title: string, options: AgentConfigOptions, identity: AgentIdentityDraft) => void | Promise<void>;
   on_validate_name?: (name: string) => Promise<AgentNameValidationResult>;
   initial_title?: string;
@@ -44,38 +44,38 @@ export interface AgentOptionsProps {
 
 /** 中文注释：共享层只保留对话框骨架，真实编辑器和业务状态迁回 feature。 */
 export function AgentOptions({
-  agent_id,
+  agent_id: agentId,
   mode,
-  is_open,
-  on_close,
-  on_delete,
-  on_save,
-  on_validate_name,
-  initial_title = "",
-  initial_options = {},
-  initial_avatar = "",
-  initial_description = "",
-  initial_vibe_tags = [],
+  is_open: isOpen,
+  on_close: onClose,
+  on_delete: onDelete,
+  on_save: onSave,
+  on_validate_name: onValidateName,
+  initial_title: initialTitle = "",
+  initial_options: initialOptions = {},
+  initial_avatar: initialAvatar = "",
+  initial_description: initialDescription = "",
+  initial_vibe_tags: initialVibeTags = [],
 }: AgentOptionsProps) {
   const { t } = useI18n();
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
 
-    const handle_key_down = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        on_close();
+        onClose();
       }
     };
 
-    window.addEventListener("keydown", handle_key_down);
-    return () => window.removeEventListener("keydown", handle_key_down);
-  }, [is_open, on_close]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
-  if (!is_open || typeof document === "undefined") {
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
@@ -98,10 +98,10 @@ export function AgentOptions({
                 className="dialog-title truncate text-[22px] font-black tracking-[-0.04em]"
                 id="agent-options-dialog-title"
               >
-                {mode === "create" ? t("agent_options.title_create") : initial_title}
+                {mode === "create" ? t("agent_options.title_create") : initialTitle}
               </h2>
-              {mode === "edit" && agent_id ? (
-                <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agent_id}</p>
+              {mode === "edit" && agentId ? (
+                <p className="dialog-subtitle">{t("agent_options.id_prefix")}: {agentId}</p>
               ) : (
                 <p className="dialog-subtitle">{t("agent_options.subtitle_create")}</p>
               )}
@@ -110,7 +110,7 @@ export function AgentOptions({
           <button
             className={DIALOG_ICON_BUTTON_CLASS_NAME}
             aria-label={t("agent_options.close_dialog")}
-            onClick={on_close}
+            onClick={onClose}
             type="button"
           >
             <X className="h-5 w-5" />
@@ -118,18 +118,18 @@ export function AgentOptions({
         </div>
 
         <AgentOptionsEditor
-          agent_id={agent_id}
+          agent_id={agentId}
           mode={mode}
-          is_active={is_open}
-          on_cancel={on_close}
-          on_delete={on_delete}
-          on_save={on_save}
-          on_validate_name={on_validate_name}
-          initial_title={initial_title}
-          initial_options={initial_options}
-          initial_avatar={initial_avatar}
-          initial_description={initial_description}
-          initial_vibe_tags={initial_vibe_tags}
+          is_active={isOpen}
+          on_cancel={onClose}
+          on_delete={onDelete}
+          on_save={onSave}
+          on_validate_name={onValidateName}
+          initial_title={initialTitle}
+          initial_options={initialOptions}
+          initial_avatar={initialAvatar}
+          initial_description={initialDescription}
+          initial_vibe_tags={initialVibeTags}
           close_after_save
           show_cancel_button
         />

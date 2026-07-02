@@ -143,14 +143,14 @@ export interface UpdatePairingPayload {
   external_name?: string;
 }
 
-function build_query(params?: Record<string, string | undefined>): string {
-  const search_params = new URLSearchParams();
+function buildQuery(params?: Record<string, string | undefined>): string {
+  const searchParams = new URLSearchParams();
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value && value.trim()) {
-      search_params.set(key, value);
+      searchParams.set(key, value);
     }
   });
-  const query = search_params.toString();
+  const query = searchParams.toString();
   return query ? `?${query}` : "";
 }
 
@@ -161,11 +161,11 @@ export async function list_channels_api(): Promise<ChannelConfigView[]> {
 }
 
 export async function upsert_channel_config_api(
-  channel_type: ImChannelType,
+  channelType: ImChannelType,
   payload: UpsertChannelConfigPayload,
 ): Promise<ChannelConfigView> {
   return request_api<ChannelConfigView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/config`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/config`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -178,10 +178,10 @@ export async function upsert_channel_config_api(
 }
 
 export async function delete_channel_config_api(
-  channel_type: ImChannelType,
+  channelType: ImChannelType,
 ): Promise<{ configured: boolean }> {
   return request_api<{ configured: boolean }>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/config`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/config`,
     {
       method: "DELETE",
     },
@@ -189,11 +189,11 @@ export async function delete_channel_config_api(
 }
 
 export async function delete_channel_account_api(
-  channel_type: ImChannelType,
-  account_id: string,
+  channelType: ImChannelType,
+  accountId: string,
 ): Promise<ChannelConfigView> {
   return request_api<ChannelConfigView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/accounts/${encodeURIComponent(account_id)}`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/accounts/${encodeURIComponent(accountId)}`,
     {
       method: "DELETE",
     },
@@ -201,10 +201,10 @@ export async function delete_channel_account_api(
 }
 
 export async function start_channel_login_api(
-  channel_type: ImChannelType,
+  channelType: ImChannelType,
 ): Promise<ChannelLoginView> {
   return request_api<ChannelLoginView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login`,
     {
       method: "POST",
     },
@@ -212,11 +212,11 @@ export async function start_channel_login_api(
 }
 
 export async function get_channel_login_api(
-  channel_type: ImChannelType,
-  login_id: string,
+  channelType: ImChannelType,
+  loginId: string,
 ): Promise<ChannelLoginView> {
   return request_api<ChannelLoginView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login/${encodeURIComponent(login_id)}`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login/${encodeURIComponent(loginId)}`,
     {
       method: "GET",
     },
@@ -224,15 +224,15 @@ export async function get_channel_login_api(
 }
 
 export async function submit_channel_login_verify_code_api(
-  channel_type: ImChannelType,
-  login_id: string,
-  verify_code: string,
+  channelType: ImChannelType,
+  loginId: string,
+  verifyCode: string,
 ): Promise<ChannelLoginView> {
   return request_api<ChannelLoginView>(
-    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channel_type)}/login/${encodeURIComponent(login_id)}/verify-code`,
+    `${CHANNEL_API_BASE_URL}/channels/${encodeURIComponent(channelType)}/login/${encodeURIComponent(loginId)}/verify-code`,
     {
       method: "POST",
-      body: JSON.stringify({ verify_code }),
+      body: JSON.stringify({ verify_code: verifyCode }),
     },
   );
 }
@@ -241,7 +241,7 @@ export async function list_pairings_api(
   params: ListPairingsParams = {},
 ): Promise<PairingView[]> {
   return request_api<PairingView[]>(
-    `${CHANNEL_API_BASE_URL}/pairings${build_query({
+    `${CHANNEL_API_BASE_URL}/pairings${buildQuery({
       channel_type: params.channel_type || undefined,
       status: params.status || undefined,
       agent_id: params.agent_id,
@@ -262,11 +262,11 @@ export async function create_pairing_api(
 }
 
 export async function update_pairing_api(
-  pairing_id: string,
+  pairingId: string,
   payload: UpdatePairingPayload,
 ): Promise<PairingView> {
   return request_api<PairingView>(
-    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairing_id)}`,
+    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairingId)}`,
     {
       method: "PATCH",
       body: JSON.stringify(payload),
@@ -275,10 +275,10 @@ export async function update_pairing_api(
 }
 
 export async function delete_pairing_api(
-  pairing_id: string,
+  pairingId: string,
 ): Promise<{ success: boolean }> {
   return request_api<{ success: boolean }>(
-    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairing_id)}`,
+    `${CHANNEL_API_BASE_URL}/pairings/${encodeURIComponent(pairingId)}`,
     {
       method: "DELETE",
     },

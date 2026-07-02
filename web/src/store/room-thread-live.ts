@@ -32,7 +32,7 @@ export interface RoomThreadSource {
   observer_read_only_reason: string;
   // 发布前已用 callbacks_ref 稳定，引用恒定。
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
-  on_stop_message: (msg_id: string) => void;
+  on_stop_message: (msgId: string) => void;
   on_open_workspace_file?: (path: string) => void;
 }
 

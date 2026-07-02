@@ -24,7 +24,7 @@ interface UiStateBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"
 export function UiStateBlock({
   actions,
   children,
-  class_name,
+  class_name: legacyClassName,
   className,
   description,
   icon,
@@ -38,7 +38,7 @@ export function UiStateBlock({
     <div
       className={get_ui_state_block_class_name(
         { size, tone, variant },
-        cn(className, class_name),
+        cn(className, legacyClassName),
       )}
       {...props}
     >

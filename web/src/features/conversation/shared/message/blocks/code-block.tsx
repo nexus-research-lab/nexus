@@ -37,8 +37,8 @@ function CodeBlockLoadingFallback({ language, value }: CodeBlockProps) {
   );
 }
 
-export function CodeBlock({ language, value, is_streaming }: CodeBlockProps) {
-  if (is_streaming) {
+export function CodeBlock({ language, value, is_streaming: isStreaming }: CodeBlockProps) {
+  if (isStreaming) {
     return <StreamingCodeBlock language={language} value={value} />;
   }
 

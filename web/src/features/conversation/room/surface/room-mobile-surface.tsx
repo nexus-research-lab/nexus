@@ -31,43 +31,43 @@ interface RoomMobileSurfaceProps {
   on_initial_draft_consumed?: () => void;
   on_back_to_directory: () => void;
   on_create_conversation: (title?: string) => void | Promise<string | null>;
-  on_select_conversation: (conversation_id: string) => void;
-  on_loading_change: (is_loading: boolean) => void;
+  on_select_conversation: (conversationId: string) => void;
+  on_loading_change: (isLoading: boolean) => void;
   on_conversation_snapshot_change: (snapshot: ConversationSnapshotPayload) => void;
-  on_room_event?: (event_type: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
+  on_room_event?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
 }
 
 export function RoomMobileSurface({
-  current_agent,
-  current_room_type,
-  room_id,
-  room_members,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  current_room_title,
-  current_room_conversation,
-  current_agent_session_identity,
-  conversation_id,
-  current_room_conversations,
-  initial_draft = null,
-  on_initial_draft_consumed,
-  on_back_to_directory,
-  on_create_conversation,
-  on_select_conversation,
-  on_loading_change,
-  on_conversation_snapshot_change,
-  on_room_event,
+  current_agent: currentAgent,
+  current_room_type: currentRoomType,
+  room_id: roomId,
+  room_members: roomMembers,
+  room_host_agent_id: roomHostAgentId,
+  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
+  current_room_title: currentRoomTitle,
+  current_room_conversation: currentRoomConversation,
+  current_agent_session_identity: currentAgentSessionIdentity,
+  conversation_id: conversationId,
+  current_room_conversations: currentRoomConversations,
+  initial_draft: initialDraft = null,
+  on_initial_draft_consumed: onInitialDraftConsumed,
+  on_back_to_directory: onBackToDirectory,
+  on_create_conversation: onCreateConversation,
+  on_select_conversation: onSelectConversation,
+  on_loading_change: onLoadingChange,
+  on_conversation_snapshot_change: onConversationSnapshotChange,
+  on_room_event: onRoomEvent,
 }: RoomMobileSurfaceProps) {
-  const [is_conversation_sheet_open, setIsConversationSheetOpen] = useState(false);
-  const is_dm = current_room_type === "dm";
-  const current_agent_avatar_src = get_icon_avatar_src(current_agent.avatar);
+  const [isConversationSheetOpen, setIsConversationSheetOpen] = useState(false);
+  const isDm = currentRoomType === "dm";
+  const currentAgentAvatarSrc = get_icon_avatar_src(currentAgent.avatar);
 
-  const current_room_conversation_title = useMemo(() => {
-    if (current_room_conversation?.title?.trim()) {
-      return current_room_conversation.title;
+  const currentRoomConversationTitle = useMemo(() => {
+    if (currentRoomConversation?.title?.trim()) {
+      return currentRoomConversation.title;
     }
     return "新会话";
-  }, [current_room_conversation]);
+  }, [currentRoomConversation]);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background/90">
@@ -75,7 +75,7 @@ export function RoomMobileSurface({
         <div className="surface-radius-lg flex items-center gap-2 px-2 py-2">
           <button
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-(--text-strong) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
-            onClick={on_back_to_directory}
+            onClick={onBackToDirectory}
             type="button"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -87,21 +87,21 @@ export function RoomMobileSurface({
             type="button"
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[11px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-              {current_agent_avatar_src ? (
+              {currentAgentAvatarSrc ? (
                 <img
-                  alt={current_agent.name}
+                  alt={currentAgent.name}
                   className="h-full w-full object-cover"
-                  src={current_agent_avatar_src}
+                  src={currentAgentAvatarSrc}
                 />
               ) : (
-                get_initials(current_agent.name, "DM", 2)
+                get_initials(currentAgent.name, "DM", 2)
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-(--text-strong)">{current_agent.name}</p>
+              <p className="truncate text-sm font-semibold text-(--text-strong)">{currentAgent.name}</p>
               <p className="truncate text-[12px] text-(--text-muted)">
-                {current_room_title || current_room_conversation_title}
+                {currentRoomTitle || currentRoomConversationTitle}
               </p>
             </div>
 
@@ -115,44 +115,44 @@ export function RoomMobileSurface({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1">
-        {is_dm ? (
+        {isDm ? (
           <DmChatPanel
-            current_agent_name={current_agent.name}
-            current_agent_avatar={current_agent.avatar ?? null}
-            current_agent_permission_mode={current_agent.options.permission_mode ?? null}
-            initial_draft={initial_draft}
+            current_agent_name={currentAgent.name}
+            current_agent_avatar={currentAgent.avatar ?? null}
+            current_agent_permission_mode={currentAgent.options.permission_mode ?? null}
+            initial_draft={initialDraft}
             layout="mobile"
-            on_conversation_snapshot_change={on_conversation_snapshot_change}
-            on_initial_draft_consumed={on_initial_draft_consumed}
-            on_loading_change={on_loading_change}
-            on_room_event={on_room_event}
-            session_identity={current_agent_session_identity}
+            on_conversation_snapshot_change={onConversationSnapshotChange}
+            on_initial_draft_consumed={onInitialDraftConsumed}
+            on_loading_change={onLoadingChange}
+            on_room_event={onRoomEvent}
+            session_identity={currentAgentSessionIdentity}
           />
         ) : (
           <GroupThreadContextProvider>
             <GroupChatPanel
-              agent_id={current_agent.agent_id}
-              conversation_id={conversation_id}
-              current_agent_name={current_agent.name}
-              current_agent_avatar={current_agent.avatar ?? null}
-              initial_draft={initial_draft}
+              agent_id={currentAgent.agent_id}
+              conversation_id={conversationId}
+              current_agent_name={currentAgent.name}
+              current_agent_avatar={currentAgent.avatar ?? null}
+              initial_draft={initialDraft}
               layout="mobile"
-              on_conversation_snapshot_change={on_conversation_snapshot_change}
-              on_create_conversation={on_create_conversation}
-              on_initial_draft_consumed={on_initial_draft_consumed}
-              on_loading_change={on_loading_change}
-              on_room_event={on_room_event}
-              room_host_agent_id={room_host_agent_id}
-              room_host_auto_reply_enabled={room_host_auto_reply_enabled}
-              room_id={room_id}
-              room_members={room_members}
+              on_conversation_snapshot_change={onConversationSnapshotChange}
+              on_create_conversation={onCreateConversation}
+              on_initial_draft_consumed={onInitialDraftConsumed}
+              on_loading_change={onLoadingChange}
+              on_room_event={onRoomEvent}
+              room_host_agent_id={roomHostAgentId}
+              room_host_auto_reply_enabled={roomHostAutoReplyEnabled}
+              room_id={roomId}
+              room_members={roomMembers}
             />
             <MobileThreadOverlay />
           </GroupThreadContextProvider>
         )}
       </div>
 
-      {is_conversation_sheet_open ? (
+      {isConversationSheetOpen ? (
         <>
           <button
             aria-label="关闭会话列表"
@@ -168,7 +168,7 @@ export function RoomMobileSurface({
               <div>
                 <p className="text-sm font-semibold text-(--text-strong)">切换会话</p>
                 <p className="text-xs text-(--text-muted)">
-                  {current_room_conversations.length} 个会话
+                  {currentRoomConversations.length} 个会话
                 </p>
               </div>
 
@@ -182,20 +182,20 @@ export function RoomMobileSurface({
             </div>
 
             <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
-              {current_room_conversations.map((conversation) => {
-                const is_active = conversation.conversation_id === conversation_id;
+              {currentRoomConversations.map((conversation) => {
+                const isActive = conversation.conversation_id === conversationId;
                 return (
                   <button
                     key={conversation.conversation_id}
                     className="flex w-full items-start gap-3 rounded-2xl border border-(--divider-subtle-color) px-3 py-3 text-left transition hover:bg-(--interaction-hover-background)"
                     onClick={() => {
-                      on_select_conversation(conversation.conversation_id);
+                      onSelectConversation(conversation.conversation_id);
                       setIsConversationSheetOpen(false);
                     }}
                     type="button"
                   >
                     <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color) text-(--text-strong)">
-                      {is_active ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                      {isActive ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -219,28 +219,28 @@ export function RoomMobileSurface({
 
 /** 移动端 Thread 全屏覆盖 — 在 GroupThreadContextProvider 内部使用 */
 function MobileThreadOverlay() {
-  const { active_thread, close_thread } = useGroupThread();
-  const thread_panel_data = useRoomThreadPanel();
+  const { active_thread: activeThread, close_thread: closeThread } = useGroupThread();
+  const threadPanelData = useRoomThreadPanel();
 
-  if (!active_thread || !thread_panel_data) return null;
+  if (!activeThread || !threadPanelData) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-(--surface-panel-background)">
       <GroupThreadDetailPanel
-        round_id={active_thread.round_id}
-        agent_id={active_thread.agent_id}
-        agent_name={thread_panel_data.agent_name ?? active_thread.agent_id}
-        agent_avatar={thread_panel_data.agent_avatar}
-        user_avatar={thread_panel_data.user_avatar}
-        messages={thread_panel_data.messages}
-        pending_permissions={thread_panel_data.pending_permissions}
-        on_permission_response={thread_panel_data.on_permission_response}
-        can_respond_to_permissions={thread_panel_data.can_respond_to_permissions}
-        permission_read_only_reason={thread_panel_data.permission_read_only_reason}
-        on_close={close_thread}
-        on_stop_message={thread_panel_data.on_stop_message}
-        on_open_workspace_file={thread_panel_data.on_open_workspace_file}
-        is_loading={thread_panel_data.is_loading}
+        round_id={activeThread.round_id}
+        agent_id={activeThread.agent_id}
+        agent_name={threadPanelData.agent_name ?? activeThread.agent_id}
+        agent_avatar={threadPanelData.agent_avatar}
+        user_avatar={threadPanelData.user_avatar}
+        messages={threadPanelData.messages}
+        pending_permissions={threadPanelData.pending_permissions}
+        on_permission_response={threadPanelData.on_permission_response}
+        can_respond_to_permissions={threadPanelData.can_respond_to_permissions}
+        permission_read_only_reason={threadPanelData.permission_read_only_reason}
+        on_close={closeThread}
+        on_stop_message={threadPanelData.on_stop_message}
+        on_open_workspace_file={threadPanelData.on_open_workspace_file}
+        is_loading={threadPanelData.is_loading}
         layout="mobile"
       />
     </div>

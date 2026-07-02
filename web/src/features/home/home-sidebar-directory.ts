@@ -28,131 +28,131 @@ interface SidebarDirectorySnapshot {
   conversations: LauncherConversationSummary[];
 }
 
-let sidebar_directory_cache: SidebarDirectorySnapshot | null = null;
+let sidebarDirectoryCache: SidebarDirectorySnapshot | null = null;
 
 const SIDEBAR_DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS = 120000;
 
 export function useSidebarDirectory(): SidebarDirectoryState {
-  const ws_url = get_agent_ws_url();
-  const apply_agent_runtime_status = useAgentStore((s) => s.apply_agent_runtime_status);
-  const [agents, set_agents] = useState<LauncherAgentSummary[]>(() => sidebar_directory_cache?.agents ?? []);
-  const [rooms, set_rooms] = useState<LauncherRoomSummary[]>(() => sidebar_directory_cache?.rooms ?? []);
-  const [conversations, set_conversations] = useState<LauncherConversationSummary[]>(
-    () => sidebar_directory_cache?.conversations ?? [],
+  const wsUrl = get_agent_ws_url();
+  const applyAgentRuntimeStatus = useAgentStore((s) => s.apply_agent_runtime_status);
+  const [agents, setAgents] = useState<LauncherAgentSummary[]>(() => sidebarDirectoryCache?.agents ?? []);
+  const [rooms, setRooms] = useState<LauncherRoomSummary[]>(() => sidebarDirectoryCache?.rooms ?? []);
+  const [conversations, setConversations] = useState<LauncherConversationSummary[]>(
+    () => sidebarDirectoryCache?.conversations ?? [],
   );
-  const [is_loading, set_is_loading] = useState(sidebar_directory_cache === null);
+  const [isLoading, setIsLoading] = useState(sidebarDirectoryCache === null);
 
-  const refresh_directory = useCallback(() => {
-    if (sidebar_directory_cache === null) {
-      set_is_loading(true);
+  const refreshDirectory = useCallback(() => {
+    if (sidebarDirectoryCache === null) {
+      setIsLoading(true);
     }
     void get_launcher_bootstrap_api().then((payload) => {
-      sidebar_directory_cache = {
+      sidebarDirectoryCache = {
         agents: payload.agents,
         rooms: payload.rooms,
         conversations: payload.conversations,
       };
-      set_agents(payload.agents);
-      set_rooms(payload.rooms);
-      set_conversations(payload.conversations);
-      set_is_loading(false);
+      setAgents(payload.agents);
+      setRooms(payload.rooms);
+      setConversations(payload.conversations);
+      setIsLoading(false);
     }).catch((error) => {
       console.error("[HomeSidebarPanel] 加载侧边栏目录失败:", error);
-      if (sidebar_directory_cache === null) {
-        set_agents([]);
-        set_rooms([]);
-        set_conversations([]);
+      if (sidebarDirectoryCache === null) {
+        setAgents([]);
+        setRooms([]);
+        setConversations([]);
       }
-      set_is_loading(false);
+      setIsLoading(false);
     });
   }, []);
 
   useEffect(() => {
-    refresh_directory();
-  }, [refresh_directory]);
+    refreshDirectory();
+  }, [refreshDirectory]);
 
   useEffect(() => {
-    const refresh_if_visible = () => {
+    const refreshIfVisible = () => {
       if (document.visibilityState === "hidden") {
         return;
       }
-      refresh_directory();
+      refreshDirectory();
     };
 
-    const interval_id = window.setInterval(refresh_if_visible, SIDEBAR_DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS);
-    window.addEventListener("focus", refresh_if_visible);
-    document.addEventListener("visibilitychange", refresh_if_visible);
+    const intervalId = window.setInterval(refreshIfVisible, SIDEBAR_DIRECTORY_FALLBACK_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
     return () => {
-      window.clearInterval(interval_id);
-      window.removeEventListener("focus", refresh_if_visible);
-      document.removeEventListener("visibilitychange", refresh_if_visible);
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [refresh_directory]);
+  }, [refreshDirectory]);
 
-  useEffect(() => subscribe_room_directory_updates(refresh_directory), [refresh_directory]);
+  useEffect(() => subscribe_room_directory_updates(refreshDirectory), [refreshDirectory]);
 
   useEffect(() => {
-    window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refresh_directory);
+    window.addEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshDirectory);
     return () => {
-      window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refresh_directory);
+      window.removeEventListener(AGENT_LIST_UPDATED_EVENT_NAME, refreshDirectory);
     };
-  }, [refresh_directory]);
+  }, [refreshDirectory]);
 
-  const agent_ids = useMemo(() => agents.map((agent) => agent.id), [agents]);
-  const agent_id_set = useMemo(() => new Set(agent_ids), [agent_ids]);
-  const handle_runtime_message = useCallback((message: unknown) => {
+  const agentIds = useMemo(() => agents.map((agent) => agent.id), [agents]);
+  const agentIdSet = useMemo(() => new Set(agentIds), [agentIds]);
+  const handleRuntimeMessage = useCallback((message: unknown) => {
     const event = message as EventMessage;
     if (event.event_type !== "agent_runtime_event") {
       return;
     }
-    if (!event.agent_id || !agent_id_set.has(event.agent_id)) {
+    if (!event.agent_id || !agentIdSet.has(event.agent_id)) {
       return;
     }
     const payload = event.data as AgentRuntimeStatus | undefined;
     if (!payload?.agent_id) {
       return;
     }
-    apply_agent_runtime_status(payload);
-  }, [agent_id_set, apply_agent_runtime_status]);
+    applyAgentRuntimeStatus(payload);
+  }, [agentIdSet, applyAgentRuntimeStatus]);
 
-  const { state: runtime_ws_state, send: runtime_ws_send } = useWebSocket({
-    url: ws_url,
+  const { state: runtimeWsState, send: runtimeWsSend } = useWebSocket({
+    url: wsUrl,
     protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,
-    on_message: handle_runtime_message,
+    on_message: handleRuntimeMessage,
   });
 
   useEffect(() => {
-    if (runtime_ws_state !== "connected" || agent_ids.length === 0) {
+    if (runtimeWsState !== "connected" || agentIds.length === 0) {
       return;
     }
 
-    for (const agent_id of agent_ids) {
-      runtime_ws_send({
+    for (const agentId of agentIds) {
+      runtimeWsSend({
         type: "subscribe_workspace",
-        agent_id,
+        agent_id: agentId,
         watch_files: false,
       });
     }
 
     return () => {
-      for (const agent_id of agent_ids) {
-        runtime_ws_send({
+      for (const agentId of agentIds) {
+        runtimeWsSend({
           type: "unsubscribe_workspace",
-          agent_id,
+          agent_id: agentId,
           watch_files: false,
         });
       }
     };
-  }, [agent_ids, runtime_ws_send, runtime_ws_state]);
+  }, [agentIds, runtimeWsSend, runtimeWsState]);
 
   return {
     agents,
     rooms,
     conversations,
-    is_loading,
-    refresh_directory,
+    is_loading: isLoading,
+    refresh_directory: refreshDirectory,
   };
 }

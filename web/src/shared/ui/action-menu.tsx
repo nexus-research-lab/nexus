@@ -53,10 +53,10 @@ const ACTION_MENU_VIEWPORT_MARGIN = 12;
 const ACTION_MENU_MAX_HEIGHT = 320;
 const ACTION_MENU_ITEM_HEIGHT = 44;
 
-function resolve_action_menu_position({
+function resolveActionMenuPosition({
   anchor,
-  item_count,
-  min_width,
+  item_count: itemCount,
+  min_width: minWidth,
   placement,
 }: {
   anchor: HTMLElement;
@@ -65,44 +65,44 @@ function resolve_action_menu_position({
   placement: UiActionMenuPlacement;
 }): UiActionMenuPosition {
   const rect = anchor.getBoundingClientRect();
-  const viewport_width = window.innerWidth;
-  const viewport_height = window.innerHeight;
-  const estimated_height = Math.min(
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    Math.max(ACTION_MENU_ITEM_HEIGHT, item_count * ACTION_MENU_ITEM_HEIGHT + 8),
+    Math.max(ACTION_MENU_ITEM_HEIGHT, itemCount * ACTION_MENU_ITEM_HEIGHT + 8),
   );
-  const available_above = Math.max(0, rect.top - ACTION_MENU_VIEWPORT_MARGIN);
-  const available_below = Math.max(0, viewport_height - rect.bottom - ACTION_MENU_VIEWPORT_MARGIN);
-  const should_place_top =
+  const availableAbove = Math.max(0, rect.top - ACTION_MENU_VIEWPORT_MARGIN);
+  const availableBelow = Math.max(0, viewportHeight - rect.bottom - ACTION_MENU_VIEWPORT_MARGIN);
+  const shouldPlaceTop =
     placement === "top" ||
-    (placement === "auto" && available_below < estimated_height && available_above > available_below);
-  const available_space = should_place_top ? available_above : available_below;
+    (placement === "auto" && availableBelow < estimatedHeight && availableAbove > availableBelow);
+  const availableSpace = shouldPlaceTop ? availableAbove : availableBelow;
   const width = Math.min(
-    Math.max(rect.width, min_width),
-    viewport_width - ACTION_MENU_VIEWPORT_MARGIN * 2,
+    Math.max(rect.width, minWidth),
+    viewportWidth - ACTION_MENU_VIEWPORT_MARGIN * 2,
   );
   const left = Math.min(
     Math.max(ACTION_MENU_VIEWPORT_MARGIN, rect.left),
-    Math.max(ACTION_MENU_VIEWPORT_MARGIN, viewport_width - width - ACTION_MENU_VIEWPORT_MARGIN),
+    Math.max(ACTION_MENU_VIEWPORT_MARGIN, viewportWidth - width - ACTION_MENU_VIEWPORT_MARGIN),
   );
-  const max_height = Math.min(
+  const maxHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    estimated_height,
-    Math.max(ACTION_MENU_ITEM_HEIGHT, available_space - ACTION_MENU_GAP),
+    estimatedHeight,
+    Math.max(ACTION_MENU_ITEM_HEIGHT, availableSpace - ACTION_MENU_GAP),
   );
 
   return {
     left,
-    max_height,
-    placement: should_place_top ? "top" : "bottom",
+    max_height: maxHeight,
+    placement: shouldPlaceTop ? "top" : "bottom",
     width,
-    ...(should_place_top
-      ? { bottom: Math.max(ACTION_MENU_VIEWPORT_MARGIN, viewport_height - rect.top + ACTION_MENU_GAP) }
-      : { top: Math.min(rect.bottom + ACTION_MENU_GAP, viewport_height - ACTION_MENU_VIEWPORT_MARGIN - max_height) }),
+    ...(shouldPlaceTop
+      ? { bottom: Math.max(ACTION_MENU_VIEWPORT_MARGIN, viewportHeight - rect.top + ACTION_MENU_GAP) }
+      : { top: Math.min(rect.bottom + ACTION_MENU_GAP, viewportHeight - ACTION_MENU_VIEWPORT_MARGIN - maxHeight) }),
   };
 }
 
-function get_item_state_class_name(item: UiActionMenuItem) {
+function getItemStateClassName(item: UiActionMenuItem) {
   if (item.tone === "danger") {
     return "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
   }
@@ -118,16 +118,16 @@ function get_item_state_class_name(item: UiActionMenuItem) {
   return "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 }
 
-function get_item_body_class_name(item: UiActionMenuItem) {
+function getItemBodyClassName(item: UiActionMenuItem) {
   return cn(
     "flex w-full cursor-pointer items-center justify-between gap-3 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
     item.description ? "min-h-11 py-2" : "min-h-9 py-1.5",
     item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-    get_item_state_class_name(item),
+    getItemStateClassName(item),
   );
 }
 
-function get_item_label_class_name(tone: UiActionMenuItem["tone"], active?: boolean) {
+function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean) {
   if (tone === "primary") {
     return "text-(--primary)";
   }
@@ -138,122 +138,122 @@ function get_item_label_class_name(tone: UiActionMenuItem["tone"], active?: bool
 }
 
 export function UiActionMenu({
-  anchor_ref,
-  aria_label,
-  class_name,
-  is_open,
+  anchor_ref: anchorRef,
+  aria_label: ariaLabel,
+  class_name: className,
+  is_open: isOpen,
   items,
-  min_width = 220,
+  min_width: minWidth = 220,
   placement = "auto",
-  on_close,
-  on_select,
+  on_close: onClose,
+  on_select: onSelect,
 }: UiActionMenuProps) {
-  const menu_ref = useRef<HTMLDivElement>(null);
-  const [menu_position, set_menu_position] = useState<UiActionMenuPosition | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<UiActionMenuPosition | null>(null);
 
-  const update_menu_position = useCallback(() => {
-    const anchor = anchor_ref.current;
+  const updateMenuPosition = useCallback(() => {
+    const anchor = anchorRef.current;
     if (!anchor) {
       return;
     }
-    set_menu_position(resolve_action_menu_position({
+    setMenuPosition(resolveActionMenuPosition({
       anchor,
       item_count: items.length,
-      min_width,
+      min_width: minWidth,
       placement,
     }));
-  }, [anchor_ref, items.length, min_width, placement]);
+  }, [anchorRef, items.length, minWidth, placement]);
 
   useEffect(() => {
-    if (!is_open) {
+    if (!isOpen) {
       return;
     }
 
-    const handle_pointer_down = (event: PointerEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (anchor_ref.current?.contains(target) || menu_ref.current?.contains(target)) {
+      if (anchorRef.current?.contains(target) || menuRef.current?.contains(target)) {
         return;
       }
-      on_close();
+      onClose();
     };
-    const handle_key_down = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        on_close();
-        anchor_ref.current?.focus();
+        onClose();
+        anchorRef.current?.focus();
       }
     };
 
-    document.addEventListener("pointerdown", handle_pointer_down, true);
-    document.addEventListener("keydown", handle_key_down);
-    window.addEventListener("resize", update_menu_position);
-    window.addEventListener("scroll", update_menu_position, true);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
     return () => {
-      document.removeEventListener("pointerdown", handle_pointer_down, true);
-      document.removeEventListener("keydown", handle_key_down);
-      window.removeEventListener("resize", update_menu_position);
-      window.removeEventListener("scroll", update_menu_position, true);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
     };
-  }, [anchor_ref, is_open, on_close, update_menu_position]);
+  }, [anchorRef, isOpen, onClose, updateMenuPosition]);
 
   useLayoutEffect(() => {
-    if (is_open) {
-      update_menu_position();
+    if (isOpen) {
+      updateMenuPosition();
     }
-  }, [is_open, update_menu_position]);
+  }, [isOpen, updateMenuPosition]);
 
-  if (!is_open) {
+  if (!isOpen) {
     return null;
   }
 
-  const menu_style: CSSProperties = {
-    bottom: menu_position?.bottom,
-    left: menu_position?.left,
-    maxHeight: menu_position?.max_height,
-    top: menu_position?.top,
-    visibility: menu_position ? "visible" : "hidden",
-    width: menu_position?.width,
+  const menuStyle: CSSProperties = {
+    bottom: menuPosition?.bottom,
+    left: menuPosition?.left,
+    maxHeight: menuPosition?.max_height,
+    top: menuPosition?.top,
+    visibility: menuPosition ? "visible" : "hidden",
+    width: menuPosition?.width,
   };
-  const portal_container = typeof document === "undefined"
+  const portalContainer = typeof document === "undefined"
     ? null
-    : anchor_ref.current?.closest("[data-modal-root='true']") ?? document.body;
-  if (!portal_container) {
+    : anchorRef.current?.closest("[data-modal-root='true']") ?? document.body;
+  if (!portalContainer) {
     return null;
   }
 
   return createPortal(
     <div
-      ref={menu_ref}
-      aria-label={aria_label}
+      ref={menuRef}
+      aria-label={ariaLabel}
       className={cn(
         "fixed z-[130] overflow-y-auto rounded-[14px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] p-1 shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
-        class_name,
+        className,
       )}
-      data-placement={menu_position?.placement ?? "bottom"}
+      data-placement={menuPosition?.placement ?? "bottom"}
       data-state="open"
       role="menu"
-      style={menu_style}
+      style={menuStyle}
     >
       {items.map((item) => (
         <div
           key={item.value}
           aria-disabled={item.disabled || undefined}
-          className={get_item_body_class_name(item)}
+          className={getItemBodyClassName(item)}
           onClick={() => {
             if (item.disabled) {
               return;
             }
-            on_select(item.value);
-            on_close();
-            anchor_ref.current?.focus();
+            onSelect(item.value);
+            onClose();
+            anchorRef.current?.focus();
           }}
           onKeyDown={(event) => {
             if (item.disabled || (event.key !== "Enter" && event.key !== " ")) {
               return;
             }
             event.preventDefault();
-            on_select(item.value);
-            on_close();
-            anchor_ref.current?.focus();
+            onSelect(item.value);
+            onClose();
+            anchorRef.current?.focus();
           }}
           role="menuitem"
           tabIndex={item.disabled ? -1 : 0}
@@ -265,7 +265,7 @@ export function UiActionMenu({
               </span>
             ) : null}
             <span className="min-w-0 flex-1">
-              <span className={cn("block truncate text-[13px] font-medium", get_item_label_class_name(item.tone, item.active))}>
+              <span className={cn("block truncate text-[13px] font-medium", getItemLabelClassName(item.tone, item.active))}>
                 {item.label}
               </span>
               {item.description ? (
@@ -283,6 +283,6 @@ export function UiActionMenu({
         </div>
       ))}
     </div>,
-    portal_container,
+    portalContainer,
   );
 }

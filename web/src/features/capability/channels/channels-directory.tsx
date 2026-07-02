@@ -58,60 +58,60 @@ function ChannelLoadingGrid() {
 
 export function ChannelsDirectory() {
   const { t } = useI18n();
-  const [channels, set_channels] = useState<ChannelConfigView[]>([]);
-  const [agents, set_agents] = useState<Agent[]>([]);
-  const [selected, set_selected] = useState<ChannelConfigView | null>(null);
-  const [search_query, set_search_query] = useState("");
-  const [channel_filter, set_channel_filter] = useState<ChannelFilter>("all");
-  const [loading, set_loading] = useState(true);
-  const [feedback, set_feedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
+  const [channels, setChannels] = useState<ChannelConfigView[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selected, setSelected] = useState<ChannelConfigView | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; title: string; message: string } | null>(null);
 
-  const sorted_channels = useMemo(() => {
+  const sortedChannels = useMemo(() => {
     return [...channels].sort((left, right) => {
-      const left_index = CHANNEL_ORDER.indexOf(left.channel_type);
-      const right_index = CHANNEL_ORDER.indexOf(right.channel_type);
-      return (left_index < 0 ? CHANNEL_ORDER.length : left_index) - (right_index < 0 ? CHANNEL_ORDER.length : right_index);
+      const leftIndex = CHANNEL_ORDER.indexOf(left.channel_type);
+      const rightIndex = CHANNEL_ORDER.indexOf(right.channel_type);
+      return (leftIndex < 0 ? CHANNEL_ORDER.length : leftIndex) - (rightIndex < 0 ? CHANNEL_ORDER.length : rightIndex);
     });
   }, [channels]);
-  const visible_channels = useMemo(() => {
-    const query = search_query.trim().toLowerCase();
-    return sorted_channels.filter((item) => {
-      const matches_query = !query
+  const visibleChannels = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return sortedChannels.filter((item) => {
+      const matchesQuery = !query
         || item.title.toLowerCase().includes(query)
         || item.bot_label.toLowerCase().includes(query)
         || item.channel_type.toLowerCase().includes(query)
         || (item.agent_name ?? "").toLowerCase().includes(query);
-      if (!matches_query) {
+      if (!matchesQuery) {
         return false;
       }
-      if (channel_filter === "connected") {
+      if (channelFilter === "connected") {
         return item.connection_state === "connected";
       }
-      if (channel_filter === "configured") {
+      if (channelFilter === "configured") {
         return item.configured && !is_channel_planned(item);
       }
-      if (channel_filter === "unconfigured") {
+      if (channelFilter === "unconfigured") {
         return !item.configured && !is_channel_planned(item);
       }
-      if (channel_filter === "planned") {
+      if (channelFilter === "planned") {
         return is_channel_planned(item);
       }
       return true;
     });
-  }, [channel_filter, search_query, sorted_channels]);
+  }, [channelFilter, searchQuery, sortedChannels]);
 
   const refresh = useCallback(async () => {
-    set_loading(true);
+    setLoading(true);
     try {
-      const [next_channels, next_agents] = await Promise.all([list_channels_api(), get_agents()]);
-      set_channels(next_channels);
-      set_agents(next_agents);
+      const [nextChannels, nextAgents] = await Promise.all([list_channels_api(), get_agents()]);
+      setChannels(nextChannels);
+      setAgents(nextAgents);
       return true;
     } catch (error) {
-      set_feedback({ tone: "error", title: "加载失败", message: error instanceof Error ? error.message : "频道加载失败" });
+      setFeedback({ tone: "error", title: "加载失败", message: error instanceof Error ? error.message : "频道加载失败" });
       return false;
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -119,30 +119,30 @@ export function ChannelsDirectory() {
     void refresh();
   }, [refresh]);
 
-  const handle_channel_saved = useCallback((item: ChannelConfigView, announce = true) => {
-    set_channels((current) => current.map((value) => value.channel_type === item.channel_type ? item : value));
+  const handleChannelSaved = useCallback((item: ChannelConfigView, announce = true) => {
+    setChannels((current) => current.map((value) => value.channel_type === item.channel_type ? item : value));
     notify_capability_summary_mutated({ source: "channels", action: "save", channel_type: item.channel_type });
     if (announce) {
-      set_feedback({ tone: "success", title: "连接成功", message: `${item.title} 已完成配置` });
+      setFeedback({ tone: "success", title: "连接成功", message: `${item.title} 已完成配置` });
     }
   }, []);
 
-  const handle_channel_deleted = useCallback(async (item: ChannelConfigView) => {
+  const handleChannelDeleted = useCallback(async (item: ChannelConfigView) => {
     const refreshed = await refresh();
-    set_feedback(
+    setFeedback(
       refreshed
         ? { tone: "success", title: "频道已断开", message: `${item.title} 已移除配置` }
         : { tone: "error", title: "频道已断开，刷新失败", message: "请手动刷新频道列表确认最新状态" },
     );
   }, [refresh]);
 
-  const feedback_items: FeedbackBannerItem[] = feedback
+  const feedbackItems: FeedbackBannerItem[] = feedback
     ? [{
         key: "channels-feedback",
         tone: feedback.tone,
         title: feedback.title,
         message: feedback.message,
-        on_dismiss: () => set_feedback(null),
+        on_dismiss: () => setFeedback(null),
       }]
     : [];
 
@@ -173,26 +173,26 @@ export function ChannelsDirectory() {
         >
           <CapabilityFilterBar>
             <CapabilityFilterSearchInput
-              on_change={set_search_query}
+              on_change={setSearchQuery}
               placeholder={t("capability.channels_search_placeholder")}
-              value={search_query}
+              value={searchQuery}
             />
             <CapabilityFilterSelect
               aria_label={t("capability.channels_filter_aria")}
               label={t("capability.category_label")}
               leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
-              on_change={(value) => set_channel_filter(value as ChannelFilter)}
+              on_change={(value) => setChannelFilter(value as ChannelFilter)}
               options={CHANNEL_FILTER_OPTIONS.map((option) => ({
                 value: option.value,
                 label: t(option.label_key),
               }))}
-              value={channel_filter}
+              value={channelFilter}
             />
           </CapabilityFilterBar>
 
           {loading ? (
             <ChannelLoadingGrid />
-          ) : visible_channels.length === 0 ? (
+          ) : visibleChannels.length === 0 ? (
             <UiStateBlock
               description={t("capability.channels_empty_description")}
               icon={<MessageCircle className="h-6 w-6 text-(--icon-default)" />}
@@ -202,12 +202,12 @@ export function ChannelsDirectory() {
           ) : (
             <section>
               <CapabilitySectionHeader
-                count={t("capability.result_count", { count: visible_channels.length })}
+                count={t("capability.result_count", { count: visibleChannels.length })}
                 title={t("capability.channels_section_title")}
               />
               <div className="grid grid-cols-1 gap-x-12 gap-y-4 md:grid-cols-2">
-                {visible_channels.map((item) => (
-                  <ChannelCard item={item} key={item.channel_type} on_configure={set_selected} />
+                {visibleChannels.map((item) => (
+                  <ChannelCard item={item} key={item.channel_type} on_configure={setSelected} />
                 ))}
               </div>
             </section>
@@ -219,14 +219,14 @@ export function ChannelsDirectory() {
         <ChannelConnectDialog
           agents={agents}
           item={selected}
-          on_close={() => set_selected(null)}
-          on_deleted={handle_channel_deleted}
-          on_error={(message) => set_feedback({ tone: "error", title: "频道操作失败", message })}
-          on_saved={handle_channel_saved}
+          on_close={() => setSelected(null)}
+          on_deleted={handleChannelDeleted}
+          on_error={(message) => setFeedback({ tone: "error", title: "频道操作失败", message })}
+          on_saved={handleChannelSaved}
         />
       ) : null}
 
-      <FeedbackBannerStack items={feedback_items} />
+      <FeedbackBannerStack items={feedbackItems} />
     </>
   );
 }

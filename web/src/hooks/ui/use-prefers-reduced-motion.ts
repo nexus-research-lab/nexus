@@ -6,25 +6,25 @@ import { useEffect, useState } from "react";
  * 监听系统的动态效果偏好，避免高成本动画在低动态模式下继续运行。
  */
 export function usePrefersReducedMotion() {
-  const [prefers_reduced_motion, setPrefersReducedMotion] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return;
     }
 
-    const media_query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update_preference = () => {
-      setPrefersReducedMotion(media_query.matches);
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => {
+      setPrefersReducedMotion(mediaQuery.matches);
     };
 
-    update_preference();
-    media_query.addEventListener("change", update_preference);
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
 
     return () => {
-      media_query.removeEventListener("change", update_preference);
+      mediaQuery.removeEventListener("change", updatePreference);
     };
   }, []);
 
-  return prefers_reduced_motion;
+  return prefersReducedMotion;
 }

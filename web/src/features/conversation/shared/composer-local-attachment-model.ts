@@ -22,11 +22,11 @@ const CLIPBOARD_IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
   "image/svg+xml": "svg",
 };
 
-function create_attachment_id() {
+function createAttachmentId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-function build_pasted_image_file(file: File, index: number): File {
+function buildPastedImageFile(file: File, index: number): File {
   if (!file.type.startsWith("image/")) {
     return file;
   }
@@ -51,37 +51,37 @@ export function build_pasted_text_file(text: string): File {
   });
 }
 
-export function get_clipboard_files(clipboard_data: DataTransfer): File[] {
-  const files_from_items = Array.from(clipboard_data.items)
+export function get_clipboard_files(clipboardData: DataTransfer): File[] {
+  const filesFromItems = Array.from(clipboardData.items)
     .filter((item) => item.kind === "file")
     .map((item) => item.getAsFile())
     .filter((file): file is File => Boolean(file))
-    .map(build_pasted_image_file);
+    .map(buildPastedImageFile);
 
-  if (files_from_items.length > 0) {
-    return files_from_items;
+  if (filesFromItems.length > 0) {
+    return filesFromItems;
   }
 
-  return Array.from(clipboard_data.files).map(build_pasted_image_file);
+  return Array.from(clipboardData.files).map(buildPastedImageFile);
 }
 
 export function build_local_attachment(
   file: File,
-  unsupported_message: string,
+  unsupportedMessage: string,
 ): { attachment: ComposerLocalAttachment | null; rejection_reason: string | null } {
-  const rejection_reason = get_attachment_rejection_reason(file);
-  if (rejection_reason) {
-    return { attachment: null, rejection_reason };
+  const rejectionReason = get_attachment_rejection_reason(file);
+  if (rejectionReason) {
+    return { attachment: null, rejection_reason: rejectionReason };
   }
 
   const kind = get_composer_attachment_kind(file);
   if (!kind) {
-    return { attachment: null, rejection_reason: unsupported_message };
+    return { attachment: null, rejection_reason: unsupportedMessage };
   }
 
   return {
     attachment: {
-      id: create_attachment_id(),
+      id: createAttachmentId(),
       file,
       kind,
     },

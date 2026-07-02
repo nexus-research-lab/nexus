@@ -88,7 +88,7 @@ const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text"
 /** 中文注释：按钮样式入口只在这里定义，业务组件通过 tone/variant/size 组合语义。 */
 export function get_ui_button_class_name(
   options: UiButtonStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     size = "md",
@@ -100,13 +100,13 @@ export function get_ui_button_class_name(
     BUTTON_BASE_CLASS_NAME,
     BUTTON_SIZE_CLASS_MAP[size],
     BUTTON_VARIANT_TONE_CLASS_MAP[variant][tone],
-    class_name,
+    className,
   );
 }
 
 export function get_ui_icon_button_class_name(
   options: UiIconButtonStyleOptions = {},
-  class_name?: string,
+  className?: string,
 ): string {
   const {
     size = "md",
@@ -118,6 +118,6 @@ export function get_ui_icon_button_class_name(
     ICON_BUTTON_BASE_CLASS_NAME,
     ICON_BUTTON_SIZE_CLASS_MAP[size],
     ICON_BUTTON_VARIANT_TONE_CLASS_MAP[variant][tone],
-    class_name,
+    className,
   );
 }

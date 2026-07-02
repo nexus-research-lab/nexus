@@ -30,28 +30,28 @@ interface MentionTargetPopoverProps {
 export const MentionTargetPopover = memo(({
     items,
     filter,
-    anchor_rect,
-    on_select,
-    on_close,
+    anchor_rect: anchorRect,
+    on_select: onSelect,
+    on_close: onClose,
     placement = "auto",
 }: MentionTargetPopoverProps) => {
-    const [active_index, set_active_index] = useResettableState(0, filter);
-    const list_ref = useRef<HTMLDivElement>(null);
+    const [activeIndex, setActiveIndex] = useResettableState(0, filter);
+    const listRef = useRef<HTMLDivElement>(null);
 
-    const normalized_filter = filter.trim().toLowerCase();
-    const filtered_items = useMemo(() => items.filter((item) =>
-        item.label.toLowerCase().includes(normalized_filter)
-        || item.subtitle?.toLowerCase().includes(normalized_filter),
-    ), [items, normalized_filter]);
+    const normalizedFilter = filter.trim().toLowerCase();
+    const filteredItems = useMemo(() => items.filter((item) =>
+        item.label.toLowerCase().includes(normalizedFilter)
+        || item.subtitle?.toLowerCase().includes(normalizedFilter),
+    ), [items, normalizedFilter]);
 
     useEffect(() => {
-        if (filtered_items.length === 0) {
-            on_close();
+        if (filteredItems.length === 0) {
+            onClose();
         }
-    }, [filtered_items.length, on_close]);
+    }, [filteredItems.length, onClose]);
 
-    const handle_key_down = useCallback((event: KeyboardEvent) => {
-        if (filtered_items.length === 0) {
+    const handleKeyDown = useCallback((event: KeyboardEvent) => {
+        if (filteredItems.length === 0) {
             return;
         }
 
@@ -59,51 +59,51 @@ export const MentionTargetPopover = memo(({
             case "ArrowDown":
                 event.preventDefault();
                 event.stopPropagation();
-                set_active_index((prev) => (prev + 1) % filtered_items.length);
+                setActiveIndex((prev) => (prev + 1) % filteredItems.length);
                 break;
             case "ArrowUp":
                 event.preventDefault();
                 event.stopPropagation();
-                set_active_index((prev) => (prev - 1 + filtered_items.length) % filtered_items.length);
+                setActiveIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length);
                 break;
             case "Enter":
             case "Tab":
                 event.preventDefault();
                 event.stopPropagation();
-                on_select(filtered_items[active_index]);
+                onSelect(filteredItems[activeIndex]);
                 break;
             case "Escape":
                 event.preventDefault();
                 event.stopPropagation();
-                on_close();
+                onClose();
                 break;
         }
-    }, [active_index, filtered_items, on_close, on_select]);
+    }, [activeIndex, filteredItems, onClose, onSelect]);
 
     useEffect(() => {
-        document.addEventListener("keydown", handle_key_down, true);
-        return () => document.removeEventListener("keydown", handle_key_down, true);
-    }, [handle_key_down]);
+        document.addEventListener("keydown", handleKeyDown, true);
+        return () => document.removeEventListener("keydown", handleKeyDown, true);
+    }, [handleKeyDown]);
 
     useEffect(() => {
-        const active_element = list_ref.current?.children[active_index] as HTMLElement | undefined;
-        active_element?.scrollIntoView({ block: "nearest" });
-    }, [active_index]);
+        const activeElement = listRef.current?.children[activeIndex] as HTMLElement | undefined;
+        activeElement?.scrollIntoView({ block: "nearest" });
+    }, [activeIndex]);
 
-    if (!anchor_rect || filtered_items.length === 0) {
+    if (!anchorRect || filteredItems.length === 0) {
         return null;
     }
 
     const MAX_HEIGHT = 192;
     const GAP = 6;
-    const estimated_height = Math.min(filtered_items.length * 52 + 8, MAX_HEIGHT);
-    const can_place_above = anchor_rect.top - GAP - estimated_height >= 12;
-    const should_place_below = placement === "below" || (placement === "auto" && !can_place_above);
-    const top = should_place_below
-        ? anchor_rect.bottom + GAP
-        : anchor_rect.top - GAP - estimated_height;
-    const left = anchor_rect.left;
-    const min_width = Math.max(anchor_rect.width, 200);
+    const estimatedHeight = Math.min(filteredItems.length * 52 + 8, MAX_HEIGHT);
+    const canPlaceAbove = anchorRect.top - GAP - estimatedHeight >= 12;
+    const shouldPlaceBelow = placement === "below" || (placement === "auto" && !canPlaceAbove);
+    const top = shouldPlaceBelow
+        ? anchorRect.bottom + GAP
+        : anchorRect.top - GAP - estimatedHeight;
+    const left = anchorRect.left;
+    const minWidth = Math.max(anchorRect.width, 200);
 
     const popover = (
         <div
@@ -111,26 +111,26 @@ export const MentionTargetPopover = memo(({
             style={{
                 top,
                 left,
-                minWidth: min_width,
+                minWidth: minWidth,
                 background: "var(--surface-popover-background)",
                 border: "1px solid var(--surface-popover-border)",
                 boxShadow: "var(--surface-popover-shadow)",
             }}
         >
-            <div ref={list_ref} className="py-1">
-                {filtered_items.map((item, index) => (
+            <div ref={listRef} className="py-1">
+                {filteredItems.map((item, index) => (
                     <button
                         key={item.id}
                         className={cn(
                             "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-(--motion-duration-fast)",
-                            index === active_index ? "text-(--text-strong)" : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                            index === activeIndex ? "text-(--text-strong)" : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                         )}
-                        style={index === active_index ? { background: "var(--surface-interactive-active-background)" } : undefined}
+                        style={index === activeIndex ? { background: "var(--surface-interactive-active-background)" } : undefined}
                         onMouseDown={(e) => {
                             e.preventDefault();
-                            on_select(item);
+                            onSelect(item);
                         }}
-                        onMouseEnter={() => set_active_index(index)}
+                        onMouseEnter={() => setActiveIndex(index)}
                         type="button"
                     >
                         <span

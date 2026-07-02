@@ -8,7 +8,7 @@ import {
   type TextContent,
 } from '@/types';
 
-function is_stream_renderable_block(
+function isStreamRenderableBlock(
   block: StreamMessage['content_block'],
 ): block is TextContent | ThinkingContent | ImageContent {
   return block?.type === 'text' ||
@@ -16,26 +16,26 @@ function is_stream_renderable_block(
     block?.type === 'image';
 }
 
-function normalize_assistant_messages(messages: Message[]): Message[] {
-  let has_changes = false;
-  const next_messages = messages.map((message) => {
+function normalizeAssistantMessages(messages: Message[]): Message[] {
+  let hasChanges = false;
+  const nextMessages = messages.map((message) => {
     if (message.role !== 'assistant') {
       return message;
     }
 
-    const normalized_message = normalize_assistant_message(message);
+    const normalizedMessage = normalize_assistant_message(message);
     if (
-      normalized_message.stream_status === message.stream_status
-      && normalized_message.is_complete === message.is_complete
+      normalizedMessage.stream_status === message.stream_status
+      && normalizedMessage.is_complete === message.is_complete
     ) {
       return message;
     }
 
-    has_changes = true;
-    return normalized_message;
+    hasChanges = true;
+    return normalizedMessage;
   });
 
-  return has_changes ? next_messages : messages;
+  return hasChanges ? nextMessages : messages;
 }
 
 /**
@@ -52,36 +52,36 @@ export function dedupe_messages_by_id(messages: Message[]): Message[] {
     return messages;
   }
 
-  const last_index_by_id = new Map<string, number>();
-  const message_by_id = new Map<string, Message>();
-  let has_duplicates = false;
+  const lastIndexById = new Map<string, number>();
+  const messageById = new Map<string, Message>();
+  let hasDuplicates = false;
 
   messages.forEach((message, index) => {
-    if (last_index_by_id.has(message.message_id)) {
-      has_duplicates = true;
+    if (lastIndexById.has(message.message_id)) {
+      hasDuplicates = true;
     }
-    last_index_by_id.set(message.message_id, index);
-    const existing_message = message_by_id.get(message.message_id);
-    message_by_id.set(
+    lastIndexById.set(message.message_id, index);
+    const existingMessage = messageById.get(message.message_id);
+    messageById.set(
       message.message_id,
-      existing_message
-        ? merge_message_by_id(existing_message, message)
+      existingMessage
+        ? mergeMessageById(existingMessage, message)
         : message,
     );
   });
 
-  if (!has_duplicates) {
+  if (!hasDuplicates) {
     return messages;
   }
 
-  const next_messages: Message[] = [];
+  const nextMessages: Message[] = [];
   messages.forEach((message, index) => {
-    if (last_index_by_id.get(message.message_id) !== index) {
+    if (lastIndexById.get(message.message_id) !== index) {
       return;
     }
-    next_messages.push(message_by_id.get(message.message_id) ?? message);
+    nextMessages.push(messageById.get(message.message_id) ?? message);
   });
-  return next_messages;
+  return nextMessages;
 }
 
 /**
@@ -105,114 +105,114 @@ export function normalize_assistant_message(incoming: AssistantMessage): Assista
  * 按 message_id 合并完整消息。
  */
 export function upsert_message(messages: Message[], incoming: Message): Message[] {
-  const normalized_incoming = (
+  const normalizedIncoming = (
     incoming.role === 'assistant'
       ? normalize_assistant_message(incoming)
       : incoming
   );
   const existingIndex = messages.findIndex(
-    (message) => message.message_id === normalized_incoming.message_id,
+    (message) => message.message_id === normalizedIncoming.message_id,
   );
   if (existingIndex === -1) {
-    return normalize_assistant_messages(
-      dedupe_messages_by_id([...messages, normalized_incoming]),
+    return normalizeAssistantMessages(
+      dedupe_messages_by_id([...messages, normalizedIncoming]),
     );
   }
 
   const nextMessages = [...messages];
-  nextMessages[existingIndex] = merge_message_by_id(
+  nextMessages[existingIndex] = mergeMessageById(
     nextMessages[existingIndex],
-    normalized_incoming,
+    normalizedIncoming,
   );
-  return normalize_assistant_messages(dedupe_messages_by_id(nextMessages));
+  return normalizeAssistantMessages(dedupe_messages_by_id(nextMessages));
 }
 
-function merge_message_by_id(existing: Message, incoming: Message): Message {
+function mergeMessageById(existing: Message, incoming: Message): Message {
   if (existing.role === 'assistant' && incoming.role === 'assistant') {
-    return merge_assistant_message(existing, incoming);
+    return mergeAssistantMessage(existing, incoming);
   }
   return incoming;
 }
 
-function merge_assistant_message(
+function mergeAssistantMessage(
   existing: AssistantMessage,
   incoming: AssistantMessage,
 ): AssistantMessage {
-  const normalized_existing = normalize_assistant_message(existing);
-  const normalized_incoming = normalize_assistant_message(incoming);
+  const normalizedExisting = normalize_assistant_message(existing);
+  const normalizedIncoming = normalize_assistant_message(incoming);
   return normalize_assistant_message({
-    ...normalized_existing,
-    ...normalized_incoming,
-    content: merge_assistant_content_blocks(
-      normalized_existing.content,
-      normalized_incoming.content,
+    ...normalizedExisting,
+    ...normalizedIncoming,
+    content: mergeAssistantContentBlocks(
+      normalizedExisting.content,
+      normalizedIncoming.content,
     ),
-    result_summary: normalized_incoming.result_summary ?? normalized_existing.result_summary,
-    usage: normalized_incoming.usage ?? normalized_existing.usage,
-    stop_reason: normalized_incoming.stop_reason ?? normalized_existing.stop_reason,
-    is_complete: normalized_incoming.is_complete ?? normalized_existing.is_complete,
-    stream_status: normalized_incoming.stream_status ?? normalized_existing.stream_status,
+    result_summary: normalizedIncoming.result_summary ?? normalizedExisting.result_summary,
+    usage: normalizedIncoming.usage ?? normalizedExisting.usage,
+    stop_reason: normalizedIncoming.stop_reason ?? normalizedExisting.stop_reason,
+    is_complete: normalizedIncoming.is_complete ?? normalizedExisting.is_complete,
+    stream_status: normalizedIncoming.stream_status ?? normalizedExisting.stream_status,
   });
 }
 
-function merge_assistant_content_blocks(
-  existing_blocks: ContentBlock[],
-  incoming_blocks: ContentBlock[],
+function mergeAssistantContentBlocks(
+  existingBlocks: ContentBlock[],
+  incomingBlocks: ContentBlock[],
 ): ContentBlock[] {
-  if (existing_blocks.length === 0) {
-    return [...incoming_blocks];
+  if (existingBlocks.length === 0) {
+    return [...incomingBlocks];
   }
-  if (incoming_blocks.length === 0) {
-    return [...existing_blocks];
+  if (incomingBlocks.length === 0) {
+    return [...existingBlocks];
   }
 
-  const merged_blocks = [...existing_blocks];
-  const index_by_key = new Map<string, number>();
-  merged_blocks.forEach((block, index) => {
-    const key = assistant_content_block_key(block);
-    if (key && !index_by_key.has(key)) {
-      index_by_key.set(key, index);
+  const mergedBlocks = [...existingBlocks];
+  const indexByKey = new Map<string, number>();
+  mergedBlocks.forEach((block, index) => {
+    const key = assistantContentBlockKey(block);
+    if (key && !indexByKey.has(key)) {
+      indexByKey.set(key, index);
     }
   });
 
-  for (const incoming_block of incoming_blocks) {
-    const text_block_index = find_mergeable_text_block_index(merged_blocks, incoming_block);
-    if (text_block_index !== -1) {
-      merged_blocks[text_block_index] = incoming_block;
+  for (const incomingBlock of incomingBlocks) {
+    const textBlockIndex = findMergeableTextBlockIndex(mergedBlocks, incomingBlock);
+    if (textBlockIndex !== -1) {
+      mergedBlocks[textBlockIndex] = incomingBlock;
       continue;
     }
 
-    const key = assistant_content_block_key(incoming_block);
-    const existing_index = key ? index_by_key.get(key) : undefined;
-    if (existing_index !== undefined) {
-      merged_blocks[existing_index] = incoming_block;
+    const key = assistantContentBlockKey(incomingBlock);
+    const existingIndex = key ? indexByKey.get(key) : undefined;
+    if (existingIndex !== undefined) {
+      mergedBlocks[existingIndex] = incomingBlock;
       continue;
     }
     if (key) {
-      index_by_key.set(key, merged_blocks.length);
+      indexByKey.set(key, mergedBlocks.length);
     }
-    merged_blocks.push(incoming_block);
+    mergedBlocks.push(incomingBlock);
   }
 
-  return merged_blocks;
+  return mergedBlocks;
 }
 
-function find_mergeable_text_block_index(
+function findMergeableTextBlockIndex(
   blocks: ContentBlock[],
-  incoming_block: ContentBlock,
+  incomingBlock: ContentBlock,
 ): number {
-  if (incoming_block.type !== 'text') {
+  if (incomingBlock.type !== 'text') {
     return -1;
   }
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
-    const current_block = blocks[index];
-    if (current_block.type !== 'text') {
+    const currentBlock = blocks[index];
+    if (currentBlock.type !== 'text') {
       continue;
     }
     if (
-      current_block.text === incoming_block.text ||
-      current_block.text.startsWith(incoming_block.text) ||
-      incoming_block.text.startsWith(current_block.text)
+      currentBlock.text === incomingBlock.text ||
+      currentBlock.text.startsWith(incomingBlock.text) ||
+      incomingBlock.text.startsWith(currentBlock.text)
     ) {
       return index;
     }
@@ -220,7 +220,7 @@ function find_mergeable_text_block_index(
   return -1;
 }
 
-function assistant_content_block_key(block: ContentBlock): string | null {
+function assistantContentBlockKey(block: ContentBlock): string | null {
   switch (block.type) {
     case 'thinking':
       return 'thinking';
@@ -248,14 +248,14 @@ function assistant_content_block_key(block: ContentBlock): string | null {
     case 'tool_use_error':
       return `tool_use_error:${block.content}`;
     case 'image':
-      return image_content_block_key(block);
+      return imageContentBlockKey(block);
     default:
       return null;
   }
 }
 
-function image_content_block_key(block: ImageContent): string | null {
-  const raw_key = (
+function imageContentBlockKey(block: ImageContent): string | null {
+  const rawKey = (
     block.path
     || block.url
     || block.uri
@@ -266,10 +266,10 @@ function image_content_block_key(block: ImageContent): string | null {
     || block.source?.data
     || null
   );
-  return raw_key ? `image:${raw_key}` : null;
+  return rawKey ? `image:${rawKey}` : null;
 }
 
-function json_equal(left: unknown, right: unknown): boolean {
+function jsonEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -308,39 +308,39 @@ export function apply_stream_message(messages: Message[], event: StreamMessage):
   }
 
   const assistantMessage = messages[existingIndex] as AssistantMessage;
-  const stop_reason = event.message?.stop_reason || assistantMessage.stop_reason;
-  const is_terminal_stream_event = event.type === 'message_stop';
-  const next_model = event.message?.model || assistantMessage.model;
-  const next_is_complete = stop_reason || is_terminal_stream_event ? true : assistantMessage.is_complete;
-  const next_stream_status = stop_reason || is_terminal_stream_event ? 'done' : 'streaming';
-  const next_usage = event.usage || assistantMessage.usage;
+  const stopReason = event.message?.stop_reason || assistantMessage.stop_reason;
+  const isTerminalStreamEvent = event.type === 'message_stop';
+  const nextModel = event.message?.model || assistantMessage.model;
+  const nextIsComplete = stopReason || isTerminalStreamEvent ? true : assistantMessage.is_complete;
+  const nextStreamStatus = stopReason || isTerminalStreamEvent ? 'done' : 'streaming';
+  const nextUsage = event.usage || assistantMessage.usage;
   const nextMessage: AssistantMessage = {
     ...assistantMessage,
-    model: next_model,
-    stop_reason,
-    is_complete: next_is_complete,
-    stream_status: next_stream_status,
-    usage: next_usage,
+    model: nextModel,
+    stop_reason: stopReason,
+    is_complete: nextIsComplete,
+    stream_status: nextStreamStatus,
+    usage: nextUsage,
     content: [...assistantMessage.content],
   };
   let changed =
-    next_model !== assistantMessage.model ||
-    stop_reason !== assistantMessage.stop_reason ||
-    next_is_complete !== assistantMessage.is_complete ||
-    next_stream_status !== assistantMessage.stream_status ||
-    !json_equal(next_usage, assistantMessage.usage);
+    nextModel !== assistantMessage.model ||
+    stopReason !== assistantMessage.stop_reason ||
+    nextIsComplete !== assistantMessage.is_complete ||
+    nextStreamStatus !== assistantMessage.stream_status ||
+    !jsonEqual(nextUsage, assistantMessage.usage);
 
   if (
     (event.type === 'content_block_start' || event.type === 'content_block_delta') &&
     typeof event.index === 'number' &&
-    is_stream_renderable_block(event.content_block)
+    isStreamRenderableBlock(event.content_block)
   ) {
     const streamBlock = event.content_block;
     while (nextMessage.content.length <= event.index) {
       nextMessage.content.push({ type: 'text', text: '' });
       changed = true;
     }
-    if (!json_equal(nextMessage.content[event.index], streamBlock)) {
+    if (!jsonEqual(nextMessage.content[event.index], streamBlock)) {
       nextMessage.content[event.index] = streamBlock;
       changed = true;
     }
@@ -360,9 +360,9 @@ export function apply_stream_message(messages: Message[], event: StreamMessage):
  * 按时间戳排序消息，保证历史与实时消息顺序稳定。
  */
 export function sort_messages(messages: Message[]): Message[] {
-  const unique_messages = dedupe_messages_by_id(messages);
-  return normalize_assistant_messages(
-    [...unique_messages].sort((left, right) => left.timestamp - right.timestamp),
+  const uniqueMessages = dedupe_messages_by_id(messages);
+  return normalizeAssistantMessages(
+    [...uniqueMessages].sort((left, right) => left.timestamp - right.timestamp),
   );
 }
 
@@ -375,24 +375,24 @@ export function sort_messages(messages: Message[]): Message[] {
  * 3. 最终统一排序，避免 session 首屏加载把用户刚发出的消息冲掉。
  */
 export function merge_loaded_messages(
-  loaded_messages: Message[],
-  local_messages: Message[],
+  loadedMessages: Message[],
+  localMessages: Message[],
 ): Message[] {
-  const unique_loaded_messages = dedupe_messages_by_id(loaded_messages);
-  if (local_messages.length === 0) {
-    return sort_messages(unique_loaded_messages);
+  const uniqueLoadedMessages = dedupe_messages_by_id(loadedMessages);
+  if (localMessages.length === 0) {
+    return sort_messages(uniqueLoadedMessages);
   }
 
-  const loaded_message_ids = new Set(
-    unique_loaded_messages.map((message) => message.message_id),
+  const loadedMessageIds = new Set(
+    uniqueLoadedMessages.map((message) => message.message_id),
   );
-  const merged_messages = [...unique_loaded_messages];
+  const mergedMessages = [...uniqueLoadedMessages];
 
-  for (const local_message of local_messages) {
-    if (!loaded_message_ids.has(local_message.message_id)) {
-      merged_messages.push(local_message);
+  for (const localMessage of localMessages) {
+    if (!loadedMessageIds.has(localMessage.message_id)) {
+      mergedMessages.push(localMessage);
     }
   }
 
-  return sort_messages(dedupe_messages_by_id(merged_messages));
+  return sort_messages(dedupe_messages_by_id(mergedMessages));
 }

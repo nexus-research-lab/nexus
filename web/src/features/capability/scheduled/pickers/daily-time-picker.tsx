@@ -29,38 +29,38 @@ interface DailyTimePickerProps {
 
 export function DailyTimePicker(props: DailyTimePickerProps) {
   const {
-    anchor_ref,
+    anchor_ref: anchorRef,
     display,
     hour12,
-    is_open,
+    is_open: isOpen,
     meridiem,
     minute,
-    on_close,
-    on_hour_select,
-    on_meridiem_select,
-    on_minute_select,
-    on_toggle,
+    on_close: onClose,
+    on_hour_select: onHourSelect,
+    on_meridiem_select: onMeridiemSelect,
+    on_minute_select: onMinuteSelect,
+    on_toggle: onToggle,
   } = props;
 
   return (
     <div className="dialog-field">
       <button
         className={PICKER_TRIGGER_CLASS_NAME}
-        onClick={on_toggle}
-        ref={anchor_ref}
+        onClick={onToggle}
+        ref={anchorRef}
         type="button"
       >
         <span>{display}</span>
         <span className="text-xl text-(--text-default)">+</span>
       </button>
-      <PickerPopover anchor_ref={anchor_ref} is_open={is_open} on_close={on_close}>
+      <PickerPopover anchor_ref={anchorRef} is_open={isOpen} on_close={onClose}>
         <div className="grid grid-cols-3 gap-2">
           <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
             {([{ key: "am", label: "上午" }, { key: "pm", label: "下午" }] as const).map((option) => (
               <button
                 className={get_picker_column_button_class_name(meridiem === option.key)}
                 key={option.key}
-                onClick={() => on_meridiem_select(option.key)}
+                onClick={() => onMeridiemSelect(option.key)}
                 type="button"
               >
                 {option.label}
@@ -72,7 +72,7 @@ export function DailyTimePicker(props: DailyTimePickerProps) {
               <button
                 className={get_picker_column_button_class_name(hour12 === option)}
                 key={option}
-                onClick={() => on_hour_select(option)}
+                onClick={() => onHourSelect(option)}
                 type="button"
               >
                 {option}
@@ -84,7 +84,7 @@ export function DailyTimePicker(props: DailyTimePickerProps) {
               <button
                 className={get_picker_column_button_class_name(minute === option)}
                 key={option}
-                onClick={() => on_minute_select(option)}
+                onClick={() => onMinuteSelect(option)}
                 type="button"
               >
                 {option}

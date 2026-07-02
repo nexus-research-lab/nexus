@@ -7,7 +7,7 @@ import type {
 } from "@/types/capability/scheduled-task";
 import { format_scheduled_datetime } from "./scheduled-formatters";
 
-function format_interval(seconds: number): string {
+function formatInterval(seconds: number): string {
   if (seconds % 86400 === 0) {
     return `${seconds / 86400} 天`;
   }
@@ -22,7 +22,7 @@ function format_interval(seconds: number): string {
 
 export function get_schedule_summary(schedule: ScheduledTaskSchedule): string {
   if (schedule.kind === "every") {
-    return `每 ${format_interval(schedule.interval_seconds)}`;
+    return `每 ${formatInterval(schedule.interval_seconds)}`;
   }
   if (schedule.kind === "cron") {
     return `Cron · ${schedule.cron_expression}`;
@@ -30,7 +30,7 @@ export function get_schedule_summary(schedule: ScheduledTaskSchedule): string {
   return `单次 · ${format_scheduled_datetime(new Date(schedule.run_at).getTime(), { empty_label: "未安排" })}`;
 }
 
-function get_session_target_summary(target: ScheduledTaskSessionTarget): string {
+function getSessionTargetSummary(target: ScheduledTaskSessionTarget): string {
   if (target.kind === "main") {
     return "主会话";
   }
@@ -97,10 +97,10 @@ export function get_session_summary(task: ScheduledTaskItem): string {
   if (source?.session_label) {
     return source.session_label;
   }
-  return get_session_target_summary(task.session_target);
+  return getSessionTargetSummary(task.session_target);
 }
 
-function is_same_session_loop(task: ScheduledTaskItem): boolean {
+function isSameSessionLoop(task: ScheduledTaskItem): boolean {
   return Boolean(
     task.session_target.kind === "bound"
       && task.delivery.mode === "explicit"
@@ -115,7 +115,7 @@ export function get_behavior_summary(task: ScheduledTaskItem): string {
   if (task.execution_kind === "script") {
     return "直接在工作区执行脚本，不占用 Agent 会话；运行输出会写入产物。";
   }
-  if (is_same_session_loop(task)) {
+  if (isSameSessionLoop(task)) {
     return "在当前会话里持续执行，并直接回到这条会话。";
   }
   if (task.session_target.kind === "bound") {
@@ -189,15 +189,15 @@ export function get_toggle_action(task: ScheduledTaskItem): {
 
 export function sort_tasks(items: ScheduledTaskItem[]): ScheduledTaskItem[] {
   return [...items].sort((left, right) => {
-    const left_rank = left.running ? 0 : left.enabled ? 1 : 2;
-    const right_rank = right.running ? 0 : right.enabled ? 1 : 2;
-    if (left_rank !== right_rank) {
-      return left_rank - right_rank;
+    const leftRank = left.running ? 0 : left.enabled ? 1 : 2;
+    const rightRank = right.running ? 0 : right.enabled ? 1 : 2;
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
     }
-    const left_next_run = left.next_run_at ?? Number.MAX_SAFE_INTEGER;
-    const right_next_run = right.next_run_at ?? Number.MAX_SAFE_INTEGER;
-    if (left_next_run !== right_next_run) {
-      return left_next_run - right_next_run;
+    const leftNextRun = left.next_run_at ?? Number.MAX_SAFE_INTEGER;
+    const rightNextRun = right.next_run_at ?? Number.MAX_SAFE_INTEGER;
+    if (leftNextRun !== rightNextRun) {
+      return leftNextRun - rightNextRun;
     }
     return left.name.localeCompare(right.name, "zh-CN");
   });

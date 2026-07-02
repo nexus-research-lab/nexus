@@ -16,22 +16,22 @@ export interface LauncherQueryResponse {
   initial_message?: string;
 }
 
-let launcher_bootstrap_inflight: Promise<LauncherBootstrapResponse> | null = null;
+let launcherBootstrapInflight: Promise<LauncherBootstrapResponse> | null = null;
 
 export async function get_launcher_bootstrap_api(): Promise<LauncherBootstrapResponse> {
-  if (launcher_bootstrap_inflight) {
-    return launcher_bootstrap_inflight;
+  if (launcherBootstrapInflight) {
+    return launcherBootstrapInflight;
   }
 
-  launcher_bootstrap_inflight = request_api<LauncherBootstrapResponse>(
+  launcherBootstrapInflight = request_api<LauncherBootstrapResponse>(
     `${get_agent_api_base_url()}/launcher/bootstrap`,
     {
       method: "GET",
     },
   ).finally(() => {
-    launcher_bootstrap_inflight = null;
+    launcherBootstrapInflight = null;
   });
-  return launcher_bootstrap_inflight;
+  return launcherBootstrapInflight;
 }
 
 /**

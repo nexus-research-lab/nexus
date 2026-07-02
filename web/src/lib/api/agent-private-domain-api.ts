@@ -14,7 +14,7 @@ export interface AgentPrivateDomainQuery {
   room_limit?: number;
 }
 
-function build_private_domain_query(options: AgentPrivateDomainQuery = {}) {
+function buildPrivateDomainQuery(options: AgentPrivateDomainQuery = {}) {
   const params = new URLSearchParams();
   if (options.room_id) {
     params.set("room_id", options.room_id);
@@ -33,11 +33,11 @@ function build_private_domain_query(options: AgentPrivateDomainQuery = {}) {
 }
 
 export async function list_agent_private_threads_api(
-  agent_id: string,
+  agentId: string,
   options: AgentPrivateDomainQuery = {},
 ): Promise<AgentPrivateThreadPage> {
   return request_api<AgentPrivateThreadPage>(
-    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/private-domain/threads${build_private_domain_query(options)}`,
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/private-domain/threads${buildPrivateDomainQuery(options)}`,
     {
       method: "GET",
     },
@@ -45,12 +45,12 @@ export async function list_agent_private_threads_api(
 }
 
 export async function list_agent_private_events_api(
-  agent_id: string,
-  thread_id: string,
+  agentId: string,
+  threadId: string,
   options: AgentPrivateDomainQuery = {},
 ): Promise<AgentPrivateEventPage> {
   return request_api<AgentPrivateEventPage>(
-    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agent_id)}/private-domain/threads/${encodeURIComponent(thread_id)}/events${build_private_domain_query(options)}`,
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/private-domain/threads/${encodeURIComponent(threadId)}/events${buildPrivateDomainQuery(options)}`,
     {
       method: "GET",
     },

@@ -61,8 +61,8 @@ export const TOOL_LABEL_STYLES: Record<string, string> = {
   waiting: "text-(--warning)",
 };
 
-export function get_tool_title(tool_name: string): string {
-  return TOOL_TITLE_MAP[tool_name] ?? tool_name;
+export function get_tool_title(toolName: string): string {
+  return TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
 export function format_permission_value(value: unknown): string {

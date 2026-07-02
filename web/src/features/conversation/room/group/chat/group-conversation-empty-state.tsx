@@ -30,7 +30,7 @@ interface GroupConversationEmptyStateProps {
 }
 
 export function GroupConversationEmptyState({
-  on_create_conversation,
+  on_create_conversation: onCreateConversation,
 }: GroupConversationEmptyStateProps) {
   const { t } = useI18n();
   const highlights = [
@@ -69,7 +69,7 @@ export function GroupConversationEmptyState({
                 data-tour-anchor={CONVERSATION_TOUR_ANCHORS.empty_create}
                 tone="primary"
                 onClick={() => {
-                  void on_create_conversation();
+                  void onCreateConversation();
                 }}
               >
                 <MessageSquarePlus className="h-5 w-5" />

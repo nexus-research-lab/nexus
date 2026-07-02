@@ -31,13 +31,13 @@ interface GroupConversationFeedProps {
   message_groups: Map<string, Message[]>;
   pending_permission_groups: Map<string, PendingPermission[]>;
   pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
-  on_open_agent_contact?: (agent_id: string) => void;
+  on_open_agent_contact?: (agentId: string) => void;
   on_open_workspace_file?: (path: string) => void;
   on_permission_response: (payload: PermissionDecisionPayload) => boolean;
   can_respond_to_permissions?: boolean;
   permission_read_only_reason?: string;
   /** Room 并发模式：停止单条消息生成 */
-  on_stop_message?: (msg_id: string) => void;
+  on_stop_message?: (msgId: string) => void;
   round_ids: string[];
 }
 
@@ -46,166 +46,166 @@ interface GroupConversationFeedProps {
 const VIRTUAL_THRESHOLD = 20;
 
 /** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应名字 */
-function resolve_round_agent_name(
+function resolveRoundAgentName(
   messages: Message[],
-  agent_name_map?: Record<string, string>,
+  agentNameMap?: Record<string, string>,
 ): string | undefined {
-  if (!agent_name_map) {
+  if (!agentNameMap) {
     return undefined;
   }
-  const assistant_msg = messages.find((m) => m.role === "assistant");
-  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
-    return agent_name_map[assistant_msg.agent_id];
+  const assistantMsg = messages.find((m) => m.role === "assistant");
+  if (assistantMsg && "agent_id" in assistantMsg && assistantMsg.agent_id) {
+    return agentNameMap[assistantMsg.agent_id];
   }
   return undefined;
 }
 
 /** Room 模式下从 round 的 assistant 消息中提取 agent_id，查找对应头像 */
-function resolve_round_agent_avatar(
+function resolveRoundAgentAvatar(
   messages: Message[],
-  agent_avatar_map?: Record<string, string | null>,
+  agentAvatarMap?: Record<string, string | null>,
 ): string | null | undefined {
-  if (!agent_avatar_map) {
+  if (!agentAvatarMap) {
     return undefined;
   }
-  const assistant_msg = messages.find((m) => m.role === "assistant");
-  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
-    return agent_avatar_map[assistant_msg.agent_id];
+  const assistantMsg = messages.find((m) => m.role === "assistant");
+  if (assistantMsg && "agent_id" in assistantMsg && assistantMsg.agent_id) {
+    return agentAvatarMap[assistantMsg.agent_id];
   }
   return undefined;
 }
 
 /** Markdown 中的 workspace 文件按产出它的 Agent workspace 下载。 */
-function resolve_round_agent_id(messages: Message[]): string | null {
-  const assistant_msg = messages.find((message) => message.role === "assistant");
-  if (assistant_msg && "agent_id" in assistant_msg && assistant_msg.agent_id) {
-    return assistant_msg.agent_id;
+function resolveRoundAgentId(messages: Message[]): string | null {
+  const assistantMsg = messages.find((message) => message.role === "assistant");
+  if (assistantMsg && "agent_id" in assistantMsg && assistantMsg.agent_id) {
+    return assistantMsg.agent_id;
   }
   return null;
 }
 
 export const GroupConversationFeed = memo(function GroupConversationFeed({
-  bottom_anchor_ref,
-  feed_ref,
-  scroll_ref,
+  bottom_anchor_ref: bottomAnchorRef,
+  feed_ref: feedRef,
+  scroll_ref: scrollRef,
   compact = false,
-  current_agent_name,
-  current_agent_avatar,
-  current_user_avatar,
-  agent_name_map,
-  agent_avatar_map,
-  is_last_round_pending_permissions,
-  runtime_phase,
-  live_round_ids,
-  is_mobile_layout,
-  message_groups,
-  pending_permission_groups,
-  pending_slot_groups,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  on_stop_message,
-  round_ids,
+  current_agent_name: currentAgentName,
+  current_agent_avatar: currentAgentAvatar,
+  current_user_avatar: currentUserAvatar,
+  agent_name_map: agentNameMap,
+  agent_avatar_map: agentAvatarMap,
+  is_last_round_pending_permissions: isLastRoundPendingPermissions,
+  runtime_phase: runtimePhase,
+  live_round_ids: liveRoundIds,
+  is_mobile_layout: isMobileLayout,
+  message_groups: messageGroups,
+  pending_permission_groups: pendingPermissionGroups,
+  pending_slot_groups: pendingSlotGroups,
+  on_open_agent_contact: onOpenAgentContact,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  on_permission_response: onPermissionResponse,
+  can_respond_to_permissions: canRespondToPermissions = true,
+  permission_read_only_reason: permissionReadOnlyReason,
+  on_stop_message: onStopMessage,
+  round_ids: roundIds,
 }: GroupConversationFeedProps) {
-  const use_virtual = round_ids.length >= VIRTUAL_THRESHOLD;
+  const useVirtual = roundIds.length >= VIRTUAL_THRESHOLD;
 
-  if (use_virtual && scroll_ref) {
+  if (useVirtual && scrollRef) {
     return (
       <VirtualFeed
-        bottom_anchor_ref={bottom_anchor_ref}
-        feed_ref={feed_ref}
-        scroll_ref={scroll_ref}
+        bottom_anchor_ref={bottomAnchorRef}
+        feed_ref={feedRef}
+        scroll_ref={scrollRef}
         compact={compact}
-        current_agent_name={current_agent_name}
-        current_agent_avatar={current_agent_avatar}
-        current_user_avatar={current_user_avatar}
-        agent_name_map={agent_name_map}
-        agent_avatar_map={agent_avatar_map}
-        is_last_round_pending_permissions={is_last_round_pending_permissions}
-        runtime_phase={runtime_phase}
-        live_round_ids={live_round_ids}
-        is_mobile_layout={is_mobile_layout}
-        message_groups={message_groups}
-        pending_permission_groups={pending_permission_groups}
-        pending_slot_groups={pending_slot_groups}
-        on_open_agent_contact={on_open_agent_contact}
-        on_open_workspace_file={on_open_workspace_file}
-        on_permission_response={on_permission_response}
-        can_respond_to_permissions={can_respond_to_permissions}
-        permission_read_only_reason={permission_read_only_reason}
-        on_stop_message={on_stop_message}
-        round_ids={round_ids}
+        current_agent_name={currentAgentName}
+        current_agent_avatar={currentAgentAvatar}
+        current_user_avatar={currentUserAvatar}
+        agent_name_map={agentNameMap}
+        agent_avatar_map={agentAvatarMap}
+        is_last_round_pending_permissions={isLastRoundPendingPermissions}
+        runtime_phase={runtimePhase}
+        live_round_ids={liveRoundIds}
+        is_mobile_layout={isMobileLayout}
+        message_groups={messageGroups}
+        pending_permission_groups={pendingPermissionGroups}
+        pending_slot_groups={pendingSlotGroups}
+        on_open_agent_contact={onOpenAgentContact}
+        on_open_workspace_file={onOpenWorkspaceFile}
+        on_permission_response={onPermissionResponse}
+        can_respond_to_permissions={canRespondToPermissions}
+        permission_read_only_reason={permissionReadOnlyReason}
+        on_stop_message={onStopMessage}
+        round_ids={roundIds}
       />
     );
   }
 
   return (
     <div
-      ref={feed_ref}
-      className={is_mobile_layout ? "nexus-chat-feed space-y-4" : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"}
+      ref={feedRef}
+      className={isMobileLayout ? "nexus-chat-feed space-y-4" : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"}
     >
-      {round_ids.map((roundId, idx) => {
-        const roundMessages = message_groups.get(roundId) || [];
-        const round_pending_permissions = pending_permission_groups.get(roundId) || [];
-        const round_pending_slots = pending_slot_groups.get(roundId) || [];
-        const isLastRound = idx === round_ids.length - 1;
-        const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
-        const has_room_entries = has_room_agent_round_entries(roundMessages, round_pending_slots);
+      {roundIds.map((roundId, idx) => {
+        const roundMessages = messageGroups.get(roundId) || [];
+        const roundPendingPermissions = pendingPermissionGroups.get(roundId) || [];
+        const roundPendingSlots = pendingSlotGroups.get(roundId) || [];
+        const isLastRound = idx === roundIds.length - 1;
+        const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
+        const hasRoomEntries = has_room_agent_round_entries(roundMessages, roundPendingSlots);
 
         // Group Room 中一旦出现 Agent 回复，就统一走 GroupRoundCardGroup。
-        if (has_room_entries) {
+        if (hasRoomEntries) {
           return (
             <GroupRoundCardGroup
               key={roundId}
               round_id={roundId}
               messages={roundMessages}
-              pending_permissions={round_pending_permissions}
-              pending_slots={round_pending_slots}
-              agent_name_map={agent_name_map}
-              agent_avatar_map={agent_avatar_map}
-              current_user_avatar={current_user_avatar}
+              pending_permissions={roundPendingPermissions}
+              pending_slots={roundPendingSlots}
+              agent_name_map={agentNameMap}
+              agent_avatar_map={agentAvatarMap}
+              current_user_avatar={currentUserAvatar}
               is_last_round={isLastRound}
-              is_loading={is_last_round_live}
-              on_permission_response={on_permission_response}
-              can_respond_to_permissions={can_respond_to_permissions}
-              permission_read_only_reason={permission_read_only_reason}
-              on_open_agent_contact={on_open_agent_contact}
-              on_stop_message={on_stop_message}
-              on_open_workspace_file={on_open_workspace_file}
+              is_loading={isLastRoundLive}
+              on_permission_response={onPermissionResponse}
+              can_respond_to_permissions={canRespondToPermissions}
+              permission_read_only_reason={permissionReadOnlyReason}
+              on_open_agent_contact={onOpenAgentContact}
+              on_stop_message={onStopMessage}
+              on_open_workspace_file={onOpenWorkspaceFile}
             />
           );
         }
 
         // 纯用户轮次或尚未分配到 Agent 的轮次，沿用 MessageItem。
-        const round_agent_name = resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name;
-        const round_agent_avatar = resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar;
-        const round_workspace_agent_id = resolve_round_agent_id(roundMessages);
+        const roundAgentName = resolveRoundAgentName(roundMessages, agentNameMap) ?? currentAgentName;
+        const roundAgentAvatar = resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar;
+        const roundWorkspaceAgentId = resolveRoundAgentId(roundMessages);
         return (
           <MessageItem
             key={roundId}
             compact={compact}
-            current_agent_name={round_agent_name}
-            current_agent_avatar={round_agent_avatar}
-            workspace_agent_id={round_workspace_agent_id}
-            current_user_avatar={current_user_avatar}
+            current_agent_name={roundAgentName}
+            current_agent_avatar={roundAgentAvatar}
+            workspace_agent_id={roundWorkspaceAgentId}
+            current_user_avatar={currentUserAvatar}
             round_id={roundId}
             messages={roundMessages}
             is_last_round={isLastRound}
-            is_loading={is_last_round_live}
-            runtime_phase={is_last_round_live ? runtime_phase : null}
-            pending_permissions={is_last_round_live ? is_last_round_pending_permissions : []}
-            on_permission_response={on_permission_response}
-            can_respond_to_permissions={can_respond_to_permissions}
-            permission_read_only_reason={permission_read_only_reason}
-            on_open_agent_contact={on_open_agent_contact}
-            on_open_workspace_file={on_open_workspace_file}
-            on_stop_message={on_stop_message}
+            is_loading={isLastRoundLive}
+            runtime_phase={isLastRoundLive ? runtimePhase : null}
+            pending_permissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+            on_permission_response={onPermissionResponse}
+            can_respond_to_permissions={canRespondToPermissions}
+            permission_read_only_reason={permissionReadOnlyReason}
+            on_open_agent_contact={onOpenAgentContact}
+            on_open_workspace_file={onOpenWorkspaceFile}
+            on_stop_message={onStopMessage}
           />
         );
       })}
-      <div ref={bottom_anchor_ref} className="h-px w-full" />
+      <div ref={bottomAnchorRef} className="h-px w-full" />
     </div>
   );
 });
@@ -213,73 +213,73 @@ export const GroupConversationFeed = memo(function GroupConversationFeed({
 // ─── VirtualFeed ──────────────────────────────────────────────────────────────
 
 function VirtualFeed({
-  bottom_anchor_ref,
-  feed_ref,
-  scroll_ref,
+  bottom_anchor_ref: bottomAnchorRef,
+  feed_ref: feedRef,
+  scroll_ref: scrollRef,
   compact,
-  current_agent_name,
-  current_agent_avatar,
-  current_user_avatar,
-  agent_name_map,
-  agent_avatar_map,
-  is_last_round_pending_permissions,
-  runtime_phase,
-  live_round_ids,
-  is_mobile_layout,
-  message_groups,
-  pending_permission_groups,
-  pending_slot_groups,
-  on_open_agent_contact,
-  on_open_workspace_file,
-  on_permission_response,
-  can_respond_to_permissions = true,
-  permission_read_only_reason,
-  on_stop_message,
-  round_ids,
+  current_agent_name: currentAgentName,
+  current_agent_avatar: currentAgentAvatar,
+  current_user_avatar: currentUserAvatar,
+  agent_name_map: agentNameMap,
+  agent_avatar_map: agentAvatarMap,
+  is_last_round_pending_permissions: isLastRoundPendingPermissions,
+  runtime_phase: runtimePhase,
+  live_round_ids: liveRoundIds,
+  is_mobile_layout: isMobileLayout,
+  message_groups: messageGroups,
+  pending_permission_groups: pendingPermissionGroups,
+  pending_slot_groups: pendingSlotGroups,
+  on_open_agent_contact: onOpenAgentContact,
+  on_open_workspace_file: onOpenWorkspaceFile,
+  on_permission_response: onPermissionResponse,
+  can_respond_to_permissions: canRespondToPermissions = true,
+  permission_read_only_reason: permissionReadOnlyReason,
+  on_stop_message: onStopMessage,
+  round_ids: roundIds,
 }: Omit<GroupConversationFeedProps, "is_loading" | "scroll_ref"> & { scroll_ref: RefObject<HTMLDivElement | null> }) {
-  const container_ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Measure scroll container width for pretext height estimation
-  const container_width_ref = useRef(680);
+  const containerWidthRef = useRef(680);
   useEffect(() => {
-    const el = scroll_ref.current;
+    const el = scrollRef.current;
     if (!el) return;
-    container_width_ref.current = el.clientWidth || 680;
+    containerWidthRef.current = el.clientWidth || 680;
     const observer = new ResizeObserver(() => {
-      container_width_ref.current = el.clientWidth || 680;
+      containerWidthRef.current = el.clientWidth || 680;
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [scroll_ref]);
+  }, [scrollRef]);
 
   // Pretext-based height estimates (recomputed when round count changes)
-  const height_map = useMemo(
-    () => estimate_round_heights(round_ids, message_groups, container_width_ref.current),
+  const heightMap = useMemo(
+    () => estimate_round_heights(roundIds, messageGroups, containerWidthRef.current),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [round_ids.length, message_groups],
+    [roundIds.length, messageGroups],
   );
 
   const virtualizer = useVirtualizer({
-    count: round_ids.length,
-    getScrollElement: () => scroll_ref.current,
-    estimateSize: (i) => height_map.get(round_ids[i]) ?? 200,
+    count: roundIds.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => heightMap.get(roundIds[i]) ?? 200,
     overscan: 5,
     // Allow measured sizes to override estimates as items render
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 
-  const virtual_items = virtualizer.getVirtualItems();
-  const total_size = virtualizer.getTotalSize();
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
 
   return (
     <div
       ref={(el) => {
         // Merge feed_ref with container_ref
-        container_ref.current = el;
-        if (feed_ref) (feed_ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        containerRef.current = el;
+        if (feedRef) (feedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       }}
-      className={is_mobile_layout ? "nexus-chat-feed relative" : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"}
-      style={{ height: total_size }}
+      className={isMobileLayout ? "nexus-chat-feed relative" : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"}
+      style={{ height: totalSize }}
     >
       <div
         style={{
@@ -287,68 +287,68 @@ function VirtualFeed({
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtual_items[0]?.start ?? 0}px)`,
+          transform: `translateY(${virtualItems[0]?.start ?? 0}px)`,
         }}
       >
-        {virtual_items.map((virtual_item) => {
-          const roundId = round_ids[virtual_item.index];
-          const roundMessages = message_groups.get(roundId) || [];
-          const round_pending_permissions = pending_permission_groups.get(roundId) || [];
-          const round_pending_slots = pending_slot_groups.get(roundId) || [];
-          const isLastRound = virtual_item.index === round_ids.length - 1;
-          const is_last_round_live = isLastRound && live_round_ids.includes(roundId);
-          const has_room_entries = has_room_agent_round_entries(roundMessages, round_pending_slots);
+        {virtualItems.map((virtualItem) => {
+          const roundId = roundIds[virtualItem.index];
+          const roundMessages = messageGroups.get(roundId) || [];
+          const roundPendingPermissions = pendingPermissionGroups.get(roundId) || [];
+          const roundPendingSlots = pendingSlotGroups.get(roundId) || [];
+          const isLastRound = virtualItem.index === roundIds.length - 1;
+          const isLastRoundLive = isLastRound && liveRoundIds.includes(roundId);
+          const hasRoomEntries = has_room_agent_round_entries(roundMessages, roundPendingSlots);
 
           return (
             <div
               key={roundId}
-              data-index={virtual_item.index}
+              data-index={virtualItem.index}
               ref={virtualizer.measureElement}
             >
-              {has_room_entries ? (
+              {hasRoomEntries ? (
                 <GroupRoundCardGroup
                   round_id={roundId}
                   messages={roundMessages}
-                  pending_permissions={round_pending_permissions}
-                  pending_slots={round_pending_slots}
-                  agent_name_map={agent_name_map}
-                  agent_avatar_map={agent_avatar_map}
-                  current_user_avatar={current_user_avatar}
+                  pending_permissions={roundPendingPermissions}
+                  pending_slots={roundPendingSlots}
+                  agent_name_map={agentNameMap}
+                  agent_avatar_map={agentAvatarMap}
+                  current_user_avatar={currentUserAvatar}
                   is_last_round={isLastRound}
-                  is_loading={is_last_round_live}
-                  on_permission_response={on_permission_response}
-                  can_respond_to_permissions={can_respond_to_permissions}
-                  permission_read_only_reason={permission_read_only_reason}
-                  on_open_agent_contact={on_open_agent_contact}
-                  on_stop_message={on_stop_message}
-                  on_open_workspace_file={on_open_workspace_file}
+                  is_loading={isLastRoundLive}
+                  on_permission_response={onPermissionResponse}
+                  can_respond_to_permissions={canRespondToPermissions}
+                  permission_read_only_reason={permissionReadOnlyReason}
+                  on_open_agent_contact={onOpenAgentContact}
+                  on_stop_message={onStopMessage}
+                  on_open_workspace_file={onOpenWorkspaceFile}
                 />
               ) : (
                 <MessageItem
                   compact={compact}
-                  current_agent_name={resolve_round_agent_name(roundMessages, agent_name_map) ?? current_agent_name}
-                  current_agent_avatar={resolve_round_agent_avatar(roundMessages, agent_avatar_map) ?? current_agent_avatar}
-                  workspace_agent_id={resolve_round_agent_id(roundMessages)}
-                  current_user_avatar={current_user_avatar}
+                  current_agent_name={resolveRoundAgentName(roundMessages, agentNameMap) ?? currentAgentName}
+                  current_agent_avatar={resolveRoundAgentAvatar(roundMessages, agentAvatarMap) ?? currentAgentAvatar}
+                  workspace_agent_id={resolveRoundAgentId(roundMessages)}
+                  current_user_avatar={currentUserAvatar}
                   round_id={roundId}
                   messages={roundMessages}
                   is_last_round={isLastRound}
-                  is_loading={is_last_round_live}
-                  runtime_phase={is_last_round_live ? runtime_phase : null}
-                  pending_permissions={is_last_round_live ? is_last_round_pending_permissions : []}
-                  on_permission_response={on_permission_response}
-                  can_respond_to_permissions={can_respond_to_permissions}
-                  permission_read_only_reason={permission_read_only_reason}
-                  on_open_agent_contact={on_open_agent_contact}
-                  on_open_workspace_file={on_open_workspace_file}
-                  on_stop_message={on_stop_message}
+                  is_loading={isLastRoundLive}
+                  runtime_phase={isLastRoundLive ? runtimePhase : null}
+                  pending_permissions={isLastRoundLive ? isLastRoundPendingPermissions : []}
+                  on_permission_response={onPermissionResponse}
+                  can_respond_to_permissions={canRespondToPermissions}
+                  permission_read_only_reason={permissionReadOnlyReason}
+                  on_open_agent_contact={onOpenAgentContact}
+                  on_open_workspace_file={onOpenWorkspaceFile}
+                  on_stop_message={onStopMessage}
                 />
               )}
             </div>
           );
         })}
       </div>
-      <div ref={bottom_anchor_ref} className="absolute bottom-0 h-px w-full" />
+      <div ref={bottomAnchorRef} className="absolute bottom-0 h-px w-full" />
     </div>
   );
 }

@@ -26,17 +26,17 @@ export const AppRouteBuilders = {
   login: () => APP_ROUTE_PATHS.login,
   launcher: () => APP_ROUTE_PATHS.launcher,
   home: () => APP_ROUTE_PATHS.home,
-  room: (room_id: string) => `/rooms/${encodeURIComponent(room_id)}`,
-  room_session: (room_id: string, session_key: string) =>
-    `/rooms/${encodeURIComponent(room_id)}/sessions/${encodeURIComponent(session_key)}`,
-  room_conversation: (room_id: string, conversation_id: string) =>
-    `/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}`,
+  room: (roomId: string) => `/rooms/${encodeURIComponent(roomId)}`,
+  room_session: (roomId: string, sessionKey: string) =>
+    `/rooms/${encodeURIComponent(roomId)}/sessions/${encodeURIComponent(sessionKey)}`,
+  room_conversation: (roomId: string, conversationId: string) =>
+    `/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
   contacts: () => APP_ROUTE_PATHS.contacts,
-  contact_agent: (agent_id: string) => `${APP_ROUTE_PATHS.contacts}?agent=${encodeURIComponent(agent_id)}`,
+  contact_agent: (agentId: string) => `${APP_ROUTE_PATHS.contacts}?agent=${encodeURIComponent(agentId)}`,
   skills: () => APP_ROUTE_PATHS.skills,
-  skill_detail: (skill_name: string) => `/capability/skills/${encodeURIComponent(skill_name)}`,
+  skill_detail: (skillName: string) => `/capability/skills/${encodeURIComponent(skillName)}`,
   connectors: () => APP_ROUTE_PATHS.connectors,
-  connector_detail: (connector_id: string) => `/capability/connectors/${encodeURIComponent(connector_id)}`,
+  connector_detail: (connectorId: string) => `/capability/connectors/${encodeURIComponent(connectorId)}`,
   connectors_oauth_callback: () => APP_ROUTE_PATHS.connectors_oauth_callback,
   loops: () => APP_ROUTE_PATHS.loops,
   loop_detail: (slug: string) => `/capability/loops/${encodeURIComponent(slug)}`,

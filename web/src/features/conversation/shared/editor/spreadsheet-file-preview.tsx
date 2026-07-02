@@ -61,39 +61,39 @@ interface SpreadsheetFilePreviewProps {
 }
 
 export function SpreadsheetFilePreview({
-  agent_id,
+  agent_id: agentId,
   embedded,
-  file_name,
-  is_preview_focused,
-  on_resize_start,
-  on_toggle_preview_focus,
+  file_name: fileName,
+  is_preview_focused: isPreviewFocused,
+  on_resize_start: onResizeStart,
+  on_toggle_preview_focus: onTogglePreviewFocus,
   path,
 }: SpreadsheetFilePreviewProps) {
-  const preview_key = `${agent_id}\x1f${path}`;
-  const [workbook_data, set_workbook_data] = useResettableState<SpreadsheetPreviewWorkbookData | null>(null, preview_key);
-  const [active_sheet_index, set_active_sheet_index] = useResettableState(0, preview_key);
-  const [status, set_status] = useResettableState<SpreadsheetPreviewStatus>({
+  const previewKey = `${agentId}\x1f${path}`;
+  const [workbookData, setWorkbookData] = useResettableState<SpreadsheetPreviewWorkbookData | null>(null, previewKey);
+  const [activeSheetIndex, setActiveSheetIndex] = useResettableState(0, previewKey);
+  const [status, setStatus] = useResettableState<SpreadsheetPreviewStatus>({
     state: "loading",
     message: "加载表格预览中",
-  }, preview_key);
+  }, previewKey);
 
   useEffect(() => {
-    const abort_controller = new AbortController();
+    const abortController = new AbortController();
     let cancelled = false;
 
-    async function load_preview() {
+    async function loadPreview() {
       try {
-        const preview_url = get_workspace_file_preview_url(agent_id, path);
-        const response = await fetch(preview_url, {
+        const previewUrl = get_workspace_file_preview_url(agentId, path);
+        const response = await fetch(previewUrl, {
           credentials: "include",
-          signal: abort_controller.signal,
+          signal: abortController.signal,
         });
         if (!response.ok) {
           throw new Error(`读取文件失败：HTTP ${response.status}`);
         }
 
-        const content_length = Number(response.headers.get("content-length") || 0);
-        if (content_length > MAX_XLSX_PREVIEW_BYTES) {
+        const contentLength = Number(response.headers.get("content-length") || 0);
+        if (contentLength > MAX_XLSX_PREVIEW_BYTES) {
           throw new Error("文件超过 15MB，当前无法内置预览，请使用上方按钮处理");
         }
 
@@ -105,7 +105,7 @@ export function SpreadsheetFilePreview({
           return;
         }
 
-        set_status({ state: "loading", message: "解析 workbook 中" });
+        setStatus({ state: "loading", message: "解析 workbook 中" });
         const ExcelJS = await import("exceljs");
         if (cancelled) {
           return;
@@ -113,38 +113,38 @@ export function SpreadsheetFilePreview({
 
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(buffer);
-        const workbook_preview = workbook_to_spreadsheet_preview_data(workbook);
-        if (workbook_preview.sheets.length === 0) {
+        const workbookPreview = workbook_to_spreadsheet_preview_data(workbook);
+        if (workbookPreview.sheets.length === 0) {
           throw new Error("未找到可预览的工作表");
         }
         if (cancelled) {
           return;
         }
 
-        set_workbook_data(workbook_preview);
-        set_status({
+        setWorkbookData(workbookPreview);
+        setStatus({
           state: "loaded",
-          sheet_count: workbook_preview.sheets.length,
+          sheet_count: workbookPreview.sheets.length,
         });
       } catch (error) {
-        if (cancelled || abort_controller.signal.aborted) {
+        if (cancelled || abortController.signal.aborted) {
           return;
         }
-        set_workbook_data(null);
-        set_status({
+        setWorkbookData(null);
+        setStatus({
           state: "error",
           message: error instanceof Error ? error.message : "xlsx 预览失败",
         });
       }
     }
 
-    void load_preview();
+    void loadPreview();
 
     return () => {
       cancelled = true;
-      abort_controller.abort();
+      abortController.abort();
     };
-  }, [agent_id, path]);
+  }, [agentId, path]);
 
   return (
     <>
@@ -152,31 +152,31 @@ export function SpreadsheetFilePreview({
         <ConversationResizeHandle
           aria_label="调整编辑器宽度"
           class_name="flex"
-          on_mouse_down={on_resize_start}
+          on_mouse_down={onResizeStart}
         />
       ) : null}
 
       <WorkspaceFilePreviewHeader
         actions={(
           <>
-            <WorkspaceFileDownloadButton agent_id={agent_id} file_name={file_name} path={path} />
+            <WorkspaceFileDownloadButton agent_id={agentId} file_name={fileName} path={path} />
             <WorkspaceFilePreviewFocusButton
-              is_preview_focused={is_preview_focused}
-              on_toggle_preview_focus={on_toggle_preview_focus}
+              is_preview_focused={isPreviewFocused}
+              on_toggle_preview_focus={onTogglePreviewFocus}
             />
           </>
         )}
         embedded={embedded}
         meta={<SpreadsheetPreviewMeta status={status} />}
-        title={file_name}
+        title={fileName}
       />
 
       <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
-        {workbook_data ? (
+        {workbookData ? (
           <SpreadsheetReadonlyWorkbook
-            active_sheet_index={active_sheet_index}
-            on_select_sheet={set_active_sheet_index}
-            workbook={workbook_data}
+            active_sheet_index={activeSheetIndex}
+            on_select_sheet={setActiveSheetIndex}
+            workbook={workbookData}
           />
         ) : null}
         {status.state !== "loaded" ? (
@@ -188,16 +188,16 @@ export function SpreadsheetFilePreview({
 }
 
 function SpreadsheetReadonlyWorkbook({
-  active_sheet_index,
-  on_select_sheet,
+  active_sheet_index: activeSheetIndex,
+  on_select_sheet: onSelectSheet,
   workbook,
 }: {
   active_sheet_index: number;
   on_select_sheet: (index: number) => void;
   workbook: SpreadsheetPreviewWorkbookData;
 }) {
-  const active_sheet = workbook.sheets[Math.min(active_sheet_index, workbook.sheets.length - 1)];
-  if (!active_sheet) {
+  const activeSheet = workbook.sheets[Math.min(activeSheetIndex, workbook.sheets.length - 1)];
+  if (!activeSheet) {
     return null;
   }
 
@@ -209,12 +209,12 @@ function SpreadsheetReadonlyWorkbook({
             <button
               className={cn(
                 "max-w-[180px] shrink-0 truncate rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                index === active_sheet_index
+                index === activeSheetIndex
                   ? "bg-primary text-primary-foreground"
                   : "text-(--text-muted) hover:bg-(--button-ghost-hover-background) hover:text-(--text-strong)",
               )}
               key={`${sheet.name}-${index}`}
-              onClick={() => on_select_sheet(index)}
+              onClick={() => onSelectSheet(index)}
               title={sheet.name}
               type="button"
             >
@@ -224,46 +224,46 @@ function SpreadsheetReadonlyWorkbook({
         </div>
       ) : null}
       <SpreadsheetReadonlySheet
-        key={`${active_sheet.name}-${active_sheet_index}`}
-        sheet={active_sheet}
+        key={`${activeSheet.name}-${activeSheetIndex}`}
+        sheet={activeSheet}
       />
     </div>
   );
 }
 
 function SpreadsheetReadonlySheet({ sheet }: { sheet: SpreadsheetPreviewSheetData }) {
-  const scroll_ref = useRef<HTMLDivElement>(null);
-  const [scroll_offset, set_scroll_offset] = useState({ left: 0, top: 0 });
-  const row_sizes = useMemo(
-    () => make_size_table(sheet.row_count, (index) => get_row_height(sheet, index)),
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollOffset, setScrollOffset] = useState({ left: 0, top: 0 });
+  const rowSizes = useMemo(
+    () => makeSizeTable(sheet.row_count, (index) => getRowHeight(sheet, index)),
     [sheet],
   );
-  const column_sizes = useMemo(
-    () => make_size_table(sheet.column_count, (index) => get_column_width(sheet, index)),
+  const columnSizes = useMemo(
+    () => makeSizeTable(sheet.column_count, (index) => getColumnWidth(sheet, index)),
     [sheet],
   );
-  const row_virtualizer = useVirtualizer({
+  const rowVirtualizer = useVirtualizer({
     count: sheet.row_count,
-    estimateSize: (index) => row_sizes.sizes[index] ?? DEFAULT_ROW_HEIGHT,
-    getScrollElement: () => scroll_ref.current,
+    estimateSize: (index) => rowSizes.sizes[index] ?? DEFAULT_ROW_HEIGHT,
+    getScrollElement: () => scrollRef.current,
     overscan: 8,
   });
-  const column_virtualizer = useVirtualizer({
+  const columnVirtualizer = useVirtualizer({
     count: sheet.column_count,
-    estimateSize: (index) => column_sizes.sizes[index] ?? DEFAULT_COLUMN_WIDTH,
-    getScrollElement: () => scroll_ref.current,
+    estimateSize: (index) => columnSizes.sizes[index] ?? DEFAULT_COLUMN_WIDTH,
+    getScrollElement: () => scrollRef.current,
     horizontal: true,
     overscan: 3,
   });
-  const virtual_rows = row_virtualizer.getVirtualItems();
-  const virtual_columns = column_virtualizer.getVirtualItems();
-  const rendered_cells = make_rendered_cells(sheet, row_sizes, column_sizes, virtual_rows, virtual_columns);
-  const handle_scroll = useCallback(() => {
-    const element = scroll_ref.current;
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const virtualColumns = columnVirtualizer.getVirtualItems();
+  const renderedCells = makeRenderedCells(sheet, rowSizes, columnSizes, virtualRows, virtualColumns);
+  const handleScroll = useCallback(() => {
+    const element = scrollRef.current;
     if (!element) {
       return;
     }
-    set_scroll_offset({
+    setScrollOffset({
       left: element.scrollLeft,
       top: element.scrollTop,
     });
@@ -282,11 +282,11 @@ function SpreadsheetReadonlySheet({ sheet }: { sheet: SpreadsheetPreviewSheetDat
         <div
           className="relative h-full"
           style={{
-            transform: `translateX(${-scroll_offset.left}px)`,
-            width: column_sizes.total,
+            transform: `translateX(${-scrollOffset.left}px)`,
+            width: columnSizes.total,
           }}
         >
-          {virtual_columns.map((column) => (
+          {virtualColumns.map((column) => (
             <div
               className="absolute top-0 flex h-full items-center justify-center border-r border-(--divider-subtle-color) px-2 text-[10px] font-semibold text-(--text-muted)"
               key={column.key}
@@ -295,7 +295,7 @@ function SpreadsheetReadonlySheet({ sheet }: { sheet: SpreadsheetPreviewSheetDat
                 width: column.size,
               }}
             >
-              {column_index_to_label(column.index)}
+              {columnIndexToLabel(column.index)}
             </div>
           ))}
         </div>
@@ -304,11 +304,11 @@ function SpreadsheetReadonlySheet({ sheet }: { sheet: SpreadsheetPreviewSheetDat
         <div
           className="relative w-full"
           style={{
-            height: row_sizes.total,
-            transform: `translateY(${-scroll_offset.top}px)`,
+            height: rowSizes.total,
+            transform: `translateY(${-scrollOffset.top}px)`,
           }}
         >
-          {virtual_rows.map((row) => (
+          {virtualRows.map((row) => (
             <div
               className="absolute left-0 flex w-full items-center justify-end border-b border-(--divider-subtle-color) px-2 text-[10px] font-medium text-(--text-muted)"
               key={row.key}
@@ -324,24 +324,24 @@ function SpreadsheetReadonlySheet({ sheet }: { sheet: SpreadsheetPreviewSheetDat
       </div>
       <div
         className="overflow-auto bg-(--card-default-background)"
-        onScroll={handle_scroll}
-        ref={scroll_ref}
+        onScroll={handleScroll}
+        ref={scrollRef}
       >
         <div
           className="relative"
           role="grid"
           style={{
-            height: row_sizes.total,
-            width: column_sizes.total,
+            height: rowSizes.total,
+            width: columnSizes.total,
           }}
         >
-          {rendered_cells.map((cell) => (
+          {renderedCells.map((cell) => (
             <div
               className="absolute overflow-hidden border-r border-b border-(--divider-subtle-color) px-2 py-1"
               key={`${cell.row_index}:${cell.column_index}`}
               role="gridcell"
               style={{
-                ...make_cell_style(sheet, cell.cell),
+                ...makeCellStyle(sheet, cell.cell),
                 height: cell.height,
                 transform: `translate(${cell.column_start}px, ${cell.row_start}px)`,
                 width: cell.width,
@@ -384,167 +384,167 @@ function SpreadsheetPreviewMeta({ status }: { status: SpreadsheetPreviewStatus }
   );
 }
 
-function make_cell_style(
+function makeCellStyle(
   sheet: SpreadsheetPreviewSheetData,
   cell?: SpreadsheetPreviewCellData,
 ): CSSProperties {
-  const preview_style = cell?.style !== undefined ? sheet.styles[cell.style] : undefined;
-  if (!preview_style) {
+  const previewStyle = cell?.style !== undefined ? sheet.styles[cell.style] : undefined;
+  if (!previewStyle) {
     return {};
   }
 
   const style: CSSProperties = {
-    backgroundColor: preview_style.bgcolor,
-    color: preview_style.color,
-    fontFamily: preview_style.font?.name,
-    fontSize: preview_style.font?.size ? Math.max(10, preview_style.font.size) : undefined,
-    fontStyle: preview_style.font?.italic ? "italic" : undefined,
-    fontWeight: preview_style.font?.bold ? 700 : undefined,
-    textAlign: preview_style.align,
+    backgroundColor: previewStyle.bgcolor,
+    color: previewStyle.color,
+    fontFamily: previewStyle.font?.name,
+    fontSize: previewStyle.font?.size ? Math.max(10, previewStyle.font.size) : undefined,
+    fontStyle: previewStyle.font?.italic ? "italic" : undefined,
+    fontWeight: previewStyle.font?.bold ? 700 : undefined,
+    textAlign: previewStyle.align,
     textDecoration: [
-      preview_style.underline ? "underline" : "",
-      preview_style.strike ? "line-through" : "",
+      previewStyle.underline ? "underline" : "",
+      previewStyle.strike ? "line-through" : "",
     ].filter(Boolean).join(" ") || undefined,
-    verticalAlign: preview_style.valign,
-    whiteSpace: preview_style.textwrap ? "pre-wrap" : "nowrap",
+    verticalAlign: previewStyle.valign,
+    whiteSpace: previewStyle.textwrap ? "pre-wrap" : "nowrap",
   };
 
-  apply_border_style(style, preview_style);
+  applyBorderStyle(style, previewStyle);
   return style;
 }
 
-function apply_border_style(style: CSSProperties, preview_style: SpreadsheetPreviewCellStyle) {
-  if (preview_style.border?.top) {
-    style.borderTop = make_border_css(preview_style.border.top);
+function applyBorderStyle(style: CSSProperties, previewStyle: SpreadsheetPreviewCellStyle) {
+  if (previewStyle.border?.top) {
+    style.borderTop = makeBorderCss(previewStyle.border.top);
   }
-  if (preview_style.border?.right) {
-    style.borderRight = make_border_css(preview_style.border.right);
+  if (previewStyle.border?.right) {
+    style.borderRight = makeBorderCss(previewStyle.border.right);
   }
-  if (preview_style.border?.bottom) {
-    style.borderBottom = make_border_css(preview_style.border.bottom);
+  if (previewStyle.border?.bottom) {
+    style.borderBottom = makeBorderCss(previewStyle.border.bottom);
   }
-  if (preview_style.border?.left) {
-    style.borderLeft = make_border_css(preview_style.border.left);
+  if (previewStyle.border?.left) {
+    style.borderLeft = makeBorderCss(previewStyle.border.left);
   }
 }
 
-function make_border_css([kind, color]: [string, string]) {
-  const line_style = kind === "dashed" || kind === "dotted" || kind === "double" ? kind : "solid";
+function makeBorderCss([kind, color]: [string, string]) {
+  const lineStyle = kind === "dashed" || kind === "dotted" || kind === "double" ? kind : "solid";
   const width = kind === "medium" || kind === "thick" ? 2 : 1;
-  return `${width}px ${line_style} ${color}`;
+  return `${width}px ${lineStyle} ${color}`;
 }
 
-function get_column_width(sheet: SpreadsheetPreviewSheetData, column_index: number) {
-  const width = sheet.columns[column_index]?.width ?? DEFAULT_COLUMN_WIDTH;
+function getColumnWidth(sheet: SpreadsheetPreviewSheetData, columnIndex: number) {
+  const width = sheet.columns[columnIndex]?.width ?? DEFAULT_COLUMN_WIDTH;
   if (width <= 1) {
     return 1;
   }
   return Math.min(Math.max(width, MIN_COLUMN_WIDTH), MAX_COLUMN_WIDTH);
 }
 
-function get_row_height(sheet: SpreadsheetPreviewSheetData, row_index: number) {
-  const height = sheet.rows[row_index]?.height ?? DEFAULT_ROW_HEIGHT;
+function getRowHeight(sheet: SpreadsheetPreviewSheetData, rowIndex: number) {
+  const height = sheet.rows[rowIndex]?.height ?? DEFAULT_ROW_HEIGHT;
   return height <= 1 ? 1 : Math.max(height, DEFAULT_ROW_HEIGHT);
 }
 
-function make_size_table(count: number, get_size: (index: number) => number): SizeTable {
+function makeSizeTable(count: number, getSize: (index: number) => number): SizeTable {
   const sizes: number[] = [];
   const starts: number[] = [];
   let total = 0;
   for (let index = 0; index < count; index += 1) {
     starts[index] = total;
-    const size = get_size(index);
+    const size = getSize(index);
     sizes[index] = size;
     total += size;
   }
   return { sizes, starts, total };
 }
 
-function make_rendered_cells(
+function makeRenderedCells(
   sheet: SpreadsheetPreviewSheetData,
-  row_sizes: SizeTable,
-  column_sizes: SizeTable,
-  virtual_rows: VirtualItem[],
-  virtual_columns: VirtualItem[],
+  rowSizes: SizeTable,
+  columnSizes: SizeTable,
+  virtualRows: VirtualItem[],
+  virtualColumns: VirtualItem[],
 ): RenderedCell[] {
   const cells = new Map<string, RenderedCell>();
-  const row_range = virtual_range(virtual_rows);
-  const column_range = virtual_range(virtual_columns);
-  if (!row_range || !column_range) {
+  const rowRange = virtualRange(virtualRows);
+  const columnRange = virtualRange(virtualColumns);
+  if (!rowRange || !columnRange) {
     return [];
   }
 
-  for (const row of virtual_rows) {
-    for (const column of virtual_columns) {
-      const merge = find_merge_for_cell(sheet, row.index, column.index);
+  for (const row of virtualRows) {
+    for (const column of virtualColumns) {
+      const merge = findMergeForCell(sheet, row.index, column.index);
       if (merge && (merge.start_row !== row.index || merge.start_col !== column.index)) {
         continue;
       }
-      add_rendered_cell(cells, sheet, row_sizes, column_sizes, row.index, column.index, merge);
+      addRenderedCell(cells, sheet, rowSizes, columnSizes, row.index, column.index, merge);
     }
   }
 
   for (const merge of sheet.merges) {
-    if (!ranges_overlap(row_range.start, row_range.end, merge.start_row, merge.end_row)) {
+    if (!rangesOverlap(rowRange.start, rowRange.end, merge.start_row, merge.end_row)) {
       continue;
     }
-    if (!ranges_overlap(column_range.start, column_range.end, merge.start_col, merge.end_col)) {
+    if (!rangesOverlap(columnRange.start, columnRange.end, merge.start_col, merge.end_col)) {
       continue;
     }
-    add_rendered_cell(cells, sheet, row_sizes, column_sizes, merge.start_row, merge.start_col, merge);
+    addRenderedCell(cells, sheet, rowSizes, columnSizes, merge.start_row, merge.start_col, merge);
   }
 
   return Array.from(cells.values());
 }
 
-function add_rendered_cell(
+function addRenderedCell(
   cells: Map<string, RenderedCell>,
   sheet: SpreadsheetPreviewSheetData,
-  row_sizes: SizeTable,
-  column_sizes: SizeTable,
-  row_index: number,
-  column_index: number,
-  merge = find_merge_for_cell(sheet, row_index, column_index),
+  rowSizes: SizeTable,
+  columnSizes: SizeTable,
+  rowIndex: number,
+  columnIndex: number,
+  merge = findMergeForCell(sheet, rowIndex, columnIndex),
 ) {
-  const key = `${row_index}:${column_index}`;
+  const key = `${rowIndex}:${columnIndex}`;
   if (cells.has(key)) {
     return;
   }
-  const end_row = Math.min(merge?.end_row ?? row_index, sheet.row_count - 1);
-  const end_col = Math.min(merge?.end_col ?? column_index, sheet.column_count - 1);
+  const endRow = Math.min(merge?.end_row ?? rowIndex, sheet.row_count - 1);
+  const endCol = Math.min(merge?.end_col ?? columnIndex, sheet.column_count - 1);
   cells.set(key, {
-    cell: sheet.rows[row_index]?.cells[column_index],
-    column_index,
-    column_start: column_sizes.starts[column_index] ?? 0,
-    height: size_range(row_sizes, row_index, end_row),
-    row_index,
-    row_start: row_sizes.starts[row_index] ?? 0,
-    width: size_range(column_sizes, column_index, end_col),
+    cell: sheet.rows[rowIndex]?.cells[columnIndex],
+    column_index: columnIndex,
+    column_start: columnSizes.starts[columnIndex] ?? 0,
+    height: sizeRange(rowSizes, rowIndex, endRow),
+    row_index: rowIndex,
+    row_start: rowSizes.starts[rowIndex] ?? 0,
+    width: sizeRange(columnSizes, columnIndex, endCol),
   });
 }
 
-function find_merge_for_cell(
+function findMergeForCell(
   sheet: SpreadsheetPreviewSheetData,
-  row_index: number,
-  column_index: number,
+  rowIndex: number,
+  columnIndex: number,
 ) {
   return sheet.merges.find((merge) => (
-    row_index >= merge.start_row
-    && row_index <= merge.end_row
-    && column_index >= merge.start_col
-    && column_index <= merge.end_col
+    rowIndex >= merge.start_row
+    && rowIndex <= merge.end_row
+    && columnIndex >= merge.start_col
+    && columnIndex <= merge.end_col
   ));
 }
 
-function size_range(size_table: SizeTable, start_index: number, end_index: number) {
-  const start = size_table.starts[start_index] ?? 0;
-  const next_start = end_index + 1 < size_table.starts.length
-    ? size_table.starts[end_index + 1]
-    : size_table.total;
-  return Math.max(1, next_start - start);
+function sizeRange(sizeTable: SizeTable, startIndex: number, endIndex: number) {
+  const start = sizeTable.starts[startIndex] ?? 0;
+  const nextStart = endIndex + 1 < sizeTable.starts.length
+    ? sizeTable.starts[endIndex + 1]
+    : sizeTable.total;
+  return Math.max(1, nextStart - start);
 }
 
-function virtual_range(items: VirtualItem[]) {
+function virtualRange(items: VirtualItem[]) {
   if (items.length === 0) {
     return null;
   }
@@ -554,11 +554,11 @@ function virtual_range(items: VirtualItem[]) {
   };
 }
 
-function ranges_overlap(a_start: number, a_end: number, b_start: number, b_end: number) {
-  return a_start <= b_end && b_start <= a_end;
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number) {
+  return aStart <= bEnd && bStart <= aEnd;
 }
 
-function column_index_to_label(index: number) {
+function columnIndexToLabel(index: number) {
   let value = index + 1;
   let label = "";
   while (value > 0) {

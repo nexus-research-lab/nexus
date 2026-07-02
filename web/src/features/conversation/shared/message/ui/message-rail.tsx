@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 export function MessageRail({
   children,
-  class_name,
+  class_name: className,
 }: {
   children: ReactNode;
   class_name?: string;
@@ -24,7 +24,7 @@ export function MessageRail({
     <div
       className={cn(
         "min-w-0 max-w-full overflow-hidden border-l-2 pl-4",
-        class_name,
+        className,
       )}
       style={{ borderColor: "color-mix(in srgb, var(--foreground) 18%, transparent)" }}
     >
@@ -36,7 +36,7 @@ export function MessageRail({
 export function MessageRailLabel({
   children,
   active = false,
-  class_name,
+  class_name: className,
 }: {
   children: ReactNode;
   active?: boolean;
@@ -47,7 +47,7 @@ export function MessageRailLabel({
       className={cn(
         "flex min-w-0 items-center gap-2 text-[11px] font-medium text-(--text-muted)",
         active && "text-primary",
-        class_name,
+        className,
       )}
     >
       {children}
@@ -57,13 +57,13 @@ export function MessageRailLabel({
 
 export function MessageRailBody({
   children,
-  class_name,
+  class_name: className,
 }: {
   children: ReactNode;
   class_name?: string;
 }) {
   return (
-    <div className={cn("message-cjk-font min-w-0 max-w-full overflow-hidden break-words text-[11px] leading-[1.45] text-(--text-default)", class_name)}>
+    <div className={cn("message-cjk-font min-w-0 max-w-full overflow-hidden break-words text-[11px] leading-[1.45] text-(--text-default)", className)}>
       {children}
     </div>
   );
@@ -71,14 +71,14 @@ export function MessageRailBody({
 
 function MessageCallout({
   children,
-  class_name,
+  class_name: className,
 }: {
   children: ReactNode;
   class_name?: string;
 }) {
   return (
     <div
-      className={cn("message-cjk-font rounded-[10px] border px-3 py-2 text-xs text-(--status-info-soft-text)", class_name)}
+      className={cn("message-cjk-font rounded-[10px] border px-3 py-2 text-xs text-(--status-info-soft-text)", className)}
       style={{
         background: "color-mix(in srgb, var(--surface-panel-background) 86%, transparent)",
         borderColor: "color-mix(in srgb, var(--surface-panel-subtle-border) 80%, transparent)",
@@ -91,14 +91,14 @@ function MessageCallout({
 
 function MessageCalloutTitle({
   children,
-  class_name,
+  class_name: className,
   ...props
 }: {
   children: ReactNode;
   class_name?: string;
 } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("font-semibold text-(--status-info-soft-text)", class_name)} {...props}>
+    <div className={cn("font-semibold text-(--status-info-soft-text)", className)} {...props}>
       {children}
     </div>
   );
@@ -114,7 +114,7 @@ const RESULT_TONE_CLASS_MAP: Record<MessageResultTone, string> = {
 function MessageResultLabel({
   children,
   tone,
-  class_name,
+  class_name: className,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
@@ -126,7 +126,7 @@ function MessageResultLabel({
       className={cn(
         "mb-2 flex items-center gap-2 text-[11px] font-semibold",
         RESULT_TONE_CLASS_MAP[tone],
-        class_name,
+        className,
       )}
       {...props}
     >

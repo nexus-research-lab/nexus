@@ -9,58 +9,58 @@ type PendingChatAck = {
 };
 
 export function usePendingChatAcks() {
-  const pending_chat_ack_ref = useRef<Map<string, PendingChatAck>>(new Map());
+  const pendingChatAckRef = useRef<Map<string, PendingChatAck>>(new Map());
 
-  const clear_pending_chat_ack = useCallback((round_id?: string | null) => {
-    if (!round_id) {
+  const clearPendingChatAck = useCallback((roundId?: string | null) => {
+    if (!roundId) {
       return false;
     }
-    const pending_request = pending_chat_ack_ref.current.get(round_id);
-    if (!pending_request) {
+    const pendingRequest = pendingChatAckRef.current.get(roundId);
+    if (!pendingRequest) {
       return false;
     }
-    window.clearTimeout(pending_request.timeout_id);
-    pending_chat_ack_ref.current.delete(round_id);
-    pending_request.resolve();
+    window.clearTimeout(pendingRequest.timeout_id);
+    pendingChatAckRef.current.delete(roundId);
+    pendingRequest.resolve();
     return true;
   }, []);
 
-  const reject_pending_chat_ack = useCallback((round_id: string, reason: string) => {
-    const pending_request = pending_chat_ack_ref.current.get(round_id);
-    if (!pending_request) {
+  const rejectPendingChatAck = useCallback((roundId: string, reason: string) => {
+    const pendingRequest = pendingChatAckRef.current.get(roundId);
+    if (!pendingRequest) {
       return false;
     }
-    window.clearTimeout(pending_request.timeout_id);
-    pending_chat_ack_ref.current.delete(round_id);
-    pending_request.reject(new Error(reason));
+    window.clearTimeout(pendingRequest.timeout_id);
+    pendingChatAckRef.current.delete(roundId);
+    pendingRequest.reject(new Error(reason));
     return true;
   }, []);
 
-  const cancel_pending_chat_acks = useCallback((reason: string) => {
+  const cancelPendingChatAcks = useCallback((reason: string) => {
     for (const [
-      round_id,
-      pending_request,
-    ] of pending_chat_ack_ref.current.entries()) {
-      window.clearTimeout(pending_request.timeout_id);
-      pending_request.reject(new Error(reason));
-      pending_chat_ack_ref.current.delete(round_id);
+      roundId,
+      pendingRequest,
+    ] of pendingChatAckRef.current.entries()) {
+      window.clearTimeout(pendingRequest.timeout_id);
+      pendingRequest.reject(new Error(reason));
+      pendingChatAckRef.current.delete(roundId);
     }
   }, []);
 
-  const wait_for_chat_ack = useCallback((round_id: string, on_timeout: () => void) =>
+  const waitForChatAck = useCallback((roundId: string, onTimeout: () => void) =>
     new Promise<void>((resolve, reject) => {
-      const timeout_id = window.setTimeout(on_timeout, get_message_send_ack_timeout_ms());
-      pending_chat_ack_ref.current.set(round_id, {
+      const timeoutId = window.setTimeout(onTimeout, get_message_send_ack_timeout_ms());
+      pendingChatAckRef.current.set(roundId, {
         resolve,
         reject,
-        timeout_id,
+        timeout_id: timeoutId,
       });
     }), []);
 
   return {
-    cancel_pending_chat_acks,
-    clear_pending_chat_ack,
-    reject_pending_chat_ack,
-    wait_for_chat_ack,
+    cancel_pending_chat_acks: cancelPendingChatAcks,
+    clear_pending_chat_ack: clearPendingChatAck,
+    reject_pending_chat_ack: rejectPendingChatAck,
+    wait_for_chat_ack: waitForChatAck,
   };
 }

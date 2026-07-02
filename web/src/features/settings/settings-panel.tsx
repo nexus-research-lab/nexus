@@ -38,11 +38,11 @@ const SETTINGS_TABS: {
 export function SettingsPanel() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [active_tab, set_active_tab] = useState<SettingsTabKey>("general");
-  const active_tab_config =
-    SETTINGS_TABS.find((item) => item.key === active_tab) ?? SETTINGS_TABS[0];
-  const ActiveIcon = active_tab_config.icon;
-  const handle_back_to_workspace = useCallback(() => {
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>("general");
+  const activeTabConfig =
+    SETTINGS_TABS.find((item) => item.key === activeTab) ?? SETTINGS_TABS[0];
+  const ActiveIcon = activeTabConfig.icon;
+  const handleBackToWorkspace = useCallback(() => {
     if (is_desktop_bridge_available()) {
       void open_desktop_route(APP_ROUTE_PATHS.home).catch((error) => {
         console.error("[SettingsPanel] 桌面返回工作台失败:", error);
@@ -59,10 +59,10 @@ export function SettingsPanel() {
       stable_gutter
       header={(
         <WorkspaceSurfaceHeader
-          active_tab={active_tab}
+          active_tab={activeTab}
           density="compact"
           leading={<ActiveIcon className="h-4 w-4" />}
-          on_change_tab={set_active_tab}
+          on_change_tab={setActiveTab}
           tabs={SETTINGS_TABS.map((item) => ({
             key: item.key,
             label: t(item.label_key),
@@ -70,7 +70,7 @@ export function SettingsPanel() {
           }))}
           title={t("settings.title")}
           trailing={(
-            <WorkspaceSurfaceToolbarAction onClick={handle_back_to_workspace}>
+            <WorkspaceSurfaceToolbarAction onClick={handleBackToWorkspace}>
               <ArrowLeft className="h-3.5 w-3.5" />
               {t("settings.back_to_workspace")}
             </WorkspaceSurfaceToolbarAction>
@@ -78,9 +78,9 @@ export function SettingsPanel() {
         />
       )}
     >
-      {active_tab === "general" ? <SettingsGeneralSection /> : null}
-      {active_tab === "personal" ? <PersonalSettingsPanel /> : null}
-      {active_tab === "providers" ? <ProviderSettingsPanel embedded /> : null}
+      {activeTab === "general" ? <SettingsGeneralSection /> : null}
+      {activeTab === "personal" ? <PersonalSettingsPanel /> : null}
+      {activeTab === "providers" ? <ProviderSettingsPanel embedded /> : null}
     </WorkspaceSurfaceScaffold>
   );
 }

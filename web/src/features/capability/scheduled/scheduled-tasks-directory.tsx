@@ -59,58 +59,58 @@ function ScheduledMetricItem({ description, label, value }: ScheduledMetricItemP
   );
 }
 
-async function refresh_tasks_best_effort(
+async function refreshTasksBestEffort(
   automation: ReturnType<typeof useAutomationController>,
-  agent_id: string,
-  success_feedback: Omit<FeedbackState, "tone">,
-  refresh_warning_message: string,
-  set_feedback: (feedback: FeedbackState) => void,
+  agentId: string,
+  successFeedback: Omit<FeedbackState, "tone">,
+  refreshWarningMessage: string,
+  setFeedback: (feedback: FeedbackState) => void,
 ) {
   try {
     await automation.refresh_tasks();
-    notify_scheduled_tasks_mutated(agent_id);
-    set_feedback({ tone: "success", ...success_feedback });
+    notify_scheduled_tasks_mutated(agentId);
+    setFeedback({ tone: "success", ...successFeedback });
   } catch (error) {
-    notify_scheduled_tasks_mutated(agent_id);
-    set_feedback({
+    notify_scheduled_tasks_mutated(agentId);
+    setFeedback({
       tone: "warning",
-      title: success_feedback.title,
-      message: `${success_feedback.message}；${refresh_warning_message}${error instanceof Error ? `（${error.message}）` : ""}`,
+      title: successFeedback.title,
+      message: `${successFeedback.message}；${refreshWarningMessage}${error instanceof Error ? `（${error.message}）` : ""}`,
     });
   }
 }
 
 export function ScheduledTasksDirectory() {
   const { t } = useI18n();
-  const [is_dialog_open, set_is_dialog_open] = useState(false);
-  const [editing_task, set_editing_task] = useState<ScheduledTaskItem | null>(null);
-  const [history_task, set_history_task] = useState<ScheduledTaskItem | null>(null);
-  const [feedback, set_feedback] = useState<FeedbackState | null>(null);
-  const [run_pending_job_id, set_run_pending_job_id] = useState<string | null>(null);
-  const [toggle_pending_job_id, set_toggle_pending_job_id] = useState<string | null>(null);
-  const [delete_pending_job_id, set_delete_pending_job_id] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<ScheduledTaskItem | null>(null);
+  const [historyTask, setHistoryTask] = useState<ScheduledTaskItem | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [runPendingJobId, setRunPendingJobId] = useState<string | null>(null);
+  const [togglePendingJobId, setTogglePendingJobId] = useState<string | null>(null);
+  const [deletePendingJobId, setDeletePendingJobId] = useState<string | null>(null);
   const automation = useAutomationController({ include_all_tasks: true });
-  const refresh_tasks = automation.refresh_tasks;
-  const refresh_all = automation.refresh_all;
-  const running_count = automation.scheduled_tasks.filter((task) => task.running).length;
-  const enabled_count = automation.scheduled_tasks.filter((task) => task.enabled).length;
-  const paused_count = automation.scheduled_tasks.length - enabled_count;
-  const feedback_items = feedback
+  const refreshTasks = automation.refresh_tasks;
+  const refreshAll = automation.refresh_all;
+  const runningCount = automation.scheduled_tasks.filter((task) => task.running).length;
+  const enabledCount = automation.scheduled_tasks.filter((task) => task.enabled).length;
+  const pausedCount = automation.scheduled_tasks.length - enabledCount;
+  const feedbackItems = feedback
     ? [
         {
           key: "feedback",
           message: feedback.message,
-          on_dismiss: () => set_feedback(null),
+          on_dismiss: () => setFeedback(null),
           title: feedback.title,
           tone: feedback.tone,
         },
       ]
     : [];
 
-  useScheduledTaskRealtimeRefresh({ enabled_count, refresh_tasks, running_count });
+  useScheduledTaskRealtimeRefresh({ enabled_count: enabledCount, refresh_tasks: refreshTasks, running_count: runningCount });
 
-  const handle_create_success = async (task: ScheduledTaskItem) => {
-    await refresh_tasks_best_effort(
+  const handleCreateSuccess = async (task: ScheduledTaskItem) => {
+    await refreshTasksBestEffort(
       automation,
       task.agent_id,
       {
@@ -118,15 +118,15 @@ export function ScheduledTasksDirectory() {
         message: `${task.name} 已加入自动化任务列表`,
       },
       "任务列表刷新失败，稍后会自动同步",
-      set_feedback,
+      setFeedback,
     );
   };
 
-  const handle_refresh_all = async () => {
+  const handleRefreshAll = async () => {
     try {
-      await refresh_all();
+      await refreshAll();
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: "刷新失败",
         message: error instanceof Error ? error.message : "刷新自动化数据失败",
@@ -134,8 +134,8 @@ export function ScheduledTasksDirectory() {
     }
   };
 
-  const handle_save_success = async (task: ScheduledTaskItem) => {
-    await refresh_tasks_best_effort(
+  const handleSaveSuccess = async (task: ScheduledTaskItem) => {
+    await refreshTasksBestEffort(
       automation,
       task.agent_id,
       {
@@ -143,15 +143,15 @@ export function ScheduledTasksDirectory() {
         message: `${task.name} 的配置已保存`,
       },
       "任务列表刷新失败，稍后会自动同步",
-      set_feedback,
+      setFeedback,
     );
   };
 
-  const handle_run_now = async (task: ScheduledTaskItem) => {
-    set_run_pending_job_id(task.job_id);
+  const handleRunNow = async (task: ScheduledTaskItem) => {
+    setRunPendingJobId(task.job_id);
     try {
       const result = await run_scheduled_task_api(task.job_id);
-      await refresh_tasks_best_effort(
+      await refreshTasksBestEffort(
         automation,
         automation.agent_id,
         {
@@ -161,57 +161,57 @@ export function ScheduledTasksDirectory() {
             : `${task.name} 已开始执行`,
         },
         "任务列表刷新失败，运行状态稍后会同步",
-        set_feedback,
+        setFeedback,
       );
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: "任务执行失败",
         message: error instanceof Error ? error.message : "立即运行失败",
       });
     } finally {
-      set_run_pending_job_id(null);
+      setRunPendingJobId(null);
     }
   };
 
-  const handle_toggle_enabled = async (task: ScheduledTaskItem) => {
-    set_toggle_pending_job_id(task.job_id);
+  const handleToggleEnabled = async (task: ScheduledTaskItem) => {
+    setTogglePendingJobId(task.job_id);
     try {
-      const updated_task = await automation.toggle_task(task);
-      set_history_task((current_task) => {
-        if (!current_task || current_task.job_id !== updated_task.job_id) {
-          return current_task;
+      const updatedTask = await automation.toggle_task(task);
+      setHistoryTask((currentTask) => {
+        if (!currentTask || currentTask.job_id !== updatedTask.job_id) {
+          return currentTask;
         }
-        return updated_task;
+        return updatedTask;
       });
-      await refresh_tasks_best_effort(
+      await refreshTasksBestEffort(
         automation,
-        updated_task.agent_id,
+        updatedTask.agent_id,
         {
-          title: updated_task.enabled ? "任务已启用" : "任务已暂停",
-          message: updated_task.enabled
-            ? `${updated_task.name} 已恢复自动调度`
-            : `${updated_task.name} 不再参与后续调度`,
+          title: updatedTask.enabled ? "任务已启用" : "任务已暂停",
+          message: updatedTask.enabled
+            ? `${updatedTask.name} 已恢复自动调度`
+            : `${updatedTask.name} 不再参与后续调度`,
         },
         "任务列表刷新失败，状态稍后会同步",
-        set_feedback,
+        setFeedback,
       );
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: "状态更新失败",
         message: error instanceof Error ? error.message : "切换任务状态失败",
       });
     } finally {
-      set_toggle_pending_job_id(null);
+      setTogglePendingJobId(null);
     }
   };
 
-  const handle_recover_task_run = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
+  const handleRecoverTaskRun = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
     try {
-      const updated_task = await recover_scheduled_task_run_api(task.job_id, { run_id: run.run_id });
-      set_history_task((current) => current?.job_id === updated_task.job_id ? updated_task : current);
-      await refresh_tasks_best_effort(
+      const updatedTask = await recover_scheduled_task_run_api(task.job_id, { run_id: run.run_id });
+      setHistoryTask((current) => current?.job_id === updatedTask.job_id ? updatedTask : current);
+      await refreshTasksBestEffort(
         automation,
         automation.agent_id,
         {
@@ -219,10 +219,10 @@ export function ScheduledTasksDirectory() {
           message: `${task.name} 的当前 run 已标记为 cancelled`,
         },
         "任务列表刷新失败，运行状态稍后会同步",
-        set_feedback,
+        setFeedback,
       );
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: "释放运行占用失败",
         message: error instanceof Error ? error.message : "释放运行占用失败",
@@ -231,23 +231,23 @@ export function ScheduledTasksDirectory() {
     }
   };
 
-  const handle_retry_delivery = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
+  const handleRetryDelivery = async (task: ScheduledTaskItem, run: ScheduledTaskRunItem) => {
     try {
-      const updated_run = await retry_scheduled_task_run_delivery_api(task.job_id, run.run_id);
-      await refresh_tasks_best_effort(
+      const updatedRun = await retry_scheduled_task_run_delivery_api(task.job_id, run.run_id);
+      await refreshTasksBestEffort(
         automation,
         automation.agent_id,
         {
-          title: updated_run.delivery_status === "succeeded" ? "投递已恢复" : "投递已重试",
-          message: updated_run.delivery_status === "succeeded"
+          title: updatedRun.delivery_status === "succeeded" ? "投递已恢复" : "投递已重试",
+          message: updatedRun.delivery_status === "succeeded"
             ? `${task.name} 的运行结果已重新投递`
-            : `${task.name} 的投递状态已更新为 ${updated_run.delivery_status ?? "unknown"}`,
+            : `${task.name} 的投递状态已更新为 ${updatedRun.delivery_status ?? "unknown"}`,
         },
         "任务列表刷新失败，投递状态稍后会同步",
-        set_feedback,
+        setFeedback,
       );
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: "重试投递失败",
         message: error instanceof Error ? error.message : "重试投递失败",
@@ -256,14 +256,14 @@ export function ScheduledTasksDirectory() {
     }
   };
 
-  const handle_delete = async (task: ScheduledTaskItem) => {
+  const handleDelete = async (task: ScheduledTaskItem) => {
     if (!window.confirm(`确认删除任务“${task.name}”吗？`)) {
       return;
     }
-    set_delete_pending_job_id(task.job_id);
+    setDeletePendingJobId(task.job_id);
     try {
       await delete_scheduled_task_api(task.job_id);
-      await refresh_tasks_best_effort(
+      await refreshTasksBestEffort(
         automation,
         automation.agent_id,
         {
@@ -271,16 +271,16 @@ export function ScheduledTasksDirectory() {
           message: `${task.name} 已从自动化任务列表移除`,
         },
         "任务列表刷新失败，删除结果稍后会同步",
-        set_feedback,
+        setFeedback,
       );
     } catch (error) {
-      set_feedback({
+      setFeedback({
         tone: "error",
         title: "删除失败",
         message: error instanceof Error ? error.message : "删除任务失败",
       });
     } finally {
-      set_delete_pending_job_id(null);
+      setDeletePendingJobId(null);
     }
   };
 
@@ -297,11 +297,11 @@ export function ScheduledTasksDirectory() {
             title={t("capability.scheduled")}
             trailing={(
               <>
-                <WorkspaceSurfaceToolbarAction onClick={() => void handle_refresh_all()}>
+                <WorkspaceSurfaceToolbarAction onClick={() => void handleRefreshAll()}>
                   <RefreshCw className="h-3.5 w-3.5" />
                   {t("capability.refresh_all")}
                 </WorkspaceSurfaceToolbarAction>
-                <WorkspaceSurfaceToolbarAction onClick={() => set_is_dialog_open(true)} tone="primary">
+                <WorkspaceSurfaceToolbarAction onClick={() => setIsDialogOpen(true)} tone="primary">
                   <Plus className="h-3.5 w-3.5" />
                   {t("capability.create_task")}
                 </WorkspaceSurfaceToolbarAction>
@@ -320,17 +320,17 @@ export function ScheduledTasksDirectory() {
             <ScheduledMetricItem
               description="当前占用执行会话"
               label="执行中"
-              value={running_count}
+              value={runningCount}
             />
             <ScheduledMetricItem
               description="后续继续参与调度"
               label="已启用"
-              value={enabled_count}
+              value={enabledCount}
             />
             <ScheduledMetricItem
               description="暂时不会自动触发"
               label="已暂停"
-              value={paused_count}
+              value={pausedCount}
             />
           </section>
 
@@ -338,41 +338,41 @@ export function ScheduledTasksDirectory() {
             error_message={automation.tasks_error}
             is_loading={automation.tasks_loading}
             items={automation.scheduled_tasks}
-            on_create={() => set_is_dialog_open(true)}
-            on_open_history={set_history_task}
-            on_refresh={() => void refresh_tasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
-            on_run_now={(task) => void handle_run_now(task)}
-            on_toggle_enabled={(task) => void handle_toggle_enabled(task)}
-            on_delete={(task) => void handle_delete(task)}
-            on_edit={set_editing_task}
-            delete_pending_job_id={delete_pending_job_id}
-            run_pending_job_id={run_pending_job_id}
-            toggle_pending_job_id={toggle_pending_job_id}
+            on_create={() => setIsDialogOpen(true)}
+            on_open_history={setHistoryTask}
+            on_refresh={() => void refreshTasks().catch((err: unknown) => console.debug("[scheduled-tasks] Manual refresh failed:", err))}
+            on_run_now={(task) => void handleRunNow(task)}
+            on_toggle_enabled={(task) => void handleToggleEnabled(task)}
+            on_delete={(task) => void handleDelete(task)}
+            on_edit={setEditingTask}
+            delete_pending_job_id={deletePendingJobId}
+            run_pending_job_id={runPendingJobId}
+            toggle_pending_job_id={togglePendingJobId}
           />
         </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       <ScheduledTaskDialog
         agent_id={automation.agent_id}
-        initial_task={editing_task}
-        is_open={is_dialog_open || editing_task !== null}
+        initial_task={editingTask}
+        is_open={isDialogOpen || editingTask !== null}
         on_close={() => {
-          set_is_dialog_open(false);
-          set_editing_task(null);
+          setIsDialogOpen(false);
+          setEditingTask(null);
         }}
-        on_created={(task) => void handle_create_success(task)}
-        on_saved={(task) => void handle_save_success(task)}
+        on_created={(task) => void handleCreateSuccess(task)}
+        on_saved={(task) => void handleSaveSuccess(task)}
       />
       <ScheduledTaskRunHistoryDialog
-        is_open={history_task !== null}
-        on_close={() => set_history_task(null)}
-        on_recover_task_run={(task, run) => handle_recover_task_run(task, run)}
-        on_retry_delivery={(task, run) => handle_retry_delivery(task, run)}
-        on_retry_task={(task) => handle_run_now(task)}
-        task={history_task}
+        is_open={historyTask !== null}
+        on_close={() => setHistoryTask(null)}
+        on_recover_task_run={(task, run) => handleRecoverTaskRun(task, run)}
+        on_retry_delivery={(task, run) => handleRetryDelivery(task, run)}
+        on_retry_task={(task) => handleRunNow(task)}
+        task={historyTask}
       />
 
-      <FeedbackBannerStack items={feedback_items} />
+      <FeedbackBannerStack items={feedbackItems} />
     </>
   );
 }

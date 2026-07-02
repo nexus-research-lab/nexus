@@ -9,7 +9,7 @@ import { PromptDialog } from "@/shared/ui/dialog/confirm-dialog";
 
 const SHOP_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-function normalize_shop_domain(value: string): string | null {
+function normalizeShopDomain(value: string): string | null {
   const normalized = value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.myshopify\.com$/, "");
   if (!SHOP_PATTERN.test(normalized)) {
     return null;
@@ -18,22 +18,22 @@ function normalize_shop_domain(value: string): string | null {
 }
 
 function ShopDomainPrompt({
-  on_finish,
+  on_finish: onFinish,
 }: {
   on_finish: (value: string | null) => void;
 }) {
-  const [error, set_error] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handle_confirm = useCallback(
+  const handleConfirm = useCallback(
     (value: string) => {
-      const shop = normalize_shop_domain(value);
+      const shop = normalizeShopDomain(value);
       if (!shop) {
-        set_error("请输入有效的 Shopify 店铺子域名");
+        setError("请输入有效的 Shopify 店铺子域名");
         return;
       }
-      on_finish(shop);
+      onFinish(shop);
     },
-    [on_finish],
+    [onFinish],
   );
 
   return (
@@ -42,8 +42,8 @@ function ShopDomainPrompt({
         default_value=""
         is_open
         message={error || "输入 myshopify.com 前面的店铺子域名。"}
-        on_cancel={() => on_finish(null)}
-        on_confirm={handle_confirm}
+        on_cancel={() => onFinish(null)}
+        on_confirm={handleConfirm}
         placeholder="nexus-dev"
         title="Shopify 店铺"
       />

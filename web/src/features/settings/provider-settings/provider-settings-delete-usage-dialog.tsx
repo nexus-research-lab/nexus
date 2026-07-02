@@ -26,32 +26,32 @@ interface ProviderDeleteUsageDialogProps {
 }
 
 export function ProviderDeleteUsageDialog({
-  delete_target_record,
-  is_open,
-  on_cancel,
-  on_force_delete,
+  delete_target_record: deleteTargetRecord,
+  is_open: isOpen,
+  on_cancel: onCancel,
+  on_force_delete: onForceDelete,
   submitting,
 }: ProviderDeleteUsageDialogProps) {
   const { t } = useI18n();
 
-  if (!is_open || !delete_target_record) {
+  if (!isOpen || !deleteTargetRecord) {
     return null;
   }
 
-  const delete_usage_agents = delete_target_record.used_by_agents ?? [];
+  const deleteUsageAgents = deleteTargetRecord.used_by_agents ?? [];
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
         class_name="z-[9999]"
         labelled_by="provider-delete-blocked-title"
-        on_close={on_cancel}
+        on_close={onCancel}
       >
         <UiDialogShell size="sm">
           <UiDialogHeader
             icon={<Trash2 className="h-4.5 w-4.5" />}
-            on_close={on_cancel}
-            subtitle={t("settings.providers.delete_usage_subtitle", { name: get_provider_title(delete_target_record) })}
+            on_close={onCancel}
+            subtitle={t("settings.providers.delete_usage_subtitle", { name: get_provider_title(deleteTargetRecord) })}
             title={t("settings.providers.delete_usage_title")}
             title_id="provider-delete-blocked-title"
           />
@@ -59,9 +59,9 @@ export function ProviderDeleteUsageDialog({
             <div className="rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2 text-[12px] leading-5 text-(--text-muted)">
               {t("settings.providers.force_delete_description")}
             </div>
-            {delete_usage_agents.length > 0 ? (
+            {deleteUsageAgents.length > 0 ? (
               <div className="max-h-64 overflow-y-auto rounded-[12px] border border-(--divider-subtle-color)">
-                {delete_usage_agents.map((agent) => (
+                {deleteUsageAgents.map((agent) => (
                   <div
                     className="flex min-h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2 last:border-b-0"
                     key={agent.agent_id}
@@ -89,13 +89,13 @@ export function ProviderDeleteUsageDialog({
               </div>
             ) : (
               <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-3 text-[12px] leading-5 text-(--text-muted)">
-                {t("settings.providers.delete_usage_stale", { count: delete_target_record.usage_count })}
+                {t("settings.providers.delete_usage_stale", { count: deleteTargetRecord.usage_count })}
               </div>
             )}
           </UiDialogBody>
           <UiDialogFooter>
             <UiButton
-              onClick={on_cancel}
+              onClick={onCancel}
               type="button"
               variant="surface"
             >
@@ -103,7 +103,7 @@ export function ProviderDeleteUsageDialog({
             </UiButton>
             <UiButton
               disabled={submitting}
-              onClick={on_force_delete}
+              onClick={onForceDelete}
               tone="danger"
               type="button"
               variant="solid"

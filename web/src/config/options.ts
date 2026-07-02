@@ -39,45 +39,45 @@ const MESSAGE_HISTORY_ROUND_PAGE_SIZE = 3;
 // 与后端 protocol.ChatAckTimeoutMS 保持一致。
 const MESSAGE_SEND_ACK_TIMEOUT_MS = 10000;
 
-function build_browser_url(pathname: string, use_websocket_protocol: boolean): string {
+function buildBrowserUrl(pathname: string, useWebsocketProtocol: boolean): string {
   if (typeof window === "undefined") {
     return pathname;
   }
 
-  const normalized_path = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  const origin = use_websocket_protocol
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const origin = useWebsocketProtocol
     ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
     : window.location.origin;
-  return `${origin}${normalized_path}`;
+  return `${origin}${normalizedPath}`;
 }
 
-function resolve_runtime_url(rawUrl: string | undefined, fallbackPath: string, use_websocket_protocol: boolean): string {
-  const normalized_raw_url = rawUrl?.trim();
-  if (!normalized_raw_url) {
-    return build_browser_url(fallbackPath, use_websocket_protocol);
+function resolveRuntimeUrl(rawUrl: string | undefined, fallbackPath: string, useWebsocketProtocol: boolean): string {
+  const normalizedRawUrl = rawUrl?.trim();
+  if (!normalizedRawUrl) {
+    return buildBrowserUrl(fallbackPath, useWebsocketProtocol);
   }
 
-  if (normalized_raw_url.startsWith("/")) {
-    return build_browser_url(normalized_raw_url, use_websocket_protocol);
+  if (normalizedRawUrl.startsWith("/")) {
+    return buildBrowserUrl(normalizedRawUrl, useWebsocketProtocol);
   }
 
-  return normalized_raw_url;
+  return normalizedRawUrl;
 }
 
 export function get_agent_api_base_url(): string {
-  const desktop_url = get_desktop_runtime_config()?.api_base_url?.trim();
-  if (desktop_url) {
-    return desktop_url;
+  const desktopUrl = get_desktop_runtime_config()?.api_base_url?.trim();
+  if (desktopUrl) {
+    return desktopUrl;
   }
-  return resolve_runtime_url(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
+  return resolveRuntimeUrl(import.meta.env.VITE_API_URL, DEFAULT_API_PATH, false);
 }
 
 export function get_agent_ws_url(): string {
-  const desktop_url = get_desktop_runtime_config()?.ws_url?.trim();
-  if (desktop_url) {
-    return desktop_url;
+  const desktopUrl = get_desktop_runtime_config()?.ws_url?.trim();
+  if (desktopUrl) {
+    return desktopUrl;
   }
-  return resolve_runtime_url(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
+  return resolveRuntimeUrl(import.meta.env.VITE_WS_URL, DEFAULT_WS_PATH, true);
 }
 
 export function is_strict_mode_enabled(): boolean {
@@ -100,23 +100,23 @@ export function get_default_agent_avatar(): string {
   return DEFAULT_AGENT_AVATAR;
 }
 
-function set_default_agent_avatar(avatar?: string | null): void {
-  const normalized_avatar = avatar?.trim();
-  DEFAULT_AGENT_AVATAR = normalized_avatar || "";
+function setDefaultAgentAvatar(avatar?: string | null): void {
+  const normalizedAvatar = avatar?.trim();
+  DEFAULT_AGENT_AVATAR = normalizedAvatar || "";
 }
 
 export function set_default_agent_provider(provider?: string | null): void {
-  const normalized_provider = provider?.trim();
-  DEFAULT_AGENT_PROVIDER = normalized_provider || "";
+  const normalizedProvider = provider?.trim();
+  DEFAULT_AGENT_PROVIDER = normalizedProvider || "";
 }
 
 export function set_default_agent_model(model?: string | null): void {
-  const normalized_model = model?.trim();
-  DEFAULT_AGENT_MODEL = normalized_model || "";
+  const normalizedModel = model?.trim();
+  DEFAULT_AGENT_MODEL = normalizedModel || "";
 }
 
 export function get_initial_agent_options(): Partial<AgentOptions> {
-  return clone_agent_options(DEFAULT_AGENT_OPTIONS);
+  return cloneAgentOptions(DEFAULT_AGENT_OPTIONS);
 }
 
 export function get_default_chat_delivery_policy(): AgentConversationDefaultDeliveryPolicy {
@@ -149,18 +149,18 @@ export function set_user_preferences(preferences?: Partial<UserPreferences> | nu
   if (preferences !== undefined && preferences !== null) {
     DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = preferences.agent_sdk_diagnostics_enabled === true;
   }
-  DEFAULT_IMAGE_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_image_model_selection);
-  DEFAULT_BACKGROUND_MODEL_SELECTION = normalize_model_selection_preference(preferences?.default_background_model_selection);
-  DEFAULT_AGENT_OPTIONS = normalize_agent_options(preferences?.default_agent_options);
-  notify_user_preferences_changed();
+  DEFAULT_IMAGE_MODEL_SELECTION = normalizeModelSelectionPreference(preferences?.default_image_model_selection);
+  DEFAULT_BACKGROUND_MODEL_SELECTION = normalizeModelSelectionPreference(preferences?.default_background_model_selection);
+  DEFAULT_AGENT_OPTIONS = normalizeAgentOptions(preferences?.default_agent_options);
+  notifyUserPreferencesChanged();
 }
 
-export function is_main_agent(agent_id?: string | null): boolean {
-  return (agent_id ?? "").trim() === DEFAULT_AGENT_ID;
+export function is_main_agent(agentId?: string | null): boolean {
+  return (agentId ?? "").trim() === DEFAULT_AGENT_ID;
 }
 
-export function resolve_agent_id(agent_id?: string | null): string {
-  return (agent_id ?? "").trim() || DEFAULT_AGENT_ID;
+export function resolve_agent_id(agentId?: string | null): string {
+  return (agentId ?? "").trim() || DEFAULT_AGENT_ID;
 }
 
 export async function hydrate_runtime_options(): Promise<void> {
@@ -177,19 +177,19 @@ export async function hydrate_runtime_options(): Promise<void> {
       notify_on_401: false,
     },
   );
-  const next_default_agent_id = payload?.default_agent_id;
-  if (!next_default_agent_id) {
+  const nextDefaultAgentId = payload?.default_agent_id;
+  if (!nextDefaultAgentId) {
     throw new Error("运行时配置缺少 default_agent_id");
   }
 
-  DEFAULT_AGENT_ID = next_default_agent_id;
-  set_default_agent_avatar(payload?.default_agent_avatar);
+  DEFAULT_AGENT_ID = nextDefaultAgentId;
+  setDefaultAgentAvatar(payload?.default_agent_avatar);
   set_default_agent_provider(payload?.default_agent_provider);
   set_default_agent_model(payload?.default_agent_model);
   set_user_preferences(payload?.preferences);
 }
 
-function clone_agent_options(options: Partial<AgentOptions>): Partial<AgentOptions> {
+function cloneAgentOptions(options: Partial<AgentOptions>): Partial<AgentOptions> {
   return {
     ...options,
     allowed_tools: [...(options.allowed_tools ?? [])],
@@ -198,7 +198,7 @@ function clone_agent_options(options: Partial<AgentOptions>): Partial<AgentOptio
   };
 }
 
-function normalize_agent_options(options?: Partial<AgentOptions> | null): Partial<AgentOptions> {
+function normalizeAgentOptions(options?: Partial<AgentOptions> | null): Partial<AgentOptions> {
   const source = options ?? {};
   return {
     ...source,
@@ -209,7 +209,7 @@ function normalize_agent_options(options?: Partial<AgentOptions> | null): Partia
   };
 }
 
-function normalize_model_selection_preference(
+function normalizeModelSelectionPreference(
   selection?: UserPreferences["default_image_model_selection"] | null,
 ): UserPreferences["default_image_model_selection"] {
   const provider = selection?.provider?.trim();
@@ -220,7 +220,7 @@ function normalize_model_selection_preference(
   return { provider, model };
 }
 
-function notify_user_preferences_changed(): void {
+function notifyUserPreferencesChanged(): void {
   if (typeof window === "undefined") {
     return;
   }

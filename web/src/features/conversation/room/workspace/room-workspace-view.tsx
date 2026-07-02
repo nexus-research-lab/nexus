@@ -40,145 +40,145 @@ const COMPACT_WORKSPACE_FILE_LIST_MAX_WIDTH = 280;
 
 export function RoomWorkspaceView(
   {
-    active_workspace_path,
-    agent_id,
-    header_action,
-    is_dm,
-    is_editor_open,
-    room_members,
-    on_open_workspace_file,
+    active_workspace_path: activeWorkspacePath,
+    agent_id: agentId,
+    header_action: headerAction,
+    is_dm: isDm,
+    is_editor_open: isEditorOpen,
+    room_members: roomMembers,
+    on_open_workspace_file: onOpenWorkspaceFile,
   }: RoomWorkspaceViewProps) {
   const {t} = useI18n();
-  const file_input_ref = useRef<HTMLInputElement>(null);
-  const workspace_panel_ref = useRef<HTMLDivElement>(null);
-  const is_compact_file_tree = useMediaQuery("(max-width: 1280px)");
-  const [file_list_width, set_file_list_width] = useState(WORKSPACE_FILE_LIST_DEFAULT_WIDTH);
-  const [is_resizing_file_list, set_is_resizing_file_list] = useState(false);
-  const [is_preview_focused, set_is_preview_focused] = useResettableState(
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const workspacePanelRef = useRef<HTMLDivElement>(null);
+  const isCompactFileTree = useMediaQuery("(max-width: 1280px)");
+  const [fileListWidth, setFileListWidth] = useState(WORKSPACE_FILE_LIST_DEFAULT_WIDTH);
+  const [isResizingFileList, setIsResizingFileList] = useState(false);
+  const [isPreviewFocused, setIsPreviewFocused] = useResettableState(
     false,
-    active_workspace_path ? "has-path" : "no-path",
+    activeWorkspacePath ? "has-path" : "no-path",
   );
-  const file_list_min_width = is_compact_file_tree
+  const fileListMinWidth = isCompactFileTree
     ? COMPACT_WORKSPACE_FILE_LIST_MIN_WIDTH
     : WORKSPACE_FILE_LIST_MIN_WIDTH;
-  const file_list_max_width = is_compact_file_tree
+  const fileListMaxWidth = isCompactFileTree
     ? COMPACT_WORKSPACE_FILE_LIST_MAX_WIDTH
     : WORKSPACE_FILE_LIST_MAX_WIDTH;
   const {
-    view_agent_id,
+    view_agent_id: viewAgentId,
     files,
-    selected_agent_id,
-    set_selected_agent_id,
-    is_uploading,
-    is_loading_files,
-    error_message,
-    clear_error_message,
-    context_menu,
-    prompt_state,
-    delete_target,
-    focused_directory_path,
-    current_directory_label,
-    handle_click_file,
-    handle_click_directory,
-    handle_upload_click,
-    handle_file_select,
-    open_create_prompt,
-    open_rename_prompt,
-    handle_prompt_confirm,
-    handle_confirm_delete,
-    handle_context_menu,
-    handle_root_context_menu,
-    close_context_menu,
-    set_delete_target,
-    set_prompt_state,
+    selected_agent_id: selectedAgentId,
+    set_selected_agent_id: setSelectedAgentId,
+    is_uploading: isUploading,
+    is_loading_files: isLoadingFiles,
+    error_message: errorMessage,
+    clear_error_message: clearErrorMessage,
+    context_menu: contextMenu,
+    prompt_state: promptState,
+    delete_target: deleteTarget,
+    focused_directory_path: focusedDirectoryPath,
+    current_directory_label: currentDirectoryLabel,
+    handle_click_file: handleClickFile,
+    handle_click_directory: handleClickDirectory,
+    handle_upload_click: handleUploadClick,
+    handle_file_select: handleFileSelect,
+    open_create_prompt: openCreatePrompt,
+    open_rename_prompt: openRenamePrompt,
+    handle_prompt_confirm: handlePromptConfirm,
+    handle_confirm_delete: handleConfirmDelete,
+    handle_context_menu: handleContextMenu,
+    handle_root_context_menu: handleRootContextMenu,
+    close_context_menu: closeContextMenu,
+    set_delete_target: setDeleteTarget,
+    set_prompt_state: setPromptState,
   } = useRoomWorkspaceController({
-    active_workspace_path,
-    agent_id,
-    is_dm,
-    on_open_workspace_file,
-    file_input_ref,
+    active_workspace_path: activeWorkspacePath,
+    agent_id: agentId,
+    is_dm: isDm,
+    on_open_workspace_file: onOpenWorkspaceFile,
+    file_input_ref: fileInputRef,
   });
 
-  const title_trailing = !is_dm && room_members.length > 1 ? (
+  const titleTrailing = !isDm && roomMembers.length > 1 ? (
     <RoomAgentSwitcher
-      members={room_members}
-      selected_id={selected_agent_id}
-      on_select={set_selected_agent_id}
+      members={roomMembers}
+      selected_id={selectedAgentId}
+      on_select={setSelectedAgentId}
     />
   ) : null;
 
-  const handle_external_context_entry = () => {
-    if (!context_menu.entry || context_menu.entry.is_dir) {
+  const handleExternalContextEntry = () => {
+    if (!contextMenu.entry || contextMenu.entry.is_dir) {
       return;
     }
     void download_workspace_file_api(
-      view_agent_id,
-      context_menu.entry.path,
-      context_menu.entry.name,
+      viewAgentId,
+      contextMenu.entry.path,
+      contextMenu.entry.name,
     ).catch((error) => {
       console.error("[RoomWorkspaceView] 处理 workspace 文件失败:", error);
     });
   };
 
-  const handle_toggle_preview_focus = () => {
-    set_is_preview_focused((value) => !value);
-    set_is_resizing_file_list(false);
+  const handleTogglePreviewFocus = () => {
+    setIsPreviewFocused((value) => !value);
+    setIsResizingFileList(false);
   };
 
   useEffect(() => {
-    if (is_compact_file_tree) {
-      set_file_list_width((current) => Math.min(current, COMPACT_WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
+    if (isCompactFileTree) {
+      setFileListWidth((current) => Math.min(current, COMPACT_WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
       return;
     }
-    set_file_list_width((current) => Math.max(current, WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
-  }, [is_compact_file_tree]);
+    setFileListWidth((current) => Math.max(current, WORKSPACE_FILE_LIST_DEFAULT_WIDTH));
+  }, [isCompactFileTree]);
 
   useEffect(() => {
-    if (!is_resizing_file_list) {
+    if (!isResizingFileList) {
       return;
     }
 
-    const handle_mouse_move = (event: MouseEvent) => {
-      const bounds = workspace_panel_ref.current?.getBoundingClientRect();
+    const handleMouseMove = (event: MouseEvent) => {
+      const bounds = workspacePanelRef.current?.getBoundingClientRect();
       if (!bounds) {
         return;
       }
 
-      const next_width = bounds.right - event.clientX;
-      set_file_list_width(
+      const nextWidth = bounds.right - event.clientX;
+      setFileListWidth(
         Math.min(
-          Math.max(next_width, file_list_min_width),
-          file_list_max_width,
+          Math.max(nextWidth, fileListMinWidth),
+          fileListMaxWidth,
         ),
       );
     };
 
-    const handle_mouse_up = () => {
-      set_is_resizing_file_list(false);
+    const handleMouseUp = () => {
+      setIsResizingFileList(false);
     };
 
-    window.addEventListener("mousemove", handle_mouse_move);
-    window.addEventListener("mouseup", handle_mouse_up);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
-      window.removeEventListener("mousemove", handle_mouse_move);
-      window.removeEventListener("mouseup", handle_mouse_up);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [file_list_max_width, file_list_min_width, is_resizing_file_list]);
+  }, [fileListMaxWidth, fileListMinWidth, isResizingFileList]);
 
   return (
     <>
       <input
         aria-label="上传工作区文件"
-        ref={file_input_ref}
+        ref={fileInputRef}
         type="file"
         className="hidden"
         multiple
-        onChange={handle_file_select}
+        onChange={handleFileSelect}
       />
 
       <WorkspaceSurfaceView
-        action={header_action}
+        action={headerAction}
         body_class_name="px-2 pt-1 pb-0 sm:px-2 xl:px-4"
         body_scrollable={false}
         content_class_name="flex h-full min-h-0 min-w-0 gap-4"
@@ -186,69 +186,69 @@ export function RoomWorkspaceView(
         max_width_class_name="max-w-none"
         show_eyebrow={false}
         title={t("room.workspace_title")}
-        title_trailing={title_trailing}
+        title_trailing={titleTrailing}
       >
         <div
-          ref={workspace_panel_ref}
-          className={cn("flex h-full min-h-0 min-w-0 flex-1", is_resizing_file_list && "cursor-col-resize select-none")}
+          ref={workspacePanelRef}
+          className={cn("flex h-full min-h-0 min-w-0 flex-1", isResizingFileList && "cursor-col-resize select-none")}
         >
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <EditorPanel
-              agent_id={view_agent_id}
+              agent_id={viewAgentId}
               class_name="h-full w-full"
               embedded
-              is_open={is_editor_open}
-              is_preview_focused={is_preview_focused}
+              is_open={isEditorOpen}
+              is_preview_focused={isPreviewFocused}
               on_resize_start={() => {
               }}
-              on_toggle_preview_focus={active_workspace_path ? handle_toggle_preview_focus : undefined}
-              path={active_workspace_path}
+              on_toggle_preview_focus={activeWorkspacePath ? handleTogglePreviewFocus : undefined}
+              path={activeWorkspacePath}
               width_percent={100}
             />
           </div>
 
-          {!is_preview_focused ? (
+          {!isPreviewFocused ? (
             <div
               className="relative flex min-h-0 shrink-0 flex-col border-l divider-subtle pl-4"
-              style={{width: `${file_list_width}px`}}
+              style={{width: `${fileListWidth}px`}}
             >
               <ConversationResizeHandle
                 aria_label="调整文件列表宽度"
-                on_mouse_down={() => set_is_resizing_file_list(true)}
+                on_mouse_down={() => setIsResizingFileList(true)}
               />
 
               <div
                 className="mb-2 inline-flex min-w-0 items-center gap-1.5 rounded-[7px] border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
-                {focused_directory_path ? (
+                {focusedDirectoryPath ? (
                   <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]"/>
                 ) : (
                   <FolderTree className="h-3 w-3 shrink-0 text-(--icon-muted)"/>
                 )}
-                <span className="truncate font-medium text-(--text-strong)">{current_directory_label}</span>
+                <span className="truncate font-medium text-(--text-strong)">{currentDirectoryLabel}</span>
               </div>
 
               <div
                 className="soft-scrollbar flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 max-xl:gap-2">
                 <div className="shrink-0">
-                  <WorkspaceSurfaceToolbarAction onClick={() => handle_upload_click()}
-                                                 disabled={is_uploading}
+                  <WorkspaceSurfaceToolbarAction onClick={() => handleUploadClick()}
+                                                 disabled={isUploading}
                                                  tone="primary"
-                                                 aria_label={t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+                                                 aria_label={t(isUploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
                                                  class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
-                                                 title={t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}>
-                    {is_uploading ? (
+                                                 title={t(isUploading ? "room.workspace_uploading" : "room.workspace_action_upload")}>
+                    {isUploading ? (
                       <LoaderCircle className="h-3 w-3 animate-spin"/>
                     ) : (
                       <Upload className="h-3 w-3"/>
                     )}
                     <span className="max-xl:hidden">
-                      {t(is_uploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
+                      {t(isUploading ? "room.workspace_uploading" : "room.workspace_action_upload")}
                     </span>
                   </WorkspaceSurfaceToolbarAction>
                 </div>
 
                 <div className="shrink-0">
-                  <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("directory")}
+                  <WorkspaceSurfaceToolbarAction onClick={() => openCreatePrompt("directory")}
                                                  aria_label={t("room.workspace_action_new_folder")}
                                                  class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
                                                  title={t("room.workspace_action_new_folder")}>
@@ -258,7 +258,7 @@ export function RoomWorkspaceView(
                 </div>
 
                 <div className="shrink-0">
-                  <WorkspaceSurfaceToolbarAction onClick={() => open_create_prompt("file")}
+                  <WorkspaceSurfaceToolbarAction onClick={() => openCreatePrompt("file")}
                                                  aria_label={t("room.workspace_action_new_file")}
                                                  class_name="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
                                                  title={t("room.workspace_action_new_file")}>
@@ -268,35 +268,35 @@ export function RoomWorkspaceView(
                 </div>
               </div>
 
-              {error_message ? (
+              {errorMessage ? (
                 <div
                   className="mb-4 flex items-center justify-between rounded-2xl border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
-                  <span className="min-w-0 flex-1 truncate">{error_message}</span>
+                  <span className="min-w-0 flex-1 truncate">{errorMessage}</span>
                   <button
                     type="button"
                     className="ml-3 shrink-0 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-destructive/10"
-                    onClick={clear_error_message}
+                    onClick={clearErrorMessage}
                   >
                     {t("common.close")}
                   </button>
                 </div>
               ) : null}
 
-              <div className="min-h-0 flex-1 overflow-hidden" onContextMenu={handle_root_context_menu}>
+              <div className="min-h-0 flex-1 overflow-hidden" onContextMenu={handleRootContextMenu}>
                 {files.length > 0 ? (
                   <div className="soft-scrollbar h-full overflow-auto py-1">
                     <WorkspaceFileTree
                       entries={files}
-                      active_path={active_workspace_path}
-                      focused_directory_path={focused_directory_path}
-                      on_click_file={handle_click_file}
-                      on_click_directory={handle_click_directory}
-                      on_rename_entry={open_rename_prompt}
-                      on_delete_entry={set_delete_target}
-                      on_context_menu={handle_context_menu}
+                      active_path={activeWorkspacePath}
+                      focused_directory_path={focusedDirectoryPath}
+                      on_click_file={handleClickFile}
+                      on_click_directory={handleClickDirectory}
+                      on_rename_entry={openRenamePrompt}
+                      on_delete_entry={setDeleteTarget}
+                      on_context_menu={handleContextMenu}
                     />
                   </div>
-                ) : is_loading_files ? (
+                ) : isLoadingFiles ? (
                   <div className="flex h-full items-center justify-center text-(--text-soft)">
                     <LoaderCircle className="h-4 w-4 animate-spin"/>
                   </div>
@@ -323,51 +323,51 @@ export function RoomWorkspaceView(
 
       {/* 上下文菜单 */}
       <WorkspaceContextMenu
-        position={context_menu.position}
-        entry={context_menu.entry}
-        can_create_children={context_menu.entry === null || context_menu.entry.is_dir}
-        on_upload={() => handle_upload_click(context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        on_create_file={() => open_create_prompt("file", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        on_create_folder={() => open_create_prompt("directory", context_menu.entry?.is_dir ? context_menu.entry.path : null)}
-        on_download={handle_external_context_entry}
+        position={contextMenu.position}
+        entry={contextMenu.entry}
+        can_create_children={contextMenu.entry === null || contextMenu.entry.is_dir}
+        on_upload={() => handleUploadClick(contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
+        on_create_file={() => openCreatePrompt("file", contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
+        on_create_folder={() => openCreatePrompt("directory", contextMenu.entry?.is_dir ? contextMenu.entry.path : null)}
+        on_download={handleExternalContextEntry}
         on_rename={() => {
-          if (context_menu.entry) open_rename_prompt(context_menu.entry);
+          if (contextMenu.entry) openRenamePrompt(contextMenu.entry);
         }}
         on_delete={() => {
-          if (context_menu.entry) set_delete_target(context_menu.entry);
+          if (contextMenu.entry) setDeleteTarget(contextMenu.entry);
         }}
-        on_close={close_context_menu}
+        on_close={closeContextMenu}
       />
 
       <PromptDialog
-        is_open={prompt_state !== null}
+        is_open={promptState !== null}
         title={
-          prompt_state?.mode === "create-file"
+          promptState?.mode === "create-file"
             ? t("room.workspace_create_file_title")
-            : prompt_state?.mode === "create-directory"
+            : promptState?.mode === "create-directory"
               ? t("room.workspace_create_folder_title")
               : t("room.workspace_rename_title")
         }
         placeholder={
-          prompt_state?.mode === "create-file"
+          promptState?.mode === "create-file"
             ? t("room.workspace_create_file_placeholder")
-            : prompt_state?.mode === "create-directory"
+            : promptState?.mode === "create-directory"
               ? t("room.workspace_create_folder_placeholder")
               : t("room.workspace_rename_placeholder")
         }
-        default_value={prompt_state?.default_value ?? ""}
-        on_confirm={handle_prompt_confirm}
-        on_cancel={() => set_prompt_state(null)}
+        default_value={promptState?.default_value ?? ""}
+        on_confirm={handlePromptConfirm}
+        on_cancel={() => setPromptState(null)}
       />
 
       <ConfirmDialog
-        is_open={delete_target !== null}
+        is_open={deleteTarget !== null}
         title={t("room.workspace_delete_title")}
-        message={t("room.workspace_delete_message", {name: delete_target?.name ?? ""})}
+        message={t("room.workspace_delete_message", {name: deleteTarget?.name ?? ""})}
         confirm_text={t("common.delete")}
         cancel_text={t("common.cancel")}
-        on_confirm={handle_confirm_delete}
-        on_cancel={() => set_delete_target(null)}
+        on_confirm={handleConfirmDelete}
+        on_cancel={() => setDeleteTarget(null)}
         variant="danger"
       />
     </>

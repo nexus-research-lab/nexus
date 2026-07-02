@@ -28,7 +28,7 @@ interface ExternalSkillPreviewDialogProps {
   on_import_only: () => void;
 }
 
-function format_installs(installs: number): string {
+function formatInstalls(installs: number): string {
   if (installs >= 1000) {
     return `${(installs / 1000).toFixed(installs >= 100000 ? 0 : 1)}K`;
   }
@@ -37,46 +37,46 @@ function format_installs(installs: number): string {
 
 export function ExternalSkillPreviewDialog({
   item,
-  is_open,
+  is_open: isOpen,
   busy,
-  preview_loading,
-  name_conflict = false,
-  already_imported,
-  on_close,
-  on_import_only,
+  preview_loading: previewLoading,
+  name_conflict: nameConflict = false,
+  already_imported: alreadyImported,
+  on_close: onClose,
+  on_import_only: onImportOnly,
 }: ExternalSkillPreviewDialogProps) {
-  if (!is_open || !item) return null;
-  const is_skills_sh = item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
-  const preview_markdown = preview_loading && !item.readme_markdown
+  if (!isOpen || !item) return null;
+  const isSkillsSh = item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
+  const previewMarkdown = previewLoading && !item.readme_markdown
     ? "正在加载预览内容..."
-    : is_skills_sh
+    : isSkillsSh
       ? "skills.sh 暂不提供内置预览，请打开原始页面查看。"
       : (item.readme_markdown || item.description || "暂无预览内容");
-  const source_label = item.source_name || item.source_kind || "社区";
-  const source_ref = item.package_spec || item.git_url || item.raw_url || item.source;
+  const sourceLabel = item.source_name || item.source_kind || "社区";
+  const sourceRef = item.package_spec || item.git_url || item.raw_url || item.source;
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={on_close}>
+      <UiDialogBackdrop class_name="z-[9999]" on_close={onClose}>
         <UiDialogShell class_name="h-[84vh]" size="xl">
           <UiDialogHeader
             icon={<Puzzle className="h-4 w-4" />}
-            on_close={on_close}
-            subtitle={`${source_ref} · ${format_installs(item.installs)} 次安装`}
+            on_close={onClose}
+            subtitle={`${sourceRef} · ${formatInstalls(item.installs)} 次安装`}
             title={item.title || item.skill_slug}
           />
           <UiDialogBody scrollable>
             <div className="mb-5 flex flex-wrap gap-2">
-              <UiBadge size="xs">{source_label}</UiBadge>
-              {already_imported ? (
+              <UiBadge size="xs">{sourceLabel}</UiBadge>
+              {alreadyImported ? (
                 <UiBadge size="xs" tone="success">已导入</UiBadge>
-              ) : name_conflict ? (
+              ) : nameConflict ? (
                 <UiBadge size="xs" tone="warning">同名冲突</UiBadge>
               ) : null}
             </div>
             <SkillMarkdown
               description={item.description}
-              markdown={preview_markdown}
+              markdown={previewMarkdown}
               title={item.title || item.skill_slug}
             />
           </UiDialogBody>
@@ -95,8 +95,8 @@ export function ExternalSkillPreviewDialog({
             ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
               <UiButton
-                disabled={busy || already_imported || name_conflict}
-                onClick={on_import_only}
+                disabled={busy || alreadyImported || nameConflict}
+                onClick={onImportOnly}
                 size="sm"
                 tone="primary"
                 type="button"

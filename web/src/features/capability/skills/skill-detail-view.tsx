@@ -30,7 +30,7 @@ interface SkillDetailViewProps {
   on_refreshed: () => Promise<void> | void;
 }
 
-function get_skill_source_label(skill: SkillDetail): string {
+function getSkillSourceLabel(skill: SkillDetail): string {
   if (skill.source_type === "system") return "系统内置";
   if (skill.source_type === "builtin") return "内置推荐";
   if (skill.source_type === "external") return "用户导入";
@@ -39,69 +39,69 @@ function get_skill_source_label(skill: SkillDetail): string {
 
 /** Skill 详情页 —— 与连接器详情同样使用路由承载主体内容。 */
 export function SkillDetailView({
-  skill_name,
-  on_back,
-  on_deleted,
-  on_refreshed,
+  skill_name: skillName,
+  on_back: onBack,
+  on_deleted: onDeleted,
+  on_refreshed: onRefreshed,
 }: SkillDetailViewProps) {
-  const [skill, set_skill] = useState<SkillDetail | null>(null);
-  const [loading, set_loading] = useState(true);
-  const [acting, set_acting] = useState(false);
-  const [error, set_error] = useState<string | null>(null);
-  const source_url = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
+  const [skill, setSkill] = useState<SkillDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sourceUrl = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
 
-  const load_detail = useCallback(async () => {
+  const loadDetail = useCallback(async () => {
     try {
-      set_loading(true);
-      set_error(null);
-      set_skill(await get_skill_detail_api(skill_name));
+      setLoading(true);
+      setError(null);
+      setSkill(await get_skill_detail_api(skillName));
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "加载 skill 详情失败");
-      set_skill(null);
+      setError(err instanceof Error ? err.message : "加载 skill 详情失败");
+      setSkill(null);
     } finally {
-      set_loading(false);
+      setLoading(false);
     }
-  }, [skill_name]);
+  }, [skillName]);
 
   useEffect(() => {
-    void load_detail();
-  }, [load_detail]);
+    void loadDetail();
+  }, [loadDetail]);
 
-  const handle_update = useCallback(async () => {
+  const handleUpdate = useCallback(async () => {
     if (!skill) return;
     try {
-      set_acting(true);
-      set_error(null);
+      setActing(true);
+      setError(null);
       await update_single_skill_api(skill.name);
-      await Promise.resolve(on_refreshed());
-      await load_detail();
+      await Promise.resolve(onRefreshed());
+      await loadDetail();
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "更新 skill 失败");
+      setError(err instanceof Error ? err.message : "更新 skill 失败");
     } finally {
-      set_acting(false);
+      setActing(false);
     }
-  }, [load_detail, on_refreshed, skill]);
+  }, [loadDetail, onRefreshed, skill]);
 
-  const handle_delete = useCallback(async () => {
+  const handleDelete = useCallback(async () => {
     if (!skill || !skill.deletable) return;
     try {
-      set_acting(true);
-      set_error(null);
+      setActing(true);
+      setError(null);
       await delete_skill_api(skill.name);
-      await Promise.resolve(on_deleted());
+      await Promise.resolve(onDeleted());
     } catch (err) {
-      set_error(err instanceof Error ? err.message : "删除 skill 失败");
+      setError(err instanceof Error ? err.message : "删除 skill 失败");
     } finally {
-      set_acting(false);
+      setActing(false);
     }
-  }, [on_deleted, skill]);
+  }, [onDeleted, skill]);
 
   return (
     <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
       <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
         <button
           className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-          onClick={on_back}
+          onClick={onBack}
           type="button"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -126,7 +126,7 @@ export function SkillDetailView({
       ) : !skill ? (
         <UiStateBlock
           actions={(
-            <UiButton onClick={on_back} size="sm" type="button">
+            <UiButton onClick={onBack} size="sm" type="button">
               返回技能
             </UiButton>
           )}
@@ -164,7 +164,7 @@ export function SkillDetailView({
               {skill.source_type === "external" && skill.has_update ? (
                 <UiButton
                   disabled={acting}
-                  onClick={() => void handle_update()}
+                  onClick={() => void handleUpdate()}
                   size="sm"
                   tone="primary"
                   type="button"
@@ -177,7 +177,7 @@ export function SkillDetailView({
               {skill.deletable ? (
                 <UiButton
                   disabled={acting}
-                  onClick={() => void handle_delete()}
+                  onClick={() => void handleDelete()}
                   size="sm"
                   tone="danger"
                   type="button"
@@ -193,7 +193,7 @@ export function SkillDetailView({
           <div className="mt-8 space-y-6">
             <div className="flex flex-wrap gap-2">
               <UiBadge>{skill.category_name}</UiBadge>
-              <UiBadge>{get_skill_source_label(skill)}</UiBadge>
+              <UiBadge>{getSkillSourceLabel(skill)}</UiBadge>
               <UiBadge>版本 {skill.version || "unknown"}</UiBadge>
               {skill.locked ? <UiBadge tone="warning">系统锁定</UiBadge> : null}
               {skill.tags.map((tag) => (
@@ -218,10 +218,10 @@ export function SkillDetailView({
               </UiPanel>
             </section>
 
-            {source_url ? (
+            {sourceUrl ? (
               <a
                 className="inline-flex items-center gap-2 text-[13px] font-semibold text-(--primary) underline decoration-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] underline-offset-4"
-                href={source_url}
+                href={sourceUrl}
                 rel="noopener noreferrer"
                 target="_blank"
               >

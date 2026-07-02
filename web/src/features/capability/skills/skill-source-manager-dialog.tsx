@@ -43,20 +43,20 @@ const SOURCE_KIND_DESCRIPTIONS: Record<string, string> = {
   well_known: "后端内置的 well-known 索引适配器。",
 };
 
-function source_kind_label(kind: string): string {
+function sourceKindLabel(kind: string): string {
   return SOURCE_KIND_LABELS[kind] || kind;
 }
 
-function source_kind_description(source: ExternalSkillSourceInfo): string {
+function sourceKindDescription(source: ExternalSkillSourceInfo): string {
   return SOURCE_KIND_DESCRIPTIONS[source.kind] || "后端内置来源适配器。";
 }
 
 export function SkillSourceManagerDialog({ ctrl }: SkillSourceManagerDialogProps) {
   const { t } = useI18n();
-  const is_open = ctrl.source_manager_open;
-  if (!is_open) return null;
+  const isOpen = ctrl.source_manager_open;
+  if (!isOpen) return null;
 
-  const sorted_sources = [...ctrl.external_sources].sort(
+  const sortedSources = [...ctrl.external_sources].sort(
     (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
   );
 
@@ -71,13 +71,13 @@ export function SkillSourceManagerDialog({ ctrl }: SkillSourceManagerDialogProps
             title={t("capability.skill_sources_title")}
           />
           <UiDialogBody class_name="space-y-3" scrollable>
-            {ctrl.source_loading && !sorted_sources.length ? (
+            {ctrl.source_loading && !sortedSources.length ? (
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-(--text-soft)">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("capability.skill_sources_loading")}
               </div>
-            ) : sorted_sources.length ? (
-              sorted_sources.map((source) => (
+            ) : sortedSources.length ? (
+              sortedSources.map((source) => (
                 <SourceRow
                   key={source.source_id}
                   disabled={ctrl.source_loading}
@@ -114,7 +114,7 @@ interface SourceRowProps {
   source: ExternalSkillSourceInfo;
 }
 
-function SourceRow({ disabled, on_toggle, source }: SourceRowProps) {
+function SourceRow({ disabled, on_toggle: onToggle, source }: SourceRowProps) {
   return (
     <div
       className={cn(
@@ -129,7 +129,7 @@ function SourceRow({ disabled, on_toggle, source }: SourceRowProps) {
           <span className="truncate text-sm font-semibold text-(--text-strong)">
             {source.name}
           </span>
-          <UiBadge size="xs">{source_kind_label(source.kind)}</UiBadge>
+          <UiBadge size="xs">{sourceKindLabel(source.kind)}</UiBadge>
           <UiBadge size="xs" tone={source.enabled ? "success" : "idle"}>
             {source.enabled ? "已启用" : "已停用"}
           </UiBadge>
@@ -138,7 +138,7 @@ function SourceRow({ disabled, on_toggle, source }: SourceRowProps) {
           {source.url}
         </div>
         <div className="mt-1 text-xs leading-5 text-(--text-soft)">
-          {source_kind_description(source)}
+          {sourceKindDescription(source)}
         </div>
         {source.last_error ? (
           <div className="mt-1 truncate text-xs text-(--destructive)">
@@ -150,7 +150,7 @@ function SourceRow({ disabled, on_toggle, source }: SourceRowProps) {
         <GlassSwitch
           checked={source.enabled}
           disabled={disabled}
-          on_change={on_toggle}
+          on_change={onToggle}
           size="sm"
         />
       </div>

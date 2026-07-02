@@ -11,7 +11,7 @@ interface LottiePlayerProps {
   inline_style?: CSSProperties;
 }
 
-export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProps) {
+export function LottiePlayer({ src, class_name: className, inline_style: inlineStyle }: LottiePlayerProps) {
   const [dotLottieInstance, setDotLottieInstance] = useState<DotLottie | null>(null);
 
   useEffect(() => {
@@ -22,8 +22,8 @@ export function LottiePlayer({ src, class_name, inline_style }: LottiePlayerProp
 
   return (
     <div
-      className={class_name}
-      style={inline_style}
+      className={className}
+      style={inlineStyle}
     >
       <DotLottieReact
         autoplay

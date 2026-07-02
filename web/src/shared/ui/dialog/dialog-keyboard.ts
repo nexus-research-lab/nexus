@@ -7,10 +7,10 @@
  * =====================================================
  */
 
-export function close_on_escape(event: KeyboardEvent, on_close: () => void) {
+export function close_on_escape(event: KeyboardEvent, onClose: () => void) {
   if (event.key !== "Escape") {
     return;
   }
   event.preventDefault();
-  on_close();
+  onClose();
 }

@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 
 export function PrivateDomainToolbar({
   count,
-  is_loading,
-  on_refresh,
+  is_loading: isLoading,
+  on_refresh: onRefresh,
   title,
 }: {
   count: number;
@@ -25,10 +25,10 @@ export function PrivateDomainToolbar({
       <button
         aria-label="刷新联络"
         className="flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
-        onClick={on_refresh}
+        onClick={onRefresh}
         type="button"
       >
-        <RefreshCw className={cn("h-3.5 w-3.5", is_loading && "animate-spin")} />
+        <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
       </button>
     </div>
   );

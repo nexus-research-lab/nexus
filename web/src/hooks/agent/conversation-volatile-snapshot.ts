@@ -20,15 +20,15 @@ interface VolatileConversationSnapshot {
 const VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX =
   "nexus.agent_conversation.volatile";
 
-function is_terminal_slot_status(status: AssistantMessageStatus): boolean {
+function isTerminalSlotStatus(status: AssistantMessageStatus): boolean {
   return status === "done" || status === "cancelled" || status === "error";
 }
 
-function build_volatile_conversation_storage_key(session_key: string): string {
-  return `${VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX}:${session_key}`;
+function buildVolatileConversationStorageKey(sessionKey: string): string {
+  return `${VOLATILE_CONVERSATION_STORAGE_KEY_PREFIX}:${sessionKey}`;
 }
 
-function get_volatile_conversation_storage(): Storage | null {
+function getVolatileConversationStorage(): Storage | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -41,16 +41,16 @@ function get_volatile_conversation_storage(): Storage | null {
 }
 
 export function read_volatile_conversation_snapshot(
-  session_key: string,
+  sessionKey: string,
 ): VolatileConversationSnapshot | null {
-  const storage = get_volatile_conversation_storage();
+  const storage = getVolatileConversationStorage();
   if (!storage) {
     return null;
   }
 
   try {
     const raw = storage.getItem(
-      build_volatile_conversation_storage_key(session_key),
+      buildVolatileConversationStorageKey(sessionKey),
     );
     if (!raw) {
       return null;
@@ -79,10 +79,10 @@ export function read_volatile_conversation_snapshot(
 }
 
 export function write_volatile_conversation_snapshot(
-  session_key: string,
+  sessionKey: string,
   snapshot: VolatileConversationSnapshot,
 ): void {
-  const storage = get_volatile_conversation_storage();
+  const storage = getVolatileConversationStorage();
   if (!storage) {
     return;
   }
@@ -95,14 +95,14 @@ export function write_volatile_conversation_snapshot(
 
   try {
     storage.setItem(
-      build_volatile_conversation_storage_key(session_key),
+      buildVolatileConversationStorageKey(sessionKey),
       JSON.stringify(capped),
     );
   } catch (err) {
-    const is_quota =
+    const isQuota =
       err instanceof DOMException &&
       (err.code === 22 || err.name === "QuotaExceededError");
-    if (is_quota) {
+    if (isQuota) {
       console.warn("[conversation] sessionStorage quota exceeded, snapshot not persisted");
     } else {
       console.warn("[conversation] sessionStorage write failed:", err);
@@ -111,36 +111,36 @@ export function write_volatile_conversation_snapshot(
 }
 
 export function remove_volatile_conversation_snapshot(
-  session_key: string,
+  sessionKey: string,
 ): void {
-  const storage = get_volatile_conversation_storage();
+  const storage = getVolatileConversationStorage();
   if (!storage) {
     return;
   }
 
   try {
-    storage.removeItem(build_volatile_conversation_storage_key(session_key));
+    storage.removeItem(buildVolatileConversationStorageKey(sessionKey));
   } catch {
     // 忽略移除失败
   }
 }
 
 export function merge_pending_agent_slots(
-  restored_slots: RoomPendingAgentSlotState[],
-  current_slots: RoomPendingAgentSlotState[],
+  restoredSlots: RoomPendingAgentSlotState[],
+  currentSlots: RoomPendingAgentSlotState[],
 ): RoomPendingAgentSlotState[] {
-  if (restored_slots.length === 0) {
-    return current_slots;
+  if (restoredSlots.length === 0) {
+    return currentSlots;
   }
 
-  const merged_slots = new Map<string, RoomPendingAgentSlotState>();
-  for (const slot of restored_slots) {
-    merged_slots.set(slot.msg_id, slot);
+  const mergedSlots = new Map<string, RoomPendingAgentSlotState>();
+  for (const slot of restoredSlots) {
+    mergedSlots.set(slot.msg_id, slot);
   }
-  for (const slot of current_slots) {
-    merged_slots.set(slot.msg_id, slot);
+  for (const slot of currentSlots) {
+    mergedSlots.set(slot.msg_id, slot);
   }
-  return Array.from(merged_slots.values());
+  return Array.from(mergedSlots.values());
 }
 
 export function is_ephemeral_message(message: Message): boolean {
@@ -149,58 +149,58 @@ export function is_ephemeral_message(message: Message): boolean {
 
 export function build_volatile_conversation_snapshot(
   messages: Message[],
-  runtime_snapshot: AgentConversationRuntimeSnapshot,
-  pending_agent_slots: RoomPendingAgentSlotState[],
+  runtimeSnapshot: AgentConversationRuntimeSnapshot,
+  pendingAgentSlots: RoomPendingAgentSlotState[],
 ): VolatileConversationSnapshot | null {
-  const active_round_ids = new Set<string>(runtime_snapshot.live_round_ids);
+  const activeRoundIds = new Set<string>(runtimeSnapshot.live_round_ids);
 
-  for (const slot of pending_agent_slots) {
-    if (!is_terminal_slot_status(slot.status)) {
-      active_round_ids.add(slot.round_id);
+  for (const slot of pendingAgentSlots) {
+    if (!isTerminalSlotStatus(slot.status)) {
+      activeRoundIds.add(slot.round_id);
     }
   }
 
-  if (active_round_ids.size === 0) {
+  if (activeRoundIds.size === 0) {
     return null;
   }
 
-  const volatile_messages = messages.filter((message) => {
+  const volatileMessages = messages.filter((message) => {
     if (is_ephemeral_message(message)) {
       return false;
     }
-    if (active_round_ids.has(message.round_id)) {
+    if (activeRoundIds.has(message.round_id)) {
       return true;
     }
 
     return (
       message.role === "assistant" &&
-      !is_terminal_slot_status(message.stream_status ?? "streaming")
+      !isTerminalSlotStatus(message.stream_status ?? "streaming")
     );
   });
-  const volatile_slots = pending_agent_slots.filter(
-    (slot) => !is_terminal_slot_status(slot.status),
+  const volatileSlots = pendingAgentSlots.filter(
+    (slot) => !isTerminalSlotStatus(slot.status),
   );
 
-  if (volatile_messages.length === 0 && volatile_slots.length === 0) {
+  if (volatileMessages.length === 0 && volatileSlots.length === 0) {
     return null;
   }
 
   return {
-    messages: volatile_messages,
-    pending_agent_slots: volatile_slots,
+    messages: volatileMessages,
+    pending_agent_slots: volatileSlots,
     updated_at: Date.now(),
   };
 }
 
 export function filter_pending_slots_from_snapshot(
-  current_slots: RoomPendingAgentSlotState[],
+  currentSlots: RoomPendingAgentSlotState[],
   messages: Message[],
-  is_round_terminal: (round_id: string) => boolean,
+  isRoundTerminal: (roundId: string) => boolean,
 ): RoomPendingAgentSlotState[] {
-  if (current_slots.length === 0) {
-    return current_slots;
+  if (currentSlots.length === 0) {
+    return currentSlots;
   }
-  const loaded_message_ids = new Set(
+  const loadedMessageIds = new Set(
     messages
       .filter(
         (message): message is AssistantMessage => message.role === "assistant",
@@ -208,45 +208,45 @@ export function filter_pending_slots_from_snapshot(
       .map((message) => message.message_id),
   );
 
-  return current_slots.filter(
+  return currentSlots.filter(
     (slot) =>
-      !is_round_terminal(slot.round_id) && !loaded_message_ids.has(slot.msg_id),
+      !isRoundTerminal(slot.round_id) && !loadedMessageIds.has(slot.msg_id),
   );
 }
 
 export function filter_pending_permissions_from_snapshot(
-  current_permissions: PendingPermission[],
+  currentPermissions: PendingPermission[],
   messages: Message[],
-  is_round_terminal: (round_id: string) => boolean,
+  isRoundTerminal: (roundId: string) => boolean,
 ): PendingPermission[] {
-  if (current_permissions.length === 0) {
-    return current_permissions;
+  if (currentPermissions.length === 0) {
+    return currentPermissions;
   }
-  const loaded_assistant_message_ids = new Set<string>();
-  const unresolved_tool_use_candidates =
+  const loadedAssistantMessageIds = new Set<string>();
+  const unresolvedToolUseCandidates =
     collect_unresolved_tool_use_candidates(messages);
-  const permission_match_result = match_pending_permissions_to_tool_uses(
-    current_permissions,
-    unresolved_tool_use_candidates,
+  const permissionMatchResult = match_pending_permissions_to_tool_uses(
+    currentPermissions,
+    unresolvedToolUseCandidates,
   );
 
   for (const message of messages) {
     if (message.role === "assistant") {
-      loaded_assistant_message_ids.add(message.message_id);
+      loadedAssistantMessageIds.add(message.message_id);
     }
   }
 
-  return current_permissions.filter((permission) => {
-    if (is_pending_permission_expired(permission)) {
+  return currentPermissions.filter((permission) => {
+    if (isPendingPermissionExpired(permission)) {
       return false;
     }
 
-    if (permission.caused_by && is_round_terminal(permission.caused_by)) {
+    if (permission.caused_by && isRoundTerminal(permission.caused_by)) {
       return false;
     }
 
     if (
-      permission_match_result.matched_request_ids.has(permission.request_id)
+      permissionMatchResult.matched_request_ids.has(permission.request_id)
     ) {
       return true;
     }
@@ -257,60 +257,60 @@ export function filter_pending_permissions_from_snapshot(
       return true;
     }
 
-    return !loaded_assistant_message_ids.has(permission.message_id);
+    return !loadedAssistantMessageIds.has(permission.message_id);
   });
 }
 
-function get_pending_permission_expiration_ms(
+function getPendingPermissionExpirationMs(
   permission: PendingPermission,
 ): number | null {
   if (!permission.expires_at) {
     return null;
   }
-  const expires_at_ms = Date.parse(permission.expires_at);
-  return Number.isFinite(expires_at_ms) ? expires_at_ms : null;
+  const expiresAtMs = Date.parse(permission.expires_at);
+  return Number.isFinite(expiresAtMs) ? expiresAtMs : null;
 }
 
-function is_pending_permission_expired(
+function isPendingPermissionExpired(
   permission: PendingPermission,
-  now_ms: number = Date.now(),
+  nowMs: number = Date.now(),
 ): boolean {
-  const expires_at_ms = get_pending_permission_expiration_ms(permission);
-  return expires_at_ms != null && expires_at_ms <= now_ms;
+  const expiresAtMs = getPendingPermissionExpirationMs(permission);
+  return expiresAtMs != null && expiresAtMs <= nowMs;
 }
 
 export function prune_expired_pending_permissions(
-  current_permissions: PendingPermission[],
-  now_ms: number = Date.now(),
+  currentPermissions: PendingPermission[],
+  nowMs: number = Date.now(),
 ): PendingPermission[] {
-  if (current_permissions.length === 0) {
-    return current_permissions;
+  if (currentPermissions.length === 0) {
+    return currentPermissions;
   }
 
-  const next_permissions = current_permissions.filter(
-    (permission) => !is_pending_permission_expired(permission, now_ms),
+  const nextPermissions = currentPermissions.filter(
+    (permission) => !isPendingPermissionExpired(permission, nowMs),
   );
-  return next_permissions.length === current_permissions.length
-    ? current_permissions
-    : next_permissions;
+  return nextPermissions.length === currentPermissions.length
+    ? currentPermissions
+    : nextPermissions;
 }
 
 export function get_next_pending_permission_timeout_ms(
-  current_permissions: PendingPermission[],
-  now_ms: number = Date.now(),
+  currentPermissions: PendingPermission[],
+  nowMs: number = Date.now(),
 ): number | null {
-  let next_timeout_ms: number | null = null;
+  let nextTimeoutMs: number | null = null;
 
-  for (const permission of current_permissions) {
-    const expires_at_ms = get_pending_permission_expiration_ms(permission);
-    if (expires_at_ms == null) {
+  for (const permission of currentPermissions) {
+    const expiresAtMs = getPendingPermissionExpirationMs(permission);
+    if (expiresAtMs == null) {
       continue;
     }
-    const timeout_ms = Math.max(expires_at_ms - now_ms, 0);
-    if (next_timeout_ms == null || timeout_ms < next_timeout_ms) {
-      next_timeout_ms = timeout_ms;
+    const timeoutMs = Math.max(expiresAtMs - nowMs, 0);
+    if (nextTimeoutMs == null || timeoutMs < nextTimeoutMs) {
+      nextTimeoutMs = timeoutMs;
     }
   }
 
-  return next_timeout_ms;
+  return nextTimeoutMs;
 }

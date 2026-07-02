@@ -29,84 +29,84 @@ import type {
 } from "@/features/agents/options/agent-options-editor-model";
 
 export function useAgentOptionsEditorController({
-  agent_id,
+  agent_id: agentId,
   mode,
-  is_active,
-  on_delete,
-  on_save,
-  on_validate_name,
-  initial_title = "",
-  initial_options = {},
-  initial_avatar = "",
-  initial_description = "",
-  initial_vibe_tags = [],
-  on_cancel,
-  close_after_save = false,
-  show_cancel_button = true,
-  show_delete_button = true,
+  is_active: isActive,
+  on_delete: onDelete,
+  on_save: onSave,
+  on_validate_name: onValidateName,
+  initial_title: initialTitle = "",
+  initial_options: initialOptions = {},
+  initial_avatar: initialAvatar = "",
+  initial_description: initialDescription = "",
+  initial_vibe_tags: initialVibeTags = [],
+  on_cancel: onCancel,
+  close_after_save: closeAfterSave = false,
+  show_cancel_button: showCancelButton = true,
+  show_delete_button: showDeleteButton = true,
   variant = "dialog",
-  content_max_width_class_name = "max-w-[920px]",
-  active_tab,
-  on_tab_change,
-  hide_inline_nav = false,
+  content_max_width_class_name: contentMaxWidthClassName = "max-w-[920px]",
+  active_tab: controlledActiveTab,
+  on_tab_change: onTabChange,
+  hide_inline_nav: hideInlineNav = false,
 }: AgentOptionsEditorProps) {
   const { t } = useI18n();
-  const sourceOptions = initial_options as AgentDialogInitialOptions;
-  const initial_resolved_title = useMemo(
-    () => initial_title || t("agent_options.default_name"),
-    [initial_title, t],
+  const sourceOptions = initialOptions as AgentDialogInitialOptions;
+  const initialResolvedTitle = useMemo(
+    () => initialTitle || t("agent_options.default_name"),
+    [initialTitle, t],
   );
-  const initial_vibe_tags_signature = initial_vibe_tags.join("\x1f");
+  const initialVibeTagsSignature = initialVibeTags.join("\x1f");
   const sourceModel = sourceOptions.model?.trim() || DEFAULT_AGENT_OPTION_MODEL;
-  const initial_provider = sourceModel
+  const initialProvider = sourceModel
     ? normalize_agent_option_provider(sourceOptions.provider) || DEFAULT_AGENT_OPTION_PROVIDER
     : DEFAULT_AGENT_OPTION_PROVIDER;
-  const initial_permission_mode = sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE;
-  const initial_allowed_tools = sourceOptions.allowed_tools || [];
-  const initial_disallowed_tools = sourceOptions.disallowed_tools || [];
-  const initial_allowed_tools_signature = initial_allowed_tools.join("\x1f");
-  const initial_disallowed_tools_signature = initial_disallowed_tools.join("\x1f");
-  const editor_reset_key = [
-    is_active ? "active" : "inactive",
-    initial_resolved_title,
-    initial_avatar,
-    initial_description,
-    initial_vibe_tags_signature,
-    initial_provider,
+  const initialPermissionMode = sourceOptions.permission_mode || DEFAULT_AGENT_PERMISSION_MODE;
+  const initialAllowedTools = sourceOptions.allowed_tools || [];
+  const initialDisallowedTools = sourceOptions.disallowed_tools || [];
+  const initialAllowedToolsSignature = initialAllowedTools.join("\x1f");
+  const initialDisallowedToolsSignature = initialDisallowedTools.join("\x1f");
+  const editorResetKey = [
+    isActive ? "active" : "inactive",
+    initialResolvedTitle,
+    initialAvatar,
+    initialDescription,
+    initialVibeTagsSignature,
+    initialProvider,
     sourceModel,
-    initial_permission_mode,
-    initial_allowed_tools_signature,
-    initial_disallowed_tools_signature,
+    initialPermissionMode,
+    initialAllowedToolsSignature,
+    initialDisallowedToolsSignature,
   ].join("\x1e");
 
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useResettableState<TabKey>("identity", editor_reset_key);
-  const activeTab = active_tab ?? uncontrolledActiveTab;
-  const setActiveTab = on_tab_change ?? setUncontrolledActiveTab;
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useResettableState<TabKey>("identity", editorResetKey);
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
+  const setActiveTab = onTabChange ?? setUncontrolledActiveTab;
 
-  const [title, setTitle] = useResettableState(initial_resolved_title, editor_reset_key);
-  const [avatar, setAvatar] = useResettableState(initial_avatar, editor_reset_key);
-  const [description, setDescription] = useResettableState(initial_description, editor_reset_key);
-  const [vibeTags, setVibeTags] = useResettableState<string[]>(initial_vibe_tags, editor_reset_key);
-  const [provider, setProvider] = useResettableState<AgentProvider>(initial_provider, editor_reset_key);
-  const [model, setModel] = useResettableState<string>(sourceModel, editor_reset_key);
-  const [defaultProvider, setDefaultProvider] = useResettableState<AgentProvider>("", editor_reset_key);
-  const [defaultModel, setDefaultModel] = useResettableState<string>("", editor_reset_key);
+  const [title, setTitle] = useResettableState(initialResolvedTitle, editorResetKey);
+  const [avatar, setAvatar] = useResettableState(initialAvatar, editorResetKey);
+  const [description, setDescription] = useResettableState(initialDescription, editorResetKey);
+  const [vibeTags, setVibeTags] = useResettableState<string[]>(initialVibeTags, editorResetKey);
+  const [provider, setProvider] = useResettableState<AgentProvider>(initialProvider, editorResetKey);
+  const [model, setModel] = useResettableState<string>(sourceModel, editorResetKey);
+  const [defaultProvider, setDefaultProvider] = useResettableState<AgentProvider>("", editorResetKey);
+  const [defaultModel, setDefaultModel] = useResettableState<string>("", editorResetKey);
   const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
   const [providerOptionsLoading, setProviderOptionsLoading] = useState(false);
-  const [providerOptionsError, setProviderOptionsError] = useResettableState<string | null>(null, editor_reset_key);
-  const [saveFeedback, setSaveFeedback] = useResettableState<SaveFeedback | null>(null, `${is_active ? "active" : "inactive"}\x1f${agent_id}`);
+  const [providerOptionsError, setProviderOptionsError] = useResettableState<string | null>(null, editorResetKey);
+  const [saveFeedback, setSaveFeedback] = useResettableState<SaveFeedback | null>(null, `${isActive ? "active" : "inactive"}\x1f${agentId}`);
   const saveFeedbackTimerRef = useRef<number | null>(null);
 
-  const [permissionMode, setPermissionMode] = useResettableState(initial_permission_mode, editor_reset_key);
-  const [allowedTools, setAllowedTools] = useResettableState<string[]>(initial_allowed_tools, editor_reset_key);
-  const [disallowedTools, setDisallowedTools] = useResettableState<string[]>(initial_disallowed_tools, editor_reset_key);
+  const [permissionMode, setPermissionMode] = useResettableState(initialPermissionMode, editorResetKey);
+  const [allowedTools, setAllowedTools] = useResettableState<string[]>(initialAllowedTools, editorResetKey);
+  const [disallowedTools, setDisallowedTools] = useResettableState<string[]>(initialDisallowedTools, editorResetKey);
 
   const [nameValidation, setNameValidation] =
-    useResettableState<AgentNameValidationResult | null>(null, editor_reset_key);
-  const [isValidatingName, setIsValidatingName] = useResettableState(false, editor_reset_key);
-  const [isSaving, setIsSaving] = useResettableState(false, editor_reset_key);
-  const trimmed_title = title.trim();
-  const has_title_changed = trimmed_title !== initial_resolved_title.trim();
+    useResettableState<AgentNameValidationResult | null>(null, editorResetKey);
+  const [isValidatingName, setIsValidatingName] = useResettableState(false, editorResetKey);
+  const [isSaving, setIsSaving] = useResettableState(false, editorResetKey);
+  const trimmedTitle = title.trim();
+  const hasTitleChanged = trimmedTitle !== initialResolvedTitle.trim();
 
   useEffect(() => {
     return () => {
@@ -116,7 +116,7 @@ export function useAgentOptionsEditorController({
     };
   }, []);
 
-  const clear_save_feedback = () => {
+  const clearSaveFeedback = () => {
     if (saveFeedbackTimerRef.current !== null) {
       window.clearTimeout(saveFeedbackTimerRef.current);
       saveFeedbackTimerRef.current = null;
@@ -125,13 +125,13 @@ export function useAgentOptionsEditorController({
   };
 
   useEffect(() => {
-    if (!is_active) {
+    if (!isActive) {
       return;
     }
 
     let cancelled = false;
 
-    const load_provider_options = async () => {
+    const loadProviderOptions = async () => {
       try {
         setProviderOptionsLoading(true);
         const payload = await list_provider_options_api(get_default_agent_runtime_kind());
@@ -159,24 +159,24 @@ export function useAgentOptionsEditorController({
       }
     };
 
-    void load_provider_options();
+    void loadProviderOptions();
     return () => {
       cancelled = true;
     };
-  }, [is_active, t]);
+  }, [isActive, t]);
 
   useEffect(() => {
-    if (!is_active) return;
-    if (!on_validate_name) {
+    if (!isActive) return;
+    if (!onValidateName) {
       setNameValidation(null);
       return;
     }
-    if (!trimmed_title) {
+    if (!trimmedTitle) {
       setNameValidation(null);
       setIsValidatingName(false);
       return;
     }
-    if (!has_title_changed) {
+    if (!hasTitleChanged) {
       setNameValidation(null);
       setIsValidatingName(false);
       return;
@@ -186,13 +186,13 @@ export function useAgentOptionsEditorController({
     const timer = window.setTimeout(async () => {
       try {
         setIsValidatingName(true);
-        const result = await on_validate_name(trimmed_title);
+        const result = await onValidateName(trimmedTitle);
         if (!cancelled) setNameValidation(result);
       } catch (error) {
         if (!cancelled) {
           setNameValidation({
-            name: trimmed_title,
-            normalized_name: trimmed_title,
+            name: trimmedTitle,
+            normalized_name: trimmedTitle,
             is_valid: false,
             is_available: false,
             reason:
@@ -211,13 +211,13 @@ export function useAgentOptionsEditorController({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [trimmed_title, has_title_changed, is_active, on_validate_name, t]);
+  }, [trimmedTitle, hasTitleChanged, isActive, onValidateName, t]);
 
-  const toggle_tool = (
+  const toggleTool = (
     toolName: string,
     type: "allowed" | "disallowed"
   ) => {
-    clear_save_feedback();
+    clearSaveFeedback();
     if (type === "allowed") {
       setAllowedTools((prev) =>
         prev.includes(toolName)
@@ -233,28 +233,28 @@ export function useAgentOptionsEditorController({
     }
   };
 
-  const handle_save = async () => {
-    if (!trimmed_title) return;
+  const handleSave = async () => {
+    if (!trimmedTitle) return;
     if (isValidatingName || isSaving) return;
     if (saveFeedbackTimerRef.current !== null) {
       window.clearTimeout(saveFeedbackTimerRef.current);
       saveFeedbackTimerRef.current = null;
     }
     setSaveFeedback(null);
-    const requires_final_name_validation = Boolean(on_validate_name) && (mode === "create" || has_title_changed);
-    let latest_name_validation = nameValidation;
+    const requiresFinalNameValidation = Boolean(onValidateName) && (mode === "create" || hasTitleChanged);
+    let latestNameValidation = nameValidation;
 
-    if (requires_final_name_validation) {
-      const has_current_valid_result = latest_name_validation?.name === trimmed_title;
-      if (!has_current_valid_result) {
+    if (requiresFinalNameValidation) {
+      const hasCurrentValidResult = latestNameValidation?.name === trimmedTitle;
+      if (!hasCurrentValidResult) {
         setIsValidatingName(true);
         try {
-          latest_name_validation = await on_validate_name!(trimmed_title);
-          setNameValidation(latest_name_validation);
+          latestNameValidation = await onValidateName!(trimmedTitle);
+          setNameValidation(latestNameValidation);
         } catch (error) {
-          latest_name_validation = {
-            name: trimmed_title,
-            normalized_name: trimmed_title,
+          latestNameValidation = {
+            name: trimmedTitle,
+            normalized_name: trimmedTitle,
             is_valid: false,
             is_available: false,
             reason:
@@ -263,15 +263,15 @@ export function useAgentOptionsEditorController({
                 : t("agent_options.identity.validation_failed"),
             workspace_path: null,
           };
-          setNameValidation(latest_name_validation);
+          setNameValidation(latestNameValidation);
         } finally {
           setIsValidatingName(false);
         }
       }
 
       if (
-        latest_name_validation &&
-        (!latest_name_validation.is_valid || !latest_name_validation.is_available)
+        latestNameValidation &&
+        (!latestNameValidation.is_valid || !latestNameValidation.is_available)
       ) {
         return;
       }
@@ -293,13 +293,13 @@ export function useAgentOptionsEditorController({
     };
     setIsSaving(true);
     try {
-      await on_save(trimmed_title, options, {
+      await onSave(trimmedTitle, options, {
         avatar,
         description: description.trim(),
         vibe_tags: vibeTags,
       });
-      if (close_after_save) {
-        on_cancel?.();
+      if (closeAfterSave) {
+        onCancel?.();
       } else {
         setSaveFeedback({
           tone: "success",
@@ -324,8 +324,8 @@ export function useAgentOptionsEditorController({
     nameValidation &&
     (!nameValidation.is_valid || !nameValidation.is_available)
   );
-  const canSave = !!trimmed_title && !isValidatingName && !isNameInvalid && !isSaving;
-  const canDelete = show_delete_button && mode === "edit" && Boolean(agent_id) && Boolean(on_delete);
+  const canSave = !!trimmedTitle && !isValidatingName && !isNameInvalid && !isSaving;
+  const canDelete = showDeleteButton && mode === "edit" && Boolean(agentId) && Boolean(onDelete);
   const saveButtonLabel = isSaving
     ? t("common.saving")
     : saveFeedback?.tone === "success"
@@ -336,11 +336,11 @@ export function useAgentOptionsEditorController({
           ? t("agent_options.title_create")
           : t("agent_options.save_changes");
 
-  const handle_delete = () => {
-    if (!agent_id || !on_delete) {
+  const handleDelete = () => {
+    if (!agentId || !onDelete) {
       return;
     }
-    on_delete(agent_id);
+    onDelete(agentId);
   };
 
   return {
@@ -349,39 +349,39 @@ export function useAgentOptionsEditorController({
     advanced_props: {
       permission_mode: permissionMode,
       on_permission_mode_change: (value: string) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setPermissionMode(value);
       },
       allowed_tools: allowedTools,
-      on_toggle_tool: toggle_tool,
+      on_toggle_tool: toggleTool,
     },
     can_delete: canDelete,
     can_save: canSave,
     cancel_label: t("common.cancel"),
-    content_max_width_class_name,
+    content_max_width_class_name: contentMaxWidthClassName,
     delete_agent_label: t("agent_options.delete_agent"),
-    handle_delete,
-    handle_save,
-    hide_inline_nav,
+    handle_delete: handleDelete,
+    handle_save: handleSave,
+    hide_inline_nav: hideInlineNav,
     identity_props: {
       avatar,
       on_avatar_change: (value: string) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setAvatar(value);
       },
       title,
       on_title_change: (value: string) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setTitle(value);
       },
       description,
       on_description_change: (value: string) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setDescription(value);
       },
       vibe_tags: vibeTags,
       on_vibe_tags_change: (value: string[]) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setVibeTags(value);
       },
       provider,
@@ -392,24 +392,24 @@ export function useAgentOptionsEditorController({
       provider_options_error: providerOptionsError,
       provider_options_loading: providerOptionsLoading,
       on_provider_change: (value: AgentProvider) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setProvider(value);
       },
       on_model_change: (value: string) => {
-        clear_save_feedback();
+        clearSaveFeedback();
         setModel(value);
       },
       name_validation: nameValidation,
       is_validating_name: isValidatingName,
       variant,
     },
-    is_active,
+    is_active: isActive,
     mode,
-    on_cancel,
+    on_cancel: onCancel,
     save_button_label: saveButtonLabel,
     save_feedback: saveFeedback,
-    show_cancel_button,
-    skills_agent_id: mode === "edit" ? agent_id : undefined,
+    show_cancel_button: showCancelButton,
+    skills_agent_id: mode === "edit" ? agentId : undefined,
     variant,
   };
 }

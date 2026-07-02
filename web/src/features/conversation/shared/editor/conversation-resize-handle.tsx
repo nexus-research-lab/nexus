@@ -11,18 +11,18 @@ interface ConversationResizeHandleProps {
 }
 
 export function ConversationResizeHandle({
-  aria_label,
-  class_name,
-  on_mouse_down,
+  aria_label: ariaLabel,
+  class_name: className,
+  on_mouse_down: onMouseDown,
 }: ConversationResizeHandleProps) {
   return (
     <button
-      aria-label={aria_label}
+      aria-label={ariaLabel}
       className={cn(
         "group absolute left-0 top-0 z-20 hidden h-full w-3 cursor-col-resize items-center justify-start lg:flex",
-        class_name,
+        className,
       )}
-      onMouseDown={on_mouse_down}
+      onMouseDown={onMouseDown}
       type="button"
     >
       <span

@@ -7,7 +7,7 @@ import { ChannelAccountView } from "@/lib/api/channel-api";
 import { UiBadge } from "@/shared/ui/badge";
 import { UiListActionButton } from "@/shared/ui/list-action";
 
-function channel_account_status_label(status: string) {
+function channelAccountStatusLabel(status: string) {
   switch (status) {
   case "connected":
     return "已连接";
@@ -26,8 +26,8 @@ function channel_account_status_label(status: string) {
 
 export function ChannelAccountsPanel({
   accounts,
-  deleting_account_id,
-  on_delete,
+  deleting_account_id: deletingAccountId,
+  on_delete: onDelete,
 }: {
   accounts: ChannelAccountView[];
   deleting_account_id: string;
@@ -58,7 +58,7 @@ export function ChannelAccountsPanel({
                     {account.account_id}
                   </code>
                   <UiBadge size="xs" tone={account.status === "error" ? "danger" : "success"}>
-                    {channel_account_status_label(account.status)}
+                    {channelAccountStatusLabel(account.status)}
                   </UiBadge>
                 </div>
                 <div className="mt-0.5 truncate text-[11px] text-(--text-muted)">
@@ -71,13 +71,13 @@ export function ChannelAccountsPanel({
                 ) : null}
               </div>
               <UiListActionButton
-                disabled={deleting_account_id === account.account_id}
-                onClick={() => on_delete(account)}
+                disabled={deletingAccountId === account.account_id}
+                onClick={() => onDelete(account)}
                 size="sm"
                 stop_propagation
                 title="删除该账号"
               >
-                {deleting_account_id === account.account_id ? (
+                {deletingAccountId === account.account_id ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
                   <Trash2 className="h-3 w-3" />

@@ -47,136 +47,136 @@ import { SettingsSystemSection } from "./settings-system-section";
 
 export function SettingsGeneralSection() {
   const { t } = useI18n();
-  const { reset_all_tours } = useOnboardingTour();
-  const [preferences, set_preferences] = useState<UserPreferences>(() =>
+  const { reset_all_tours: resetAllTours } = useOnboardingTour();
+  const [preferences, setPreferences] = useState<UserPreferences>(() =>
     normalize_preferences(null),
   );
-  const [preferences_loading, set_preferences_loading] = useState(true);
-  const [preferences_saving, set_preferences_saving] = useState(false);
-  const [preference_feedback, set_preference_feedback] =
+  const [preferencesLoading, setPreferencesLoading] = useState(true);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [preferenceFeedback, setPreferenceFeedback] =
     useState<PreferenceFeedback | null>(null);
-  const [provider_options, set_provider_options] = useState<ProviderOption[]>(
+  const [providerOptions, setProviderOptions] = useState<ProviderOption[]>(
     [],
   );
-  const [background_provider_options, set_background_provider_options] =
+  const [backgroundProviderOptions, setBackgroundProviderOptions] =
     useState<ProviderOption[]>([]);
-  const [image_provider_options, set_image_provider_options] = useState<
+  const [imageProviderOptions, setImageProviderOptions] = useState<
     ProviderOption[]
   >([]);
-  const [default_model_value, set_default_model_value] = useState("");
-  const [default_image_model_value, set_default_image_model_value] =
+  const [defaultModelValue, setDefaultModelValue] = useState("");
+  const [defaultImageModelValue, setDefaultImageModelValue] =
     useState("");
-  const [default_background_model_value, set_default_background_model_value] =
+  const [defaultBackgroundModelValue, setDefaultBackgroundModelValue] =
     useState("");
-  const [provider_options_loading, set_provider_options_loading] =
+  const [providerOptionsLoading, setProviderOptionsLoading] =
     useState(true);
-  const [default_model_saving_role, set_default_model_saving_role] =
+  const [defaultModelSavingRole, setDefaultModelSavingRole] =
     useState<DefaultModelPreferenceRole | null>(null);
-  const [default_model_feedback, set_default_model_feedback] =
+  const [defaultModelFeedback, setDefaultModelFeedback] =
     useState<PreferenceFeedback | null>(null);
-  const [nxs_runtime_checking, set_nxs_runtime_checking] = useState(false);
-  const preferences_ref = useRef(preferences);
-  const last_saved_preferences_ref = useRef<UserPreferences | null>(null);
-  const provider_default_selection_ref = useRef({ provider: "", model: "" });
-  const image_default_selection_ref = useRef({ provider: "", model: "" });
-  const save_sequence_ref = useRef(0);
-  const agent_runtime_kind = normalize_agent_runtime_kind(
+  const [nxsRuntimeChecking, setNxsRuntimeChecking] = useState(false);
+  const preferencesRef = useRef(preferences);
+  const lastSavedPreferencesRef = useRef<UserPreferences | null>(null);
+  const providerDefaultSelectionRef = useRef({ provider: "", model: "" });
+  const imageDefaultSelectionRef = useRef({ provider: "", model: "" });
+  const saveSequenceRef = useRef(0);
+  const agentRuntimeKind = normalize_agent_runtime_kind(
     preferences.agent_runtime_kind,
   );
-  const permission_mode =
+  const permissionMode =
     preferences.default_agent_options.permission_mode ??
     DEFAULT_AGENT_PERMISSION_MODE;
-  const sync_default_model_values = useCallback(
-    (next_preferences: UserPreferences) => {
-      const agent_provider =
-        next_preferences.default_agent_options.provider?.trim() ||
-        provider_default_selection_ref.current.provider;
-      const agent_model =
-        next_preferences.default_agent_options.model?.trim() ||
-        provider_default_selection_ref.current.model;
-      set_default_agent_provider(agent_provider);
-      set_default_agent_model(agent_model);
-      set_default_model_value(
-        encode_optional_model_selection(agent_provider, agent_model),
+  const syncDefaultModelValues = useCallback(
+    (nextPreferences: UserPreferences) => {
+      const agentProvider =
+        nextPreferences.default_agent_options.provider?.trim() ||
+        providerDefaultSelectionRef.current.provider;
+      const agentModel =
+        nextPreferences.default_agent_options.model?.trim() ||
+        providerDefaultSelectionRef.current.model;
+      set_default_agent_provider(agentProvider);
+      set_default_agent_model(agentModel);
+      setDefaultModelValue(
+        encode_optional_model_selection(agentProvider, agentModel),
       );
-      set_default_image_model_value(
+      setDefaultImageModelValue(
         encode_optional_model_selection(
-          next_preferences.default_image_model_selection?.provider ||
-            image_default_selection_ref.current.provider,
-          next_preferences.default_image_model_selection?.model ||
-            image_default_selection_ref.current.model,
+          nextPreferences.default_image_model_selection?.provider ||
+            imageDefaultSelectionRef.current.provider,
+          nextPreferences.default_image_model_selection?.model ||
+            imageDefaultSelectionRef.current.model,
         ),
       );
-      set_default_background_model_value(
+      setDefaultBackgroundModelValue(
         encode_optional_model_selection(
-          next_preferences.default_background_model_selection?.provider,
-          next_preferences.default_background_model_selection?.model,
+          nextPreferences.default_background_model_selection?.provider,
+          nextPreferences.default_background_model_selection?.model,
         ),
       );
     },
     [],
   );
 
-  const load_provider_options = useCallback(
-    async (runtime_kind?: AgentRuntimeKind) => {
+  const loadProviderOptions = useCallback(
+    async (runtimeKind?: AgentRuntimeKind) => {
       try {
-        set_provider_options_loading(true);
-        const selected_runtime_kind =
-          runtime_kind ??
+        setProviderOptionsLoading(true);
+        const selectedRuntimeKind =
+          runtimeKind ??
           normalize_agent_runtime_kind(
-            preferences_ref.current.agent_runtime_kind,
+            preferencesRef.current.agent_runtime_kind,
           );
-        const result = await list_provider_options_api(selected_runtime_kind);
-        set_provider_options(result.items ?? []);
-        set_background_provider_options(
+        const result = await list_provider_options_api(selectedRuntimeKind);
+        setProviderOptions(result.items ?? []);
+        setBackgroundProviderOptions(
           result.background_items ?? result.items ?? [],
         );
-        set_image_provider_options(result.image_items ?? []);
-        provider_default_selection_ref.current = {
+        setImageProviderOptions(result.image_items ?? []);
+        providerDefaultSelectionRef.current = {
           provider: result.default_provider?.trim() || "",
           model: result.default_model?.trim() || "",
         };
-        image_default_selection_ref.current = {
+        imageDefaultSelectionRef.current = {
           provider: result.default_image_provider?.trim() || "",
           model: result.default_image_model?.trim() || "",
         };
-        sync_default_model_values(preferences_ref.current);
-        set_default_model_feedback(null);
+        syncDefaultModelValues(preferencesRef.current);
+        setDefaultModelFeedback(null);
       } catch (error) {
-        set_default_model_feedback({
+        setDefaultModelFeedback({
           message:
             error instanceof Error ? error.message : "默认对话模型加载失败",
         });
       } finally {
-        set_provider_options_loading(false);
+        setProviderOptionsLoading(false);
       }
     },
-    [sync_default_model_values],
+    [syncDefaultModelValues],
   );
 
   useEffect(() => {
-    void load_provider_options(agent_runtime_kind);
-  }, [agent_runtime_kind, load_provider_options]);
+    void loadProviderOptions(agentRuntimeKind);
+  }, [agentRuntimeKind, loadProviderOptions]);
 
   useEffect(() => {
     let cancelled = false;
-    const load_preferences = async () => {
+    const loadPreferences = async () => {
       try {
-        set_preferences_loading(true);
+        setPreferencesLoading(true);
         const result = await get_user_preferences_api();
         if (cancelled) {
           return;
         }
         const normalized = normalize_preferences(result);
         set_user_preferences(normalized);
-        set_preferences(normalized);
-        preferences_ref.current = normalized;
-        last_saved_preferences_ref.current = normalized;
-        sync_default_model_values(normalized);
-        set_preference_feedback(null);
+        setPreferences(normalized);
+        preferencesRef.current = normalized;
+        lastSavedPreferencesRef.current = normalized;
+        syncDefaultModelValues(normalized);
+        setPreferenceFeedback(null);
       } catch (error) {
         if (!cancelled) {
-          set_preference_feedback({
+          setPreferenceFeedback({
             message:
               error instanceof Error
                 ? error.message
@@ -185,229 +185,229 @@ export function SettingsGeneralSection() {
         }
       } finally {
         if (!cancelled) {
-          set_preferences_loading(false);
+          setPreferencesLoading(false);
         }
       }
     };
-    void load_preferences();
+    void loadPreferences();
     return () => {
       cancelled = true;
     };
-  }, [sync_default_model_values, t]);
+  }, [syncDefaultModelValues, t]);
 
-  const persist_preferences = useCallback(
-    async (next_preferences: UserPreferences) => {
-      const sequence = save_sequence_ref.current + 1;
-      save_sequence_ref.current = sequence;
-      const normalized = normalize_preferences(next_preferences);
+  const persistPreferences = useCallback(
+    async (nextPreferences: UserPreferences) => {
+      const sequence = saveSequenceRef.current + 1;
+      saveSequenceRef.current = sequence;
+      const normalized = normalize_preferences(nextPreferences);
 
-      preferences_ref.current = normalized;
-      set_preferences(normalized);
+      preferencesRef.current = normalized;
+      setPreferences(normalized);
       set_user_preferences(normalized);
-      set_preference_feedback(null);
-      set_preferences_saving(true);
+      setPreferenceFeedback(null);
+      setPreferencesSaving(true);
 
       try {
         const result = await update_user_preferences_api(
           build_preferences_update_payload(normalized),
         );
-        if (save_sequence_ref.current !== sequence) {
+        if (saveSequenceRef.current !== sequence) {
           return;
         }
         const saved = normalize_preferences(result);
-        preferences_ref.current = saved;
-        last_saved_preferences_ref.current = saved;
+        preferencesRef.current = saved;
+        lastSavedPreferencesRef.current = saved;
         set_user_preferences(saved);
-        set_preferences(saved);
+        setPreferences(saved);
       } catch (error) {
-        if (save_sequence_ref.current !== sequence) {
+        if (saveSequenceRef.current !== sequence) {
           return;
         }
-        const fallback = last_saved_preferences_ref.current;
+        const fallback = lastSavedPreferencesRef.current;
         if (fallback) {
-          preferences_ref.current = fallback;
+          preferencesRef.current = fallback;
           set_user_preferences(fallback);
-          set_preferences(fallback);
+          setPreferences(fallback);
         }
-        set_preference_feedback({
+        setPreferenceFeedback({
           message:
             error instanceof Error
               ? error.message
               : t("settings.general.preferences_save_failed"),
         });
       } finally {
-        if (save_sequence_ref.current === sequence) {
-          set_preferences_saving(false);
+        if (saveSequenceRef.current === sequence) {
+          setPreferencesSaving(false);
         }
       }
     },
     [t],
   );
 
-  const handle_delivery_policy_change = useCallback(
+  const handleDeliveryPolicyChange = useCallback(
     (value: AgentConversationDefaultDeliveryPolicy) => {
-      const current_preferences = preferences_ref.current;
-      void persist_preferences({
-        ...current_preferences,
+      const currentPreferences = preferencesRef.current;
+      void persistPreferences({
+        ...currentPreferences,
         chat_default_delivery_policy: value,
       });
     },
-    [persist_preferences],
+    [persistPreferences],
   );
 
-  const handle_agent_sdk_diagnostics_change = useCallback(
+  const handleAgentSdkDiagnosticsChange = useCallback(
     (checked: boolean) => {
-      const current_preferences = preferences_ref.current;
-      void persist_preferences({
-        ...current_preferences,
+      const currentPreferences = preferencesRef.current;
+      void persistPreferences({
+        ...currentPreferences,
         agent_sdk_diagnostics_enabled: checked,
       });
     },
-    [persist_preferences],
+    [persistPreferences],
   );
 
-  const handle_agent_runtime_kind_change = useCallback(
+  const handleAgentRuntimeKindChange = useCallback(
     (value: AgentRuntimeKind) => {
-      const current_preferences = preferences_ref.current;
+      const currentPreferences = preferencesRef.current;
       if (
         value ===
-        normalize_agent_runtime_kind(current_preferences.agent_runtime_kind)
+        normalize_agent_runtime_kind(currentPreferences.agent_runtime_kind)
       ) {
         return;
       }
       if (value !== "nxs") {
         void (async () => {
-          await persist_preferences({
-            ...current_preferences,
+          await persistPreferences({
+            ...currentPreferences,
             agent_runtime_kind: value,
           });
-          await load_provider_options(value);
+          await loadProviderOptions(value);
         })();
         return;
       }
       void (async () => {
-        set_nxs_runtime_checking(true);
-        set_preference_feedback(null);
+        setNxsRuntimeChecking(true);
+        setPreferenceFeedback(null);
         try {
           const status = await get_nxs_runtime_status_api();
           if (status.available) {
-            await persist_preferences({
-              ...preferences_ref.current,
+            await persistPreferences({
+              ...preferencesRef.current,
               agent_runtime_kind: "nxs",
             });
-            await load_provider_options("nxs");
+            await loadProviderOptions("nxs");
             return;
           }
-          set_preference_feedback({
+          setPreferenceFeedback({
             message:
               status.message ||
               t("settings.general.agent_runtime_nxs_unavailable"),
           });
         } catch (error) {
-          set_preference_feedback({
+          setPreferenceFeedback({
             message:
               error instanceof Error
                 ? error.message
                 : t("settings.general.agent_runtime_check_failed"),
           });
         } finally {
-          set_nxs_runtime_checking(false);
+          setNxsRuntimeChecking(false);
         }
       })();
     },
-    [load_provider_options, persist_preferences, t],
+    [loadProviderOptions, persistPreferences, t],
   );
 
-  const handle_permission_mode_change = useCallback(
+  const handlePermissionModeChange = useCallback(
     (value: string) => {
-      const current_preferences = preferences_ref.current;
-      void persist_preferences({
-        ...current_preferences,
+      const currentPreferences = preferencesRef.current;
+      void persistPreferences({
+        ...currentPreferences,
         default_agent_options: {
-          ...current_preferences.default_agent_options,
+          ...currentPreferences.default_agent_options,
           permission_mode: value,
         },
       });
     },
-    [persist_preferences],
+    [persistPreferences],
   );
 
-  const default_model_options = useMemo(
-    () => build_default_model_options(provider_options),
-    [provider_options],
+  const defaultModelOptions = useMemo(
+    () => build_default_model_options(providerOptions),
+    [providerOptions],
   );
-  const default_image_model_options = useMemo(
-    () => build_default_model_options(image_provider_options),
-    [image_provider_options],
+  const defaultImageModelOptions = useMemo(
+    () => build_default_model_options(imageProviderOptions),
+    [imageProviderOptions],
   );
-  const default_background_model_options = useMemo(
-    () => build_default_model_options(background_provider_options),
-    [background_provider_options],
+  const defaultBackgroundModelOptions = useMemo(
+    () => build_default_model_options(backgroundProviderOptions),
+    [backgroundProviderOptions],
   );
 
-  const handle_default_model_change = useCallback(
+  const handleDefaultModelChange = useCallback(
     (value: string, role: DefaultModelPreferenceRole) => {
       const selection = decode_default_model_value(value);
-      if (!selection || default_model_saving_role) {
+      if (!selection || defaultModelSavingRole) {
         return;
       }
       void (async () => {
-        set_default_model_saving_role(role);
-        set_default_model_feedback(null);
-        const previous_value =
+        setDefaultModelSavingRole(role);
+        setDefaultModelFeedback(null);
+        const previousValue =
           role === "image_generation"
-            ? default_image_model_value
+            ? defaultImageModelValue
             : role === "background_task"
-              ? default_background_model_value
-              : default_model_value;
+              ? defaultBackgroundModelValue
+              : defaultModelValue;
         if (role === "image_generation") {
-          set_default_image_model_value(value);
+          setDefaultImageModelValue(value);
         } else if (role === "background_task") {
-          set_default_background_model_value(value);
+          setDefaultBackgroundModelValue(value);
         } else {
-          set_default_model_value(value);
+          setDefaultModelValue(value);
         }
         try {
-          const current_preferences = preferences_ref.current;
-          const next_preferences = normalize_preferences({
-            ...current_preferences,
+          const currentPreferences = preferencesRef.current;
+          const nextPreferences = normalize_preferences({
+            ...currentPreferences,
             default_agent_options:
               role === "agent_runtime"
                 ? {
-                  ...current_preferences.default_agent_options,
+                  ...currentPreferences.default_agent_options,
                   provider: selection.provider,
                   model: selection.model,
                 }
-                : current_preferences.default_agent_options,
+                : currentPreferences.default_agent_options,
             default_image_model_selection:
               role === "image_generation"
                 ? { provider: selection.provider, model: selection.model }
-                : current_preferences.default_image_model_selection,
+                : currentPreferences.default_image_model_selection,
             default_background_model_selection:
               role === "background_task"
                 ? { provider: selection.provider, model: selection.model }
-                : current_preferences.default_background_model_selection,
+                : currentPreferences.default_background_model_selection,
           });
-          preferences_ref.current = next_preferences;
-          set_preferences(next_preferences);
-          set_user_preferences(next_preferences);
+          preferencesRef.current = nextPreferences;
+          setPreferences(nextPreferences);
+          set_user_preferences(nextPreferences);
           const result = await update_user_preferences_api(
-            build_preferences_update_payload(next_preferences),
+            build_preferences_update_payload(nextPreferences),
           );
           const saved = normalize_preferences(result);
-          preferences_ref.current = saved;
-          last_saved_preferences_ref.current = saved;
-          set_preferences(saved);
+          preferencesRef.current = saved;
+          lastSavedPreferencesRef.current = saved;
+          setPreferences(saved);
           set_user_preferences(saved);
           if (role === "agent_runtime") {
             set_default_agent_provider(selection.provider);
             set_default_agent_model(selection.model);
           }
         } catch (error) {
-          const fallback = last_saved_preferences_ref.current;
+          const fallback = lastSavedPreferencesRef.current;
           if (fallback) {
-            preferences_ref.current = fallback;
-            set_preferences(fallback);
+            preferencesRef.current = fallback;
+            setPreferences(fallback);
             set_user_preferences(fallback);
             if (role === "agent_runtime") {
               set_default_agent_provider(
@@ -417,26 +417,26 @@ export function SettingsGeneralSection() {
             }
           }
           if (role === "image_generation") {
-            set_default_image_model_value(previous_value);
+            setDefaultImageModelValue(previousValue);
           } else if (role === "background_task") {
-            set_default_background_model_value(previous_value);
+            setDefaultBackgroundModelValue(previousValue);
           } else {
-            set_default_model_value(previous_value);
+            setDefaultModelValue(previousValue);
           }
-          set_default_model_feedback({
+          setDefaultModelFeedback({
             message:
               error instanceof Error ? error.message : "默认对话模型保存失败",
           });
         } finally {
-          set_default_model_saving_role(null);
+          setDefaultModelSavingRole(null);
         }
       })();
     },
     [
-      default_background_model_value,
-      default_image_model_value,
-      default_model_saving_role,
-      default_model_value,
+      defaultBackgroundModelValue,
+      defaultImageModelValue,
+      defaultModelSavingRole,
+      defaultModelValue,
     ],
   );
 
@@ -447,37 +447,37 @@ export function SettingsGeneralSection() {
       <SettingsAppearanceSection />
 
       <SettingsGeneralBehaviorSection
-        agent_runtime_kind={agent_runtime_kind}
+        agent_runtime_kind={agentRuntimeKind}
         agent_sdk_diagnostics_enabled={
           preferences.agent_sdk_diagnostics_enabled === true
         }
         chat_default_delivery_policy={preferences.chat_default_delivery_policy}
-        default_background_model_options={default_background_model_options}
-        default_background_model_value={default_background_model_value}
-        default_image_model_options={default_image_model_options}
-        default_image_model_value={default_image_model_value}
-        default_model_feedback_message={default_model_feedback?.message}
-        default_model_options={default_model_options}
-        default_model_saving_role={default_model_saving_role}
-        default_model_value={default_model_value}
-        nxs_runtime_checking={nxs_runtime_checking}
-        on_agent_runtime_kind_change={handle_agent_runtime_kind_change}
-        on_agent_sdk_diagnostics_change={handle_agent_sdk_diagnostics_change}
-        on_default_delivery_policy_change={handle_delivery_policy_change}
-        on_default_model_change={handle_default_model_change}
-        on_reset_tours={reset_all_tours}
-        preferences_loading={preferences_loading}
-        preferences_saving={preferences_saving}
-        provider_options_loading={provider_options_loading}
+        default_background_model_options={defaultBackgroundModelOptions}
+        default_background_model_value={defaultBackgroundModelValue}
+        default_image_model_options={defaultImageModelOptions}
+        default_image_model_value={defaultImageModelValue}
+        default_model_feedback_message={defaultModelFeedback?.message}
+        default_model_options={defaultModelOptions}
+        default_model_saving_role={defaultModelSavingRole}
+        default_model_value={defaultModelValue}
+        nxs_runtime_checking={nxsRuntimeChecking}
+        on_agent_runtime_kind_change={handleAgentRuntimeKindChange}
+        on_agent_sdk_diagnostics_change={handleAgentSdkDiagnosticsChange}
+        on_default_delivery_policy_change={handleDeliveryPolicyChange}
+        on_default_model_change={handleDefaultModelChange}
+        on_reset_tours={resetAllTours}
+        preferences_loading={preferencesLoading}
+        preferences_saving={preferencesSaving}
+        provider_options_loading={providerOptionsLoading}
       />
 
       <SettingsDesktopSection />
 
       <SettingsPermissionsSection
-        feedback_message={preference_feedback?.message}
-        on_permission_mode_change={handle_permission_mode_change}
-        permission_mode={permission_mode}
-        preferences_loading={preferences_loading}
+        feedback_message={preferenceFeedback?.message}
+        on_permission_mode_change={handlePermissionModeChange}
+        permission_mode={permissionMode}
+        preferences_loading={preferencesLoading}
       />
     </div>
   );

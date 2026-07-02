@@ -31,28 +31,28 @@ export interface ParsedSessionKey {
   conversation_id: string | null;
 }
 
-function find_topic_index(parts: string[], min_index: number): number {
-  return parts.findIndex((part, index) => part === TOPIC_SEGMENT && index >= min_index);
+function findTopicIndex(parts: string[], minIndex: number): number {
+  return parts.findIndex((part, index) => part === TOPIC_SEGMENT && index >= minIndex);
 }
 
-function agent_session_key_shape_error(): string {
+function agentSessionKeyShapeError(): string {
   return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]";
 }
 
-function split_agent_ref_parts(parts: string[]): {
+function splitAgentRefParts(parts: string[]): {
   account_id: string | null;
   ref_start: number;
   error: string | null;
 } {
   if (parts[4] === ACCOUNT_SEGMENT) {
     if (parts.length < 7) {
-      return { account_id: null, ref_start: 0, error: agent_session_key_shape_error() };
+      return { account_id: null, ref_start: 0, error: agentSessionKeyShapeError() };
     }
-    const account_id = parts[5]?.trim() ?? "";
-    if (!account_id) {
+    const accountId = parts[5]?.trim() ?? "";
+    if (!accountId) {
       return { account_id: null, ref_start: 0, error: "session_key account_id is required after acct segment" };
     }
-    return { account_id, ref_start: 6, error: null };
+    return { account_id: accountId, ref_start: 6, error: null };
   }
   return { account_id: null, ref_start: 4, error: null };
 }
@@ -62,73 +62,73 @@ function split_agent_ref_parts(parts: string[]): {
  */
 export function build_session_key({
   channel,
-  chat_type,
+  chat_type: chatType,
   ref,
-  agent_id,
-  account_id,
-  thread_id,
+  agent_id: agentId,
+  account_id: accountId,
+  thread_id: threadId,
 }: BuildSessionKeyOptions): string {
-  const resolved_agent_id = resolve_agent_id(agent_id);
-  const resolved_channel = channel.trim();
-  const resolved_chat_type = chat_type.trim();
-  const resolved_ref = ref.trim();
-  const resolved_account_id = account_id?.trim() ?? "";
-  let key = resolved_account_id
-    ? `${AGENT_SESSION_PREFIX}:${resolved_agent_id}:${resolved_channel}:${resolved_chat_type}:${ACCOUNT_SEGMENT}:${resolved_account_id}:${resolved_ref}`
-    : `${AGENT_SESSION_PREFIX}:${resolved_agent_id}:${resolved_channel}:${resolved_chat_type}:${resolved_ref}`;
-  if (thread_id?.trim()) {
-    key += `:${TOPIC_SEGMENT}:${thread_id.trim()}`;
+  const resolvedAgentId = resolve_agent_id(agentId);
+  const resolvedChannel = channel.trim();
+  const resolvedChatType = chatType.trim();
+  const resolvedRef = ref.trim();
+  const resolvedAccountId = accountId?.trim() ?? "";
+  let key = resolvedAccountId
+    ? `${AGENT_SESSION_PREFIX}:${resolvedAgentId}:${resolvedChannel}:${resolvedChatType}:${ACCOUNT_SEGMENT}:${resolvedAccountId}:${resolvedRef}`
+    : `${AGENT_SESSION_PREFIX}:${resolvedAgentId}:${resolvedChannel}:${resolvedChatType}:${resolvedRef}`;
+  if (threadId?.trim()) {
+    key += `:${TOPIC_SEGMENT}:${threadId.trim()}`;
   }
   return key;
 }
 
-export function build_room_shared_session_key(conversation_id: string): string {
-  return `${ROOM_SHARED_SESSION_PREFIX}${conversation_id}`;
+export function build_room_shared_session_key(conversationId: string): string {
+  return `${ROOM_SHARED_SESSION_PREFIX}${conversationId}`;
 }
 
 export function build_room_agent_session_key(
-  conversation_id: string,
-  agent_id: string,
-  room_type: "dm" | "room" = "room",
+  conversationId: string,
+  agentId: string,
+  roomType: "dm" | "room" = "room",
 ): string {
   return build_session_key({
     channel: "ws",
-    chat_type: room_type === "dm" ? "dm" : "group",
-    ref: conversation_id,
-    agent_id,
+    chat_type: roomType === "dm" ? "dm" : "group",
+    ref: conversationId,
+    agent_id: agentId,
   });
 }
 
-function get_session_key_validation_error(session_key: string | null | undefined): string | null {
-  const normalized_key = (session_key ?? "").trim();
-  if (!normalized_key) {
+function getSessionKeyValidationError(sessionKey: string | null | undefined): string | null {
+  const normalizedKey = (sessionKey ?? "").trim();
+  if (!normalizedKey) {
     return "session_key is required";
   }
 
-  if (normalized_key.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
-    const parts = normalized_key.split(":");
+  if (normalizedKey.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
+    const parts = normalizedKey.split(":");
     if (parts.length < 5 || !parts[1] || !parts[2] || !parts[3]) {
-      return agent_session_key_shape_error();
+      return agentSessionKeyShapeError();
     }
 
-    const split = split_agent_ref_parts(parts);
+    const split = splitAgentRefParts(parts);
     if (split.error) {
       return split.error;
     }
-    const topic_index = find_topic_index(parts, split.ref_start);
-    if (topic_index >= 0) {
-      const ref = parts.slice(split.ref_start, topic_index).join(":").trim();
-      const thread_id = parts.slice(topic_index + 1).join(":").trim();
-      return ref && thread_id ? null : agent_session_key_shape_error();
+    const topicIndex = findTopicIndex(parts, split.ref_start);
+    if (topicIndex >= 0) {
+      const ref = parts.slice(split.ref_start, topicIndex).join(":").trim();
+      const threadId = parts.slice(topicIndex + 1).join(":").trim();
+      return ref && threadId ? null : agentSessionKeyShapeError();
     }
 
-    return parts.slice(split.ref_start).join(":").trim() ? null : agent_session_key_shape_error();
+    return parts.slice(split.ref_start).join(":").trim() ? null : agentSessionKeyShapeError();
   }
 
-  if (normalized_key.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
-    const parts = normalized_key.split(":");
-    const conversation_id = parts.slice(2).join(":").trim();
-    return parts.length >= 3 && parts[1] === "group" && conversation_id
+  if (normalizedKey.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
+    const parts = normalizedKey.split(":");
+    const conversationId = parts.slice(2).join(":").trim();
+    return parts.length >= 3 && parts[1] === "group" && conversationId
       ? null
       : "session_key must match room:group:<conversation_id>";
   }
@@ -136,24 +136,24 @@ function get_session_key_validation_error(session_key: string | null | undefined
   return "session_key must use structured gateway format";
 }
 
-export function is_structured_session_key(session_key: string): boolean {
-  return get_session_key_validation_error(session_key) === null;
+export function is_structured_session_key(sessionKey: string): boolean {
+  return getSessionKeyValidationError(sessionKey) === null;
 }
 
-export function assert_structured_session_key(session_key: string | null | undefined): string {
-  const error_message = get_session_key_validation_error(session_key);
-  if (error_message) {
-    throw new Error(error_message);
+export function assert_structured_session_key(sessionKey: string | null | undefined): string {
+  const errorMessage = getSessionKeyValidationError(sessionKey);
+  if (errorMessage) {
+    throw new Error(errorMessage);
   }
-  return (session_key ?? "").trim();
+  return (sessionKey ?? "").trim();
 }
 
 
-export function parse_session_key(session_key: string | null | undefined): ParsedSessionKey {
-  const normalized_key = (session_key ?? "").trim();
-  const validation_error = get_session_key_validation_error(normalized_key);
+export function parse_session_key(sessionKey: string | null | undefined): ParsedSessionKey {
+  const normalizedKey = (sessionKey ?? "").trim();
+  const validationError = getSessionKeyValidationError(normalizedKey);
   const result: ParsedSessionKey = {
-    raw: normalized_key,
+    raw: normalizedKey,
     kind: "unknown",
     is_structured: false,
     is_shared: false,
@@ -166,46 +166,46 @@ export function parse_session_key(session_key: string | null | undefined): Parse
     conversation_id: null,
   };
 
-  if (normalized_key.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
-    const parts = normalized_key.split(":");
+  if (normalizedKey.startsWith(`${AGENT_SESSION_PREFIX}:`)) {
+    const parts = normalizedKey.split(":");
     result.kind = "agent";
-    result.is_structured = validation_error === null;
+    result.is_structured = validationError === null;
     result.agent_id = resolve_agent_id(parts[1]);
     result.channel = parts[2] || null;
     result.chat_type = parts[3] || "dm";
 
     // `:topic:` 是协议保留边界，ref 中允许冒号，但不能跨过该边界。
-    const split = split_agent_ref_parts(parts);
+    const split = splitAgentRefParts(parts);
     if (split.error) {
       return result;
     }
     result.account_id = split.account_id;
-    const topic_index = find_topic_index(parts, split.ref_start);
-    if (topic_index >= 0) {
-      result.ref = parts.slice(split.ref_start, topic_index).join(":") || null;
-      result.thread_id = parts.slice(topic_index + 1).join(":") || null;
+    const topicIndex = findTopicIndex(parts, split.ref_start);
+    if (topicIndex >= 0) {
+      result.ref = parts.slice(split.ref_start, topicIndex).join(":") || null;
+      result.thread_id = parts.slice(topicIndex + 1).join(":") || null;
     } else {
       result.ref = parts.slice(split.ref_start).join(":") || null;
     }
     return result;
   }
 
-  if (normalized_key.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
-    const parts = normalized_key.split(":");
-    const conversation_id = parts.slice(2).join(":").trim();
+  if (normalizedKey.startsWith(`${ROOM_SESSION_PREFIX}:`)) {
+    const parts = normalizedKey.split(":");
+    const conversationId = parts.slice(2).join(":").trim();
     result.kind = "room";
-    result.is_structured = validation_error === null;
-    result.is_shared = validation_error === null;
+    result.is_structured = validationError === null;
+    result.is_shared = validationError === null;
     result.chat_type = parts[1] || "group";
-    result.ref = conversation_id || null;
-    result.conversation_id = conversation_id || null;
+    result.ref = conversationId || null;
+    result.conversation_id = conversationId || null;
   }
 
   return result;
 }
 
-export function get_session_key_identity(session_key: string | null | undefined): string | null {
-  const parsed = parse_session_key(session_key);
+export function get_session_key_identity(sessionKey: string | null | undefined): string | null {
+  const parsed = parse_session_key(sessionKey);
   if (!parsed.raw) {
     return null;
   }
@@ -222,7 +222,7 @@ export function are_equivalent_session_keys(
   left: string | null | undefined,
   right: string | null | undefined,
 ): boolean {
-  const left_identity = get_session_key_identity(left);
-  const right_identity = get_session_key_identity(right);
-  return Boolean(left_identity && right_identity && left_identity === right_identity);
+  const leftIdentity = get_session_key_identity(left);
+  const rightIdentity = get_session_key_identity(right);
+  return Boolean(leftIdentity && rightIdentity && leftIdentity === rightIdentity);
 }

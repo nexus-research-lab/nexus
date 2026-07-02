@@ -12,17 +12,17 @@ import { PermissionDecisionPayload } from '@/types/conversation/permission';
 
 import { upsert_message } from './message-helpers';
 
-function fail_send(set_error: AgentConversationActionContext["set_error"], message: string): never {
-  set_error(message);
+function failSend(setError: AgentConversationActionContext["set_error"], message: string): never {
+  setError(message);
   throw new Error(message);
 }
 
 export function build_session_bind_message({
-  session_key,
-  last_seen_session_seq,
-  agent_id,
-  room_id,
-  conversation_id,
+  session_key: sessionKey,
+  last_seen_session_seq: lastSeenSessionSeq,
+  agent_id: agentId,
+  room_id: roomId,
+  conversation_id: conversationId,
 }: {
   session_key: string;
   last_seen_session_seq?: number;
@@ -32,21 +32,21 @@ export function build_session_bind_message({
 }): WebSocketMessage {
   return {
     type: 'bind_session',
-    session_key,
-    ...(last_seen_session_seq && last_seen_session_seq > 0
-      ? { last_seen_session_seq }
+    session_key: sessionKey,
+    ...(lastSeenSessionSeq && lastSeenSessionSeq > 0
+      ? { last_seen_session_seq: lastSeenSessionSeq }
       : {}),
-    ...(agent_id ? { agent_id } : {}),
-    ...(room_id ? { room_id } : {}),
-    ...(conversation_id ? { conversation_id } : {}),
+    ...(agentId ? { agent_id: agentId } : {}),
+    ...(roomId ? { room_id: roomId } : {}),
+    ...(conversationId ? { conversation_id: conversationId } : {}),
   };
 }
 
 export function build_room_subscription_message({
   type,
-  room_id,
-  conversation_id,
-  last_seen_room_seq,
+  room_id: roomId,
+  conversation_id: conversationId,
+  last_seen_room_seq: lastSeenRoomSeq,
 }: {
   type: 'subscribe_room' | 'unsubscribe_room';
   room_id: string;
@@ -55,10 +55,10 @@ export function build_room_subscription_message({
 }): WebSocketMessage {
   return {
     type,
-    room_id,
-    ...(conversation_id ? { conversation_id } : {}),
-    ...(type === 'subscribe_room' && last_seen_room_seq && last_seen_room_seq > 0
-      ? { last_seen_room_seq }
+    room_id: roomId,
+    ...(conversationId ? { conversation_id: conversationId } : {}),
+    ...(type === 'subscribe_room' && lastSeenRoomSeq && lastSeenRoomSeq > 0
+      ? { last_seen_room_seq: lastSeenRoomSeq }
       : {}),
   };
 }
@@ -73,121 +73,121 @@ export async function send_session_message(
 ): Promise<string | null> {
   const {
     identity,
-    session_key,
-    ws_state,
-    ws_send,
-    active_session_key_ref,
-    set_error,
-    set_messages,
-    set_pending_permissions,
+    session_key: sessionKey,
+    ws_state: wsState,
+    ws_send: wsSend,
+    active_session_key_ref: activeSessionKeyRef,
+    set_error: setError,
+    set_messages: setMessages,
+    set_pending_permissions: setPendingPermissions,
   } = context;
-  const agent_id = identity?.agent_id;
-  const room_id = identity?.room_id;
-  const conversation_id = identity?.conversation_id;
-  const chat_type = identity?.chat_type;
-  const resolved_session_key = session_key || active_session_key_ref.current;
+  const agentId = identity?.agent_id;
+  const roomId = identity?.room_id;
+  const conversationId = identity?.conversation_id;
+  const chatType = identity?.chat_type;
+  const resolvedSessionKey = sessionKey || activeSessionKeyRef.current;
   const attachments = options.attachments ?? [];
 
   if (!content.trim() && attachments.length === 0) {
     return null;
   }
-  if (!resolved_session_key) {
-    fail_send(set_error, '请先选择或创建会话');
+  if (!resolvedSessionKey) {
+    failSend(setError, '请先选择或创建会话');
   }
-  if (!is_structured_session_key(resolved_session_key)) {
-    fail_send(set_error, '当前会话的 session_key 非法，请刷新后重试');
+  if (!is_structured_session_key(resolvedSessionKey)) {
+    failSend(setError, '当前会话的 session_key 非法，请刷新后重试');
   }
-  if (ws_state !== 'connected') {
-    fail_send(set_error, 'WebSocket未连接，请稍候重试');
+  if (wsState !== 'connected') {
+    failSend(setError, 'WebSocket未连接，请稍候重试');
   }
 
-  const round_id = generate_uuid();
-  const delivery_policy = options.delivery_policy ?? 'queue';
-  active_session_key_ref.current = resolved_session_key;
+  const roundId = generate_uuid();
+  const deliveryPolicy = options.delivery_policy ?? 'queue';
+  activeSessionKeyRef.current = resolvedSessionKey;
   const userMessage: Message = {
-    message_id: round_id,
-    session_key: resolved_session_key,
-    round_id,
-    agent_id: resolve_agent_id(agent_id),
+    message_id: roundId,
+    session_key: resolvedSessionKey,
+    round_id: roundId,
+    agent_id: resolve_agent_id(agentId),
     role: 'user',
     content,
     timestamp: Date.now(),
-    delivery_policy,
+    delivery_policy: deliveryPolicy,
     ...(attachments.length > 0 ? { attachments } : {}),
-    ...(chat_type === 'group' ? { room_id: room_id ?? undefined, conversation_id: conversation_id ?? undefined } : {}),
+    ...(chatType === 'group' ? { room_id: roomId ?? undefined, conversation_id: conversationId ?? undefined } : {}),
   };
 
-  const ws_payload: Record<string, unknown> = {
+  const wsPayload: Record<string, unknown> = {
     type: 'chat',
     content,
-    session_key: resolved_session_key,
-    agent_id: resolve_agent_id(agent_id),
-    round_id,
-    req_id: round_id,  // echo'd back in chat_ack for correlation
-    delivery_policy,
+    session_key: resolvedSessionKey,
+    agent_id: resolve_agent_id(agentId),
+    round_id: roundId,
+    req_id: roundId,  // echo'd back in chat_ack for correlation
+    delivery_policy: deliveryPolicy,
   };
   if (attachments.length > 0) {
-    ws_payload.attachments = attachments;
+    wsPayload.attachments = attachments;
   }
 
   // Room 消息附加 room 上下文
-  if (chat_type === 'group') {
-    ws_payload.chat_type = 'group';
-    if (room_id) ws_payload.room_id = room_id;
-    if (conversation_id) ws_payload.conversation_id = conversation_id;
+  if (chatType === 'group') {
+    wsPayload.chat_type = 'group';
+    if (roomId) wsPayload.room_id = roomId;
+    if (conversationId) wsPayload.conversation_id = conversationId;
   }
 
-  const send_result = ws_send(ws_payload as WebSocketMessage);
-  if (send_result.disposition !== 'sent') {
-    fail_send(set_error, '消息未发送到后端，请检查连接后重试');
+  const sendResult = wsSend(wsPayload as WebSocketMessage);
+  if (sendResult.disposition !== 'sent') {
+    failSend(setError, '消息未发送到后端，请检查连接后重试');
   }
 
-  set_messages((prev) => upsert_message(prev, userMessage));
-  set_pending_permissions([]);
-  set_error(null);
-  return round_id;
+  setMessages((prev) => upsert_message(prev, userMessage));
+  setPendingPermissions([]);
+  setError(null);
+  return roundId;
 }
 
-function build_input_queue_base_payload(
+function buildInputQueueBasePayload(
   context: AgentConversationActionContext,
 ): Record<string, unknown> {
-  const { identity, session_key, active_session_key_ref } = context;
-  const resolved_session_key = session_key || active_session_key_ref.current;
-  const agent_id = identity?.agent_id;
-  const room_id = identity?.room_id;
-  const conversation_id = identity?.conversation_id;
-  const chat_type = identity?.chat_type;
+  const { identity, session_key: sessionKey, active_session_key_ref: activeSessionKeyRef } = context;
+  const resolvedSessionKey = sessionKey || activeSessionKeyRef.current;
+  const agentId = identity?.agent_id;
+  const roomId = identity?.room_id;
+  const conversationId = identity?.conversation_id;
+  const chatType = identity?.chat_type;
 
-  if (!resolved_session_key) {
-    fail_send(context.set_error, '请先选择或创建会话');
+  if (!resolvedSessionKey) {
+    failSend(context.set_error, '请先选择或创建会话');
   }
-  if (!is_structured_session_key(resolved_session_key)) {
-    fail_send(context.set_error, '当前会话的 session_key 非法，请刷新后重试');
+  if (!is_structured_session_key(resolvedSessionKey)) {
+    failSend(context.set_error, '当前会话的 session_key 非法，请刷新后重试');
   }
   if (context.ws_state !== 'connected') {
-    fail_send(context.set_error, 'WebSocket未连接，请稍候重试');
+    failSend(context.set_error, 'WebSocket未连接，请稍候重试');
   }
 
   const payload: Record<string, unknown> = {
     type: 'input_queue',
-    session_key: resolved_session_key,
-    agent_id: resolve_agent_id(agent_id),
+    session_key: resolvedSessionKey,
+    agent_id: resolve_agent_id(agentId),
   };
-  if (chat_type === 'group') {
+  if (chatType === 'group') {
     payload.chat_type = 'group';
-    if (room_id) payload.room_id = room_id;
-    if (conversation_id) payload.conversation_id = conversation_id;
+    if (roomId) payload.room_id = roomId;
+    if (conversationId) payload.conversation_id = conversationId;
   }
   return payload;
 }
 
-function send_input_queue_payload(
+function sendInputQueuePayload(
   context: AgentConversationActionContext,
   payload: Record<string, unknown>,
 ): void {
-  const send_result = context.ws_send(payload as WebSocketMessage);
-  if (send_result.disposition !== 'sent') {
-    fail_send(context.set_error, '队列请求未发送到后端，请检查连接后重试');
+  const sendResult = context.ws_send(payload as WebSocketMessage);
+  if (sendResult.disposition !== 'sent') {
+    failSend(context.set_error, '队列请求未发送到后端，请检查连接后重试');
   }
   context.set_error(null);
 }
@@ -195,57 +195,57 @@ function send_input_queue_payload(
 export function enqueue_input_queue_message(
   content: string,
   context: AgentConversationActionContext,
-  delivery_policy: AgentConversationDeliveryPolicy = 'queue',
+  deliveryPolicy: AgentConversationDeliveryPolicy = 'queue',
   attachments: AgentConversationSendOptions["attachments"] = [],
 ): void {
   if (!content.trim() && attachments.length === 0) {
     return;
   }
-  send_input_queue_payload(context, {
-    ...build_input_queue_base_payload(context),
+  sendInputQueuePayload(context, {
+    ...buildInputQueueBasePayload(context),
     action: 'enqueue',
     content,
-    delivery_policy,
+    delivery_policy: deliveryPolicy,
     ...(attachments.length > 0 ? { attachments } : {}),
   });
 }
 
 export function delete_input_queue_message(
-  item_id: string,
+  itemId: string,
   context: AgentConversationActionContext,
 ): void {
-  if (!item_id.trim()) {
+  if (!itemId.trim()) {
     return;
   }
-  send_input_queue_payload(context, {
-    ...build_input_queue_base_payload(context),
+  sendInputQueuePayload(context, {
+    ...buildInputQueueBasePayload(context),
     action: 'delete',
-    item_id,
+    item_id: itemId,
   });
 }
 
 export function guide_input_queue_message(
-  item_id: string,
+  itemId: string,
   context: AgentConversationActionContext,
 ): void {
-  if (!item_id.trim()) {
+  if (!itemId.trim()) {
     return;
   }
-  send_input_queue_payload(context, {
-    ...build_input_queue_base_payload(context),
+  sendInputQueuePayload(context, {
+    ...buildInputQueueBasePayload(context),
     action: 'guide',
-    item_id,
+    item_id: itemId,
   });
 }
 
 export function reorder_input_queue_messages(
-  ordered_ids: string[],
+  orderedIds: string[],
   context: AgentConversationActionContext,
 ): void {
-  send_input_queue_payload(context, {
-    ...build_input_queue_base_payload(context),
+  sendInputQueuePayload(context, {
+    ...buildInputQueueBasePayload(context),
     action: 'reorder',
-    ordered_ids,
+    ordered_ids: orderedIds,
   });
 }
 
@@ -256,65 +256,65 @@ export function reorder_input_queue_messages(
  */
 export function stop_session_generation(
   context: AgentConversationActionContext,
-  msg_id?: string,
+  msgId?: string,
 ): void {
   const {
     identity,
-    session_key,
-    ws_state,
-    ws_send,
-    active_session_key_ref,
+    session_key: sessionKey,
+    ws_state: wsState,
+    ws_send: wsSend,
+    active_session_key_ref: activeSessionKeyRef,
     messages,
-    pending_agent_slots,
-    set_error,
-    set_pending_permissions,
+    pending_agent_slots: pendingAgentSlots,
+    set_error: setError,
+    set_pending_permissions: setPendingPermissions,
   } = context;
-  const agent_id = identity?.agent_id;
-  const room_id = identity?.room_id;
-  const conversation_id = identity?.conversation_id;
-  const chat_type = identity?.chat_type;
-  const resolved_session_key = session_key || active_session_key_ref.current;
+  const agentId = identity?.agent_id;
+  const roomId = identity?.room_id;
+  const conversationId = identity?.conversation_id;
+  const chatType = identity?.chat_type;
+  const resolvedSessionKey = sessionKey || activeSessionKeyRef.current;
 
-  if (!resolved_session_key || ws_state !== 'connected') {
+  if (!resolvedSessionKey || wsState !== 'connected') {
     return;
   }
-  if (!is_structured_session_key(resolved_session_key)) {
-    set_error('当前会话的 session_key 非法，无法中断');
+  if (!is_structured_session_key(resolvedSessionKey)) {
+    setError('当前会话的 session_key 非法，无法中断');
     return;
   }
 
-  const latest_user_round_id = [...messages]
+  const latestUserRoundId = [...messages]
     .reverse()
     .find((message) => message.role === 'user')?.round_id;
 
   const payload: Record<string, unknown> = {
     type: 'interrupt',
-    session_key: resolved_session_key,
-    agent_id: resolve_agent_id(agent_id),
-    round_id: latest_user_round_id,
+    session_key: resolvedSessionKey,
+    agent_id: resolve_agent_id(agentId),
+    round_id: latestUserRoundId,
   };
 
   // per-msg_id interrupt for Room multi-agent scenario
-  if (msg_id) {
-    payload.msg_id = msg_id;
+  if (msgId) {
+    payload.msg_id = msgId;
     // Room 的占位槽位不再写入 messages，需要同时查本地 slot 状态。
-    const target_message = messages.find((m) => m.message_id === msg_id);
-    const target_slot = pending_agent_slots.find((slot) => slot.msg_id === msg_id);
-    if (target_message?.agent_id || target_slot?.agent_id) {
-      payload.target_agent_id = target_message?.agent_id ?? target_slot?.agent_id;
+    const targetMessage = messages.find((m) => m.message_id === msgId);
+    const targetSlot = pendingAgentSlots.find((slot) => slot.msg_id === msgId);
+    if (targetMessage?.agent_id || targetSlot?.agent_id) {
+      payload.target_agent_id = targetMessage?.agent_id ?? targetSlot?.agent_id;
     }
   }
-  if (chat_type === 'group') {
-    if (room_id) payload.room_id = room_id;
-    if (conversation_id) payload.conversation_id = conversation_id;
+  if (chatType === 'group') {
+    if (roomId) payload.room_id = roomId;
+    if (conversationId) payload.conversation_id = conversationId;
   }
 
-  const send_result = ws_send(payload as WebSocketMessage);
-  if (send_result.disposition !== 'sent') {
-    set_error('中断请求发送失败，请稍后重试');
+  const sendResult = wsSend(payload as WebSocketMessage);
+  if (sendResult.disposition !== 'sent') {
+    setError('中断请求发送失败，请稍后重试');
     return;
   }
-  set_pending_permissions([]);
+  setPendingPermissions([]);
 }
 
 /**
@@ -326,49 +326,49 @@ export function send_session_permission_response(
 ): boolean {
   const {
     identity,
-    session_key,
-    ws_state,
-    ws_send,
-    active_session_key_ref,
-    pending_permissions,
-    set_error,
-    set_pending_permissions,
+    session_key: sessionKey,
+    ws_state: wsState,
+    ws_send: wsSend,
+    active_session_key_ref: activeSessionKeyRef,
+    pending_permissions: pendingPermissions,
+    set_error: setError,
+    set_pending_permissions: setPendingPermissions,
   } = context;
-  const resolved_session_key = session_key || active_session_key_ref.current;
-  const agent_id = identity?.agent_id;
-  const pending_permission = pending_permissions.find(
+  const resolvedSessionKey = sessionKey || activeSessionKeyRef.current;
+  const agentId = identity?.agent_id;
+  const pendingPermission = pendingPermissions.find(
     (item) => item.request_id === payload.request_id,
   );
 
-  if (!pending_permission) {
+  if (!pendingPermission) {
     return false;
   }
-  if (!resolved_session_key || active_session_key_ref.current !== resolved_session_key) {
-    set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
+  if (!resolvedSessionKey || activeSessionKeyRef.current !== resolvedSessionKey) {
+    setPendingPermissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
     return false;
   }
-  if (!is_structured_session_key(resolved_session_key)) {
-    set_error('当前会话的 session_key 非法，无法提交权限决策');
+  if (!is_structured_session_key(resolvedSessionKey)) {
+    setError('当前会话的 session_key 非法，无法提交权限决策');
     return false;
   }
-  if (ws_state !== 'connected') {
-    set_error('WebSocket未连接，无法提交权限决策');
+  if (wsState !== 'connected') {
+    setError('WebSocket未连接，无法提交权限决策');
     return false;
   }
   if (
-    pending_permission.interaction_mode === 'question' &&
+    pendingPermission.interaction_mode === 'question' &&
     payload.decision === 'allow' &&
     !payload.user_answers?.length
   ) {
-    set_error('请先完成问题回答');
+    setError('请先完成问题回答');
     return false;
   }
 
   const response: WebSocketMessage = {
     type: 'permission_response',
     request_id: payload.request_id,
-    session_key: resolved_session_key,
-    agent_id: resolve_agent_id(pending_permission.agent_id || agent_id),
+    session_key: resolvedSessionKey,
+    agent_id: resolve_agent_id(pendingPermission.agent_id || agentId),
     decision: payload.decision,
     message: payload.message || (payload.decision === 'deny' ? 'User denied permission' : ''),
     interrupt: payload.interrupt ?? false,
@@ -381,12 +381,12 @@ export function send_session_permission_response(
     response.updated_permissions = payload.updated_permissions;
   }
 
-  const send_result = ws_send(response);
-  if (send_result.disposition !== 'sent') {
-    set_error('权限决策发送失败，请稍后重试');
+  const sendResult = wsSend(response);
+  if (sendResult.disposition !== 'sent') {
+    setError('权限决策发送失败，请稍后重试');
     return false;
   }
-  set_pending_permissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
-  set_error(null);
+  setPendingPermissions((prev) => prev.filter((item) => item.request_id !== payload.request_id));
+  setError(null);
   return true;
 }

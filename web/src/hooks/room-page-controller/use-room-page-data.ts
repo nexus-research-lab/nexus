@@ -26,85 +26,85 @@ interface RoomPageDataState {
 }
 
 export function useRoomPageData({
-  room_id,
+  room_id: roomId,
 }: UseRoomPageDataOptions) {
-  const [state, set_state] = useResettableState<RoomPageDataState>(
+  const [state, setState] = useResettableState<RoomPageDataState>(
     {
-      is_room_loading: Boolean(room_id),
+      is_room_loading: Boolean(roomId),
       room_contexts: [],
       room_error: null,
     },
-    room_id ?? "",
+    roomId ?? "",
   );
-  const { is_room_loading, room_contexts, room_error } = state;
-  const set_room_contexts: Dispatch<SetStateAction<RoomContextAggregate[]>> = useCallback(
-    (next_contexts) => {
-      set_state((current) => ({
+  const { is_room_loading: isRoomLoading, room_contexts: roomContexts, room_error: roomError } = state;
+  const setRoomContexts: Dispatch<SetStateAction<RoomContextAggregate[]>> = useCallback(
+    (nextContexts) => {
+      setState((current) => ({
         ...current,
-        room_contexts: typeof next_contexts === "function"
-          ? next_contexts(current.room_contexts)
-          : next_contexts,
+        room_contexts: typeof nextContexts === "function"
+          ? nextContexts(current.room_contexts)
+          : nextContexts,
       }));
     },
-    [set_state],
+    [setState],
   );
 
-  const load_room_contexts = useCallback(async (next_room_id: string): Promise<RoomContextAggregate[]> => {
-    return get_room_contexts(next_room_id);
+  const loadRoomContexts = useCallback(async (nextRoomId: string): Promise<RoomContextAggregate[]> => {
+    return get_room_contexts(nextRoomId);
   }, []);
 
-  const refresh_room_contexts = useCallback(async (next_room_id: string) => {
-    const contexts = await load_room_contexts(next_room_id);
-    set_state((current) => ({ ...current, room_contexts: contexts }));
+  const refreshRoomContexts = useCallback(async (nextRoomId: string) => {
+    const contexts = await loadRoomContexts(nextRoomId);
+    setState((current) => ({ ...current, room_contexts: contexts }));
     return contexts;
-  }, [load_room_contexts, set_state]);
+  }, [loadRoomContexts, setState]);
 
   useEffect(() => {
-    if (!room_id) {
+    if (!roomId) {
       return;
     }
 
     let cancelled = false;
 
-    const load_room_context = async () => {
+    const loadRoomContext = async () => {
       try {
-        const contexts = await load_room_contexts(room_id);
+        const contexts = await loadRoomContexts(roomId);
 
         if (cancelled) {
           return;
         }
 
-        set_state((current) => ({ ...current, room_contexts: contexts }));
+        setState((current) => ({ ...current, room_contexts: contexts }));
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        set_state((current) => ({
+        setState((current) => ({
           ...current,
           room_contexts: [],
           room_error: error instanceof Error ? error.message : "加载 room 失败",
         }));
       } finally {
         if (!cancelled) {
-          set_state((current) => ({ ...current, is_room_loading: false }));
+          setState((current) => ({ ...current, is_room_loading: false }));
         }
       }
     };
 
-    void load_room_context();
+    void loadRoomContext();
 
     return () => {
       cancelled = true;
     };
-  }, [load_room_contexts, room_id, set_state]);
+  }, [loadRoomContexts, roomId, setState]);
 
   return {
     is_bootstrapped: true,
-    room_contexts,
-    set_room_contexts,
-    room_error,
-    is_room_loading,
-    refresh_room_contexts,
+    room_contexts: roomContexts,
+    set_room_contexts: setRoomContexts,
+    room_error: roomError,
+    is_room_loading: isRoomLoading,
+    refresh_room_contexts: refreshRoomContexts,
   };
 }

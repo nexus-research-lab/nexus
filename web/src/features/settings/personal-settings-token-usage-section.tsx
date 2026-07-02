@@ -13,7 +13,7 @@ import type { TokenUsageSummary } from "@/lib/api/auth-api";
 import { cn, format_tokens } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
-function format_updated_at(value: string, locale: "zh" | "en"): string {
+function formatUpdatedAt(value: string, locale: "zh" | "en"): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) {
     return "--";
@@ -32,7 +32,7 @@ export function PersonalSettingsTokenUsageSection({
   usage: TokenUsageSummary | undefined;
 }) {
   const { locale, t } = useI18n();
-  const quota_text = usage?.quota_limit_tokens == null
+  const quotaText = usage?.quota_limit_tokens == null
     ? t("settings.personal.quota_unset")
     : `${format_tokens(usage.total_tokens)} / ${format_tokens(usage.quota_limit_tokens)}`;
 
@@ -49,7 +49,7 @@ export function PersonalSettingsTokenUsageSection({
             </h3>
             <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
               {t("settings.personal.updated_at", {
-                value: usage ? format_updated_at(usage.updated_at, locale) : "--",
+                value: usage ? formatUpdatedAt(usage.updated_at, locale) : "--",
               })}
             </p>
           </div>
@@ -70,7 +70,7 @@ export function PersonalSettingsTokenUsageSection({
         <UsageMetric
           icon={<ShieldCheck className="h-3.5 w-3.5" />}
           label={t("settings.personal.quota_limit")}
-          value={quota_text}
+          value={quotaText}
         />
         <UsageMetric
           icon={<KeyRound className="h-3.5 w-3.5" />}
@@ -149,27 +149,27 @@ function TokenUsageChart({
     cache: string;
   };
 }) {
-  const input_tokens = usage?.input_tokens ?? 0;
-  const output_tokens = usage?.output_tokens ?? 0;
-  const cache_tokens = (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
-  const total = Math.max(input_tokens + output_tokens + cache_tokens, 1);
+  const inputTokens = usage?.input_tokens ?? 0;
+  const outputTokens = usage?.output_tokens ?? 0;
+  const cacheTokens = (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
+  const total = Math.max(inputTokens + outputTokens + cacheTokens, 1);
   const items = [
     {
       key: "input",
       label: labels.input,
-      value: input_tokens,
+      value: inputTokens,
       class_name: "bg-primary",
     },
     {
       key: "output",
       label: labels.output,
-      value: output_tokens,
+      value: outputTokens,
       class_name: "bg-sky-500",
     },
     {
       key: "cache",
       label: labels.cache,
-      value: cache_tokens,
+      value: cacheTokens,
       class_name: "bg-amber-500",
     },
   ];

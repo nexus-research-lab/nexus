@@ -25,20 +25,20 @@ interface WorkspaceSurfaceScaffoldProps {
 export function WorkspaceSurfaceScaffold({
   header,
   children,
-  body_class_name,
-  body_scrollable = false,
-  stable_gutter = false,
+  body_class_name: bodyClassName,
+  body_scrollable: bodyScrollable = false,
+  stable_gutter: stableGutter = false,
 }: WorkspaceSurfaceScaffoldProps) {
   return (
     <>
       {header}
       <div
         className={cn(
-          body_scrollable
+          bodyScrollable
             ? "soft-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto"
             : "min-h-0 min-w-0 flex-1 overflow-hidden",
-          body_scrollable && stable_gutter && "scrollbar-stable-gutter",
-          body_class_name,
+          bodyScrollable && stableGutter && "scrollbar-stable-gutter",
+          bodyClassName,
         )}
       >
         {children}

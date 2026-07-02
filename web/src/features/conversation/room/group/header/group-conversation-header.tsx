@@ -42,37 +42,37 @@ interface GroupConversationHeaderProps {
   active_tab: RoomSurfaceTabKey;
   on_replay_tour?: () => void;
   on_change_tab: (tab: RoomSurfaceTabKey) => void;
-  on_select_conversation: (conversation_id: string) => void;
-  on_close_conversation: (conversation_id: string) => Promise<void>;
+  on_select_conversation: (conversationId: string) => void;
+  on_close_conversation: (conversationId: string) => Promise<void>;
   on_create_conversation?: (title?: string) => Promise<string | null>;
-  on_add_room_member: (agent_id: string) => Promise<void>;
-  on_remove_room_member: (agent_id: string) => Promise<void>;
+  on_add_room_member: (agentId: string) => Promise<void>;
+  on_remove_room_member: (agentId: string) => Promise<void>;
   on_open_member_manager: () => Promise<void>;
-  on_update_room: (room_id: string, params: UpdateRoomParams) => Promise<void>;
+  on_update_room: (roomId: string, params: UpdateRoomParams) => Promise<void>;
 }
 
 function MemberAvatarStack({
-  room_members,
-  on_click,
-  tour_anchor,
+  room_members: roomMembers,
+  on_click: onClick,
+  tour_anchor: tourAnchor,
 }: {
   room_members: Agent[];
   on_click: () => void;
   tour_anchor?: string;
 }) {
   const { t } = useI18n();
-  const visible_members = room_members.slice(0, 4);
-  const overflow_count = Math.max(0, room_members.length - visible_members.length);
+  const visibleMembers = roomMembers.slice(0, 4);
+  const overflowCount = Math.max(0, roomMembers.length - visibleMembers.length);
 
   return (
     <button
       className="flex h-7 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 text-[10.5px] font-medium text-(--text-default) transition-[border-color,background,color,transform] duration-(--motion-duration-fast) hover:-translate-y-px hover:border-(--surface-interactive-hover-border) hover:text-(--text-strong)"
-      data-tour-anchor={tour_anchor}
-      onClick={on_click}
+      data-tour-anchor={tourAnchor}
+      onClick={onClick}
       type="button"
     >
       <div className="flex items-center -space-x-1.5">
-        {visible_members.map((member) => (
+        {visibleMembers.map((member) => (
           <UiAgentAvatar
             avatar={member.avatar}
             class_name="ring-1 ring-(--background)"
@@ -82,9 +82,9 @@ function MemberAvatarStack({
             title={member.name}
           />
         ))}
-        {overflow_count > 0 ? (
+        {overflowCount > 0 ? (
           <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
-            +{overflow_count}
+            +{overflowCount}
           </span>
         ) : null}
       </div>
@@ -94,33 +94,33 @@ function MemberAvatarStack({
 }
 
 const GroupConversationHeaderView = memo(({
-  conversation_id,
-  room_id,
-  current_room_title,
-  room_skill_names,
-  room_avatar,
-  room_host_agent_id,
-  room_host_auto_reply_enabled,
-  room_private_messages_enabled,
+  conversation_id: conversationId,
+  room_id: roomId,
+  current_room_title: currentRoomTitle,
+  room_skill_names: roomSkillNames,
+  room_avatar: roomAvatar,
+  room_host_agent_id: roomHostAgentId,
+  room_host_auto_reply_enabled: roomHostAutoReplyEnabled,
+  room_private_messages_enabled: roomPrivateMessagesEnabled,
   conversations,
-  room_members,
-  available_room_agents,
+  room_members: roomMembers,
+  available_room_agents: availableRoomAgents,
   todos,
-  active_tab,
-  on_replay_tour,
-  on_change_tab,
-  on_select_conversation,
-  on_close_conversation,
-  on_create_conversation,
-  on_add_room_member,
-  on_remove_room_member,
-  on_open_member_manager,
-  on_update_room,
+  active_tab: activeTab,
+  on_replay_tour: onReplayTour,
+  on_change_tab: onChangeTab,
+  on_select_conversation: onSelectConversation,
+  on_close_conversation: onCloseConversation,
+  on_create_conversation: onCreateConversation,
+  on_add_room_member: onAddRoomMember,
+  on_remove_room_member: onRemoveRoomMember,
+  on_open_member_manager: onOpenMemberManager,
+  on_update_room: onUpdateRoom,
 }: GroupConversationHeaderProps) => {
   const { t } = useI18n();
-  const [is_member_list_open, set_is_member_list_open] = useState(false);
-  const header_title = current_room_title?.trim() || t("room.untitled_collaboration");
-  const room_tabs: {
+  const [isMemberListOpen, setIsMemberListOpen] = useState(false);
+  const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
+  const roomTabs: {
     key: RoomSurfaceTabKey;
     label: string;
     icon: LucideIcon;
@@ -131,26 +131,26 @@ const GroupConversationHeaderView = memo(({
     { key: "about", label: t("room.about"), icon: Info, anchor: CONVERSATION_TOUR_ANCHORS.tab_about },
   ];
 
-  const member_agent_ids = room_members.map((member) => member.agent_id);
-  const all_room_agents = [
-    ...room_members,
-    ...available_room_agents.filter(
-      (agent) => !room_members.some((member) => member.agent_id === agent.agent_id),
+  const memberAgentIds = roomMembers.map((member) => member.agent_id);
+  const allRoomAgents = [
+    ...roomMembers,
+    ...availableRoomAgents.filter(
+      (agent) => !roomMembers.some((member) => member.agent_id === agent.agent_id),
     ),
   ];
 
-  const handle_open_member_list = async () => {
-    await on_open_member_manager();
-    set_is_member_list_open(true);
+  const handleOpenMemberList = async () => {
+    await onOpenMemberManager();
+    setIsMemberListOpen(true);
   };
 
-  const conversation_tabs = (
+  const conversationTabs = (
     <WorkspaceConversationTabs
       conversations={conversations}
-      conversation_id={conversation_id}
-      on_close_conversation={on_close_conversation}
-      on_create_conversation={on_create_conversation}
-      on_select_conversation={on_select_conversation}
+      conversation_id={conversationId}
+      on_close_conversation={onCloseConversation}
+      on_create_conversation={onCreateConversation}
+      on_select_conversation={onSelectConversation}
       tour_anchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
     />
   );
@@ -160,14 +160,14 @@ const GroupConversationHeaderView = memo(({
       <div className="hidden lg:flex">
         <MemberAvatarStack
           on_click={() => {
-            void handle_open_member_list();
+            void handleOpenMemberList();
           }}
-          room_members={room_members}
+          room_members={roomMembers}
           tour_anchor={CONVERSATION_TOUR_ANCHORS.member_manage}
         />
       </div>
-      {on_replay_tour ? (
-        <WorkspaceSurfaceToolbarAction onClick={on_replay_tour}>
+      {onReplayTour ? (
+        <WorkspaceSurfaceToolbarAction onClick={onReplayTour}>
           <Compass className="h-3.5 w-3.5" />
           {t("common.view_guide")}
         </WorkspaceSurfaceToolbarAction>
@@ -178,73 +178,73 @@ const GroupConversationHeaderView = memo(({
   return (
     <>
       <WorkspaceSurfaceHeader
-        active_tab={active_tab}
+        active_tab={activeTab}
         density="compact"
         leading={(
           <UiRoomAvatar
-            avatar={room_avatar}
+            avatar={roomAvatar}
             class_name="h-full w-full rounded-full border-0 shadow-none"
             max_members={4}
-            members={room_members.map((member) => ({
+            members={roomMembers.map((member) => ({
               avatar: member.avatar,
               id: member.agent_id,
               name: member.name,
             }))}
-            room_id={room_id}
-            title={header_title}
+            room_id={roomId}
+            title={headerTitle}
           />
         )}
-        on_change_tab={on_change_tab}
-        tabs={room_tabs}
-        tabs_leading={conversation_tabs}
+        on_change_tab={onChangeTab}
+        tabs={roomTabs}
+        tabs_leading={conversationTabs}
         tabs_trailing={<WorkspaceTaskStrip todos={todos} />}
-        title={header_title}
+        title={headerTitle}
         trailing={trailing}
       />
 
       <CreateRoomDialog
-        agents={all_room_agents}
+        agents={allRoomAgents}
         confirm_label={t("common.save")}
         dialog_subtitle={t("room.manage_dialog_subtitle")}
         dialog_title={t("room.manage_dialog_title")}
-        initial_avatar={room_avatar ?? ""}
-        initial_host_agent_id={room_host_agent_id ?? null}
-        initial_host_auto_reply_enabled={room_host_auto_reply_enabled}
-        initial_private_messages_enabled={room_private_messages_enabled}
-        initial_name={header_title}
-        initial_selected_agent_ids={member_agent_ids}
-        initial_room_skill_names={room_skill_names}
-        is_open={is_member_list_open}
+        initial_avatar={roomAvatar ?? ""}
+        initial_host_agent_id={roomHostAgentId ?? null}
+        initial_host_auto_reply_enabled={roomHostAutoReplyEnabled}
+        initial_private_messages_enabled={roomPrivateMessagesEnabled}
+        initial_name={headerTitle}
+        initial_selected_agent_ids={memberAgentIds}
+        initial_room_skill_names={roomSkillNames}
+        is_open={isMemberListOpen}
         mode="manage"
-        on_cancel={() => set_is_member_list_open(false)}
-        on_confirm={async (next_agent_ids, name, avatar, skill_names, host_agent_id, host_auto_reply_enabled, private_messages_enabled) => {
-          if (!room_id) {
+        on_cancel={() => setIsMemberListOpen(false)}
+        on_confirm={async (nextAgentIds, name, avatar, skillNames, hostAgentId, hostAutoReplyEnabled, privateMessagesEnabled) => {
+          if (!roomId) {
             return;
           }
 
-          const next_agent_id_set = new Set(next_agent_ids);
-          const current_agent_id_set = new Set(member_agent_ids);
-          const agent_ids_to_add = next_agent_ids.filter((agent_id) => !current_agent_id_set.has(agent_id));
-          const agent_ids_to_remove = member_agent_ids.filter((agent_id) => !next_agent_id_set.has(agent_id));
+          const nextAgentIdSet = new Set(nextAgentIds);
+          const currentAgentIdSet = new Set(memberAgentIds);
+          const agentIdsToAdd = nextAgentIds.filter((agentId) => !currentAgentIdSet.has(agentId));
+          const agentIdsToRemove = memberAgentIds.filter((agentId) => !nextAgentIdSet.has(agentId));
 
-          for (const agent_id of agent_ids_to_add) {
-            await on_add_room_member(agent_id);
+          for (const agentId of agentIdsToAdd) {
+            await onAddRoomMember(agentId);
           }
 
-          await on_update_room(room_id, {
+          await onUpdateRoom(roomId, {
             name,
             avatar,
-            skill_names,
-            host_agent_id,
-            host_auto_reply_enabled,
-            private_messages_enabled,
+            skill_names: skillNames,
+            host_agent_id: hostAgentId,
+            host_auto_reply_enabled: hostAutoReplyEnabled,
+            private_messages_enabled: privateMessagesEnabled,
           });
 
-          for (const agent_id of agent_ids_to_remove) {
-            await on_remove_room_member(agent_id);
+          for (const agentId of agentIdsToRemove) {
+            await onRemoveRoomMember(agentId);
           }
 
-          set_is_member_list_open(false);
+          setIsMemberListOpen(false);
         }}
       />
     </>

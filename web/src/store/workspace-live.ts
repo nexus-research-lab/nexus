@@ -15,13 +15,13 @@ interface WorkspaceLiveStoreState {
   recent_events: WorkspaceActivityItem[];
   file_states: Record<string, WorkspaceLiveFileState>;
   apply_event: (event: WorkspaceLiveEvent) => void;
-  mark_file_seen: (agent_id: string, path: string) => void;
-  settle_agent_writes: (agent_id: string) => void;
-  clear_agent: (agent_id: string) => void;
+  mark_file_seen: (agentId: string, path: string) => void;
+  settle_agent_writes: (agentId: string) => void;
+  clear_agent: (agentId: string) => void;
 }
 
-function build_key(agent_id: string, path: string) {
-  return `${agent_id}:${path}`;
+function buildKey(agentId: string, path: string) {
+  return `${agentId}:${path}`;
 }
 
 export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => ({
@@ -29,7 +29,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
   file_states: {},
 
   apply_event: (event) => {
-    const key = build_key(event.agent_id, event.path);
+    const key = buildKey(event.agent_id, event.path);
     const nextStatus: WorkspaceLiveFileState['status'] =
       event.type === 'file_write_end' ? 'updated' : 'writing';
     const nextUpdatedAt = Date.parse(event.timestamp) || Date.now();
@@ -57,7 +57,7 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
         };
       }
 
-      const nextLiveContent = resolve_live_content(state.file_states[key]?.live_content, event);
+      const nextLiveContent = resolveLiveContent(state.file_states[key]?.live_content, event);
 
       return {
         recent_events: [
@@ -92,75 +92,75 @@ export const useWorkspaceLiveStore = create<WorkspaceLiveStoreState>()((set) => 
     });
   },
 
-  mark_file_seen: (agent_id, path) => {
-    const key = build_key(agent_id, path);
+  mark_file_seen: (agentId, path) => {
+    const key = buildKey(agentId, path);
 
     set((state) => {
-      const next_file_states = { ...state.file_states };
-      delete next_file_states[key];
+      const nextFileStates = { ...state.file_states };
+      delete nextFileStates[key];
 
       return {
         recent_events: [
-          ...state.recent_events.filter((item) => !(item.agent_id === agent_id && item.path === path)),
+          ...state.recent_events.filter((item) => !(item.agent_id === agentId && item.path === path)),
         ],
-        file_states: next_file_states,
+        file_states: nextFileStates,
       };
     });
   },
 
-  settle_agent_writes: (agent_id) => {
-    const normalized_agent_id = agent_id.trim();
-    if (!normalized_agent_id) {
+  settle_agent_writes: (agentId) => {
+    const normalizedAgentId = agentId.trim();
+    if (!normalizedAgentId) {
       return;
     }
 
     set((state) => {
-      let has_changes = false;
-      const settled_at = Date.now();
-      const next_file_states = Object.fromEntries(
+      let hasChanges = false;
+      const settledAt = Date.now();
+      const nextFileStates = Object.fromEntries(
         Object.entries(state.file_states).map(([key, value]) => {
-          if (value.agent_id !== normalized_agent_id || value.status !== 'writing') {
+          if (value.agent_id !== normalizedAgentId || value.status !== 'writing') {
             return [key, value];
           }
-          has_changes = true;
+          hasChanges = true;
           return [
             key,
             {
               ...value,
               status: 'updated' as const,
-              updated_at: settled_at,
+              updated_at: settledAt,
             },
           ];
         }),
       );
 
-      if (!has_changes) {
+      if (!hasChanges) {
         return state;
       }
 
       return {
         recent_events: state.recent_events.map((item) => (
-          item.agent_id === normalized_agent_id && item.status === 'writing'
-            ? { ...item, status: 'updated' as const, updated_at: settled_at }
+          item.agent_id === normalizedAgentId && item.status === 'writing'
+            ? { ...item, status: 'updated' as const, updated_at: settledAt }
             : item
         )),
-        file_states: next_file_states,
+        file_states: nextFileStates,
       };
     });
   },
 
-  clear_agent: (agent_id) => {
+  clear_agent: (agentId) => {
     set((state) => ({
-      recent_events: state.recent_events.filter((item) => item.agent_id !== agent_id),
+      recent_events: state.recent_events.filter((item) => item.agent_id !== agentId),
       file_states: Object.fromEntries(
-        Object.entries(state.file_states).filter(([, value]) => value.agent_id !== agent_id),
+        Object.entries(state.file_states).filter(([, value]) => value.agent_id !== agentId),
       ),
     }));
   },
 }));
 
-function resolve_live_content(
-  previous_content: string | null | undefined,
+function resolveLiveContent(
+  previousContent: string | null | undefined,
   event: WorkspaceLiveEvent,
 ): string | null | undefined {
   if (typeof event.content_snapshot === 'string') {
@@ -170,10 +170,10 @@ function resolve_live_content(
   if (
     event.type === 'file_write_delta' &&
     typeof event.appended_text === 'string' &&
-    typeof previous_content === 'string'
+    typeof previousContent === 'string'
   ) {
-    return `${previous_content}${event.appended_text}`;
+    return `${previousContent}${event.appended_text}`;
   }
 
-  return previous_content;
+  return previousContent;
 }

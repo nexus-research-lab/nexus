@@ -13,7 +13,7 @@ import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
 import { RoomConversationView } from "@/types/conversation/conversation";
 import { RoomContextAggregate } from "@/types/conversation/room";
 
-function to_timestamp(value?: string | null): number {
+function toTimestamp(value?: string | null): number {
   if (!value) {
     return 0;
   }
@@ -22,26 +22,26 @@ function to_timestamp(value?: string | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function get_context_last_activity_timestamp(context: RoomContextAggregate): number {
-  const session_timestamps = context.sessions.map((session) => (
-    to_timestamp(session.last_activity_at)
+function getContextLastActivityTimestamp(context: RoomContextAggregate): number {
+  const sessionTimestamps = context.sessions.map((session) => (
+    toTimestamp(session.last_activity_at)
   ));
-  const latest_session_timestamp = Math.max(0, ...session_timestamps);
+  const latestSessionTimestamp = Math.max(0, ...sessionTimestamps);
 
-  return latest_session_timestamp ||
-    to_timestamp(context.conversation.updated_at) ||
-    to_timestamp(context.conversation.created_at);
+  return latestSessionTimestamp ||
+    toTimestamp(context.conversation.updated_at) ||
+    toTimestamp(context.conversation.created_at);
 }
 
-function get_room_conversation_session_key(
+function getRoomConversationSessionKey(
   context: RoomContextAggregate,
-  fallback_session: RoomContextAggregate["sessions"][number] | undefined,
+  fallbackSession: RoomContextAggregate["sessions"][number] | undefined,
 ): string {
   if (context.room.room_type === "dm") {
-    if (fallback_session?.agent_id) {
+    if (fallbackSession?.agent_id) {
       return build_room_agent_session_key(
         context.conversation.id,
-        fallback_session.agent_id,
+        fallbackSession.agent_id,
         "dm",
       );
     }
@@ -50,23 +50,23 @@ function get_room_conversation_session_key(
   return build_room_shared_session_key(context.conversation.id);
 }
 
-function build_fallback_room_member_agent(
-  agent_id: string,
-  room_contexts: RoomContextAggregate[],
+function buildFallbackRoomMemberAgent(
+  agentId: string,
+  roomContexts: RoomContextAggregate[],
 ): Agent {
-  const primary_context = room_contexts[0] ?? null;
-  const is_dm = primary_context?.room.room_type === "dm";
-  const fallback_name = (
-    is_dm
-      ? primary_context?.room.name?.trim() ||
-        primary_context?.conversation.title?.trim() ||
-        agent_id
-      : agent_id
+  const primaryContext = roomContexts[0] ?? null;
+  const isDm = primaryContext?.room.room_type === "dm";
+  const fallbackName = (
+    isDm
+      ? primaryContext?.room.name?.trim() ||
+        primaryContext?.conversation.title?.trim() ||
+        agentId
+      : agentId
   );
 
   return {
-    agent_id,
-    name: fallback_name,
+    agent_id: agentId,
+    name: fallbackName,
     workspace_path: "",
     options: {},
     created_at: 0,
@@ -79,41 +79,41 @@ function build_fallback_room_member_agent(
 }
 
 export function build_room_conversation_views(
-  room_contexts: RoomContextAggregate[],
+  roomContexts: RoomContextAggregate[],
 ): RoomConversationView[] {
-  return room_contexts
+  return roomContexts
     .filter((context) => Boolean(context.conversation.id))
     .map((context) => {
-      const context_last_activity_at = get_context_last_activity_timestamp(context);
-      const fallback_session = [...context.sessions].sort((left, right) => {
-        const left_timestamp = (
-          to_timestamp(left.last_activity_at) ||
-          to_timestamp(left.updated_at) ||
-          to_timestamp(left.created_at)
+      const contextLastActivityAt = getContextLastActivityTimestamp(context);
+      const fallbackSession = [...context.sessions].sort((left, right) => {
+        const leftTimestamp = (
+          toTimestamp(left.last_activity_at) ||
+          toTimestamp(left.updated_at) ||
+          toTimestamp(left.created_at)
         );
-        const right_timestamp = (
-          to_timestamp(right.last_activity_at) ||
-          to_timestamp(right.updated_at) ||
-          to_timestamp(right.created_at)
+        const rightTimestamp = (
+          toTimestamp(right.last_activity_at) ||
+          toTimestamp(right.updated_at) ||
+          toTimestamp(right.created_at)
         );
-        return right_timestamp - left_timestamp;
+        return rightTimestamp - leftTimestamp;
       })[0];
 
       return {
-        session_key: get_room_conversation_session_key(
+        session_key: getRoomConversationSessionKey(
           context,
-          fallback_session,
+          fallbackSession,
         ),
         room_id: context.room.id,
         conversation_id: context.conversation.id,
         conversation_type: context.conversation.conversation_type,
-        session_id: fallback_session?.sdk_session_id ?? null,
-        agent_id: fallback_session?.agent_id,
+        session_id: fallbackSession?.sdk_session_id ?? null,
+        agent_id: fallbackSession?.agent_id,
         title: context.conversation.title?.trim() || context.room.name || "未命名对话",
         options: {},
-        created_at: to_timestamp(context.conversation.created_at) || context_last_activity_at,
-        last_activity_at: context_last_activity_at,
-        is_active: fallback_session?.status === "active",
+        created_at: toTimestamp(context.conversation.created_at) || contextLastActivityAt,
+        last_activity_at: contextLastActivityAt,
+        is_active: fallbackSession?.status === "active",
         message_count: context.conversation.message_count ?? 0,
       } satisfies RoomConversationView;
     })
@@ -121,49 +121,49 @@ export function build_room_conversation_views(
 }
 
 export function resolve_selected_conversation_id(
-  route_conversation_id: string | null | undefined,
-  room_conversations: RoomConversationView[],
+  routeConversationId: string | null | undefined,
+  roomConversations: RoomConversationView[],
 ): string | null {
   if (
-    route_conversation_id &&
-    room_conversations.some((conversation) => conversation.conversation_id === route_conversation_id)
+    routeConversationId &&
+    roomConversations.some((conversation) => conversation.conversation_id === routeConversationId)
   ) {
-    return route_conversation_id;
+    return routeConversationId;
   }
 
-  return room_conversations[0]?.conversation_id ?? null;
+  return roomConversations[0]?.conversation_id ?? null;
 }
 
 export function resolve_current_room_context(
-  room_contexts: RoomContextAggregate[],
-  selected_conversation_id: string | null,
+  roomContexts: RoomContextAggregate[],
+  selectedConversationId: string | null,
 ): RoomContextAggregate | null {
-  return room_contexts.find((context) => context.conversation.id === selected_conversation_id) ??
-    room_contexts[0] ??
+  return roomContexts.find((context) => context.conversation.id === selectedConversationId) ??
+    roomContexts[0] ??
     null;
 }
 
 export function resolve_selected_member_agent_id(
-  current_room_context: RoomContextAggregate | null,
-  current_selected_member_agent_id: string | null,
+  currentRoomContext: RoomContextAggregate | null,
+  currentSelectedMemberAgentId: string | null,
 ): string | null {
-  const member_agent_ids =
-    current_room_context?.sessions
+  const memberAgentIds =
+    currentRoomContext?.sessions
       .map((session) => session.agent_id)
       .filter(Boolean) ?? [];
 
-  if (!member_agent_ids.length) {
+  if (!memberAgentIds.length) {
     return null;
   }
 
   if (
-    current_selected_member_agent_id &&
-    member_agent_ids.includes(current_selected_member_agent_id)
+    currentSelectedMemberAgentId &&
+    memberAgentIds.includes(currentSelectedMemberAgentId)
   ) {
-    return current_selected_member_agent_id;
+    return currentSelectedMemberAgentId;
   }
 
-  return member_agent_ids[0];
+  return memberAgentIds[0];
 }
 
 export function resolve_current_agent_session_identity(params: {
@@ -173,54 +173,54 @@ export function resolve_current_agent_session_identity(params: {
   current_room_type: string;
 }): AgentConversationIdentity | null {
   const {
-    current_room_id,
-    current_conversation_id,
-    active_room_session,
-    current_room_type,
+    current_room_id: currentRoomId,
+    current_conversation_id: currentConversationId,
+    active_room_session: activeRoomSession,
+    current_room_type: currentRoomType,
   } = params;
 
-  const resolved_agent_id = active_room_session?.agent_id ?? null;
-  const resolved_conversation_id = current_conversation_id ?? active_room_session?.conversation_id ?? null;
-  const resolved_room_id = current_room_id ?? null;
-  const resolved_room_session_id = active_room_session?.id ?? null;
+  const resolvedAgentId = activeRoomSession?.agent_id ?? null;
+  const resolvedConversationId = currentConversationId ?? activeRoomSession?.conversation_id ?? null;
+  const resolvedRoomId = currentRoomId ?? null;
+  const resolvedRoomSessionId = activeRoomSession?.id ?? null;
 
-  let resolved_session_key: string | null = null;
-  if (!resolved_session_key && resolved_conversation_id) {
-    resolved_session_key = (
-      current_room_type === "dm" && resolved_agent_id
-        ? build_room_agent_session_key(resolved_conversation_id, resolved_agent_id, "dm")
-        : build_room_shared_session_key(resolved_conversation_id)
+  let resolvedSessionKey: string | null = null;
+  if (!resolvedSessionKey && resolvedConversationId) {
+    resolvedSessionKey = (
+      currentRoomType === "dm" && resolvedAgentId
+        ? build_room_agent_session_key(resolvedConversationId, resolvedAgentId, "dm")
+        : build_room_shared_session_key(resolvedConversationId)
     );
   }
 
-  if (!resolved_session_key) {
+  if (!resolvedSessionKey) {
     return null;
   }
 
   return {
-    session_key: resolved_session_key,
-    agent_id: resolved_agent_id,
-    room_id: resolved_room_id,
-    conversation_id: resolved_conversation_id,
-    room_session_id: resolved_room_session_id,
-    chat_type: current_room_type === "dm" ? "dm" : "group",
+    session_key: resolvedSessionKey,
+    agent_id: resolvedAgentId,
+    room_id: resolvedRoomId,
+    conversation_id: resolvedConversationId,
+    room_session_id: resolvedRoomSessionId,
+    chat_type: currentRoomType === "dm" ? "dm" : "group",
   };
 }
 
-export function resolve_room_member_agents(room_contexts: RoomContextAggregate[]): Agent[] {
-  const member_agents = room_contexts[0]?.member_agents ?? [];
-  if (member_agents.length > 0) {
-    return member_agents;
+export function resolve_room_member_agents(roomContexts: RoomContextAggregate[]): Agent[] {
+  const memberAgents = roomContexts[0]?.member_agents ?? [];
+  if (memberAgents.length > 0) {
+    return memberAgents;
   }
 
-  const member_agent_ids =
-    room_contexts[0]?.members
+  const memberAgentIds =
+    roomContexts[0]?.members
       .filter((member) => member.member_type === "agent")
       .map((member) => member.member_agent_id)
-      .filter((member_agent_id): member_agent_id is string => Boolean(member_agent_id)) ?? [];
+      .filter((memberAgentId): memberAgentId is string => Boolean(memberAgentId)) ?? [];
 
-  return member_agent_ids.map((agent_id) => (
-    build_fallback_room_member_agent(agent_id, room_contexts)
+  return memberAgentIds.map((agentId) => (
+    buildFallbackRoomMemberAgent(agentId, roomContexts)
   ));
 }
 
@@ -237,61 +237,61 @@ export function apply_conversation_snapshot_to_room_contexts(
     return contexts;
   }
 
-  const next_last_activity_at = snapshot.last_activity_at
+  const nextLastActivityAt = snapshot.last_activity_at
     ? new Date(snapshot.last_activity_at).toISOString()
     : undefined;
-  let has_changed = false;
+  let hasChanged = false;
 
-  const next_contexts = contexts.map((context) => {
+  const nextContexts = contexts.map((context) => {
     if (context.conversation.id !== snapshot.conversation_id) {
       return context;
     }
 
-    let context_changed = false;
-    const next_conversation_updated_at =
-      next_last_activity_at ?? context.conversation.updated_at;
-    const conversation_changed =
-      context.conversation.updated_at !== next_conversation_updated_at;
+    let contextChanged = false;
+    const nextConversationUpdatedAt =
+      nextLastActivityAt ?? context.conversation.updated_at;
+    const conversationChanged =
+      context.conversation.updated_at !== nextConversationUpdatedAt;
 
-    const next_sessions = context.sessions.map((session) => {
+    const nextSessions = context.sessions.map((session) => {
       if (!snapshot.room_session_id || session.id !== snapshot.room_session_id) {
         return session;
       }
 
-      const next_sdk_session_id = snapshot.session_id ?? session.sdk_session_id;
-      const next_session_last_activity_at =
-        next_last_activity_at ?? session.last_activity_at;
-      const session_changed =
-        session.sdk_session_id !== next_sdk_session_id ||
-        session.last_activity_at !== next_session_last_activity_at;
+      const nextSdkSessionId = snapshot.session_id ?? session.sdk_session_id;
+      const nextSessionLastActivityAt =
+        nextLastActivityAt ?? session.last_activity_at;
+      const sessionChanged =
+        session.sdk_session_id !== nextSdkSessionId ||
+        session.last_activity_at !== nextSessionLastActivityAt;
 
-      if (!session_changed) {
+      if (!sessionChanged) {
         return session;
       }
 
-      has_changed = true;
-      context_changed = true;
+      hasChanged = true;
+      contextChanged = true;
       return {
         ...session,
-        sdk_session_id: next_sdk_session_id,
-        last_activity_at: next_session_last_activity_at,
+        sdk_session_id: nextSdkSessionId,
+        last_activity_at: nextSessionLastActivityAt,
       };
     });
 
-    if (!context_changed && !conversation_changed) {
+    if (!contextChanged && !conversationChanged) {
       return context;
     }
 
-    has_changed = true;
+    hasChanged = true;
     return {
       ...context,
       conversation: {
         ...context.conversation,
-        updated_at: next_conversation_updated_at,
+        updated_at: nextConversationUpdatedAt,
       },
-      sessions: next_sessions,
+      sessions: nextSessions,
     };
   });
 
-  return has_changed ? next_contexts : contexts;
+  return hasChanged ? nextContexts : contexts;
 }

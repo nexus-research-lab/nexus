@@ -34,56 +34,56 @@ const MAGNIFYING_MAP_URL = "/liquid-glass/magnifier-magnifying-map.png";
 const DISPLACEMENT_MAP_URL = "/liquid-glass/magnifier-displacement-map.png";
 const SPECULAR_MAP_URL = "/liquid-glass/magnifier-specular-map.png";
 
-function build_glass_surface_style(filter_id: string | null): CSSProperties {
+function buildGlassSurfaceStyle(filterId: string | null): CSSProperties {
   return {
     borderRadius: `${BASE_LENS_RADIUS}px`,
     boxShadow: "rgba(0, 0, 0, 0.16) 0px 4px 9px, rgba(0, 0, 0, 0.2) 0px 2px 24px inset, rgba(255, 255, 255, 0.2) 0px -2px 24px inset",
     transform: "translateZ(0px)",
-    backdropFilter: filter_id ? `url(#${filter_id})` : "blur(16px)",
-    WebkitBackdropFilter: filter_id ? `url(#${filter_id})` : "blur(16px)",
-    backgroundColor: filter_id ? "rgba(255, 255, 255, 0.01)" : "color-mix(in srgb, var(--surface-panel-background) 72%, transparent)",
+    backdropFilter: filterId ? `url(#${filterId})` : "blur(16px)",
+    WebkitBackdropFilter: filterId ? `url(#${filterId})` : "blur(16px)",
+    backgroundColor: filterId ? "rgba(255, 255, 255, 0.01)" : "color-mix(in srgb, var(--surface-panel-background) 72%, transparent)",
   };
 }
 
 export function GlassMagnifier({
   children,
-  class_name,
-  content_class_name,
+  class_name: className,
+  content_class_name: contentClassName,
   height = 36,
   underlay,
   width = 58,
 }: GlassMagnifierProps) {
-  const raw_filter_id = useId();
-  const filter_id = `glass-magnifier-${raw_filter_id.replace(/:/g, "")}`;
-  const [can_use_true_glass, set_can_use_true_glass] = useState<boolean>(() => supports_true_liquid_glass());
-  const root_ref = useRef<HTMLDivElement | null>(null);
-  const shell_ref = useRef<HTMLDivElement | null>(null);
-  const content_ref = useRef<HTMLDivElement | null>(null);
-  const root_animation_ref = useRef<Animation | null>(null);
-  const content_animation_ref = useRef<Animation | null>(null);
-  const base_scale_x = width / BASE_LENS_WIDTH;
-  const base_scale_y = height / BASE_LENS_HEIGHT;
-  const idle_transform = `scale(${base_scale_x}, ${base_scale_y})`;
+  const rawFilterId = useId();
+  const filterId = `glass-magnifier-${rawFilterId.replace(/:/g, "")}`;
+  const [canUseTrueGlass, setCanUseTrueGlass] = useState<boolean>(() => supports_true_liquid_glass());
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const rootAnimationRef = useRef<Animation | null>(null);
+  const contentAnimationRef = useRef<Animation | null>(null);
+  const baseScaleX = width / BASE_LENS_WIDTH;
+  const baseScaleY = height / BASE_LENS_HEIGHT;
+  const idleTransform = `scale(${baseScaleX}, ${baseScaleY})`;
 
-  const buildRootTransform = useCallback((x_multiplier: number, y_multiplier: number) => {
-    return `translateZ(0px) scale(${x_multiplier}, ${y_multiplier})`;
+  const buildRootTransform = useCallback((xMultiplier: number, yMultiplier: number) => {
+    return `translateZ(0px) scale(${xMultiplier}, ${yMultiplier})`;
   }, []);
 
-  const buildContentTransform = useCallback((x_multiplier: number, y_multiplier: number, y_offset: number) => {
-    return `translate3d(0px, ${y_offset}px, 0px) scale(${x_multiplier}, ${y_multiplier})`;
+  const buildContentTransform = useCallback((xMultiplier: number, yMultiplier: number, yOffset: number) => {
+    return `translate3d(0px, ${yOffset}px, 0px) scale(${xMultiplier}, ${yMultiplier})`;
   }, []);
 
   const readCurrentTransform = useCallback((element: HTMLDivElement | null, fallback: string) => {
     if (!element || typeof window === "undefined") {
       return fallback;
     }
-    const computed_transform = window.getComputedStyle(element).transform;
-    return computed_transform && computed_transform !== "none" ? computed_transform : fallback;
+    const computedTransform = window.getComputedStyle(element).transform;
+    return computedTransform && computedTransform !== "none" ? computedTransform : fallback;
   }, []);
 
   const animateLayer = useCallback((
     element: HTMLDivElement | null,
-    animation_ref: React.MutableRefObject<Animation | null>,
+    animationRef: React.MutableRefObject<Animation | null>,
     keyframes: Keyframe[],
     duration: number,
     easing: string,
@@ -93,12 +93,12 @@ export function GlassMagnifier({
       return;
     }
 
-    animation_ref.current?.cancel();
+    animationRef.current?.cancel();
 
     if (typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const final_transform = keyframes[keyframes.length - 1]?.transform;
-      if (typeof final_transform === "string") {
-        element.style.transform = final_transform;
+      const finalTransform = keyframes[keyframes.length - 1]?.transform;
+      if (typeof finalTransform === "string") {
+        element.style.transform = finalTransform;
       }
       return;
     }
@@ -109,13 +109,13 @@ export function GlassMagnifier({
       fill: "forwards",
       iterations,
     });
-    animation_ref.current = animation;
+    animationRef.current = animation;
   }, []);
 
   const animateHoverWave = useCallback(() => {
     animateLayer(
-      root_ref.current,
-      root_animation_ref,
+      rootRef.current,
+      rootAnimationRef,
       [
         { transform: buildRootTransform(1, 1), offset: 0 },
         { transform: buildRootTransform(0.958, 1.104), offset: 0.14 },
@@ -131,8 +131,8 @@ export function GlassMagnifier({
     );
 
     animateLayer(
-      content_ref.current,
-      content_animation_ref,
+      contentRef.current,
+      contentAnimationRef,
       [
         { transform: buildContentTransform(1, 1, 0), offset: 0 },
         { transform: buildContentTransform(1.028, 0.948, -0.72), offset: 0.16 },
@@ -153,14 +153,14 @@ export function GlassMagnifier({
   ]);
 
   const settleHoverWave = useCallback(() => {
-    const root_current_transform = readCurrentTransform(root_ref.current, buildRootTransform(1, 1));
-    const content_current_transform = readCurrentTransform(content_ref.current, buildContentTransform(1, 1, 0));
+    const rootCurrentTransform = readCurrentTransform(rootRef.current, buildRootTransform(1, 1));
+    const contentCurrentTransform = readCurrentTransform(contentRef.current, buildContentTransform(1, 1, 0));
 
     animateLayer(
-      root_ref.current,
-      root_animation_ref,
+      rootRef.current,
+      rootAnimationRef,
       [
-        { transform: root_current_transform, offset: 0 },
+        { transform: rootCurrentTransform, offset: 0 },
         { transform: buildRootTransform(1.006, 0.994), offset: 0.58 },
         { transform: buildRootTransform(1, 1), offset: 1 },
       ],
@@ -169,10 +169,10 @@ export function GlassMagnifier({
     );
 
     animateLayer(
-      content_ref.current,
-      content_animation_ref,
+      contentRef.current,
+      contentAnimationRef,
       [
-        { transform: content_current_transform, offset: 0 },
+        { transform: contentCurrentTransform, offset: 0 },
         { transform: buildContentTransform(1.004, 0.996, -0.06), offset: 0.6 },
         { transform: buildContentTransform(1, 1, 0), offset: 1 },
       ],
@@ -195,41 +195,41 @@ export function GlassMagnifier({
   }, [settleHoverWave]);
 
   useEffect(() => {
-    set_can_use_true_glass(supports_true_liquid_glass());
+    setCanUseTrueGlass(supports_true_liquid_glass());
   }, []);
 
   useEffect(() => {
-    const root_element = root_ref.current;
-    const shell_element = shell_ref.current;
-    const content_element = content_ref.current;
-    if (root_element) {
-      root_element.style.transform = buildRootTransform(1, 1);
+    const rootElement = rootRef.current;
+    const shellElement = shellRef.current;
+    const contentElement = contentRef.current;
+    if (rootElement) {
+      rootElement.style.transform = buildRootTransform(1, 1);
     }
-    if (!shell_element) {
+    if (!shellElement) {
       return;
     }
-    shell_element.style.transform = idle_transform;
-    if (content_element) {
-      content_element.style.transform = buildContentTransform(1, 1, 0);
+    shellElement.style.transform = idleTransform;
+    if (contentElement) {
+      contentElement.style.transform = buildContentTransform(1, 1, 0);
     }
-  }, [buildContentTransform, buildRootTransform, idle_transform]);
+  }, [buildContentTransform, buildRootTransform, idleTransform]);
 
   useEffect(() => {
-    const root_animation = root_animation_ref.current;
-    const content_animation = content_animation_ref.current;
+    const rootAnimation = rootAnimationRef.current;
+    const contentAnimation = contentAnimationRef.current;
     return () => {
-      root_animation?.cancel();
-      content_animation?.cancel();
+      rootAnimation?.cancel();
+      contentAnimation?.cancel();
     };
   }, []);
 
   return (
     <div
-      className={cn("relative isolate shrink-0 cursor-grab select-none active:cursor-grabbing", class_name)}
+      className={cn("relative isolate shrink-0 cursor-grab select-none active:cursor-grabbing", className)}
       onPointerCancel={handleHoverEnd}
       onPointerEnter={handleHoverStart}
       onPointerLeave={handleHoverEnd}
-      ref={root_ref}
+      ref={rootRef}
       style={{
         height: `${height}px`,
         touchAction: "none",
@@ -245,7 +245,7 @@ export function GlassMagnifier({
         </div>
       ) : null}
 
-      {can_use_true_glass ? (
+      {canUseTrueGlass ? (
         <svg
           aria-hidden="true"
           className="hidden"
@@ -253,7 +253,7 @@ export function GlassMagnifier({
           focusable="false"
         >
           <defs>
-            <filter id={filter_id}>
+            <filter id={filterId}>
               <feImage
                 href={MAGNIFYING_MAP_URL}
                 result="magnifying_displacement_map"
@@ -336,11 +336,11 @@ export function GlassMagnifier({
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[999px]">
         <div
           className="absolute left-0 top-0 origin-top-left ring-1 ring-black/10 dark:ring-white/10"
-          ref={shell_ref}
+          ref={shellRef}
           style={{
-            ...build_glass_surface_style(can_use_true_glass ? filter_id : null),
+            ...buildGlassSurfaceStyle(canUseTrueGlass ? filterId : null),
             height: `${BASE_LENS_HEIGHT}px`,
-            transform: idle_transform,
+            transform: idleTransform,
             width: `${BASE_LENS_WIDTH}px`,
             willChange: "transform",
           }}
@@ -351,9 +351,9 @@ export function GlassMagnifier({
         <div
           className={cn(
             "pointer-events-none absolute inset-0 z-10 flex items-center justify-center",
-            content_class_name,
+            contentClassName,
           )}
-          ref={content_ref}
+          ref={contentRef}
           style={{
             transform: buildContentTransform(1, 1, 0),
             transformOrigin: "50% 50%",

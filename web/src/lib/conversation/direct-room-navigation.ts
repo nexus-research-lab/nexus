@@ -13,20 +13,20 @@ export interface DirectRoomNavigationTarget {
  * 然后统一落到真实的 room_conversation 路由，避免再维护中转页。
  */
 export async function resolve_direct_room_navigation_target(
-  agent_id: string,
-  initial_message?: string,
+  agentId: string,
+  initialMessage?: string,
 ): Promise<DirectRoomNavigationTarget> {
-  const context = await ensure_direct_room(agent_id);
-  const normalized_initial_message = initial_message?.trim() ?? "";
-  const base_route = AppRouteBuilders.room_conversation(
+  const context = await ensure_direct_room(agentId);
+  const normalizedInitialMessage = initialMessage?.trim() ?? "";
+  const baseRoute = AppRouteBuilders.room_conversation(
     context.room.id,
     context.conversation.id,
   );
 
   return {
     context,
-    route: normalized_initial_message
-      ? `${base_route}?initial=${encodeURIComponent(normalized_initial_message)}`
-      : base_route,
+    route: normalizedInitialMessage
+      ? `${baseRoute}?initial=${encodeURIComponent(normalizedInitialMessage)}`
+      : baseRoute,
   };
 }

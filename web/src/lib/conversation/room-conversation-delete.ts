@@ -8,11 +8,11 @@ export interface ConversationDeleteState {
 
 export function resolve_room_conversation_delete_state(
   conversation: RoomConversationView,
-  conversation_count: number,
-  can_manage_conversations: boolean,
+  conversationCount: number,
+  canManageConversations: boolean,
   t: I18nContextValue["t"],
 ): ConversationDeleteState {
-  if (!can_manage_conversations) {
+  if (!canManageConversations) {
     return { enabled: false, reason: t("room.delete_no_permission") };
   }
 
@@ -20,7 +20,7 @@ export function resolve_room_conversation_delete_state(
     return { enabled: false, reason: t("room.delete_main_locked") };
   }
 
-  if (conversation_count <= 1) {
+  if (conversationCount <= 1) {
     return { enabled: false, reason: t("room.delete_keep_one") };
   }
 

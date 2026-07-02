@@ -24,45 +24,45 @@ interface UseConversationSnapshotReporterOptions<TSnapshot> {
 }
 
 export function useConversationSnapshotReporter<TSnapshot>({
-  scope_key,
+  scope_key: scopeKey,
   messages,
-  build_snapshot,
-  on_snapshot_change,
+  build_snapshot: buildSnapshot,
+  on_snapshot_change: onSnapshotChange,
 }: UseConversationSnapshotReporterOptions<TSnapshot>) {
-  const last_snapshot_key_ref = useRef<string | null>(null);
-  const last_activity_snapshot_ref =
+  const lastSnapshotKeyRef = useRef<string | null>(null);
+  const lastActivitySnapshotRef =
     useRef<ConversationActivitySnapshot | null>(null);
 
   useEffect(() => {
-    if (!scope_key || messages.length === 0) return;
+    if (!scopeKey || messages.length === 0) return;
 
-    const last_message = messages[messages.length - 1];
-    const latest_reply_timestamp = get_latest_reply_timestamp(messages);
-    const should_report_last_activity = should_emit_conversation_activity(
-      last_activity_snapshot_ref.current,
-      scope_key,
-      latest_reply_timestamp,
+    const lastMessage = messages[messages.length - 1];
+    const latestReplyTimestamp = get_latest_reply_timestamp(messages);
+    const shouldReportLastActivity = should_emit_conversation_activity(
+      lastActivitySnapshotRef.current,
+      scopeKey,
+      latestReplyTimestamp,
     );
-    const snapshot = build_snapshot({
-      scope_key,
-      last_message,
-      latest_reply_timestamp,
-      should_report_last_activity,
+    const snapshot = buildSnapshot({
+      scope_key: scopeKey,
+      last_message: lastMessage,
+      latest_reply_timestamp: latestReplyTimestamp,
+      should_report_last_activity: shouldReportLastActivity,
     });
-    const snapshot_key = JSON.stringify(snapshot);
-    const next_activity_snapshot = build_conversation_activity_snapshot(
-      scope_key,
-      latest_reply_timestamp,
+    const snapshotKey = JSON.stringify(snapshot);
+    const nextActivitySnapshot = build_conversation_activity_snapshot(
+      scopeKey,
+      latestReplyTimestamp,
     );
 
     // 历史加载只同步快照，不应该因为切换视图刷新活跃时间。
-    if (last_snapshot_key_ref.current === snapshot_key) {
-      last_activity_snapshot_ref.current = next_activity_snapshot;
+    if (lastSnapshotKeyRef.current === snapshotKey) {
+      lastActivitySnapshotRef.current = nextActivitySnapshot;
       return;
     }
 
-    last_snapshot_key_ref.current = snapshot_key;
-    last_activity_snapshot_ref.current = next_activity_snapshot;
-    on_snapshot_change?.(snapshot);
-  }, [build_snapshot, messages, on_snapshot_change, scope_key]);
+    lastSnapshotKeyRef.current = snapshotKey;
+    lastActivitySnapshotRef.current = nextActivitySnapshot;
+    onSnapshotChange?.(snapshot);
+  }, [buildSnapshot, messages, onSnapshotChange, scopeKey]);
 }

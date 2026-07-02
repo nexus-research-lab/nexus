@@ -32,43 +32,43 @@ interface UseAgentConversationSocketOptions {
   ws_send_ref: MutableRefObject<ConversationSocketSend>;
   ws_reconnect_ref: MutableRefObject<() => void>;
   ws_state_ref: MutableRefObject<WebSocketState>;
-  on_message: (backend_message: unknown) => void;
+  on_message: (backendMessage: unknown) => void;
   on_error?: (error: Error) => void;
   set_error: Dispatch<SetStateAction<string | null>>;
 }
 
 export function useAgentConversationSocket({
-  ws_url,
-  agent_id,
-  room_id,
-  conversation_id,
-  session_key,
-  session_seq_cursor_ref,
-  room_seq_cursor_ref,
-  ws_send_ref,
-  ws_reconnect_ref,
-  ws_state_ref,
-  on_message,
-  on_error,
-  set_error,
+  ws_url: wsUrl,
+  agent_id: agentId,
+  room_id: roomId,
+  conversation_id: conversationId,
+  session_key: sessionKey,
+  session_seq_cursor_ref: sessionSeqCursorRef,
+  room_seq_cursor_ref: roomSeqCursorRef,
+  ws_send_ref: wsSendRef,
+  ws_reconnect_ref: wsReconnectRef,
+  ws_state_ref: wsStateRef,
+  on_message: onMessage,
+  on_error: onError,
+  set_error: setError,
 }: UseAgentConversationSocketOptions) {
-  const has_connected_ref = useRef(false);
+  const hasConnectedRef = useRef(false);
 
   const {
-    state: ws_state,
-    send: ws_send,
-    reconnect: ws_reconnect,
+    state: wsState,
+    send: wsSend,
+    reconnect: wsReconnect,
   } = useWebSocket({
-    url: ws_url,
+    url: wsUrl,
     protocols: get_desktop_websocket_protocols(),
     auto_connect: true,
     reconnect: true,
     heartbeat_interval: 30000,
-    on_message,
+    on_message: onMessage,
     on_error: (event) => {
       // 开发环境 StrictMode 会触发一次挂载后立即清理，
       // 这时 connecting 阶段被主动断开会产生一次无意义的 error。
-      if (!has_connected_ref.current) {
+      if (!hasConnectedRef.current) {
         console.debug(
           "[useAgentConversation] Ignored transient WebSocket error before first successful connection",
           event,
@@ -76,110 +76,110 @@ export function useAgentConversationSocket({
         return;
       }
 
-      const error_message = "WebSocket error occurred";
+      const errorMessage = "WebSocket error occurred";
       console.error("[useAgentConversation] WebSocket error:", event);
-      set_error(error_message);
-      on_error?.(new Error(error_message));
+      setError(errorMessage);
+      onError?.(new Error(errorMessage));
     },
   });
 
   useEffect(() => {
-    ws_send_ref.current = ws_send;
-  }, [ws_send, ws_send_ref]);
+    wsSendRef.current = wsSend;
+  }, [wsSend, wsSendRef]);
 
   useEffect(() => {
-    ws_reconnect_ref.current = ws_reconnect;
-  }, [ws_reconnect, ws_reconnect_ref]);
+    wsReconnectRef.current = wsReconnect;
+  }, [wsReconnect, wsReconnectRef]);
 
   useEffect(() => {
-    ws_state_ref.current = ws_state;
-  }, [ws_state, ws_state_ref]);
+    wsStateRef.current = wsState;
+  }, [wsState, wsStateRef]);
 
   useEffect(() => {
-    if (ws_state === "connected") {
-      has_connected_ref.current = true;
-      set_error(null);
+    if (wsState === "connected") {
+      hasConnectedRef.current = true;
+      setError(null);
     }
-  }, [set_error, ws_state]);
+  }, [setError, wsState]);
 
   useEffect(() => {
-    if (!agent_id || ws_state !== "connected") {
+    if (!agentId || wsState !== "connected") {
       return;
     }
 
-    ws_send({
+    wsSend({
       type: "subscribe_workspace",
-      agent_id,
+      agent_id: agentId,
       watch_files: true,
     });
 
     return () => {
-      ws_send({
+      wsSend({
         type: "unsubscribe_workspace",
-        agent_id,
+        agent_id: agentId,
         watch_files: true,
       });
     };
-  }, [agent_id, ws_send, ws_state]);
+  }, [agentId, wsSend, wsState]);
 
   useEffect(() => {
-    if (!session_key || ws_state !== "connected") {
+    if (!sessionKey || wsState !== "connected") {
       return;
     }
 
     // WebSocket 重连后，后端需要重新知道当前连接服务哪个 session，
     // 否则挂起中的权限请求无法重投到新连接。
-    ws_send(build_session_bind_message({
-      session_key,
-      last_seen_session_seq: session_seq_cursor_ref.current,
-      agent_id,
-      room_id,
-      conversation_id,
+    wsSend(build_session_bind_message({
+      session_key: sessionKey,
+      last_seen_session_seq: sessionSeqCursorRef.current,
+      agent_id: agentId,
+      room_id: roomId,
+      conversation_id: conversationId,
     }));
 
     return () => {
       // 共享 WebSocket 常驻于应用路由壳后，
       // 会话组件卸载时必须显式解绑旧 session，避免权限请求和 session 状态继续路由到已离开的页面上下文。
-      ws_send({
+      wsSend({
         type: "unbind_session",
-        session_key,
+        session_key: sessionKey,
       });
     };
   }, [
-    agent_id,
-    conversation_id,
-    room_id,
-    session_key,
-    session_seq_cursor_ref,
-    ws_send,
-    ws_state,
+    agentId,
+    conversationId,
+    roomId,
+    sessionKey,
+    sessionSeqCursorRef,
+    wsSend,
+    wsState,
   ]);
 
   useEffect(() => {
-    session_seq_cursor_ref.current = 0;
-    room_seq_cursor_ref.current = 0;
-  }, [room_id, room_seq_cursor_ref, session_key, session_seq_cursor_ref]);
+    sessionSeqCursorRef.current = 0;
+    roomSeqCursorRef.current = 0;
+  }, [roomId, roomSeqCursorRef, sessionKey, sessionSeqCursorRef]);
 
   useEffect(() => {
-    if (!room_id || ws_state !== "connected") {
+    if (!roomId || wsState !== "connected") {
       return;
     }
 
-    ws_send(build_room_subscription_message({
+    wsSend(build_room_subscription_message({
       type: "subscribe_room",
-      room_id,
-      conversation_id,
-      last_seen_room_seq: room_seq_cursor_ref.current,
+      room_id: roomId,
+      conversation_id: conversationId,
+      last_seen_room_seq: roomSeqCursorRef.current,
     }));
 
     return () => {
-      ws_send(build_room_subscription_message({
+      wsSend(build_room_subscription_message({
         type: "unsubscribe_room",
-        room_id,
-        conversation_id,
+        room_id: roomId,
+        conversation_id: conversationId,
       }));
     };
-  }, [conversation_id, room_id, room_seq_cursor_ref, ws_send, ws_state]);
+  }, [conversationId, roomId, roomSeqCursorRef, wsSend, wsState]);
 
-  return { ws_send, ws_state };
+  return { ws_send: wsSend, ws_state: wsState };
 }

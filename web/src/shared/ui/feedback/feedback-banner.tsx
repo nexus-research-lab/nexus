@@ -12,7 +12,7 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-function split_feedback_items(message: string): string[] {
+function splitFeedbackItems(message: string): string[] {
   return message
     .split(/[；\n]+/)
     .map((item) => item.trim())
@@ -26,61 +26,61 @@ interface FeedbackBannerProps {
   on_dismiss?: () => void;
 }
 
-export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBannerProps) {
-  const items = split_feedback_items(message);
-  const is_success = tone === "success";
-  const is_warning = tone === "warning";
-  const Icon = is_success ? CheckCircle2 : AlertCircle;
-  const auto_dismiss_ms = is_success ? 2200 : is_warning ? 2800 : 3600;
-  const shell_class_name = cn(
+export function FeedbackBanner({ tone, title, message, on_dismiss: onDismiss }: FeedbackBannerProps) {
+  const items = splitFeedbackItems(message);
+  const isSuccess = tone === "success";
+  const isWarning = tone === "warning";
+  const Icon = isSuccess ? CheckCircle2 : AlertCircle;
+  const autoDismissMs = isSuccess ? 2200 : isWarning ? 2800 : 3600;
+  const shellClassName = cn(
     "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-[0_10px_28px_rgba(0,0,0,0.10)]",
-    is_success
+    isSuccess
       ? "border-[color:color-mix(in_srgb,var(--success)_22%,transparent)]"
-      : is_warning
+      : isWarning
         ? "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)]"
         : "border-[color:color-mix(in_srgb,var(--destructive)_22%,transparent)]",
   );
-  const icon_class_name = cn(
+  const iconClassName = cn(
     "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-    is_success
+    isSuccess
       ? "bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-(--success)"
-      : is_warning
+      : isWarning
         ? "bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-(--warning)"
         : "bg-[color:color-mix(in_srgb,var(--destructive)_12%,transparent)] text-(--destructive)",
   );
-  const title_class_name = cn(
+  const titleClassName = cn(
     "text-[12px] font-bold",
-    is_success ? "text-(--success)" : is_warning ? "text-(--warning)" : "text-(--destructive)",
+    isSuccess ? "text-(--success)" : isWarning ? "text-(--warning)" : "text-(--destructive)",
   );
-  const item_class_name = cn(
+  const itemClassName = cn(
     "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-[10px] font-medium",
-    is_success ? "text-(--success)" : is_warning ? "text-(--warning)" : "text-(--destructive)",
-    is_success
+    isSuccess ? "text-(--success)" : isWarning ? "text-(--warning)" : "text-(--destructive)",
+    isSuccess
       ? "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)]"
-      : is_warning
+      : isWarning
         ? "border-[color:color-mix(in_srgb,var(--warning)_18%,transparent)]"
         : "border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)]",
   );
 
   useEffect(() => {
-    if (!on_dismiss) {
+    if (!onDismiss) {
       return;
     }
     const timer = window.setTimeout(() => {
-      on_dismiss();
-    }, auto_dismiss_ms);
+      onDismiss();
+    }, autoDismissMs);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [auto_dismiss_ms, on_dismiss]);
+  }, [autoDismissMs, onDismiss]);
 
   return (
-    <div className={shell_class_name}>
-      <div className={icon_class_name}>
+    <div className={shellClassName}>
+      <div className={iconClassName}>
         <Icon className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={title_class_name}>
+        <p className={titleClassName}>
           {title}
         </p>
         {items.length > 1 ? (
@@ -88,7 +88,7 @@ export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBan
             {items.map((item) => (
               <span
                 key={item}
-                className={item_class_name}
+                className={itemClassName}
               >
                 {item}
               </span>
@@ -100,10 +100,10 @@ export function FeedbackBanner({ tone, title, message, on_dismiss }: FeedbackBan
           </p>
         )}
       </div>
-      {on_dismiss ? (
+      {onDismiss ? (
         <button
           className="shrink-0 text-[11px] text-(--text-muted) transition-colors hover:text-(--text-default)"
-          onClick={on_dismiss}
+          onClick={onDismiss}
           type="button"
         >
           ✕

@@ -44,26 +44,26 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-function should_reduce_home_hero_motion(prefers_reduced_motion: boolean) {
-  if (!prefers_reduced_motion) {
+function shouldReduceHomeHeroMotion(prefersReducedMotion: boolean) {
+  if (!prefersReducedMotion) {
     return false;
   }
 
-  const runtime_config = get_desktop_runtime_config();
-  return runtime_config?.app_mode !== "desktop" || runtime_config.platform !== "windows";
+  const runtimeConfig = get_desktop_runtime_config();
+  return runtimeConfig?.app_mode !== "desktop" || runtimeConfig.platform !== "windows";
 }
 
 export function HomeAsciiHero() {
   const { theme } = useTheme();
-  const section_ref = useRef<HTMLDivElement | null>(null);
-  const canvas_ref = useRef<HTMLCanvasElement | null>(null);
-  const prefers_reduced_motion = usePrefersReducedMotion();
-  const should_reduce_motion = should_reduce_home_hero_motion(prefers_reduced_motion);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const shouldReduceMotion = shouldReduceHomeHeroMotion(prefersReducedMotion);
 
   useEffect(() => {
-    const section = section_ref.current;
-    const canvas = canvas_ref.current;
-    if (!section || !canvas || should_reduce_motion) {
+    const section = sectionRef.current;
+    const canvas = canvasRef.current;
+    if (!section || !canvas || shouldReduceMotion) {
       return;
     }
 
@@ -71,108 +71,108 @@ export function HomeAsciiHero() {
     if (!ctx) {
       return;
     }
-    const hero_canvas = canvas;
-    const hero_ctx = ctx;
+    const heroCanvas = canvas;
+    const heroCtx = ctx;
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const mobile_q = window.matchMedia("(max-width: 600px)");
+    const mobileQ = window.matchMedia("(max-width: 600px)");
 
     let particles: AsciiParticle[] = [];
     let width = 0;
     let height = 0;
-    let glyph_size = 6;
-    let glyph_font = "";
-    let influence_radius = 100;
-    let influence_radius_sq = influence_radius * influence_radius;
-    let influence_force = 3;
-    let frame_id = 0;
-    let pointer_x = -9999;
-    let pointer_y = -9999;
-    let is_dead = false;
-    let is_mobile = false;
-    let clock_pad_x = 22;
-    let clock_pad_y = 18;
-    let clock_big_size = 28;
-    let clock_small_size = 13;
-    let clock_font_big = "";
-    let clock_font_small = "";
-    let clock_hm_width = 0;
-    const computed_styles = getComputedStyle(document.documentElement);
-    const hero_ink = computed_styles.getPropertyValue("--primary").trim() || DEFAULT_HERO_INK;
-    const clock_ink = computed_styles.getPropertyValue("--text-strong").trim() || DEFAULT_CLOCK_INK;
+    let glyphSize = 6;
+    let glyphFont = "";
+    let influenceRadius = 100;
+    let influenceRadiusSq = influenceRadius * influenceRadius;
+    let influenceForce = 3;
+    let frameId = 0;
+    let pointerX = -9999;
+    let pointerY = -9999;
+    let isDead = false;
+    let isMobile = false;
+    let clockPadX = 22;
+    let clockPadY = 18;
+    let clockBigSize = 28;
+    let clockSmallSize = 13;
+    let clockFontBig = "";
+    let clockFontSmall = "";
+    let clockHmWidth = 0;
+    const computedStyles = getComputedStyle(document.documentElement);
+    const heroInk = computedStyles.getPropertyValue("--primary").trim() || DEFAULT_HERO_INK;
+    const clockInk = computedStyles.getPropertyValue("--text-strong").trim() || DEFAULT_CLOCK_INK;
 
-    let clock_hh = "";
-    let clock_mm = "";
-    let clock_ss = "";
-    let clock_timer = 0;
+    let clockHh = "";
+    let clockMm = "";
+    let clockSs = "";
+    let clockTimer = 0;
 
-    function tick_clock() {
+    function tickClock() {
       const now = new Date();
-      clock_hh = pad2(now.getHours());
-      clock_mm = pad2(now.getMinutes());
-      clock_ss = pad2(now.getSeconds());
-      if (clock_font_big) {
-        hero_ctx.font = clock_font_big;
-        clock_hm_width = hero_ctx.measureText(`${clock_hh}:${clock_mm}`).width;
+      clockHh = pad2(now.getHours());
+      clockMm = pad2(now.getMinutes());
+      clockSs = pad2(now.getSeconds());
+      if (clockFontBig) {
+        heroCtx.font = clockFontBig;
+        clockHmWidth = heroCtx.measureText(`${clockHh}:${clockMm}`).width;
       }
     }
 
-    tick_clock();
-    clock_timer = window.setInterval(tick_clock, 1000);
+    tickClock();
+    clockTimer = window.setInterval(tickClock, 1000);
 
-    function resize(next_width: number, next_height: number) {
-      width = Math.max(next_width, 280);
-      height = Math.max(next_height, 80);
-      hero_canvas.width = Math.floor(width * dpr);
-      hero_canvas.height = Math.floor(height * dpr);
-      hero_canvas.style.width = `${width}px`;
-      hero_canvas.style.height = `${height}px`;
-      hero_ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    function resize(nextWidth: number, nextHeight: number) {
+      width = Math.max(nextWidth, 280);
+      height = Math.max(nextHeight, 80);
+      heroCanvas.width = Math.floor(width * dpr);
+      heroCanvas.height = Math.floor(height * dpr);
+      heroCanvas.style.width = `${width}px`;
+      heroCanvas.style.height = `${height}px`;
+      heroCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // 时钟排版在 resize 时一次性计算，避免每一帧重复做字体和尺寸推导。
-      clock_pad_x = is_mobile ? 14 : 22;
-      clock_pad_y = is_mobile ? 12 : 18;
-      clock_big_size = Math.round(Math.min(width * 0.072, height * 0.20, 56));
-      clock_small_size = Math.round(clock_big_size * 0.46);
-      clock_font_big = `200 ${clock_big_size}px "IBM Plex Mono", monospace`;
-      clock_font_small = `200 ${clock_small_size}px "IBM Plex Mono", monospace`;
-      hero_ctx.font = clock_font_big;
-      clock_hm_width = hero_ctx.measureText(`${clock_hh}:${clock_mm}`).width;
+      clockPadX = isMobile ? 14 : 22;
+      clockPadY = isMobile ? 12 : 18;
+      clockBigSize = Math.round(Math.min(width * 0.072, height * 0.20, 56));
+      clockSmallSize = Math.round(clockBigSize * 0.46);
+      clockFontBig = `200 ${clockBigSize}px "IBM Plex Mono", monospace`;
+      clockFontSmall = `200 ${clockSmallSize}px "IBM Plex Mono", monospace`;
+      heroCtx.font = clockFontBig;
+      clockHmWidth = heroCtx.measureText(`${clockHh}:${clockMm}`).width;
     }
 
-    function set_pointer(client_x: number, client_y: number) {
-      const bounds = hero_canvas.getBoundingClientRect();
-      pointer_x = client_x - bounds.left;
-      pointer_y = client_y - bounds.top;
+    function setPointer(clientX: number, clientY: number) {
+      const bounds = heroCanvas.getBoundingClientRect();
+      pointerX = clientX - bounds.left;
+      pointerY = clientY - bounds.top;
     }
 
-    const clear_pointer = () => {
-      pointer_x = -9999;
-      pointer_y = -9999;
+    const clearPointer = () => {
+      pointerX = -9999;
+      pointerY = -9999;
     };
 
-    const on_mouse = (event: MouseEvent) => set_pointer(event.clientX, event.clientY);
-    const on_touch = (event: TouchEvent) => {
+    const onMouse = (event: MouseEvent) => setPointer(event.clientX, event.clientY);
+    const onTouch = (event: TouchEvent) => {
       const touch = event.touches[0];
       if (touch) {
-        set_pointer(touch.clientX, touch.clientY);
+        setPointer(touch.clientX, touch.clientY);
       }
     };
 
     const init = async () => {
-      if (frame_id !== 0) {
-        cancelAnimationFrame(frame_id);
-        frame_id = 0;
+      if (frameId !== 0) {
+        cancelAnimationFrame(frameId);
+        frameId = 0;
       }
 
-      is_mobile = mobile_q.matches;
-      const charset = is_mobile ? MOBILE_ASCII_CHARS : ASCII_CHARS;
-      const step = is_mobile ? 2 : 4;
-      glyph_size = is_mobile ? 3 : 6;
-      glyph_font = `500 ${glyph_size}px "IBM Plex Mono", monospace`;
-      influence_radius = is_mobile ? 50 : 110;
-      influence_radius_sq = influence_radius * influence_radius;
-      influence_force = is_mobile ? 5 : 3.5;
+      isMobile = mobileQ.matches;
+      const charset = isMobile ? MOBILE_ASCII_CHARS : ASCII_CHARS;
+      const step = isMobile ? 2 : 4;
+      glyphSize = isMobile ? 3 : 6;
+      glyphFont = `500 ${glyphSize}px "IBM Plex Mono", monospace`;
+      influenceRadius = isMobile ? 50 : 110;
+      influenceRadiusSq = influenceRadius * influenceRadius;
+      influenceForce = isMobile ? 5 : 3.5;
 
       resize(section.clientWidth, section.clientHeight);
 
@@ -184,40 +184,40 @@ export function HomeAsciiHero() {
         }
       }
 
-      const metrics_ctx = document.createElement("canvas").getContext("2d");
-      if (!metrics_ctx) {
+      const metricsCtx = document.createElement("canvas").getContext("2d");
+      if (!metricsCtx) {
         return;
       }
-      metrics_ctx.font = '600 80px "IBM Plex Mono", monospace';
-      const measured_width = metrics_ctx.measureText(HERO_LABEL).width || width;
+      metricsCtx.font = '600 80px "IBM Plex Mono", monospace';
+      const measuredWidth = metricsCtx.measureText(HERO_LABEL).width || width;
 
-      const fitted_size_by_width = Math.floor((80 * width) / measured_width * 0.92);
-      const fitted_size_by_height = Math.floor(height * 0.58);
-      const font_size = Math.min(fitted_size_by_width, fitted_size_by_height);
-      const hero_font = `600 ${font_size}px "IBM Plex Mono", monospace`;
+      const fittedSizeByWidth = Math.floor((80 * width) / measuredWidth * 0.92);
+      const fittedSizeByHeight = Math.floor(height * 0.58);
+      const fontSize = Math.min(fittedSizeByWidth, fittedSizeByHeight);
+      const heroFont = `600 ${fontSize}px "IBM Plex Mono", monospace`;
 
       const offscreen = document.createElement("canvas");
       offscreen.width = width;
       offscreen.height = height;
-      const offscreen_ctx = offscreen.getContext("2d");
-      if (!offscreen_ctx) {
+      const offscreenCtx = offscreen.getContext("2d");
+      if (!offscreenCtx) {
         return;
       }
-      offscreen_ctx.font = hero_font;
-      const text_width = offscreen_ctx.measureText(HERO_LABEL).width;
-      offscreen_ctx.fillStyle = "#fff";
-      offscreen_ctx.textBaseline = "middle";
-      offscreen_ctx.fillText(HERO_LABEL, Math.max(0, (width - text_width) / 2), height * 0.46);
+      offscreenCtx.font = heroFont;
+      const textWidth = offscreenCtx.measureText(HERO_LABEL).width;
+      offscreenCtx.fillStyle = "#fff";
+      offscreenCtx.textBaseline = "middle";
+      offscreenCtx.fillText(HERO_LABEL, Math.max(0, (width - textWidth) / 2), height * 0.46);
 
-      const image_data = offscreen_ctx.getImageData(0, 0, width, height);
-      const next_particles: AsciiParticle[] = [];
+      const imageData = offscreenCtx.getImageData(0, 0, width, height);
+      const nextParticles: AsciiParticle[] = [];
 
       for (let y = 0; y < height; y += step) {
         for (let x = 0; x < width; x += step) {
-          if (image_data.data[(y * width + x) * 4 + 3] <= 80) {
+          if (imageData.data[(y * width + x) * 4 + 3] <= 80) {
             continue;
           }
-          next_particles.push({
+          nextParticles.push({
             x: x + (Math.random() - 0.5) * width * 0.45,
             y: y + (Math.random() - 0.5) * height * 2.2,
             tx: x,
@@ -226,7 +226,7 @@ export function HomeAsciiHero() {
             vy: 0,
             char: pick(charset),
             alpha: 0,
-            target_alpha: is_mobile ? 0.95 : 0.82 + Math.random() * 0.18,
+            target_alpha: isMobile ? 0.95 : 0.82 + Math.random() * 0.18,
             is_text: true,
             phase: Math.random() * Math.PI * 2,
             delay: (x / width) + Math.random() * 0.15,
@@ -234,11 +234,11 @@ export function HomeAsciiHero() {
         }
       }
 
-      const ambient_count = Math.max(40, Math.floor(next_particles.length * 0.12));
-      for (let i = 0; i < ambient_count; i += 1) {
+      const ambientCount = Math.max(40, Math.floor(nextParticles.length * 0.12));
+      for (let i = 0; i < ambientCount; i += 1) {
         const x = Math.random() * width;
         const y = Math.random() * height;
-        next_particles.push({
+        nextParticles.push({
           x,
           y,
           tx: x,
@@ -254,50 +254,50 @@ export function HomeAsciiHero() {
         });
       }
 
-      particles = next_particles;
-      const start_time = performance.now();
+      particles = nextParticles;
+      const startTime = performance.now();
 
-      const has_pointer = () => pointer_x > -9000;
+      const hasPointer = () => pointerX > -9000;
 
       const draw = (now: number) => {
-        if (is_dead) {
-          frame_id = 0;
+        if (isDead) {
+          frameId = 0;
           return;
         }
 
-        const elapsed = (now - start_time) / 1000;
-        const pointer_active = has_pointer();
-        hero_ctx.clearRect(0, 0, width, height);
+        const elapsed = (now - startTime) / 1000;
+        const pointerActive = hasPointer();
+        heroCtx.clearRect(0, 0, width, height);
 
-        hero_ctx.font = glyph_font;
-        hero_ctx.textAlign = "center";
-        hero_ctx.textBaseline = "middle";
-        hero_ctx.fillStyle = hero_ink;
+        heroCtx.font = glyphFont;
+        heroCtx.textAlign = "center";
+        heroCtx.textBaseline = "middle";
+        heroCtx.fillStyle = heroInk;
 
-        let last_alpha = -1;
+        let lastAlpha = -1;
 
         for (const particle of particles) {
           const progress = Math.max(0, elapsed - particle.delay);
 
           if (particle.is_text && progress < 0.01) {
-            if (last_alpha !== 0.02) {
-              hero_ctx.globalAlpha = 0.02;
-              last_alpha = 0.02;
+            if (lastAlpha !== 0.02) {
+              heroCtx.globalAlpha = 0.02;
+              lastAlpha = 0.02;
             }
-            hero_ctx.fillText(particle.char, particle.x, particle.y);
+            heroCtx.fillText(particle.char, particle.x, particle.y);
             continue;
           }
 
           particle.vx += (particle.tx - particle.x) * 0.038;
           particle.vy += (particle.ty - particle.y) * 0.038;
 
-          if (pointer_active) {
-            const dx = particle.x - pointer_x;
-            const dy = particle.y - pointer_y;
-            const distance_sq = dx * dx + dy * dy;
-            if (distance_sq < influence_radius_sq && distance_sq > 0) {
-              const distance = Math.sqrt(distance_sq);
-              const force = ((1 - distance / influence_radius) ** 2) * influence_force;
+          if (pointerActive) {
+            const dx = particle.x - pointerX;
+            const dy = particle.y - pointerY;
+            const distanceSq = dx * dx + dy * dy;
+            if (distanceSq < influenceRadiusSq && distanceSq > 0) {
+              const distance = Math.sqrt(distanceSq);
+              const force = ((1 - distance / influenceRadius) ** 2) * influenceForce;
               particle.vx += (dx / distance) * force;
               particle.vy += (dy / distance) * force;
             }
@@ -335,68 +335,68 @@ export function HomeAsciiHero() {
           }
 
           const alpha = Math.max(0, particle.alpha);
-          if (alpha !== last_alpha) {
-            hero_ctx.globalAlpha = alpha;
-            last_alpha = alpha;
+          if (alpha !== lastAlpha) {
+            heroCtx.globalAlpha = alpha;
+            lastAlpha = alpha;
           }
-          hero_ctx.fillText(particle.char, particle.x, particle.y);
+          heroCtx.fillText(particle.char, particle.x, particle.y);
         }
 
         // 时钟与统计直接画在同一块 canvas 上，避免额外 DOM 叠层。
-        hero_ctx.textAlign = "left";
-        hero_ctx.textBaseline = "bottom";
-        hero_ctx.fillStyle = clock_ink;
+        heroCtx.textAlign = "left";
+        heroCtx.textBaseline = "bottom";
+        heroCtx.fillStyle = clockInk;
 
-        const clock_y = height - clock_pad_y - clock_big_size * 0.28;
+        const clockY = height - clockPadY - clockBigSize * 0.28;
 
-        hero_ctx.font = clock_font_big;
-        hero_ctx.globalAlpha = 0.82;
-        last_alpha = 0.82;
-        hero_ctx.fillText(`${clock_hh}:${clock_mm}`, clock_pad_x, clock_y);
+        heroCtx.font = clockFontBig;
+        heroCtx.globalAlpha = 0.82;
+        lastAlpha = 0.82;
+        heroCtx.fillText(`${clockHh}:${clockMm}`, clockPadX, clockY);
 
-        hero_ctx.font = clock_font_small;
-        hero_ctx.globalAlpha = 0.38;
-        last_alpha = 0.38;
-        hero_ctx.fillText(`:${clock_ss}`, clock_pad_x + clock_hm_width + 2, clock_y + (clock_big_size - clock_small_size) * 0.82);
+        heroCtx.font = clockFontSmall;
+        heroCtx.globalAlpha = 0.38;
+        lastAlpha = 0.38;
+        heroCtx.fillText(`:${clockSs}`, clockPadX + clockHmWidth + 2, clockY + (clockBigSize - clockSmallSize) * 0.82);
 
-        hero_ctx.globalAlpha = 1;
-        frame_id = requestAnimationFrame(draw);
+        heroCtx.globalAlpha = 1;
+        frameId = requestAnimationFrame(draw);
       };
 
-      frame_id = requestAnimationFrame(draw);
+      frameId = requestAnimationFrame(draw);
     };
 
-    const resize_observer = new ResizeObserver(() => {
+    const resizeObserver = new ResizeObserver(() => {
       void init();
     });
-    resize_observer.observe(section);
+    resizeObserver.observe(section);
 
-    hero_canvas.addEventListener("mousemove", on_mouse, { passive: true });
-    hero_canvas.addEventListener("mouseleave", clear_pointer);
-    hero_canvas.addEventListener("touchstart", on_touch, { passive: true });
-    hero_canvas.addEventListener("touchmove", on_touch, { passive: true });
-    hero_canvas.addEventListener("touchend", clear_pointer);
+    heroCanvas.addEventListener("mousemove", onMouse, { passive: true });
+    heroCanvas.addEventListener("mouseleave", clearPointer);
+    heroCanvas.addEventListener("touchstart", onTouch, { passive: true });
+    heroCanvas.addEventListener("touchmove", onTouch, { passive: true });
+    heroCanvas.addEventListener("touchend", clearPointer);
 
     void init();
 
     return () => {
-      is_dead = true;
-      clearInterval(clock_timer);
-      if (frame_id !== 0) {
-        cancelAnimationFrame(frame_id);
+      isDead = true;
+      clearInterval(clockTimer);
+      if (frameId !== 0) {
+        cancelAnimationFrame(frameId);
       }
-      resize_observer.disconnect();
-      hero_canvas.removeEventListener("mousemove", on_mouse);
-      hero_canvas.removeEventListener("mouseleave", clear_pointer);
-      hero_canvas.removeEventListener("touchstart", on_touch);
-      hero_canvas.removeEventListener("touchmove", on_touch);
-      hero_canvas.removeEventListener("touchend", clear_pointer);
+      resizeObserver.disconnect();
+      heroCanvas.removeEventListener("mousemove", onMouse);
+      heroCanvas.removeEventListener("mouseleave", clearPointer);
+      heroCanvas.removeEventListener("touchstart", onTouch);
+      heroCanvas.removeEventListener("touchmove", onTouch);
+      heroCanvas.removeEventListener("touchend", clearPointer);
     };
-  }, [should_reduce_motion, theme]);
+  }, [shouldReduceMotion, theme]);
 
   return (
     <div
-      ref={section_ref}
+      ref={sectionRef}
       className="relative h-full w-full overflow-hidden rounded-[14px] border"
       style={{
         background: "var(--surface-canvas-background)",
@@ -412,7 +412,7 @@ export function HomeAsciiHero() {
 
       <h2 className="sr-only">{HERO_LABEL}</h2>
 
-      {should_reduce_motion ? (
+      {shouldReduceMotion ? (
         <div
           className="absolute inset-0 flex items-center justify-center font-mono text-[clamp(3rem,11vw,6.8rem)] font-light italic leading-none"
           style={{ color: "var(--primary)" }}
@@ -421,7 +421,7 @@ export function HomeAsciiHero() {
         </div>
       ) : (
         <canvas
-          ref={canvas_ref}
+          ref={canvasRef}
           className="absolute inset-0 block cursor-crosshair"
         />
       )}

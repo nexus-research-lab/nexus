@@ -20,23 +20,23 @@ export function create_empty_question_selection_state(
   questions: UserQuestion[],
 ): QuestionSelectionState {
   const selections = new Map<number, Set<string>>();
-  const custom_answers = new Map<number, string>();
+  const customAnswers = new Map<number, string>();
   questions.forEach((_, index) => {
     selections.set(index, new Set());
-    custom_answers.set(index, "");
+    customAnswers.set(index, "");
   });
-  return { selections, custom_answers };
+  return { selections, custom_answers: customAnswers };
 }
 
-function extract_answer_pairs_from_tool_result_content(
+function extractAnswerPairsFromToolResultContent(
   content: string,
 ): Map<string, string> {
   const pairs = new Map<string, string>();
   const matcher = /"([^"]+)"="([^"]*)"/g;
   let match: RegExpExecArray | null = matcher.exec(content);
   while (match) {
-    const [, question_text, answer_text] = match;
-    pairs.set(question_text, answer_text);
+    const [, questionText, answerText] = match;
+    pairs.set(questionText, answerText);
     match = matcher.exec(content);
   }
   return pairs;
@@ -44,50 +44,50 @@ function extract_answer_pairs_from_tool_result_content(
 
 export function build_submitted_selection_state(
   questions: UserQuestion[],
-  tool_result?: ToolResultContent,
+  toolResult?: ToolResultContent,
 ): QuestionSelectionState {
-  const empty_state = create_empty_question_selection_state(questions);
-  if (!tool_result || tool_result.is_error || typeof tool_result.content !== "string") {
-    return empty_state;
+  const emptyState = create_empty_question_selection_state(questions);
+  if (!toolResult || toolResult.is_error || typeof toolResult.content !== "string") {
+    return emptyState;
   }
 
-  const answer_pairs = extract_answer_pairs_from_tool_result_content(tool_result.content);
-  if (answer_pairs.size === 0) {
-    return empty_state;
+  const answerPairs = extractAnswerPairsFromToolResultContent(toolResult.content);
+  if (answerPairs.size === 0) {
+    return emptyState;
   }
 
   questions.forEach((question, index) => {
-    const answer_text = answer_pairs.get(question.question);
-    if (!answer_text) {
+    const answerText = answerPairs.get(question.question);
+    if (!answerText) {
       return;
     }
 
-    const normalized_question = normalize_question(question);
-    const option_labels = new Set(normalized_question.options.map((option) => option.label));
+    const normalizedQuestion = normalize_question(question);
+    const optionLabels = new Set(normalizedQuestion.options.map((option) => option.label));
 
-    if (normalized_question.multi_select) {
-      const answer_items = answer_text
+    if (normalizedQuestion.multi_select) {
+      const answerItems = answerText
         .split(", ")
         .map((item) => item.trim())
         .filter(Boolean);
-      const selected_options = answer_items.filter((item) => option_labels.has(item));
-      const custom_items = answer_items.filter((item) => !option_labels.has(item));
-      empty_state.selections.set(index, new Set(selected_options));
-      empty_state.custom_answers.set(index, custom_items.join(", "));
+      const selectedOptions = answerItems.filter((item) => optionLabels.has(item));
+      const customItems = answerItems.filter((item) => !optionLabels.has(item));
+      emptyState.selections.set(index, new Set(selectedOptions));
+      emptyState.custom_answers.set(index, customItems.join(", "));
       return;
     }
 
-    if (option_labels.has(answer_text)) {
-      empty_state.selections.set(index, new Set([answer_text]));
-      empty_state.custom_answers.set(index, "");
+    if (optionLabels.has(answerText)) {
+      emptyState.selections.set(index, new Set([answerText]));
+      emptyState.custom_answers.set(index, "");
       return;
     }
 
-    empty_state.selections.set(index, new Set());
-    empty_state.custom_answers.set(index, answer_text);
+    emptyState.selections.set(index, new Set());
+    emptyState.custom_answers.set(index, answerText);
   });
 
-  return empty_state;
+  return emptyState;
 }
 
 export function has_selection_state_content(state: QuestionSelectionState): boolean {
