@@ -175,6 +175,18 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionChain(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Devin @Amy 后未继续触发 Amy")
 	}
+	finishedMentionRounds := 0
+	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType != protocol.EventTypeRoundStatus {
+			return false
+		}
+		roundID, _ := event.Data["round_id"].(string)
+		status, _ := event.Data["status"].(string)
+		if strings.HasPrefix(roundID, "room_mention_") && status == "finished" {
+			finishedMentionRounds++
+		}
+		return finishedMentionRounds >= 2
+	})
 }
 
 func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {

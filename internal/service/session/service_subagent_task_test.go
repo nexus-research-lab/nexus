@@ -99,6 +99,47 @@ func TestBuildSubagentTasksMergesTaskUpdatedTerminal(t *testing.T) {
 	}
 }
 
+func TestInferSubagentTaskProgressStatusEdgeCases(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"incomplete", ""},
+		{"task is incomplete", ""},
+		{"unfinished", ""},
+		{"not completed", ""},
+		{"not complete", ""},
+		{"not done", ""},
+		{"not finished", ""},
+		{"not yet done", ""},
+		{"未完成", ""},
+		{"没完成", ""},
+		{"failed to complete", "failed"},
+		{"could not finish", "failed"},
+		{"completed successfully", "completed"},
+		{"complete", "completed"},
+		{"done.", "completed"},
+		{"已完成", "completed"},
+		{"完成", "completed"},
+		{"failed with error", "failed"},
+		{"error occurred", "failed"},
+		{"running", "running"},
+		{"in_progress", "running"},
+		{"in progress", "running"},
+		{"正在处理", "running"},
+		{"", ""},
+		{"reading files", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := inferSubagentTaskProgressStatus(tt.input)
+			if got != tt.want {
+				t.Errorf("inferSubagentTaskProgressStatus(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBuildSubagentTasksIncludesAssistantTaskProgress(t *testing.T) {
 	messages := []protocol.Message{
 		{
