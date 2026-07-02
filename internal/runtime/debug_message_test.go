@@ -52,6 +52,19 @@ func TestBuildSDKMessageLogSummaryForAssistantSnapshot(t *testing.T) {
 	}
 }
 
+func TestBuildSDKMessageLogFieldsSkipsThinkingTokens(t *testing.T) {
+	fields := BuildSDKMessageLogFields(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeSystem,
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "thinking_tokens",
+		},
+	})
+
+	if len(fields) != 0 {
+		t.Fatalf("thinking_tokens system 日志应跳过: %+v", fields)
+	}
+}
+
 func TestBuildSDKMessageLogSummaryRedactsToolInputDelta(t *testing.T) {
 	summary := BuildSDKMessageLogSummary(sdkprotocol.ReceivedMessage{
 		Type: sdkprotocol.MessageTypeStreamEvent,

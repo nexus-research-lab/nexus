@@ -26,6 +26,9 @@ func BuildSDKMessageLogFieldsWithOptions(
 	message sdkprotocol.ReceivedMessage,
 	options SDKMessageLogOptions,
 ) []any {
+	if shouldSkipSDKMessageLog(message) {
+		return nil
+	}
 	fields := []any{
 		"sdk_summary", BuildSDKMessageLogSummary(message),
 	}
@@ -58,4 +61,10 @@ func BuildSDKMessageLogFieldsWithOptions(
 		fields = append(fields, buildSystemMessageFields(message)...)
 	}
 	return fields
+}
+
+func shouldSkipSDKMessageLog(message sdkprotocol.ReceivedMessage) bool {
+	return message.Type == sdkprotocol.MessageTypeSystem &&
+		message.System != nil &&
+		message.System.Subtype == "thinking_tokens"
 }

@@ -301,16 +301,17 @@ func (s *RealtimeService) runSlot(
 				if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !s.config.MessageDebugStreamEvent {
 					return
 				}
-				streamLogger.Debug(
-					"Room slot 收到 SDK 消息",
-					runtimectx.BuildSDKMessageLogFieldsWithOptions(
-						incoming,
-						runtimectx.SDKMessageLogOptions{
-							IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
-							IncludeSnapshotData: true,
-						},
-					)...,
+				fields := runtimectx.BuildSDKMessageLogFieldsWithOptions(
+					incoming,
+					runtimectx.SDKMessageLogOptions{
+						IncludeStreamEvent:  s.config.MessageDebugStreamEvent,
+						IncludeSnapshotData: true,
+					},
 				)
+				if len(fields) == 0 {
+					return
+				}
+				streamLogger.Debug("Room slot 收到 SDK 消息", fields...)
 			}
 		},
 		SyncSessionID: func(sessionID string) error {

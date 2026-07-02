@@ -149,16 +149,17 @@ func (r *roundRunner) executeRound(
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
 			}
-			logger.Debug(
-				"Agent ",
-				runtimectx.BuildSDKMessageLogFieldsWithOptions(
-					incoming,
-					runtimectx.SDKMessageLogOptions{
-						IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
-						IncludeSnapshotData: true,
-					},
-				)...,
+			fields := runtimectx.BuildSDKMessageLogFieldsWithOptions(
+				incoming,
+				runtimectx.SDKMessageLogOptions{
+					IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
+					IncludeSnapshotData: true,
+				},
 			)
+			if len(fields) == 0 {
+				return
+			}
+			logger.Debug("Agent ", fields...)
 		},
 		SyncSessionID: func(sessionID string) error {
 			updatedSession, syncErr := r.service.syncSDKSessionID(
