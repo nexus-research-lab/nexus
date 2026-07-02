@@ -55,7 +55,6 @@ export function SkillsCatalogGrid({ ctrl, on_open_skill }: SkillsCatalogGridProp
                 class_name="transition-opacity"
                 on_delete={() => void ctrl.handle_delete_skill(skill)}
                 on_select={() => on_open_skill(skill.name)}
-                on_update={() => void ctrl.handle_update_single(skill.name)}
                 skill={skill}
               />
             ))}

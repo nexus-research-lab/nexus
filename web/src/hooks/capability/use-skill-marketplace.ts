@@ -27,6 +27,15 @@ import type {
 } from "@/features/capability/skills/skills-view-model";
 
 const MIN_EXTERNAL_SEARCH_LENGTH = 2;
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const UPDATE_CHECK_MESSAGE_TTL_MS = 5000;
+const UPDATE_CHECK_STORAGE_KEY = "nexus.skill_updates.last_checked_at";
+
+function read_last_update_check_time(): number | null {
+  if (typeof window === "undefined") return null;
+  const value = Number(window.localStorage.getItem(UPDATE_CHECK_STORAGE_KEY));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
 
 export function useSkillMarketplace(): SkillMarketplaceController {
   const [skills, set_skills] = useState<SkillInfo[]>([]);
@@ -49,6 +58,10 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   const [busy_external_key, set_busy_external_key] = useState<string | null>(null);
   const [import_dialog_mode, set_import_dialog_mode] = useState<SkillImportDialogMode | null>(null);
   const [loading, set_loading] = useState(true);
+  const [checking_updates, set_checking_updates] = useState(false);
+  const [check_update_message, set_check_update_message] = useState<string | null>(null);
+  const [last_update_checked_at, set_last_update_checked_at] = useState<number | null>(read_last_update_check_time);
+  const [importing_skill, set_importing_skill] = useState(false);
   const [busy_skill_name, set_busy_skill_name] = useState<string | null>(null);
   const [status_message, set_status_message] = useState<string | null>(null);
   const [error_message, set_error_message] = useState<string | null>(null);
@@ -189,6 +202,20 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     return list;
   }, [active_category, skills]);
 
+  const update_available_skills = useMemo(() => (
+    skills.filter((skill) => skill.has_update)
+  ), [skills]);
+
+  useEffect(() => {
+    if (!check_update_message || checking_updates || update_available_skills.length > 0) return;
+    const timer = window.setTimeout(() => {
+      set_check_update_message(null);
+    }, UPDATE_CHECK_MESSAGE_TTL_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [check_update_message, checking_updates, update_available_skills.length]);
+
   const grouped_skills = useMemo(() => {
     const map = new Map<string, SkillInfo[]>();
     visible_skills.forEach((s) => {
@@ -216,6 +243,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
   /* ── 操作 ───────────────────────────────────── */
 
   const clear_messages = () => {
+    set_check_update_message(null);
     set_status_message(null);
     set_error_message(null);
   };
@@ -268,33 +296,61 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     }
   }, [refresh_marketplace]);
 
-  const handle_check_updates = useCallback(async () => {
-    clear_messages();
+  const run_update_check = useCallback(async (manual: boolean) => {
+    if (checking_updates) return;
+    if (manual) clear_messages();
     try {
+      set_checking_updates(true);
       const result = await check_skill_updates_api();
-      set_status_message(
-        `检查完成：发现 ${result.available_skills.length} 个可更新，跳过 ${result.skipped_skills.length} 个`,
+      const available_count = result.available_skills.length;
+      const checked_at = Date.now();
+      window.localStorage.setItem(UPDATE_CHECK_STORAGE_KEY, String(checked_at));
+      set_last_update_checked_at(checked_at);
+      set_check_update_message(
+        available_count > 0 ? `发现 ${available_count} 个可更新` : manual ? "暂无更新" : null,
       );
       if (result.failures.length) {
         set_error_message(
           result.failures.map((i: SkillActionFailure) => `${i.skill_name}: ${i.error}`).join("；"),
         );
+      }
+      await refresh_marketplace();
+    } catch (err) {
+      if (manual) {
+        set_error_message(err instanceof Error ? err.message : "检查失败");
+      } else {
+        const checked_at = Date.now();
+        window.localStorage.setItem(UPDATE_CHECK_STORAGE_KEY, String(checked_at));
+        set_last_update_checked_at(checked_at);
+      }
+    } finally {
+      set_checking_updates(false);
     }
-    await refresh_marketplace();
-  } catch (err) {
-    set_error_message(err instanceof Error ? err.message : "检查失败");
-  }
-}, [refresh_marketplace]);
+  }, [checking_updates, refresh_marketplace]);
+
+  useEffect(() => {
+    const now = Date.now();
+    if (last_update_checked_at && now - last_update_checked_at < UPDATE_CHECK_INTERVAL_MS) return;
+    void run_update_check(false);
+  }, [last_update_checked_at, run_update_check]);
+
+  const handle_check_updates = useCallback(async () => {
+    await run_update_check(true);
+  }, [run_update_check]);
 
   const handle_local_import = useCallback(async (file: File) => {
     clear_messages();
     try {
+      set_importing_skill(true);
+      set_status_message(`正在导入：${file.name}...`);
       await import_local_skill_api(file);
       set_status_message(`已导入：${file.name}`);
       set_import_dialog_mode(null);
       await refresh_marketplace();
     } catch (err) {
       set_error_message(err instanceof Error ? err.message : "导入失败");
+    } finally {
+      set_importing_skill(false);
     }
   }, [refresh_marketplace]);
 
@@ -302,12 +358,16 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     clear_messages();
     if (!url.trim()) return;
     try {
+      set_importing_skill(true);
+      set_status_message("正在从 Git 拉取并导入 Skill...");
       await import_git_skill_api(url.trim(), branch?.trim() || undefined, path?.trim() || undefined);
       set_status_message("已通过 Git 导入");
       set_import_dialog_mode(null);
       await refresh_marketplace();
     } catch (err) {
       set_error_message(err instanceof Error ? err.message : "Git 导入失败");
+    } finally {
+      set_importing_skill(false);
     }
   }, [refresh_marketplace]);
 
@@ -339,6 +399,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     const external_key = `${item.source_key || item.package_spec}@@${item.skill_slug}`;
     try {
       set_busy_external_key(external_key);
+      set_status_message(`正在导入：${item.skill_slug}...`);
       await import_external_skill_api(item);
       set_status_message(`已导入：${item.skill_slug}`);
       await refresh_marketplace();
@@ -386,6 +447,10 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     source_loading,
     import_dialog_mode,
     loading,
+    checking_updates,
+    check_update_message,
+    last_update_checked_at,
+    importing_skill,
     busy_skill_name,
     busy_external_key,
     status_message,
@@ -394,6 +459,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     // 派生数据
     categories,
     visible_skills,
+    update_available_skills,
     grouped_skills,
     catalog_count,
     imported_external_sources,

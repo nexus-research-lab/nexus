@@ -1,4 +1,4 @@
-import { Compass, Download, Puzzle, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Compass, Download, Loader2, Puzzle, RefreshCw, SlidersHorizontal } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -39,15 +39,25 @@ export function SkillsHeader({ ctrl, on_replay_tour }: SkillsHeaderProps) {
       trailing={
         <div className="flex items-center gap-2">
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}>
-            <WorkspaceSurfaceToolbarAction onClick={() => ctrl.set_import_dialog_mode("local")}>
+            <WorkspaceSurfaceToolbarAction
+              disabled={ctrl.importing_skill}
+              onClick={() => ctrl.set_import_dialog_mode("local")}
+            >
               <Download className="h-3.5 w-3.5" />
-              {t("capability.import_skill")}
+              {ctrl.importing_skill ? "导入中" : t("capability.import_skill")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
-            <WorkspaceSurfaceToolbarAction onClick={() => void ctrl.handle_check_updates()}>
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t("capability.update_library")}
+            <WorkspaceSurfaceToolbarAction
+              disabled={ctrl.checking_updates}
+              onClick={() => void ctrl.handle_check_updates()}
+            >
+              {ctrl.checking_updates ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {ctrl.checking_updates ? "检查中" : t("capability.update_library")}
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center">

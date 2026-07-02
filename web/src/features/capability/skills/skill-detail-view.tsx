@@ -46,7 +46,7 @@ export function SkillDetailView({
 }: SkillDetailViewProps) {
   const [skill, set_skill] = useState<SkillDetail | null>(null);
   const [loading, set_loading] = useState(true);
-  const [acting, set_acting] = useState(false);
+  const [active_action, set_active_action] = useState<"delete" | "update" | null>(null);
   const [error, set_error] = useState<string | null>(null);
   const source_url = skill?.source_ref && /^https?:\/\//.test(skill.source_ref) ? skill.source_ref : null;
 
@@ -70,7 +70,7 @@ export function SkillDetailView({
   const handle_update = useCallback(async () => {
     if (!skill) return;
     try {
-      set_acting(true);
+      set_active_action("update");
       set_error(null);
       await update_single_skill_api(skill.name);
       await Promise.resolve(on_refreshed());
@@ -78,21 +78,21 @@ export function SkillDetailView({
     } catch (err) {
       set_error(err instanceof Error ? err.message : "更新 skill 失败");
     } finally {
-      set_acting(false);
+      set_active_action(null);
     }
   }, [load_detail, on_refreshed, skill]);
 
   const handle_delete = useCallback(async () => {
     if (!skill || !skill.deletable) return;
     try {
-      set_acting(true);
+      set_active_action("delete");
       set_error(null);
       await delete_skill_api(skill.name);
       await Promise.resolve(on_deleted());
     } catch (err) {
       set_error(err instanceof Error ? err.message : "删除 skill 失败");
     } finally {
-      set_acting(false);
+      set_active_action(null);
     }
   }, [on_deleted, skill]);
 
@@ -163,28 +163,28 @@ export function SkillDetailView({
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {skill.source_type === "external" && skill.has_update ? (
                 <UiButton
-                  disabled={acting}
+                  disabled={active_action !== null}
                   onClick={() => void handle_update()}
                   size="sm"
                   tone="primary"
                   type="button"
                   variant="solid"
                 >
-                  {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {active_action === "update" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   更新技能
                 </UiButton>
               ) : null}
               {skill.deletable ? (
                 <UiButton
-                  disabled={acting}
+                  disabled={active_action !== null}
                   onClick={() => void handle_delete()}
                   size="sm"
                   tone="danger"
                   type="button"
                   variant="surface"
                 >
-                  {acting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  删除
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {active_action === "delete" ? "删除中" : "删除"}
                 </UiButton>
               ) : null}
             </div>
@@ -195,6 +195,7 @@ export function SkillDetailView({
               <UiBadge>{skill.category_name}</UiBadge>
               <UiBadge>{get_skill_source_label(skill)}</UiBadge>
               <UiBadge>版本 {skill.version || "unknown"}</UiBadge>
+              {skill.source_type === "external" && skill.has_update ? <UiBadge tone="warning">有更新</UiBadge> : null}
               {skill.locked ? <UiBadge tone="warning">系统锁定</UiBadge> : null}
               {skill.tags.map((tag) => (
                 <UiBadge key={tag}>{tag}</UiBadge>

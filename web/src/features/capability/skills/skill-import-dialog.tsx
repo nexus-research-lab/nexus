@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Download, FileText, FolderUp, GitBranch, Info, PackageCheck } from "lucide-react";
+import { Download, FileText, FolderUp, GitBranch, Info, Loader2, PackageCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { UiButton } from "@/shared/ui/button";
@@ -61,6 +61,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   const [git_branch, set_git_branch] = useState("");
   const [git_path, set_git_path] = useState("");
   const git_url_input_ref = useRef<HTMLInputElement>(null);
+  const importing = ctrl.importing_skill;
 
   useEffect(() => {
     if (!mode) {
@@ -73,24 +74,26 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
   }, [mode]);
 
   const handle_close = useCallback(() => {
+    if (ctrl.importing_skill) return;
     set_import_dialog_mode(null);
-  }, [set_import_dialog_mode]);
+  }, [ctrl.importing_skill, set_import_dialog_mode]);
 
   if (!mode) return null;
 
   const handle_submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (importing) return;
     if (mode !== "git") return;
     void ctrl.handle_git_import(git_url, git_branch, git_path);
   };
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop class_name="z-[9999]" on_close={handle_close}>
+      <UiDialogBackdrop class_name="z-[9999]" on_close={importing ? undefined : handle_close}>
         <UiDialogFormShell class_name="max-h-[86vh]" onSubmit={handle_submit} size="xl">
           <UiDialogHeader
             icon={mode === "git" ? <GitBranch className="h-4 w-4" /> : <PackageCheck className="h-4 w-4" />}
-            on_close={handle_close}
+            on_close={importing ? undefined : handle_close}
             subtitle="导入前请确认目录内包含合法的 SKILL.md，Room 技能需要显式声明 scope: room。"
             title="导入 Skill"
           />
@@ -107,6 +110,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                         ? "bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--primary)"
                         : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                     )}
+                    disabled={importing}
                     onClick={() => ctrl.set_import_dialog_mode(item)}
                     type="button"
                   >
@@ -124,6 +128,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   >
                     <UiInput
                       aria-label="Git 仓库 URL"
+                      disabled={importing}
                       onChange={(event) => set_git_url(event.target.value)}
                       placeholder="https://github.com/owner/repo.git"
                       ref={git_url_input_ref}
@@ -138,6 +143,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       label="Branch"
                     >
                       <UiInput
+                        disabled={importing}
                         onChange={(event) => set_git_branch(event.target.value)}
                         placeholder="main"
                         value={git_branch}
@@ -148,6 +154,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       label="子目录 Path"
                     >
                       <UiInput
+                        disabled={importing}
                         onChange={(event) => set_git_path(event.target.value)}
                         placeholder="skills/room-playbook"
                         value={git_path}
@@ -168,13 +175,14 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                       </p>
                       <UiButton
                         class_name="mt-4"
+                        disabled={importing}
                         onClick={() => ctrl.file_input_ref.current?.click()}
                         size="sm"
                         tone="primary"
                         variant="solid"
                       >
-                        <FolderUp className="h-4 w-4" />
-                        选择 zip 文件
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderUp className="h-4 w-4" />}
+                        {importing ? "导入中" : "选择 zip 文件"}
                       </UiButton>
                     </div>
                   </div>
@@ -192,6 +200,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   <UiButton
                     aria-label="下载 Room 协作机制 Markdown 文档"
                     class_name="shrink-0"
+                    disabled={importing}
                     onClick={download_room_collaboration_mechanism}
                     size="xs"
                     tone="primary"
@@ -217,13 +226,19 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
           </UiDialogBody>
 
           <UiDialogFooter class_name="gap-2">
-            <UiButton onClick={handle_close} size="sm" variant="surface">
+            <UiButton disabled={importing} onClick={handle_close} size="sm" variant="surface">
               取消
             </UiButton>
             {mode === "git" ? (
-              <UiButton size="sm" tone="primary" type="submit" variant="solid">
-                <Download className="h-4 w-4" />
-                导入 Git Skill
+              <UiButton
+                disabled={importing || !git_url.trim()}
+                size="sm"
+                tone="primary"
+                type="submit"
+                variant="solid"
+              >
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {importing ? "导入中" : "导入 Git Skill"}
               </UiButton>
             ) : null}
           </UiDialogFooter>

@@ -20,6 +20,7 @@ import { SkillsExternalResults } from "./skills-external-results";
 import { SkillsHeader } from "./skills-header";
 import { SkillsSearchBar } from "./skills-search-bar";
 import { SKILLS_TOUR_ANCHORS } from "./skills-tour";
+import { SkillsUpdateHighlight } from "./skills-update-highlight";
 
 /* ── Skills 页面主编排组件 ────────────────────── */
 
@@ -45,15 +46,19 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
     await ctrl.refresh_marketplace();
     navigate(AppRouteBuilders.skills());
   }, [ctrl, navigate]);
+  const operation_pending = ctrl.checking_updates ||
+    ctrl.importing_skill ||
+    Boolean(ctrl.busy_external_key) ||
+    Boolean(ctrl.busy_skill_name);
 
   const feedback_items: FeedbackBannerItem[] = [];
   if (ctrl.status_message) {
     feedback_items.push({
       key: "status",
       message: ctrl.status_message,
-      on_dismiss: () => ctrl.set_status_message(null),
-      title: "操作完成",
-      tone: "success",
+      on_dismiss: operation_pending ? undefined : () => ctrl.set_status_message(null),
+      title: operation_pending ? "处理中" : "已完成",
+      tone: operation_pending ? "warning" : "success",
     });
   }
   if (ctrl.error_message) {
@@ -72,6 +77,7 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
       <input
         accept=".zip,application/zip"
         className="hidden"
+        disabled={ctrl.importing_skill}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void ctrl.handle_local_import(file);
@@ -115,7 +121,10 @@ export function SkillsDirectory({ on_replay_tour }: SkillsDirectoryProps) {
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.catalog}>
               {ctrl.discovery_mode === "external" && <SkillsExternalResults ctrl={ctrl} />}
               {ctrl.discovery_mode === "catalog" && (
-                <SkillsCatalogGrid ctrl={ctrl} on_open_skill={open_skill_page} />
+                <>
+                  <SkillsUpdateHighlight ctrl={ctrl} on_open_skill={open_skill_page} />
+                  <SkillsCatalogGrid ctrl={ctrl} on_open_skill={open_skill_page} />
+                </>
               )}
             </div>
           </div>

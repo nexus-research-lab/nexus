@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, Puzzle, RefreshCw, Trash2 } from "lucide-react";
+import { Lock, Puzzle, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { UiBadge } from "@/shared/ui/badge";
@@ -14,7 +14,6 @@ interface SkillsCardProps {
   busy?: boolean;
   class_name?: string;
   on_select: () => void;
-  on_update?: () => void;
   on_delete?: () => void;
 }
 
@@ -24,7 +23,6 @@ export function SkillsCard({
   busy = false,
   class_name,
   on_select,
-  on_update,
   on_delete,
 }: SkillsCardProps) {
   const {
@@ -65,17 +63,6 @@ export function SkillsCard({
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
           <SkillStatePill tone={state_tone}>{state_label}</SkillStatePill>
-          {has_update ? (
-            <UiListActionButton
-              disabled={busy}
-              onClick={on_update}
-              size="sm"
-              stop_propagation
-              title="更新"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </UiListActionButton>
-          ) : null}
           {deletable ? (
             <UiListActionButton
               disabled={busy}

@@ -35,6 +35,10 @@ export interface SkillMarketplaceController {
   source_loading: boolean;
   import_dialog_mode: SkillImportDialogMode | null;
   loading: boolean;
+  checking_updates: boolean;
+  check_update_message: string | null;
+  last_update_checked_at: number | null;
+  importing_skill: boolean;
   busy_skill_name: string | null;
   busy_external_key: string | null;
   status_message: string | null;
@@ -42,6 +46,7 @@ export interface SkillMarketplaceController {
   file_input_ref: RefObject<HTMLInputElement | null>;
   categories: Array<{ key: string; label: string }>;
   visible_skills: SkillInfo[];
+  update_available_skills: SkillInfo[];
   grouped_skills: Array<[string, SkillInfo[]]>;
   catalog_count: number;
   imported_external_sources: Map<string, Set<string>>;
