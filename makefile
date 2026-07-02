@@ -24,6 +24,7 @@ NXS_DEV_BINARY_NAME := nxs.exe
 endif
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
+PNPM ?= corepack pnpm
 
 # Default target
 .DEFAULT_GOAL := help
@@ -46,7 +47,7 @@ endif
 
 # Development commands
 run-web: ## Run frontend in development mode
-	cd web && pnpm exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
+	cd web && $(PNPM) exec vite -- --host 0.0.0.0 --port $(WEB_PORT)
 
 gen-protocol-types: ## Generate frontend protocol types from Go protocol definitions
 	go generate ./internal/protocol
@@ -96,13 +97,13 @@ install: ## Install all dependencies
 		exit 1; \
 	fi
 	@echo "Installing frontend dependencies..."
-	cd web && pnpm install
+	cd web && $(PNPM) install
 
 lint-web: ## Run frontend lint
-	cd web && pnpm run lint
+	cd web && $(PNPM) run lint
 
 typecheck-web: ## Run frontend type check
-	cd web && pnpm run typecheck
+	cd web && $(PNPM) run typecheck
 
 check-go: ## Run Go build and test checks
 	go test ./...

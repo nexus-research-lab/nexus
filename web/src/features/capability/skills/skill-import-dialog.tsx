@@ -206,7 +206,7 @@ export function SkillImportDialog({ ctrl }: SkillImportDialogProps) {
                   <li>`scope: any` 可安装到 Agent；`scope: main` 只给主 Agent；`scope: room` 只给群聊。</li>
                   <li>编写 Room Skill 时，把“room协作机制”文档交给 agent 参考，先明确公开协作和私下协作的边界。</li>
                   <li>Room Skill 导入后在群聊管理弹窗的“群聊技能”里选择，不会安装到单个 Agent。</li>
-                  <li>Git 导入会保存 URL、branch、path 和 commit，后续“更新技能库”会按这些信息重新拉取。</li>
+                  <li>Git 导入会保存 URL、branch、path 和 commit，后续检查更新会按这些信息比对远端版本。</li>
                 </ul>
               </div>
 

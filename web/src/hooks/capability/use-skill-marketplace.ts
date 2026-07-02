@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  check_skill_updates_api,
   delete_skill_api,
   get_external_skill_preview_api,
   get_available_skills_api,
@@ -10,7 +11,6 @@ import {
   list_external_skill_sources_api,
   search_external_skills_api,
   update_external_skill_source_api,
-  update_imported_skills_api,
   update_single_skill_api,
 } from "@/lib/api/skill-api";
 import type {
@@ -268,23 +268,23 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     }
   }, [refresh_marketplace]);
 
-  const handle_update_installed = useCallback(async () => {
+  const handle_check_updates = useCallback(async () => {
     clear_messages();
     try {
-      const result = await update_imported_skills_api();
+      const result = await check_skill_updates_api();
       set_status_message(
-        `更新完成：更新 ${result.updated_skills.length} 个，跳过 ${result.skipped_skills.length} 个`,
+        `检查完成：发现 ${result.available_skills.length} 个可更新，跳过 ${result.skipped_skills.length} 个`,
       );
       if (result.failures.length) {
         set_error_message(
           result.failures.map((i: SkillActionFailure) => `${i.skill_name}: ${i.error}`).join("；"),
         );
-      }
-      await refresh_marketplace();
-    } catch (err) {
-      set_error_message(err instanceof Error ? err.message : "更新失败");
     }
-  }, [refresh_marketplace]);
+    await refresh_marketplace();
+  } catch (err) {
+    set_error_message(err instanceof Error ? err.message : "检查失败");
+  }
+}, [refresh_marketplace]);
 
   const handle_local_import = useCallback(async (file: File) => {
     clear_messages();
@@ -412,7 +412,7 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     submit_external_search,
     handle_update_single,
     handle_delete_skill,
-    handle_update_installed,
+    handle_check_updates,
     handle_local_import,
     handle_git_import,
     handle_preview_external,

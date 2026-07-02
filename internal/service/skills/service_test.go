@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -248,6 +249,69 @@ skill body
 		if item.Name == "demo-skill" && item.Installed {
 			t.Fatalf("卸载后仍显示 installed: %+v", item)
 		}
+	}
+}
+
+func TestUpdateSingleSkillRedeploysInstalledAgentWorkspace(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, sqliterepo.NewAgentRepository(db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewServiceWithDB(cfg, db, agentService, workspaceService)
+	ctx := context.Background()
+
+	repoV1 := filepath.Join(t.TempDir(), "repo-v1")
+	repoV2 := filepath.Join(t.TempDir(), "repo-v2")
+	writeTestSkillDir(t, filepath.Join(repoV1, "skills", "git-skill"), "git-skill", "Git Skill v1", false)
+	writeTestSkillDir(t, filepath.Join(repoV2, "skills", "git-skill"), "git-skill", "Git Skill v2", false)
+	activeRepo := repoV1
+	activeCommit := "commit-v1"
+	service.commandRunner = func(_ context.Context, workDir string, _ []string, command ...string) (string, error) {
+		if len(command) >= 2 && command[0] == "git" && stringSliceContains(command, "clone") {
+			return "", copyDirectory(activeRepo, command[len(command)-1])
+		}
+		if len(command) >= 3 && command[0] == "git" && command[1] == "rev-parse" && workDir != "" {
+			return activeCommit, nil
+		}
+		return "", nil
+	}
+
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "技能更新助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if _, err = service.ImportGitPath(ctx, "https://example.com/skills.git", "main", "skills/git-skill"); err != nil {
+		t.Fatalf("Git 导入失败: %v", err)
+	}
+	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "git-skill"); err != nil {
+		t.Fatalf("安装 Git skill 失败: %v", err)
+	}
+	installedSkillPath := filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "git-skill", "SKILL.md")
+	payload, err := os.ReadFile(installedSkillPath)
+	if err != nil {
+		t.Fatalf("读取已安装 skill 失败: %v", err)
+	}
+	if !strings.Contains(string(payload), "Git Skill v1") {
+		t.Fatalf("初始安装内容不正确: %s", payload)
+	}
+
+	activeRepo = repoV2
+	activeCommit = "commit-v2"
+	if _, err = service.UpdateSingleSkill(ctx, "git-skill"); err != nil {
+		t.Fatalf("更新 Git skill 失败: %v", err)
+	}
+	payload, err = os.ReadFile(installedSkillPath)
+	if err != nil {
+		t.Fatalf("读取更新后 skill 失败: %v", err)
+	}
+	if !strings.Contains(string(payload), "Git Skill v2") {
+		t.Fatalf("已安装 skill 未随库更新: %s", payload)
 	}
 }
 

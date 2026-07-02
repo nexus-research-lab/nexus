@@ -45,7 +45,7 @@ export function SkillsHeader({ ctrl, on_replay_tour }: SkillsHeaderProps) {
             </WorkspaceSurfaceToolbarAction>
           </div>
           <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
-            <WorkspaceSurfaceToolbarAction onClick={() => void ctrl.handle_update_installed()}>
+            <WorkspaceSurfaceToolbarAction onClick={() => void ctrl.handle_check_updates()}>
               <RefreshCw className="h-3.5 w-3.5" />
               {t("capability.update_library")}
             </WorkspaceSurfaceToolbarAction>

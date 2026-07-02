@@ -144,3 +144,10 @@ type UpdateInstalledSkillsResponse struct {
 	SkippedSkills []string             `json:"skipped_skills"`
 	Failures      []SkillActionFailure `json:"failures"`
 }
+
+// CheckSkillUpdatesResponse 表示批量检查更新结果。
+type CheckSkillUpdatesResponse struct {
+	AvailableSkills []string             `json:"available_skills"`
+	SkippedSkills   []string             `json:"skipped_skills"`
+	Failures        []SkillActionFailure `json:"failures"`
+}

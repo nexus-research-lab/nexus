@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a Background Tasks follow-up composer that queues messages to running subagents and refreshes the subagent transcript.
 
 ### Fixed
+- Changed Skill library updates to first check imported skill sources and only show per-skill update actions when a newer remote version is detected.
 - Resumed DM and Room Goal continuations after background subagent terminal notifications instead of suppressing waiting rounds as empty progress.
 - Preserved SDK terminal `errors` text in round failure summaries instead of falling back to a generic runtime failure message.
 - Restored the scroll-to-bottom affordance inside Room Thread detail panels.

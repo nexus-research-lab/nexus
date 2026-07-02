@@ -54,6 +54,12 @@ export interface UpdateInstalledSkillsResponse {
     failures: SkillActionFailure[];
 }
 
+export interface CheckSkillUpdatesResponse {
+    available_skills: string[];
+    skipped_skills: string[];
+    failures: SkillActionFailure[];
+}
+
 export interface ExternalSkillSearchItem {
     name: string;
     title: string;
