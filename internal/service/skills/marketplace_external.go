@@ -151,3 +151,16 @@ type CheckSkillUpdatesResponse struct {
 	SkippedSkills   []string             `json:"skipped_skills"`
 	Failures        []SkillActionFailure `json:"failures"`
 }
+
+// RedeployAgentFailure 表示单个 Agent 的技能重新部署失败。
+type RedeployAgentFailure struct {
+	AgentID string `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+	Error   string `json:"error"`
+}
+
+// RedeployResult 表示技能重新部署到多 Agent 的聚合结果。
+type RedeployResult struct {
+	SuccessAgents []string               `json:"success_agents"`
+	Failures      []RedeployAgentFailure `json:"failures"`
+}

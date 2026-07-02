@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -82,11 +83,23 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 			})
 			continue
 		}
-		if redeployErr := s.redeploySkillToInstalledAgents(ctx, detail.Name); redeployErr != nil {
+		if redeployResult, redeployErr := s.redeploySkillToInstalledAgents(ctx, detail.Name); redeployErr != nil {
 			result.Failures = append(result.Failures, SkillActionFailure{
 				SkillName: name,
 				Error:     redeployErr.Error(),
 			})
+			continue
+		} else if len(redeployResult.Failures) > 0 {
+			for _, f := range redeployResult.Failures {
+				result.Failures = append(result.Failures, SkillActionFailure{
+					SkillName: name,
+					Error:     fmt.Sprintf("agent %s (%s): %s", f.AgentName, f.AgentID, f.Error),
+				})
+			}
+			// Even if some agents failed, the skill was updated for successful ones
+			if len(redeployResult.SuccessAgents) > 0 {
+				result.UpdatedSkills = append(result.UpdatedSkills, name)
+			}
 			continue
 		}
 		result.UpdatedSkills = append(result.UpdatedSkills, name)
@@ -108,8 +121,14 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 	if err != nil {
 		return nil, err
 	}
-	if err = s.redeploySkillToInstalledAgents(ctx, detail.Name); err != nil {
+	redeployResult, err := s.redeploySkillToInstalledAgents(ctx, detail.Name)
+	if err != nil {
 		return nil, err
+	}
+	if len(redeployResult.Failures) > 0 {
+		// Return detail with a warning about partial failures.
+		// The caller can inspect Failures for details.
+		detail.DeployFailures = redeployResult.Failures
 	}
 	return detail, nil
 }
