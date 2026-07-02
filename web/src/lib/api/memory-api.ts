@@ -22,6 +22,10 @@ function user_memory_base_url(): string {
   return `${AGENT_API_BASE_URL}/memory`;
 }
 
+function room_conversation_memory_base_url(room_id: string, conversation_id: string): string {
+  return `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(room_id)}/conversations/${encodeURIComponent(conversation_id)}/memory`;
+}
+
 function memory_items_query(params: { limit?: number; status?: string; scope?: string } = {}): string {
   const query = new URLSearchParams();
   if (params.limit) {
@@ -57,6 +61,59 @@ export async function list_user_memory_items_api(
     { method: "GET" },
   );
   return result.items;
+}
+
+export async function list_room_shared_memory_items_api(
+  room_id: string,
+  conversation_id: string,
+  params: { limit?: number; status?: string } = {},
+): Promise<MemoryItem[]> {
+  const suffix = memory_items_query(params);
+  const result = await request_api<MemoryItemsResponse>(
+    `${room_conversation_memory_base_url(room_id, conversation_id)}/items${suffix}`,
+    { method: "GET" },
+  );
+  return result.items;
+}
+
+export async function add_room_shared_memory_item_api(
+  room_id: string,
+  conversation_id: string,
+  input: MemoryWriteInput,
+): Promise<MemoryItem> {
+  return request_api<MemoryItem>(
+    `${room_conversation_memory_base_url(room_id, conversation_id)}/items`,
+    {
+      method: "POST",
+      body: { ...input },
+    },
+  );
+}
+
+export async function update_room_shared_memory_item_api(
+  room_id: string,
+  conversation_id: string,
+  entry_id: string,
+  input: MemoryWriteInput,
+): Promise<MemoryItem> {
+  return request_api<MemoryItem>(
+    `${room_conversation_memory_base_url(room_id, conversation_id)}/items/${encodeURIComponent(entry_id)}`,
+    {
+      method: "PATCH",
+      body: { ...input },
+    },
+  );
+}
+
+export async function delete_room_shared_memory_item_api(
+  room_id: string,
+  conversation_id: string,
+  entry_id: string,
+): Promise<{ deleted: boolean }> {
+  return request_api<{ deleted: boolean }>(
+    `${room_conversation_memory_base_url(room_id, conversation_id)}/items/${encodeURIComponent(entry_id)}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function search_memory_items_api(
@@ -159,6 +216,16 @@ export async function get_user_memory_stats_api(): Promise<MemoryStats> {
   return request_api<MemoryStats>(`${user_memory_base_url()}/stats`, {
     method: "GET",
   });
+}
+
+export async function get_room_shared_memory_stats_api(
+  room_id: string,
+  conversation_id: string,
+): Promise<MemoryStats> {
+  return request_api<MemoryStats>(
+    `${room_conversation_memory_base_url(room_id, conversation_id)}/stats`,
+    { method: "GET" },
+  );
 }
 
 export async function cleanup_memory_api(agent_id: string): Promise<MemoryCleanupResult> {
