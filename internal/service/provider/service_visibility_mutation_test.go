@@ -135,6 +135,74 @@ func TestProviderVisibilityScopesProvidersByOwner(t *testing.T) {
 	}
 }
 
+func TestProviderPublicAdminMethodsUsePublicScope(t *testing.T) {
+	service, _ := newTestService(t)
+	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
+	memberCtx := providerTestContext("member-user", authctx.RoleMember)
+
+	publicProvider, err := service.CreatePublic(adminCtx, CreateInput{
+		Provider:    "shared-admin",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "public-key",
+		BaseURL:     "https://public.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Public Shared",
+	})
+	if err != nil {
+		t.Fatalf("创建公共 provider 失败: %v", err)
+	}
+	privateProvider, err := service.Create(adminCtx, CreateInput{
+		Provider:    publicProvider.Provider,
+		Visibility:  providerstore.VisibilityPrivate,
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "private-key",
+		BaseURL:     "https://private.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Private Shared",
+	})
+	if err != nil {
+		t.Fatalf("创建同名私有 provider 失败: %v", err)
+	}
+
+	publicRecords, err := service.ListPublic(adminCtx)
+	if err != nil {
+		t.Fatalf("读取公共 provider 列表失败: %v", err)
+	}
+	if len(publicRecords) != 1 || publicRecords[0].ID != publicProvider.ID {
+		t.Fatalf("公共 provider 列表不应混入同名私有项: %+v", publicRecords)
+	}
+	updated, err := service.UpdatePublic(adminCtx, publicProvider.Provider, UpdateInput{
+		PresetKey:    presetCustom,
+		APIFormat:    APIFormatAnthropicMessages,
+		DisplayName:  "Public Updated",
+		AuthToken:    stringPointer("public-new-key"),
+		BaseURL:      "https://public-updated.example.com",
+		ModelsPath:   "/models",
+		ProviderKind: ProviderKindLLM,
+		Enabled:      true,
+	})
+	if err != nil {
+		t.Fatalf("更新公共 provider 失败: %v", err)
+	}
+	if updated.ID != publicProvider.ID || updated.DisplayName != "Public Updated" {
+		t.Fatalf("公共 provider 更新没有命中公共作用域: %+v", updated)
+	}
+	visible, err := service.Get(adminCtx, publicProvider.Provider)
+	if err != nil {
+		t.Fatalf("读取可见 provider 失败: %v", err)
+	}
+	if visible.ID != privateProvider.ID || visible.DisplayName != "Private Shared" {
+		t.Fatalf("普通可见读取仍应优先同名私有 provider: %+v", visible)
+	}
+	if _, err = service.ListPublic(memberCtx); err == nil || !strings.Contains(err.Error(), "只有管理员") {
+		t.Fatalf("普通成员不应能读取订阅 provider 管理列表: %v", err)
+	}
+}
+
 func TestProviderPublicCreateRequiresAdmin(t *testing.T) {
 	service, _ := newTestService(t)
 	memberCtx := providerTestContext("member-user", authctx.RoleMember)

@@ -59,6 +59,9 @@ const ConnectorOAuthCallbackPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("@/pages/settings/settings-page").then((m) => ({ default: m.SettingsPage })),
 );
+const OperationsPage = lazy(() =>
+  import("@/pages/operations/operations-page").then((m) => ({ default: m.OperationsPage })),
+);
 const MemoryPage = lazy(() =>
   import("@/pages/memory/memory-page").then((m) => ({ default: m.MemoryPage })),
 );
@@ -123,6 +126,7 @@ export function AppRouter() {
                   <Route element={<MemoryPage />} path={APP_ROUTE_PATHS.memory} />
 
                   {/* 其他占位路由 */}
+                  <Route element={<OperationsPage />} path={APP_ROUTE_PATHS.operations} />
                   <Route element={<SettingsPage />} path={APP_ROUTE_PATHS.settings} />
                 </Route>
               </Route>

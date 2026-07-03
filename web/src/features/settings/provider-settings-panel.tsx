@@ -8,10 +8,22 @@ import {
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import {
   createProviderConfigApi,
+  createSubscriptionProviderConfigApi,
   deleteProviderConfigApi,
+  deleteSubscriptionProviderConfigApi,
+  fetchProviderModelsApi,
+  fetchSubscriptionProviderModelsApi,
   listProviderConfigsApi,
   listProviderPresetsApi,
+  listSubscriptionProviderConfigsApi,
+  testProviderConfigApi,
+  testProviderModelApi,
+  testSubscriptionProviderConfigApi,
+  testSubscriptionProviderModelApi,
   updateProviderConfigApi,
+  updateProviderModelApi,
+  updateSubscriptionProviderConfigApi,
+  updateSubscriptionProviderModelApi,
 } from "@/lib/api/provider-config-api";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -34,7 +46,10 @@ import { ProviderSettingsDetailHeader } from "./provider-settings/provider-setti
 import { ProviderSettingsModelList } from "./provider-settings/provider-settings-model-list";
 import { ProviderModelOptionsDialog } from "./provider-settings/provider-settings-model-options-dialog";
 import { ProviderSettingsSidebar } from "./provider-settings/provider-settings-sidebar";
-import { useProviderModelActions } from "./provider-settings/use-provider-model-actions";
+import {
+  type ProviderModelActionsApi,
+  useProviderModelActions,
+} from "./provider-settings/use-provider-model-actions";
 import {
   API_FORMAT_LABELS,
   DEFAULT_AGENT_API_FORMAT,
@@ -65,10 +80,51 @@ import {
 
 interface ProviderSettingsPanelProps {
   embedded?: boolean;
+  visibilityScope?: ProviderConfigRecord["visibility"];
 }
 
-export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPanelProps) {
+interface ProviderSettingsApi {
+  listConfigs: () => Promise<ProviderConfigRecord[]>;
+  createConfig: typeof createProviderConfigApi;
+  updateConfig: typeof updateProviderConfigApi;
+  deleteConfig: typeof deleteProviderConfigApi;
+  model: ProviderModelActionsApi;
+}
+
+const PRIVATE_PROVIDER_SETTINGS_API: ProviderSettingsApi = {
+  listConfigs: listProviderConfigsApi,
+  createConfig: createProviderConfigApi,
+  updateConfig: updateProviderConfigApi,
+  deleteConfig: deleteProviderConfigApi,
+  model: {
+    fetchModels: fetchProviderModelsApi,
+    updateModel: updateProviderModelApi,
+    testProvider: testProviderConfigApi,
+    testModel: testProviderModelApi,
+  },
+};
+
+const PUBLIC_PROVIDER_SETTINGS_API: ProviderSettingsApi = {
+  listConfigs: listSubscriptionProviderConfigsApi,
+  createConfig: createSubscriptionProviderConfigApi,
+  updateConfig: updateSubscriptionProviderConfigApi,
+  deleteConfig: deleteSubscriptionProviderConfigApi,
+  model: {
+    fetchModels: fetchSubscriptionProviderModelsApi,
+    updateModel: updateSubscriptionProviderModelApi,
+    testProvider: testSubscriptionProviderConfigApi,
+    testModel: testSubscriptionProviderModelApi,
+  },
+};
+
+export function ProviderSettingsPanel({
+  embedded = false,
+  visibilityScope = "private",
+}: ProviderSettingsPanelProps) {
   const { t } = useI18n();
+  const providerApi = visibilityScope === "public"
+    ? PUBLIC_PROVIDER_SETTINGS_API
+    : PRIVATE_PROVIDER_SETTINGS_API;
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [providers, setProviders] = useState<ProviderConfigRecord[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -157,10 +213,11 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     try {
       const [nextPresets, nextProviders] = await Promise.all([
         listProviderPresetsApi(),
-        listProviderConfigsApi(),
+        providerApi.listConfigs(),
       ]);
       setPresets(nextPresets);
-      const orderedItems = orderProviderRecords(nextProviders, providersRef.current);
+      const scopedProviders = nextProviders.filter((item) => item.visibility === visibilityScope);
+      const orderedItems = orderProviderRecords(scopedProviders, providersRef.current);
       setProviders(orderedItems);
       invalidateProviderAvailability();
       const target = orderedItems.find((item) => item.provider === preferredProvider)
@@ -194,7 +251,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [providerApi, t, visibilityScope]);
 
   useEffect(() => {
     void refreshAll();
@@ -282,10 +339,11 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
           payload.auth_token = normalizedAuthToken;
         }
         const result = isEditing && selectedRecord
-          ? await updateProviderConfigApi(selectedRecord.provider, payload)
-          : await createProviderConfigApi({
+          ? await providerApi.updateConfig(selectedRecord.provider, payload)
+          : await providerApi.createConfig({
             ...payload,
             provider: nextDraft.provider.trim(),
+            visibility: visibilityScope,
             auth_token: normalizedAuthToken,
             provider_kind: nextDraft.provider_kind,
             display_name: payload.display_name,
@@ -322,7 +380,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
         savePromiseRef.current = null;
       }
     }
-  }, [currentPreset, draft, isCreating, isEditing, isEmptyMode, refreshAll, selectedRecord, t]);
+  }, [currentPreset, draft, isCreating, isEditing, isEmptyMode, providerApi, refreshAll, selectedRecord, t, visibilityScope]);
 
   const handleProviderFieldBlur = useCallback(() => {
     if (!canSave || pendingAction || submitting) {
@@ -375,7 +433,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     }
     try {
       setSubmitting(true);
-      const result = await deleteProviderConfigApi(deleteTargetRecord.provider, { force });
+      const result = await providerApi.deleteConfig(deleteTargetRecord.provider, { force });
       setDeleteConfirmOpen(false);
       setDeleteUsageOpen(false);
       setDeleteTargetProvider(null);
@@ -403,7 +461,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     } finally {
       setSubmitting(false);
     }
-  }, [deleteTargetRecord, refreshAll, submitting, t]);
+  }, [deleteTargetRecord, providerApi, refreshAll, submitting, t]);
 
   const {
     addModelOpen,
@@ -429,6 +487,7 @@ export function ProviderSettingsPanel({ embedded = false }: ProviderSettingsPane
     testModelOptions,
   } = useProviderModelActions({
     apiFormat: draft.api_format,
+    modelApi: providerApi.model,
     pendingAction,
     refreshAll,
     saveProvider: handleSave,

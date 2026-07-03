@@ -155,6 +155,7 @@ export function PersonalSettingsPanel() {
   const canSubmitPassword = !validationError && !submitting && !loading;
   const usage = profile?.token_usage;
   const avatar = profile?.user.avatar ?? "";
+  const subscription = profile?.subscription;
   const canUpdateAvatar = Boolean(profile?.can_update_profile) && !savingAvatar;
 
   const handleChangePassword = useCallback(async (event: FormEvent<HTMLFormElement>) => {
@@ -248,8 +249,18 @@ export function PersonalSettingsPanel() {
                       <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
                         {profile?.user.display_name || profile?.user.username || "--"}
                       </h3>
-                      <p className="mt-1 truncate text-[12px] leading-5 text-(--text-soft)">
-                        {profile?.user.username || "--"}
+                      <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] leading-5 text-(--text-soft)">
+                        <span className="min-w-0 truncate">
+                          {profile?.user.username || "--"}
+                        </span>
+                        {subscription ? (
+                          <>
+                            <span className="shrink-0 text-(--text-muted)">·</span>
+                            <span className="shrink-0 rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-semibold text-(--text-muted)">
+                              {subscription.plan_name}
+                            </span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                   </div>

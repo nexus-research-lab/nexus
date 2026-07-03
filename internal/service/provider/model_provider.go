@@ -80,6 +80,7 @@ type ModelSelection struct {
 type Option struct {
 	Provider    string        `json:"provider"`
 	DisplayName string        `json:"display_name"`
+	Visibility  string        `json:"visibility,omitempty"`
 	Models      []ModelOption `json:"models"`
 }
 

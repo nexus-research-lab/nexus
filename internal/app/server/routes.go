@@ -6,12 +6,29 @@ import "strings"
 func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()
+	s.mountAdminRoutes()
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountAdminRoutes 挂载管理员运营接口。
+func (s *Server) mountAdminRoutes() {
+	s.router.Get(s.prefixPath("/admin/subscription/overview"), s.handlers.subscription.HandleOverview)
+	s.router.Post(s.prefixPath("/admin/subscription/plans"), s.handlers.subscription.HandleUpsertPlan)
+	s.router.Put(s.prefixPath("/admin/subscription/plans/{plan_key}"), s.handlers.subscription.HandleUpsertPlan)
+	s.router.Put(s.prefixPath("/admin/subscription/users/{user_id}"), s.handlers.subscription.HandleUpdateUserSubscription)
+	s.router.Get(s.prefixPath("/admin/subscription/providers"), s.handlers.provider.HandleListSubscriptionProviderConfigs)
+	s.router.Post(s.prefixPath("/admin/subscription/providers"), s.handlers.provider.HandleCreateSubscriptionProviderConfig)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchSubscriptionProviderModels)
+	s.router.Put(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateSubscriptionProviderModel)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/test"), s.handlers.provider.HandleTestSubscriptionProviderConfig)
+	s.router.Post(s.prefixPath("/admin/subscription/providers/{provider}/models/{model_id}/test"), s.handlers.provider.HandleTestSubscriptionProviderModel)
+	s.router.Put(s.prefixPath("/admin/subscription/providers/{provider}"), s.handlers.provider.HandleUpdateSubscriptionProviderConfig)
+	s.router.Delete(s.prefixPath("/admin/subscription/providers/{provider}"), s.handlers.provider.HandleDeleteSubscriptionProviderConfig)
 }
 
 // prefixPath 返回带 config.APIPrefix 前缀的完整路径。

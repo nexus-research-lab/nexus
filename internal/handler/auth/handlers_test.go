@@ -92,7 +92,10 @@ func TestPersonalProfileAndChangePassword(t *testing.T) {
 	if profile.User.Avatar != "" {
 		t.Fatalf("初始头像应为空: %+v", profile.User)
 	}
-	if profile.TokenUsage.QuotaLimitTokens != nil || profile.TokenUsage.TotalTokens != 0 {
+	if profile.Subscription == nil || profile.Subscription.PlanKey != "free" || profile.Subscription.PlanName != "Free" {
+		t.Fatalf("初始订阅套餐不正确: %+v", profile.Subscription)
+	}
+	if profile.TokenUsage.QuotaLimitTokens == nil || *profile.TokenUsage.QuotaLimitTokens != 200000 || profile.TokenUsage.TotalTokens != 0 {
 		t.Fatalf("初始 token 用量不正确: %+v", profile.TokenUsage)
 	}
 	updatedProfile := updatePersonalAvatar(t, httpServer.URL, cookie, "12")
@@ -173,6 +176,10 @@ type personalProfileResponse struct {
 		TotalTokens      int64  `json:"total_tokens"`
 		QuotaLimitTokens *int64 `json:"quota_limit_tokens"`
 	} `json:"token_usage"`
+	Subscription *struct {
+		PlanKey  string `json:"plan_key"`
+		PlanName string `json:"plan_name"`
+	} `json:"subscription"`
 	CanChangePassword bool `json:"can_change_password"`
 	CanUpdateProfile  bool `json:"can_update_profile"`
 }

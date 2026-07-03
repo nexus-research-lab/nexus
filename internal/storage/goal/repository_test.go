@@ -227,6 +227,14 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	if _, err := db.Exec(`CREATE TABLE rooms (id VARCHAR(64) NOT NULL PRIMARY KEY)`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec(`CREATE TABLE conversations (
+		id VARCHAR(64) NOT NULL PRIMARY KEY,
+		room_id VARCHAR(64) NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+	)`); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
@@ -240,8 +248,8 @@ func TestGoalCompatMigrationRunsAfterAppliedVersion36(t *testing.T) {
 	if err := db.QueryRow("SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1").Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 43 {
-		t.Fatalf("goose version = %d, want 43", version)
+	if version != 45 {
+		t.Fatalf("goose version = %d, want 45", version)
 	}
 }
 

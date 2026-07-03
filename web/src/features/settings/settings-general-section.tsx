@@ -333,16 +333,25 @@ export function SettingsGeneralSection() {
   );
 
   const defaultModelOptions = useMemo(
-    () => buildDefaultModelOptions(providerOptions),
-    [providerOptions],
+    () => buildDefaultModelOptions(
+      providerOptions,
+      t("settings.providers.subscription_badge"),
+    ),
+    [providerOptions, t],
   );
   const defaultImageModelOptions = useMemo(
-    () => buildDefaultModelOptions(imageProviderOptions),
-    [imageProviderOptions],
+    () => buildDefaultModelOptions(
+      imageProviderOptions,
+      t("settings.providers.subscription_badge"),
+    ),
+    [imageProviderOptions, t],
   );
   const defaultBackgroundModelOptions = useMemo(
-    () => buildDefaultModelOptions(backgroundProviderOptions),
-    [backgroundProviderOptions],
+    () => buildDefaultModelOptions(
+      backgroundProviderOptions,
+      t("settings.providers.subscription_badge"),
+    ),
+    [backgroundProviderOptions, t],
   );
 
   const handleDefaultModelChange = useCallback(

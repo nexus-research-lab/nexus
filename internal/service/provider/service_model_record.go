@@ -59,6 +59,39 @@ func (s *Service) requireProvider(ctx context.Context, provider string) (*provid
 	return item, nil
 }
 
+func (s *Service) getPublicProvider(ctx context.Context, provider string) (string, *providerstore.Entity, error) {
+	if err := requirePublicProviderManagement(ctx); err != nil {
+		return "", nil, err
+	}
+	normalizedProvider, err := NormalizeProvider(provider, false)
+	if err != nil {
+		return "", nil, err
+	}
+	item, err := s.repository.GetScopedByProvider(ctx, providerstore.VisibilityPublic, "", normalizedProvider)
+	if err != nil {
+		return "", nil, err
+	}
+	if item == nil {
+		return "", nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
+	}
+	normalizeBuiltinEndpoint(item)
+	return normalizedProvider, item, nil
+}
+
+func (s *Service) requirePublicProvider(ctx context.Context, provider string) (*providerstore.Entity, error) {
+	_, item, err := s.getPublicProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(item.AuthToken) == "" {
+		return nil, fmt.Errorf("provider=%s 缺少 auth_token", item.Provider)
+	}
+	if strings.TrimSpace(item.BaseURL) == "" {
+		return nil, fmt.Errorf("provider=%s 缺少 base_url", item.Provider)
+	}
+	return item, nil
+}
+
 func normalizeModelID(modelID string) string {
 	trimmed := strings.TrimSpace(modelID)
 	if trimmed == "" {

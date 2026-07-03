@@ -1,6 +1,11 @@
 "use client";
 
-import { ArrowLeft, Cable, Palette, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Cable,
+  Palette,
+  UserRound,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -20,7 +25,10 @@ import { PersonalSettingsPanel } from "./personal-settings-panel";
 import { ProviderSettingsPanel } from "./provider-settings-panel";
 import { SettingsGeneralSection } from "./settings-general-section";
 
-type SettingsTabKey = "general" | "personal" | "providers";
+type SettingsTabKey =
+  | "general"
+  | "personal"
+  | "providers";
 
 const SETTINGS_TABS: {
   key: SettingsTabKey;
@@ -42,6 +50,7 @@ export function SettingsPanel() {
   const activeTabConfig =
     SETTINGS_TABS.find((item) => item.key === activeTab) ?? SETTINGS_TABS[0];
   const ActiveIcon = activeTabConfig.icon;
+
   const handleBackToWorkspace = useCallback(() => {
     if (isDesktopBridgeAvailable()) {
       void openDesktopRoute(APP_ROUTE_PATHS.home).catch((error) => {

@@ -15,9 +15,10 @@ type authLoginPayload struct {
 
 // Handlers 封装认证域 HTTP handlers。
 type Handlers struct {
-	api   *handlershared.API
-	auth  *authsvc.Service
-	usage tokenUsageStore
+	api          *handlershared.API
+	auth         *authsvc.Service
+	usage        tokenUsageStore
+	subscription subscriptionStore
 }
 
 // New 创建认证域 handlers。
@@ -25,11 +26,13 @@ func New(
 	api *handlershared.API,
 	auth *authsvc.Service,
 	usage tokenUsageStore,
+	subscription subscriptionStore,
 ) *Handlers {
 	return &Handlers{
-		api:   api,
-		auth:  auth,
-		usage: usage,
+		api:          api,
+		auth:         auth,
+		usage:        usage,
+		subscription: subscription,
 	}
 }
 

@@ -16,6 +16,7 @@ import {
   PanelLeftOpen,
   Puzzle,
   Settings,
+  ShieldCheck,
   type LucideIcon,
   Users2,
 } from "lucide-react";
@@ -69,7 +70,7 @@ function derivePrimaryTabFromPath(pathname: string): SidebarPrimaryTab {
 
 export function SidebarWidePanel() {
   const { t } = useI18n();
-  const { logout } = useAuth();
+  const { logout, status } = useAuth();
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
@@ -84,8 +85,11 @@ export function SidebarWidePanel() {
   const setWidePanelCollapsed = useSidebarStore((s) => s.set_wide_panel_collapsed);
   const toggleWidePanelCollapsed = useSidebarStore((s) => s.toggle_wide_panel_collapsed);
   const isSettingsRoute = pathname.startsWith(AppRouteBuilders.settings());
+  const isOperationsRoute = pathname.startsWith(AppRouteBuilders.operations());
   const activePrimaryTab = derivePrimaryTabFromPath(pathname);
   const shouldShowLogout = !isDesktopRuntime();
+  const canViewOperations =
+    !isDesktopRuntime() && (status?.role === "owner" || status?.role === "admin");
   const prefersReducedMotion = usePrefersReducedMotion();
   const defaultAgentId = getDefaultAgentId();
   const nexusAgent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
@@ -236,6 +240,20 @@ export function SidebarWidePanel() {
         </div>
 
         <div className="flex flex-col items-center gap-1.5 border-t divider-subtle py-3">
+          {canViewOperations ? (
+            <Link
+              aria-label={t("sidebar.operations")}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                isOperationsRoute && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+              )}
+              title={t("sidebar.operations")}
+              to={AppRouteBuilders.operations()}
+            >
+              <ShieldCheck className="h-4 w-4" />
+            </Link>
+          ) : null}
+
           <Link
             aria-label={t("sidebar.settings")}
             className={cn(
@@ -460,6 +478,19 @@ export function SidebarWidePanel() {
 
       <div className="relative flex items-center justify-between gap-2.5 border-t divider-subtle px-3 py-3">
           <div className="flex items-center gap-2.5">
+            {canViewOperations ? (
+              <Link
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                  isOperationsRoute && "bg-(--surface-interactive-active-background) text-(--text-strong)",
+                )}
+                title={t("sidebar.operations")}
+                to={AppRouteBuilders.operations()}
+              >
+                <ShieldCheck className="h-4 w-4" />
+              </Link>
+            ) : null}
+
             <Link
               className={cn(
                 "flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-(background,color) duration-(--motion-duration-normal) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",

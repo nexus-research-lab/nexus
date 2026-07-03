@@ -1,5 +1,8 @@
 import { getUserPreferences } from "@/config/options";
-import type { ProviderOption } from "@/types/capability/provider";
+import {
+  formatProviderOptionLabel,
+  type ProviderOption,
+} from "@/types/capability/provider";
 import {
   normalizeAgentRuntimeKind,
   type UpdateUserPreferencesParams,
@@ -114,10 +117,13 @@ export function encodeOptionalModelSelection(
   return encodeDefaultModelValue(normalizedProvider, normalizedModel);
 }
 
-export function buildDefaultModelOptions(providerOptions: ProviderOption[]) {
+export function buildDefaultModelOptions(
+  providerOptions: ProviderOption[],
+  subscriptionLabel: string,
+) {
   return providerOptions.flatMap((provider) => (
     provider.models.map((model) => {
-      const providerLabel = provider.display_name || provider.provider;
+      const providerLabel = formatProviderOptionLabel(provider, subscriptionLabel);
       const modelLabel = model.display_name || model.model_id;
       return {
         value: encodeDefaultModelValue(provider.provider, model.model_id),

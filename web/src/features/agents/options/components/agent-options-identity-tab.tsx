@@ -9,17 +9,23 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { Plus, X as XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  AGENT_ICON_ID_END,
+  AGENT_ICON_ID_START,
+  cn,
+} from "@/lib/utils";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
-import type { ProviderOption } from "@/types/capability/provider";
+import {
+  formatProviderLabel,
+  formatProviderOptionLabel,
+  type ProviderOption,
+} from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/avatar";
 import { UiIconButton } from "@/shared/ui/button";
 import { UiInput, UiTextarea } from "@/shared/ui/form-control";
 import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import { UiSelectMenu } from "@/shared/ui/select-menu";
-import { AGENT_ICON_ID_END, AGENT_ICON_ID_START } from "@/lib/utils";
-import { formatProviderLabel } from "@/types/capability/provider";
 
 interface AgentOptionsIdentityTabProps {
   avatar: string;
@@ -80,14 +86,17 @@ export function AgentOptionsIdentityTab({
   const modelSelectOptions = useMemo(() => [
     { value: "", label: defaultModelOptionLabel },
     ...providerOptions.flatMap((providerOption) => providerOption.models.map((modelOption) => {
-      const providerLabel = providerOption.display_name || formatProviderLabel(providerOption.provider);
+      const providerLabel = formatProviderOptionLabel(
+        providerOption,
+        t("settings.providers.subscription_badge"),
+      );
       const modelLabel = modelOption.display_name || modelOption.model_id;
       return {
         value: JSON.stringify([providerOption.provider, modelOption.model_id]),
         label: `${providerLabel} / ${modelLabel}`,
       };
     })),
-  ], [defaultModelOptionLabel, providerOptions]);
+  ], [defaultModelOptionLabel, providerOptions, t]);
 
   const handleModelSelectChange = useCallback((value: string) => {
     if (!value) {

@@ -9,9 +9,12 @@ import {
 } from "@/lib/api/provider-config-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
+  FetchProviderModelsResponse,
   ProviderApiFormat,
   ProviderConfigRecord,
   ProviderModelRecord,
+  ProviderTestResult,
+  UpdateProviderModelPayload,
 } from "@/types/capability/provider";
 
 import {
@@ -31,8 +34,20 @@ type SaveProviderConfig = (options?: {
   showSuccess?: boolean;
 }) => Promise<ProviderConfigRecord | null>;
 
+export interface ProviderModelActionsApi {
+  fetchModels: (provider: string) => Promise<FetchProviderModelsResponse>;
+  updateModel: (
+    provider: string,
+    modelId: string,
+    payload: UpdateProviderModelPayload,
+  ) => Promise<ProviderModelRecord>;
+  testProvider: (provider: string) => Promise<ProviderTestResult>;
+  testModel: (provider: string, modelId: string) => Promise<ProviderTestResult>;
+}
+
 interface UseProviderModelActionsOptions {
   apiFormat: ProviderApiFormat;
+  modelApi?: ProviderModelActionsApi;
   pendingAction: string | null;
   selectedCanManage: boolean;
   selectedRecord: ProviderConfigRecord | null;
@@ -43,8 +58,16 @@ interface UseProviderModelActionsOptions {
   t: I18nContextValue["t"];
 }
 
+const DEFAULT_PROVIDER_MODEL_API: ProviderModelActionsApi = {
+  fetchModels: fetchProviderModelsApi,
+  updateModel: updateProviderModelApi,
+  testProvider: testProviderConfigApi,
+  testModel: testProviderModelApi,
+};
+
 export function useProviderModelActions({
   apiFormat,
+  modelApi = DEFAULT_PROVIDER_MODEL_API,
   pendingAction,
   selectedCanManage,
   selectedRecord,
@@ -99,7 +122,7 @@ export function useProviderModelActions({
       if (!providerRecord) {
         return;
       }
-      const result = await fetchProviderModelsApi(providerRecord.provider);
+      const result = await modelApi.fetchModels(providerRecord.provider);
       await refreshAll(providerRecord.provider);
       setFeedback({
         tone: "success",
@@ -121,6 +144,7 @@ export function useProviderModelActions({
       setPendingAction(null);
     }
   }, [
+    modelApi,
     pendingAction,
     refreshAll,
     saveProvider,
@@ -155,7 +179,7 @@ export function useProviderModelActions({
     }
     try {
       setPendingAction(`add-model:${modelId}`);
-      await updateProviderModelApi(selectedRecord.provider, modelId, {
+      await modelApi.updateModel(selectedRecord.provider, modelId, {
         enabled: manualModelEnabled,
         is_default: false,
         capabilities_override: {},
@@ -188,6 +212,7 @@ export function useProviderModelActions({
   }, [
     manualModelEnabled,
     manualModelId,
+    modelApi,
     pendingAction,
     refreshAll,
     selectedCanManage,
@@ -210,7 +235,7 @@ export function useProviderModelActions({
       if (!providerRecord) {
         return;
       }
-      const result = await testProviderConfigApi(providerRecord.provider);
+      const result = await modelApi.testProvider(providerRecord.provider);
       await refreshAll(providerRecord.provider);
       setFeedback({
         tone: result.success ? "success" : "error",
@@ -236,6 +261,7 @@ export function useProviderModelActions({
       setPendingAction(null);
     }
   }, [
+    modelApi,
     pendingAction,
     refreshAll,
     saveProvider,
@@ -264,7 +290,7 @@ export function useProviderModelActions({
         if (!providerRecord) {
           return;
         }
-        const result = await testProviderModelApi(
+        const result = await modelApi.testModel(
           providerRecord.provider,
           normalizedModelId,
         );
@@ -294,6 +320,7 @@ export function useProviderModelActions({
       }
     },
     [
+      modelApi,
       pendingAction,
       refreshAll,
       saveProvider,
@@ -333,7 +360,7 @@ export function useProviderModelActions({
       }
       try {
         setPendingAction(`model:${model.model_id}`);
-        await updateProviderModelApi(
+        await modelApi.updateModel(
           selectedRecord.provider,
           model.model_id,
           modelUpdatePayload(model, { enabled }),
@@ -353,6 +380,7 @@ export function useProviderModelActions({
       }
     },
     [
+      modelApi,
       pendingAction,
       refreshAll,
       selectedCanManage,
@@ -373,7 +401,7 @@ export function useProviderModelActions({
         modelOptions.provider_options_text,
         t("settings.providers.provider_options_json_object"),
       );
-      await updateProviderModelApi(
+      await modelApi.updateModel(
         selectedRecord.provider,
         modelOptions.model.model_id,
         modelUpdatePayload(modelOptions.model, {
@@ -402,6 +430,7 @@ export function useProviderModelActions({
       setPendingAction(null);
     }
   }, [
+    modelApi,
     modelOptions,
     pendingAction,
     refreshAll,

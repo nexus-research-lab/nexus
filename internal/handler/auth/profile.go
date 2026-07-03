@@ -9,6 +9,7 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
@@ -22,10 +23,11 @@ type authUpdateProfilePayload struct {
 }
 
 type personalProfilePayload struct {
-	User              personalUserPayload `json:"user"`
-	TokenUsage        usagesvc.Summary    `json:"token_usage"`
-	CanChangePassword bool                `json:"can_change_password"`
-	CanUpdateProfile  bool                `json:"can_update_profile"`
+	User              personalUserPayload  `json:"user"`
+	TokenUsage        usagesvc.Summary     `json:"token_usage"`
+	Subscription      *subscriptionPayload `json:"subscription,omitempty"`
+	CanChangePassword bool                 `json:"can_change_password"`
+	CanUpdateProfile  bool                 `json:"can_update_profile"`
 }
 
 type personalUserPayload struct {
@@ -37,8 +39,22 @@ type personalUserPayload struct {
 	AuthMethod  string `json:"auth_method"`
 }
 
+type subscriptionPayload struct {
+	PlanKey           string   `json:"plan_key"`
+	PlanName          string   `json:"plan_name"`
+	MonthlyTokenLimit *int64   `json:"monthly_token_limit"`
+	UsedTokens        int64    `json:"used_tokens"`
+	UsedPercent       *float64 `json:"used_percent"`
+	PeriodStart       string   `json:"period_start"`
+	PeriodEnd         string   `json:"period_end"`
+}
+
 type tokenUsageStore interface {
 	Summary(ctx context.Context, ownerUserID string) (usagesvc.Summary, error)
+}
+
+type subscriptionStore interface {
+	CurrentAccount(ctx context.Context, ownerUserID string) (*subscriptionsvc.Account, error)
 }
 
 // HandlePersonalProfile 返回当前用户的个人设置资料。
@@ -48,11 +64,18 @@ func (h *Handlers) HandlePersonalProfile(writer http.ResponseWriter, request *ht
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	subscription, err := h.buildSubscriptionSummary(request.Context())
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	applySubscriptionQuota(&usage, subscription)
 
 	principal := authsvc.PrincipalFromContext(request.Context())
 	h.api.WriteSuccess(writer, personalProfilePayload{
 		User:              buildPersonalUserPayload(principal),
 		TokenUsage:        usage,
+		Subscription:      subscription,
 		CanChangePassword: principal != nil && principal.AuthMethod == authsvc.AuthMethodPassword,
 		CanUpdateProfile:  canUpdatePersonalProfile(principal),
 	})
@@ -98,9 +121,16 @@ func (h *Handlers) HandleUpdatePersonalProfile(writer http.ResponseWriter, reque
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	subscription, err := h.buildSubscriptionSummary(request.Context())
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	applySubscriptionQuota(&usage, subscription)
 	h.api.WriteSuccess(writer, personalProfilePayload{
 		User:              buildPersonalUserPayload(buildPrincipalFromUser(updatedUser, principal.AuthMethod)),
 		TokenUsage:        usage,
+		Subscription:      subscription,
 		CanChangePassword: principal.AuthMethod == authsvc.AuthMethodPassword,
 		CanUpdateProfile:  canUpdatePersonalProfile(principal),
 	})
@@ -197,4 +227,33 @@ func (h *Handlers) buildTokenUsageSummary(ctx context.Context) (usagesvc.Summary
 	return usagesvc.Summary{
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}, nil
+}
+
+func (h *Handlers) buildSubscriptionSummary(ctx context.Context) (*subscriptionPayload, error) {
+	if h.subscription == nil {
+		return nil, nil
+	}
+	account, err := h.subscription.CurrentAccount(ctx, authsvc.OwnerUserID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, nil
+	}
+	return &subscriptionPayload{
+		PlanKey:           account.PlanKey,
+		PlanName:          account.PlanName,
+		MonthlyTokenLimit: account.MonthlyTokenLimit,
+		UsedTokens:        account.UsedTokens,
+		UsedPercent:       account.UsedPercent,
+		PeriodStart:       account.PeriodStart,
+		PeriodEnd:         account.PeriodEnd,
+	}, nil
+}
+
+func applySubscriptionQuota(usage *usagesvc.Summary, subscription *subscriptionPayload) {
+	if usage == nil || subscription == nil {
+		return
+	}
+	usage.QuotaLimitTokens = subscription.MonthlyTokenLimit
 }

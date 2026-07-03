@@ -97,6 +97,7 @@ export interface ProviderPreset {
 export interface ProviderOption {
   provider: string;
   display_name: string;
+  visibility?: "public" | "private";
   models: ProviderModelOption[];
 }
 
@@ -189,4 +190,15 @@ export function formatProviderLabel(provider?: string | null, displayName?: stri
     .filter(Boolean)
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(" ");
+}
+
+export function formatProviderOptionLabel(
+  option: Pick<ProviderOption, "display_name" | "provider" | "visibility">,
+  subscriptionLabel: string,
+): string {
+  const providerLabel = option.display_name || formatProviderLabel(option.provider);
+  if (option.visibility !== "public") {
+    return providerLabel;
+  }
+  return `${subscriptionLabel} · ${providerLabel}`;
 }

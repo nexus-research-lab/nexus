@@ -43,6 +43,16 @@ export interface TokenUsageSummary {
   updated_at: string;
 }
 
+export interface PersonalSubscriptionSummary {
+  plan_key: string;
+  plan_name: string;
+  monthly_token_limit: number | null;
+  used_tokens: number;
+  used_percent: number | null;
+  period_start: string;
+  period_end: string;
+}
+
 export interface PersonalProfile {
   user: {
     user_id: string;
@@ -53,6 +63,7 @@ export interface PersonalProfile {
     auth_method: string;
   };
   token_usage: TokenUsageSummary;
+  subscription?: PersonalSubscriptionSummary | null;
   can_change_password: boolean;
   can_update_profile: boolean;
 }
