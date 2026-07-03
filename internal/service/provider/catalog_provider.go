@@ -129,8 +129,8 @@ var providerPresets = []Preset{
 			},
 			{
 				APIFormat:  APIFormatChatCompletions,
-				BaseURL:    "https://open.bigmodel.cn/api/paas/v4",
-				ModelsPath: "https://open.bigmodel.cn/api/paas/v4/models",
+				BaseURL:    "https://open.bigmodel.cn/api/coding/paas/v4",
+				ModelsPath: "https://open.bigmodel.cn/api/coding/paas/v4/models",
 			},
 		},
 	},
